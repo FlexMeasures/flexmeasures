@@ -430,32 +430,13 @@ class MetaStorageScheduler(Scheduler):
             # Take the contracted capacity as a hard constraint
             ems_constraints["derivative min"] = ems_production_capacity
 
-        # Flow commitments per device
+        # Commitments per device
 
-        # Add tiny price slope to prefer curtailing later rather than now.
-        # The price slope is half of the slope to prefer charging sooner
-        for d, prefer_curtailing_later_d in enumerate(prefer_curtailing_later):
-            if prefer_curtailing_later_d:
-                tiny_price_slope = (
-                    add_tiny_price_slope(up_deviation_prices, "event_value")
-                    - up_deviation_prices
-                )
-                tiny_price_slope *= 0.5
-                commitment = FlowCommitment(
-                    name=f"prefer curtailing device {d} later",
-                    # Prefer curtailing consumption later by penalizing later consumption
-                    upwards_deviation_price=tiny_price_slope,
-                    # Prefer curtailing production later by penalizing later production
-                    downwards_deviation_price=-tiny_price_slope,
-                    index=index,
-                    device=d,
-                )
-                commitments.append(commitment)
-
-        # Use a tiny price slope to prefer a fuller SoC sooner rather than later
+        # StockCommitment per device to prefer a full storage by penalizing not being full
         # This corresponds to a preference for charging now rather than later, and discharging later rather than now.
-        # We penalise future consumption and reward future production with at most 1 per thousand times the energy price spread.
-        for d, prefer_charging_sooner_d in enumerate(prefer_charging_sooner):
+        for d, (prefer_charging_sooner_d, prefer_curtailing_later_d) in enumerate(
+            zip(prefer_charging_sooner, prefer_curtailing_later)
+        ):
             if prefer_charging_sooner_d:
                 tiny_price_slope = (
                     add_tiny_price_slope(
@@ -463,12 +444,17 @@ class MetaStorageScheduler(Scheduler):
                     )
                     - up_deviation_prices
                 )
+                if prefer_curtailing_later:
+                    # Use a tiny price slope to prefer a fuller SoC sooner rather than later, by lowering penalties later
+                    penalty = tiny_price_slope
+                else:
+                    # Constant penalty
+                    penalty = tiny_price_slope[0]
                 commitment = StockCommitment(
                     name=f"prefer a full storage {d} sooner",
                     quantity=soc_max[d] - soc_at_start[d],
                     upwards_deviation_price=0,
-                    # Penalize not being full, with lower penalties later
-                    downwards_deviation_price=-tiny_price_slope,
+                    downwards_deviation_price=-penalty,
                     index=index,
                     device=d,
                 )
