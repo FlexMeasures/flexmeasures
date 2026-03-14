@@ -1788,7 +1788,7 @@ def test_battery_stock_delta_sensor(
         - Battery of size 2 MWh.
         - Consumption capacity of the battery is 2 MW.
         - The battery cannot discharge.
-    With these settings, the battery needs to charge at a power or greater than the usage forecast
+    With these settings, the battery needs to charge at a power equal or greater than the usage forecast
     to keep the SOC within bounds ([0, 2 MWh]).
     """
     _, battery = get_sensors_from_db(db, add_battery_assets)
