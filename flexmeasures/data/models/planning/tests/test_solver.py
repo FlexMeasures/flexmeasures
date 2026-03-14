@@ -1791,7 +1791,7 @@ def test_battery_stock_delta_sensor(
     With these settings, the battery needs to charge at a power equal or greater than the usage forecast
     to keep the SOC within bounds ([0, 2 MWh]).
     """
-    _, battery = get_sensors_from_db(db, add_battery_assets)
+    epex_da, battery = get_sensors_from_db(db, add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -1836,9 +1836,21 @@ def test_battery_stock_delta_sensor(
         with pytest.raises(InfeasibleProblemException):
             scheduler.compute()
     elif stock_delta_sensor is None:
-        # No usage -> the battery does not charge
+        # No usage -> the battery only charges when energy is free
+        free_hour = "2015-01-01 17:00:00+00:00"
+        prices = epex_da.search_beliefs(start, end)
+        zero_prices = prices[prices.event_value == 0]
+        assert len(zero_prices) == 1, "this test assumes a single hour of free energy"
+        assert (
+            len(zero_prices[zero_prices.event_starts == free_hour]) == 1
+        ), "this test assumes free energy from 5 to 6 PM UTC"
         schedule = scheduler.compute()
-        assert all(schedule == 0)
+        assert all(
+            schedule[schedule.index != free_hour] == 0
+        ), "no charging expected when energy is not free, given no soc-usage"
+        assert all(
+            schedule[schedule.index == free_hour] == capacity
+        ), "max charging expected when energy is free, because of preference to have a full SoC"
     else:
         # Some usage -> the battery needs to charge
         schedule = scheduler.compute()
