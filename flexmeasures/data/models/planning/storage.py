@@ -469,7 +469,6 @@ class MetaStorageScheduler(Scheduler):
                     upwards_deviation_price=0,
                     # Penalize not being full, with lower penalties later
                     downwards_deviation_price=-tiny_price_slope,
-                    # downwards_deviation_price=-tiny_price_slope / 1000000,#0.00000001,
                     index=index,
                     device=d,
                 )
