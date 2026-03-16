@@ -13,7 +13,7 @@ New features
 * Support saving state-of-charge schedules to sensors with ``"%"`` unit, using the ``soc-max`` flex-model field as the capacity for unit conversion [see `PR #1996 <https://www.github.com/FlexMeasures/flexmeasures/pull/1996>`_]
 
 Infrastructure / Support
-----------------------
+------------------------
 * Migrate from ``pip`` to ``uv`` for dependency management [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
 * Migrate from ``make`` to ``poe`` for running tasks [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
 * Make the test environment used by agents and by the test workflow identical [see `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_]
@@ -26,6 +26,10 @@ v0.31.2 | March XX, 2026
 Bugfixes
 -----------
 * Fix an issue where asset context was accessed in schemas that do not define a ``context`` attribute [see `PR #2014 <https://www.github.com/FlexMeasures/flexmeasures/pull/2014>`_]
+
+Infrastructure / Support
+------------------------
+* Re-add bcrypt dependency  [see `PR #2029 <https://github.com/FlexMeasures/flexmeasures/pull/2029>`_]
 
 
 v0.31.1 | March 6, 2026
