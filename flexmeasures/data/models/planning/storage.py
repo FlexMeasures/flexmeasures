@@ -1036,6 +1036,10 @@ class MetaStorageScheduler(Scheduler):
                 self.flex_model
             )
             for d, sensor_flex_model in enumerate(self.flex_model):
+                sensor_flex_model["sensor_flex_model"] = self.ensure_soc_at_start(
+                    flex_model=sensor_flex_model["sensor_flex_model"],
+                    sensor=sensor_flex_model.get("sensor"),
+                )
                 self.flex_model[d] = StorageFlexModelSchema(
                     start=self.start,
                     sensor=sensor_flex_model.get("sensor"),
@@ -1065,6 +1069,135 @@ class MetaStorageScheduler(Scheduler):
             and self.flex_model["soc-at-start"] is not None
         )
 
+    @staticmethod
+    def has_soc_at_start_in(flex_model: dict) -> bool:
+        return (
+            "soc-at-start" in flex_model
+            and flex_model["soc-at-start"] is not None
+        )
+
+    def _get_soc_lookup_window(self, sensor: Sensor | None = None) -> timedelta:
+        resolution = self.resolution
+        if resolution is None and sensor is not None:
+            resolution = sensor.event_resolution
+        if resolution is None:
+            resolution = self.default_resolution
+        return 4 * resolution
+
+    def _get_soc_capacity_for_percent_conversion(self, flex_model: dict) -> str:
+        soc_max = flex_model.get("soc-max")
+        if soc_max is None:
+            raise ValueError(
+                "Cannot derive state of charge from a '%' state-of-charge source without `soc-max`."
+            )
+        if isinstance(soc_max, Sensor):
+            raise ValueError(
+                "Cannot derive state of charge from a '%' state-of-charge source when `soc-max` is a sensor reference."
+            )
+        return str(ur.Quantity(soc_max).to("MWh"))
+
+    def _convert_soc_value_to_mwh(
+        self, value: float, from_unit: str, flex_model: dict
+    ) -> float:
+        capacity = (
+            self._get_soc_capacity_for_percent_conversion(flex_model)
+            if from_unit == "%"
+            else None
+        )
+        return convert_units(
+            data=value,
+            from_unit=from_unit,
+            to_unit="MWh",
+            capacity=capacity,
+        )
+
+    def _resolve_soc_at_start_from_sensor(
+        self,
+        state_of_charge_sensor: Sensor,
+        flex_model: dict,
+        sensor: Sensor | None = None,
+    ) -> float:
+        lookup_window = self._get_soc_lookup_window(sensor)
+        beliefs = state_of_charge_sensor.search_beliefs(
+            event_starts_after=self.start - lookup_window,
+            event_ends_before=self.start + lookup_window,
+            one_deterministic_belief_per_event=True,
+        )
+        if beliefs.empty:
+            raise ValueError(
+                f"No recent state-of-charge value found for sensor {state_of_charge_sensor.id} "
+                f"within {lookup_window} of schedule start {self.start.isoformat()}."
+            )
+
+        beliefs_df = beliefs.reset_index()
+        beliefs_df["time_distance"] = (
+            beliefs_df["event_start"] - pd.Timestamp(self.start)
+        ).abs()
+        nearest_belief = beliefs_df.sort_values(
+            by=["time_distance", "event_start"], ascending=[True, False]
+        ).iloc[0]
+
+        return self._convert_soc_value_to_mwh(
+            value=nearest_belief["event_value"],
+            from_unit=state_of_charge_sensor.unit,
+            flex_model=flex_model,
+        )
+
+    def _resolve_soc_at_start_from_time_series(
+        self, soc_time_series: list[dict], sensor: Sensor | None = None
+    ) -> float:
+        lookup_window = self._get_soc_lookup_window(sensor)
+        matching_segments = [
+            segment
+            for segment in soc_time_series
+            if segment["start"] <= self.start <= segment["end"]
+        ]
+        if matching_segments:
+            return (
+                matching_segments[0]["value"] / ur.Quantity("MWh")
+            ).magnitude
+
+        candidate_segments = []
+        for segment in soc_time_series:
+            start_distance = abs(segment["start"] - self.start)
+            end_distance = abs(segment["end"] - self.start)
+            distance = min(start_distance, end_distance)
+            if distance <= lookup_window:
+                candidate_segments.append((distance, segment))
+
+        if not candidate_segments:
+            raise ValueError(
+                f"No recent state-of-charge value found in the provided `state-of-charge` time series "
+                f"within {lookup_window} of schedule start {self.start.isoformat()}."
+            )
+
+        _, nearest_segment = min(candidate_segments, key=lambda item: item[0])
+        return (nearest_segment["value"] / ur.Quantity("MWh")).magnitude
+
+    def _resolve_soc_at_start_from_state_of_charge_source(
+        self, flex_model: dict, sensor: Sensor | None = None
+    ) -> float | None:
+        state_of_charge_source = flex_model.get("state-of-charge")
+        if isinstance(state_of_charge_source, Sensor):
+            return self._resolve_soc_at_start_from_sensor(
+                state_of_charge_source, flex_model, sensor
+            )
+        if isinstance(state_of_charge_source, list):
+            return self._resolve_soc_at_start_from_time_series(
+                state_of_charge_source, sensor
+            )
+        if (
+            isinstance(state_of_charge_source, dict)
+            and "sensor" in state_of_charge_source
+        ):
+            state_of_charge_sensor = Sensor.query.filter_by(
+                id=state_of_charge_source["sensor"]
+            ).one()
+            return self._resolve_soc_at_start_from_sensor(
+                state_of_charge_sensor, flex_model, sensor
+            )
+        return None
+
     def possibly_extend_end(self, soc_targets, sensor: Sensor = None):
         """Extend schedule period in case a target exceeds its end.
 
@@ -1086,27 +1219,45 @@ class MetaStorageScheduler(Scheduler):
                 else:
                     self.end = max_target_datetime
 
-    def ensure_soc_at_start(self):
+    def ensure_soc_at_start(
+        self, flex_model: dict | None = None, sensor: Sensor | None = None
+    ) -> dict:
         """
         Ensure we have a starting state of charge - if needed.
         Preferably, a starting soc is given.
-        Otherwise, we try to retrieve the current state of charge from the (old-style) attribute (if that is the valid one at the start).
-        If that doesn't work, we default the starting soc to be 0 (only if there are soc limits, though, as some assets don't use the concept of a state of charge,
-        and without soc targets and limits the starting soc doesn't matter).
+        Otherwise, we try to retrieve the current state of charge from a configured state-of-charge source.
+        If that doesn't work, we try the (old-style) asset attribute.
+        Finally, we default the starting soc to 0 (only if there are soc limits, though, as some assets don't use
+        the concept of a state of charge, and without soc targets and limits the starting soc doesn't matter).
         """
-        if not self.has_soc_at_start() and self.sensor is not None:
+        if flex_model is None:
+            flex_model = self.flex_model
+        if sensor is None:
+            sensor = self.sensor
+
+        if (
+            not self.has_soc_at_start_in(flex_model)
+            and "state-of-charge" in flex_model
+        ):
+            flex_model["soc-at-start"] = (
+                self._resolve_soc_at_start_from_state_of_charge_source(
+                    flex_model, sensor
+                )
+            )
+
+        if not self.has_soc_at_start_in(flex_model) and sensor is not None:
             # TODO: remove this check when moving to v1.0 (requiring to also remove attributes from test data assets)
             if (
-                self.start == self.sensor.get_attribute("soc_datetime")
-                and self.sensor.get_attribute("soc_in_mwh") is not None
+                self.start == sensor.get_attribute("soc_datetime")
+                and sensor.get_attribute("soc_in_mwh") is not None
             ):
-                self.flex_model["soc-at-start"] = self.sensor.get_attribute(
-                    "soc_in_mwh"
-                )
-        if not self.has_soc_at_start() and (
-            "soc-min" in self.flex_model or "soc-max" in self.flex_model
+                flex_model["soc-at-start"] = sensor.get_attribute("soc_in_mwh")
+        if not self.has_soc_at_start_in(flex_model) and (
+            "soc-min" in flex_model or "soc-max" in flex_model
         ):
-            self.flex_model["soc-at-start"] = 0
+            flex_model["soc-at-start"] = 0
+
+        return flex_model
 
     def get_min_max_targets(self) -> tuple[float | None, float | None]:
         """This happens before deserializing the flex-model."""

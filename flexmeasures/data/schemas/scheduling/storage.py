@@ -295,17 +295,16 @@ class StorageFlexModelSchema(Schema):
             )
 
     @validates("state_of_charge")
-    def validate_state_of_charge_is_sensor(
+    def validate_state_of_charge_source(
         self, state_of_charge: Sensor | list[dict] | ur.Quantity, **kwargs
     ):
-        if not isinstance(state_of_charge, Sensor):
-            raise ValidationError(
-                "The `state-of-charge` field can only be a Sensor. In the future, the state-of-charge field will replace soc-at-start field."
-            )
-
-        if state_of_charge.event_resolution != timedelta(0):
+        if isinstance(state_of_charge, Sensor) and state_of_charge.event_resolution != timedelta(0):
             raise ValidationError(
                 "The field `state-of-charge` points to a sensor with a non-instantaneous event resolution. Please, use an instantaneous sensor."
+            )
+        if not isinstance(state_of_charge, (Sensor, list)):
+            raise ValidationError(
+                "The `state-of-charge` field can only be a Sensor or a time series."
             )
 
     @validates("asset")
