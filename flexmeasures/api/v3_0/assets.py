@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from typing import Any
 import json
 from datetime import datetime, timedelta
 from http import HTTPStatus
@@ -201,6 +203,17 @@ class CopyAssetSchema(Schema):
         elif parent_given and not account_given:
             data["account"] = data["parent_asset"].owner
 
+        # Resolve effective targets for permission checks and fallback behavior.
+        # If neither target is given, use the source asset's account/parent.
+        source_asset: GenericAsset | None = self.context.get("asset")
+        if source_asset is not None:
+            if data.get("account") is None:
+                data["resolved_account"] = source_asset.owner
+                data["resolved_parent"] = source_asset.parent_asset
+            else:
+                data["resolved_account"] = data["account"]
+                data["resolved_parent"] = data.get("parent_asset")
+
         return data
 
 
@@ -346,13 +359,14 @@ class AssetAPI(FlaskView):
             check_access(account, "read")
             account_ids = [account.id]
         else:
-            use_all_accounts = all_accessible or root_asset
-            include_public = all_accessible or include_public or root_asset
-            account_ids = (
-                [a.id for a in get_accessible_accounts()]
-                if use_all_accounts
-                else [current_user.account.id]
+            use_all_accounts = all_accessible or (root_asset is not None)
+            include_public = (
+                all_accessible or include_public or (root_asset is not None)
             )
+            if use_all_accounts:
+                account_ids = [a.id for a in get_accessible_accounts()]
+            else:
+                account_ids = [current_user.account.id]
         filter_statement = GenericAsset.account_id.in_(account_ids)
         if include_public:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
@@ -486,6 +500,9 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        if asset is None:
+            return unprocessable_entity("No asset found for the given id.")
+
         query_statement = Sensor.generic_asset_id == asset.id
 
         query = select(Sensor).filter(query_statement)
@@ -1590,24 +1607,30 @@ class AssetAPI(FlaskView):
 
     @route("/<id>/copy", methods=["POST"])
     @use_kwargs(
-        {"asset": AssetIdField(data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND)},
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
         location="path",
     )
-    @use_kwargs(CopyAssetSchema, location="query")
     @as_json
-    def copy_assets(self, id, asset: GenericAsset, account=None, parent_asset=None):
+    def copy_assets(self, id, asset: GenericAsset):
         """
         .. :quickref: Assets; Copy an asset to a target account and/or parent.
         """
-        # Resolve the target account and parent for permission checking.
-        # When neither is given (account is None), the copy is placed in the
-        # same account and under the same parent as the original.
-        if account is None:
-            resolved_account = asset.owner
-            resolved_parent = asset.parent_asset
-        else:
-            resolved_account = account
-            resolved_parent = parent_asset
+        copy_asset_schema: Any = CopyAssetSchema()
+        copy_asset_schema.context["asset"] = asset
+
+        try:
+            copy_data = copy_asset_schema.load(request.args)
+        except ValidationError as e:
+            return unprocessable_entity(str(e.messages))
+
+        account = copy_data.get("account")
+        parent_asset = copy_data.get("parent_asset")
+        resolved_account = copy_data["resolved_account"]
+        resolved_parent = copy_data["resolved_parent"]
 
         # Check create-children permission on the target account.
         check_access(resolved_account, "create-children")
