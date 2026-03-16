@@ -1,10 +1,10 @@
 name: lint-and-test
-
 on:
   push:
   pull_request:
     types:
       - opened
+      - synchronize
 jobs:
   check:
     runs-on: ubuntu-latest
