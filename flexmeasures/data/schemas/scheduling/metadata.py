@@ -186,7 +186,7 @@ The field may define (a sensor recording) contractual penalties, or a theoretica
 
 
 STATE_OF_CHARGE = MetaData(
-    description="Sensor used to record the scheduled state of charge. The sensor unit may be an energy unit (e.g. MWh or kWh) or a percentage (%). For sensors with a % unit, the ``soc-max`` flex-model field must be set to a non-zero value to allow converting the energy-based schedule to a percentage.",
+    description="Sensor or time series used for the storage state of charge. If ``soc-at-start`` is omitted, FlexMeasures will also use this field to infer the starting state of charge from a recent value near the schedule start. When a sensor is used, its unit may be an energy unit (e.g. MWh or kWh) or a percentage (%). For sensors with a % unit, the ``soc-max`` flex-model field must be set to a non-zero value to allow converting between the energy-based schedule and a percentage.",
     example={"sensor": 12},
 )
 SOC_AT_START = MetaData(
