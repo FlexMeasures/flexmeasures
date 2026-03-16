@@ -32,7 +32,7 @@ runs:
         python-version: ${{ inputs.python-version }}
         version: "0.10.9"
 
-    - name: Get history and tags for SCM versioning to work
+    - name: Get history and tags for hatch-vcs versioning to work
       shell: bash
       run: |
         git fetch --prune --unshallow || true
