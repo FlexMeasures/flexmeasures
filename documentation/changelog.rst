@@ -15,6 +15,7 @@ New features
 Infrastructure / Support
 ----------------------
 * Make the test environment used by agents and by the test workflow identical [see `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_]
+* Improve contact information to get in touch with the FlexMeasures community [see `PR #2022 <https://www.github.com/FlexMeasures/flexmeasures/pull/2022>`_]
 
 
 v0.31.2 | March XX, 2026
