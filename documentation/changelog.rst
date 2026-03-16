@@ -68,7 +68,6 @@ New features
 * Improved the UX for creating sensors, clicking on ``Enter`` now validates and creates a sensor [see `PR #1876 <https://www.github.com/FlexMeasures/flexmeasures/pull/1876>`_]
 * Show zero values in bar charts even though they have 0 area [see `PR #1932 <https://www.github.com/FlexMeasures/flexmeasures/pull/1932>`_ and `PR #1936 <https://www.github.com/FlexMeasures/flexmeasures/pull/1936>`_]
 * Added ``root`` and ``depth`` fields to the `[GET] /assets` endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth [see `PR #1874 <https://www.github.com/FlexMeasures/flexmeasures/pull/1874>`_]
-* Give ability to edit sensor timezone from the UI [see `PR #1900 <https://www.github.com/FlexMeasures/flexmeasures/pull/1900>`_]
 * Support creating schedules with only information known prior to some time, now also via the CLI (the API already supported it) [see `PR #1871 <https://www.github.com/FlexMeasures/flexmeasures/pull/1871>`_].
 * Added capability to update an asset's parent from the UI [`PR #1957 <https://www.github.com/FlexMeasures/flexmeasures/pull/1957>`_]
 * Add ``fields`` param to the asset-listing endpoints, to save bandwidth in response data [see `PR #1884 <https://www.github.com/FlexMeasures/flexmeasures/pull/1884>`_]
