@@ -45,6 +45,7 @@ dependencies = [
     "psycopg2-binary>=2.9.11",
     # hashing backend for passlib
     "argon2-cffi>=25.1.0",
+    "bcrypt==4.3.0",  # https://github.com/SeitaBV/flexmeasures-cloudinfra/issues/283
     "pytz>=2025.2",
     "isodate>=0.7.2",
     # see https://github.com/FlexMeasures/flexmeasures/issues/1485
