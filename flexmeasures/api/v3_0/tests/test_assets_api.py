@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import select, func
 
 from flexmeasures.data.models.audit_log import AssetAuditLog
-from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.api.tests.utils import get_auth_token, UserContext, AccountContext
@@ -692,7 +692,7 @@ def test_consultant_get_asset(
 
 def test_copy_asset(setup_api_test_data, setup_accounts, db):
     """
-    Test all four placement use cases for copy_asset:
+    Test all four placement use cases for copy_asset and verify direct sensors are copied.
 
     1. Neither account nor parent given  → same account, same parent (sibling copy).
     2. Only account given                → top-level asset in the given account.
@@ -717,6 +717,16 @@ def test_copy_asset(setup_api_test_data, setup_accounts, db):
     assert battery is not None, "Battery asset must exist in Prosumer account"
     assert turbine is not None, "Wind turbine asset must exist in Supplier account"
 
+    # Add a deterministic sensor on battery so we can verify deep copy behavior.
+    source_sensor = Sensor(
+        name="copy-source-sensor",
+        generic_asset=battery,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+    )
+    db.session.add(source_sensor)
+    db.session.flush()
+
     # Create a parent asset in the Supplier account for use cases 3 and 4.
     parent = GenericAsset(
         name="Test parent for copy",
@@ -731,6 +741,16 @@ def test_copy_asset(setup_api_test_data, setup_accounts, db):
     assert copy1.name == f"{battery.name} (Copy)"
     assert copy1.account_id == battery.account_id
     assert copy1.parent_asset_id == battery.parent_asset_id  # None
+
+    copied_sensor = db.session.scalars(
+        select(Sensor).filter(
+            Sensor.generic_asset_id == copy1.id,
+            Sensor.name == source_sensor.name,
+        )
+    ).first()
+    assert copied_sensor is not None
+    assert copied_sensor.unit == source_sensor.unit
+    assert copied_sensor.event_resolution == source_sensor.event_resolution
 
     # 2. Only account given → top-level in target account
     # Use the turbine so the name doesn't clash with copy1 (parent_asset_id is None for both).
@@ -777,8 +797,8 @@ def test_copy_asset_fails_on_duplicate_name_under_same_parent(
     # Create a dedicated parent so this test is independent of others.
     parent = GenericAsset(
         name="Test parent for duplicate-name failure",
-        generic_asset_type=battery.generic_asset_type,
-        owner=prosumer_account,
+        generic_asset_type_id=battery.generic_asset_type_id,
+        account_id=prosumer_account.id,
     )
     db.session.add(parent)
     db.session.flush()
@@ -817,7 +837,8 @@ def test_copy_asset_to_another_account_preserves_config(
     1. The copy lands in the Supplier account with the expected name.
     2. The copy is a top-level asset (no parent).
     3. flex_context is preserved verbatim (sensor IDs are unchanged).
-    4. copy_asset is a *shallow* copy: the original child assets are not duplicated.
+    4. copy_asset performs a deep subtree copy: child assets are duplicated.
+    5. Sensors on copied child assets are duplicated.
     """
     prosumer_account = setup_accounts["Prosumer"]
     supplier_account = setup_accounts["Supplier"]
@@ -890,8 +911,27 @@ def test_copy_asset_to_another_account_preserves_config(
     # 3. flex_context is preserved verbatim.
     assert house_copy.flex_context == original_flex_context
 
-    # 4. Shallow copy: the original children have *not* been duplicated.
+    # 4. Direct sensors on the copied asset are duplicated.
+    copied_house_sensors = db.session.scalars(
+        select(Sensor).filter(Sensor.generic_asset_id == house_copy.id)
+    ).all()
+    assert len(copied_house_sensors) == 1
+    assert copied_house_sensors[0].name == site_capacity_sensor.name
+    assert copied_house_sensors[0].unit == site_capacity_sensor.unit
+    assert (
+        copied_house_sensors[0].event_resolution
+        == site_capacity_sensor.event_resolution
+    )
+
+    # 5. Deep copy for hierarchy: original child assets are duplicated.
     children_of_copy = db.session.scalars(
         select(GenericAsset).filter_by(parent_asset_id=house_copy.id)
     ).all()
-    assert len(children_of_copy) == 0, "copy_asset should not recursively copy children"
+    assert len(children_of_copy) == 2
+
+    # 6. Sensors on copied child assets are also duplicated.
+    copied_child_ids = [child.id for child in children_of_copy]
+    copied_child_sensors = db.session.scalars(
+        select(Sensor).filter(Sensor.generic_asset_id.in_(copied_child_ids))
+    ).all()
+    assert len(copied_child_sensors) == 4

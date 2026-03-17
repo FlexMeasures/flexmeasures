@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
 from typing import Sequence
@@ -16,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.auth.policy import check_access
 from flexmeasures.api.common.responses import (
@@ -210,13 +212,81 @@ def convert_asset_json_fields(asset_kwargs):
     return asset_kwargs
 
 
+def _copy_direct_sensors(
+    source_asset: GenericAsset, copied_asset: GenericAsset
+) -> None:
+    """Copy sensors directly attached to one asset."""
+    source_sensors = db.session.scalars(
+        select(Sensor).filter(Sensor.generic_asset_id == source_asset.id)
+    ).all()
+    for source_sensor in source_sensors:
+        sensor_kwargs = {}
+        for column in source_sensor.__table__.columns:
+            if column.name in [
+                "id",
+                "generic_asset_id",
+                "knowledge_horizon_fnc",
+                "knowledge_horizon_par",
+            ]:
+                continue
+            sensor_kwargs[column.name] = deepcopy(getattr(source_sensor, column.name))
+
+        sensor_kwargs["generic_asset_id"] = copied_asset.id
+
+        db.session.add(Sensor(**sensor_kwargs))
+
+
+def _copy_asset_subtree(
+    source_asset: GenericAsset,
+    destination_account_id: int,
+    destination_parent_asset_id: int | None,
+    asset_schema: AssetSchema,
+) -> GenericAsset:
+    """Recursively copy one asset and all descendants."""
+    asset_kwargs = asset_schema.dump(source_asset)
+
+    for key in ["id", "owner", "generic_asset_type", "child_assets", "sensors"]:
+        asset_kwargs.pop(key, None)
+
+    asset_kwargs["name"] = f"{asset_kwargs['name']} (Copy)"
+    asset_kwargs["account_id"] = destination_account_id
+    asset_kwargs["parent_asset_id"] = destination_parent_asset_id
+    asset_kwargs = convert_asset_json_fields(asset_kwargs)
+
+    copied_asset = GenericAsset(**asset_kwargs)
+    db.session.add(copied_asset)
+    db.session.flush()
+
+    _copy_direct_sensors(source_asset, copied_asset)
+
+    source_children = db.session.scalars(
+        select(GenericAsset)
+        .filter(GenericAsset.parent_asset_id == source_asset.id)
+        .order_by(GenericAsset.id)
+    ).all()
+    for source_child in source_children:
+        _copy_asset_subtree(
+            source_asset=source_child,
+            destination_account_id=destination_account_id,
+            destination_parent_asset_id=copied_asset.id,
+            asset_schema=asset_schema,
+        )
+
+    return copied_asset
+
+
 def copy_asset(
     asset: GenericAsset,
     account=None,
     parent_asset=None,
 ) -> GenericAsset:
     """
-    Copy a single asset to a target account and/or under a target parent asset.
+    Copy an asset subtree to a target account and/or under a target parent asset.
+
+    The copied subtree includes:
+    - the selected asset
+    - all descendant child assets (recursively)
+    - all sensors directly attached to each copied asset
 
     Resolution rules:
 
@@ -232,39 +302,28 @@ def copy_asset(
     """
     try:
         asset_schema = AssetSchema()
-        asset_kwargs = asset_schema.dump(asset)
 
-        # Remove dump_only and read-only fields
-        for key in ["id", "owner", "generic_asset_type", "child_assets", "sensors"]:
-            asset_kwargs.pop(key, None)
-
-        # Avoid name collision
-        asset_kwargs["name"] = f"{asset_kwargs['name']} (Copy)"
-
-        # Resolve target account and parent
         if account is None and parent_asset is None:
-            # Neither given: preserve the original asset's placement
-            asset_kwargs["account_id"] = asset.account_id
-            asset_kwargs["parent_asset_id"] = asset.parent_asset_id
+            target_account_id = int(asset.account_id)
+            target_parent_asset_id = asset.parent_asset_id
         elif account is not None and parent_asset is None:
-            # Only account given: top-level asset in the target account
-            asset_kwargs["account_id"] = account.id
-            asset_kwargs["parent_asset_id"] = None
+            target_account_id = int(account.id)
+            target_parent_asset_id = None
         elif account is None and parent_asset is not None:
-            # Only parent given: inherit the parent's account
-            asset_kwargs["account_id"] = parent_asset.account_id
-            asset_kwargs["parent_asset_id"] = parent_asset.id
+            target_account_id = int(parent_asset.account_id)
+            target_parent_asset_id = int(parent_asset.id)
         else:
-            # Both given: explicit placement, possibly cross-account
-            asset_kwargs["account_id"] = account.id
-            asset_kwargs["parent_asset_id"] = parent_asset.id
+            target_account_id = int(account.id)
+            target_parent_asset_id = int(parent_asset.id)
 
-        asset_kwargs = convert_asset_json_fields(asset_kwargs)
-
-        new_asset = GenericAsset(**asset_kwargs)
-        db.session.add(new_asset)
+        copied_root = _copy_asset_subtree(
+            source_asset=asset,
+            destination_account_id=target_account_id,
+            destination_parent_asset_id=target_parent_asset_id,
+            asset_schema=asset_schema,
+        )
         db.session.commit()
-        return new_asset
+        return copied_root
     except Exception as e:
         db.session.rollback()
         raise e
