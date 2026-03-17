@@ -13,16 +13,15 @@ New features
 * Show sensor attributes on sensor page, if not empty [see `PR #2015 <https://www.github.com/FlexMeasures/flexmeasures/pull/2015>`_]
 * Support saving state-of-charge schedules to sensors with ``"%"`` unit, using the ``soc-max`` flex-model field as the capacity for unit conversion [see `PR #1996 <https://www.github.com/FlexMeasures/flexmeasures/pull/1996>`_]
 
-Bugfixes
------------
-* Stop failure in the API endpoint that lists available endpoints (/api/v3_0/) [see `PR #2032 <https://github.com/FlexMeasures/flexmeasures/pull/2032>`_]
-
 Infrastructure / Support
 ----------------------
 * Migrate from ``pip`` to ``uv`` for dependency management [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
 * Migrate from ``make`` to ``poe`` for running tasks [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
 * Make the test environment used by agents and by the test workflow identical [see `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_]
 * Improve contact information to get in touch with the FlexMeasures community [see `PR #2022 <https://www.github.com/FlexMeasures/flexmeasures/pull/2022>`_]
+
+Bugfixes
+-----------
 
 
 v0.31.2 | March 17, 2026
@@ -32,6 +31,7 @@ Bugfixes
 -----------
 * Fix an issue where asset context was accessed in schemas that do not define a ``context`` attribute [see `PR #2014 <https://www.github.com/FlexMeasures/flexmeasures/pull/2014>`_]
 * Fix wrap-up forecasting job [see `PR #2011 <https://www.github.com/FlexMeasures/flexmeasures/pull/2011>`_]
+* Stop failure in the API endpoint that lists available endpoints (/api/v3_0/) [see `PR #2032 <https://github.com/FlexMeasures/flexmeasures/pull/2032>`_]
 
 
 v0.31.1 | March 6, 2026
