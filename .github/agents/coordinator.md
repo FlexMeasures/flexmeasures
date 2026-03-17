@@ -391,8 +391,8 @@ Required verification:
 **Agents must make successful use of working FlexMeasures dev environment.**
 Key capabilities:
 
-- Set up environment: `make install-for-dev` or `make install-for-test`
-- Run tests: `pytest` or `make test`
+- Set up environment: `uv sync --group dev --group test`
+- Run tests: `uv run poe test`
 - Test CLI: `flexmeasures <command> <args>`
 - Run pre-commit: `pre-commit run --all-files`
 - Build docs: `make update-docs`

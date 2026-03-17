@@ -50,8 +50,45 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 - [ ] **Hook versions**: Hooks use recent, stable versions
 - [ ] **Hook coverage**: Appropriate hooks for code quality
 - [ ] **Performance**: Hooks run in reasonable time
-- [ ] **Configuration**: Hooks configured via `setup.cfg` or `pyproject.toml`
+- [ ] **Configuration**: Hooks configured via `pyproject.toml`
 - [ ] **Local vs CI**: Some hooks can skip in CI
+
+#### generate-openapi-specs Hook: Known Regressions
+
+**Critical**: The `generate-openapi-specs` hook regenerates `flexmeasures/ui/static/openapi-specs.json`
+and is **skipped in CI** (local-only hook). When run in an agent dev environment (e.g. `pip install -e .`
+with setuptools_scm), it can introduce **unintended regressions** alongside any intentional schema changes.
+
+**Known regression types** (discovered in PR #1996):
+
+1. **Version regression**: `setuptools_scm` may produce a dev version string (e.g. `"0.1.dev4"`)
+   instead of the tagged release version (e.g. `"0.31.0"`). This happens when the agent's git
+   checkout does not have full tag history, so the version is inferred from commit distance.
+
+2. **Timezone list changes**: The generated timezone enum may drop valid entries (e.g. `"Asia/Brunei"`),
+   depending on which `pytz` or `zoneinfo` version is installed in the agent's environment.
+
+**Checklist when reviewing an openapi-specs.json diff**:
+
+- [ ] **Version field unchanged**: `"version"` remains the tagged release string, not a dev string
+- [ ] **No timezone entries removed**: Check that the timezone enum list did not lose entries
+- [ ] **Only intentional changes**: Only changes explicitly motivated by the PR should appear
+- [ ] **Revert unintended changes**: If version or timezone regressions are present, revert them manually
+
+**Recommended workflow** when the hook must be run to pick up intentional schema changes:
+
+```bash
+# Run the hook to get the intentional changes
+pre-commit run generate-openapi-specs --all-files
+
+# Inspect the full diff
+git diff flexmeasures/ui/static/openapi-specs.json
+
+# If version or timezone regressions are present, revert just those lines
+# Use git checkout or manual editing to restore the correct values
+git diff flexmeasures/ui/static/openapi-specs.json | grep '"version"'
+git diff flexmeasures/ui/static/openapi-specs.json | grep -c '"Asia/'
+```
 
 ### Caching Strategy
 
@@ -62,7 +99,7 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 
 ### Linter Configuration
 
-- [ ] **Flake8**: Configured in `setup.cfg` with appropriate rules
+- [ ] **Flake8**: Configured in `.flake8` with appropriate rules
 - [ ] **Black**: Line length and style consistent
 - [ ] **Mypy**: Type checking configuration appropriate
 - [ ] **Consistency**: Settings match across local and CI
@@ -87,9 +124,8 @@ This file defines standardized environment setup for GitHub Copilot agents. When
   - Other system tools
   
 - [ ] **Python environment**: 
-  - Is Python version appropriate? (Default: 3.11)
-  - Are dependencies installed correctly? (`pip-sync`, `pip install -e .`)
-  - Is pip-tools version pinned?
+  - Is Python version appropriate according to `.python-version`?
+  - Are dependencies installed correctly? (`uv sync`)
   
 - [ ] **Database setup**:
   - Is PostgreSQL service started?
@@ -146,22 +182,29 @@ This file defines standardized environment setup for GitHub Copilot agents. When
 1. **flake8** (v7.1.1) - Python linting
 2. **black** (v24.8.0) - Code formatting
 3. **mypy** (local script) - Type checking via `ci/run_mypy.sh`
-4. **generate-openapi-specs** (local, skipped in CI)
+4. **generate-openapi-specs** (local, skipped in CI) — **see "generate-openapi-specs Hook: Known Regressions" in checklist above**
 
 Setup:
 ```bash
-pip install pre-commit
+uv tool install pre-commit
 pre-commit run --all-files
 ```
 
 ### Flake8 Configuration
 
-`setup.cfg`:
+`.flake8`:
 ```ini
 [flake8]
+exclude = .git,__pycache__,documentation
 max-line-length = 160
 max-complexity = 13
+select = B,C,E,F,W,B9
 ignore = E501, W503, E203
+per-file-ignores =
+    flexmeasures/__init__.py:F401
+    flexmeasures/data/schemas/__init__.py:F401
+    flexmeasures/ui/crud/assets/__init__.py:F401
+
 ```
 
 Ignored rules:
@@ -179,13 +222,13 @@ Ignored rules:
 
 **Test execution**:
 ```bash
-make install-for-test  # Install dependencies
-make test              # Run pytest
+uv sync --group test  # Install dependencies
+uv run poe test              # Run pytest
 ```
 
 ### Caching Strategy
 
-Pip cache configuration:
+Uv cache configuration:
 ```yaml
 uses: actions/cache@v4
 with:
@@ -222,10 +265,9 @@ pytest -k test_auth_token  # Ensure auth setup runs
 
 - Workflows: `.github/workflows/`
 - Pre-commit: `.pre-commit-config.yaml`
-- Linter config: `setup.cfg`
-- Mypy runner: `ci/run_mypy.sh`
+- Linter config: `.flake8`
+- Task runner: `pyproject.toml` (poethepoet tasks)
 - PostgreSQL setup: `ci/setup-postgres.sh`
-- Makefile: `Makefile`
 - Docker: `Dockerfile`, `docker-compose.yml`
 
 ## Interaction Rules
@@ -312,15 +354,15 @@ Before committing CI changes:
 
 1. **Test pre-commit hooks locally**:
    ```bash
-   pip install pre-commit
+   uv tool install pre-commit
    pre-commit install
    pre-commit run --all-files
    ```
 2. **Test make targets**:
    ```bash
-   make install-for-test
-   make test
-   make update-docs
+   uv sync --group test
+   uv run poe test
+   uv run poe update-docs
    ```
 3. **Verify pytest configuration**:
    ```bash

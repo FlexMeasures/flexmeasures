@@ -119,7 +119,7 @@ Install Flexmeasures and the database
 
         .. code-block:: bash
 
-            $ make clean-db db_name=flexmeasures-db [db_user=flexmeasures]
+            $ uv run poe clean-db db_name=flexmeasures-db db_user=flexmeasures
 
         To start the web application, you can run:
 
