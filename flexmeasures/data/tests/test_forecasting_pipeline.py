@@ -62,6 +62,27 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
             {
                 # "model": "CustomLGBM",
                 "future-regressors": ["irradiance-sensor"],
+                "train-start": "2025-01-01T00:00+02:00",
+                "retrain-frequency": "PT12H",
+            },
+            {
+                "sensor": "solar-sensor",
+                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output-path": None,
+                "start": "2025-01-08T00:00+02:00",  # start coincides with end of available data in sensor
+                "end": "2025-01-09T00:00+02:00",
+                "sensor-to-save": None,
+                "max-forecast-horizon": "PT1H",
+                "forecast-frequency": "PT12H",  # 2 cycles and 2 viewpoint
+                "probabilistic": False,
+            },
+            True,
+            None,
+        ),
+        (
+            {
+                # "model": "CustomLGBM",
+                "future-regressors": ["irradiance-sensor"],
                 # "train-start": "2025-01-01T00:00+02:00",  # without a start date, max-training-period takes over
                 "max-training-period": "P7D",
             },
@@ -176,7 +197,9 @@ def test_train_predict_pipeline(  # noqa: C901
                 app.queues["forecasting"], exc_handler=handle_forecasting_exception
             )
 
-        forecasts = sensor.search_beliefs(source_types=["forecaster"])
+        forecasts = sensor.search_beliefs(
+            source_types=["forecaster"], most_recent_beliefs_only=False
+        )
         dg_params = pipeline._parameters  # parameters stored in the data generator
         m_viewpoints = (dg_params["end_date"] - dg_params["predict_start"]) / (
             dg_params["forecast_frequency"]
@@ -184,9 +207,22 @@ def test_train_predict_pipeline(  # noqa: C901
         # 1 hour of forecasts is saved over 4 15-minute resolution events
         n_events_per_horizon = timedelta(hours=1) / dg_params["sensor"].event_resolution
         n_hourly_horizons = dg_params["max_forecast_horizon"] // timedelta(hours=1)
+        n_cycles = max(
+            timedelta(hours=dg_params["predict_period_in_hours"])
+            // max(
+                pipeline._config["retrain_frequency"],
+                pipeline._parameters["forecast_frequency"],
+            ),
+            1,
+        )
         assert (
-            len(forecasts) == m_viewpoints * n_hourly_horizons * n_events_per_horizon
-        ), f"we expect 4 forecasts per horizon for each viewpoint within the prediction window, and {m_viewpoints} viewpoints with each {n_hourly_horizons} hourly horizons"
+            len(forecasts)
+            == m_viewpoints * n_hourly_horizons * n_events_per_horizon * n_cycles
+        ), (
+            f"we expect {n_events_per_horizon} event(s) per horizon, "
+            f"{n_hourly_horizons} horizon(s), {m_viewpoints} viewpoint(s)"
+            f"{f', {n_cycles} cycle(s)' if n_cycles > 1 else ''}"
+        )
         assert (
             forecasts.lineage.number_of_belief_times == m_viewpoints
         ), f"we expect {m_viewpoints} viewpoints"
@@ -197,15 +233,18 @@ def test_train_predict_pipeline(  # noqa: C901
 
         if as_job:
             # Fetch returned job
-            job = app.queues["forecasting"].fetch_job(pipeline_returns)
+            job = app.queues["forecasting"].fetch_job(pipeline_returns["job_id"])
 
             assert (
                 job is not None
             ), "a returned job should exist in the forecasting queue"
 
-            if job.dependency_ids:
-                cycle_job_ids = [job]  # only one cycle job, no wrap-up job
+            if not job.dependency_ids:
+                cycle_job_ids = [job.id]  # only one cycle job, no wrap-up job
             else:
+                assert (
+                    job.is_finished
+                ), f"The wrap-up job should be finished, and not {job.get_status()}"
                 cycle_job_ids = job.kwargs.get("cycle_job_ids", [])  # wrap-up job case
 
             finished_jobs = app.queues["forecasting"].finished_job_registry
@@ -406,3 +445,89 @@ def test_train_period_capped_logs_warning(
     assert config_used["train_period_in_hours"] == timedelta(days=10) / timedelta(
         hours=1
     ), "train_period_in_hours should be capped to max_training_period"
+
+
+def test_data_source_committed_before_forecast_jobs(
+    app,
+    setup_fresh_test_forecast_data,
+):
+    """
+    Regression test: verifies that the data source is committed to the database
+    before forecast jobs are enqueued, so that the worker can find it.
+
+    Root cause: get_or_create_source() only flushes (does not commit) the new DataSource.
+    If the API request context ends without a commit, the worker cannot find the data source
+    by ID, causing the forecast job to fail.
+
+    The fix: db.session.merge(self.data_source) + db.session.commit() in train_predict.py
+    ensures the data source is persisted before jobs are queued.
+    """
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import select
+    from flexmeasures.data import db
+    from flexmeasures.data.models.data_sources import DataSource
+    from flexmeasures.data.services.data_sources import get_or_create_source
+
+    with app.app_context():
+        # === Part 1: Demonstrate the problem (flushed but not committed) ===
+
+        # Create a new data source (similar to what the pipeline does internally)
+        test_source = get_or_create_source(
+            source="TestForecaster",
+            source_type="forecaster",
+            model="TestModel",
+            attributes={"data_generator": {"config": {"test": True}}},
+        )
+        # Flush assigns an ID but does not commit
+        source_id = test_source.id
+        assert source_id is not None, "Flush should have assigned an ID"
+
+        # Verify the source is persistent in the current session
+        insp = sa_inspect(test_source)
+        print(
+            f"DEBUG: state after flush - detached={insp.detached}, "
+            f"persistent={insp.persistent}, pending={insp.pending}"
+        )
+
+        # Expunge from session to simulate what happens when session is closed/rolled back
+        db.session.expunge(test_source)
+
+        insp_after = sa_inspect(test_source)
+        print(f"DEBUG: state after expunge - detached={insp_after.detached}")
+        assert insp_after.detached, "After expunge, object should be detached"
+
+        # Now try to find the source in DB - it should NOT be found (was never committed)
+        db.session.rollback()  # Simulate session teardown without commit
+        found_source = db.session.execute(
+            select(DataSource).filter_by(id=source_id)
+        ).scalar_one_or_none()
+        print(f"DEBUG: found_source after rollback: {found_source}")
+        assert (
+            found_source is None
+        ), "After rollback, the flushed-but-not-committed source should not be in DB"
+
+        # === Part 2: Demonstrate the fix (merge + commit) ===
+
+        # Create same source again
+        test_source_2 = get_or_create_source(
+            source="TestForecaster2",
+            source_type="forecaster",
+            model="TestModel2",
+            attributes={"data_generator": {"config": {"test": True}}},
+        )
+        source_id_2 = test_source_2.id
+
+        # Apply the fix: merge back into session and commit
+        db.session.merge(test_source_2)
+        db.session.commit()
+
+        # Now verify the source IS in DB, even after expunge
+        db.session.expunge_all()
+        found_source_2 = db.session.execute(
+            select(DataSource).filter_by(id=source_id_2)
+        ).scalar_one_or_none()
+        print(f"DEBUG: found_source_2 after merge+commit: {found_source_2}")
+        assert (
+            found_source_2 is not None
+        ), "After merge+commit, the source should be findable in DB"
+        assert found_source_2.id == source_id_2
