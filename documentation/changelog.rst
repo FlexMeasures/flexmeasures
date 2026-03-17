@@ -10,6 +10,7 @@ v0.31.2 | March XX, 2026
 Bugfixes
 -----------
 * Fix an issue where asset context was accessed in schemas that do not define a ``context`` attribute [see `PR #2014 <https://www.github.com/FlexMeasures/flexmeasures/pull/2014>`_]
+* Stop failure in the API endpoint that lists available endpoints (/api/v3_0/) [see `PR #2032 <https://github.com/FlexMeasures/flexmeasures/pull/2032>`_]
 
 
 v0.31.1 | March 6, 2026
