@@ -73,7 +73,7 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
                 "end": "2025-01-09T00:00+02:00",
                 "sensor-to-save": None,
                 "max-forecast-horizon": "PT1H",
-                "forecast-frequency": "PT12H",  # 2 cycles and 2 viewpoint
+                "forecast-frequency": "PT12H",  # 2 cycles and 2 viewpoints
                 "probabilistic": False,
             },
             True,
@@ -246,7 +246,7 @@ def test_train_predict_pipeline(  # noqa: C901
         ), (
             f"we expect {n_events_per_horizon} event(s) per horizon, "
             f"{n_hourly_horizons} horizon(s), {m_viewpoints} viewpoint(s)"
-            f"{f', {n_cycles} cycle(s)' if n_cycles > 1 else ''}"
+            f"{f', and {n_cycles} cycle(s)' if n_cycles > 1 else ''}"
         )
         assert (
             forecasts.lineage.number_of_belief_times == m_viewpoints

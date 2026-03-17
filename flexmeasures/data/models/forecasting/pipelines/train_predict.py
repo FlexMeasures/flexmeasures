@@ -292,7 +292,9 @@ class TrainPredictPipeline(Forecaster):
         if as_job:
             cycle_job_ids = []
 
-            # Ensure the data source ID is available in the database when the job runs.
+            # Ensure the data source is attached to the current session before
+            # committing. get_or_create_source() only flushes (does not commit), so
+            # without this merge the data source would not be found by the worker.
             db.session.merge(self.data_source)
             db.session.commit()
 
