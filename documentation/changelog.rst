@@ -76,6 +76,7 @@ New features
 * Added capability to update an asset's parent from the UI [`PR #1957 <https://www.github.com/FlexMeasures/flexmeasures/pull/1957>`_]
 * Add ``fields`` param to the asset-listing endpoints, to save bandwidth in response data [see `PR #1884 <https://www.github.com/FlexMeasures/flexmeasures/pull/1884>`_]
 * Support for flex-config in the ``SensorsToShowSchema`` [see `PR #1904 <https://www.github.com/FlexMeasures/flexmeasures/pull/1904>`_]
+* Upgrade graph modal to support flex-config references in plots  [see `PR #1926 <https://www.github.com/FlexMeasures/flexmeasures/pull/1926>`_]
 
 
   .. note:: For backwards-compatibility, the new ``fields`` parameter will only be fully active, i.e. also returning less fields per default, in v0.32. Set ``FLEXMEASURES_API_SUNSET_ACTIVE=True`` to test the full effect now.
