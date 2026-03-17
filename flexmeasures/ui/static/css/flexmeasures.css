@@ -996,6 +996,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
             visibility: collapse;
         }
     }
+/*
 @media (min-width: 768px) {
     .sidepanel h1,
     .sidepanel h2,
@@ -1018,7 +1019,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     }
     .sidepanel-container {
         z-index: 20;
-        position: relative;
+        position: absolute;
     }
     .sidepanel,
     .left-sidepanel-label {
@@ -1027,7 +1028,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
         width: calc(var(--litepicker-day-width) * 9);
         margin: 15px;
         padding: 20px 15px;
-        min-height: 60px; /* line-height + padding-top + padding-bottom */
+        min-height: 60px; // line-height + padding-top + padding-bottom
+     }
+     .sidepanel {
         transition: .3s;
         -webkit-transition: .3s;
         -moz-transition: .3s;
@@ -1048,20 +1051,103 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
         margin: 0px;
         transform: translateX(-70%);
         text-align: right;
-        position: absolute;
+        position: relative;
     }
     @media (hover: hover) {
         .sidepanel-container:hover > .left-sidepanel,
         .sidepanel-container:focus-within > .left-sidepanel {
             transform: translateX(-30px);
+            height: 90%;
         }
     }
     @media (hover: none) {
         .sidepanel-container > .left-sidepanel.sidepanel-show {
             transform: translateX(-30px);
+            height: auto;
         }
     }
 }
+*/
+@media (min-width: 768px) {
+    .sidepanels: {
+        position: relative; /* creates global z-stacking index for all */
+    }
+    .sidepanel-container {
+        z-index: 20;
+        position: relative;
+        margin-bottom: 20px; /* Add space between containers if needed */
+    }
+    .left-sidepanel-label {
+        position: absolute !important;
+        margin: 0;
+        transform: translateX(-70%);
+        text-align: right;
+        top: 0; /* Align to the top of the container */
+        left: 0;
+        z-index: 21;
+    }
+    .sidepanel {
+        position: absolute !important;
+        height: 0;
+        overflow: hidden;
+        visibility: hidden;
+        opacity: 0;
+        min-height: 0;
+        transition: height 0.3s, transform 0.3s;
+        top: 0; /* Align to the top of the container */
+        left: 0;
+        z-index: 100;
+    }
+    .sidepanel,
+    .left-sidepanel-label {
+        color: var(--nav-default-color);
+        background: var(--nav-default-background-color);
+        width: calc(var(--litepicker-day-width) * 9);
+        margin: 15px;
+        padding: 20px 15px;
+        min-height: 60px; // line-height + padding-top + padding-bottom
+        border-top-left-radius: 0px;
+        border-bottom-left-radius: 0px;
+        border-top-right-radius: 15px;
+        border-bottom-right-radius: 15px;
+     }
+    .sidepanel-container:hover > .left-sidepanel,
+    .sidepanel-container:focus-within > .left-sidepanel {
+        height: auto;
+        transform: translateX(-30px);
+        visibility: visible;
+        opacity: 1;
+    }
+    /* Add space between containers if you have multiple
+    .sidepanel-container + .sidepanel-container {
+        margin-top: 60px;
+    } */
+}
+ 
+.sidepanel-container:nth-child(1) .left-sidepanel-label,
+.sidepanel-container:nth-child(1) .sidepanel {
+    top: 0;
+}
+.sidepanel-container:nth-child(2) .left-sidepanel-label,
+.sidepanel-container:nth-child(2) .sidepanel {
+    top: 20px;
+}
+.sidepanel-container:nth-child(3) .left-sidepanel-label,
+.sidepanel-container:nth-child(3) .sidepanel {
+    top: 100px;
+}
+.sidepanel-container:nth-child(4) .left-sidepanel-label,
+.sidepanel-container:nth-child(4) .sidepanel {
+    top: 180px;
+}
+
+/*
+TODO:
+- fix z-index, use one global stacking index
+- better class names: .sidepanel > sidepanel-container > sidepanel-label / sidepanel-content
+- accomodate chart dropdown and delete button (move all below the sidepanel?)
+- Mistral asks for a complete example (HTML+CSS) which sounds like a good idea
+*/
 
 
 /* ---- Date picker ---- */
