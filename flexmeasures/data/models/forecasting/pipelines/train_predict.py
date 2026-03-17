@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timedelta
 
 from rq.job import Job
+from sqlalchemy import inspect as sa_inspect
 
 from flask import current_app
 
@@ -45,6 +46,21 @@ class TrainPredictPipeline(Forecaster):
         self.delete_model = delete_model
         self.return_values = []  # To store forecasts and jobs
 
+    @staticmethod
+    def _reattach_if_needed(obj):
+        """Re-merge a SQLAlchemy object into the current session if it is detached or expired.
+
+        After ``db.session.commit()``, all objects in the session are expired.
+        When RQ pickles ``self.run_cycle`` for a worker, expired or detached
+        objects may raise ``DetachedInstanceError`` on attribute access.  This
+        helper merges such objects back into the active session so they are
+        usable when the worker executes the job.
+        """
+        insp = sa_inspect(obj)
+        if insp.detached or insp.expired:
+            return db.session.merge(obj)
+        return obj
+
     def run_wrap_up(self, cycle_job_ids: list[str]):
         """Log the status of all cycle jobs after completion."""
         connection = current_app.queues["forecasting"].connection
@@ -72,34 +88,21 @@ class TrainPredictPipeline(Forecaster):
 
         # Re-attach sensor objects if they are detached after RQ pickles/unpickles self
         # (this can happen when a commit expires objects before RQ serializes the job).
-        sensor = self._parameters["sensor"]
-        from sqlalchemy import inspect as sa_inspect
-
-        if sa_inspect(sensor).detached or sa_inspect(sensor).expired:
-            self._parameters["sensor"] = db.session.merge(sensor)
+        self._parameters["sensor"] = self._reattach_if_needed(
+            self._parameters["sensor"]
+        )
         sensor_to_save = self._parameters.get("sensor_to_save")
         if sensor_to_save is not None:
-            if (
-                sa_inspect(sensor_to_save).detached
-                or sa_inspect(sensor_to_save).expired
-            ):
-                self._parameters["sensor_to_save"] = db.session.merge(sensor_to_save)
+            self._parameters["sensor_to_save"] = self._reattach_if_needed(
+                sensor_to_save
+            )
         # Also re-attach regressor sensors stored in _config
         self._config["future_regressors"] = [
-            (
-                db.session.merge(s)
-                if (sa_inspect(s).detached or sa_inspect(s).expired)
-                else s
-            )
+            self._reattach_if_needed(s)
             for s in self._config.get("future_regressors", [])
         ]
         self._config["past_regressors"] = [
-            (
-                db.session.merge(s)
-                if (sa_inspect(s).detached or sa_inspect(s).expired)
-                else s
-            )
-            for s in self._config.get("past_regressors", [])
+            self._reattach_if_needed(s) for s in self._config.get("past_regressors", [])
         ]
 
         # Train model
