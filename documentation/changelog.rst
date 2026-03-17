@@ -20,7 +20,7 @@ Infrastructure / Support
 * Improve contact information to get in touch with the FlexMeasures community [see `PR #2022 <https://www.github.com/FlexMeasures/flexmeasures/pull/2022>`_]
 
 
-v0.31.2 | March XX, 2026
+v0.31.2 | March 17, 2026
 ============================
 
 Bugfixes
