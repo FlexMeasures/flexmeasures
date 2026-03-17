@@ -197,6 +197,30 @@ def test_train_predict_pipeline(  # noqa: C901
                 app.queues["forecasting"], exc_handler=handle_forecasting_exception
             )
 
+            # Fetch returned job
+            job = app.queues["forecasting"].fetch_job(pipeline_returns["job_id"])
+
+            assert (
+                job is not None
+            ), "a returned job should exist in the forecasting queue"
+
+            if not job.dependency_ids:
+                cycle_job_ids = [job.id]  # only one cycle job, no wrap-up job
+            else:
+                assert (
+                    job.is_finished
+                ), f"The wrap-up job should be finished, and not {job.get_status()}"
+                cycle_job_ids = job.kwargs.get("cycle_job_ids", [])  # wrap-up job case
+
+            finished_jobs = app.queues["forecasting"].finished_job_registry
+
+            for job_id in cycle_job_ids:
+                job = app.queues["forecasting"].fetch_job(job_id)
+                assert job is not None, f"Job {job_id} should exist"
+                assert (
+                    job_id in finished_jobs
+                ), f"Job {job_id} should be in the finished registry"
+
         forecasts = sensor.search_beliefs(
             source_types=["forecaster"], most_recent_beliefs_only=False
         )
@@ -232,32 +256,7 @@ def test_train_predict_pipeline(  # noqa: C901
             source
         ), "string representation of the Forecaster (DataSource) should mention the used model"
 
-        if as_job:
-            # Fetch returned job
-            job = app.queues["forecasting"].fetch_job(pipeline_returns["job_id"])
-
-            assert (
-                job is not None
-            ), "a returned job should exist in the forecasting queue"
-
-            if not job.dependency_ids:
-                cycle_job_ids = [job.id]  # only one cycle job, no wrap-up job
-            else:
-                assert (
-                    job.is_finished
-                ), f"The wrap-up job should be finished, and not {job.get_status()}"
-                cycle_job_ids = job.kwargs.get("cycle_job_ids", [])  # wrap-up job case
-
-            finished_jobs = app.queues["forecasting"].finished_job_registry
-
-            for job_id in cycle_job_ids:
-                job = app.queues["forecasting"].fetch_job(job_id)
-                assert job is not None, f"Job {job_id} should exist"
-                assert (
-                    job_id in finished_jobs
-                ), f"Job {job_id} should be in the finished registry"
-
-        else:
+        if not as_job:
             # Sync case: pipeline returns a non-empty list
             assert (
                 isinstance(pipeline_returns, list) and len(pipeline_returns) > 0
