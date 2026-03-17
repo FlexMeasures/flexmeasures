@@ -74,17 +74,7 @@ export async function renderAssetPlotCard(
   flexDiv.className = "d-flex justify-content-between";
 
   const infoDiv = document.createElement("div");
-  infoDiv.className = "flex-grow-1 me-2"; 
-
-  addInfo("Asset ID", Asset.id, infoDiv, Asset, true);
-  infoDiv.appendChild(document.createTextNode(", "));
-  addInfo("Name", Asset.name, infoDiv, Asset);
-  infoDiv.appendChild(document.createTextNode(", "));
-  if (IsFlexContext) {
-    addInfo("Flex Context", flexConfigValue, infoDiv, Asset);
-  } else if (IsFlexModel) {
-    addInfo("Flex Model", flexConfigValue, infoDiv, Asset);
-  }
+  infoDiv.className = "flex-grow-1 me-2";
 
   const closeIcon = document.createElement("i");
   closeIcon.className = "fa fa-times";
@@ -130,7 +120,14 @@ export async function renderAssetPlotCard(
 
   if (isSensorReference) {
     try {
-      const sensorReference = await renderSensorCard(valueToDisplay.sensor, graphIndex, null, null, null, true);
+      const sensorReference = await renderSensorCard(
+        valueToDisplay.sensor,
+        graphIndex,
+        null,
+        null,
+        null,
+        true,
+      );
       const sensorElement = sensorReference.element;
       sensorElement.classList.remove("mb-3");
       infoDiv.appendChild(sensorElement);
@@ -143,7 +140,8 @@ export async function renderAssetPlotCard(
     if (typeof valueToDisplay === "object") {
       disabledInput.value = JSON.stringify(valueToDisplay);
     } else {
-      disabledInput.value = valueToDisplay || "No Flex Context/Model Configured";
+      disabledInput.value =
+        valueToDisplay || "No Flex Context/Model Configured";
     }
     infoDiv.appendChild(disabledInput);
   }
@@ -189,7 +187,13 @@ export async function renderSensorCard(
 
   const infoDiv = document.createElement("div");
 
-  addInfo(`${childRender ? "Sensor ID" : "ID"}`, Sensor.id, infoDiv, Sensor, true);
+  addInfo(
+    `${childRender ? "Sensor ID" : "ID"}`,
+    Sensor.id,
+    infoDiv,
+    Sensor,
+    true,
+  );
   infoDiv.appendChild(document.createTextNode(", "));
   addInfo("Unit", Sensor.unit, infoDiv, Sensor);
   infoDiv.appendChild(document.createTextNode(", "));
