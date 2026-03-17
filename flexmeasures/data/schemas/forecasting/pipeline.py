@@ -246,16 +246,18 @@ class ForecasterParametersSchema(Schema):
             },
         },
     )
-    duration = PlanningDurationField(
-        load_default=PlanningDurationField.load_default,
-        metadata=dict(
-            description="The duration for which to create the forecast, in ISO 8601 duration format. Defaults to the planning horizon.",
-            example="PT24H",
-            cli={
-                "option": "--duration",
-                "aliases": ["--predict-period"],
+    start = AwareDateTimeOrDateField(
+        data_key="start",
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "Start date for predictions. Defaults to now, floored to the sensor resolution, so that the first forecast is about the ongoing event.",
+            "example": "2025-01-08T00:00:00+01:00",
+            "cli": {
+                "option": "--start",
+                "aliases": ["--start-predict-date", "--from-date"],
             },
-        ),
+        },
     )
     end = AwareDateTimeOrDateField(
         data_key="end",
@@ -272,18 +274,16 @@ class ForecasterParametersSchema(Schema):
             },
         },
     )
-    start = AwareDateTimeOrDateField(
-        data_key="start",
-        required=False,
-        allow_none=True,
-        metadata={
-            "description": "Start date for predictions. Defaults to now, floored to the sensor resolution, so that the first forecast is about the ongoing event.",
-            "example": "2025-01-08T00:00:00+01:00",
-            "cli": {
-                "option": "--start",
-                "aliases": ["--start-predict-date", "--from-date"],
+    duration = PlanningDurationField(
+        load_default=PlanningDurationField.load_default,
+        metadata=dict(
+            description="The duration for which to create the forecast, in ISO 8601 duration format. Defaults to the planning horizon.",
+            example="PT24H",
+            cli={
+                "option": "--duration",
+                "aliases": ["--predict-period"],
             },
-        },
+        ),
     )
     max_forecast_horizon = DurationField(
         data_key="max-forecast-horizon",

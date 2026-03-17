@@ -337,6 +337,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         return_magnitude: bool = False,
         timezone: str | None = None,
         value_validator: Validator | None = None,
+        additional_sensor_units: list[str] | None = None,
         **kwargs,
     ):
         """Field for validating, serializing and deserializing a variable quantity.
@@ -364,6 +365,14 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                                     the magnitude of each quantity, or each Quantity object itself.
         :param timezone:            Only used in case a time series is specified and one of the *timed events*
                                     in the time series uses a nominal duration, such as "P1D".
+        :param additional_sensor_units:
+                                    Additional sensor units (besides those convertible to ``to_unit``) that are
+                                    accepted for sensor references. Use this only for units that are dimensionally
+                                    incompatible with ``to_unit`` but contextually meaningful — for example,
+                                    ``["%"]`` allows sensors with a percentage unit for fields where the conversion
+                                    requires an external capacity factor (such as ``soc-max``).
+                                    The actual unit conversion must be handled downstream by the caller.
+                                    Do not use this as a general-purpose unit allowlist.
         """
         super().__init__(*args, **kwargs)
         if value_validator is not None:
@@ -383,6 +392,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             default_src_unit = "dimensionless"
         self.default_src_unit = default_src_unit
         self.return_magnitude = return_magnitude
+        self.additional_sensor_units = additional_sensor_units or []
 
     @with_appcontext_if_needed()
     def _deserialize(
@@ -406,9 +416,21 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         """Deserialize a sensor reference to a Sensor."""
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
-        sensor = SensorIdField(
-            unit=self.to_unit if not self.to_unit.startswith("/") else None
-        ).deserialize(value["sensor"], None, None)
+        if self.additional_sensor_units:
+            # With additional allowed units, bypass the built-in unit check and perform our own
+            sensor = SensorIdField(unit=None).deserialize(value["sensor"], None, None)
+            if self.to_unit and not self.to_unit.startswith("/"):
+                if (
+                    not units_are_convertible(sensor.unit, self.to_unit)
+                    and sensor.unit not in self.additional_sensor_units
+                ):
+                    raise FMValidationError(
+                        f"Cannot convert {sensor.unit} to {self.to_unit}"
+                    )
+        else:
+            sensor = SensorIdField(
+                unit=self.to_unit if not self.to_unit.startswith("/") else None
+            ).deserialize(value["sensor"], None, None)
         return sensor
 
     def _deserialize_list(self, value: list[dict]) -> list[dict]:
@@ -732,8 +754,7 @@ class QuantitySchema(Schema):
         required=True,
         metadata=dict(
             description="Quantity string describing a fixed quantity.",
-            example="130 EUR/MWh",
-            # "examples": ["130 EUR/MWh", "230 V", "4.5 m/s"],
+            examples=["130 EUR/MWh", "12 V", "4.5 m/s", "20 °C", "3 * 230V * 16A"],
         ),
     )
 
