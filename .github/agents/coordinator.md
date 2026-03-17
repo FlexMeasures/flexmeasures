@@ -99,6 +99,7 @@ This agent owns the creation, structure, and evolution of all other agents.
 6. **Documentation & Developer Experience Specialist** - Project understandability
 7. **Tooling & CI Specialist** - Automation reliability and maintainability
 8. **Review Lead** - Orchestrates agents in response to a user assignment
+9. **UI Specialist** - Flask/Jinja2 templates, side-panel pattern, permission gating in views, JS fetch→poll→Toast→reload pattern, UI tests
 
 ### Standard Agent Template
 
@@ -265,6 +266,79 @@ When reviewing PRs that change Marshmallow schemas:
 - **Fix**: Updated `_clean_parameters` to use kebab-case keys
 
 **Key Insight**: Tests comparing data sources are integration tests validating consistency across code paths. When they fail, investigate production code for format mismatches before changing tests.
+
+#### UI Development Patterns
+
+**Context**: FlexMeasures has a growing set of interactive sensor/asset page features. Each new UI feature typically involves a Python view guard, a Jinja2 side panel, and a JS interaction pattern. Consistency across features matters for UX and maintainability.
+
+**Pattern: Permission-Gated Side Panels (PR #1985)**
+
+Structure in `sensors/index.html`:
+```jinja2
+{% if user_can_<action>_sensor %}
+  <div class="sidepanel-container">
+    <div class="left-sidepanel-label">Panel label</div>
+    <div class="sidepanel left-sidepanel" style="text-align: left;">
+      <fieldset>
+        <h3>Panel heading</h3>
+        <small>Context: {{ sensor.name }}</small>
+        {% if sensor_has_enough_data_for_<feature> %}
+          <!-- enabled button + JS -->
+        {% else %}
+          <!-- explanatory message + disabled button -->
+        {% endif %}
+      </fieldset>
+    </div>
+  </div>
+{% endif %}
+```
+
+**Pattern: View-Level Data Guard (Short-Circuit)**
+
+```python
+can_create_children = user_can_create_children(sensor)  # permission first
+has_enough_data = False
+if can_create_children:
+    earliest, latest = get_timerange([sensor.id])  # DB call only if permitted
+    has_enough_data = (latest - earliest) >= timedelta(days=2)
+```
+
+**Pattern: JS Fetch → Poll → Toast → Reload**
+
+```javascript
+async function triggerFeature() {
+    button.disabled = true;
+    spinner.classList.remove('d-none');
+    showToast("Queuing job...", "info");
+    try {
+        const r = await fetch(url, { method: "POST", body: JSON.stringify(payload) });
+        if (!r.ok) { showToast("Error: " + ..., "error"); return; }
+        const jobId = (await r.json()).<field>;
+        for (let i = 0; i < maxAttempts; i++) {
+            await delay(3000);
+            const s = await fetch(pollUrl + jobId);
+            if (s.status === 200) { showToast("Done!", "success"); window.location.reload(); return; }
+            if (s.status === 202) { showToast((await s.json()).status, "info"); continue; }
+            showToast("Failed: " + ..., "error"); break;
+        }
+        if (!finished) showToast("Timed out.", "error");
+    } catch (e) {
+        showToast("Error: " + e.message, "error");
+    } finally {
+        button.disabled = false;
+        spinner.classList.add('d-none');
+    }
+}
+```
+
+**Agents responsible for UI patterns**:
+
+| Agent | Responsibility |
+|-------|----------------|
+| **UI Specialist** | Side panel, JS interaction, permission gating, Toast usage |
+| **Test Specialist** | UI test coverage, mock strategy for `get_timerange` |
+| **API Specialist** | Verify JS payload keys match Marshmallow `data_key` attributes |
+| **Architecture Specialist** | `AuthModelMixin` usage, view layer integrity |
 
 ## Interaction Rules
 

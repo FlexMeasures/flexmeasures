@@ -678,6 +678,9 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
         delete data['status'];
         data = unpackData(data);
 
+        // Preset forecastStart to latest "Last event end"
+        presetForecastStartToLatest(data);
+
         if (Object.keys(data).length > 0) {
             // Show the header and dropdown container
             dropdownContainer.classList.remove('d-none');
@@ -726,4 +729,25 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
         spinner.classList.add('d-none');
     });
 
+}
+
+function presetForecastStartToLatest(data) {
+    const forecastStartInput = document.getElementById("forecastStart");
+
+    // Extract all "Last event end" values as Date objects
+    const lastEventDates = Object.values(data)
+        .map(d => new Date(d["Last event end"]))
+        .filter(d => !isNaN(d)); // remove any invalid dates just in case
+
+    if (lastEventDates.length === 0) return;
+
+    // Find the latest date
+    const latestDate = new Date(Math.max(...lastEventDates));
+
+    // Format as yyyy-MM-ddTHH:mm for datetime-local input
+    const pad = n => String(n).padStart(2, "0");
+    const localDatetimeValue = `${latestDate.getFullYear()}-${pad(latestDate.getMonth()+1)}-${pad(latestDate.getDate())}T${pad(latestDate.getHours())}:${pad(latestDate.getMinutes())}`;
+
+    // Set the input value
+    forecastStartInput.value = localDatetimeValue;
 }

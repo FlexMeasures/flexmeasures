@@ -256,7 +256,27 @@
 
     // Sensors To Show Updated Listener
     document.addEventListener('sensorsToShowUpdated', async function () {
-        await embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate);
+        $("#spinner").show();
+        let newData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+            signal: signal,
+        })
+            .then(function (response) { return response.json(); })
+            .then(data => decompressChartData(data));
+        newData = await Promise.all([
+            newData,
+            embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate),
+        ]).then(function (result) { return result[0] }).catch(console.error);
+        $("#spinner").hide();
+        vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(newData)).resize().run();
+        var sessionStart = new Date('{{ event_starts_after }}');
+        var sessionEnd = new Date('{{ event_ends_before }}');
+        previousResult = {
+            start: sessionStart,
+            end: sessionEnd,
+            data: fetchedInitialData
+        };
     });
 
     {% if event_starts_after and event_ends_before %}
