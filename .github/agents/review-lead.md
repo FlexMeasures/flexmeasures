@@ -153,7 +153,7 @@ Before committing any code changes:
 
 1. **Install pre-commit** (if not already installed):
    ```bash
-   pip install pre-commit
+   uv tool install pre-commit
    ```
 
 2. **Run hooks on all files**:
@@ -243,13 +243,11 @@ When conducting a review:
 
 1. **Set up the test environment**:
    ```bash
-   make install-for-test
+   uv sync --group test
    ```
 2. **Run the test suite**:
    ```bash
-   pytest
-   # Or use make target
-   make test
+   uv run poe test
    ```
 3. **Show test output** - Include actual results in review:
    - Number of tests run
