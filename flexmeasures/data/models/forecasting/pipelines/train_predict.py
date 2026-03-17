@@ -260,10 +260,13 @@ class TrainPredictPipeline(Forecaster):
         if as_job:
             cycle_job_ids = []
 
+            # Ensure the data source ID is available in the database when the job runs.
+            db.session.merge(self.data_source)
+            db.session.commit()
+
             # job metadata for tracking
             # Serialize start and end to ISO format strings
             # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
-            db.session.commit()  # Ensure the data source ID is available in the database when the job runs.
             job_metadata = {
                 "data_source_info": {"id": self.data_source.id},
                 "start": self._parameters["predict_start"].isoformat(),
