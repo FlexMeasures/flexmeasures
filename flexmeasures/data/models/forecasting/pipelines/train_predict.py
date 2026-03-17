@@ -7,9 +7,8 @@ import time
 import logging
 from datetime import datetime, timedelta
 
+from flask import after_this_request, current_app
 from rq.job import Job
-
-from flask import current_app
 
 from flexmeasures.data import db
 from flexmeasures.data.models.forecasting import Forecaster
@@ -315,9 +314,14 @@ class TrainPredictPipeline(Forecaster):
                 ),
                 meta=job_metadata,
             )
-            for job in jobs:
-                current_app.queues[queue].enqueue_job(job)
-            current_app.queues[queue].enqueue_job(wrap_up_job)
+
+            @after_this_request
+            def enqueue_job(response):
+                """After the request, RQ jobs get to see committed data from the transaction."""
+                for job in jobs:
+                    current_app.queues[queue].enqueue_job(job)
+                current_app.queues[queue].enqueue_job(wrap_up_job)
+                return response
 
             if len(cycle_job_ids) > 1:
                 # Return the wrap-up job ID if multiple cycle jobs are queued
