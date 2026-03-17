@@ -98,7 +98,7 @@ class TimedEventSchema(Schema):
             self.value_validator(_value)
 
     @validates_schema
-    def check_time_window(self, data: dict, **kwargs):
+    def check_time_window(self, data, **kwargs):
         """Checks whether a complete time interval can be derived from the timing fields.
 
         The data is updated in-place, guaranteeing that the 'start' and 'end' fields are filled out.

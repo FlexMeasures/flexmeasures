@@ -24,4 +24,4 @@ repos:
         files: '^flexmeasures/api|^flexmeasures/data/schemas'
         pass_filenames: false
         language: system
-        entry: bash -c '[[ "$GITHUB_ACTIONS" == "true" ]] && exit 0 || (export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; python flexmeasures/api/scripts/generate_open_api_specs.py)'
+        entry: bash -c '[[ "$GITHUB_ACTIONS" == "true" ]] && exit 0 || (export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; uv run python flexmeasures/api/scripts/generate_open_api_specs.py)'
