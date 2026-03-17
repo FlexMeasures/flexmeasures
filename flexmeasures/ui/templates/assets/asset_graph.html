@@ -776,8 +776,9 @@
                     });
                 } else if ("asset" in plot) {
                     const plotHeader = document.createElement("h5");
-                    plotHeader.className = "card-title pt-2";
-                    plotHeader.innerHTML = "<b>Asset:</b>";
+                    plotHeader.className = "pt-2 fs-5";
+                    const asset = await getAsset(plot.asset);
+                    plotHeader.innerHTML = `<b>${asset.name}: ${plot["flex-model"] || plot["flex-context"]}</b>`;
                     const assetPlotContent = await renderAssetPlotCard(plot, removePlotOrSensor, index, plotIndex);
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(assetPlotContent);

@@ -76,7 +76,7 @@ export async function renderAssetPlotCard(
   const infoDiv = document.createElement("div");
   infoDiv.className = "flex-grow-1 me-2"; 
 
-  addInfo("ID", Asset.id, infoDiv, Asset, true);
+  addInfo("Asset ID", Asset.id, infoDiv, Asset, true);
   infoDiv.appendChild(document.createTextNode(", "));
   addInfo("Name", Asset.name, infoDiv, Asset);
   infoDiv.appendChild(document.createTextNode(", "));
@@ -130,7 +130,7 @@ export async function renderAssetPlotCard(
 
   if (isSensorReference) {
     try {
-      const sensorReference = await renderSensorCard(valueToDisplay.sensor, graphIndex);
+      const sensorReference = await renderSensorCard(valueToDisplay.sensor, graphIndex, null, null, null, true);
       const sensorElement = sensorReference.element;
       sensorElement.classList.remove("mb-3");
       infoDiv.appendChild(sensorElement);
@@ -166,6 +166,7 @@ export async function renderAssetPlotCard(
  * @param {function} [removeAssetPlotFromGraph=null] - Optional function to remove the sensor's plot from the graph when the close icon is clicked.
  * @param {number} [plotIndex=null] - The index of this sensor's plot within the graph's plots array, required if removeAssetPlotFromGraph is provided.
  * @param {number} [sensorIndex=null] - The index of this sensor within the plot's sensors array, required if removeAssetPlotFromGraph is provided.
+ * @param {boolean} [childRender=false] - Internal flag to indicate if this render is part of a nested call (e.g., rendering a sensor reference within an asset plot card).
  * @returns {Promise<{element: HTMLElement, unit: string}>} An object containing the card element and the sensor's unit.
  */
 export async function renderSensorCard(
@@ -174,20 +175,21 @@ export async function renderSensorCard(
   removeAssetPlotFromGraph = null,
   plotIndex = null,
   sensorIndex = null,
+  childRender = false,
 ) {
   const Sensor = await getSensor(sensorId);
   const Asset = await getAsset(Sensor.generic_asset_id);
   const Account = await getAccount(Asset.account_id);
 
   const container = document.createElement("div");
-  container.className = "p-1 mb-3 border-bottom border-secondary";
+  container.className = `mb-3 border-secondary ${childRender ? "pt-2 pb-1" : "p-1 border-bottom"}`;
 
   const flexDiv = document.createElement("div");
   flexDiv.className = "d-flex justify-content-between";
 
   const infoDiv = document.createElement("div");
 
-  addInfo("ID", Sensor.id, infoDiv, Sensor, true);
+  addInfo(`${childRender ? "Sensor ID" : "ID"}`, Sensor.id, infoDiv, Sensor, true);
   infoDiv.appendChild(document.createTextNode(", "));
   addInfo("Unit", Sensor.unit, infoDiv, Sensor);
   infoDiv.appendChild(document.createTextNode(", "));
@@ -216,7 +218,9 @@ export async function renderSensorCard(
   });
 
   flexDiv.appendChild(infoDiv);
-  flexDiv.appendChild(closeIcon);
+  if (!childRender) {
+    flexDiv.appendChild(closeIcon);
+  }
   container.appendChild(flexDiv);
 
   // Return both the element and the unit (so we can check for mixed units later)
