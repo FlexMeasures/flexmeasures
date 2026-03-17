@@ -270,6 +270,7 @@ class TrainPredictPipeline(Forecaster):
                 "end": self._parameters["end_date"].isoformat(),
                 "sensor_id": self._parameters["sensor_to_save"].id,
             }
+            jobs = []
             for cycle_params in cycles_job_params:
 
                 job = Job.create(
@@ -294,7 +295,7 @@ class TrainPredictPipeline(Forecaster):
                 # Store the job ID for this cycle
                 cycle_job_ids.append(job.id)
 
-                current_app.queues[queue].enqueue_job(job)
+                jobs.append(job)
                 current_app.job_cache.add(
                     self._parameters["sensor"].id,
                     job_id=job.id,
@@ -314,6 +315,8 @@ class TrainPredictPipeline(Forecaster):
                 ),
                 meta=job_metadata,
             )
+            for job in jobs:
+                current_app.queues[queue].enqueue_job(job)
             current_app.queues[queue].enqueue_job(wrap_up_job)
 
             if len(cycle_job_ids) > 1:
