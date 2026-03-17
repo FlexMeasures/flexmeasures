@@ -91,7 +91,8 @@ export async function renderAssetPlotCard(
   // Disabled input to show data
   const disabledInput = document.createElement("input");
   disabledInput.type = "text";
-  disabledInput.className = "form-control fst-italic col mt-2";
+  disabledInput.className = "form-control fst-italic mt-2";
+  disabledInput.style.width = "80%";
   disabledInput.disabled = true;
 
   let flexConfigData = IsFlexContext
