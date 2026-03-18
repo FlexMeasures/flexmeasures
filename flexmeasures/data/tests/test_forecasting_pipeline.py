@@ -235,6 +235,7 @@ def test_train_predict_pipeline(  # noqa: C901
         if as_job:
             # Fetch returned job
             job = app.queues["forecasting"].fetch_job(pipeline_returns["job_id"])
+            job = app.queues["forecasting"].fetch_job(pipeline_returns["job_id"])
 
             assert (
                 job is not None
@@ -242,7 +243,12 @@ def test_train_predict_pipeline(  # noqa: C901
 
             if not job.dependency_ids:
                 cycle_job_ids = [job.id]  # only one cycle job, no wrap-up job
+            if not job.dependency_ids:
+                cycle_job_ids = [job.id]  # only one cycle job, no wrap-up job
             else:
+                assert (
+                    job.is_finished
+                ), f"The wrap-up job should be finished, and not {job.get_status()}"
                 assert (
                     job.is_finished
                 ), f"The wrap-up job should be finished, and not {job.get_status()}"
@@ -257,7 +263,42 @@ def test_train_predict_pipeline(  # noqa: C901
                     job_id in finished_jobs
                 ), f"Job {job_id} should be in the finished registry"
 
-        else:
+        forecasts = sensor.search_beliefs(
+            source_types=["forecaster"], most_recent_beliefs_only=False
+        )
+
+        dg_params = pipeline._parameters  # parameters stored in the data generator
+        m_viewpoints = (dg_params["end_date"] - dg_params["predict_start"]) / (
+            dg_params["forecast_frequency"]
+        )
+        # 1 hour of forecasts is saved over 4 15-minute resolution events
+        n_events_per_horizon = timedelta(hours=1) / dg_params["sensor"].event_resolution
+        n_hourly_horizons = dg_params["max_forecast_horizon"] // timedelta(hours=1)
+        n_cycles = max(
+            timedelta(hours=dg_params["predict_period_in_hours"])
+            // max(
+                pipeline._config["retrain_frequency"],
+                pipeline._parameters["forecast_frequency"],
+            ),
+            1,
+        )
+        assert (
+            len(forecasts)
+            == m_viewpoints * n_hourly_horizons * n_events_per_horizon * n_cycles
+        ), (
+            f"we expect {n_events_per_horizon} event(s) per horizon, "
+            f"{n_hourly_horizons} horizon(s), {m_viewpoints} viewpoint(s)"
+            f"{f', and {n_cycles} cycle(s)' if n_cycles > 1 else ''}"
+        )
+        assert (
+            forecasts.lineage.number_of_belief_times == m_viewpoints
+        ), f"we expect {m_viewpoints} viewpoints"
+        source = forecasts.lineage.sources[0]
+        assert "TrainPredictPipeline" in str(
+            source
+        ), "string representation of the Forecaster (DataSource) should mention the used model"
+
+        if not as_job:
             # Sync case: pipeline returns a non-empty list
             assert (
                 isinstance(pipeline_returns, list) and len(pipeline_returns) > 0
