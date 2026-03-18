@@ -1631,7 +1631,7 @@ class AssetAPI(FlaskView):
             - If both are omitted, the copy remains in the same account and keeps the same parent.
             - If `account` is provided and `parent_asset` is omitted, parent defaults to `null`.
             - If `parent_asset` is provided and `account` is omitted, account is derived from that parent.
-            - If both are provided, parent must belong to the provided account.
+            - If both are provided, it is possible to assign the copied asset to a different account than the parent.
 
           security:
             - ApiKeyAuth: []
