@@ -427,18 +427,6 @@ class BasePipeline:
                 target_end = first_target_end + delta
                 forecast_end = first_forecast_end + delta
 
-                if is_predict_pipeline and self.predict_end is not None:
-                    cycle_last_event_start = (
-                        pd.to_datetime(self.predict_end, utc=True).tz_localize(None)
-                        - target_sensor_resolution
-                    )
-                    forecast_end = min(forecast_end, cycle_last_event_start)
-                    target_end = min(
-                        target_end,
-                        forecast_end
-                        - pd.Timedelta(hours=self.max_forecast_horizon_in_hours),
-                    )
-
                 # Target split
                 y_slice_df = _slice_closed(y_clean, target_start, target_end)
                 y_split = self.detect_and_fill_missing_values(
