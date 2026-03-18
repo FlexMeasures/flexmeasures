@@ -1838,18 +1838,17 @@ def test_battery_stock_delta_sensor(
     elif stock_delta_sensor is None:
         # No usage -> the battery only charges when energy is free
         free_hour = "2015-01-01 17:00:00+00:00"
-        prices = epex_da.search_beliefs(start, end)
+        prices = epex_da.search_beliefs(start, end, resolution=resolution)
         zero_prices = prices[prices.event_value == 0]
-        assert len(zero_prices) == 1, "this test assumes a single hour of free energy"
-        assert (
-            len(zero_prices[zero_prices.event_starts == free_hour]) == 1
-        ), "this test assumes free energy from 5 to 6 PM UTC"
+        assert all(
+            zero_prices.event_starts.hour == pd.Timestamp(free_hour).hour
+        ), "this test assumes a single hour of free energy from 5 to 6 PM UTC"
         schedule = scheduler.compute()
         assert all(
-            schedule[schedule.index != free_hour] == 0
+            schedule[~schedule.index.isin(zero_prices.event_starts)] == 0
         ), "no charging expected when energy is not free, given no soc-usage"
         assert all(
-            schedule[schedule.index == free_hour] == capacity
+            schedule[schedule.index.isin(zero_prices.event_starts)] == capacity
         ), "max charging expected when energy is free, because of preference to have a full SoC"
     else:
         # Some usage -> the battery needs to charge
