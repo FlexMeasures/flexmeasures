@@ -1615,6 +1615,7 @@ class AssetAPI(FlaskView):
         location="path",
     )
     @as_json
+    @permission_required_for_context("read", ctx_arg_name="asset")
     def copy_assets(self, id, asset: GenericAsset):
         """
         .. :quickref: Assets; Copy an asset to a target account and/or parent.
