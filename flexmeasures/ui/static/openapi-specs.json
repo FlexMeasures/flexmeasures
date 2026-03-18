@@ -2648,7 +2648,80 @@
         ]
       }
     },
-    "/api/v3_0/assets/{id}/copy": {},
+    "/api/v3_0/assets/{id}/copy": {
+      "post": {
+        "summary": "Copy an asset to a target account and/or parent.",
+        "description": "This endpoint creates a copy of an existing asset and optionally places it\nunder a target account and/or parent asset.\n\nParameters are passed as query parameters:\n\n- `account_id`: target account id\n- `parent_id`: target parent asset id\n\nResolution rules:\n\n- If both are omitted, the copy remains in the same account and keeps the same parent.\n- If `account` is provided and `parent_asset` is omitted, parent defaults to `null`.\n- If `parent_asset` is provided and `account` is omitted, account is derived from that parent.\n- If both are provided, parent must belong to the provided account.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "ID of the asset to copy.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "in": "query",
+            "name": "account_id",
+            "description": "Target account id.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "in": "query",
+            "name": "parent_id",
+            "description": "Target parent asset id.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "CREATED",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Successfully copied asset 10 to account 2.",
+                  "asset": 99
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
     "/api/v3_0/assets/{id}": {
       "delete": {
         "summary": "Delete an asset.",

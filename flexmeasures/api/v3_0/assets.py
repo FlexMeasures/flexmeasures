@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
 import json
 from datetime import datetime, timedelta
 from http import HTTPStatus
@@ -202,17 +201,6 @@ class CopyAssetSchema(Schema):
             data["parent_asset"] = None
         elif parent_given and not account_given:
             data["account"] = data["parent_asset"].owner
-
-        # Resolve effective targets for permission checks and fallback behavior.
-        # If neither target is given, use the source asset's account/parent.
-        source_asset: GenericAsset | None = self.context.get("asset")
-        if source_asset is not None:
-            if data.get("account") is None:
-                data["resolved_account"] = source_asset.owner
-                data["resolved_parent"] = source_asset.parent_asset
-            else:
-                data["resolved_account"] = data["account"]
-                data["resolved_parent"] = data.get("parent_asset")
 
         return data
 
@@ -1614,24 +1602,90 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
+    @use_kwargs(CopyAssetSchema, location="query")
     @as_json
     @permission_required_for_context("read", ctx_arg_name="asset")
-    def copy_assets(self, id, asset: GenericAsset):
+    def copy_assets(
+        self,
+        id,
+        asset: GenericAsset,
+        account: Account | None = None,
+        parent_asset: GenericAsset | None = None,
+    ):
         """
         .. :quickref: Assets; Copy an asset to a target account and/or parent.
+        ---
+        post:
+          summary: Copy an asset to a target account and/or parent.
+          description: |
+            This endpoint creates a copy of an existing asset and optionally places it
+            under a target account and/or parent asset.
+
+            Parameters are passed as query parameters:
+
+            - `account_id`: target account id
+            - `parent_id`: target parent asset id
+
+            Resolution rules:
+
+            - If both are omitted, the copy remains in the same account and keeps the same parent.
+            - If `account` is provided and `parent_asset` is omitted, parent defaults to `null`.
+            - If `parent_asset` is provided and `account` is omitted, account is derived from that parent.
+            - If both are provided, parent must belong to the provided account.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              description: ID of the asset to copy.
+              required: true
+              schema:
+                type: integer
+                format: int32
+            - in: query
+              name: account_id
+              description: Target account id.
+              required: false
+              schema:
+                type: integer
+                format: int32
+            - in: query
+              name: parent_id
+              description: Target parent asset id.
+              required: false
+              schema:
+                type: integer
+                format: int32
+          responses:
+            201:
+              description: CREATED
+              content:
+                application/json:
+                  example:
+                    message: Successfully copied asset 10 to account 2.
+                    asset: 99
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
         """
-        copy_asset_schema: Any = CopyAssetSchema()
-        copy_asset_schema.context["asset"] = asset
-
-        try:
-            copy_data = copy_asset_schema.load(request.args)
-        except ValidationError as e:
-            return unprocessable_entity(str(e.messages))
-
-        account = copy_data.get("account")
-        parent_asset = copy_data.get("parent_asset")
-        resolved_account = copy_data["resolved_account"]
-        resolved_parent = copy_data["resolved_parent"]
+        # Resolve effective targets for permission checks and fallback behavior.
+        # If neither target is given, use the source asset's account/parent.
+        resolved_account = account or asset.owner
+        resolved_parent = (
+            parent_asset
+            if account is not None
+            else (parent_asset or asset.parent_asset)
+        )
 
         # Check create-children permission on the target account.
         check_access(resolved_account, "create-children")
