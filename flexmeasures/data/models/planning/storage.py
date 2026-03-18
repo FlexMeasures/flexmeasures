@@ -452,7 +452,8 @@ class MetaStorageScheduler(Scheduler):
                     penalty = tiny_price_slope[0]
                 commitment = StockCommitment(
                     name=f"prefer a full storage {d} sooner",
-                    quantity=soc_max[d] - soc_at_start[d],
+                    quantity=(soc_max[d] - soc_at_start[d])
+                    * (timedelta(hours=1) / resolution),
                     upwards_deviation_price=0,
                     downwards_deviation_price=-penalty,
                     index=index,
