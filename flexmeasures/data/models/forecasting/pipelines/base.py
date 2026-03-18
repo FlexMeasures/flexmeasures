@@ -8,9 +8,10 @@ import numpy as np
 import pandas as pd
 from darts import TimeSeries
 from darts.dataprocessing.transformers import MissingValuesFiller
-from flexmeasures.data.models.time_series import Sensor
 from timely_beliefs import utils as tb_utils
 
+from flexmeasures.data import db
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 
 
@@ -69,8 +70,8 @@ class BasePipeline:
         predict_end: datetime | None = None,
         missing_threshold: float = 1.0,
     ) -> None:
-        self.future = future_regressors
-        self.past = past_regressors
+        self.future = [self._get_attached_sensor(sensor) for sensor in future_regressors]
+        self.past = [self._get_attached_sensor(sensor) for sensor in past_regressors]
         self.n_steps_to_predict = n_steps_to_predict
         self.max_forecast_horizon = max_forecast_horizon
         # rounds up so we get the number of viewpoints, each `forecast_frequency` apart
@@ -82,15 +83,17 @@ class BasePipeline:
         self.save_belief_time = (
             save_belief_time  # non floored belief time to save forecasts with
         )
-        self.target_sensor = target_sensor
-        self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
+        self.target_sensor = self._get_attached_sensor(target_sensor)
+        self.target = (
+            f"{self.target_sensor.name} (ID: {self.target_sensor.id})_target"
+        )
         self.future_regressors = [
             f"{sensor.name} (ID: {sensor.id})_FR-{idx}"
-            for idx, sensor in enumerate(future_regressors)
+            for idx, sensor in enumerate(self.future)
         ]
         self.past_regressors = [
             f"{sensor.name} (ID: {sensor.id})_PR-{idx}"
-            for idx, sensor in enumerate(past_regressors)
+            for idx, sensor in enumerate(self.past)
         ]
         self.predict_start = predict_start if predict_start else None
         self.predict_end = predict_end if predict_end else None
@@ -101,6 +104,15 @@ class BasePipeline:
         )  # convert max_forecast_horizon to hours
         self.forecast_frequency = forecast_frequency
         self.missing_threshold = missing_threshold
+
+    @staticmethod
+    def _get_attached_sensor(sensor: Sensor | int) -> Sensor:
+        """Reload sensors through the active session to avoid cross-session ORM state."""
+        sensor_id = sensor.id if isinstance(sensor, Sensor) else sensor
+        attached_sensor = db.session.get(Sensor, sensor_id)
+        if attached_sensor is None:
+            raise ValueError(f"Could not load sensor with id {sensor_id}.")
+        return attached_sensor
 
     def load_data_all_beliefs(self) -> pd.DataFrame:
         """
@@ -414,6 +426,18 @@ class BasePipeline:
                 )
                 target_end = first_target_end + delta
                 forecast_end = first_forecast_end + delta
+
+                if is_predict_pipeline and self.predict_end is not None:
+                    cycle_last_event_start = (
+                        pd.to_datetime(self.predict_end, utc=True).tz_localize(None)
+                        - target_sensor_resolution
+                    )
+                    forecast_end = min(forecast_end, cycle_last_event_start)
+                    target_end = min(
+                        target_end,
+                        forecast_end
+                        - pd.Timedelta(hours=self.max_forecast_horizon_in_hours),
+                    )
 
                 # Target split
                 y_slice_df = _slice_closed(y_clean, target_start, target_end)
