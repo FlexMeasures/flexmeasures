@@ -4,11 +4,12 @@ FlexMeasures Changelog
 **********************
 
 
-v0.31.2 | March 17, 2026
+v0.31.2 | March 18, 2026
 ============================
 
 Bugfixes
 -----------
+* Fix bug with resampling time series of e.g. SoC minima with different belief times for adjacent time slots [see `PR #2012 <https://www.github.com/FlexMeasures/flexmeasures/pull/2012>`_]
 * Fix an issue where asset context was accessed in schemas that do not define a ``context`` attribute [see `PR #2014 <https://www.github.com/FlexMeasures/flexmeasures/pull/2014>`_]
 * Fix wrap-up forecasting job [see `PR #2011 <https://www.github.com/FlexMeasures/flexmeasures/pull/2011>`_]
 * Stop failure in the API endpoint that lists available endpoints (/api/v3_0/) [see `PR #2032 <https://github.com/FlexMeasures/flexmeasures/pull/2032>`_]
@@ -23,7 +24,6 @@ v0.31.1 | March 6, 2026
 
 Bugfixes
 -----------
-* Fix bug with resampling time series of e.g. SoC minima with different belief times for adjacent time slots [see `PR #2012 <https://www.github.com/FlexMeasures/flexmeasures/pull/2012>`_]
 * Fix CLI command ``flexmeasures add forecasts`` [see `PR #2007 <https://www.github.com/FlexMeasures/flexmeasures/pull/2007>`_]
 * Add missing field documentation for ``aggregate-power`` and ``state-of-charge`` fields, which can be used to reference a sensor on which to record extra scheduling results [see `PR #2003 <https://www.github.com/FlexMeasures/flexmeasures/pull/2003>`_ and `PR #2006 <https://www.github.com/FlexMeasures/flexmeasures/pull/2006>`_]
 
