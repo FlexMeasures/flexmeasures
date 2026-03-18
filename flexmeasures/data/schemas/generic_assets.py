@@ -41,7 +41,7 @@ class SensorsToShowSchema(fields.Field):
     - A dictionary with a title and sensor: `{"title": "Temperature", "sensor": 42}` -> `{"title": "Temperature", "plots": [{"sensor": 42}]}`
     - A dictionary with a title and sensors: `{"title": "Pressure", "sensors": [42, 43]}` -> `{"title": "Pressure", "plots": [{"sensors": [42, 43]}]}`
     - A dictionary with reference to a flex-model field, e.g.: `{"asset":10,"flex-model": "soc-min"}` (flex-context fields also work)
-    
+
 
     Validation ensures that:
     - The input is either a list, integer, or dictionary.
