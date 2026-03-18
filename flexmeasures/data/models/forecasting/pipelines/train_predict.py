@@ -70,6 +70,38 @@ class TrainPredictPipeline(Forecaster):
             f"Starting Train-Predict cycle from {train_start} to {predict_end}"
         )
 
+        # Re-attach sensor objects if they are detached after RQ pickles/unpickles self
+        # (this can happen when a commit expires objects before RQ serializes the job).
+        sensor = self._parameters["sensor"]
+        from sqlalchemy import inspect as sa_inspect
+
+        if sa_inspect(sensor).detached or sa_inspect(sensor).expired:
+            self._parameters["sensor"] = db.session.merge(sensor)
+        sensor_to_save = self._parameters.get("sensor_to_save")
+        if sensor_to_save is not None:
+            if (
+                sa_inspect(sensor_to_save).detached
+                or sa_inspect(sensor_to_save).expired
+            ):
+                self._parameters["sensor_to_save"] = db.session.merge(sensor_to_save)
+        # Also re-attach regressor sensors stored in _config
+        self._config["future_regressors"] = [
+            (
+                db.session.merge(s)
+                if (sa_inspect(s).detached or sa_inspect(s).expired)
+                else s
+            )
+            for s in self._config.get("future_regressors", [])
+        ]
+        self._config["past_regressors"] = [
+            (
+                db.session.merge(s)
+                if (sa_inspect(s).detached or sa_inspect(s).expired)
+                else s
+            )
+            for s in self._config.get("past_regressors", [])
+        ]
+
         # Train model
         train_pipeline = TrainPipeline(
             future_regressors=self._config["future_regressors"],
