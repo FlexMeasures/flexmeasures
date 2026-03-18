@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
+from timely_beliefs.sensors.func_store import knowledge_horizons
 from typing import Sequence
 from datetime import timedelta
 
@@ -232,6 +233,15 @@ def _copy_direct_sensors(
             sensor_kwargs[column.name] = deepcopy(getattr(source_sensor, column.name))
 
         sensor_kwargs["generic_asset_id"] = copied_asset.id
+        # Reconstruct knowledge_horizon tuple with actual function object
+        # (stored in DB as function name string, but Sensor constructor expects function object)
+        knowledge_horizon_fnc = getattr(
+            knowledge_horizons, source_sensor.knowledge_horizon_fnc
+        )
+        sensor_kwargs["knowledge_horizon"] = (
+            knowledge_horizon_fnc,
+            deepcopy(source_sensor.knowledge_horizon_par),
+        )
 
         db.session.add(Sensor(**sensor_kwargs))
 

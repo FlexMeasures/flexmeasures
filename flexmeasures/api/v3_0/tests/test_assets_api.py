@@ -935,3 +935,44 @@ def test_copy_asset_to_another_account_preserves_config(
         select(Sensor).filter(Sensor.generic_asset_id.in_(copied_child_ids))
     ).all()
     assert len(copied_child_sensors) == 4
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_copy_asset_api_copies_direct_sensors(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """Copying an asset through the API should also duplicate its direct sensors."""
+    prosumer_account = setup_accounts["Prosumer"]
+    source_asset = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    assert source_asset is not None
+
+    source_sensor = Sensor(
+        name="copy-api-source-sensor",
+        generic_asset=source_asset,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+    )
+    db.session.add(source_sensor)
+    db.session.flush()
+
+    response = client.post(url_for("AssetAPI:copy_assets", id=source_asset.id))
+    assert response.status_code == 201
+
+    copied_asset_id = response.json["asset"]
+    copied_sensor = db.session.scalars(
+        select(Sensor).filter(
+            Sensor.generic_asset_id == copied_asset_id,
+            Sensor.name == source_sensor.name,
+        )
+    ).first()
+
+    assert copied_sensor is not None
+    assert copied_sensor.unit == source_sensor.unit
+    assert copied_sensor.event_resolution == source_sensor.event_resolution
