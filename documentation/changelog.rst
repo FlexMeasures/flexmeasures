@@ -13,6 +13,10 @@ Bugfixes
 * Fix wrap-up forecasting job [see `PR #2011 <https://www.github.com/FlexMeasures/flexmeasures/pull/2011>`_]
 * Stop failure in the API endpoint that lists available endpoints (/api/v3_0/) [see `PR #2032 <https://github.com/FlexMeasures/flexmeasures/pull/2032>`_]
 
+Infrastructure / Support
+------------------------
+* Re-add bcrypt dependency  [see `PR #2029 <https://github.com/FlexMeasures/flexmeasures/pull/2029>`_]
+
 
 v0.31.1 | March 6, 2026
 ============================

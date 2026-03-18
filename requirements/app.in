@@ -92,3 +92,7 @@ fonttools>=4.60.2
 cbor2>=5.8.0
 # https://github.com/FlexMeasures/flexmeasures/security/dependabot/527
 marshmallow>=3.26.2
+
+# Limit due to auth failures for passwords hashed with bcrypt instead of argon
+# https://github.com/SeitaBV/flexmeasures-cloudinfra/issues/283
+bcrypt==4.3.0
