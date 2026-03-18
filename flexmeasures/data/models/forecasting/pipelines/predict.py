@@ -96,11 +96,15 @@ class PredictPipeline(BasePipeline):
         self.data_source = self._get_attached_data_source(data_source)
 
     @staticmethod
-    def _get_attached_data_source(data_source: Source | int | None) -> DataSource | None:
+    def _get_attached_data_source(
+        data_source: Source | int | None,
+    ) -> DataSource | None:
         """Reload the prediction source through the active session before saving beliefs."""
         if data_source is None:
             return None
-        source_id = data_source.id if isinstance(data_source, DataSource) else data_source
+        source_id = (
+            data_source.id if isinstance(data_source, DataSource) else data_source
+        )
         attached_source = db.session.get(DataSource, source_id)
         if attached_source is None:
             raise ValueError(f"Could not load data source with id {source_id}.")

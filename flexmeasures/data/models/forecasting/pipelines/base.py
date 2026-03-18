@@ -70,7 +70,9 @@ class BasePipeline:
         predict_end: datetime | None = None,
         missing_threshold: float = 1.0,
     ) -> None:
-        self.future = [self._get_attached_sensor(sensor) for sensor in future_regressors]
+        self.future = [
+            self._get_attached_sensor(sensor) for sensor in future_regressors
+        ]
         self.past = [self._get_attached_sensor(sensor) for sensor in past_regressors]
         self.n_steps_to_predict = n_steps_to_predict
         self.max_forecast_horizon = max_forecast_horizon
@@ -84,9 +86,7 @@ class BasePipeline:
             save_belief_time  # non floored belief time to save forecasts with
         )
         self.target_sensor = self._get_attached_sensor(target_sensor)
-        self.target = (
-            f"{self.target_sensor.name} (ID: {self.target_sensor.id})_target"
-        )
+        self.target = f"{self.target_sensor.name} (ID: {self.target_sensor.id})_target"
         self.future_regressors = [
             f"{sensor.name} (ID: {sensor.id})_FR-{idx}"
             for idx, sensor in enumerate(self.future)
