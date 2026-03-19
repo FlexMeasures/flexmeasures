@@ -358,6 +358,12 @@ def remember_last_seen(user):
         db.session.commit()
 
 
+def record_password_reset(the_app, user):
+    """ Record in an audit log when a password gets reset"""
+    print(f"User {user} password reset!!")
+
+
+
 def is_user(o) -> bool:
     """True if object is or proxies a User, False otherwise.
 

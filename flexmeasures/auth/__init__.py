@@ -3,7 +3,7 @@ Authentication and authorization policies and helpers.
 """
 
 from flask import Flask
-from flask_security import Security, SQLAlchemySessionUserDatastore
+from flask_security import Security, SQLAlchemySessionUserDatastore, password_reset
 from flask_login import user_logged_in, current_user
 from werkzeug.exceptions import Forbidden, Unauthorized
 
@@ -25,6 +25,7 @@ def register_at(app: Flask):
         Role,
         remember_login,
         remember_last_seen,
+        record_password_reset,
     )  # noqa: F401
 
     # Setup Flask-Security-Too for user authentication & authorization
@@ -43,6 +44,8 @@ def register_at(app: Flask):
 
     # add our custom handler for a user login event
     user_logged_in.connect(remember_login)
+
+    password_reset.connect(record_password_reset)
 
     # also store when the last contact was
     @app.before_request
