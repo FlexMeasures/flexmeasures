@@ -19,17 +19,6 @@ Furthermore, we discuss several guidelines and best practices.
 Getting started
 ------------------
 
-Virtual environment
-^^^^^^^^^^^^^^^^^^^^
-
-Using a virtual environment is best practice for Python developers. We also strongly recommend using a dedicated one for your work on FlexMeasures, as our make target (see below) will use ``pip-sync`` to install dependencies, which could interfere with some libraries you already have installed.
-
-
-* Make a virtual environment: ``python3.10 -m venv flexmeasures-venv`` or use a different tool like ``mkvirtualenv`` or virtualenvwrapper. You can also use
-  an `Anaconda distribution <https://conda.io/docs/user-guide/tasks/manage-environments.html>`_ as base with ``conda create -n flexmeasures-venv python=3.10``.
-* Activate it, e.g.: ``source flexmeasures-venv/bin/activate``
-
-
 Download FlexMeasures
 ^^^^^^^^^^^^^^^^^^^^^^^
 Clone the `FlexMeasures repository <https://github.com/FlexMeasures/flexmeasures.git>`_ from GitHub.
@@ -38,44 +27,46 @@ Clone the `FlexMeasures repository <https://github.com/FlexMeasures/flexmeasures
 
    $ git clone https://github.com/FlexMeasures/flexmeasures.git
 
-
 Dependencies
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
 
-Go into the ``flexmeasures`` folder and install all dependencies including the ones needed for development:
+We use the excellent `uv <https://docs.astral.sh/uv/>`_ tool to manage our dependencies.
+First, `install uv <https://docs.astral.sh/uv/getting-started/installation/>`_.
+
+Next, go into the ``flexmeasures`` folder and install all dependencies including the ones needed for development:
 
 .. code-block:: bash
 
    $ cd flexmeasures
-   $ make install-for-dev
+   $ uv sync --group dev --group test
 
-:ref:`Install the LP solver <install-lp-solver>`. On Linux, the HiGHS solver can be installed with:
+All ``flexmeasures`` commands in this guide are prefixed with ``uv run``, which ensures they always run in the correct project environment without needing to activate it first. This is specific to the developer setup: when using Docker or a globally installed FlexMeasures, ``flexmeasures`` is available directly on your ``PATH`` and no prefix is needed.
+
+.. note::
+
+   If you prefer shorter commands during interactive development, you can either activate the virtual environment (``source .venv/bin/activate``, or ``.venv\Scripts\activate`` on Windows) or add an alias to your ``~/.bashrc`` / ``~/.zshrc``:
+
+   .. code-block:: bash
+
+      alias flexmeasures="uv run flexmeasures"
+
+:ref:`Installing test dependencies <install-test-dependencies>`. Install the test dependencies with:
 
 .. code-block:: bash
 
-   $ pip install highspy
+   $ uv sync --locked --group test
 
-On MacOS it will be installed locally by `make install-for-test` and no actions are required on your part
+This command will install all test dependencies.
 
-Besides highs, the CBC solver is required for tests as well:
+On Linux and Windows, everything will be installed using Python packages.
 
-.. tabs::
+On MacOS, this will install all test dependencies, and locally install the HiGHS solver.
+For this to work, make sure you have `Homebrew <https://brew.sh/>`_ installed.
 
-    .. tab:: Linux
-
-        .. code-block:: bash
-
-            $ apt-get install coinor-cbc
-
-    .. tab:: MacOS
-
-        .. code-block:: bash
-
-            $ brew install cbc
-
+Besides the HiGHS solver (as the current default), the CBC solver is required for tests as well. See `The install instructions <https://github.com/coin-or/Cbc?tab=readme-ov-file#binaries`_ for more information.
 
 Configuration
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
 
 Most configuration happens in a config file, see :ref:`configuration` on where it can live and all supported settings.
 
@@ -93,13 +84,13 @@ The development mode makes sure we don't need SSL to connect, among other things
 
 
 Database
-^^^^^^^^^^^^^^^^
+^^^^^^^^
 
 See :ref:`host-data` for tips on how to install and upgrade databases (postgres and redis).
 
 
 Loading data
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
 
 If you have a SQL Dump file, you can load that:
 
@@ -111,18 +102,18 @@ One other possibility is to add a toy account (which owns some assets and a batt
 
 .. code-block:: bash
 
-    $ flexmeasures add toy-account
+    $ uv run flexmeasures add toy-account
 
 
 
 Run locally
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^
 
 Now, to start the web application, you can run:
 
 .. code-block:: bash
 
-    $ flexmeasures run
+    $ uv run flexmeasures run
 
 And access the server at http://localhost:5000
 
@@ -132,8 +123,8 @@ Otherwise, you need to add some other user first. Here is how we add an admin:
 
 .. code-block:: bash
     
-    $ flexmeasures add account --name MyCompany
-    $ flexmeasures add user --username admin --account 1 --email admin@mycompany.io --roles admin
+    $ uv run flexmeasures add account --name MyCompany
+    $ uv run flexmeasures add user --username admin --account 1 --email admin@mycompany.io --roles admin
 
 (The `account` you need in the 2nd command is printed by the 1st)
 
@@ -150,7 +141,7 @@ We recommend you populate the database with some standard asset types, user role
 
 .. code-block:: bash
 
-   $ flexmeasures add initial-structure
+   $ uv run flexmeasures add initial-structure
 
 For instance, without an asset type, you cannot add an asset.
 
@@ -158,7 +149,7 @@ Actually, you can add many things from the terminal. Check what data you can add
 
 .. code-block:: bash
 
-   $ flexmeasures add --help
+   $ uv run flexmeasures add --help
 
 
 
@@ -190,17 +181,16 @@ Tests
 You can run automated tests with:
 
 .. code-block:: bash
-
-    $ make test
-
-
-which behind the curtains installs dependencies and calls ``pytest``.
+    # If you haven't already, install the test dependencies:
+    $ uv sync --group test
+    # Then run the tests:
+    $ uv run poe test
 
 However, a test database (postgres) is needed to run these tests. If you have postgres, here is the short version on how to add the test database:
 
 .. code-block:: bash
 
-    $ make clean-db db_name=flexmeasures_test db_user=flexmeasures_test
+    $ uv run poe clean-db db-name=flexmeasures_test db-user=flexmeasures_test
     $ # the password for the db user is "flexmeasures_test"
 
 .. note:: The section :ref:`host-data` has more details on using postgres for FlexMeasures.
@@ -231,13 +221,11 @@ Or, after a test run with coverage turned on as shown above, you can still gener
 Versioning
 ----------
 
-We use `setuptool_scm <https://github.com/pypa/setuptools_scm/>`_ for versioning, which bases the FlexMeasures version on the latest git tag and the commits since then.
+We use `hatch-vcs <https://pypi.org/project/hatch-vcs/>`_ for versioning, which bases the FlexMeasures version on the latest git tag and the commits since then.
 
 So as a developer, it's crucial to use git tags for versions only.
 
-We use semantic versioning, and we always include the patch version, not only max and min, so that setuptools_scm makes the correct guess about the next minor version. Thus, we should use ``2.0.0`` instead of ``2.0``.
-
-See ``to_pypi.sh`` for more commentary on the development versions.
+We use semantic versioning, and we always include the patch version, not only max and min, so that hatch-vcs makes the correct guess about the next minor version. Thus, we should use ``2.0.0`` instead of ``2.0``.
 
 Our API has its own version, which moves much slower. This is important to explicitly support outside apps who were coded against older versions. 
 
@@ -249,11 +237,11 @@ We use `Black <https://github.com/ambv/black>`_ to format our Python code and `F
 We also run `mypy <http://mypy-lang.org/>`_ on many files to do some static type checking.
 
 We do this so real problems are found faster and the discussion about formatting is limited.
-All of these can be installed by using ``pip``, but we recommend using them as a pre-commit hook. To activate that behaviour, do:
+All of these can be installed by using ``uv``, but we recommend using them as a pre-commit hook. To activate that behaviour, do:
 
 .. code-block:: bash
 
-   $ pip install pre-commit
+   $ uv tool install pre-commit
    $ pre-commit install
 
 
@@ -293,7 +281,7 @@ If you edit notebooks, make sure results do not end up in git:
 
 .. code-block:: bash
 
-   $ conda install -c conda-forge nbstripout
+   $ uv tool install nbstripout
    $ nbstripout --install
 
 
@@ -310,15 +298,14 @@ I added this to my ~/.bashrc, so I only need to type ``fm`` to get started and h
 
    addssh(){
        eval `ssh-agent -s`
-       ssh-add ~/.ssh/id_github
-   }
-   fm(){
-       addssh
-       cd ~/workspace/flexmeasures  
-       git pull  # do not use if any production-like app runs from the git code                                                                                                                                                             
-       workon flexmeasures-venv  # this depends on how you created your virtual environment
-       make install-for-dev
-   }
+      ssh-add ~/.ssh/id_github
+  }
+  fm(){
+      addssh
+      cd ~/workspace/flexmeasures  
+      git pull  # do not use if any production-like app runs from the git code                                                                                                                                                             
+      uv sync --group dev --group test
+  }
 
 
 .. note:: All paths depend on your local environment, of course.

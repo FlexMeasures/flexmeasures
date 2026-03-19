@@ -129,6 +129,8 @@ def test_add_asset(db, client, setup_assets, as_admin):
 
 def test_edit_asset(db, client, setup_assets, as_admin):
     mock_asset = mock_asset_data_with_kpis(db=db, as_list=False)
+    mock_asset["name"] = "Edited name"
+
     response = client.post(
         url_for("AssetCrudUI:post", id=1),
         follow_redirects=True,

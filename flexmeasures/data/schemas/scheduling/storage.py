@@ -180,6 +180,7 @@ class StorageFlexModelSchema(Schema):
         to_unit="MWh",
         data_key="state-of-charge",
         required=False,
+        additional_sensor_units=["%"],
         metadata=metadata.STATE_OF_CHARGE.to_dict(),
     )
 
@@ -416,6 +417,7 @@ class DBStorageFlexModelSchema(Schema):
         data_key="state-of-charge",
         required=False,
         value_validator=validate.Range(min=0),
+        additional_sensor_units=["%"],
     )
 
     soc_gain = fields.List(
@@ -539,12 +541,19 @@ class DBStorageFlexModelSchema(Schema):
             "soc_minima",
             "soc_maxima",
             "soc_targets",
-            "state_of_charge",
         ]
 
         for field in energy_fields:
             if field in data:
                 self._validate_field(data, field, unit_validator=is_energy_unit)
+
+        # state_of_charge sensors may use an energy unit or '%'
+        if "state_of_charge" in data:
+            self._validate_field(
+                data,
+                "state_of_charge",
+                unit_validator=lambda u: is_energy_unit(u) or u == "%",
+            )
 
     def _validate_power_fields(self, data: dict):
         """Validate power fields."""

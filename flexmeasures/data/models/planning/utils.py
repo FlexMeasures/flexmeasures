@@ -344,7 +344,11 @@ def get_series_from_quantity_or_sensor(
             one_deterministic_belief_per_event=True,
         )
         if as_instantaneous_events:
-            bdf = bdf.resample_events(timedelta(0), boundary_policy=resolve_overlaps)
+            bdf = bdf.resample_events(
+                timedelta(0),
+                boundary_policy=resolve_overlaps,
+                keep_only_most_recent_belief=True,
+            )
         time_series = simplify_index(bdf).reindex(index).squeeze(axis=1)
         time_series = convert_units(
             time_series, variable_quantity.unit, unit, resolution

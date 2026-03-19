@@ -23,6 +23,7 @@ from flexmeasures.data.models.generic_assets import (
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.ui.utils.view_utils import ICON_MAPPING
 from flexmeasures.data.models.user import Account
+from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.views.assets.forms import NewAssetForm, AssetForm
 from flexmeasures.ui.views.assets.utils import (
@@ -172,6 +173,7 @@ class AssetCrudUI(FlaskView):
         current_asset_sensors = [
             {
                 "name": sensor.name,
+                "resolution": duration_isoformat(sensor.event_resolution),
                 "unit": sensor._ui_unit,
                 "link": url_for("SensorUI:get", id=sensor.id),
             }
@@ -292,6 +294,7 @@ class AssetCrudUI(FlaskView):
                 session["msg"] = f"Cannot edit asset: {asset_form.errors}"
                 return redirect(url_for("AssetCrudUI:properties", id=id))
             try:
+                patch_asset_schema.context = {"asset_id": asset.id}
                 loaded_asset_data = patch_asset_schema.load(asset_form.to_json())
                 patch_asset(asset, loaded_asset_data)
                 db.session.commit()
@@ -335,6 +338,7 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/graphs")
     def graphs(self, id: str, start_time=None, end_time=None):
         """/assets/<id>/graphs"""
+
         asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
         asset_kpis = asset.sensors_to_show_as_kpis
@@ -347,11 +351,15 @@ class AssetCrudUI(FlaskView):
         asset_form.with_options()
         asset_form.process(obj=asset)
 
+        site_asset = asset.find_site_asset()
+
         return render_flexmeasures_template(
             "assets/asset_graph.html",
             asset=asset,
+            site_asset=site_asset,
             has_kpis=has_kpis,
             asset_kpis=asset_kpis,
+            available_units=available_units(),
             current_page="Graphs",
         )
 
@@ -399,9 +407,18 @@ class AssetCrudUI(FlaskView):
 
         from flexmeasures.data.schemas.scheduling import UI_FLEX_MODEL_SCHEMA
 
+        # suggestions for the parent asset selection
+        account_assets = (
+            db.session.query(GenericAsset)
+            .filter_by(account_id=asset.account_id)
+            .order_by(GenericAsset.id.asc())
+            .all()
+        )
+
         return render_flexmeasures_template(
             "assets/asset_properties.html",
             asset=asset,
+            account_assets=account_assets,
             site_asset=site_asset,
             flex_model_schema=UI_FLEX_MODEL_SCHEMA,
             asset_flexmodel=json.dumps(asset.flex_model),

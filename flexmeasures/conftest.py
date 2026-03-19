@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import sys
+import builtins
+import warnings
 from contextlib import contextmanager
 import pytest
 from random import random, seed
@@ -545,6 +548,31 @@ def create_assets(
             ),
         )
         db.session.add(sensor)
+        scc_sensor = Sensor(
+            name="site-consumption-capacity",
+            generic_asset=asset,
+            event_resolution=timedelta(minutes=15),
+            unit="MW",
+        )
+        db.session.add(scc_sensor)
+        cc_sensor = Sensor(
+            name="consumption-capacity",
+            generic_asset=asset,
+            event_resolution=timedelta(minutes=15),
+            unit="MW",
+        )
+        db.session.add(cc_sensor)
+        pc_sensor = Sensor(
+            name="production-capacity",
+            generic_asset=asset,
+            event_resolution=timedelta(minutes=15),
+            unit="MW",
+        )
+        db.session.add(pc_sensor)
+        db.session.flush()  # assign sensor IDs
+        asset.flex_model["consumption-capacity"] = {"sensor": cc_sensor.id}
+        asset.flex_model["production-capacity"] = {"sensor": pc_sensor.id}
+        asset.flex_context["site-consumption-capacity"] = {"sensor": scc_sensor.id}
         assets.append(asset)
 
         # one day of test data (one complete sine curve)
@@ -1825,3 +1853,58 @@ def add_test_solar_sensor_and_irradiance_with_forecasts(
 
     db.session.commit()
     return sensors
+
+
+@pytest.fixture
+def freeze_server_now():
+    """
+    Monkeypatch `server_now` in all currently loaded FlexMeasures modules that have it.
+
+    Usage:
+        def test_x(freeze_server_now):
+            freeze_server_now(pd.Timestamp("2025-01-15T12:23:58+01"))
+    """
+    patched_modules = set()
+
+    def _freeze(value: datetime | pd.Timestamp):
+        if isinstance(value, pd.Timestamp):
+            value = value.to_pydatetime()
+        # Patch currently loaded FlexMeasures modules
+        for module in list(sys.modules.values()):  # copy to avoid RuntimeError
+            try:
+                if not isinstance(module, type(sys)):  # skip placeholders
+                    continue
+                name = getattr(module, "__name__", "")
+                if not name.startswith("flexmeasures"):
+                    continue
+                if hasattr(module, "server_now"):
+                    setattr(module, "server_now", lambda: value)
+                    patched_modules.add(module.__name__)
+            except Exception:
+                # skip modules that cannot be inspected or modified
+                pass
+
+        # Optionally, warn if new modules are imported later
+        original_import = builtins.__import__
+
+        def import_hook(name, *args, **kwargs):
+            mod = original_import(name, *args, **kwargs)
+            if hasattr(mod, "server_now") and mod not in patched_modules:
+                warnings.warn(
+                    f"Module {name} imported after server_now was frozen; patching it now."
+                )
+                try:
+                    setattr(mod, "server_now", lambda: value)
+                    patched_modules.add(name)
+                except Exception:
+                    pass
+            return mod
+
+        builtins.__import__ = import_hook
+
+        return value
+
+    yield _freeze
+
+    # cleanup: restore the original import function
+    builtins.__import__ = builtins.__import__
