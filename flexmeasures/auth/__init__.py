@@ -3,7 +3,13 @@ Authentication and authorization policies and helpers.
 """
 
 from flask import Flask
-from flask_security import Security, SQLAlchemySessionUserDatastore, password_reset, password_changed, reset_password_instructions_sent
+from flask_security import (
+    Security,
+    SQLAlchemySessionUserDatastore,
+    password_reset,
+    password_changed,
+    reset_password_instructions_sent,
+)
 from flask_login import user_logged_in, current_user
 from werkzeug.exceptions import Forbidden, Unauthorized
 

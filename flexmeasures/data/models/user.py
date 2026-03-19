@@ -360,9 +360,9 @@ def remember_last_seen(user):
 
 
 def log_password_reset(the_app, user):
-    """ Record in an audit log when a password gets reset"""
+    """Record in an audit log when a password gets reset"""
     from flexmeasures.data.models.audit_log import AuditLog
-    
+
     active_user_id, active_user_name = None, None
     if hasattr(current_user, "id"):
         active_user_id, active_user_name = current_user.id, current_user.username
@@ -378,9 +378,9 @@ def log_password_reset(the_app, user):
 
 
 def log_password_changed(the_app, user):
-    """ Record in an audit log when a password gets changed"""
+    """Record in an audit log when a password gets changed"""
     from flexmeasures.data.models.audit_log import AuditLog
-    
+
     active_user_id, active_user_name = None, None
     if hasattr(current_user, "id"):
         active_user_id, active_user_name = current_user.id, current_user.username
@@ -396,9 +396,9 @@ def log_password_changed(the_app, user):
 
 
 def log_reset_password_instructions_sent(the_app, user, *args, **kwargs):
-    """ Record in an audit log when reset password instructions get sent"""
+    """Record in an audit log when reset password instructions get sent"""
     from flexmeasures.data.models.audit_log import AuditLog
-    
+
     active_user_id, active_user_name = None, None
     if hasattr(current_user, "id"):
         active_user_id, active_user_name = current_user.id, current_user.username
