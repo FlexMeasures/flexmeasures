@@ -1696,7 +1696,29 @@ class AssetAPI(FlaskView):
 
         new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)
 
+        account_given = "account_id" in request.args
+        parent_given = "parent_id" in request.args
+
+        if not parent_given and not account_given:
+            message = f"Successfully copied asset {asset.id}."
+        elif parent_given and not account_given:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to parent asset {new_asset.parent_asset_id}."
+            )
+        elif not parent_given and account_given:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to account {new_asset.account_id}."
+            )
+        else:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to account {new_asset.account_id} "
+                f"under parent {new_asset.parent_asset_id}."
+            )
+
         return {
-            "message": f"Successfully copied asset {asset.id} to account {new_asset.account_id}.",
+            "message": message,
             "asset": new_asset.id,
         }, 201
