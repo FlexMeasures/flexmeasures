@@ -10,11 +10,10 @@ import os
 import shutil
 
 from datetime import datetime
-from pkg_resources import get_distribution
 import sphinx_fontawesome
 
 from flexmeasures.data.schemas.scheduling import metadata as metadata_module
-
+from flexmeasures import __version__ as fm_version
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -28,10 +27,8 @@ project = "FlexMeasures"
 copyright = f"{datetime.now().year}, Seita Energy Flexibility, developed in partnership with A1 Engineering, South Korea"
 author = "Seita B.V."
 
-# The full version, including alpha/beta/rc tags
-release = get_distribution("flexmeasures").version
-# The short X.Y.Z version
-version = ".".join(release.split(".")[:3])
+# The short X.Y.Z version, not including alpha/beta/rc tags
+version = ".".join(fm_version.split(".")[:3])
 
 rst_prolog = sphinx_fontawesome.prolog
 

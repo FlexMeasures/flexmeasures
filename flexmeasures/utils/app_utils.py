@@ -15,8 +15,8 @@ from flask_security import current_user
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.integrations.rq import RqIntegration
-from pkg_resources import get_distribution
 
+from flexmeasures import __version__ as fm_version
 from flexmeasures.app import create as create_app
 
 
@@ -48,7 +48,7 @@ def init_sentry(app: Flask):
         dsn=sentry_dsn,
         integrations=[FlaskIntegration(), RqIntegration()],
         debug=app.debug,
-        release=f"flexmeasures@{get_distribution('flexmeasures').version}",
+        release=f"flexmeasures@{fm_version}",
         send_default_pii=True,  # user data (current user id, email address, username) is attached to the event.
         environment=app.config.get("FLEXMEASURES_ENV"),
         **app.config["FLEXMEASURES_SENTRY_CONFIG"],

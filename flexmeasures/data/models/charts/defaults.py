@@ -90,8 +90,6 @@ REPLAY_RULER = {
 SHADE_LAYER = {
     "mark": {
         "type": "bar",
-        "color": "#bbbbbb",
-        "opacity": 0.3,
         "size": HEIGHT,
     },
     "encoding": {
@@ -105,6 +103,36 @@ SHADE_LAYER = {
             type="temporal",
             title=None,
         ),
+        "color": {
+            "condition": [
+                {
+                    "param": "select",
+                    "empty": False,
+                    "value": "var(--secondary-color)",  # highlight color on select
+                },
+                {
+                    "param": "highlight",
+                    "empty": False,
+                    "value": "var(--secondary-hover-color)",  # highlight color on hover
+                },
+            ],
+            "value": "var(--gray)",  # default color
+        },
+        "opacity": {
+            "condition": [
+                {
+                    "param": "select",
+                    "empty": False,
+                    "value": 0.8,
+                },
+                {
+                    "param": "highlight",
+                    "empty": False,
+                    "value": 0.7,
+                },
+            ],
+            "value": 0.3,
+        },
     },
     "params": [
         {
@@ -117,6 +145,7 @@ SHADE_LAYER = {
 TEXT_LAYER = {
     "mark": {
         "type": "text",
+        "clip": False,
         "y": HEIGHT,
         "dy": FONT_SIZE + ANNOTATION_MARGIN,
         "baseline": "top",
