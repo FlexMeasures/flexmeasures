@@ -1646,13 +1646,13 @@ class SensorAPI(FlaskView):
 
         # Queue forecasting job
         try:
-            job_id = forecaster.compute(parameters=parameters, as_job=True)
+            pipeline_returns = forecaster.compute(parameters=parameters, as_job=True)
         except Exception as e:
             current_app.logger.exception("Forecast job failed to enqueue.")
             return unprocessable_entity(str(e))
 
         d, s = request_processed()
-        return dict(forecast=job_id, **d), s
+        return dict(forecast=pipeline_returns["job_id"], **d), s
 
     @route("/<id>/forecasts/<uuid>", methods=["GET"])
     @use_kwargs(

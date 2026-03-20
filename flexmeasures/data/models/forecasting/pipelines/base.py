@@ -605,8 +605,8 @@ class BasePipeline:
 
                 if missing_fraction > self.missing_threshold:
                     raise NotEnoughDataException(
-                        f"Sensor {sensor_name} has {missing_fraction*100:.1f}% missing values "
-                        f"which exceeds the allowed threshold of {self.missing_threshold*100:.1f}%"
+                        f"Sensor {sensor_name} has {missing_fraction * 100:.1f}% missing values "
+                        f"which exceeds the allowed threshold of {self.missing_threshold * 100:.1f}%"
                     )
 
             if df.empty:
@@ -690,8 +690,8 @@ class BasePipeline:
 
             if missing_rows_fraction > self.missing_threshold:
                 raise NotEnoughDataException(
-                    f"Sensor {sensor_name} has {missing_rows_fraction*100:.1f}% missing values "
-                    f"which exceeds the allowed threshold of {self.missing_threshold*100:.1f}%"
+                    f"Sensor {sensor_name} has {missing_rows_fraction * 100:.1f}% missing values "
+                    f"which exceeds the allowed threshold of {self.missing_threshold * 100:.1f}%"
                 )
             if not data_darts_gaps.empty:
                 data_darts = transformer.transform(
