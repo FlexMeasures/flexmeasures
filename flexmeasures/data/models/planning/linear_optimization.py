@@ -618,6 +618,14 @@ def device_scheduler(  # noqa C901
 
     solver = SolverFactory(solver_name)
 
+    # Temporary fix for https://github.com/Pyomo/pyomo/issues/3841
+    if solver_name == "cbc":
+        import shutil
+
+        cbc_path = shutil.which("cbc") or shutil.which("Cbc")
+        if cbc_path is not None:
+            solver.set_executable(cbc_path)
+
     # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
     if current_app.config["LOGGING_LEVEL"] == "INFO" and (
         "highs" in solver_name.lower()
