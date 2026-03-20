@@ -512,7 +512,7 @@ class MetaStorageScheduler(Scheduler):
                     )
                     - up_deviation_prices
                 )
-                if prefer_curtailing_later:
+                if prefer_curtailing_later_d:
                     # Use a tiny price slope to prefer a fuller SoC sooner rather than later, by lowering penalties later
                     penalty = tiny_price_slope
                 else:
