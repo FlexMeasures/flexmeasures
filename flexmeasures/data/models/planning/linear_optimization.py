@@ -636,12 +636,9 @@ def device_scheduler(  # noqa C901
             "dual_feasibility_tolerance": "1e-9",
             "mip_feasibility_tolerance": "1e-9",
         }
-
-    # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
-    if current_app.config["LOGGING_LEVEL"] == "INFO" and (
-        "highs" in solver_name.lower()
-    ):
-        solver.options["output_flag"] = "false"
+        # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
+        if current_app.config["LOGGING_LEVEL"] == "INFO":
+            profile["output_flag"] = "false"
 
     for option_name, option_value in profile.items():
         solver.options[option_name] = option_value
