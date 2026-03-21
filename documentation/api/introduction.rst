@@ -57,7 +57,12 @@ So this tells us which API versions exist. For instance, we know that the latest
 
 Also, we can see that a list of endpoints is available on https://flexmeasures.readthedocs.io for each of these versions.
 
-.. note:: Sunset API versions are still documented there, simply select an older version.
+All API responses include a ``FlexMeasures-Version`` header with the current server version, and responses from versioned API endpoints (e.g. under ``/api/v3_0``) also include an ``API-Version`` header indicating the API version:
+
+.. code-block:: http
+
+    FlexMeasures-Version: 0.32.0
+    API-Version: v3_0
 
 
 .. _api_auth:

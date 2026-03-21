@@ -157,6 +157,15 @@ def register_at(app: Flask):
         flexmeasures_api, url_prefix="/api"
     )  # now registering the blueprint will affect all endpoints
 
+    # Add version headers to all API responses
+    @app.after_request
+    def add_version_headers(response):
+        if request.path.startswith("/api/"):
+            response.headers["FlexMeasures-Version"] = flexmeasures_version
+            if request.path.startswith("/api/v3_0"):
+                response.headers["API-Version"] = "v3_0"
+        return response
+
     # Load API endpoints for internal operations
     from flexmeasures.api.common import register_at as ops_register_at
 
