@@ -466,71 +466,25 @@ def test_two_flexible_assets_with_commodity(app, db):
         f"= 7.48 EUR, got {total_electricity_cost}"
     )
 
-    # Battery charges early (3-4h @20kW): tiny slope cost ≈ 2.30e-6 EUR (negligible tiebreaker)
-    assert costs_data["prefer charging device 0 sooner"] == pytest.approx(
-        2.30e-6, rel=1e-2
-    ), (
-        f"Battery charging preference (charges early at low-slope cost): "
-        f"= 2.30e-6 EUR, got {costs_data['prefer charging device 0 sooner']}"
-    )
+    # Battery prefers to charge as early as possible (3h @20kW, 1h@>0kW, then 0kW until the last slot with full discharge)
+    assert all(battery_data[:3] == 20)
+    assert battery_data[3] > 0
+    assert all(battery_data[4:-1] == 0)
+    assert battery_data[-1] == -20
 
-    # Battery idle periods with 0.5× multiplier: = 0.5 × 2.30e-6 = 1.15e-6 EUR
-    assert costs_data["prefer curtailing device 0 later"] == pytest.approx(
-        1.15e-6, rel=1e-2
-    ), (
-        f"Battery curtailing preference (idle periods with 0.5× multiplier): "
-        f"= 0.5 × 2.30e-6 = 1.15e-6 EUR, got {costs_data['prefer curtailing device 0 later']}"
-    )
-
-    # Verify charging cost ~2× curtailing cost (due to 0.5× multiplier)
-    assert (
-        costs_data["prefer charging device 0 sooner"]
-        > costs_data["prefer curtailing device 0 later"]
-    ), (
-        f"Battery charging preference should cost ~2× more than curtailing "
-        f"due to 0.5× multiplier on curtailing slopes. "
-        f"Ratio: {costs_data['prefer charging device 0 sooner'] / costs_data['prefer curtailing device 0 later']:.1f}×"
-    )
-
-    # Heat pump charges ~30 kWh (half of battery's 60 kWh) at 10 kW: tiny slope cost ≈ 1.51e-7 EUR
-    assert costs_data["prefer charging device 1 sooner"] == pytest.approx(
-        1.51e-7, rel=1e-2
-    ), (
-        f"Heat pump charging preference (charges 30kWh, smaller than battery): "
-        f"= 1.51e-7 EUR, got {costs_data['prefer charging device 1 sooner']}"
-    )
-
-    # Heat pump idle periods with 0.5× multiplier should be positive
-    assert (
-        costs_data["prefer curtailing device 1 later"] > 0
-    ), "Heat pump curtailing preference cost should be positive"
-    # Verify charging cost ~2× curtailing cost (due to 0.5× multiplier)
-    assert (
-        costs_data["prefer charging device 1 sooner"]
-        > costs_data["prefer curtailing device 1 later"]
-    ), (
-        f"Heat pump charging preference should cost ~2× more than curtailing "
-        f"due to 0.5× multiplier. "
-        f"Ratio: {costs_data['prefer charging device 1 sooner'] / costs_data['prefer curtailing device 1 later']:.1f}×"
-    )
+    # HP prefers to charge as early as possible (3h @10kW, 1h@>0kW, then 0kW)
+    assert all(hp_data[:3] == 10)
+    assert hp_data[3] > 0
+    assert all(hp_data[4:] == 0)
 
     # ---- RELATIVE COSTS: Battery vs Heat Pump
     # Battery moves 60 kWh, Heat Pump moves 30 kWh (2:1 ratio)
-    # Preference costs should roughly reflect this energy ratio
-    # Battery total preference: 2.30e-6 + 1.15e-6 = 3.45e-6 EUR
-    # Heat Pump total preference: 1.51e-7 + ~7.5e-8 ≈ 2.26e-7 EUR
-    # Ratio: 3.45e-6 / 2.26e-7 ≈ 15× (battery has much higher preference costs)
-    battery_total_pref = (
-        costs_data["prefer charging device 0 sooner"]
-        + costs_data["prefer curtailing device 0 later"]
-    )
-    hp_total_pref = (
-        costs_data["prefer charging device 1 sooner"]
-        + costs_data["prefer curtailing device 1 later"]
-    )
-    assert battery_total_pref > hp_total_pref, (
-        f"Battery preference costs ({battery_total_pref:.2e}) should be higher than "
-        f"heat pump ({hp_total_pref:.2e}) since battery moves more energy (60 kWh vs 30 kWh)"
+    # Preference costs should reflect this energy ratio
+    battery_total_pref = costs_data["prefer a full storage 0 sooner"]
+    hp_total_pref = costs_data["prefer a full storage 1 sooner"]
+    assert battery_total_pref == 2 * hp_total_pref, (
+        f"Battery preference costs ({battery_total_pref:.2e}) should be twice the "
+        f"heat pump ({hp_total_pref:.2e}) preference costs, since battery moves more energy (60 kWh vs 30 kWh)"
     )
 
 

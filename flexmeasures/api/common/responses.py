@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Tuple, Union, Sequence
+from typing import Sequence
 import inflect
 from functools import wraps
 
@@ -9,8 +9,7 @@ p = inflect.engine()
 
 
 # Type annotation for responses: (message, status_code) or (message, status_code, header)
-# todo: Use | instead of Union and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
-ResponseTuple = Union[Tuple[dict, int], Tuple[dict, int, dict]]
+ResponseTuple = tuple[dict, int] | tuple[dict, int, dict]
 
 
 def is_response_tuple(value) -> bool:
@@ -259,6 +258,11 @@ def unknown_prices(message: str) -> ResponseTuple:
 @BaseMessage("No known schedule for this time period.")
 def unknown_schedule(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="UNKNOWN_SCHEDULE", message=message), 400
+
+
+@BaseMessage("No known forecast for this time period.")
+def unknown_forecast(message: str) -> ResponseTuple:
+    return dict(result="Rejected", status="UNKNOWN_FORECAST", message=message), 400
 
 
 def fallback_schedule_redirect(message: str, location: str) -> ResponseTuple:

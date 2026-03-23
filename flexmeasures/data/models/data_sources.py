@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import inspect
 import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -109,7 +110,9 @@ class DataGenerator:
         """
         raise NotImplementedError()
 
-    def compute(self, parameters: dict | None = None, **kwargs) -> list[dict[str, Any]]:
+    def compute(
+        self, parameters: dict | None = None, as_job: bool = False, **kwargs
+    ) -> list[dict[str, Any]]:
         """The configuration `parameters` stores dynamic parameters, parameters that, if
         changed, DO NOT trigger the creation of a new DataSource. Static parameters, such as
         the topology of an energy system, can go into `config`.
@@ -118,6 +121,7 @@ class DataGenerator:
         of the method compute when passing the `parameters` as deserialized attributes.
 
         :param parameters:  Serialized parameters, defaults to None.
+        :param as_job:      If True, runs as a job.
         :param kwargs:      Deserialized parameters (can be used as an alternative to the `parameters` kwarg).
         """
 
@@ -131,9 +135,14 @@ class DataGenerator:
 
         self._parameters = self._parameters_schema.load(self._parameters)
 
-        results = self._compute(**self._parameters)
+        sig = inspect.signature(inspect.unwrap(self._compute))
+        accepts_as_job = "as_job" in sig.parameters
+        if accepts_as_job:
+            results = self._compute(**self._parameters, as_job=as_job)
+        else:
+            results = self._compute(**self._parameters)
 
-        if not self._parameters.get("as_job", False):
+        if not as_job:
             results = self._assign_sensors_and_source(results)
         return results
 
@@ -246,6 +255,17 @@ class DataGenerator:
         return _parameters
 
 
+DEFAULT_DATASOURCE_TYPES = [
+    "user",
+    "scheduler",
+    "forecaster",
+    "reporter",
+    "demo script",
+    "gateway",
+    "market",
+]
+
+
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
@@ -255,6 +275,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     )
 
     # The type of data source (e.g. user, forecaster or scheduler)
+    # just a string, but preferably one of DEFAULT_DATASOURCE_TYPES
     type = db.Column(db.String(80), default="")
 
     # The id of the user source (can link e.g. to fm_user table)

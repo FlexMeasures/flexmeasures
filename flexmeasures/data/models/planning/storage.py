@@ -540,42 +540,32 @@ class MetaStorageScheduler(Scheduler):
                 # Take the contracted capacity as a hard constraint
                 ems_constraints["derivative min"] = ems_production_capacity
 
-        # Flow commitments per device
+        # Commitments per device
 
-        # Add tiny price slope to prefer curtailing later rather than now.
-        # The price slope is half of the slope to prefer charging sooner
-        for d, prefer_curtailing_later_d in enumerate(prefer_curtailing_later):
-            if prefer_curtailing_later_d:
-                tiny_price_slope = (
-                    add_tiny_price_slope(up_deviation_prices, "event_value")
-                    - up_deviation_prices
-                )
-                tiny_price_slope *= 0.5
-                commitment = FlowCommitment(
-                    name=f"prefer curtailing device {d} later",
-                    # Prefer curtailing consumption later by penalizing later consumption
-                    upwards_deviation_price=tiny_price_slope,
-                    # Prefer curtailing production later by penalizing later production
-                    downwards_deviation_price=-tiny_price_slope,
-                    index=index,
-                    device=d,
-                )
-                commitments.append(commitment)
-
-        # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
-        # We penalise future consumption and reward future production with at most 1 per thousand times the energy price spread.
-        for d, prefer_charging_sooner_d in enumerate(prefer_charging_sooner):
+        # StockCommitment per device to prefer a full storage by penalizing not being full
+        # This corresponds to a preference for charging now rather than later, and discharging later rather than now.
+        for d, (prefer_charging_sooner_d, prefer_curtailing_later_d) in enumerate(
+            zip(prefer_charging_sooner, prefer_curtailing_later)
+        ):
             if prefer_charging_sooner_d:
                 tiny_price_slope = (
-                    add_tiny_price_slope(up_deviation_prices, "event_value")
+                    add_tiny_price_slope(
+                        up_deviation_prices, "event_value", order="desc"
+                    )
                     - up_deviation_prices
                 )
-                commitment = FlowCommitment(
-                    name=f"prefer charging device {d} sooner",
-                    # Prefer charging sooner by penalizing later consumption
-                    upwards_deviation_price=tiny_price_slope,
-                    # Prefer discharging later by penalizing earlier production
-                    downwards_deviation_price=-tiny_price_slope,
+                if prefer_curtailing_later_d:
+                    # Use a tiny price slope to prefer a fuller SoC sooner rather than later, by lowering penalties later
+                    penalty = tiny_price_slope
+                else:
+                    # Constant penalty
+                    penalty = tiny_price_slope.iloc[0][0]
+                commitment = StockCommitment(
+                    name=f"prefer a full storage {d} sooner",
+                    quantity=(soc_max[d] - soc_at_start[d])
+                    * (timedelta(hours=1) / resolution),
+                    upwards_deviation_price=0,
+                    downwards_deviation_price=-penalty,
                     index=index,
                     device=d,
                 )
@@ -1105,7 +1095,7 @@ class MetaStorageScheduler(Scheduler):
         self,
         flex_model,
         **timing_kwargs,
-    ) -> list[FlowCommitment]:
+    ) -> list[FlowCommitment | StockCommitment]:
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
         commitment_specs = self.flex_context.get("commitments", [])
         if len(commitment_specs) == 0:
@@ -1396,7 +1386,7 @@ class MetaStorageScheduler(Scheduler):
 
 
 class StorageFallbackScheduler(MetaStorageScheduler):
-    __version__ = "2"
+    __version__ = "3"
     __author__ = "Seita"
 
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
@@ -1465,13 +1455,71 @@ class StorageFallbackScheduler(MetaStorageScheduler):
 
 
 class StorageScheduler(MetaStorageScheduler):
-    __version__ = "6"
+    __version__ = "8"
     __author__ = "Seita"
 
     fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
 
+    @staticmethod
+    def _build_soc_schedule(
+        flex_model: list[dict],
+        ems_schedule: pd.DataFrame,
+        soc_at_start: list[float],
+        device_constraints: list,
+        resolution: timedelta,
+    ) -> dict:
+        """Build the state-of-charge schedule for each device that has a state-of-charge sensor.
+
+        Converts the integrated power schedule from MWh to the sensor's unit.
+        For sensors with a '%' unit, the soc-max flex-model field is used as capacity.
+        If soc-max is missing or zero for a '%' sensor, the schedule is skipped with a warning.
+
+        Note: soc-max is a QuantityField (not a VariableQuantityField), so it is always a float
+        after deserialization and cannot be a sensor reference. The isinstance guard below is
+        therefore a defensive check for forward-compatibility.
+        """
+        soc_schedule = {}
+        for d, flex_model_d in enumerate(flex_model):
+            state_of_charge_sensor = flex_model_d.get("state_of_charge", None)
+            if not isinstance(state_of_charge_sensor, Sensor):
+                continue
+            soc_unit = state_of_charge_sensor.unit
+            capacity = None
+            if soc_unit == "%":
+                soc_max = flex_model_d.get("soc_max")
+                if isinstance(soc_max, Sensor):
+                    raise ValueError(
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
+                        "soc-max as a sensor reference is not supported for '%' unit conversion. "
+                        "Skipping state-of-charge schedule."
+                    )
+                if not soc_max:
+                    raise ValueError(
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
+                        "soc-max is missing or zero. Skipping state-of-charge schedule."
+                    )
+                capacity = f"{soc_max} MWh"  # all flex model fields are in MWh by now
+            soc_schedule[state_of_charge_sensor] = convert_units(
+                integrate_time_series(
+                    series=ems_schedule[d],
+                    initial_stock=soc_at_start[d],
+                    stock_delta=device_constraints[d]["stock delta"]
+                    * resolution
+                    / timedelta(hours=1),
+                    up_efficiency=device_constraints[d]["derivative up efficiency"],
+                    down_efficiency=device_constraints[d]["derivative down efficiency"],
+                    storage_efficiency=device_constraints[d]["efficiency"]
+                    .astype(float)
+                    .fillna(1),
+                ),
+                from_unit="MWh",
+                to_unit=soc_unit,
+                capacity=capacity,
+            )
+        return soc_schedule
+
     def compute(  # noqa: C901
-        self, skip_validation: bool = False
+            self, skip_validation: bool = False
     ) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
@@ -1546,6 +1594,11 @@ class StorageScheduler(MetaStorageScheduler):
             flex_model["sensor"] = sensors[0]
             flex_model = [flex_model]
 
+
+        # todo: move this into _build_soc_schedule
+        # soc_schedule = self._build_soc_schedule(
+        #     flex_model, ems_schedule, soc_at_start, device_constraints, resolution
+        # )
         soc_schedule = {}
 
         for stock_idx, (stock_id, devices) in enumerate(self.stock_groups.items()):

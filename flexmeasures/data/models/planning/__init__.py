@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from tabulate import tabulate
-from typing import Any, Dict, List, Type, Union
-from collections.abc import Iterable
+from typing import Any, Type
+
 import pandas as pd
 from flask import current_app
 
@@ -15,8 +17,7 @@ from flexmeasures.utils.coding_utils import deprecated
 from .exceptions import WrongEntityException
 
 
-# todo: Use | instead of Union, list instead of List and dict instead of Dict when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
-SchedulerOutputType = Union[pd.Series, List[Dict[str, Any]], None]
+SchedulerOutputType = pd.Series | list[dict[str, Any]] | None
 
 
 class Scheduler:

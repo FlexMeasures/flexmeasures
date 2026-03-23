@@ -21,6 +21,15 @@ class DurationField(MarshmallowClickMixin, fields.Str):
     """Field that deserializes to a ISO8601 Duration
     and serializes back to a string."""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Define the string format for OpenAPI
+        # The duration notation as defined by [RFC 3339, appendix A](https://tools.ietf.org/html/rfc3339#appendix-A), for example, PT24H
+        if not self.metadata:
+            self.metadata = {}
+        self.metadata["format"] = "duration"
+
     def _deserialize(self, value, attr, data, **kwargs) -> timedelta | isodate.Duration:
         """
         Use the isodate library to turn an ISO8601 string into a timedelta.

@@ -342,7 +342,7 @@ Before claiming performance improvements:
 
 1. **Set up dev environment with realistic data**:
    ```bash
-   make install-for-dev
+   uv sync --group dev --group test
    # Seed database with production-like data volume
    ```
 2. **Profile existing code**:

@@ -12,13 +12,16 @@ from apispec import APISpec
 from apispec_oneofschema import MarshmallowPlugin
 from apispec_webframeworks.flask import FlaskPlugin
 from flask_swagger_ui import get_swaggerui_blueprint
-from marshmallow import Schema
+from marshmallow import Schema, fields
 
 from flexmeasures import __version__ as fm_version
-from flexmeasures.api.v3_0.sensors import SensorAPI
+from flexmeasures.api.v3_0.sensors import (
+    SensorAPI,
+    forecasting_trigger_schema_openAPI,
+)
 from flexmeasures.api.v3_0.accounts import AccountAPI
 from flexmeasures.api.v3_0.users import UserAPI
-from flexmeasures.api.v3_0.assets import AssetAPI, AssetTypesAPI
+from flexmeasures.api.v3_0.assets import AssetAPI, AssetTriggerSchema, AssetTypesAPI
 from flexmeasures.api.v3_0.health import HealthAPI
 from flexmeasures.api.v3_0.public import ServicesAPI
 from flexmeasures.api.v3_0.deprecated import SensorEntityAddressAPI
@@ -137,6 +140,7 @@ def create_openapi_specs(app: Flask):
     # Explicitly register OpenAPI-compatible schemas
     schemas = [
         ("FlexContextOpenAPISchema", flex_context_schema_openAPI),
+        ("forecasting_trigger_schema_openAPI", forecasting_trigger_schema_openAPI),
         ("UserAPIQuerySchema", UserAPIQuerySchema),
         ("AssetAPIQuerySchema", AssetAPIQuerySchema),
         ("AssetSchema", AssetSchema),
@@ -148,6 +152,10 @@ def create_openapi_specs(app: Flask):
 
     for name, schema in schemas:
         spec.components.schema(name, schema=schema)
+
+    # Register ID fields used in paths
+    field = AssetTriggerSchema._declared_fields["asset"]
+    register_path_id_field(spec, param_name="AssetIdPath", field=field)
 
     last_exception = None
     with app.test_request_context():
@@ -203,3 +211,23 @@ def register_swagger_ui(app: Flask):
     )
 
     app.register_blueprint(swaggerui_blueprint)
+
+
+def register_path_id_field(
+    spec: APISpec,
+    param_name: str,
+    field: fields.Field,
+    location: str = "path",
+    required: bool = True,
+):
+    """Register the field as an OpenAPI parameter"""
+    spec.components.parameter(
+        param_name,
+        location=location,
+        component={
+            "name": field.data_key or field.name,
+            "required": required,
+            "description": field.metadata.get("description"),
+            "schema": {"type": "integer"},
+        },
+    )
