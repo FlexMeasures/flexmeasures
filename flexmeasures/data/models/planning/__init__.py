@@ -53,6 +53,7 @@ class Scheduler:
 
     flex_model: list[dict] | dict | None = None
     flex_context: dict | None = None
+    stock_groups: dict | None = None
 
     fallback_scheduler_class: "Type[Scheduler] | None" = None
     info: dict | None = None
@@ -65,7 +66,8 @@ class Scheduler:
 
     return_multiple: bool = False
 
-    def _build_stock_groups(self, flex_model):
+    @staticmethod
+    def _build_stock_groups(self, flex_model: list[dict]) -> dict:
 
         groups = defaultdict(list)
         soc_sensor_to_stock_model = {}
