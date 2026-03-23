@@ -611,6 +611,8 @@ def test_mixed_gas_and_electricity_assets(app, db):
     )
     boiler_data = boiler_schedule["data"]
 
+    # ---- Verify both devices operate as expected
+    assert (battery_data > 0).any(), "Battery should charge at some point"
     assert (boiler_data == 1.0).all(), "Boiler should have constant 1 kW consumption"
 
     costs_data = commitment_costs[0]["data"]
@@ -629,49 +631,44 @@ def test_mixed_gas_and_electricity_assets(app, db):
         f"got {costs_data['gas energy 1']}"
     )
 
-    # Battery charges early (3h @20kW): tiny slope cost = 3h × 20kW × (24/1e6) = 2.30e-6 EUR
-    assert costs_data["prefer charging device 0 sooner"] == pytest.approx(
-        2.30e-6, rel=1e-2
-    ), (
-        f"Charging preference (battery charges early at low-slope cost): "
-        f"accumulates tiny slope penalty over charging period = 2.30e-6 EUR, "
-        f"got {costs_data['prefer charging device 0 sooner']}"
+    # Total electricity + gas energy costs: battery (4.32) + boiler (1.20) = 5.52 EUR
+    total_energy_cost = sum(
+        v
+        for k, v in costs_data.items()
+        if k.endswith(" energy 0") or k.endswith(" energy 1")
+    )
+    assert total_energy_cost == pytest.approx(5.52, rel=1e-2), (
+        f"Total energy cost (electricity 4.32 + gas 1.20): "
+        f"= 5.52 EUR, got {total_energy_cost}"
     )
 
-    # Battery idle periods with 0.5× multiplier = 0.5 × 2.30e-6 = 1.15e-6 EUR (prioritizes early charge)
-    assert costs_data["prefer curtailing device 0 later"] == pytest.approx(
-        1.15e-6, rel=1e-2
-    ), (
-        f"Curtailing preference (battery idle periods with 0.5× multiplier): "
-        f"= 0.5 × charging preference = 1.15e-6 EUR (weaker to prioritize early charging), "
-        f"got {costs_data['prefer curtailing device 0 later']}"
+    # Battery prefers to charge as early as possible (3h @20kW, 1h@>0kW, then 0kW until the last slot with full discharge)
+    assert all(battery_data[:3] == 20)
+    assert battery_data[3] > 0
+    assert all(battery_data[4:-1] == 0)
+    assert battery_data[-1] == -20
+
+    # ---- RELATIVE COSTS: Battery vs Boiler (different commodities)
+    # Battery has storage flexibility; Boiler is pass-through with constant load
+    # Battery preference costs should be higher than boiler's due to flexibility
+    battery_total_pref = costs_data["prefer a full storage 0 sooner"]
+    boiler_total_pref = costs_data["prefer a full storage 1 sooner"]
+
+    assert battery_total_pref > boiler_total_pref, (
+        f"Battery preference costs ({battery_total_pref:.2e}) should be greater than "
+        f"boiler ({boiler_total_pref:.2e}) preference costs, since battery has storage flexibility "
+        f"(can shift charging) while boiler has constant load (no flexibility). "
+        f"Ratio: {battery_total_pref / boiler_total_pref:.1f}× (if boiler > 0)"
     )
 
-    # Boiler: constant 1kW × 24h × tiny_slope = 24h × 1kW × (24/1e6) = 1.20e-6 EUR (no flexibility)
-    assert costs_data["prefer charging device 1 sooner"] == pytest.approx(
-        1.20e-6, rel=1e-2
-    ), (
-        f"Charging preference (boiler 1kW constant load, 24h duration): "
-        f"1 kW × 24h × tiny_slope = 1.20e-6 EUR (degenerate: no flexibility), "
-        f"got {costs_data['prefer charging device 1 sooner']}"
+    # Verify boiler has zero preference cost since it has no flexibility (constant 1 kW)
+    assert boiler_total_pref == pytest.approx(0, abs=1e-8), (
+        f"Boiler preference cost should be ~0 since it has constant load with no flexibility, "
+        f"got {boiler_total_pref:.2e}"
     )
 
-    # Boiler curtailing with 0.5× multiplier = 0.5 × 1.20e-6 = 6.00e-7 EUR (no flexibility)
-    assert costs_data["prefer curtailing device 1 later"] == pytest.approx(
-        6.00e-7, rel=1e-2
-    ), (
-        f"Curtailing preference (boiler with 0.5× multiplier, no flexibility): "
-        f"= 0.5 × charging preference = 6.00e-7 EUR, "
-        f"got {costs_data['prefer curtailing device 1 later']}"
-    )
-
-    # Verify charging cost ~2× curtailing cost (due to 0.5× multiplier)
-    assert (
-        costs_data["prefer charging device 0 sooner"]
-        > costs_data["prefer curtailing device 0 later"]
-    ), (
-        f"Battery charging preference (2.30e-6) should cost ~2× more than curtailing "
-        f"(1.15e-6) due to 0.5× multiplier on curtailing slopes. "
-        f"This ensures optimizer prioritizes filling battery early over idling. "
-        f"Ratio: {costs_data['prefer charging device 0 sooner'] / costs_data['prefer curtailing device 0 later']:.1f}×"
+    # Verify battery has positive preference cost from optimizing early fill
+    assert battery_total_pref > 0, (
+        f"Battery preference cost should be positive since it can optimize charging timing, "
+        f"got {battery_total_pref:.2e}"
     )
