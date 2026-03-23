@@ -1463,9 +1463,10 @@ class StorageScheduler(MetaStorageScheduler):
     @staticmethod
     def _build_soc_schedule(
         flex_model: list[dict],
-        ems_schedule: pd.DataFrame,
+        ems_schedule: list[pd.Series],
         soc_at_start: list[float],
         device_constraints: list,
+        stock_groups: dict,
         resolution: timedelta,
     ) -> dict:
         """Build the state-of-charge schedule for each device that has a state-of-charge sensor.
@@ -1516,10 +1517,74 @@ class StorageScheduler(MetaStorageScheduler):
                 to_unit=soc_unit,
                 capacity=capacity,
             )
+
+        # for stock_idx, (stock_id, devices) in enumerate(stock_groups.items()):
+        #     d0 = devices[0]
+        #
+        #     # For shared stock with multiple devices, each device may have different efficiencies.
+        #     # We must calculate the stock contribution of each device separately using its own
+        #     # efficiencies, then sum them. We cannot aggregate power and apply one device's efficiencies.
+        #     if len(devices) > 1:
+        #         # Multiple devices sharing the same stock - must account for individual efficiencies
+        #         # Calculate stock change for each device individually, then sum
+        #         soc_contributions = []
+        #         for d in devices:
+        #             soc_d = integrate_time_series(
+        #                 series=ems_schedule[d],
+        #                 initial_stock=0,  # Start at 0 since we're just tracking contribution
+        #                 stock_delta=device_constraints[d]["stock delta"]
+        #                 * resolution
+        #                 / timedelta(hours=1),
+        #                 up_efficiency=device_constraints[d]["derivative up efficiency"],
+        #                 down_efficiency=device_constraints[d][
+        #                     "derivative down efficiency"
+        #                 ],
+        #                 storage_efficiency=device_constraints[d]["efficiency"]
+        #                 .astype(float)
+        #                 .fillna(1),
+        #             )
+        #             soc_contributions.append(soc_d)
+        #
+        #         # Sum all contributions and add initial stock
+        #         soc = pd.Series(
+        #             [
+        #                 soc_at_start[d0]
+        #                 + sum(contrib.iloc[i] for contrib in soc_contributions)
+        #                 for i in range(len(soc_contributions[0]))
+        #             ],
+        #             index=soc_contributions[0].index,
+        #         )
+        #     else:
+        #         # Single device - use original logic
+        #         stock_series = ems_schedule[d0]
+        #         soc = integrate_time_series(
+        #             series=stock_series,
+        #             initial_stock=soc_at_start[d0],
+        #             stock_delta=device_constraints[d0]["stock delta"]
+        #             * resolution
+        #             / timedelta(hours=1),
+        #             up_efficiency=device_constraints[d0]["derivative up efficiency"],
+        #             down_efficiency=device_constraints[d0][
+        #                 "derivative down efficiency"
+        #             ],
+        #             storage_efficiency=device_constraints[d0]["efficiency"]
+        #             .astype(float)
+        #             .fillna(1),
+        #         )
+        #
+        #     # attach SOC sensor if defined
+        #     soc_sensor = flex_model[d0].get("state_of_charge")
+        #
+        #     if isinstance(soc_sensor, Sensor):
+        #         soc_schedule[soc_sensor] = convert_units(
+        #             soc,
+        #             from_unit="MWh",
+        #             to_unit=soc_sensor.unit,
+        #         )
         return soc_schedule
 
     def compute(  # noqa: C901
-            self, skip_validation: bool = False
+        self, skip_validation: bool = False
     ) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
@@ -1594,76 +1659,14 @@ class StorageScheduler(MetaStorageScheduler):
             flex_model["sensor"] = sensors[0]
             flex_model = [flex_model]
 
-
-        # todo: move this into _build_soc_schedule
-        # soc_schedule = self._build_soc_schedule(
-        #     flex_model, ems_schedule, soc_at_start, device_constraints, resolution
-        # )
-        soc_schedule = {}
-
-        for stock_idx, (stock_id, devices) in enumerate(self.stock_groups.items()):
-            d0 = devices[0]
-
-            # For shared stock with multiple devices, each device may have different efficiencies.
-            # We must calculate the stock contribution of each device separately using its own
-            # efficiencies, then sum them. We cannot aggregate power and apply one device's efficiencies.
-            if len(devices) > 1:
-                # Multiple devices sharing the same stock - must account for individual efficiencies
-                # Calculate stock change for each device individually, then sum
-                soc_contributions = []
-                for d in devices:
-                    soc_d = integrate_time_series(
-                        series=ems_schedule[d],
-                        initial_stock=0,  # Start at 0 since we're just tracking contribution
-                        stock_delta=device_constraints[d]["stock delta"]
-                        * resolution
-                        / timedelta(hours=1),
-                        up_efficiency=device_constraints[d]["derivative up efficiency"],
-                        down_efficiency=device_constraints[d][
-                            "derivative down efficiency"
-                        ],
-                        storage_efficiency=device_constraints[d]["efficiency"]
-                        .astype(float)
-                        .fillna(1),
-                    )
-                    soc_contributions.append(soc_d)
-
-                # Sum all contributions and add initial stock
-                soc = pd.Series(
-                    [
-                        soc_at_start[d0]
-                        + sum(contrib.iloc[i] for contrib in soc_contributions)
-                        for i in range(len(soc_contributions[0]))
-                    ],
-                    index=soc_contributions[0].index,
-                )
-            else:
-                # Single device - use original logic
-                stock_series = ems_schedule[d0]
-                soc = integrate_time_series(
-                    series=stock_series,
-                    initial_stock=soc_at_start[d0],
-                    stock_delta=device_constraints[d0]["stock delta"]
-                    * resolution
-                    / timedelta(hours=1),
-                    up_efficiency=device_constraints[d0]["derivative up efficiency"],
-                    down_efficiency=device_constraints[d0][
-                        "derivative down efficiency"
-                    ],
-                    storage_efficiency=device_constraints[d0]["efficiency"]
-                    .astype(float)
-                    .fillna(1),
-                )
-
-            # attach SOC sensor if defined
-            soc_sensor = flex_model[d0].get("state_of_charge")
-
-            if isinstance(soc_sensor, Sensor):
-                soc_schedule[soc_sensor] = convert_units(
-                    soc,
-                    from_unit="MWh",
-                    to_unit=soc_sensor.unit,
-                )
+        soc_schedule = self._build_soc_schedule(
+            flex_model=flex_model,
+            ems_schedule=ems_schedule,
+            soc_at_start=soc_at_start,
+            device_constraints=device_constraints,
+            stock_groups=self.stock_groups,
+            resolution=resolution,
+        )
 
         # Resample each device schedule to the resolution of the device's power sensor
         if self.resolution is None:
