@@ -1551,20 +1551,56 @@ class StorageScheduler(MetaStorageScheduler):
         for stock_idx, (stock_id, devices) in enumerate(self.stock_groups.items()):
             d0 = devices[0]
 
-            stock_series = sum(ems_schedule[d] for d in devices)
+            # For shared stock with multiple devices, each device may have different efficiencies.
+            # We must calculate the stock contribution of each device separately using its own
+            # efficiencies, then sum them. We cannot aggregate power and apply one device's efficiencies.
+            if len(devices) > 1:
+                # Multiple devices sharing the same stock - must account for individual efficiencies
+                # Calculate stock change for each device individually, then sum
+                soc_contributions = []
+                for d in devices:
+                    soc_d = integrate_time_series(
+                        series=ems_schedule[d],
+                        initial_stock=0,  # Start at 0 since we're just tracking contribution
+                        stock_delta=device_constraints[d]["stock delta"]
+                        * resolution
+                        / timedelta(hours=1),
+                        up_efficiency=device_constraints[d]["derivative up efficiency"],
+                        down_efficiency=device_constraints[d][
+                            "derivative down efficiency"
+                        ],
+                        storage_efficiency=device_constraints[d]["efficiency"]
+                        .astype(float)
+                        .fillna(1),
+                    )
+                    soc_contributions.append(soc_d)
 
-            soc = integrate_time_series(
-                series=stock_series,
-                initial_stock=soc_at_start[d0],
-                stock_delta=device_constraints[d0]["stock delta"]
-                * resolution
-                / timedelta(hours=1),
-                up_efficiency=device_constraints[d0]["derivative up efficiency"],
-                down_efficiency=device_constraints[d0]["derivative down efficiency"],
-                storage_efficiency=device_constraints[d0]["efficiency"]
-                .astype(float)
-                .fillna(1),
-            )
+                # Sum all contributions and add initial stock
+                soc = pd.Series(
+                    [
+                        soc_at_start[d0]
+                        + sum(contrib.iloc[i] for contrib in soc_contributions)
+                        for i in range(len(soc_contributions[0]))
+                    ],
+                    index=soc_contributions[0].index,
+                )
+            else:
+                # Single device - use original logic
+                stock_series = ems_schedule[d0]
+                soc = integrate_time_series(
+                    series=stock_series,
+                    initial_stock=soc_at_start[d0],
+                    stock_delta=device_constraints[d0]["stock delta"]
+                    * resolution
+                    / timedelta(hours=1),
+                    up_efficiency=device_constraints[d0]["derivative up efficiency"],
+                    down_efficiency=device_constraints[d0][
+                        "derivative down efficiency"
+                    ],
+                    storage_efficiency=device_constraints[d0]["efficiency"]
+                    .astype(float)
+                    .fillna(1),
+                )
 
             # attach SOC sensor if defined
             soc_sensor = flex_model[d0].get("state_of_charge")
