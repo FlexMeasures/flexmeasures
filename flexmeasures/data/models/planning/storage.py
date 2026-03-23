@@ -440,7 +440,10 @@ class MetaStorageScheduler(Scheduler):
             if prefer_charging_sooner_d:
                 tiny_price_slope = (
                     add_tiny_price_slope(
-                        up_deviation_prices, "event_value", order="desc"
+                        up_deviation_prices,
+                        "event_value",
+                        d=10**-4 / len(index),
+                        order="desc",
                     )
                     - up_deviation_prices
                 )
