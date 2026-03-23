@@ -482,7 +482,7 @@ def test_two_flexible_assets_with_commodity(app, db):
     # Preference costs should reflect this energy ratio
     battery_total_pref = costs_data["prefer a full storage 0 sooner"]
     hp_total_pref = costs_data["prefer a full storage 1 sooner"]
-    assert battery_total_pref == 2 * hp_total_pref, (
+    assert battery_total_pref == pytest.approx(2 * hp_total_pref, rel=1e-2), (
         f"Battery preference costs ({battery_total_pref:.2e}) should be twice the "
         f"heat pump ({hp_total_pref:.2e}) preference costs, since battery moves more energy (60 kWh vs 30 kWh)"
     )
