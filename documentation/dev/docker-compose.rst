@@ -67,7 +67,7 @@ In case your configuration loads FlexMeasures plugins that have additional depen
 Data
 -------
 
-The Postgres database is a test database with toy data filled in when the flexmeasures container starts.
+The postgres database is a test database with toy data filled in when the flexmeasures container starts for the first time.
 You could also connect it to some other database (on your PC, in the cloud), by setting a different ``SQLALCHEMY_DATABASE_URI`` in the config.
 
 The database within the ``dev-db`` Postgres container resides in ``/var/lib/postgresql/data``, which we map the local path ``./docker-compose-data/dev-db`` so as developer you can have persistence for your data across re-building the compose stack.
@@ -85,7 +85,7 @@ Seeing it work: Running the toy tutorial
 
 A good way to see if these containers work well together, and maybe to inspire how to use them for your own purposes, is the :ref:`tut_toy_schedule`.
 
-The `flexmeasures-server` container already creates the toy account when it starts (see its initial command). We'll now walk through the rest of the toy tutorial, with one twist at the end, when we create the battery schedule.
+The `flexmeasures-server` container creates the toy account only the first time it starts (signalled by the ``flexmeasures-instance/.toy-account-created`` file, which is created after the first run). We'll now walk through the rest of the toy tutorial, with one twist at the end, when we create the battery schedule.
 
 Let's go into the `flexmeasures-worker` container:
 
