@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from packaging import version
 from datetime import date, datetime, timedelta
+from typing import Literal
 
 from flask import current_app
 import pandas as pd
@@ -67,21 +68,32 @@ def initialize_index(
 
 
 def add_tiny_price_slope(
-    orig_prices: pd.DataFrame, col_name: str = "event_value", d: float = 10**-4
+    orig_prices: pd.DataFrame,
+    col_name: str = "event_value",
+    d: float = 10**-4,
+    order: Literal["asc", "desc"] = "asc",
 ) -> pd.DataFrame:
     """Add tiny price slope to col_name to represent e.g. inflation as a simple linear price increase.
     This is meant to break ties, when multiple time slots have equal prices, in favour of acting sooner.
-    We penalise the future with at most d times the price spread (1 per thousand by default).
+    We penalise the future with at most d times the price spread (1 per thousand by default),
+    divided over the number of planning steps.
     """
     prices = orig_prices.copy()
     price_spread = prices[col_name].max() - prices[col_name].min()
     if price_spread > 0:
-        max_penalty = price_spread * d
+        max_penalty = price_spread * d / len(prices)
     else:
-        max_penalty = d
-    prices[col_name] = prices[col_name] + np.linspace(
-        0, max_penalty, prices[col_name].size
-    )
+        max_penalty = d / len(prices)
+    if order == "asc":
+        prices[col_name] = prices[col_name] + np.linspace(
+            0, max_penalty, prices[col_name].size
+        )
+    elif order == "desc":
+        prices[col_name] = prices[col_name] + np.linspace(
+            max_penalty, 0, prices[col_name].size
+        )
+    else:
+        raise ValueError("order must be 'asc' or 'desc'")
     return prices
 
 
