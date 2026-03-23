@@ -13,6 +13,7 @@ New features
 * Support saving state-of-charge schedules to sensors with ``"%"`` unit, using the ``soc-max`` flex-model field as the capacity for unit conversion [see `PR #1996 <https://www.github.com/FlexMeasures/flexmeasures/pull/1996>`_]
 * Version headers (for server and API) in API responses [see `PR #2021 <https://www.github.com/FlexMeasures/flexmeasures/pull/2021>`_]
 * Show sensor attributes on sensor page, if not empty [see `PR #2015 <https://www.github.com/FlexMeasures/flexmeasures/pull/2015>`_]
+* Separate the ``StorageScheduler``'s tie-breaking preference for a full :abbr:`SoC (state of charge)` from its reported energy costs [see `PR #2023 <https://www.github.com/FlexMeasures/flexmeasures/pull/2023>`_]
 
 Infrastructure / Support
 ----------------------

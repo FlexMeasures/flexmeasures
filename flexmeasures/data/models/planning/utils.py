@@ -93,7 +93,7 @@ def add_tiny_price_slope(
             max_penalty, 0, prices[col_name].size
         )
     else:
-        raise ValueError("order must be 'asc' or 'desc'")
+        raise ValueError(f"order must be 'asc' or 'desc', got '{order}'")
     return prices
 
 
