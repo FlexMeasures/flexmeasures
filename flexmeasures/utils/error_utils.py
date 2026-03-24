@@ -116,7 +116,7 @@ def error_handling_router(error: HTTPException):
         return current_app.HttpException_handler_html(error)
     # This fallback is ugly but better than nothing.
     else:
-        return "%s:%s" % (error.__class__.__name__, error_text), http_error_code
+        return "%s: %s" % (error.__class__.__name__, error_text), http_error_code
 
 
 def add_basic_error_handlers(app: Flask):
