@@ -55,6 +55,7 @@ When reviewing or writing Alembic migrations, check:
 - [ ] **batch_alter_table**: Use `op.batch_alter_table()` for all ALTER TABLE operations (required for SQLite compat in test environments)
 - [ ] **UniqueConstraint names**: Verify constraint name matches the existing DB constraint name exactly (check with `\d <table>` in psql)
 - [ ] **Create Date**: Verify the current datetime is correct (e.g. a `Create Date: 2025-01-15 00:00:00.000000` is highly unlikely to be true)
+- [ ] **Changelog**: Add a db upgrade warning in the changelog under the relevant release section (see previous sections for styling)
 
 **Pattern: Safe data migration in Alembic**
 

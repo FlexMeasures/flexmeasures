@@ -7,6 +7,8 @@ FlexMeasures Changelog
 v0.32.0 | April XX, 2026
 ============================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 New features
 -------------
 * Support fetching a schedule in a different unit still compatible to the sensor unit [see `PR #1993 <https://www.github.com/FlexMeasures/flexmeasures/pull/1993>`_]
