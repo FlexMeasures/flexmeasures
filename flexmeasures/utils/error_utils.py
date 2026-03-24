@@ -29,9 +29,9 @@ def log_error(exc: Exception, error_msg: str, verbose: bool = True):
 
     extra = dict(url=request.path, **get_err_source_info(last_traceback))
 
-    msg = "{error_name} - URL was: {url}"
+    msg = '{error_name} - URL was: {url} - "{message}"'
     if verbose:
-        msg += ' - "{message}" [occurred at {src_module} (in {src_func}, line {src_linenr})'
+        msg += " [occurred at {src_module} (in {src_func}, line {src_linenr})"
 
     # Fill in message contents
     msg = msg.format(error_name=exc.__class__.__name__, message=error_msg, **extra)
