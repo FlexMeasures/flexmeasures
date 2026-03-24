@@ -322,7 +322,12 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             name = user.username
             type = "user"
             self.user = user
-            self.account = user.account
+            # Prefer the FK column directly (avoids triggering a lazy load/autoflush).
+            # Fall back to the account relationship for users not yet flushed to the DB
+            # (where account_id may not be set on the column yet).
+            self.account_id = user.account_id or (
+                user.account.id if user.account else None
+            )
         elif user is None and type == "user":
             raise TypeError("A data source cannot have type 'user' but no user set.")
         self.type = type
