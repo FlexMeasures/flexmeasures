@@ -123,7 +123,6 @@ def error_handling_router(error: HTTPException):
 def add_basic_error_handlers(app: Flask):
     """
     Register classes we care about with the generic handler.
-    The SecurityError is handled separately.
     See also the auth package for auth-specific error handling (Unauthorized, Forbidden)
     """
     app.register_error_handler(InternalServerError, error_handling_router)
