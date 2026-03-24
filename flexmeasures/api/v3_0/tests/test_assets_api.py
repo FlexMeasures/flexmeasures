@@ -957,34 +957,58 @@ def test_copy_asset_replaces_sensor_refs_in_config(
     When copying an asset, sensor references inside flex_context, flex_model and
     sensors_to_show must be updated to point to the newly copied sensors.
 
-    Sensor references that belong to assets *outside* the copied subtree (e.g. a
-    public price sensor) must be left unchanged.
+    Sensor references that belong to PUBLIC assets (account_id=None, e.g. a public
+    price sensor) must be left unchanged.
+
+    Sensor references that belong to PRIVATE assets not in the copied subtree must
+    be removed from the config.
 
     Asset layout:
 
     Battery  (EMS, Prosumer account)
     ├── sensor_internal  – belongs to Battery, referenced in flex_context
     ├── flex_context:
-    │     "consumption-capacity": {"sensor": <sensor_internal.id>}   ← internal
-    │     "production-price":     {"sensor": <price_sensor.id>}      ← external
+    │     "consumption-capacity": {"sensor": <sensor_internal.id>}   ← internal (copied)
+    │     "production-price":     {"sensor": <price_sensor.id>}      ← external public
+    │     "private-external":     {"sensor": <private_ext_sensor.id>}← external private → removed
     ├── flex_model:
     │     "soc-min": "700.0 kWh"                                     ← no sensor
-    │     "consumption-capacity": {"sensor": <sensor_internal.id>}   ← internal
+    │     "consumption-capacity": {"sensor": <sensor_internal.id>}   ← internal (copied)
     ├── sensors_to_show:
     │     [{"title": "Chart", "plots": [
-    │         {"sensor": <sensor_internal.id>},                       ← internal
-    │         {"sensors": [<sensor_internal.id>, <price_sensor.id>]}  ← mixed
+    │         {"sensor": <sensor_internal.id>},                       ← internal (copied)
+    │         {"sensors": [<sensor_internal.id>, <price_sensor.id>,   ← mixed: internal/public/private
+    │                      <private_ext_sensor.id>]}
     │     ]}]
 
     After copying:
-    - References to sensor_internal → replaced with new copied sensor's ID
-    - References to price_sensor    → unchanged (external)
+    - References to sensor_internal        → replaced with new copied sensor's ID
+    - References to price_sensor (public)  → unchanged
+    - References to private_ext_sensor     → removed entirely
     """
     prosumer_account = setup_accounts["Prosumer"]
+    supplier_account = setup_accounts["Supplier"]
     price_sensor = setup_markets["epex_da"]
     assert price_sensor.generic_asset.account_id is None, "epex must be a public asset"
 
     asset_type = setup_generic_asset_types["battery"]
+
+    # A private sensor on a different account's asset (Supplier), NOT in the copy subtree.
+    supplier_asset = GenericAsset(
+        name="Supplier asset for private sensor ref test",
+        generic_asset_type=asset_type,
+        owner=supplier_account,
+    )
+    db.session.add(supplier_asset)
+    db.session.flush()
+    private_ext_sensor = Sensor(
+        name="private external sensor",
+        generic_asset=supplier_asset,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+    )
+    db.session.add(private_ext_sensor)
+    db.session.flush()
 
     battery = GenericAsset(
         name="Battery for sensor ref test",
@@ -1006,6 +1030,7 @@ def test_copy_asset_replaces_sensor_refs_in_config(
     battery.flex_context = {
         "consumption-capacity": {"sensor": sensor_internal.id},
         "production-price": {"sensor": price_sensor.id},
+        "private-external": {"sensor": private_ext_sensor.id},
     }
     battery.flex_model = {
         "soc-min": "700.0 kWh",
@@ -1016,7 +1041,13 @@ def test_copy_asset_replaces_sensor_refs_in_config(
             "title": "Chart",
             "plots": [
                 {"sensor": sensor_internal.id},
-                {"sensors": [sensor_internal.id, price_sensor.id]},
+                {
+                    "sensors": [
+                        sensor_internal.id,
+                        price_sensor.id,
+                        private_ext_sensor.id,
+                    ]
+                },
             ],
         }
     ]
@@ -1033,17 +1064,19 @@ def test_copy_asset_replaces_sensor_refs_in_config(
     new_sensor = copied_sensors[0]
     assert new_sensor.id != sensor_internal.id
 
-    # flex_context: internal replaced, external preserved.
+    # flex_context: internal replaced, public external preserved, private external removed.
     assert battery_copy.flex_context["consumption-capacity"] == {
         "sensor": new_sensor.id
     }
     assert battery_copy.flex_context["production-price"] == {"sensor": price_sensor.id}
+    assert "private-external" not in battery_copy.flex_context
 
     # flex_model: internal replaced, plain string preserved.
     assert battery_copy.flex_model["consumption-capacity"] == {"sensor": new_sensor.id}
     assert battery_copy.flex_model["soc-min"] == "700.0 kWh"
 
-    # sensors_to_show: both reference forms updated/preserved correctly.
+    # sensors_to_show: single-sensor plot with private external is removed from plots;
+    # multi-sensor list has private external ID filtered out.
     chart = battery_copy.sensors_to_show[0]
     assert chart["plots"][0] == {"sensor": new_sensor.id}
     assert chart["plots"][1] == {"sensors": [new_sensor.id, price_sensor.id]}

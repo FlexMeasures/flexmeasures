@@ -255,6 +255,41 @@ def _copy_direct_sensors(
     return sensor_id_map
 
 
+# Sentinel returned by _replace_sensor_refs to signal that a containing entry
+# should be omitted entirely (used when a sensor reference points to a private
+# asset that is neither public nor part of the copied subtree).
+_REMOVED = object()
+
+
+def _is_sensor_on_public_asset(sensor_id: int) -> bool:
+    """Return True if *sensor_id* belongs to a public asset (account_id is None).
+
+    Unknown sensor IDs are treated as private (returns False) so that stale
+    references are also cleaned up during the copy.
+    """
+    sensor = db.session.get(Sensor, sensor_id)
+    if sensor is None:
+        return False
+    asset = db.session.get(GenericAsset, sensor.generic_asset_id)
+    return asset is not None and asset.account_id is None
+
+
+def _resolve_sensor_id(sensor_id: int, sensor_id_map: dict[int, int]) -> int | object:
+    """Resolve a single sensor ID during an asset copy.
+
+    Returns:
+
+    * The new sensor ID if the sensor was copied (*sensor_id* is in *sensor_id_map*).
+    * The original sensor ID if the sensor belongs to a public asset.
+    * :data:`_REMOVED` sentinel if the sensor is on a private external asset.
+    """
+    if sensor_id in sensor_id_map:
+        return sensor_id_map[sensor_id]
+    if _is_sensor_on_public_asset(sensor_id):
+        return sensor_id
+    return _REMOVED
+
+
 def _replace_sensor_refs(data, sensor_id_map: dict[int, int]):
     """Recursively replace sensor IDs inside a nested JSON structure.
 
@@ -264,25 +299,59 @@ def _replace_sensor_refs(data, sensor_id_map: dict[int, int]):
     * ``{"sensor": <id>}``          – single sensor reference
     * ``{"sensors": [<id>, ...]}``  – list of sensor IDs
 
-    Only IDs present in *sensor_id_map* are updated; all other values are left
-    unchanged, so references to sensors that were **not** copied (e.g. public
-    price sensors) are preserved as-is.
+    For each sensor ID encountered:
+
+    * If the ID is in *sensor_id_map* (sensor was copied) → replace with the new ID.
+    * If the sensor belongs to a **public** asset (``account_id`` is ``None``) →
+      keep the original ID as-is (publicly accessible, safe to reference).
+    * Otherwise (sensor on a private asset not in the copied subtree) →
+      the containing ``{"sensor": id}`` dict is dropped (returns :data:`_REMOVED`)
+      and plain integer IDs in ``{"sensors": [...]}`` lists are filtered out.
     """
     if isinstance(data, dict):
-        result: dict = {}
-        for key, value in data.items():
-            if key == "sensor" and isinstance(value, int):
-                result[key] = sensor_id_map.get(value, value)
-            elif key == "sensors" and isinstance(value, list):
-                result[key] = [
-                    sensor_id_map.get(v, v) if isinstance(v, int) else v for v in value
-                ]
-            else:
-                result[key] = _replace_sensor_refs(value, sensor_id_map)
-        return result
-    elif isinstance(data, list):
-        return [_replace_sensor_refs(item, sensor_id_map) for item in data]
+        return _replace_sensor_refs_in_dict(data, sensor_id_map)
+    if isinstance(data, list):
+        return [
+            processed
+            for item in data
+            for processed in [_replace_sensor_refs(item, sensor_id_map)]
+            if processed is not _REMOVED
+        ]
     return data
+
+
+def _replace_sensor_refs_in_dict(data: dict, sensor_id_map: dict[int, int]):
+    """Handle the dict case for :func:`_replace_sensor_refs`."""
+    result: dict = {}
+    for key, value in data.items():
+        if key == "sensor" and isinstance(value, int):
+            resolved = _resolve_sensor_id(value, sensor_id_map)
+            if resolved is _REMOVED:
+                # Private external sensor: signal parent to drop this entry.
+                return _REMOVED
+            result[key] = resolved
+        elif key == "sensors" and isinstance(value, list):
+            result[key] = _replace_sensors_list(value, sensor_id_map)
+        else:
+            processed = _replace_sensor_refs(value, sensor_id_map)
+            if processed is not _REMOVED:
+                result[key] = processed
+            # else: drop this key entirely
+    return result
+
+
+def _replace_sensors_list(value: list, sensor_id_map: dict[int, int]) -> list:
+    """Replace/filter integer IDs in a ``{"sensors": [...]}`` list."""
+    new_list = []
+    for v in value:
+        if not isinstance(v, int):
+            new_list.append(v)
+            continue
+        resolved = _resolve_sensor_id(v, sensor_id_map)
+        if resolved is not _REMOVED:
+            new_list.append(resolved)
+        # else: private external sensor, skip
+    return new_list
 
 
 def _update_sensor_refs_in_subtree(
@@ -291,25 +360,24 @@ def _update_sensor_refs_in_subtree(
     """Update sensor references in flex_context, flex_model and sensors_to_show
     for the given asset and all its descendants.
 
-    Only IDs present in *sensor_id_map* are replaced; external sensor references
-    are left unchanged.
+    Sensor references that were copied are replaced with their new IDs.
+    References to public (account_id = None) sensors are kept unchanged.
+    References to private external sensors are removed.
     """
     if asset.flex_context:
-        asset.flex_context = _replace_sensor_refs(
-            deepcopy(asset.flex_context), sensor_id_map
-        )
+        result = _replace_sensor_refs(deepcopy(asset.flex_context), sensor_id_map)
+        asset.flex_context = result if result is not _REMOVED else {}
     if asset.flex_model:
-        asset.flex_model = _replace_sensor_refs(
-            deepcopy(asset.flex_model), sensor_id_map
-        )
+        result = _replace_sensor_refs(deepcopy(asset.flex_model), sensor_id_map)
+        asset.flex_model = result if result is not _REMOVED else {}
     if asset.sensors_to_show:
-        asset.sensors_to_show = _replace_sensor_refs(
-            deepcopy(asset.sensors_to_show), sensor_id_map
-        )
+        result = _replace_sensor_refs(deepcopy(asset.sensors_to_show), sensor_id_map)
+        asset.sensors_to_show = result if result is not _REMOVED else []
     if asset.sensors_to_show_as_kpis:
-        asset.sensors_to_show_as_kpis = _replace_sensor_refs(
+        result = _replace_sensor_refs(
             deepcopy(asset.sensors_to_show_as_kpis), sensor_id_map
         )
+        asset.sensors_to_show_as_kpis = result if result is not _REMOVED else []
 
     children = db.session.scalars(
         select(GenericAsset).filter(GenericAsset.parent_asset_id == asset.id)
