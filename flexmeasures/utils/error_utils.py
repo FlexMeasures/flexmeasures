@@ -77,13 +77,14 @@ def error_handling_router(error: HTTPException):
             pass
 
     # Some errors don't need a verbose log statement
-    if http_error_code in (401, 403, 404, 410):
+    if http_error_code == 404:
+        # For 404 Not Found we only log the name, because the description is just 'The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.'
         log_error(
             error,
             error.name,
             verbose=False,
         )
-    elif isinstance(error, SecurityError):
+    elif http_error_code in (401, 403, 410) or isinstance(error, SecurityError):
         log_error(
             error,
             error.description,
