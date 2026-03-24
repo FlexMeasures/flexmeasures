@@ -9,7 +9,6 @@ from sqlalchemy import select
 from flexmeasures import Source
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
 from flexmeasures.data.models.time_series import TimedBelief
-from flexmeasures.data.models.user import User
 
 
 @pytest.mark.parametrize(
