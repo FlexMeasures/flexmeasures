@@ -548,6 +548,31 @@ def create_assets(
             ),
         )
         db.session.add(sensor)
+        scc_sensor = Sensor(
+            name="site-consumption-capacity",
+            generic_asset=asset,
+            event_resolution=timedelta(minutes=15),
+            unit="MW",
+        )
+        db.session.add(scc_sensor)
+        cc_sensor = Sensor(
+            name="consumption-capacity",
+            generic_asset=asset,
+            event_resolution=timedelta(minutes=15),
+            unit="MW",
+        )
+        db.session.add(cc_sensor)
+        pc_sensor = Sensor(
+            name="production-capacity",
+            generic_asset=asset,
+            event_resolution=timedelta(minutes=15),
+            unit="MW",
+        )
+        db.session.add(pc_sensor)
+        db.session.flush()  # assign sensor IDs
+        asset.flex_model["consumption-capacity"] = {"sensor": cc_sensor.id}
+        asset.flex_model["production-capacity"] = {"sensor": pc_sensor.id}
+        asset.flex_context["site-consumption-capacity"] = {"sensor": scc_sensor.id}
         assets.append(asset)
 
         # one day of test data (one complete sine curve)

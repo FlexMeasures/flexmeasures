@@ -4,8 +4,72 @@ FlexMeasures Changelog
 **********************
 
 
-v0.31.0 | February XX, 2026
+v0.32.0 | April XX, 2026
 ============================
+
+New features
+-------------
+* Support fetching a schedule in a different unit still compatible to the sensor unit [see `PR #1993 <https://www.github.com/FlexMeasures/flexmeasures/pull/1993>`_]
+* Support saving state-of-charge schedules to sensors with ``"%"`` unit, using the ``soc-max`` flex-model field as the capacity for unit conversion [see `PR #1996 <https://www.github.com/FlexMeasures/flexmeasures/pull/1996>`_]
+* Version headers (for server and API) in API responses [see `PR #2021 <https://www.github.com/FlexMeasures/flexmeasures/pull/2021>`_]
+* Show sensor attributes on sensor page, if not empty [see `PR #2015 <https://www.github.com/FlexMeasures/flexmeasures/pull/2015>`_]
+* Separate the ``StorageScheduler``'s tie-breaking preference for a full :abbr:`SoC (state of charge)` from its reported energy costs [see `PR #2023 <https://www.github.com/FlexMeasures/flexmeasures/pull/2023>`_]
+
+Infrastructure / Support
+----------------------
+* Stop creating new toy assets when restarting the docker-compose stack [see `PR #2018 <https://www.github.com/FlexMeasures/flexmeasures/pull/2018>`_]
+* Migrate from ``pip`` to ``uv`` for dependency management [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
+* Migrate from ``make`` to ``poe`` for running tasks [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
+* Make the test environment used by agents and by the test workflow identical [see `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_]
+* Improve contact information to get in touch with the FlexMeasures community [see `PR #2022 <https://www.github.com/FlexMeasures/flexmeasures/pull/2022>`_]
+* Expand audit logging for password life-cycle: password_reset, password_changed and reset_password_instructions_sent events [see `PR #2036 <https://github.com/FlexMeasures/flexmeasures/pull/2036>`_]
+* Upgraded some dependencies for security reasons [see `PR #2037 <https://www.github.com/FlexMeasures/flexmeasures/pull/2037>`_]
+
+Bugfixes
+-----------
+
+
+v0.31.2 | March 18, 2026
+============================
+
+Bugfixes
+-----------
+* Fix bug with resampling time series of e.g. SoC minima with different belief times for adjacent time slots [see `PR #2012 <https://www.github.com/FlexMeasures/flexmeasures/pull/2012>`_]
+* Fix an issue where asset context was accessed in schemas that do not define a ``context`` attribute [see `PR #2014 <https://www.github.com/FlexMeasures/flexmeasures/pull/2014>`_]
+* Fix wrap-up forecasting job [see `PR #2011 <https://www.github.com/FlexMeasures/flexmeasures/pull/2011>`_]
+* Stop failure in the API endpoint that lists available endpoints (/api/v3_0/) [see `PR #2032 <https://github.com/FlexMeasures/flexmeasures/pull/2032>`_]
+
+Infrastructure / Support
+------------------------
+* Re-add bcrypt dependency  [see `PR #2029 <https://github.com/FlexMeasures/flexmeasures/pull/2029>`_]
+
+
+v0.31.1 | March 6, 2026
+============================
+
+Bugfixes
+-----------
+* Fix CLI command ``flexmeasures add forecasts`` [see `PR #2007 <https://www.github.com/FlexMeasures/flexmeasures/pull/2007>`_]
+* Add missing field documentation for ``aggregate-power`` and ``state-of-charge`` fields, which can be used to reference a sensor on which to record extra scheduling results [see `PR #2003 <https://www.github.com/FlexMeasures/flexmeasures/pull/2003>`_ and `PR #2006 <https://www.github.com/FlexMeasures/flexmeasures/pull/2006>`_]
+
+
+v0.31.0 | February 28, 2026
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v031-forecasting-api-annotations/>`_.
+
+.. warning:: As of this version, power schedules will no longer appear flipped (in UI charts) when they are recorded on *consumption* sensors.
+             Please note that:
+
+             - Schedules obtained via the dedicated API endpoints for scheduling are not affected by this change!
+             - The ``consumption_is_positive`` sensor attribute governs the sign of schedules saved to the database.
+               The sign convention of UI charts is to simply match what is in the database.
+             - If you inadvertently make use of the `sensor data API endpoint <https://flexmeasures.readthedocs.io/v0.30.3/api/v3_0.html#get--api-v3_0-sensors-id-data>`_ to fetch *schedules*,
+               or have reporters that compute reports on *schedules*, rather than on *measurements*, be advised that you may experience flipped results.
+               You may need to adjust your client-side code or reporter configuration accordingly.
+               (Updating a reporter configuration automatically leads to a fresh data source for the saved time series.)
+             - Finally, if you maintain a plugin with a custom ``Scheduler`` class that returns time series to be saved on power sensors, we recommend incrementing the version of the ``Scheduler`` class.
+               This will yield a fresh data source for new schedules and allow you to discriminate your flipped schedules, which, for instance, will make it easier to flip back the historical schedules if you later want to.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
@@ -22,10 +86,12 @@ New features
 * Improved the UX for creating sensors, clicking on ``Enter`` now validates and creates a sensor [see `PR #1876 <https://www.github.com/FlexMeasures/flexmeasures/pull/1876>`_]
 * Show zero values in bar charts even though they have 0 area [see `PR #1932 <https://www.github.com/FlexMeasures/flexmeasures/pull/1932>`_ and `PR #1936 <https://www.github.com/FlexMeasures/flexmeasures/pull/1936>`_]
 * Added ``root`` and ``depth`` fields to the `[GET] /assets` endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth [see `PR #1874 <https://www.github.com/FlexMeasures/flexmeasures/pull/1874>`_]
-* Give ability to edit sensor timezone from the UI [see `PR #1900 <https://www.github.com/FlexMeasures/flexmeasures/pull/1900>`_]
 * Support creating schedules with only information known prior to some time, now also via the CLI (the API already supported it) [see `PR #1871 <https://www.github.com/FlexMeasures/flexmeasures/pull/1871>`_].
-* Added capability to upate an asset's parent from the UI [`PR #1957 <https://www.github.com/FlexMeasures/flexmeasures/pull/1957>`_]
+* Added capability to update an asset's parent from the UI [`PR #1957 <https://www.github.com/FlexMeasures/flexmeasures/pull/1957>`_]
 * Add ``fields`` param to the asset-listing endpoints, to save bandwidth in response data [see `PR #1884 <https://www.github.com/FlexMeasures/flexmeasures/pull/1884>`_]
+* Support for flex-config in the ``SensorsToShowSchema`` [see `PR #1904 <https://www.github.com/FlexMeasures/flexmeasures/pull/1904>`_]
+* Upgrade graph modal to support flex-config references in plots  [see `PR #1926 <https://www.github.com/FlexMeasures/flexmeasures/pull/1926>`_]
+
 
   .. note:: For backwards-compatibility, the new ``fields`` parameter will only be fully active, i.e. also returning less fields per default, in v0.32. Set ``FLEXMEASURES_API_SUNSET_ACTIVE=True`` to test the full effect now.
 
@@ -34,7 +100,6 @@ New features
 * Add back save buttons to both ``flex-context`` and ``flex-model`` UI editors [see `PR #1916 <https://www.github.com/FlexMeasures/flexmeasures/pull/1916>`_]
 * Add a documentation section on the concept of ``Commitments`` [see `PR #1849 <https://www.github.com/FlexMeasures/flexmeasures/pull/1849>`_]
 * Add resolution column to sensors list on asset context page [see `PR #1986 <https://www.github.com/FlexMeasures/flexmeasures/pull/1986>`_]
-
 
 Infrastructure / Support
 ----------------------
@@ -61,6 +126,8 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix: schedules are no longer saved upside down [see `PR #1348 <https://www.github.com/FlexMeasures/flexmeasures/pull/1348>`_]
+* Fix: visiting the job page for any forecasting job led to a server error ("Object of type datetime is not JSON serializable"), by storing serialized kwargs in forecasting job meta [see `PR #1990 <https://www.github.com/FlexMeasures/flexmeasures/pull/1990>`_]
 * Fix: flex-context dialogue is empty when flex-context has two booleans with the same value [see `PR #1907 <https://www.github.com/FlexMeasures/flexmeasures/pull/1907>`_]
 * Bring back the ability to show (timed) annotations on the sensor page, and add some color highlighting, too, while we're at it [see `PR #1967 <https://www.github.com/FlexMeasures/flexmeasures/pull/1967>`_]
 * Fixed toast notification display on the sensor detail upload form [see `PR #1921 <https://www.github.com/FlexMeasures/flexmeasures/pull/1921>`_]
