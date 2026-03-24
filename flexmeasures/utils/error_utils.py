@@ -12,6 +12,7 @@ from werkzeug.exceptions import (
     BadRequest,
     NotFound,
     Gone,
+    SecurityError,
 )
 from sqlalchemy.orm import Query
 
@@ -114,6 +115,7 @@ def error_handling_router(error: HTTPException):
 def add_basic_error_handlers(app: Flask):
     """
     Register classes we care about with the generic handler.
+    The SecurityError is handled separately.
     See also the auth package for auth-specific error handling (Unauthorized, Forbidden)
     """
     app.register_error_handler(InternalServerError, error_handling_router)
@@ -122,6 +124,16 @@ def add_basic_error_handlers(app: Flask):
     app.register_error_handler(NotFound, error_handling_router)
     app.register_error_handler(Gone, error_handling_router)
     app.register_error_handler(Exception, error_handling_router)
+
+    app.register_error_handler(SecurityError, handle_security_error)
+
+
+def handle_security_error(e):
+    response = {
+        "error": "Security error",
+        "message": e.description,
+    }
+    return jsonify(response), e.code
 
 
 def print_query(query: Query) -> str:
