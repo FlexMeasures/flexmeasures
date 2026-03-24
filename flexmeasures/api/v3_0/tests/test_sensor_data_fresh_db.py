@@ -165,12 +165,11 @@ def test_post_sensor_instantaneous_data_round(
     )
 
 
-@pytest.mark.parametrize(
-    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
-)
+@pytest.mark.parametrize("requesting_user", ["improper_user@seita.nl"], indirect=True)
 def test_post_sensor_data_sets_account_id_on_data_source(
     client,
     setup_api_fresh_test_data,
+    setup_user_without_data_source,
     requesting_user,
     db,
 ):
@@ -181,17 +180,22 @@ def test_post_sensor_data_sets_account_id_on_data_source(
     post_data = make_sensor_data_request_for_gas_sensor(
         num_values=6, unit="m³/h", include_a_null=False
     )
+
+    # Make sure the user is not yet registered as a data source
+    data_source = db.session.execute(
+        select(Source).filter_by(user=setup_user_without_data_source)
+    ).scalar_one_or_none()
+    assert data_source is None
+
     response = client.post(
         url_for("SensorAPI:post_data", id=sensor.id),
         json=post_data,
     )
     assert response.status_code == 200
 
-    user = db.session.execute(
-        select(User).filter_by(email="test_supplier_user_4@seita.nl")
-    ).scalar_one()
+    # Make sure the user is now registered as a data source with account_id set
     data_source = db.session.execute(
-        select(Source).filter_by(user=user)
+        select(Source).filter_by(user=setup_user_without_data_source)
     ).scalar_one_or_none()
     assert data_source is not None
-    assert data_source.account_id == user.account_id
+    assert data_source.account_id == setup_user_without_data_source.account_id
