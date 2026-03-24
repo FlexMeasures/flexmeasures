@@ -142,21 +142,58 @@ def _describe_sensors_to_show_changes(old_value, new_value) -> str:
     )
 
 
-def _describe_dict_changes(field_name: str, old_value: dict, new_value: dict) -> str:
-    """Produce a readable summary of key-level changes between two flat-ish dicts."""
-    changes = []
-    all_keys = set(old_value) | set(new_value)
-    for key in sorted(all_keys):
-        ov = old_value.get(key)
-        nv = new_value.get(key)
-        if ov == nv:
-            continue
-        if ov is None:
-            changes.append(f"Added {key}: {nv}")
-        elif nv is None:
-            changes.append(f"Removed {key} (was: {ov})")
-        else:
-            changes.append(f"Changed {key}: {ov} → {nv}")
+_MISSING = object()
+
+
+def _format_json_path(path: str, key) -> str:
+    """Append a dict key or list index to a JSON-style path string."""
+    if isinstance(key, int):
+        return f"{path}[{key}]" if path else f"[{key}]"
+    return f"{path}.{key}" if path else str(key)
+
+
+def _collect_nested_changes(old_value, new_value, path: str = "") -> list[str]:
+    """Collect readable change messages for nested dict/list structures."""
+    if isinstance(old_value, dict) and isinstance(new_value, dict):
+        changes = []
+        for key in sorted(set(old_value) | set(new_value)):
+            ov = old_value.get(key, _MISSING)
+            nv = new_value.get(key, _MISSING)
+            key_path = _format_json_path(path, key)
+            if ov is _MISSING:
+                changes.append(f"Added {key_path}: {nv}")
+            elif nv is _MISSING:
+                changes.append(f"Removed {key_path} (was: {ov})")
+            else:
+                changes.extend(_collect_nested_changes(ov, nv, key_path))
+        return changes
+
+    if isinstance(old_value, list) and isinstance(new_value, list):
+        changes = []
+        max_len = max(len(old_value), len(new_value))
+        for index in range(max_len):
+            item_path = _format_json_path(path, index)
+            if index >= len(old_value):
+                changes.append(f"Added {item_path}: {new_value[index]}")
+            elif index >= len(new_value):
+                changes.append(f"Removed {item_path} (was: {old_value[index]})")
+            else:
+                changes.extend(
+                    _collect_nested_changes(
+                        old_value[index], new_value[index], item_path
+                    )
+                )
+        return changes
+
+    if old_value != new_value:
+        return [f"Changed {path}: {old_value} → {new_value}"]
+
+    return []
+
+
+def _describe_dict_changes(old_value: dict, new_value: dict) -> str:
+    """Produce a readable summary of changes between nested dict/list structures."""
+    changes = _collect_nested_changes(old_value, new_value)
     return (
         "\n".join(f"{i + 1}. {c}" for i, c in enumerate(changes))
         if changes
@@ -168,8 +205,9 @@ def format_json_field_change(field_name: str, old_value, new_value) -> str:
     """Format JSON field changes into a human-readable audit log entry.
 
     Produces plain-language descriptions for sensors_to_show, flex_context, and
-    flex_model changes. Falls back to a simple before/after note for other fields
-    or when an error occurs.
+    flex_model changes. For generic JSON fields, nested dict/list structures are
+    described recursively. Falls back to a simple before/after note for other
+    fields or when an error occurs.
 
     :param field_name:  Name of the field being changed.
     :param old_value:   The old value of the field.
@@ -204,6 +242,14 @@ def format_json_field_change(field_name: str, old_value, new_value) -> str:
     'Updated flex_context:\\n1. Removed site-production-capacity (was: 15000 kW)'
 
     >>> json = {
+    ...     "field_name": "flex_model",
+    ...     "old_value": {"soc-usage": ["3500 kW", {"sensor": 7}]},
+    ...     "new_value": {"soc-usage": ["3500 kW", {"sensor": 8}]}
+    ... }
+    >>> format_json_field_change(**json)
+    'Updated flex_model:\n1. Changed soc-usage[1].sensor: 7 → 8'
+
+    >>> json = {
     ...     "field_name": "sensors_to_show",
     ...     "old_value": [{"title": "Power", "plots": [{"sensor": 1}]}],
     ...     "new_value": [
@@ -218,7 +264,7 @@ def format_json_field_change(field_name: str, old_value, new_value) -> str:
         if field_name == "sensors_to_show":
             detail = _describe_sensors_to_show_changes(old_value, new_value)
         elif isinstance(old_value, dict) and isinstance(new_value, dict):
-            detail = _describe_dict_changes(field_name, old_value, new_value)
+            detail = _describe_dict_changes(old_value, new_value)
         else:
             return f"Updated {field_name}: {old_value} → {new_value}"
 
