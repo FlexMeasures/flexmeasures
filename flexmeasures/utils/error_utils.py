@@ -89,9 +89,10 @@ def error_handling_router(error: HTTPException):
     error_text = getattr(
         error, "description", f"Something went wrong: {error.__class__.__name__}"
     )
-
-    if request.is_json or (
-        request.url_rule is not None and request.url_rule.rule.startswith("/api")
+    if (
+        request.is_json
+        or (request.url_rule is not None and request.url_rule.rule.startswith("/api"))
+        or isinstance(error, SecurityError)
     ):
         response = jsonify(
             dict(
@@ -124,16 +125,6 @@ def add_basic_error_handlers(app: Flask):
     app.register_error_handler(NotFound, error_handling_router)
     app.register_error_handler(Gone, error_handling_router)
     app.register_error_handler(Exception, error_handling_router)
-
-    app.register_error_handler(SecurityError, handle_security_error)
-
-
-def handle_security_error(e):
-    response = {
-        "error": "Security error",
-        "message": e.description,
-    }
-    return jsonify(response), e.code
 
 
 def print_query(query: Query) -> str:
