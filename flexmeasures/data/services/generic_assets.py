@@ -56,7 +56,11 @@ def _sensor_ids_in_graph(graph) -> list:
 
 
 def _describe_plot_changes(old_plots: list, new_plots: list) -> list:
-    """Describe changes between old and new plots."""
+    """Describe changes between old and new plots.
+
+    Compares all keys generically rather than a fixed set, so future
+    additions to the plot schema are diffed automatically.
+    """
     import json as _json
 
     changes = []
@@ -67,16 +71,19 @@ def _describe_plot_changes(old_plots: list, new_plots: list) -> list:
         elif pi >= len(new_plots):
             changes.append(f"removed plot {pi + 1}")
         else:
-            for flex_key in ("flex-context", "flex-model"):
-                ov = old_plots[pi].get(flex_key)
-                nv = new_plots[pi].get(flex_key)
-                if ov != nv:
-                    if ov is None:
-                        changes.append(f'plot {pi + 1}: set {flex_key} to "{nv}"')
-                    elif nv is None:
-                        changes.append(f"plot {pi + 1}: removed {flex_key}")
-                    else:
-                        changes.append(f'plot {pi + 1}: {flex_key} "{ov}" → "{nv}"')
+            old_plot, new_plot = old_plots[pi], new_plots[pi]
+            all_keys = sorted(set(old_plot) | set(new_plot))
+            for key in all_keys:  # for instance, flex-context and flex-model
+                ov = old_plot.get(key)
+                nv = new_plot.get(key)
+                if ov == nv:
+                    continue
+                if ov is None:
+                    changes.append(f'plot {pi + 1}: set {key} to "{nv}"')
+                elif nv is None:
+                    changes.append(f"plot {pi + 1}: removed {key}")
+                else:
+                    changes.append(f'plot {pi + 1}: {key} "{ov}" → "{nv}"')
     return changes
 
 
