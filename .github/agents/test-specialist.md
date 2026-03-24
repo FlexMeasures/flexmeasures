@@ -82,8 +82,7 @@ Setup instructions:
 
 ### Running Tests
 
-- **Install test dependencies**: `uv sync --group test`
-- **Poethepoet command**: `uv run poe test` (Runs pytest 'normally')
+- **Make command**: `make test` (installs dependencies and runs pytest)
 - **Direct pytest**: `pytest` (after installing test dependencies)
 - **Test a specific file**: `pytest path/to/test_file.py`
 - **Test a specific function**: `pytest path/to/test_file.py::test_function_name`
@@ -118,7 +117,7 @@ The project uses `.pre-commit-config.yaml` to enforce code quality standards. Al
 
 ```bash
 # Install pre-commit (if not already installed)
-uv tool install pre-commit
+pip install pre-commit
 
 # Run all pre-commit hooks on all files
 pre-commit run --all-files
@@ -139,7 +138,7 @@ The following hooks are configured in FlexMeasures:
   - Auto-fixes code formatting issues
   
 - **mypy**: Performs static type checking
-  - Task: `uv run poe type-check`
+  - Custom script: `ci/run_mypy.sh`
   - Checks type hints and type safety
 
 - **generate-openapi-specs**: Generates OpenAPI specifications (local only, skipped in GitHub Actions)
@@ -188,28 +187,6 @@ This file contains all necessary steps for:
 - Database setup
 - Environment variables
 
-**Concrete setup steps for the agent environment** (translating what the workflow does):
-
-```bash
-# 1. Install system dependencies
-sudo apt-get update && sudo apt-get -y install libpq-dev coinor-cbc postgresql-client
-
-# 2. Install FlexMeasures with pinned test dependencies
-make install-for-test
-
-# 3. Export required environment variables (if not already set by the runner)
-export FLEXMEASURES_ENV=testing
-export SQLALCHEMY_DATABASE_URI=postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test
-export FLEXMEASURES_REDIS_URL=redis://127.0.0.1:6379/0
-
-# 4. Install and activate pre-commit hooks
-pip install pre-commit && pre-commit install
-```
-
-**Note on services**: PostgreSQL (postgres:17.4, port 5432) and Redis (redis:7, port 6379) service
-containers are started automatically by the GitHub Actions runner environment. In a local dev
-environment you must have these running yourself before executing tests.
-
 If setup steps fail or are unclear, escalate to the Tooling & CI Specialist.
 
 ## Running Tests in FlexMeasures Dev Environment
@@ -221,7 +198,7 @@ When reviewing or writing tests:
 1. **Set up the test environment** if not already done:
    ```bash
    # Install test dependencies
-   uv sync --locked --group test
+   make install-for-test
    ```
 2. **Run the tests you write or review**:
    ```bash
@@ -264,12 +241,12 @@ When fixing bugs:
 FlexMeasures provides convenient make targets:
 
 ```bash
-# Install dependencies
-uv sync --group dev --group test
-# Run all test
-uv run poe test
+# Install dependencies and run all tests
+make test
+# Install for development (includes test deps)
+make install-for-dev
 # Update documentation (includes generating OpenAPI specs)
-uv run poe update-docs
+make update-docs
 ```
 
 ### FlexMeasures CLI Testing

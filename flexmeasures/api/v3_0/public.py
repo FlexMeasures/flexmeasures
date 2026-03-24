@@ -62,8 +62,6 @@ def quickref_directive(content):
 
     if isinstance(content, six.string_types):
         content = content.splitlines()
-    if content is None:
-        return ""
     description = ""
     for line in content:
         qref = rcomp.match(line)

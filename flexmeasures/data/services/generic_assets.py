@@ -1,4 +1,3 @@
-from dictdiffer import diff
 from flask import current_app
 from sqlalchemy import delete
 
@@ -7,7 +6,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
 from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
-from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+from dictdiffer import diff
 
 """Services for managing assets"""
 
@@ -121,7 +120,6 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
     schema_map = dict(
         flex_context=DBFlexContextSchema,
         flex_model=DBStorageFlexModelSchema,
-        sensors_to_show=SensorsToShowSchema,
     )
 
     for k, v in asset_data.items():
@@ -137,11 +135,7 @@ def patch_asset(db_asset: GenericAsset, asset_data: dict) -> GenericAsset:
             continue
         if k in schema_map:
             # Validate the JSON field against the given schema
-            if k != "sensors_to_show":
-                schema_map[k]().load(v)
-            else:
-                # we use `deserialize here because the `SensorsToShowSchema` is a "fields.Field" object rather than a "Schema" object
-                schema_map[k]().deserialize(v)
+            schema_map[k]().load(v)
 
         if k.lower() in {"sensors_to_show", "flex_context", "flex_model"}:
             audit_log_data.append(format_json_field_change(k, getattr(db_asset, k), v))

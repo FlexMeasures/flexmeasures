@@ -396,13 +396,7 @@
     async function updateFlexContext() {
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
         let data = getFlexContext();
-
-        // Take out keys thats are not in the specs
-        for (const key in data) {
-            if (!assetFlexContextSchema.hasOwnProperty(key)) {
-                delete data[key];
-            }
-        }
+        console.log("Updating flex context with data:", data);
 
         // Clean null values
         for (const [key, value] of Object.entries(data)) {
@@ -415,6 +409,7 @@
                 delete data[key];
             }
         }
+
 
         const requestBody = JSON.stringify({ flex_context: JSON.stringify(data) });
 
@@ -576,7 +571,7 @@
         const card = document.createElement("div");
         card.className = `card m-1 p-2 card-highlight ${isActiveCard() ? "border-on-click" : ""}`;
         card.id = `${fieldName}-control`;
-        // set card element to disabled if it's an extra field
+        // set card element to disabled if it's an extrafield
         if (isExtraField) {
             card.setAttribute("data-disabled", "true");
             card.style.pointerEvents = "none";

@@ -306,11 +306,13 @@ You can visualise the data model like this:
 
 .. code-block:: bash
 
-   $ uv run poe show-data-model --uml
+   $ make show-data-model
 
 
 This will generate a picture based on the model code.
-You can also generate picture based on the actual database with ``uv run poe show-data-model --schema``.
+You can also generate picture based on the actual database, see inside the Makefile. 
+
+.. note:: If you encounter "error: externally-managed-environment" when running `make test` and you do it in venv, try `pip cache purge` or use pipx.
 
 Maintenance
 ----------------

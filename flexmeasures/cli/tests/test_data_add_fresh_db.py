@@ -17,17 +17,6 @@ from flexmeasures.utils.time_utils import server_now
 from flexmeasures.tests.utils import get_test_sensor
 
 
-def test_add_forecast(app, setup_dummy_data):
-    from flexmeasures.cli.data_add import add_forecast
-
-    cli_input = {
-        "sensor": 1,
-    }
-    runner = app.test_cli_runner()
-    result = runner.invoke(add_forecast, to_flags(cli_input))
-    assert result.exit_code == 0, result.output
-
-
 def test_add_reporter(app, fresh_db, setup_dummy_data, caplog):
     """
     The reporter aggregates input data from two sensors (both have 200 data points)

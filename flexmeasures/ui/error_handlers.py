@@ -1,6 +1,6 @@
 """Error views for UI purposes."""
 
-from flask import Flask, request, redirect
+from flask import Flask
 from werkzeug.exceptions import BadRequest, InternalServerError, HTTPException
 
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
@@ -60,33 +60,6 @@ def handle_bad_request(e: BadRequest):
 
 
 def handle_not_found(e):
-    """Handle 404 errors for the UI.
-
-    Special handling:
-      - If the request is for documentation under
-        ``/ui/static/documentation/html``, redirect to the
-        corresponding ReadTheDocs URL.
-      - Preserves query string parameters.
-
-    Examples
-    --------
-    /ui/static/documentation/html/index.html
-        -> https://flexmeasures.readthedocs.io/stable/index.html
-
-    /ui/static/documentation/html/search.html?q=commitments
-        -> https://flexmeasures.readthedocs.io/stable/search.html?q=commitments
-    """
-    docs_prefix = "/ui/static/documentation/html"
-
-    if request.path.startswith(docs_prefix):
-        # remove prefix and any leading slash
-        page = request.path[len(docs_prefix) :].lstrip("/")
-        # include query string if present
-        query = f"?{request.query_string.decode()}" if request.query_string else ""
-        return redirect(
-            f"https://flexmeasures.readthedocs.io/stable/{page}{query}", 302
-        )
-
     return (
         render_flexmeasures_template(
             "error.html",

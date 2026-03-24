@@ -8,11 +8,9 @@ import logging
 from datetime import datetime, timedelta
 
 from rq.job import Job
-from sqlalchemy import inspect as sa_inspect
 
 from flask import current_app
 
-from flexmeasures.data import db
 from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.models.forecasting.pipelines.predict import PredictPipeline
 from flexmeasures.data.models.forecasting.pipelines.train import TrainPipeline
@@ -46,28 +44,12 @@ class TrainPredictPipeline(Forecaster):
         self.delete_model = delete_model
         self.return_values = []  # To store forecasts and jobs
 
-    @staticmethod
-    def _reattach_if_needed(obj):
-        """Re-merge a SQLAlchemy object into the current session if it is detached or expired.
-
-        After ``db.session.commit()``, all objects in the session are expired.
-        When RQ pickles ``self.run_cycle`` for a worker, expired or detached
-        objects may raise ``DetachedInstanceError`` on attribute access.  This
-        helper merges such objects back into the active session so they are
-        usable when the worker executes the job.
-        """
-        insp = sa_inspect(obj)
-        if insp.detached or insp.expired:
-            return db.session.merge(obj)
-        return obj
-
     def run_wrap_up(self, cycle_job_ids: list[str]):
         """Log the status of all cycle jobs after completion."""
-        connection = current_app.queues["forecasting"].connection
-
         for index, job_id in enumerate(cycle_job_ids):
-            status = Job.fetch(job_id, connection=connection).get_status()
-            logging.info(f"forecasting job-{index}: {job_id} status: {status}")
+            logging.info(
+                f"forecasting job-{index}: {job_id} status: {Job.fetch(job_id).get_status()}"
+            )
 
     def run_cycle(
         self,
@@ -85,25 +67,6 @@ class TrainPredictPipeline(Forecaster):
         logging.info(
             f"Starting Train-Predict cycle from {train_start} to {predict_end}"
         )
-
-        # Re-attach sensor objects if they are detached after RQ pickles/unpickles self
-        # (this can happen when a commit expires objects before RQ serializes the job).
-        self._parameters["sensor"] = self._reattach_if_needed(
-            self._parameters["sensor"]
-        )
-        sensor_to_save = self._parameters.get("sensor_to_save")
-        if sensor_to_save is not None:
-            self._parameters["sensor_to_save"] = self._reattach_if_needed(
-                sensor_to_save
-            )
-        # Also re-attach regressor sensors stored in _config
-        self._config["future_regressors"] = [
-            self._reattach_if_needed(s)
-            for s in self._config.get("future_regressors", [])
-        ]
-        self._config["past_regressors"] = [
-            self._reattach_if_needed(s) for s in self._config.get("past_regressors", [])
-        ]
 
         # Train model
         train_pipeline = TrainPipeline(
@@ -298,19 +261,11 @@ class TrainPredictPipeline(Forecaster):
         if as_job:
             cycle_job_ids = []
 
-            # Ensure the data source is attached to the current session before
-            # committing. get_or_create_source() only flushes (does not commit), so
-            # without this merge the data source would not be found by the worker.
-            db.session.merge(self.data_source)
-            db.session.commit()
-
             # job metadata for tracking
-            # Serialize start and end to ISO format strings
-            # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
             job_metadata = {
                 "data_source_info": {"id": self.data_source.id},
-                "start": self._parameters["predict_start"].isoformat(),
-                "end": self._parameters["end_date"].isoformat(),
+                "start": self._parameters["predict_start"],
+                "end": self._parameters["end_date"],
                 "sensor_id": self._parameters["sensor_to_save"].id,
             }
             for cycle_params in cycles_job_params:
@@ -361,14 +316,9 @@ class TrainPredictPipeline(Forecaster):
 
             if len(cycle_job_ids) > 1:
                 # Return the wrap-up job ID if multiple cycle jobs are queued
-                return {"job_id": wrap_up_job.id, "n_jobs": len(cycle_job_ids)}
+                return wrap_up_job.id
             else:
                 # Return the single cycle job ID if only one job is queued
-                return {
-                    "job_id": (
-                        cycle_job_ids[0] if len(cycle_job_ids) == 1 else wrap_up_job.id
-                    ),
-                    "n_jobs": 1,
-                }
+                return cycle_job_ids[0] if len(cycle_job_ids) == 1 else wrap_up_job.id
 
         return self.return_values

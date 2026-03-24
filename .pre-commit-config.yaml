@@ -1,25 +1,21 @@
 repos:
-  - repo: local
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1  # New version tags can be found here: https://github.com/pycqa/flake8/tags
     hooks:
       - id: flake8
         name: flake8 (code linting)
-        language: system
-        entry: uv run flake8
-        types: [python]
-  - repo: local
+  - repo: https://github.com/psf/black
+    rev: 24.8.0  # New version tags can be found here: https://github.com/psf/black/tags
     hooks:
       - id: black
         name: black (code formatting)
-        language: system
-        entry: uv run black
-        types: [python]
   - repo: local
     hooks:
       - id: mypy
         name: mypy (static typing)
         pass_filenames: false
-        language: system
-        entry: uv run poe type-check
+        language: script
+        entry: ci/run_mypy.sh
         verbose: true
   - repo: local
     hooks:
@@ -28,4 +24,4 @@ repos:
         files: '^flexmeasures/api|^flexmeasures/data/schemas'
         pass_filenames: false
         language: system
-        entry: bash -c '[[ "$GITHUB_ACTIONS" == "true" ]] && exit 0 || (uv run poe generate-open-api-specs)'
+        entry: bash -c '[[ "$GITHUB_ACTIONS" == "true" ]] && exit 0 || (export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; python flexmeasures/api/scripts/generate_open_api_specs.py)'

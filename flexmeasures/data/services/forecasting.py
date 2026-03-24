@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 
 from flask import current_app
 import click
-from isodate import duration_isoformat
 from rq import get_current_job
 from rq.job import Job
 from timetomodel.forecasting import make_rolling_forecasts
@@ -112,14 +111,6 @@ def create_forecasting_jobs(
             ),
         )
         job.meta["model_search_term"] = model_search_term
-        # Serialize forecast kwargs for display in the job page
-        # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
-        job.meta["forecast_kwargs"] = {
-            "sensor_id": sensor_id,
-            "horizon": duration_isoformat(horizon),
-            "start": (start_of_roll + horizon).isoformat(),
-            "end": (end_of_roll + horizon).isoformat(),
-        }
         job.save_meta()
         jobs.append(job)
         if enqueue:

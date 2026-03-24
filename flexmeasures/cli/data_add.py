@@ -1141,9 +1141,7 @@ def add_forecast(  # noqa: C901
     )
 
     try:
-        # Drop None values
-        parameters = {k: v for k, v in parameters.items() if v is not None}
-        pipeline_returns = forecaster.compute(as_job=as_job, parameters=parameters)
+        pipeline_returns = forecaster.compute(as_job=as_job, **parameters)
 
         # Empty result
         if not pipeline_returns:
@@ -1151,8 +1149,8 @@ def add_forecast(  # noqa: C901
             return
 
         # as_job case → list of job dicts like {"job-1": "<uuid>"}
-        if as_job:
-            n_jobs = pipeline_returns["n_jobs"]
+        if parameters.get("as_job"):
+            n_jobs = len(pipeline_returns)
             click.secho(f"Created {n_jobs} forecasting job(s).", **MsgStyle.SUCCESS)
             return
 
@@ -1826,31 +1824,19 @@ def add_toy_account(kind: str, name: str):
         db.session.flush()
         battery = discharging_sensor.generic_asset
         battery.sensors_to_show = [
-            {"title": "Prices", "plots": [{"sensor": day_ahead_sensor.id}]},
+            {"title": "Prices", "sensor": day_ahead_sensor.id},
             {
                 "title": "Power flows",
-                "plots": [
-                    {"sensors": [production_sensor.id, discharging_sensor.id]},
-                ],
+                "sensors": [production_sensor.id, discharging_sensor.id],
             },
         ]
 
         # the site gets a similar dashboard (TODO: after #1801, add also capacity constraint)
         building_asset.sensors_to_show = [
-            {
-                "title": "Prices",
-                "plots": [
-                    {
-                        "asset": building_asset.id,
-                        "flex-context": "consumption-price",
-                    }
-                ],
-            },
+            {"title": "Prices", "sensor": day_ahead_sensor.id},
             {
                 "title": "Power flows",
-                "plots": [
-                    {"sensors": [production_sensor.id, discharging_sensor.id]},
-                ],
+                "sensors": [production_sensor.id, discharging_sensor.id],
             },
         ]
 
@@ -1890,10 +1876,10 @@ def add_toy_account(kind: str, name: str):
 
         process = shiftable_power.generic_asset
         process.sensors_to_show = [
-            {"title": "Prices", "plots": [{"sensor": day_ahead_sensor.id}]},
-            {"title": "Inflexible", "plots": [{"sensor": inflexible_power.id}]},
-            {"title": "Breakable", "plots": [{"sensor": breakable_power.id}]},
-            {"title": "Shiftable", "plots": [{"sensor": shiftable_power.id}]},
+            {"title": "Prices", "sensor": day_ahead_sensor.id},
+            {"title": "Inflexible", "sensor": inflexible_power.id},
+            {"title": "Breakable", "sensor": breakable_power.id},
+            {"title": "Shiftable", "sensor": shiftable_power.id},
         ]
 
         db.session.commit()

@@ -466,7 +466,7 @@ def add_cli_options_from_schema(schema):
             kwargs = {
                 "help": help_text,
                 "required": field.required,
-                # "default": field.load_default,
+                "default": field.load_default,
             }
 
             if cli.get("is_flag"):
@@ -474,10 +474,10 @@ def add_cli_options_from_schema(schema):
 
             # Transfer the original field type
             if isinstance(field, MarshmallowClickMixin):
-                kwargs["type"] = str
+                kwargs["type"] = field
             elif isinstance(field, fields.List):
                 kwargs["multiple"] = True
-                kwargs["type"] = str
+                kwargs["type"] = field.inner
 
             command = click.option(*options, **kwargs)(command)
 

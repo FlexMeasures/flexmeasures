@@ -21,9 +21,7 @@ def upgrade():
     Re-create the index with correct order
     """
     with op.batch_alter_table("timed_belief", schema=None) as batch_op:
-        batch_op.drop_index(
-            "timed_belief_search_session_singleevent_idx", if_exists=True
-        )
+        batch_op.drop_index("timed_belief_search_session_singleevent_idx")
     with op.batch_alter_table("timed_belief", schema=None) as batch_op:
         batch_op.create_index(
             "timed_belief_search_session_singleevent_idx",
@@ -37,9 +35,7 @@ def downgrade():
     Re-create the original index
     """
     with op.batch_alter_table("timed_belief", schema=None) as batch_op:
-        batch_op.drop_index(
-            "timed_belief_search_session_singleevent_idx", if_exists=True
-        )
+        batch_op.drop_index("timed_belief_search_session_singleevent_idx")
     with op.batch_alter_table("timed_belief", schema=None) as batch_op:
         batch_op.create_index(
             "timed_belief_search_session_singleevent_idx",

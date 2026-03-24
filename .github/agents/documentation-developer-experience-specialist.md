@@ -237,7 +237,7 @@ When writing documentation:
 2. **Test examples in FlexMeasures dev environment**:
    ```bash
    # Verify examples actually work
-   uv sync --group dev --group test
+   make install-for-dev
    flexmeasures <command from docs>
    ```
 3. **Verify code behavior before documenting**:
@@ -297,7 +297,7 @@ Before finalizing documentation:
 
 1. **Set up dev environment**:
    ```bash
-   uv sync --group dev --group test
+   make install-for-dev
    ```
 2. **Test CLI examples**:
    ```bash
