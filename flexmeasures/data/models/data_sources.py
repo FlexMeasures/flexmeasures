@@ -271,7 +271,9 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     __tablename__ = "data_source"
     __table_args__ = (
-        db.UniqueConstraint("name", "user_id", "model", "version", "attributes_hash"),
+        db.UniqueConstraint(
+            "name", "user_id", "account_id", "model", "version", "attributes_hash"
+        ),
     )
 
     # The type of data source (e.g. user, forecaster or scheduler)
@@ -283,6 +285,10 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         db.Integer, db.ForeignKey("fm_user.id"), nullable=True, unique=True
     )
     user = db.relationship("User", backref=db.backref("data_source", lazy=True))
+
+    # The account this data source belongs to (populated from user.account for user-type sources)
+    account_id = db.Column(db.Integer, db.ForeignKey("account.id"), nullable=True)
+    account = db.relationship("Account", backref=db.backref("data_sources", lazy=True))
 
     attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
@@ -316,6 +322,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             name = user.username
             type = "user"
             self.user = user
+            self.account = user.account
         elif user is None and type == "user":
             raise TypeError("A data source cannot have type 'user' but no user set.")
         self.type = type
