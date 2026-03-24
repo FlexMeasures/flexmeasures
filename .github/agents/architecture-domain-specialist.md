@@ -54,6 +54,7 @@ When reviewing or writing Alembic migrations, check:
 - [ ] **Nullable new columns**: New FK columns should be `nullable=True` to avoid breaking existing rows
 - [ ] **batch_alter_table**: Use `op.batch_alter_table()` for all ALTER TABLE operations (required for SQLite compat in test environments)
 - [ ] **UniqueConstraint names**: Verify constraint name matches the existing DB constraint name exactly (check with `\d <table>` in psql)
+- [ ] **Create Date**: Verify the current datetime is correct (e.g. a `Create Date: 2025-01-15 00:00:00.000000` is highly unlikely to be true)
 
 **Pattern: Safe data migration in Alembic**
 
