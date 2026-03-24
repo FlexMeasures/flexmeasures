@@ -9,6 +9,7 @@ from sqlalchemy import select
 from flexmeasures import Source
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
 from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.models.user import User
 
 
 @pytest.mark.parametrize(
@@ -162,3 +163,35 @@ def test_post_sensor_instantaneous_data_round(
     assert data.reset_index().event_start[0] == pd.Timestamp(
         "2021-06-06 22:00:00+0000", tz="UTC"
     )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_sensor_data_sets_account_id_on_data_source(
+    client,
+    setup_api_fresh_test_data,
+    requesting_user,
+    db,
+):
+    """When sensor data is posted, the resulting data source should have account_id
+    set to the posting user's account_id.
+    """
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+    post_data = make_sensor_data_request_for_gas_sensor(
+        num_values=6, unit="m³/h", include_a_null=False
+    )
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        json=post_data,
+    )
+    assert response.status_code == 200
+
+    user = db.session.execute(
+        select(User).filter_by(email="test_supplier_user_4@seita.nl")
+    ).scalar_one()
+    data_source = db.session.execute(
+        select(Source).filter_by(user=user)
+    ).scalar_one_or_none()
+    assert data_source is not None
+    assert data_source.account_id == user.account_id
