@@ -83,6 +83,12 @@ def error_handling_router(error: HTTPException):
             error.name,
             verbose=False,
         )
+    elif isinstance(error, SecurityError):
+        log_error(
+            error,
+            error.description,
+            verbose=False,
+        )
     else:
         log_error(error, getattr(error, "description", str(error)))
 
