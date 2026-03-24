@@ -448,3 +448,35 @@ The Coordinator has identified these recurring issues:
 Review Lead should now invoke Coordinator as subagent.
 
 These patterns must not repeat. Agent instructions have been updated to prevent recurrence.
+
+### Additional Pattern Discovered (2026-03-24)
+
+**Pattern**: Persistent self-improvement failure and missing API Specialist agent selection
+
+**Session**: PR #2058 — Add `account_id` to DataSource table
+
+**Observation**: After three sessions now, the same two failures recur:
+1. Coordinator is not invoked at end of session (despite MUST requirement in Review Lead instructions)
+2. No agent updates its own instructions (despite MUST requirement in all agents)
+
+**Root cause analysis**:
+- "Coordinator invocation" and "self-improvement" are both documented as mandatory last steps
+- But the session ends before they are reached — they are treated as optional epilogue, not gating requirements
+- The Review Lead agent selection is ad-hoc, with no explicit checklist forcing API Specialist engagement when endpoints change
+
+**What was missed in PR #2058**:
+- API Specialist not engaged: POST sensor data now sets `account_id` on the resulting data source — this is an endpoint behavior change that should be reviewed for backward compatibility
+- Zero agent instruction updates across all three participating agents (Architecture Specialist, Test Specialist, Review Lead)
+- No Coordinator invocation despite explicit user request in the original prompt
+
+**Solutions implemented**:
+- Architecture Specialist: Added Alembic migration checklist + DataSource domain invariants
+- Test Specialist: Added DataSource property testing pattern + lessons learned
+- Review Lead: Added Agent Selection Checklist mapping code change types to required agents; documented 3rd recurrence of these failures
+- Coordinator (this file): Documented case study
+
+**Governance escalation**: The Review Lead's "Must Always Run Coordinator" requirement has now been documented in three sessions without being followed. If it fails a fourth time, consider structural changes — e.g., making Coordinator invocation the FIRST step of a session rather than the last, so it sets context rather than being a forgotten epilogue.
+
+**Code observation from PR #2058 worth tracking**:
+- `user.account_id or (user.account.id if user.account else None)` — the `or` pattern is fragile for `account_id=0` (unrealistic but worth noting). Prefer `user.account_id if user.account_id is not None else (user.account.id if user.account else None)` for strict correctness.
+- Empty "Initial plan" commit adds git history noise. When orchestrating agents, the first commit should be functional code, not a planning marker.
