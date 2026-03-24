@@ -302,6 +302,30 @@ flask db current
 - **Assertions**: Use descriptive assertion messages for failures
 - **Mocking**: Use pytest fixtures and mocking when testing external dependencies
 
+### Testing DataSource Properties After API Calls
+
+When writing tests that verify data source properties (e.g. `account_id`, `user`, `type`) after an API call:
+
+1. **Use `fresh_db` fixture** — tests that POST data and then query the resulting data source are modifying the DB and must use the function-scoped `fresh_db` fixture. Place these tests in a `_fresh_db` module.
+
+2. **Query by user, not just name** — data sources created by the same user across test runs may collide; use `filter_by(user=user)` or `filter_by(user_id=user.id)` for precision.
+
+3. **Pattern** (from `test_post_sensor_data_sets_account_id_on_data_source`):
+   ```python
+   # Fetch the user that made the request
+   user = db.session.execute(
+       select(User).filter_by(email="test_supplier_user_4@seita.nl")
+   ).scalar_one()
+   # Fetch the data source created for that user
+   data_source = db.session.execute(
+       select(Source).filter_by(user=user)
+   ).scalar_one_or_none()
+   assert data_source is not None
+   assert data_source.account_id == user.account_id
+   ```
+
+4. **Check both existence and value** — don't just assert `data_source is not None`; also assert the specific field value you're testing.
+
 ## Understanding Test Design Intent (CRITICAL)
 
 **Before changing a test, understand WHY it's designed that way.**
@@ -482,14 +506,9 @@ After each assignment:
    - Added guidance on <specific topic>
    ```
 
-Example:
+### Lessons Learned
 
-```
-agents/test-specialist: learned to verify claims with actual test runs
-Context:
-- Session #456 claimed tests passed but they were never actually run
-- Led to bug slipping through to production
-Change:
-- Added "Actually Run Tests" section with verification steps
-- Emphasized checking test output and coverage
-```
+**Session 2026-03-24 (PR #2058 — add account_id to DataSource)**:
+
+- **Self-improvement failure**: Despite having explicit instructions to update this agent file after each assignment, no update was made during this PR session. This was caught by the Coordinator post-hoc. The agent must treat instruction updates as the LAST mandatory step of any assignment.
+- **DataSource property testing**: Added guidance in "Testing DataSource Properties After API Calls" above. When testing properties set by the API on a data source (like `account_id`), use `fresh_db`, query by user to avoid ambiguity, and assert both existence and the specific field value.
