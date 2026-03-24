@@ -8,10 +8,6 @@ import traceback
 from flask import Flask, jsonify, current_app, request
 from werkzeug.exceptions import (
     HTTPException,
-    InternalServerError,
-    BadRequest,
-    NotFound,
-    Gone,
     SecurityError,
 )
 from sqlalchemy.orm import Query
