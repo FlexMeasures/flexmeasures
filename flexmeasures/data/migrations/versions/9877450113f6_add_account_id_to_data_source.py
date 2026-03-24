@@ -44,24 +44,14 @@ def upgrade():
             ["id"],
         )
 
-    # 2. Data migration: populate account_id from the related user's account
+    # 2. Data migration: populate account_id from the related user's account.
+    #    Use a single UPDATE ... FROM to avoid N+1 queries.
     connection = op.get_bind()
-    rows = connection.execute(
-        sa.select(t_data_source.c.id, t_data_source.c.user_id).where(
-            t_data_source.c.user_id.isnot(None)
-        )
-    ).fetchall()
-
-    for ds_id, user_id in rows:
-        user_row = connection.execute(
-            sa.select(t_fm_user.c.account_id).where(t_fm_user.c.id == user_id)
-        ).fetchone()
-        if user_row is not None and user_row[0] is not None:
-            connection.execute(
-                sa.update(t_data_source)
-                .where(t_data_source.c.id == ds_id)
-                .values(account_id=user_row[0])
-            )
+    connection.execute(
+        sa.update(t_data_source)
+        .where(t_data_source.c.user_id == t_fm_user.c.id)
+        .values(account_id=t_fm_user.c.account_id)
+    )
 
     # 3. Drop old UniqueConstraint and recreate it with account_id included
     with op.batch_alter_table("data_source", schema=None) as batch_op:
