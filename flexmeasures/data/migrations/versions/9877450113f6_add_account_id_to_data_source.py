@@ -45,12 +45,16 @@ def upgrade():
         )
 
     # 2. Data migration: populate account_id from the related user's account.
-    #    Use a single UPDATE ... FROM to avoid N+1 queries.
+    #    Use a correlated subquery to avoid N+1 queries and ensure portability.
     connection = op.get_bind()
     connection.execute(
         sa.update(t_data_source)
-        .where(t_data_source.c.user_id == t_fm_user.c.id)
-        .values(account_id=t_fm_user.c.account_id)
+        .values(
+            account_id=sa.select(t_fm_user.c.account_id)
+            .where(t_fm_user.c.id == t_data_source.c.user_id)
+            .scalar_subquery()
+        )
+        .where(t_data_source.c.user_id.isnot(None))
     )
 
     # 3. Drop old UniqueConstraint and recreate it with account_id included
