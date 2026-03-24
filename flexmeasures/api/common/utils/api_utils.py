@@ -215,8 +215,12 @@ def convert_asset_json_fields(asset_kwargs):
 
 def _copy_direct_sensors(
     source_asset: GenericAsset, copied_asset: GenericAsset
-) -> None:
-    """Copy sensors directly attached to one asset."""
+) -> dict[int, int]:
+    """Copy sensors directly attached to one asset.
+
+    Returns a mapping of original sensor ID → new sensor ID for every sensor copied.
+    """
+    sensor_id_map: dict[int, int] = {}
     source_sensors = db.session.scalars(
         select(Sensor).filter(Sensor.generic_asset_id == source_asset.id)
     ).all()
@@ -243,7 +247,75 @@ def _copy_direct_sensors(
             deepcopy(source_sensor.knowledge_horizon_par),
         )
 
-        db.session.add(Sensor(**sensor_kwargs))
+        new_sensor = Sensor(**sensor_kwargs)
+        db.session.add(new_sensor)
+        db.session.flush()  # obtain new_sensor.id
+        sensor_id_map[source_sensor.id] = new_sensor.id
+
+    return sensor_id_map
+
+
+def _replace_sensor_refs(data, sensor_id_map: dict[int, int]):
+    """Recursively replace sensor IDs inside a nested JSON structure.
+
+    Handles the two reference patterns used in flex_context, flex_model and
+    sensors_to_show:
+
+    * ``{"sensor": <id>}``          – single sensor reference
+    * ``{"sensors": [<id>, ...]}``  – list of sensor IDs
+
+    Only IDs present in *sensor_id_map* are updated; all other values are left
+    unchanged, so references to sensors that were **not** copied (e.g. public
+    price sensors) are preserved as-is.
+    """
+    if isinstance(data, dict):
+        result: dict = {}
+        for key, value in data.items():
+            if key == "sensor" and isinstance(value, int):
+                result[key] = sensor_id_map.get(value, value)
+            elif key == "sensors" and isinstance(value, list):
+                result[key] = [
+                    sensor_id_map.get(v, v) if isinstance(v, int) else v for v in value
+                ]
+            else:
+                result[key] = _replace_sensor_refs(value, sensor_id_map)
+        return result
+    elif isinstance(data, list):
+        return [_replace_sensor_refs(item, sensor_id_map) for item in data]
+    return data
+
+
+def _update_sensor_refs_in_subtree(
+    asset: GenericAsset, sensor_id_map: dict[int, int]
+) -> None:
+    """Update sensor references in flex_context, flex_model and sensors_to_show
+    for the given asset and all its descendants.
+
+    Only IDs present in *sensor_id_map* are replaced; external sensor references
+    are left unchanged.
+    """
+    if asset.flex_context:
+        asset.flex_context = _replace_sensor_refs(
+            deepcopy(asset.flex_context), sensor_id_map
+        )
+    if asset.flex_model:
+        asset.flex_model = _replace_sensor_refs(
+            deepcopy(asset.flex_model), sensor_id_map
+        )
+    if asset.sensors_to_show:
+        asset.sensors_to_show = _replace_sensor_refs(
+            deepcopy(asset.sensors_to_show), sensor_id_map
+        )
+    if asset.sensors_to_show_as_kpis:
+        asset.sensors_to_show_as_kpis = _replace_sensor_refs(
+            deepcopy(asset.sensors_to_show_as_kpis), sensor_id_map
+        )
+
+    children = db.session.scalars(
+        select(GenericAsset).filter(GenericAsset.parent_asset_id == asset.id)
+    ).all()
+    for child in children:
+        _update_sensor_refs_in_subtree(child, sensor_id_map)
 
 
 def _copy_asset_subtree(
@@ -251,8 +323,12 @@ def _copy_asset_subtree(
     destination_account_id: int,
     destination_parent_asset_id: int | None,
     asset_schema: AssetSchema,
-) -> GenericAsset:
-    """Recursively copy one asset and all descendants."""
+) -> tuple[GenericAsset, dict[int, int]]:
+    """Recursively copy one asset and all descendants.
+
+    Returns a tuple of (copied_asset, sensor_id_map) where sensor_id_map maps
+    every original sensor ID in the entire subtree to the corresponding new ID.
+    """
     asset_kwargs = asset_schema.dump(source_asset)
 
     for key in ["id", "owner", "generic_asset_type", "child_assets", "sensors"]:
@@ -267,7 +343,7 @@ def _copy_asset_subtree(
     db.session.add(copied_asset)
     db.session.flush()
 
-    _copy_direct_sensors(source_asset, copied_asset)
+    sensor_id_map = _copy_direct_sensors(source_asset, copied_asset)
 
     source_children = db.session.scalars(
         select(GenericAsset)
@@ -275,14 +351,15 @@ def _copy_asset_subtree(
         .order_by(GenericAsset.id)
     ).all()
     for source_child in source_children:
-        _copy_asset_subtree(
+        _, child_sensor_map = _copy_asset_subtree(
             source_asset=source_child,
             destination_account_id=destination_account_id,
             destination_parent_asset_id=copied_asset.id,
             asset_schema=asset_schema,
         )
+        sensor_id_map.update(child_sensor_map)
 
-    return copied_asset
+    return copied_asset, sensor_id_map
 
 
 def copy_asset(
@@ -326,12 +403,14 @@ def copy_asset(
             target_account_id = int(account.id)
             target_parent_asset_id = int(parent_asset.id)
 
-        copied_root = _copy_asset_subtree(
+        copied_root, sensor_id_map = _copy_asset_subtree(
             source_asset=asset,
             destination_account_id=target_account_id,
             destination_parent_asset_id=target_parent_asset_id,
             asset_schema=asset_schema,
         )
+        if sensor_id_map:
+            _update_sensor_refs_in_subtree(copied_root, sensor_id_map)
         db.session.commit()
         return copied_root
     except Exception as e:

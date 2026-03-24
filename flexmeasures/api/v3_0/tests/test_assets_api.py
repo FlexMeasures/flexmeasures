@@ -908,20 +908,33 @@ def test_copy_asset_to_another_account_preserves_config(
     # 2. Top-level in the target account (no parent given → parent_asset_id = None).
     assert house_copy.parent_asset_id is None
 
-    # 3. flex_context is preserved verbatim.
-    assert house_copy.flex_context == original_flex_context
-
     # 4. Direct sensors on the copied asset are duplicated.
     copied_house_sensors = db.session.scalars(
         select(Sensor).filter(Sensor.generic_asset_id == house_copy.id)
     ).all()
     assert len(copied_house_sensors) == 1
-    assert copied_house_sensors[0].name == site_capacity_sensor.name
-    assert copied_house_sensors[0].unit == site_capacity_sensor.unit
+    copied_site_capacity_sensor = copied_house_sensors[0]
+    assert copied_site_capacity_sensor.name == site_capacity_sensor.name
+    assert copied_site_capacity_sensor.unit == site_capacity_sensor.unit
     assert (
-        copied_house_sensors[0].event_resolution
+        copied_site_capacity_sensor.event_resolution
         == site_capacity_sensor.event_resolution
     )
+
+    # 3. flex_context: the internal sensor reference (site-power-capacity) is
+    #    updated to the new copied sensor ID; the external reference
+    #    (consumption-price on the public epex asset) is preserved as-is.
+    assert (
+        house_copy.flex_context["consumption-price"]
+        == original_flex_context["consumption-price"]
+    ), "External sensor reference must be unchanged"
+    assert house_copy.flex_context["site-power-capacity"] == {
+        "sensor": copied_site_capacity_sensor.id
+    }, "Internal sensor reference must point to the new copied sensor"
+    assert (
+        house_copy.flex_context["site-power-capacity"]["sensor"]
+        != site_capacity_sensor.id
+    ), "Internal sensor reference must not point to the original sensor"
 
     # 5. Deep copy for hierarchy: original child assets are duplicated.
     children_of_copy = db.session.scalars(
@@ -935,6 +948,111 @@ def test_copy_asset_to_another_account_preserves_config(
         select(Sensor).filter(Sensor.generic_asset_id.in_(copied_child_ids))
     ).all()
     assert len(copied_child_sensors) == 4
+
+
+def test_copy_asset_replaces_sensor_refs_in_config(
+    setup_api_test_data, setup_accounts, setup_markets, setup_generic_asset_types, db
+):
+    """
+    When copying an asset, sensor references inside flex_context, flex_model and
+    sensors_to_show must be updated to point to the newly copied sensors.
+
+    Sensor references that belong to assets *outside* the copied subtree (e.g. a
+    public price sensor) must be left unchanged.
+
+    Asset layout:
+
+    Battery  (EMS, Prosumer account)
+    ├── sensor_internal  – belongs to Battery, referenced in flex_context
+    ├── flex_context:
+    │     "consumption-capacity": {"sensor": <sensor_internal.id>}   ← internal
+    │     "production-price":     {"sensor": <price_sensor.id>}      ← external
+    ├── flex_model:
+    │     "soc-min": "700.0 kWh"                                     ← no sensor
+    │     "consumption-capacity": {"sensor": <sensor_internal.id>}   ← internal
+    ├── sensors_to_show:
+    │     [{"title": "Chart", "plots": [
+    │         {"sensor": <sensor_internal.id>},                       ← internal
+    │         {"sensors": [<sensor_internal.id>, <price_sensor.id>]}  ← mixed
+    │     ]}]
+
+    After copying:
+    - References to sensor_internal → replaced with new copied sensor's ID
+    - References to price_sensor    → unchanged (external)
+    """
+    prosumer_account = setup_accounts["Prosumer"]
+    price_sensor = setup_markets["epex_da"]
+    assert price_sensor.generic_asset.account_id is None, "epex must be a public asset"
+
+    asset_type = setup_generic_asset_types["battery"]
+
+    battery = GenericAsset(
+        name="Battery for sensor ref test",
+        generic_asset_type=asset_type,
+        owner=prosumer_account,
+    )
+    db.session.add(battery)
+    db.session.flush()
+
+    sensor_internal = Sensor(
+        name="internal sensor",
+        generic_asset=battery,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+    )
+    db.session.add(sensor_internal)
+    db.session.flush()
+
+    battery.flex_context = {
+        "consumption-capacity": {"sensor": sensor_internal.id},
+        "production-price": {"sensor": price_sensor.id},
+    }
+    battery.flex_model = {
+        "soc-min": "700.0 kWh",
+        "consumption-capacity": {"sensor": sensor_internal.id},
+    }
+    battery.sensors_to_show = [
+        {
+            "title": "Chart",
+            "plots": [
+                {"sensor": sensor_internal.id},
+                {"sensors": [sensor_internal.id, price_sensor.id]},
+            ],
+        }
+    ]
+    db.session.flush()
+
+    # --- Act ---
+    battery_copy = copy_asset(battery, account=prosumer_account)
+
+    # Locate the new copied sensor.
+    copied_sensors = db.session.scalars(
+        select(Sensor).filter(Sensor.generic_asset_id == battery_copy.id)
+    ).all()
+    assert len(copied_sensors) == 1
+    new_sensor = copied_sensors[0]
+    assert new_sensor.id != sensor_internal.id
+
+    # flex_context: internal replaced, external preserved.
+    assert battery_copy.flex_context["consumption-capacity"] == {
+        "sensor": new_sensor.id
+    }
+    assert battery_copy.flex_context["production-price"] == {"sensor": price_sensor.id}
+
+    # flex_model: internal replaced, plain string preserved.
+    assert battery_copy.flex_model["consumption-capacity"] == {"sensor": new_sensor.id}
+    assert battery_copy.flex_model["soc-min"] == "700.0 kWh"
+
+    # sensors_to_show: both reference forms updated/preserved correctly.
+    chart = battery_copy.sensors_to_show[0]
+    assert chart["plots"][0] == {"sensor": new_sensor.id}
+    assert chart["plots"][1] == {"sensors": [new_sensor.id, price_sensor.id]}
+
+    # Original asset config must not be mutated.
+    assert battery.flex_context["consumption-capacity"] == {
+        "sensor": sensor_internal.id
+    }
+    assert battery.flex_model["consumption-capacity"] == {"sensor": sensor_internal.id}
 
 
 @pytest.mark.parametrize(
