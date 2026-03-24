@@ -38,8 +38,42 @@ This agent owns the integrity of models (e.g. assets, sensors, data sources, sch
 - [ ] **Acyclic asset trees**: Verify no changes break the `parent_asset_id != id` constraint
 - [ ] **Asset hierarchy**: Ensure parent-child relationships maintain referential integrity
 - [ ] **Account ownership**: Check that all assets have `account_id` set correctly
+- [ ] **DataSource account_id**: Verify user-type DataSources have `account_id` populated from `user.account_id` (see invariant below)
 - [ ] **Sensor-Asset binding**: Validate sensors are properly linked to assets
 - [ ] **TimedBelief structure**: Ensure (event_start, belief_time, source, cumulative_probability) integrity
+
+### Alembic Migration Changes
+
+When reviewing or writing Alembic migrations, check:
+
+- [ ] **down_revision correct**: Verify `down_revision` matches the actual current head (run `flask db heads` to check)
+- [ ] **FK naming convention**: FK constraints follow the pattern `<table>_<col>_<ref_table>_fkey`
+- [ ] **Data backfill**: Bulk UPDATE used (correlated subquery or UPDATE...FROM), not N+1 Python loop
+- [ ] **Downgrade path**: `downgrade()` fully reverses `upgrade()` including constraint drops/recreates
+- [ ] **No ORM in migrations**: Use `sa.Table` + `sa.MetaData()` with SQLAlchemy Core only; never import ORM models
+- [ ] **Nullable new columns**: New FK columns should be `nullable=True` to avoid breaking existing rows
+- [ ] **batch_alter_table**: Use `op.batch_alter_table()` for all ALTER TABLE operations (required for SQLite compat in test environments)
+- [ ] **UniqueConstraint names**: Verify constraint name matches the existing DB constraint name exactly (check with `\d <table>` in psql)
+
+**Pattern: Safe data migration in Alembic**
+
+```python
+# ✅ Correct: SQLAlchemy Core table stubs, bulk correlated subquery update
+t_data_source = sa.Table("data_source", sa.MetaData(), sa.Column("id", sa.Integer), ...)
+t_fm_user = sa.Table("fm_user", sa.MetaData(), sa.Column("id", sa.Integer), ...)
+
+connection.execute(
+    sa.update(t_data_source)
+    .values(account_id=sa.select(t_fm_user.c.account_id)
+        .where(t_fm_user.c.id == t_data_source.c.user_id)
+        .scalar_subquery())
+    .where(t_data_source.c.user_id.isnot(None))
+)
+
+# ❌ Wrong: N+1 Python loop over ORM objects
+for source in DataSource.query.filter_by(...):  # Don't import ORM!
+    source.account_id = source.user.account_id  # Triggers N queries
+```
 
 ### Flex-context & flex-model
 
@@ -285,6 +319,16 @@ fields_to_remove = ["as_job"]  # ❌ Wrong format
 - **Location**: `/flexmeasures/data/models/data_sources.py`
 - **Purpose**: Forecasters and reporters subclass `DataGenerator` to couple configured instances to unique data sources (schedulers are not yet subclassing `DataGenerator`)
 
+#### DataSource
+- **Location**: `flexmeasures/data/models/data_sources.py`
+- **Key fields**: `id`, `name`, `type`, `user_id`, `account_id`, `model`, `version`, `attributes`, `attributes_hash`
+- **Relationships**:
+  - `user` → User (via `user_id`, nullable — only for `type="user"` sources)
+  - `account` → Account (via `account_id`, nullable — populated from user's account for user-type sources)
+  - `sensors` ↔ Sensor (via `timed_belief` join table, viewonly)
+- **`account_id` invariant**: For user-type DataSources, `account_id` is always set from the creating user's account (see invariant #6 below). For non-user sources (forecasters, schedulers, reporters), `account_id` remains `None`.
+- **UniqueConstraint**: `(name, user_id, account_id, model, version, attributes_hash)` — added `account_id` in migration `9877450113f6`
+
 ### Critical Invariants
 
 1. **Acyclic Asset Trees**
@@ -308,7 +352,18 @@ fields_to_remove = ["as_job"]  # ❌ Wrong format
    - Role-based permissions (ACCOUNT_ADMIN, CONSULTANT)
    - Audit logging for all mutations
 
-5. **Timezone Awareness**
+5. **DataSource UniqueConstraint includes `account_id`**
+   - Since migration `9877450113f6` (PR #2058), `account_id` is part of the unique constraint
+   - Code that creates or deduplicates DataSources must include `account_id` in lookup logic
+   - See `get_or_create_source()` in `flexmeasures/data/services/data_sources.py`
+
+6. **User-type DataSources always have `account_id` populated**
+   - Invariant added in PR #2058: when a `DataSource` is created with `user=<User>`, `account_id` is set from `user.account_id`
+   - Fallback for unflushed users: `user.account.id` is used if `user.account_id` is not yet set
+   - Non-user DataSources (forecasters, schedulers, reporters created without a user) have `account_id=None`
+   - Implication: filtering DataSources by `account_id` only works for user-type sources
+
+7. **Timezone Awareness**
    - All datetime objects MUST be timezone-aware
    - Sensors have explicit `timezone` field
 
@@ -487,3 +542,12 @@ After each assignment:
    Change:
    - Added guidance on <specific topic>
    ```
+
+### Lessons Learned
+
+**Session 2026-03-24 (PR #2058 — add account_id to DataSource)**:
+
+- **New domain invariant**: User-type DataSources now have `account_id` populated. Document new FK relationships and invariants in the Domain Knowledge section immediately.
+- **Migration checklist**: Added an explicit Alembic migration checklist after reviewing the migration for this PR. Key patterns: correlated subquery for bulk backfill, SQLAlchemy Core stubs (no ORM imports), `batch_alter_table` for all ALTER operations, exact constraint name matching.
+- **Missed API Specialist coordination**: The PR changed endpoint behavior (POST sensor data sets account_id on the created data source). The API Specialist should have been engaged to verify backward compatibility. When domain model changes affect how endpoints behave or what they return, flag for API Specialist review.
+- **Self-improvement failure**: Despite having explicit self-improvement requirements, no agent updated its instructions during this PR session. This was caught by the Coordinator post-hoc. The agent must update its own instructions as the LAST step of every assignment, not skip it.
