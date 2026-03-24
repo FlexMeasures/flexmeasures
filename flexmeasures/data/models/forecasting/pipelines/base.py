@@ -83,7 +83,9 @@ class BasePipeline:
         self.save_belief_time = (
             save_belief_time  # non floored belief time to save forecasts with
         )
-        self.beliefs_before = beliefs_before  # restrict input data to beliefs recorded before this time
+        self.beliefs_before = (
+            beliefs_before  # restrict input data to beliefs recorded before this time
+        )
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
         self.future_regressors = [
