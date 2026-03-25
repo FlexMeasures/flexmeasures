@@ -594,6 +594,37 @@ def create_assets(
     return {asset.name: asset for asset in assets}
 
 
+@pytest.fixture(scope="function")
+def setup_probabilistic_beliefs(db, setup_markets, setup_sources) -> dict[str, dict]:
+    """
+    Make some probabilistic beliefs.
+
+    :returns: the number of beliefs set up per sensor
+    """
+    sensor = setup_markets["epex_da"]
+    source = setup_sources["ENTSO-E"]
+    beliefs = [
+        TimedBelief(
+            sensor=sensor,
+            source=source,
+            event_value=19,
+            event_start="2026-03-25 17:00+01",
+            belief_horizon=timedelta(hours=0),
+            cp=0.19,
+        ),
+        TimedBelief(
+            sensor=sensor,
+            source=source,
+            event_value=50,
+            event_start="2026-03-25 17:00+01",
+            belief_horizon=timedelta(hours=0),
+            cp=0.4,
+        ),
+    ]
+    db.session.add_all(beliefs)
+    return {sensor.name: {"sensor": sensor, "n_beliefs": len(beliefs)}}
+
+
 @pytest.fixture(scope="module")
 def setup_beliefs(db, setup_markets, setup_sources) -> int:
     """
@@ -794,29 +825,6 @@ def add_market_prices_common(
         for dt, val in zip(time_slots, values_today)
     ]
     db.session.add_all(today_reporter_beliefs)
-
-    ancient_probabilistic_beliefs = [
-        TimedBelief(
-            event_start=dt - timedelta(weeks=9999),
-            belief_horizon=timedelta(hours=0),
-            event_value=val,
-            source=setup_sources["ENTSO-E"],
-            sensor=setup_markets["epex_da"],
-            cumulative_probability=0.2,
-        )
-        for dt, val in zip(time_slots, values_today)
-    ] + [
-        TimedBelief(
-            event_start=dt - timedelta(weeks=9999),
-            belief_horizon=timedelta(hours=0),
-            event_value=val,
-            source=setup_sources["ENTSO-E"],
-            sensor=setup_markets["epex_da"],
-            cumulative_probability=0.5,
-        )
-        for dt, val in zip(time_slots, values_today)
-    ]
-    db.session.add_all(ancient_probabilistic_beliefs)
 
     return {
         "epex_da": setup_markets["epex_da"],

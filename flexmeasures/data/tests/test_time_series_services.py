@@ -71,6 +71,10 @@ def test_do_not_drop_changed_probabilistic_belief(setup_beliefs, db):
     # Set a reference for the number of beliefs stored
     sensor = get_test_sensor(db)
     bdf = sensor.search_beliefs(source="ENTSO-E", most_recent_beliefs_only=False)
+    assert not bdf.empty
+    assert (
+        bdf.lineage.probabilistic_depth > 1
+    ), "Expected probabilistic data for this test"
     num_beliefs_before = len(bdf)
 
     # See what happens when storing a belief with more certainty one hour later
@@ -123,27 +127,24 @@ def test_save_exact_duplicate_deterministic_belief(setup_beliefs, db):
     assert num_beliefs_after == num_beliefs_before
 
 
-def test_save_duplicate_probabilistic_belief_with_different_cp(setup_beliefs, db):
+def test_save_duplicate_probabilistic_belief_with_different_cp(
+    db, setup_probabilistic_beliefs
+):
     """Saving a duplicate probabilistic belief (same event_start/source/belief_time but different cp) should succeed.
 
     This tests that multiple cumulative probabilities for the same event can coexist.
     """
 
-    # Get a probabilistic belief from the database
-    sensor = get_test_sensor(db)
-    bdf = sensor.search_beliefs(
-        source="ENTSO-E",
-        most_recent_beliefs_only=False,
-    )
-    # Filter to only probabilistic beliefs
-    prob_bdf = bdf[
-        bdf.index.get_level_values("cumulative_probability").isin([0.2, 0.5])
-    ]
-    assert not prob_bdf.empty
+    sensor = setup_probabilistic_beliefs["epex_da"]["sensor"]
+    bdf = sensor.search_beliefs(source="ENTSO-E", most_recent_beliefs_only=False)
+    assert not bdf.empty
+    assert (
+        bdf.lineage.probabilistic_depth > 1
+    ), "Expected probabilistic data for this test"
 
     # Create a new belief with different cp values but same event_start/source/belief_time
     # Get the first probabilistic belief and add a new cp value
-    first_belief = prob_bdf.iloc[:1].copy()
+    first_belief = bdf.iloc[:1].copy()
 
     # Create a new row with a different cp value (e.g., 0.7) by resetting and recreating the index
     new_cp_belief = first_belief.reset_index()
@@ -197,29 +198,22 @@ def test_save_deterministic_belief_with_different_event_value_raises_error(
 
 
 def test_save_probabilistic_belief_with_different_event_value_raises_error(
-    setup_beliefs, db, add_market_prices
+    db, setup_probabilistic_beliefs
 ):
     """Saving a probabilistic belief with same event_start/source/belief_time/cp but different event_value should raise an error.
 
     This tests that replacing beliefs (changing the history) is not allowed, even for probabilistic beliefs.
     """
 
-    # Get a probabilistic belief from the database
-    sensor = add_market_prices["epex_da"]
-    assert sensor is not None
-
-    bdf = sensor.search_beliefs(
-        source="ENTSO-E",
-        most_recent_beliefs_only=False,
-    )
-    # Filter to only probabilistic beliefs
-    prob_bdf = bdf[
-        bdf.index.get_level_values("cumulative_probability").isin([0.2, 0.5])
-    ]
-    assert not prob_bdf.empty
+    sensor = setup_probabilistic_beliefs["epex_da"]["sensor"]
+    bdf = sensor.search_beliefs(most_recent_beliefs_only=False)
+    assert not bdf.empty
+    assert (
+        bdf.lineage.probabilistic_depth > 1
+    ), "Expected probabilistic data for this test"
 
     # Modify the event value of the first belief
-    modified_bdf = prob_bdf.iloc[:1].copy()
+    modified_bdf = bdf.iloc[:1].copy()
     modified_bdf.iloc[0, 0] = (
         modified_bdf.iloc[0, 0] + 999
     )  # Change the value significantly
