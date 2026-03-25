@@ -851,10 +851,12 @@ def test_copy_asset_to_another_account_preserves_config(
     charger_type = setup_generic_asset_types["wind"]
 
     # Build the source house asset.
+    # Use integer IDs (not ORM object references) to avoid SQLAlchemy cascade
+    # issues with potentially-detached session objects from earlier tests.
     house = GenericAsset(
         name="Test house for rich copy",
-        generic_asset_type=asset_type,
-        owner=prosumer_account,
+        generic_asset_type_id=asset_type.id,
+        account_id=prosumer_account.id,
     )
     db.session.add(house)
     db.session.flush()  # obtain house.id before adding sensors
@@ -878,8 +880,8 @@ def test_copy_asset_to_another_account_preserves_config(
     for i in range(1, 3):
         charger = GenericAsset(
             name=f"EV charger {i}",
-            generic_asset_type=charger_type,
-            owner=prosumer_account,
+            generic_asset_type_id=charger_type.id,
+            account_id=prosumer_account.id,
             parent_asset_id=house.id,
             flex_model={"power-capacity": "7.4 kW", "soc-unit": "kWh"},
         )
@@ -994,10 +996,12 @@ def test_copy_asset_replaces_sensor_refs_in_config(
     asset_type = setup_generic_asset_types["battery"]
 
     # A private sensor on a different account's asset (Supplier), NOT in the copy subtree.
+    # Use integer IDs (not ORM object references) to avoid SQLAlchemy cascade
+    # issues with potentially-detached session objects from earlier tests.
     supplier_asset = GenericAsset(
         name="Supplier asset for private sensor ref test",
-        generic_asset_type=asset_type,
-        owner=supplier_account,
+        generic_asset_type_id=asset_type.id,
+        account_id=supplier_account.id,
     )
     db.session.add(supplier_asset)
     db.session.flush()
@@ -1012,8 +1016,8 @@ def test_copy_asset_replaces_sensor_refs_in_config(
 
     battery = GenericAsset(
         name="Battery for sensor ref test",
-        generic_asset_type=asset_type,
-        owner=prosumer_account,
+        generic_asset_type_id=asset_type.id,
+        account_id=prosumer_account.id,
     )
     db.session.add(battery)
     db.session.flush()
