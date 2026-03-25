@@ -111,6 +111,14 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     )
     if bdf_db.empty:
         return bdf
+
+    # Remove beliefs that already exist in the database to prevent duplicate key violations
+    bdf = bdf.groupby(level="source", group_keys=False).apply(
+        remove_existing_beliefs, bdf_db=bdf_db
+    )
+    if bdf.empty:
+        return bdf
+
     return (
         bdf.convert_index_from_belief_horizon_to_time()
         .groupby(
@@ -137,11 +145,6 @@ def _drop_unchanged_beliefs_compared_to_db(
     belief_time = bdf.lineage.belief_times[0]  # unique belief time
     bdf_db_from_source = bdf_db[bdf_db.sources == source]
     if bdf_db_from_source.empty:
-        return bdf
-
-    # Remove beliefs that already exist in the database to prevent duplicate key violations
-    bdf = remove_existing_beliefs(bdf=bdf, bdf_db_from_source=bdf_db_from_source)
-    if bdf.empty:
         return bdf
 
     cutoff_idx = bdf_db_from_source.belief_times.searchsorted(belief_time, side="right")
@@ -175,20 +178,25 @@ def _drop_unchanged_beliefs_compared_to_db(
 
 
 def remove_existing_beliefs(
-    bdf: tb.BeliefsDataFrame, bdf_db_from_source: tb.BeliefsDataFrame
+    bdf: tb.BeliefsDataFrame, bdf_db: tb.BeliefsDataFrame
 ) -> tb.BeliefsDataFrame:
-    """Remove beliefs that already exist in the database from the given BeliefsDataFrame.
+    """Remove beliefs that already exist in the database from the given BeliefsDataFrame with unique source.
 
     This proactively prevents unique constraint violations when re-running
     forecasts that may produce identical beliefs to previous runs.
 
     Args:
         bdf: BeliefsDataFrame to filter
-        bdf_db_from_source: BeliefsDataFrame from the database from a unique source
+        bdf_db: BeliefsDataFrame from the database
 
     Returns:
         Filtered BeliefsDataFrame with existing beliefs removed
     """
+
+    # Filter bdf_db by the unique source in bdf
+    source = bdf.lineage.sources[0]
+    bdf_db_from_source = bdf_db[bdf_db.sources == source]
+
     if bdf.empty or bdf_db_from_source.empty:
         return bdf
 
