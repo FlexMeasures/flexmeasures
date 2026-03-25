@@ -143,26 +143,118 @@ def _drop_unchanged_beliefs_compared_to_db(
         # No earlier belief time in db
         return bdf
     most_recent_bt = bdf_db_from_source.belief_times[cutoff_idx - 1]
-    previous_most_recent_beliefs = bdf_db_from_source[
-        bdf_db_from_source.belief_times == most_recent_bt
-    ]
-    if previous_most_recent_beliefs.empty:
+
+    # First check if this exact belief_time already exists in the database
+    if belief_time == most_recent_bt:
+        # Compare against beliefs with the exact same belief_time
+        compare_db_beliefs = bdf_db_from_source[
+            bdf_db_from_source.belief_times == belief_time
+        ]
+    else:
+        # belief_time is newer - compare against ALL earlier beliefs to find unchanged ones
+        # This catches duplicates even if they're from older belief_times
+        compare_db_beliefs = bdf_db_from_source[
+            bdf_db_from_source.belief_times < belief_time
+        ]
+
+    if compare_db_beliefs.empty:
         return bdf
     compare_fields = ["event_start", "source", "cumulative_probability", "event_value"]
     a = bdf.reset_index().set_index(compare_fields)
-    b = previous_most_recent_beliefs.reset_index().set_index(compare_fields)
-    bdf = a.drop(
+    b = compare_db_beliefs.reset_index().set_index(compare_fields)
+    bdf_filtered = a.drop(
         b.index,
         errors="ignore",
         axis=0,
     )
 
-    # Keep whole probabilistic beliefs, not just the parts that changed
-    c = bdf.reset_index().set_index(["event_start", "source"])
-    d = a.reset_index().set_index(["event_start", "source"])
-    bdf = d[d.index.isin(c.index)]
+    # Handle case where all beliefs were dropped
+    if bdf_filtered.empty:
+        # Return empty DataFrame with proper index structure matching original bdf
+        # (event_start, belief_time, source, cumulative_probability)
+        return (
+            bdf.iloc[0:0]
+            .reset_index()
+            .set_index(
+                ["event_start", "belief_time", "source", "cumulative_probability"]
+            )
+        )
 
-    bdf = bdf.reset_index().set_index(
+    # Keep whole probabilistic beliefs, not just the parts that changed
+    bdf_filtered = bdf_filtered.reset_index()
+    c = bdf_filtered.set_index(["event_start", "source"])
+
+    # Revert a to the right format to get indices from
+    a_reset = a.reset_index()
+    d = a_reset.set_index(["event_start", "source"])
+
+    bdf_result = d[d.index.isin(c.index)]
+
+    bdf_result = bdf_result.reset_index().set_index(
         ["event_start", "belief_time", "source", "cumulative_probability"]
     )
-    return bdf
+    return bdf_result
+
+
+def remove_existing_beliefs(bdf: tb.BeliefsDataFrame, sensor, source) -> tb.BeliefsDataFrame:
+    """Remove beliefs that already exist in the database from the given BeliefsDataFrame.
+    
+    This proactively prevents unique constraint violations when re-running
+    forecasts that may produce identical beliefs to previous runs.
+    
+    Args:
+        bdf: BeliefsDataFrame to filter
+        sensor: Target sensor for the beliefs
+        source: Data source of the beliefs
+        
+    Returns:
+        Filtered BeliefsDataFrame with existing beliefs removed
+    """
+    if bdf.empty:
+        return bdf
+    
+    # Get the range of event times we're dealing with
+    event_start_min = bdf.event_starts.min()
+    event_start_max = bdf.event_starts.max()
+    
+    # Search for existing beliefs from this source for these event times
+    existing_beliefs = sensor.search_beliefs(
+        event_starts_after=event_start_min,
+        event_ends_before=event_start_max,
+        source=source,
+        most_recent_beliefs_only=False,
+    )
+    
+    if existing_beliefs.empty:
+        return bdf
+    
+    # Create a set of (event_start, belief_horizon, value) tuples for existing beliefs
+    existing_keys = set()
+    for idx, event_value in existing_beliefs.iterrows():
+        event_start = idx[0]  # event_start is first level of MultiIndex
+        belief_time = idx[1]  # belief_time is second level of MultiIndex
+        # Compute belief_horizon from belief_time and event_start
+        belief_horizon = event_start - belief_time
+        existing_keys.add((event_start, belief_horizon, float(event_value)))
+    
+    # Create a set of indices to keep (rows that DON'T exist in database)
+    indices_to_keep = []
+    
+    for idx, event_value in bdf.iterrows():
+        event_start = idx[0]  # event_start is first level of MultiIndex
+        belief_time = idx[1]  # belief_time is second level of MultiIndex
+        # Compute belief_horizon from belief_time and event_start
+        belief_horizon = event_start - belief_time
+        key = (event_start, belief_horizon, float(event_value))
+        
+        if key not in existing_keys:
+            indices_to_keep.append(idx)
+    
+    if not indices_to_keep:
+        # All beliefs exist, return empty with proper structure
+        return bdf.iloc[0:0]
+    
+    # Filter BDF to keep only new beliefs
+    bdf_filtered = bdf.loc[indices_to_keep]
+    
+    return bdf_filtered

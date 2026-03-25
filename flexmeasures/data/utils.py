@@ -11,7 +11,7 @@ from sqlalchemy import select
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief, Sensor
-from flexmeasures.data.services.time_series import drop_unchanged_beliefs
+from flexmeasures.data.services.time_series import drop_unchanged_beliefs, remove_existing_beliefs
 
 
 def save_to_session(objects: list[db.Model], overwrite: bool = False):
@@ -115,6 +115,13 @@ def save_to_db(
 
         if timed_values.empty:
             # Nothing to save
+            continue
+
+        # Remove beliefs that already exist in the database to prevent duplicate key violations
+        timed_values = remove_existing_beliefs(timed_values, timed_values.sensor, timed_values.lineage.sources[0])
+
+        if timed_values.empty:
+            # All beliefs already exist, nothing new to save
             continue
 
         len_before = len(timed_values)
