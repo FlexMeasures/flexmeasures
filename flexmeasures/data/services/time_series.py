@@ -138,6 +138,12 @@ def _drop_unchanged_beliefs_compared_to_db(
     bdf_db_from_source = bdf_db[bdf_db.sources == source]
     if bdf_db_from_source.empty:
         return bdf
+
+    # Remove beliefs that already exist in the database to prevent duplicate key violations
+    bdf = remove_existing_beliefs(bdf=bdf, bdf_db_from_source=bdf_db_from_source)
+    if bdf.empty:
+        return bdf
+
     cutoff_idx = bdf_db_from_source.belief_times.searchsorted(belief_time, side="right")
     if cutoff_idx == 0:
         # No earlier belief time in db
@@ -168,65 +174,51 @@ def _drop_unchanged_beliefs_compared_to_db(
     return bdf
 
 
-def remove_existing_beliefs(bdf: tb.BeliefsDataFrame, sensor, source) -> tb.BeliefsDataFrame:
+def remove_existing_beliefs(
+    bdf: tb.BeliefsDataFrame, bdf_db_from_source: tb.BeliefsDataFrame
+) -> tb.BeliefsDataFrame:
     """Remove beliefs that already exist in the database from the given BeliefsDataFrame.
-    
+
     This proactively prevents unique constraint violations when re-running
     forecasts that may produce identical beliefs to previous runs.
-    
+
     Args:
         bdf: BeliefsDataFrame to filter
-        sensor: Target sensor for the beliefs
-        source: Data source of the beliefs
-        
+        bdf_db_from_source: BeliefsDataFrame from the database from a unique source
+
     Returns:
         Filtered BeliefsDataFrame with existing beliefs removed
     """
-    if bdf.empty:
+    if bdf.empty or bdf_db_from_source.empty:
         return bdf
-    
-    # Get the range of event times we're dealing with
-    event_start_min = bdf.event_starts.min()
-    event_start_max = bdf.event_starts.max()
-    
-    # Search for existing beliefs from this source for these event times
-    existing_beliefs = sensor.search_beliefs(
-        event_starts_after=event_start_min,
-        event_ends_before=event_start_max,
-        source=source,
-        most_recent_beliefs_only=False,
-    )
-    
-    if existing_beliefs.empty:
-        return bdf
-    
+
     # Create a set of (event_start, belief_horizon, value) tuples for existing beliefs
     existing_keys = set()
-    for idx, event_value in existing_beliefs.iterrows():
+    for idx, event_value in bdf_db_from_source.iterrows():
         event_start = idx[0]  # event_start is first level of MultiIndex
         belief_time = idx[1]  # belief_time is second level of MultiIndex
         # Compute belief_horizon from belief_time and event_start
         belief_horizon = event_start - belief_time
         existing_keys.add((event_start, belief_horizon, float(event_value)))
-    
+
     # Create a set of indices to keep (rows that DON'T exist in database)
     indices_to_keep = []
-    
+
     for idx, event_value in bdf.iterrows():
         event_start = idx[0]  # event_start is first level of MultiIndex
         belief_time = idx[1]  # belief_time is second level of MultiIndex
         # Compute belief_horizon from belief_time and event_start
         belief_horizon = event_start - belief_time
         key = (event_start, belief_horizon, float(event_value))
-        
+
         if key not in existing_keys:
             indices_to_keep.append(idx)
-    
+
     if not indices_to_keep:
         # All beliefs exist, return empty with proper structure
         return bdf.iloc[0:0]
-    
+
     # Filter BDF to keep only new beliefs
     bdf_filtered = bdf.loc[indices_to_keep]
-    
+
     return bdf_filtered
