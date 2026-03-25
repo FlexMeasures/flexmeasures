@@ -795,6 +795,29 @@ def add_market_prices_common(
     ]
     db.session.add_all(today_reporter_beliefs)
 
+    ancient_probabilistic_beliefs = [
+        TimedBelief(
+            event_start=dt - timedelta(weeks=9999),
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["ENTSO-E"],
+            sensor=setup_markets["epex_da"],
+            cumulative_probability=0.2,
+        )
+        for dt, val in zip(time_slots, values_today)
+    ] + [
+        TimedBelief(
+            event_start=dt - timedelta(weeks=9999),
+            belief_horizon=timedelta(hours=0),
+            event_value=val,
+            source=setup_sources["ENTSO-E"],
+            sensor=setup_markets["epex_da"],
+            cumulative_probability=0.5,
+        )
+        for dt, val in zip(time_slots, values_today)
+    ]
+    db.session.add_all(ancient_probabilistic_beliefs)
+
     return {
         "epex_da": setup_markets["epex_da"],
         "epex_da_production": setup_markets["epex_da_production"],
