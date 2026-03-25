@@ -478,7 +478,7 @@ These patterns must not repeat. Agent instructions have been updated to prevent 
 **Governance escalation**: The Review Lead's "Must Always Run Coordinator" requirement has now been documented in three sessions without being followed. If it fails a fourth time, consider structural changes — e.g., making Coordinator invocation the FIRST step of a session rather than the last, so it sets context rather than being a forgotten epilogue.
 
 **Code observation from PR #2058 worth tracking**:
-- `user.account_id or (user.account.id if user.account else None)` — the `or` pattern is fragile for `account_id=0` (unrealistic but worth noting). Prefer `user.account_id if user.account_id is not None else (user.account.id if user.account else None)` for strict correctness.
+- An early draft used `user.account_id or (user.account.id if user.account else None)` — the `or` pattern is fragile for `account_id=0` (unrealistic but worth noting). The final implementation correctly uses `if user.account_id is not None` (see `data_sources.py` lines 340-343) — this is the right pattern to follow.
 - Empty "Initial plan" commit adds git history noise. When orchestrating agents, the first commit should be functional code, not a planning marker.
 
 ### Additional Pattern Discovered (2026-03-25)
