@@ -1069,10 +1069,7 @@ class MetaStorageScheduler(Scheduler):
 
     @staticmethod
     def has_soc_at_start_in(flex_model: dict) -> bool:
-        return (
-            "soc-at-start" in flex_model
-            and flex_model["soc-at-start"] is not None
-        )
+        return "soc-at-start" in flex_model and flex_model["soc-at-start"] is not None
 
     def _get_soc_lookup_window(self, sensor: Sensor | None = None) -> timedelta:
         resolution = self.resolution
@@ -1151,9 +1148,7 @@ class MetaStorageScheduler(Scheduler):
             if segment["start"] <= self.start <= segment["end"]
         ]
         if matching_segments:
-            return (
-                matching_segments[0]["value"] / ur.Quantity("MWh")
-            ).magnitude
+            return (matching_segments[0]["value"] / ur.Quantity("MWh")).magnitude
 
         candidate_segments = []
         for segment in soc_time_series:
@@ -1233,10 +1228,7 @@ class MetaStorageScheduler(Scheduler):
         if sensor is None:
             sensor = self.sensor
 
-        if (
-            not self.has_soc_at_start_in(flex_model)
-            and "state-of-charge" in flex_model
-        ):
+        if not self.has_soc_at_start_in(flex_model) and "state-of-charge" in flex_model:
             flex_model["soc-at-start"] = (
                 self._resolve_soc_at_start_from_state_of_charge_source(
                     flex_model, sensor

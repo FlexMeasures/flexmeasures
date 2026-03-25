@@ -221,7 +221,9 @@ def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
         "production-price": {"sensor": add_market_prices_fresh_db["epex_da"].id},
         "site-power-capacity": "1 TW",
     }
-    message["flex-model"]["state-of-charge"] = {"sensor": battery_soc_sensor_fresh_db.id}
+    message["flex-model"]["state-of-charge"] = {
+        "sensor": battery_soc_sensor_fresh_db.id
+    }
     message["flex-model"].pop("soc-at-start")
 
     fresh_db.session.add(
