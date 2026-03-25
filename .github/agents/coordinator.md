@@ -480,3 +480,23 @@ These patterns must not repeat. Agent instructions have been updated to prevent 
 **Code observation from PR #2058 worth tracking**:
 - `user.account_id or (user.account.id if user.account else None)` — the `or` pattern is fragile for `account_id=0` (unrealistic but worth noting). Prefer `user.account_id if user.account_id is not None else (user.account.id if user.account else None)` for strict correctness.
 - Empty "Initial plan" commit adds git history noise. When orchestrating agents, the first commit should be functional code, not a planning marker.
+
+### Additional Pattern Discovered (2026-03-25)
+
+**Pattern**: No-FK columns for data lineage preservation
+
+**Session**: PR #2058 continued — Drop FK constraints on `data_source.user_id` and `data_source.account_id`
+
+**Design decision documented**:
+FlexMeasures now intentionally drops DB-level FK constraints on `DataSource.user_id` and `DataSource.account_id` so that historical lineage references survive user/account deletion. The ORM uses `passive_deletes="all"` to prevent auto-nullification.
+
+**Checklist implication for future PRs**:
+When reviewing schema changes that affect FK constraints:
+- [ ] If a FK is dropped intentionally for lineage: verify `passive_deletes="all"` on the ORM relationship AND its backref
+- [ ] Verify tests check that the orphaned column values are NOT nullified after parent deletion
+- [ ] Verify changelog describes the *behavior change* (lineage preservation), not just the schema change (column added)
+
+**Changelog completeness check** — lessons from this session:
+- The initial changelog entry for PR #2058 only described adding `account_id`; it omitted the FK drop and behavior change
+- When a migration both adds a column AND changes deletion semantics (e.g., drops a FK), the changelog must cover BOTH aspects
+- Coordinator caught this and updated the entry to read: "...also drop FK constraints on `data_source.user_id` and `data_source.account_id` to preserve data lineage (historical user/account IDs are no longer nullified when users or accounts are deleted)"
