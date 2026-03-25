@@ -27,8 +27,8 @@ def test_delete_account(
     assert (
         len(data_sources_before) > 0
     ), "Data sources linked to the account should exist before deletion."
-    data_source_ids_and_account_ids = [
-        (ds.id, ds.account_id) for ds in data_sources_before
+    data_source_ids_and_lineage = [
+        (ds.id, ds.user_id, ds.account_id) for ds in data_sources_before
     ]
 
     # Add creation audit log record
@@ -62,8 +62,8 @@ def test_delete_account(
     )
     assert user_creation_audit_log.affected_account_id is None
 
-    # Check that data source lineage is preserved: account_id is NOT nullified after account deletion
-    for ds_id, original_account_id in data_source_ids_and_account_ids:
+    # Check that data source lineage is preserved: account_id and user_id are NOT nullified after account deletion
+    for ds_id, original_user_id, original_account_id in data_source_ids_and_lineage:
         data_source = fresh_db.session.get(DataSource, ds_id)
         assert (
             data_source is not None
@@ -72,3 +72,8 @@ def test_delete_account(
             f"Data source {ds_id} account_id should be preserved (not nullified) "
             "after account deletion for lineage purposes."
         )
+        if original_user_id is not None:
+            assert data_source.user_id == original_user_id, (
+                f"Data source {ds_id} user_id should be preserved (not nullified) "
+                "after account deletion for lineage purposes."
+            )
