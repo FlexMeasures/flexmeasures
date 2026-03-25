@@ -1089,7 +1089,7 @@ def test_copy_asset_replaces_sensor_refs_in_config(
 
 
 @pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
 def test_copy_asset_api_copies_direct_sensors(
     client, setup_api_test_data, setup_accounts, requesting_user, db
