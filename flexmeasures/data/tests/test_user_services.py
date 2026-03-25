@@ -133,10 +133,20 @@ def test_create_invalid_user(
 def test_delete_user(fresh_db, setup_roles_users_fresh_db, setup_assets_fresh_db, app):
     """Check that deleting a user does not lead to deleting their organisation's (asset/sensor/beliefs) data.
     Also check that an audit log entry is created + old audit log entries get affected_user_id set to None.
+    Also check that the data source's user_id is preserved (not nullified) after user deletion for lineage.
     """
     prosumer: User = find_user_by_email("test_prosumer_user@seita.nl")
+    prosumer_id = prosumer.id
     prosumer_account_id = prosumer.account_id
     num_users_before = fresh_db.session.scalar(select(func.count(User.id)))
+
+    # Find the data source linked to the prosumer user (for lineage check after deletion)
+    data_source_before = fresh_db.session.execute(
+        select(DataSource).filter_by(user_id=prosumer_id)
+    ).scalar_one_or_none()
+    assert (
+        data_source_before is not None
+    ), "A data source linked to the prosumer user should exist before deletion."
 
     # Find assets belonging to the user's organisation
     asset_query = select(GenericAsset).filter_by(account_id=prosumer_account_id)
@@ -190,3 +200,10 @@ def test_delete_user(fresh_db, setup_roles_users_fresh_db, setup_assets_fresh_db
 
     fresh_db.session.refresh(user_creation_audit_log)
     assert user_creation_audit_log.affected_user_id is None
+
+    # Check that data source lineage is preserved: user_id is NOT nullified after user deletion
+    fresh_db.session.expire(data_source_before)
+    fresh_db.session.refresh(data_source_before)
+    assert (
+        data_source_before.user_id == prosumer_id
+    ), "Data source user_id should be preserved (not nullified) after user deletion for lineage purposes."

@@ -280,15 +280,27 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
     # just a string, but preferably one of DEFAULT_DATASOURCE_TYPES
     type = db.Column(db.String(80), default="")
 
-    # The id of the user source (can link e.g. to fm_user table)
-    user_id = db.Column(
-        db.Integer, db.ForeignKey("fm_user.id"), nullable=True, unique=True
+    # The id of the user source (can link e.g. to fm_user table).
+    # No DB-level FK so that deleting a user preserves the lineage reference in this column.
+    user_id = db.Column(db.Integer, nullable=True, unique=True)
+    user = db.relationship(
+        "User",
+        primaryjoin="DataSource.user_id == User.id",
+        foreign_keys="[DataSource.user_id]",
+        backref=db.backref("data_source", lazy=True, passive_deletes="all"),
+        passive_deletes="all",
     )
-    user = db.relationship("User", backref=db.backref("data_source", lazy=True))
 
-    # The account this data source belongs to (populated from user.account for user-type sources)
-    account_id = db.Column(db.Integer, db.ForeignKey("account.id"), nullable=True)
-    account = db.relationship("Account", backref=db.backref("data_sources", lazy=True))
+    # The account this data source belongs to (populated from user.account for user-type sources).
+    # No DB-level FK so that deleting an account preserves the lineage reference in this column.
+    account_id = db.Column(db.Integer, nullable=True)
+    account = db.relationship(
+        "Account",
+        primaryjoin="DataSource.account_id == Account.id",
+        foreign_keys="[DataSource.account_id]",
+        backref=db.backref("data_sources", lazy=True, passive_deletes="all"),
+        passive_deletes="all",
+    )
 
     attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
