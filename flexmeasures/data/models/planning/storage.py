@@ -198,17 +198,6 @@ class MetaStorageScheduler(Scheduler):
         start = pd.Timestamp(start).tz_convert("UTC")
         end = pd.Timestamp(end).tz_convert("UTC")
 
-        # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
-        # We penalise future consumption and reward future production with at most 1 per thousand times the energy price spread.
-        # todo: move to flow or stock commitment per device
-        if any(prefer_charging_sooner):
-            up_deviation_prices = add_tiny_price_slope(
-                up_deviation_prices, "event_value"
-            )
-            down_deviation_prices = add_tiny_price_slope(
-                down_deviation_prices, "event_value"
-            )
-
         # Create Series with EMS capacities
         ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
             variable_quantity=self.flex_context.get("ems_power_capacity_in_mw"),
@@ -441,23 +430,32 @@ class MetaStorageScheduler(Scheduler):
             # Take the contracted capacity as a hard constraint
             ems_constraints["derivative min"] = ems_production_capacity
 
-        # Flow commitments per device
+        # Commitments per device
 
-        # Add tiny price slope to prefer curtailing later rather than now.
-        # The price slope is half of the slope to prefer charging sooner
-        for d, prefer_curtailing_later_d in enumerate(prefer_curtailing_later):
-            if prefer_curtailing_later_d:
+        # StockCommitment per device to prefer a full storage by penalizing not being full
+        # This corresponds to a preference for charging now rather than later, and discharging later rather than now.
+        for d, (prefer_charging_sooner_d, prefer_curtailing_later_d) in enumerate(
+            zip(prefer_charging_sooner, prefer_curtailing_later)
+        ):
+            if prefer_charging_sooner_d:
                 tiny_price_slope = (
-                    add_tiny_price_slope(up_deviation_prices, "event_value")
+                    add_tiny_price_slope(
+                        up_deviation_prices, "event_value", order="desc"
+                    )
                     - up_deviation_prices
                 )
-                tiny_price_slope *= 0.5
-                commitment = FlowCommitment(
-                    name=f"prefer curtailing device {d} later",
-                    # Prefer curtailing consumption later by penalizing later consumption
-                    upwards_deviation_price=tiny_price_slope,
-                    # Prefer curtailing production later by penalizing later production
-                    downwards_deviation_price=-tiny_price_slope,
+                if prefer_curtailing_later_d:
+                    # Use a tiny price slope to prefer a fuller SoC sooner rather than later, by lowering penalties later
+                    penalty = tiny_price_slope
+                else:
+                    # Constant penalty
+                    penalty = tiny_price_slope.iloc[0][0]
+                commitment = StockCommitment(
+                    name=f"prefer a full storage {d} sooner",
+                    quantity=(soc_max[d] - soc_at_start[d])
+                    * (timedelta(hours=1) / resolution),
+                    upwards_deviation_price=0,
+                    downwards_deviation_price=-penalty,
                     index=index,
                     device=d,
                 )
@@ -940,7 +938,7 @@ class MetaStorageScheduler(Scheduler):
     def convert_to_commitments(
         self,
         **timing_kwargs,
-    ) -> list[FlowCommitment]:
+    ) -> list[FlowCommitment | StockCommitment]:
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
         commitment_specs = self.flex_context.get("commitments", [])
         if len(commitment_specs) == 0:
@@ -1444,7 +1442,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
 
 
 class StorageScheduler(MetaStorageScheduler):
-    __version__ = "7"
+    __version__ = "8"
     __author__ = "Seita"
 
     fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
