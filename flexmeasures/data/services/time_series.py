@@ -179,17 +179,21 @@ def _drop_unchanged_beliefs_compared_to_db(
 def remove_existing_beliefs(
     bdf: tb.BeliefsDataFrame, bdf_db: tb.BeliefsDataFrame
 ) -> tb.BeliefsDataFrame:
-    """Remove beliefs that already exist in the database from the given BeliefsDataFrame with unique source.
+    """Remove beliefs that already exist in the database from the given BeliefsDataFrame.
 
-    This proactively prevents unique constraint violations when re-running
-    forecasts that may produce identical beliefs to previous runs.
+    This function filters out beliefs that are already stored in the database,
+    proactively preventing unique constraint violations,
+    for example, when re-running forecasters or reporters.
 
-    Args:
-        bdf: BeliefsDataFrame to filter
-        bdf_db: BeliefsDataFrame from the database
+    The function assumes the input BeliefsDataFrame has a unique source.
+    It compares beliefs based on their event start time, belief horizon, and value,
+    and removes any beliefs found in the database.
 
-    Returns:
-        Filtered BeliefsDataFrame with existing beliefs removed
+    :param bdf:     BeliefsDataFrame to filter. Must contain beliefs with a single unique source.
+    :param bdf_db:  BeliefsDataFrame containing beliefs from the database.
+
+    :returns:       Filtered BeliefsDataFrame with existing beliefs removed.
+                    Returns an empty BeliefsDataFrame if all beliefs already exist in the database.
     """
 
     # Filter bdf_db by the unique source in bdf
@@ -225,7 +229,7 @@ def remove_existing_beliefs(
         # All beliefs exist, return empty with proper structure
         return bdf.iloc[0:0]
 
-    # Filter BDF to keep only new beliefs
+    # Filter BeliefsDataFrame to keep only new beliefs
     bdf_filtered = bdf.loc[indices_to_keep]
 
     return bdf_filtered
