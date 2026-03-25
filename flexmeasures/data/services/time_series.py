@@ -146,7 +146,6 @@ def _drop_unchanged_beliefs_compared_to_db(
     bdf_db_from_source = bdf_db[bdf_db.sources == source]
     if bdf_db_from_source.empty:
         return bdf
-
     cutoff_idx = bdf_db_from_source.belief_times.searchsorted(belief_time, side="right")
     if cutoff_idx == 0:
         # No earlier belief time in db
