@@ -305,3 +305,78 @@ def test_search_sources(db, setup_multiple_sources):
             event_ends_before="2024-01-02T00:00:00+01:00",
         )
     ) == ["S1", "S2"]
+
+
+def test_search_beliefs_account_id_filter(db, setup_sources_with_accounts):
+    """Check that search_beliefs with account_id only returns beliefs from sources
+    belonging to the specified account.
+
+    We set up three sources:
+    - source_account_a: belongs to the Prosumer account
+    - source_account_b: belongs to the Supplier account
+    - source_no_account: no account assigned
+
+    Filtering by account_a should return only source_account_a's belief,
+    filtering by account_b should return only source_account_b's belief,
+    filtering by both accounts should return beliefs from both sources,
+    and filtering with no account_id should return all three beliefs.
+    """
+    sensor, source_account_a, source_account_b, source_no_account = (
+        setup_sources_with_accounts
+    )
+
+    # Filter by Prosumer account: should return only 1 belief
+    bdf_a = sensor.search_beliefs(
+        account_id=source_account_a.account_id,
+        most_recent_beliefs_only=False,
+    )
+    assert len(bdf_a) == 1
+    assert bdf_a.index.get_level_values("source")[0] == source_account_a
+
+    # Filter by Supplier account: should return only 1 belief
+    bdf_b = sensor.search_beliefs(
+        account_id=source_account_b.account_id,
+        most_recent_beliefs_only=False,
+    )
+    assert len(bdf_b) == 1
+    assert bdf_b.index.get_level_values("source")[0] == source_account_b
+
+    # Filter by both accounts: should return 2 beliefs
+    bdf_ab = sensor.search_beliefs(
+        account_id=[source_account_a.account_id, source_account_b.account_id],
+        most_recent_beliefs_only=False,
+    )
+    assert len(bdf_ab) == 2
+    sources_ab = set(bdf_ab.index.get_level_values("source"))
+    assert source_account_a in sources_ab
+    assert source_account_b in sources_ab
+
+    # No account_id filter: should return all 3 beliefs (from all 3 sources)
+    bdf_all = sensor.search_beliefs(most_recent_beliefs_only=False)
+    assert len(bdf_all) == 3
+
+
+def test_timed_belief_search_account_id_filter(db, setup_sources_with_accounts):
+    """Check that TimedBelief.search with account_id returns only beliefs from
+    sources belonging to the specified account.
+    """
+    sensor, source_account_a, source_account_b, source_no_account = (
+        setup_sources_with_accounts
+    )
+
+    # Filter by Prosumer account
+    bdf = TimedBelief.search(
+        sensor,
+        account_id=source_account_a.account_id,
+        most_recent_beliefs_only=False,
+    )
+    assert len(bdf) == 1
+    assert bdf.index.get_level_values("source")[0] == source_account_a
+
+    # Filter by a non-existent account id: should return no beliefs
+    bdf_empty = TimedBelief.search(
+        sensor,
+        account_id=999999,
+        most_recent_beliefs_only=False,
+    )
+    assert len(bdf_empty) == 0
