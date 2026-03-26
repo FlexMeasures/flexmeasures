@@ -1142,16 +1142,24 @@ class MetaStorageScheduler(Scheduler):
         self, soc_time_series: list[dict], sensor: Sensor | None = None
     ) -> float:
         lookup_window = self._get_soc_lookup_window(sensor)
+        normalized_segments = [
+            {
+                "start": pd.Timestamp(segment["start"]),
+                "end": pd.Timestamp(segment["end"]),
+                "value": ur.Quantity(segment["value"]).to("MWh"),
+            }
+            for segment in soc_time_series
+        ]
         matching_segments = [
             segment
-            for segment in soc_time_series
+            for segment in normalized_segments
             if segment["start"] <= self.start <= segment["end"]
         ]
         if matching_segments:
             return (matching_segments[0]["value"] / ur.Quantity("MWh")).magnitude
 
         candidate_segments = []
-        for segment in soc_time_series:
+        for segment in normalized_segments:
             start_distance = abs(segment["start"] - self.start)
             end_distance = abs(segment["end"] - self.start)
             distance = min(start_distance, end_distance)
