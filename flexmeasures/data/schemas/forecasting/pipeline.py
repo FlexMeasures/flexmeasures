@@ -416,6 +416,14 @@ class ForecasterParametersSchema(Schema):
                 predict_start = data["end"] - data["duration"]
             else:
                 predict_start = floored_now
+                # Validate that the resolved predict_start is before the explicit end
+                end = data.get("end")
+                if end is not None and predict_start >= end:
+                    raise ValidationError(
+                        f"Resolved predict start ({predict_start.isoformat()}) is not before end ({end.isoformat()})."
+                        " Provide --start explicitly or choose a later --end.",
+                        field_name="start",
+                    )
         else:
             predict_start = data["start"]
 

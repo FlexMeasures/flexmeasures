@@ -414,6 +414,24 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 2,  # we expect 2 cycles from the retrain frequency and predict period given the end date
             },
         ),
+        # Case 11: --start omitted and --end is before resolved predict_start (server now floored)
+        #
+        # User omits --start, so predict_start defaults to server now floored to the hour
+        # (2025-01-15T12:00+01). The provided --end (2025-01-15T00:00+01) is earlier than
+        # that resolved predict_start, producing an empty prediction window.
+        # Expected: ValidationError with actionable message including both timestamps.
+        (
+            {"end": "2025-01-15T00:00:00+01:00"},
+            ValidationError(
+                {
+                    "start": [
+                        "Resolved predict start (2025-01-15T12:00:00+01:00) is not before end"
+                        " (2025-01-15T00:00:00+01:00)."
+                        " Provide --start explicitly or choose a later --end."
+                    ]
+                }
+            ),
+        ),
     ],
 )
 def test_timing_parameters_of_forecaster_parameters_schema(
