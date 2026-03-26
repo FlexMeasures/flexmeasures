@@ -355,6 +355,13 @@ def test_search_beliefs_account_id_filter(db, setup_sources_with_accounts):
     bdf_all = sensor.search_beliefs(most_recent_beliefs_only=False)
     assert len(bdf_all) == 3
 
+    # Empty list: matches nothing (consistent with SQL IN () semantics)
+    bdf_empty_list = sensor.search_beliefs(
+        account_id=[],
+        most_recent_beliefs_only=False,
+    )
+    assert len(bdf_empty_list) == 0
+
 
 def test_timed_belief_search_account_id_filter(db, setup_sources_with_accounts):
     """Check that TimedBelief.search with account_id returns only beliefs from
@@ -380,3 +387,33 @@ def test_timed_belief_search_account_id_filter(db, setup_sources_with_accounts):
         most_recent_beliefs_only=False,
     )
     assert len(bdf_empty) == 0
+
+
+def test_generic_asset_search_beliefs_account_id_filter(
+    db, setup_sources_with_accounts
+):
+    """Check that GenericAsset.search_beliefs with account_id returns only beliefs
+    from sources belonging to the specified account.
+    """
+    sensor, source_account_a, source_account_b, source_no_account = (
+        setup_sources_with_accounts
+    )
+    asset = sensor.generic_asset
+
+    # Filter by Prosumer account: should return only 1 belief
+    bdf_dict_a = asset.search_beliefs(
+        sensors=[sensor],
+        account_id=source_account_a.account_id,
+        most_recent_beliefs_only=False,
+    )
+    bdf_a = bdf_dict_a[sensor]
+    assert len(bdf_a) == 1
+    assert bdf_a.index.get_level_values("source")[0] == source_account_a
+
+    # No account_id filter: should return all 3 beliefs
+    bdf_dict_all = asset.search_beliefs(
+        sensors=[sensor],
+        most_recent_beliefs_only=False,
+    )
+    bdf_all = bdf_dict_all[sensor]
+    assert len(bdf_all) == 3

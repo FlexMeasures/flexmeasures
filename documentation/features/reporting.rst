@@ -74,7 +74,7 @@ This parameterizes the computation (from which sensors does data come from, whic
 
     - ``source_types``: list of source type names to include (e.g. ``["forecaster", "scheduler"]``)
     - ``exclude_source_types``: list of source type names to exclude
-    - ``account_id``: list of account IDs to include only data from sources belonging to those accounts
+    - ``account_id``: list of account IDs to include only data from sources belonging to those accounts (note: only matches user-type data sources — DataSources created by reporters, schedulers, and forecasters have no account and will not be matched by this filter)
 
     These correspond to the same filters available on ``Sensor.search_beliefs``.
 
