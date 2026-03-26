@@ -6,6 +6,7 @@ from flexmeasures.data.schemas.reporting.profit import (
     ProfitOrLossReporterConfigSchema,
     ProfitOrLossReporterParametersSchema,
 )
+from flexmeasures.data.schemas.reporting import BeliefsSearchConfigSchema
 from marshmallow.exceptions import ValidationError
 
 import pytest
@@ -228,3 +229,41 @@ def test_profit_reporter_parameters_schema(
     else:
         with pytest.raises(ValidationError):
             schema.load(parameters)
+
+
+@pytest.mark.parametrize(
+    "config, is_valid",
+    [
+        (
+            {"account_id": [1, 2, 3]},
+            True,
+        ),
+        (
+            {"account_id": [42]},
+            True,
+        ),
+        (
+            {"account_id": []},
+            True,
+        ),
+        (
+            {"account_id": "not-a-list"},
+            False,
+        ),
+        (
+            {"account_id": ["a", "b"]},
+            False,
+        ),
+    ],
+)
+def test_beliefs_search_config_schema_account_id(config, is_valid):
+    """Check that BeliefsSearchConfigSchema accepts account_id as a list of ints
+    and rejects non-integer values.
+    """
+    schema = BeliefsSearchConfigSchema()
+    if is_valid:
+        result = schema.load(config)
+        assert result["account_id"] == config["account_id"]
+    else:
+        with pytest.raises(ValidationError):
+            schema.load(config)
