@@ -16,6 +16,7 @@ New features
 * Version headers (for server and API) in API responses [see `PR #2021 <https://www.github.com/FlexMeasures/flexmeasures/pull/2021>`_]
 * Show sensor attributes on sensor page, if not empty [see `PR #2015 <https://www.github.com/FlexMeasures/flexmeasures/pull/2015>`_]
 * Separate the ``StorageScheduler``'s tie-breaking preference for a full :abbr:`SoC (state of charge)` from its reported energy costs [see `PR #2023 <https://www.github.com/FlexMeasures/flexmeasures/pull/2023>`_]
+* Support filtering beliefs by the account of their data source, using the new ``account_id`` parameter of ``Sensor.search_beliefs``, ``GenericAsset.search_beliefs``, and ``BeliefsSearchConfigSchema`` [see `PR #2065 <https://www.github.com/FlexMeasures/flexmeasures/pull/2065>`_]
 
 Infrastructure / Support
 ----------------------
