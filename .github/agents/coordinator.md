@@ -448,3 +448,55 @@ The Coordinator has identified these recurring issues:
 Review Lead should now invoke Coordinator as subagent.
 
 These patterns must not repeat. Agent instructions have been updated to prevent recurrence.
+
+### Additional Pattern Discovered (2026-03-24)
+
+**Pattern**: Persistent self-improvement failure and missing API Specialist agent selection
+
+**Session**: PR #2058 — Add `account_id` to DataSource table
+
+**Observation**: After three sessions now, the same two failures recur:
+1. Coordinator is not invoked at end of session (despite MUST requirement in Review Lead instructions)
+2. No agent updates its own instructions (despite MUST requirement in all agents)
+
+**Root cause analysis**:
+- "Coordinator invocation" and "self-improvement" are both documented as mandatory last steps
+- But the session ends before they are reached — they are treated as optional epilogue, not gating requirements
+- The Review Lead agent selection is ad-hoc, with no explicit checklist forcing API Specialist engagement when endpoints change
+
+**What was missed in PR #2058**:
+- API Specialist not engaged: POST sensor data now sets `account_id` on the resulting data source — this is an endpoint behavior change that should be reviewed for backward compatibility
+- Zero agent instruction updates across all three participating agents (Architecture Specialist, Test Specialist, Review Lead)
+- No Coordinator invocation despite explicit user request in the original prompt
+
+**Solutions implemented**:
+- Architecture Specialist: Added Alembic migration checklist + DataSource domain invariants
+- Test Specialist: Added DataSource property testing pattern + lessons learned
+- Review Lead: Added Agent Selection Checklist mapping code change types to required agents; documented 3rd recurrence of these failures
+- Coordinator (this file): Documented case study
+
+**Governance escalation**: The Review Lead's "Must Always Run Coordinator" requirement has now been documented in three sessions without being followed. If it fails a fourth time, consider structural changes — e.g., making Coordinator invocation the FIRST step of a session rather than the last, so it sets context rather than being a forgotten epilogue.
+
+**Code observation from PR #2058 worth tracking**:
+- An early draft used `user.account_id or (user.account.id if user.account else None)` — the `or` pattern is fragile for `account_id=0` (unrealistic but worth noting). The final implementation correctly uses `if user.account_id is not None` (see `data_sources.py` lines 340-343) — this is the right pattern to follow.
+- Empty "Initial plan" commit adds git history noise. When orchestrating agents, the first commit should be functional code, not a planning marker.
+
+### Additional Pattern Discovered (2026-03-25)
+
+**Pattern**: No-FK columns for data lineage preservation
+
+**Session**: PR #2058 continued — Drop FK constraints on `data_source.user_id` and `data_source.account_id`
+
+**Design decision documented**:
+FlexMeasures now intentionally drops DB-level FK constraints on `DataSource.user_id` and `DataSource.account_id` so that historical lineage references survive user/account deletion. The ORM uses `passive_deletes="all"` to prevent auto-nullification.
+
+**Checklist implication for future PRs**:
+When reviewing schema changes that affect FK constraints:
+- [ ] If a FK is dropped intentionally for lineage: verify `passive_deletes="all"` on the ORM relationship AND its backref
+- [ ] Verify tests check that the orphaned column values are NOT nullified after parent deletion
+- [ ] Verify changelog describes the *behavior change* (lineage preservation), not just the schema change (column added)
+
+**Changelog completeness check** — lessons from this session:
+- The initial changelog entry for PR #2058 only described adding `account_id`; it omitted the FK drop and behavior change
+- When a migration both adds a column AND changes deletion semantics (e.g., drops a FK), the changelog must cover BOTH aspects
+- Coordinator caught this and updated the entry to read: "...also drop FK constraints on `data_source.user_id` and `data_source.account_id` to preserve data lineage (historical user/account IDs are no longer nullified when users or accounts are deleted)"
