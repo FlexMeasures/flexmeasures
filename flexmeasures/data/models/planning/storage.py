@@ -1081,6 +1081,10 @@ class MetaStorageScheduler(Scheduler):
 
     def _get_soc_capacity_for_percent_conversion(self, flex_model: dict) -> str:
         soc_max = flex_model.get("soc-max")
+        if soc_max is None and self.sensor is not None:
+            soc_max = self.sensor.generic_asset.flex_model.get("soc-max")
+        if soc_max is None and self.sensor is not None:
+            soc_max = self.sensor.generic_asset.get_attribute("max_soc_in_mwh")
         if soc_max is None:
             raise ValueError(
                 "Cannot derive state of charge from a '%' state-of-charge source without `soc-max`."
@@ -1089,6 +1093,8 @@ class MetaStorageScheduler(Scheduler):
             raise ValueError(
                 "Cannot derive state of charge from a '%' state-of-charge source when `soc-max` is a sensor reference."
             )
+        if isinstance(soc_max, (int, float)):
+            return str(ur.Quantity(soc_max, "MWh"))
         return str(ur.Quantity(soc_max).to("MWh"))
 
     def _convert_soc_value_to_mwh(
