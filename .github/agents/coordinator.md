@@ -500,3 +500,24 @@ When reviewing schema changes that affect FK constraints:
 - The initial changelog entry for PR #2058 only described adding `account_id`; it omitted the FK drop and behavior change
 - When a migration both adds a column AND changes deletion semantics (e.g., drops a FK), the changelog must cover BOTH aspects
 - Coordinator caught this and updated the entry to read: "...also drop FK constraints on `data_source.user_id` and `data_source.account_id` to preserve data lineage (historical user/account IDs are no longer nullified when users or accounts are deleted)"
+
+### Pattern: Schema Surface Parity (2026-04 — PR #2065)
+
+**Context**: PR #2065 adds `account_id` as a filter parameter to `Sensor.search_beliefs` / `TimedBelief.search` / `GenericAsset.search_beliefs`.
+
+**Gap discovered**: `account_id` was added to `BeliefsSearchConfigSchema` (used in `StatusSchema.staleness_search`) but NOT to `Input` in `flexmeasures/data/schemas/io.py` (used by reporters like `PandasReporter` and `AggregatorReporter` for their input parameter lists). The `reporting.rst` documentation stated reporters can filter by `account_id`, but users attempting to do so would receive a Marshmallow `ValidationError`.
+
+**Root cause**: Two Marshmallow schemas expose `Sensor.search_beliefs` parameters to users, but they are distinct classes maintained separately:
+- `Input` (io.py): used for reporter/forecaster `input` parameter list
+- `BeliefsSearchConfigSchema` (reporting/__init__.py): used for sensor status config
+
+**Coordinator rule added**: When any PR adds a parameter to `Sensor.search_beliefs`, the Coordinator should check that **all schemas exposing search_beliefs parameters** receive the same addition. Current list:
+- `flexmeasures/data/schemas/io.py` → `Input` (reporter parameters)
+- `flexmeasures/data/schemas/reporting/__init__.py` → `BeliefsSearchConfigSchema` (status config)
+
+**Agent coordination implication**: 
+- Architecture Specialist owns the schema parity checklist (added to its review checklist)
+- Documentation Specialist must verify documentation examples are exercisable via the actual available schemas
+- Test Specialist must cover all model classes that receive the new parameter
+
+**Additional gap**: `account_id` for non-user DataSources (reporters, schedulers, forecasters) remains `None`. The filter therefore only matches user-type sources. This architectural constraint (documented in Architecture Specialist) limits the feature's utility and should be prominently noted in documentation whenever `account_id` filtering is described.
