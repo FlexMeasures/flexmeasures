@@ -231,39 +231,35 @@ def test_profit_reporter_parameters_schema(
             schema.load(parameters)
 
 
-@pytest.mark.parametrize(
-    "config, is_valid",
-    [
-        (
-            {"account_id": [1, 2, 3]},
-            True,
-        ),
-        (
-            {"account_id": [42]},
-            True,
-        ),
-        (
-            {"account_id": []},
-            True,
-        ),
-        (
-            {"account_id": "not-a-list"},
-            False,
-        ),
-        (
-            {"account_id": ["a", "b"]},
-            False,
-        ),
-    ],
-)
-def test_beliefs_search_config_schema_account_id(config, is_valid):
-    """Check that BeliefsSearchConfigSchema accepts account_id as a list of ints
-    and rejects non-integer values.
+def test_beliefs_search_config_schema_account_id(db, app, setup_accounts):
+    """Check that BeliefsSearchConfigSchema accepts account_id as a single int or list of ints,
+    rejects empty lists and non-integer values, and validates accounts exist in the DB.
     """
     schema = BeliefsSearchConfigSchema()
-    if is_valid:
-        result = schema.load(config)
-        assert result["account_id"] == config["account_id"]
-    else:
-        with pytest.raises(ValidationError):
-            schema.load(config)
+    prosumer_id = setup_accounts["Prosumer"].id
+    supplier_id = setup_accounts["Supplier"].id
+
+    # Valid: single account ID (normalised to a list by pre_load)
+    result = schema.load({"account_id": prosumer_id})
+    assert len(result["account_id"]) == 1
+    assert result["account_id"][0].id == prosumer_id
+
+    # Valid: list of account IDs
+    result = schema.load({"account_id": [prosumer_id, supplier_id]})
+    assert len(result["account_id"]) == 2
+
+    # Valid: single-item list
+    result = schema.load({"account_id": [prosumer_id]})
+    assert len(result["account_id"]) == 1
+
+    # Invalid: empty list
+    with pytest.raises(ValidationError):
+        schema.load({"account_id": []})
+
+    # Invalid: non-integer string
+    with pytest.raises(ValidationError):
+        schema.load({"account_id": "not-valid"})
+
+    # Invalid: list of strings
+    with pytest.raises(ValidationError):
+        schema.load({"account_id": ["a", "b"]})

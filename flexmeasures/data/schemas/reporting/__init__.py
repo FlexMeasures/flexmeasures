@@ -1,6 +1,7 @@
-from marshmallow import Schema, fields, validate
+from marshmallow import Schema, fields, validate, pre_load
 
 from flexmeasures.data.schemas.sources import DataSourceIdField
+from flexmeasures.data.schemas.account import AccountIdField
 
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
 from flexmeasures.data.schemas.io import Input, Output
@@ -58,7 +59,7 @@ class BeliefsSearchConfigSchema(Schema):
 
     source_types = fields.List(fields.Str())
     exclude_source_types = fields.List(fields.Str())
-    account_id = fields.List(fields.Int())
+    account_id = fields.List(AccountIdField(), validate=validate.Length(min=1))
     most_recent_beliefs_only = fields.Boolean()
     most_recent_events_only = fields.Boolean()
 
@@ -66,6 +67,12 @@ class BeliefsSearchConfigSchema(Schema):
     one_deterministic_belief_per_event_per_source = fields.Boolean()
     resolution = DurationField()
     sum_multiple = fields.Boolean()
+
+    @pre_load
+    def normalize_account_id(self, data: dict, **kwargs) -> dict:
+        if "account_id" in data and not isinstance(data["account_id"], list):
+            data["account_id"] = [data["account_id"]]
+        return data
 
 
 class StatusSchema(Schema):

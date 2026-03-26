@@ -16,11 +16,10 @@ New features
 * Version headers (for server and API) in API responses [see `PR #2021 <https://www.github.com/FlexMeasures/flexmeasures/pull/2021>`_]
 * Show sensor attributes on sensor page, if not empty [see `PR #2015 <https://www.github.com/FlexMeasures/flexmeasures/pull/2015>`_]
 * Separate the ``StorageScheduler``'s tie-breaking preference for a full :abbr:`SoC (state of charge)` from its reported energy costs [see `PR #2023 <https://www.github.com/FlexMeasures/flexmeasures/pull/2023>`_]
-* Support filtering beliefs by the account of their data source, using the new ``account_id`` parameter of ``Sensor.search_beliefs``, ``GenericAsset.search_beliefs``, and ``BeliefsSearchConfigSchema`` [see `PR #2065 <https://www.github.com/FlexMeasures/flexmeasures/pull/2065>`_]
 
 Infrastructure / Support
 ----------------------
-* Add ``account_id`` field to the ``data_source`` table, populated from the related user's account (including data migration and automatic assignment when posting sensor data); also drop FK constraints on ``data_source.user_id`` and ``data_source.account_id`` to preserve data lineage (historical user/account IDs are no longer nullified when users or accounts are deleted) [see `PR #2058 <https://www.github.com/FlexMeasures/flexmeasures/pull/2058>`_]
+* Add ``account_id`` field to the ``data_source`` table, populated from the related user's account (including data migration and automatic assignment when posting sensor data); also drop FK constraints on ``data_source.user_id`` and ``data_source.account_id`` to preserve data lineage (historical user/account IDs are no longer nullified when users or accounts are deleted); support filtering beliefs by the account of their data source, using the new ``account_id`` parameter of ``Sensor.search_beliefs``, ``GenericAsset.search_beliefs``, and ``BeliefsSearchConfigSchema`` [see `PR #2058 <https://www.github.com/FlexMeasures/flexmeasures/pull/2058>`_ and `PR #2065 <https://www.github.com/FlexMeasures/flexmeasures/pull/2065>`_]
 * Stop creating new toy assets when restarting the docker-compose stack [see `PR #2018 <https://www.github.com/FlexMeasures/flexmeasures/pull/2018>`_]
 * Migrate from ``pip`` to ``uv`` for dependency management [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
 * Migrate from ``make`` to ``poe`` for running tasks [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]

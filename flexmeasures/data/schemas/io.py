@@ -1,8 +1,9 @@
-from marshmallow import fields, Schema, post_load, post_dump
+from marshmallow import fields, Schema, post_load, post_dump, pre_load, validate
 
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
 from flexmeasures.data.schemas.sources import DataSourceIdField
+from flexmeasures.data.schemas.account import AccountIdField
 from flask import current_app
 
 
@@ -37,7 +38,7 @@ class Input(Schema):
     user_source_ids = fields.List(DataSourceIdField())
     source_types = fields.List(fields.Str())
     exclude_source_types = fields.List(fields.Str())
-    account_id = fields.List(fields.Int())
+    account_id = fields.List(AccountIdField(), validate=validate.Length(min=1))
     most_recent_beliefs_only = fields.Boolean()
     most_recent_events_only = fields.Boolean()
 
@@ -53,6 +54,12 @@ class Input(Schema):
             current_app.logger.warning(
                 "`source` field to be deprecated in v0.17.0. Please, use `sources` instead"
             )
+
+    @pre_load
+    def normalize_account_id(self, data: dict, **kwargs) -> dict:
+        if "account_id" in data and not isinstance(data["account_id"], list):
+            data["account_id"] = [data["account_id"]]
+        return data
 
     @post_load
     def post_load_deprecation_warning_source(self, data: dict, **kawrgs) -> dict:
