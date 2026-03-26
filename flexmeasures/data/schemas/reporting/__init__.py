@@ -58,6 +58,7 @@ class BeliefsSearchConfigSchema(Schema):
 
     source_types = fields.List(fields.Str())
     exclude_source_types = fields.List(fields.Str())
+    account_id = fields.List(fields.Int())
     most_recent_beliefs_only = fields.Boolean()
     most_recent_events_only = fields.Boolean()
 
