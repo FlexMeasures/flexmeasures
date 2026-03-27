@@ -1159,7 +1159,7 @@ class MetaStorageScheduler(Scheduler):
         matching_segments = [
             segment
             for segment in normalized_segments
-            if segment["start"] <= self.start <= segment["end"]
+            if segment["start"] <= self.start < segment["end"]
         ]
         if matching_segments:
             return (matching_segments[0]["value"] / ur.Quantity("MWh")).magnitude
