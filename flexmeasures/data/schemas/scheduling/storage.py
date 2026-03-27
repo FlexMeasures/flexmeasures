@@ -295,7 +295,7 @@ class StorageFlexModelSchema(Schema):
             )
 
     @validates("state_of_charge")
-    def validate_state_of_charge_source(
+    def validate_state_of_charge(
         self, state_of_charge: Sensor | list[dict] | ur.Quantity, **kwargs
     ):
         if isinstance(
