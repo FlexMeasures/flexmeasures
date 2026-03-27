@@ -419,14 +419,32 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
         # User omits --start, so predict_start defaults to server now floored to the hour
         # (2025-01-15T12:00+01). The provided --end (2025-01-15T00:00+01) is earlier than
         # that resolved predict_start, producing an empty prediction window.
-        # Expected: ValidationError with actionable message including both timestamps.
+        # Expected: ValidationError assigned to the "end" field with actionable message.
         (
             {"end": "2025-01-15T00:00:00+01:00"},
             ValidationError(
                 {
-                    "start": [
+                    "end": [
                         "Resolved predict start (2025-01-15T12:00:00+01:00) is not before end"
                         " (2025-01-15T00:00:00+01:00)."
+                        " Provide --start explicitly or choose a later --end."
+                    ]
+                }
+            ),
+        ),
+        # Case 12: --start omitted and --end equals resolved predict_start (point-in-time boundary)
+        #
+        # User omits --start, so predict_start defaults to server now floored to the hour
+        # (2025-01-15T12:00+01). The provided --end equals that resolved predict_start.
+        # A zero-duration window must be rejected because `predict_period == 0` causes a
+        # ZeroDivisionError when computing `m_viewpoints = max(predict_period // forecast_frequency, 1)`.
+        (
+            {"end": "2025-01-15T12:00:00+01:00"},
+            ValidationError(
+                {
+                    "end": [
+                        "Resolved predict start (2025-01-15T12:00:00+01:00) is not before end"
+                        " (2025-01-15T12:00:00+01:00)."
                         " Provide --start explicitly or choose a later --end."
                     ]
                 }
