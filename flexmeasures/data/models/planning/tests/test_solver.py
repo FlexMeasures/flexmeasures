@@ -259,6 +259,7 @@ def run_test_charge_discharge_sign(
         device_constraints,
         ems_constraints,
         commitments,
+        inflexible_device_sensors,
     ) = scheduler._prepare(skip_validation=True)
 
     planned_power_per_device, planned_costs, results, model = device_scheduler(
@@ -1189,6 +1190,7 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
         device_constraints,
         ems_constraints,
         commitments,
+        inflexible_device_sensors,
     ) = scheduler._prepare(skip_validation=True)
 
     _, _, results, model = device_scheduler(
@@ -1371,6 +1373,7 @@ def test_capacity(
         device_constraints,
         ems_constraints,
         commitments,
+        inflexible_device_sensors,
     ) = scheduler._prepare(skip_validation=True)
 
     assert all(device_constraints[0]["derivative min"] == -expected_capacity)
