@@ -521,7 +521,7 @@ def add_initial_structure():
     "account",
     required=False,
     type=AccountIdField(),
-    help=f"Organisation account associated with the source.",
+    help="Organisation account associated with the source.",
 )
 def add_source(
     name: str, model: str, version: str, source_type: str, account: Account | None
