@@ -19,14 +19,14 @@ New features
 
 Infrastructure / Support
 ----------------------
-* Add ``account_id`` field to the ``data_source`` table, populated from the related user's account (including data migration and automatic assignment when posting sensor data); also drop FK constraints on ``data_source.user_id`` and ``data_source.account_id`` to preserve data lineage (historical user/account IDs are no longer nullified when users or accounts are deleted); support filtering beliefs by the account of their data source, using the new ``account_id`` parameter of ``Sensor.search_beliefs``, ``GenericAsset.search_beliefs``, and ``BeliefsSearchConfigSchema`` [see `PR #2058 <https://www.github.com/FlexMeasures/flexmeasures/pull/2058>`_ and `PR #2065 <https://www.github.com/FlexMeasures/flexmeasures/pull/2065>`_]
+* Support data source assignment/filtering by account, and preserve user ID and account ID references in audit logs and data sources for traceability and compliance [see `PR #2058 <https://www.github.com/FlexMeasures/flexmeasures/pull/2058>`_ and `PR #2065 <https://www.github.com/FlexMeasures/flexmeasures/pull/2065>`_]
 * Stop creating new toy assets when restarting the docker-compose stack [see `PR #2018 <https://www.github.com/FlexMeasures/flexmeasures/pull/2018>`_]
 * Migrate from ``pip`` to ``uv`` for dependency management [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
 * Migrate from ``make`` to ``poe`` for running tasks [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
-* Make the test environment used by agents and by the test workflow identical [see `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_]
 * Improve contact information to get in touch with the FlexMeasures community [see `PR #2022 <https://www.github.com/FlexMeasures/flexmeasures/pull/2022>`_]
 * Expand audit logging for password life-cycle: password_reset, password_changed and reset_password_instructions_sent events [see `PR #2036 <https://github.com/FlexMeasures/flexmeasures/pull/2036>`_]
 * Upgraded some dependencies for security reasons [see `PR #2037 <https://www.github.com/FlexMeasures/flexmeasures/pull/2037>`_]
+* Update agent instructions and workflows to customize the primary entry point and to make the test environment used by agents and by the test workflow identical [see `PR #2066 <https://www.github.com/FlexMeasures/flexmeasures/pull/2066>`_ and `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_]
 
 Bugfixes
 -----------
@@ -124,7 +124,6 @@ Infrastructure / Support
 * Fix README badges [see `PR #1913 <https://www.github.com/FlexMeasures/flexmeasures/pull/1913>`_]
 * Allow seeing complete datetimes in the audit log [see `PR #1949 <https://www.github.com/FlexMeasures/flexmeasures/pull/1949>`_]
 * Add latest dependabot alert suggestions [see `PR #1959 <https://www.github.com/FlexMeasures/flexmeasures/pull/1959>`_]
-
 * Add standardized GitHub Copilot agent environment setup file for consistent development environment across agent sessions [see `PR #1962 <https://www.github.com/FlexMeasures/flexmeasures/pull/1962>`_, `PR #1963 <https://www.github.com/FlexMeasures/flexmeasures/pull/1963>`_ and `PR #1964 <https://www.github.com/FlexMeasures/flexmeasures/pull/1964>`_]
 
 Bugfixes
