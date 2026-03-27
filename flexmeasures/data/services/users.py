@@ -222,11 +222,6 @@ def delete_user(user: User):
     if hasattr(current_user, "id") and user.id == current_user.id:
         raise Exception("You cannot delete yourself.")
 
-    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
-    user_datastore.delete_user(user)
-    db.session.execute(delete(User).filter_by(id=user.id))
-    current_app.logger.info("Deleted %s." % user)
-
     active_user_id, active_user_name = None, None
     if hasattr(current_user, "id"):
         active_user_id, active_user_name = current_user.id, current_user.username
@@ -235,7 +230,12 @@ def delete_user(user: User):
         event=f"User {user.username} deleted",
         active_user_id=active_user_id,
         active_user_name=active_user_name,
-        affected_user_id=None,  # add the audit log record even if the user is gone
+        affected_user_id=user.id,  # add the audit log record even if the user will be gone
         affected_account_id=user.account_id,
     )
     db.session.add(user_audit_log)
+
+    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    user_datastore.delete_user(user)
+    db.session.execute(delete(User).filter_by(id=user.id))
+    current_app.logger.info("Deleted %s." % user)
