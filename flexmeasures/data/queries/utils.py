@@ -87,6 +87,7 @@ def get_source_criteria(
     user_source_ids: int | list[int],
     source_types: list[str],
     exclude_source_types: list[str],
+    account_id: int | list[int] | None = None,
 ) -> list[BinaryExpression]:
     source_criteria: list[BinaryExpression] = []
     if user_source_ids is not None:
@@ -99,6 +100,8 @@ def get_source_criteria(
         if user_source_ids and "user" in exclude_source_types:
             exclude_source_types.remove("user")
         source_criteria.append(source_type_exclusion_criterion(exclude_source_types))
+    if account_id is not None:
+        source_criteria.append(source_account_criterion(account_id))
     return source_criteria
 
 
@@ -139,6 +142,18 @@ def source_type_criterion(source_types: list[str]) -> BinaryExpression:
 def source_type_exclusion_criterion(source_types: list[str]) -> BinaryExpression:
     """Criterion to exclude sources that are of the given type."""
     return DataSource.type.not_in(source_types)
+
+
+def source_account_criterion(account_id) -> BinaryExpression:
+    """Criterion to collect only data from sources belonging to the given account(s).
+
+    Accepts account IDs as integers or Account model instances (or a list of either).
+    """
+    if not isinstance(account_id, list):
+        account_id = [account_id]
+    # Support both integer IDs and Account model instances
+    account_ids = [a.id if not isinstance(a, int) else a for a in account_id]
+    return DataSource.account_id.in_(account_ids)
 
 
 def get_belief_timing_criteria(

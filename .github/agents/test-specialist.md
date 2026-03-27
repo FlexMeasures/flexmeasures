@@ -512,3 +512,8 @@ After each assignment:
 
 - **Self-improvement failure**: Despite having explicit instructions to update this agent file after each assignment, no update was made during this PR session. This was caught by the Coordinator post-hoc. The agent must treat instruction updates as the LAST mandatory step of any assignment.
 - **DataSource property testing**: Added guidance in "Testing DataSource Properties After API Calls" above. When testing properties set by the API on a data source (like `account_id`), use `fresh_db`, query by user to avoid ambiguity, and assert both existence and the specific field value.
+
+**Session 2026-04 (PR #2065 — add account_id filter to search_beliefs)**:
+
+- **Model layer coverage gap**: The PR added `account_id` parameter to three model methods: `Sensor.search_beliefs`, `TimedBelief.search`, and `GenericAsset.search_beliefs`. Tests covered only the first two. When a parameter is added to multiple model-layer methods, each method must be tested independently — especially when they use different code paths (e.g., `GenericAsset.search_beliefs` delegates through `Sensor.search_beliefs` but may not if the delegation chain changes). Add a checklist item: "When a filter/param is added to `search_beliefs` across multiple models, ensure at least one test exercises each model class."
+- **Empty-list edge case**: `account_id=[]` is schema-valid but semantically means "match nothing" (SQL `IN ()` returns zero rows). Tests should include this edge case and assert the expected empty result rather than letting it pass as a valid no-op.

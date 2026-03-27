@@ -6,6 +6,7 @@ from flexmeasures.data.schemas.reporting.profit import (
     ProfitOrLossReporterConfigSchema,
     ProfitOrLossReporterParametersSchema,
 )
+from flexmeasures.data.schemas.reporting import BeliefsSearchConfigSchema
 from marshmallow.exceptions import ValidationError
 
 import pytest
@@ -228,3 +229,59 @@ def test_profit_reporter_parameters_schema(
     else:
         with pytest.raises(ValidationError):
             schema.load(parameters)
+
+
+@pytest.mark.parametrize(
+    "make_config, is_valid",
+    [
+        (
+            lambda p, s: {"account_id": p},
+            True,
+        ),
+        (
+            lambda p, s: {"account_id": [p]},
+            True,
+        ),
+        (
+            lambda p, s: {"account_id": [p, s]},
+            True,
+        ),
+        (
+            lambda p, s: {"account_id": []},
+            False,
+        ),
+        (
+            lambda p, s: {"account_id": "not-a-list"},
+            False,
+        ),
+        (
+            lambda p, s: {"account_id": ["a", "b"]},
+            False,
+        ),
+    ],
+    ids=[
+        "single-int",
+        "single-item-list",
+        "multi-item-list",
+        "empty-list",
+        "string",
+        "list-of-strings",
+    ],
+)
+def test_beliefs_search_config_schema_account_id(
+    make_config, is_valid, db, app, setup_accounts
+):
+    """Check that BeliefsSearchConfigSchema accepts account_id as a single int or list of ints,
+    rejects empty lists and non-integer values, and validates accounts exist in the DB.
+    """
+    prosumer_id = setup_accounts["Prosumer"].id
+    supplier_id = setup_accounts["Supplier"].id
+    config = make_config(prosumer_id, supplier_id)
+    schema = BeliefsSearchConfigSchema()
+    if is_valid:
+        result = schema.load(config)
+        assert isinstance(result["account_id"], list)
+        assert len(result["account_id"]) >= 1
+    else:
+        with pytest.raises(ValidationError):
+            schema.load(config)
