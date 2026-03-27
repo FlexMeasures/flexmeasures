@@ -198,7 +198,10 @@ def test_delete_user(fresh_db, setup_roles_users_fresh_db, setup_assets_fresh_db
         .filter_by(event="User Test Prosumer User deleted")
         .one_or_none()
     )
-    assert user_deletion_audit_log.affected_user_id is None
+    assert user_deletion_audit_log.affected_user_id == prosumer_id, (
+        "Audit log affected_user_id should be preserved (not nullified) "
+        "after user deletion for lineage purposes."
+    )
     assert user_deletion_audit_log.affected_account_id == prosumer_account_id
     assert user_deletion_audit_log.active_user_id is None
 
