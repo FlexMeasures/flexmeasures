@@ -1071,24 +1071,28 @@ class MetaStorageScheduler(Scheduler):
     def has_soc_at_start_in(flex_model: dict) -> bool:
         return "soc-at-start" in flex_model and flex_model["soc-at-start"] is not None
 
-    def _get_soc_lookup_radius(self, sensor: Sensor | None = None) -> timedelta:
+    def _get_soc_lookup_radius(
+        self, sensor: Sensor | None = None, slack_steps: int = 4
+    ) -> timedelta:
         """Return the half-width of the SoC lookup interval.
 
         We search for a nearby SoC value in the interval
-        ``[self.start - 4 * resolution, self.start + 4 * resolution]``.
-        Using four resolution steps keeps the lookup tolerant to small timing
+        ``[self.start - slack_steps * resolution, self.start + slack_steps * resolution]``.
+        Using four resolution steps by default keeps the lookup tolerant to small timing
         offsets while still rejecting stale values. For example, a 15-minute
         resolution yields a 1-hour lookup radius.
 
-        :param sensor: Optional sensor whose resolution should be used.
-        :returns:      Half-width of the SoC lookup interval.
+        :param sensor:      Optional sensor whose resolution should be used.
+        :param slack_steps: Number of resolution steps accepted on either side of
+                            the schedule start.
+        :returns:           Half-width of the SoC lookup interval.
         """
         resolution = self.resolution
         if resolution is None and sensor is not None:
             resolution = sensor.event_resolution
         if resolution is None:
             resolution = self.default_resolution
-        return 4 * resolution
+        return slack_steps * resolution
 
     def _get_soc_capacity_for_percent_conversion(self, flex_model: dict) -> str:
         """Return the capacity used to convert percentage-based SoC values.
