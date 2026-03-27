@@ -1071,7 +1071,15 @@ class MetaStorageScheduler(Scheduler):
     def has_soc_at_start_in(flex_model: dict) -> bool:
         return "soc-at-start" in flex_model and flex_model["soc-at-start"] is not None
 
-    def _get_soc_lookup_window(self, sensor: Sensor | None = None) -> timedelta:
+    def _get_soc_lookup_radius(self, sensor: Sensor | None = None) -> timedelta:
+        """Return the half-width of the SoC lookup interval.
+
+        We search for a nearby SoC value in the interval
+        ``[self.start - 4 * resolution, self.start + 4 * resolution]``.
+
+        :param sensor: Optional sensor whose resolution should be used.
+        :returns:      Half-width of the SoC lookup interval.
+        """
         resolution = self.resolution
         if resolution is None and sensor is not None:
             resolution = sensor.event_resolution
@@ -1080,6 +1088,11 @@ class MetaStorageScheduler(Scheduler):
         return 4 * resolution
 
     def _get_soc_capacity_for_percent_conversion(self, flex_model: dict) -> str:
+        """Return the capacity used to convert percentage-based SoC values.
+
+        :param flex_model: Flex model containing the SoC configuration.
+        :returns:          Capacity expressed in MWh.
+        """
         soc_max = flex_model.get("soc-max")
         if soc_max is None and self.sensor is not None:
             soc_max = self.sensor.generic_asset.flex_model.get("soc-max")
@@ -1087,11 +1100,11 @@ class MetaStorageScheduler(Scheduler):
             soc_max = self.sensor.generic_asset.get_attribute("max_soc_in_mwh")
         if soc_max is None:
             raise ValueError(
-                "Cannot derive state of charge from a '%' state-of-charge source without `soc-max`."
+                "Cannot derive state of charge from a `state-of-charge` sensor with '%' unit without `soc-max`."
             )
         if isinstance(soc_max, Sensor):
             raise ValueError(
-                "Cannot derive state of charge from a '%' state-of-charge source when `soc-max` is a sensor reference."
+                "Cannot derive state of charge from a `state-of-charge` sensor with '%' unit when `soc-max` is a sensor reference."
             )
         if isinstance(soc_max, (int, float)):
             return str(ur.Quantity(soc_max, "MWh"))
@@ -1118,25 +1131,33 @@ class MetaStorageScheduler(Scheduler):
         flex_model: dict,
         sensor: Sensor | None = None,
     ) -> float:
-        lookup_window = self._get_soc_lookup_window(sensor)
+        """Resolve ``soc-at-start`` from a ``state-of-charge`` sensor.
+
+        :param state_of_charge_sensor: Instantaneous SoC sensor.
+        :param flex_model:             Flex model containing the SoC configuration.
+        :param sensor:                 Optional scheduled power sensor.
+        :returns:                      Starting SoC in MWh.
+        """
+        lookup_radius = self._get_soc_lookup_radius(sensor)
         beliefs = state_of_charge_sensor.search_beliefs(
-            event_starts_after=self.start - lookup_window,
-            event_ends_before=self.start + lookup_window,
+            event_starts_after=self.start - lookup_radius,
+            event_ends_before=self.start + lookup_radius,
             one_deterministic_belief_per_event=True,
         )
         if beliefs.empty:
             raise ValueError(
                 f"No recent state-of-charge value found for sensor {state_of_charge_sensor.id} "
-                f"within {lookup_window} of schedule start {self.start.isoformat()}."
+                f"within {lookup_radius} of schedule start {self.start.isoformat()}."
             )
 
         beliefs_df = beliefs.reset_index()
         beliefs_df["time_distance"] = (
             beliefs_df["event_start"] - pd.Timestamp(self.start)
         ).abs()
-        nearest_belief = beliefs_df.sort_values(
-            by=["time_distance", "event_start"], ascending=[True, False]
-        ).iloc[0]
+        nearest_beliefs = beliefs_df[
+            beliefs_df["time_distance"] == beliefs_df["time_distance"].min()
+        ]
+        nearest_belief = nearest_beliefs.loc[nearest_beliefs["event_start"].idxmax()]
 
         return self._convert_soc_value_to_mwh(
             value=nearest_belief["event_value"],
@@ -1147,7 +1168,13 @@ class MetaStorageScheduler(Scheduler):
     def _resolve_soc_at_start_from_time_series(
         self, soc_time_series: list[dict], sensor: Sensor | None = None
     ) -> float:
-        lookup_window = self._get_soc_lookup_window(sensor)
+        """Resolve ``soc-at-start`` from a ``state-of-charge`` time series.
+
+        :param soc_time_series: SoC time series specification.
+        :param sensor:          Optional scheduled power sensor.
+        :returns:               Starting SoC in MWh.
+        """
+        lookup_radius = self._get_soc_lookup_radius(sensor)
         normalized_segments = [
             {
                 "start": pd.Timestamp(segment["start"]),
@@ -1162,43 +1189,47 @@ class MetaStorageScheduler(Scheduler):
             if segment["start"] <= self.start < segment["end"]
         ]
         if matching_segments:
-            return (matching_segments[0]["value"] / ur.Quantity("MWh")).magnitude
+            latest_matching_segment = max(
+                matching_segments, key=lambda segment: segment["start"]
+            )
+            return (latest_matching_segment["value"] / ur.Quantity("MWh")).magnitude
 
         candidate_segments = []
         for segment in normalized_segments:
             start_distance = abs(segment["start"] - self.start)
             end_distance = abs(segment["end"] - self.start)
             distance = min(start_distance, end_distance)
-            if distance <= lookup_window:
+            if distance <= lookup_radius:
                 candidate_segments.append((distance, segment))
 
         if not candidate_segments:
             raise ValueError(
                 f"No recent state-of-charge value found in the provided `state-of-charge` time series "
-                f"within {lookup_window} of schedule start {self.start.isoformat()}."
+                f"within {lookup_radius} of schedule start {self.start.isoformat()}."
             )
 
         _, nearest_segment = min(candidate_segments, key=lambda item: item[0])
         return (nearest_segment["value"] / ur.Quantity("MWh")).magnitude
 
-    def _resolve_soc_at_start_from_state_of_charge_source(
+    def _resolve_soc_at_start_from_state_of_charge(
         self, flex_model: dict, sensor: Sensor | None = None
     ) -> float | None:
-        state_of_charge_source = flex_model.get("state-of-charge")
-        if isinstance(state_of_charge_source, Sensor):
+        """Resolve ``soc-at-start`` from the ``state-of-charge`` field.
+
+        :param flex_model: Flex model containing the SoC configuration.
+        :param sensor:     Optional scheduled power sensor.
+        :returns:          Starting SoC in MWh if it can be inferred.
+        """
+        state_of_charge = flex_model.get("state-of-charge")
+        if isinstance(state_of_charge, Sensor):
             return self._resolve_soc_at_start_from_sensor(
-                state_of_charge_source, flex_model, sensor
+                state_of_charge, flex_model, sensor
             )
-        if isinstance(state_of_charge_source, list):
-            return self._resolve_soc_at_start_from_time_series(
-                state_of_charge_source, sensor
-            )
-        if (
-            isinstance(state_of_charge_source, dict)
-            and "sensor" in state_of_charge_source
-        ):
+        if isinstance(state_of_charge, list):
+            return self._resolve_soc_at_start_from_time_series(state_of_charge, sensor)
+        if isinstance(state_of_charge, dict) and "sensor" in state_of_charge:
             state_of_charge_sensor = Sensor.query.filter_by(
-                id=state_of_charge_source["sensor"]
+                id=state_of_charge["sensor"]
             ).one()
             return self._resolve_soc_at_start_from_sensor(
                 state_of_charge_sensor, flex_model, sensor
@@ -1232,7 +1263,7 @@ class MetaStorageScheduler(Scheduler):
         """
         Ensure we have a starting state of charge - if needed.
         Preferably, a starting soc is given.
-        Otherwise, we try to retrieve the current state of charge from a configured state-of-charge source.
+        Otherwise, we try to retrieve the current state of charge from the configured ``state-of-charge`` field.
         If that doesn't work, we try the (old-style) asset attribute.
         Finally, we default the starting soc to 0 (only if there are soc limits, though, as some assets don't use
         the concept of a state of charge, and without soc targets and limits the starting soc doesn't matter).
@@ -1244,9 +1275,7 @@ class MetaStorageScheduler(Scheduler):
 
         if not self.has_soc_at_start_in(flex_model) and "state-of-charge" in flex_model:
             flex_model["soc-at-start"] = (
-                self._resolve_soc_at_start_from_state_of_charge_source(
-                    flex_model, sensor
-                )
+                self._resolve_soc_at_start_from_state_of_charge(flex_model, sensor)
             )
 
         if not self.has_soc_at_start_in(flex_model) and sensor is not None:
