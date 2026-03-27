@@ -516,13 +516,23 @@ def add_initial_structure():
     type=str,
     help=f"Type of source (free, but FlexMeasures has support for {DEFAULT_DATASOURCE_TYPES}).",
 )
-def add_source(name: str, model: str, version: str, source_type: str):
+@click.option(
+    "--account",
+    "account",
+    required=False,
+    type=AccountIdField(),
+    help=f"Organisation account associated with the source.",
+)
+def add_source(
+    name: str, model: str, version: str, source_type: str, account: Account | None
+):
     """Add a data source."""
     source = get_or_create_source(
         source=name,
         model=model,
         version=version,
         source_type=source_type,
+        account=account,
     )
     db.session.commit()
     click.secho(f"Added source {source.__repr__()}", **MsgStyle.SUCCESS)
