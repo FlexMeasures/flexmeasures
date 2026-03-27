@@ -619,7 +619,7 @@ Before completing an assignment and closing the session:
    - What patterns emerged?
    - What mistakes were made?
 
-2. **Update this agent file** with improvements:
+2. **Update this file** (`AGENTS.md`) with improvements:
    - Add new patterns discovered
    - Document pitfalls encountered
    - Refine the coordination process
@@ -627,7 +627,7 @@ Before completing an assignment and closing the session:
 
 3. **Commit the agent update separately** (atomic commit):
    ```
-   agents/lead: learned <specific lesson>
+   AGENTS.md: learned <specific lesson>
    
    Context:
    - Assignment revealed gap in <area>
@@ -685,4 +685,3 @@ The Lead should:
 - Enhance verification processes
 - Keep this file current with lessons learned
 - Learn from each task assignment about how to better orchestrate agent work
-
