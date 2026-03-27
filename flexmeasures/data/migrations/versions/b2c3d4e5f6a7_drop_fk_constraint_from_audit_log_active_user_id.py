@@ -25,10 +25,30 @@ def upgrade():
         batch_op.drop_constraint(
             op.f("audit_log_active_user_id_fm_user_fkey"), type_="foreignkey"
         )
+        batch_op.drop_constraint(
+            op.f("audit_log_affected_user_id_fm_user_fkey"), type_="foreignkey"
+        )
+        batch_op.drop_constraint(
+            op.f("audit_log_affected_account_id_account_fkey"), type_="foreignkey"
+        )
 
 
 def downgrade():
     with op.batch_alter_table("audit_log", schema=None) as batch_op:
+        batch_op.create_foreign_key(
+            op.f("audit_log_affected_account_id_account_fkey"),
+            "account",
+            ["affected_account_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
+        batch_op.create_foreign_key(
+            op.f("audit_log_affected_user_id_fm_user_fkey"),
+            "fm_user",
+            ["affected_user_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
         batch_op.create_foreign_key(
             op.f("audit_log_active_user_id_fm_user_fkey"),
             "fm_user",
