@@ -673,7 +673,39 @@ Track and document when the Lead:
 - **Prevention**: Investigate production code first; understand test design intent; look for schema migrations
 - **Key insight**: "Failing tests often reveal production bugs, not test bugs"
 
+**Specific lesson learned (2026-03-24 — PR #2058, add account_id to DataSource)**:
+
+- **Failure 1**: Coordinator was not invoked despite (a) explicit user prompt instruction and (b) the "MUST always run the Coordinator" requirement in these instructions. This is now the **third session in a row** where Coordinator invocation was skipped. The requirement is clearly not being followed.
+  - **Root cause hypothesis**: The Coordinator step is listed last, but sessions end before it's reached. It needs to be treated as a non-negotiable gate, not an optional final step.
+  - **Reinforcement**: Added "Agent Selection Checklist" below to force explicit reasoning about which agents to run.
+
+- **Failure 2**: API Specialist was not engaged for a change that modified endpoint behavior. The POST sensor data endpoint now sets `account_id` on the resulting data source. This is a side-effect change that the API Specialist should have reviewed.
+  - **Rule added**: Any PR that changes what data is stored or returned by an endpoint → engage API Specialist.
+
+- **Failure 3**: No agent (including Review Lead) updated their own instructions after the session. This is the same failure pattern from 2026-02-06. Three sessions now. This is a systemic problem.
+  - **Root cause**: Self-improvement is treated as optional/forgettable. It must be the **last commit** of every session, non-negotiable.
+
 Update this file to prevent repeating the same mistakes.
+
+### Agent Selection Checklist
+
+Use this checklist when selecting agents for a PR. Check each category:
+
+| Code Change Type | Agent to Engage |
+|------------------|----------------|
+| Domain model changes (`models/`) | Architecture Specialist |
+| Alembic migrations | Architecture Specialist |
+| Test additions/changes | Test Specialist |
+| Endpoint behavior changes (stored/returned data) | **API Specialist** |
+| API schema changes | API Specialist |
+| CLI command changes | API Specialist |
+| Performance-critical paths | Performance Specialist |
+| Time/datetime/timezone code | Data & Time Specialist |
+| Documentation changes | Documentation Specialist |
+| CI/CD, pre-commit, GitHub Actions | Tooling & CI Specialist |
+| Agent instruction changes | **Coordinator** (always at end) |
+
+**The Coordinator must ALWAYS be the last agent run, in every session, no exceptions.**
 
 ### Continuous Improvement
 
