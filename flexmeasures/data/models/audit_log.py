@@ -30,14 +30,35 @@ class AuditLog(db.Model, AuthModelMixin):
     event_datetime = Column(DateTime())
     event = Column(String(255))
     active_user_name = Column(String(255))
-    active_user_id = Column(
-        "active_user_id", Integer(), ForeignKey("fm_user.id", ondelete="SET NULL")
+    # No DB-level FK with cascade for active_user_id so that deleting a user preserves the lineage reference in this column.
+    active_user_id = Column("active_user_id", Integer(), nullable=True)
+    # No DB-level FK with cascade for affected_user_id so that deleting a user preserves the lineage reference in this column.
+    affected_user_id = Column("affected_user_id", Integer(), nullable=True)
+    # No DB-level FK with cascade for affected_account_id so that deleting an account preserves the lineage reference in this column.
+    affected_account_id = Column("affected_account_id", Integer(), nullable=True)
+
+    # Relationships to navigate to User and Account without database-level FK constraints
+    # This allows audit logs to maintain references to deleted users/accounts for lineage purposes
+    active_user = db.relationship(
+        "User",
+        primaryjoin="AuditLog.active_user_id == User.id",
+        foreign_keys="[AuditLog.active_user_id]",
+        backref=db.backref("active_audit_logs", lazy=True, passive_deletes="all"),
+        passive_deletes="all",
     )
-    affected_user_id = Column(
-        "affected_user_id", Integer(), ForeignKey("fm_user.id", ondelete="SET NULL")
+    affected_user = db.relationship(
+        "User",
+        primaryjoin="AuditLog.affected_user_id == User.id",
+        foreign_keys="[AuditLog.affected_user_id]",
+        backref=db.backref("affected_audit_logs", lazy=True, passive_deletes="all"),
+        passive_deletes="all",
     )
-    affected_account_id = Column(
-        "affected_account_id", Integer(), ForeignKey("account.id", ondelete="SET NULL")
+    affected_account = db.relationship(
+        "Account",
+        primaryjoin="AuditLog.affected_account_id == Account.id",
+        foreign_keys="[AuditLog.affected_account_id]",
+        backref=db.backref("affected_audit_logs", lazy=True, passive_deletes="all"),
+        passive_deletes="all",
     )
 
     @classmethod

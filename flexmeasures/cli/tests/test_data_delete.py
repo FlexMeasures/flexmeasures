@@ -60,7 +60,14 @@ def test_delete_account(
         .filter_by(event="User Test Prosumer User created test")
         .one_or_none()
     )
-    assert user_creation_audit_log.affected_account_id is None
+    assert user_creation_audit_log.affected_account_id == prosumer_account_id, (
+        "Audit log affected_account_id should be preserved (not nullified) "
+        "after account deletion for lineage purposes."
+    )
+    assert user_creation_audit_log.affected_user_id == prosumer.id, (
+        "Audit log affected_user_id should be preserved (not nullified) "
+        "after account deletion for lineage purposes."
+    )
 
     # Check that data source lineage is preserved: account_id and user_id are NOT nullified after account deletion
     for ds_id, original_user_id, original_account_id in data_source_ids_and_lineage:
@@ -80,7 +87,7 @@ def test_delete_account(
 
 
 def test_delete_user(fresh_db, setup_roles_users_fresh_db, setup_assets_fresh_db, app):
-    """Check user is deleted + old audit log entries get affected_user_id set to None.
+    """Check user is deleted + old audit log entries get affected_user_id preserved.
     Also check that data source lineage is preserved: user_id is NOT nullified after user deletion.
     """
     from flexmeasures.cli.data_delete import delete_a_user
@@ -127,13 +134,16 @@ def test_delete_user(fresh_db, setup_roles_users_fresh_db, setup_assets_fresh_db
         fresh_db.session.scalar(select(func.count()).select_from(User)) == num_users - 1
     )
 
-    # Check that old audit log entries get affected_user_id set to None
+    # Check that old audit log entries preserve affected_user_id (not set to None)
     user_creation_audit_log_after = (
         fresh_db.session.query(AuditLog)
         .filter_by(event="User Test Prosumer User created test")
         .one_or_none()
     )
-    assert user_creation_audit_log_after.affected_user_id is None
+    assert user_creation_audit_log_after.affected_user_id == prosumer_id, (
+        "Audit log affected_user_id should be preserved (not nullified) "
+        "after user deletion for lineage purposes."
+    )
 
     # Check that data source lineage is preserved: user_id is NOT nullified after user deletion
     if data_source_id is not None:

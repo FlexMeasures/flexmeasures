@@ -19,7 +19,7 @@ New features
 
 Infrastructure / Support
 ----------------------
-* Add ``account_id`` field to the ``data_source`` table, populated from the related user's account (including data migration and automatic assignment when posting sensor data); also drop FK constraints on ``data_source.user_id`` and ``data_source.account_id`` to preserve data lineage (historical user/account IDs are no longer nullified when users or accounts are deleted) [see `PR #2058 <https://www.github.com/FlexMeasures/flexmeasures/pull/2058>`_]
+* Preserve data lineage by removing cascading deletes from user and account references in audit logs and data sources; when users or accounts are deleted, their IDs are retained in historical records for traceability and compliance [see `PR #2058 <https://www.github.com/FlexMeasures/flexmeasures/pull/2058>`_]
 * Stop creating new toy assets when restarting the docker-compose stack [see `PR #2018 <https://www.github.com/FlexMeasures/flexmeasures/pull/2018>`_]
 * Migrate from ``pip`` to ``uv`` for dependency management [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
 * Migrate from ``make`` to ``poe`` for running tasks [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]

@@ -203,7 +203,10 @@ def test_delete_user(fresh_db, setup_roles_users_fresh_db, setup_assets_fresh_db
     assert user_deletion_audit_log.active_user_id is None
 
     fresh_db.session.refresh(user_creation_audit_log)
-    assert user_creation_audit_log.affected_user_id is None
+    assert user_creation_audit_log.affected_user_id == prosumer_id, (
+        "Audit log affected_user_id should be preserved (not nullified) "
+        "after user deletion for lineage purposes."
+    )
 
     # Check that data source lineage is preserved: user_id and account_id are NOT nullified after user deletion
     fresh_db.session.expire(data_source_before)
