@@ -11,6 +11,7 @@ Create Date: 2026-03-25 00:00:00.000000
 """
 
 from alembic import op
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -21,23 +22,36 @@ depends_on = None
 
 
 def upgrade():
+    # Inspect existing FK constraints to handle different database states gracefully
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    existing_fks = inspector.get_foreign_keys("data_source")
+    existing_fk_names = [fk["name"] for fk in existing_fks]
+
     with op.batch_alter_table("data_source", schema=None) as batch_op:
-        batch_op.drop_constraint(
-            op.f("data_source_account_id_account_fkey"), type_="foreignkey"
-        )
-        batch_op.drop_constraint("data_sources_user_id_fkey", type_="foreignkey")
+        # Drop the account_id FK if it exists
+        if "data_source_account_id_account_fkey" in existing_fk_names:
+            batch_op.drop_constraint(
+                "data_source_account_id_account_fkey", type_="foreignkey"
+            )
+
+        # Drop the user_id FK if it exists (may have auto-generated name)
+        for fk_name in existing_fk_names:
+            if "user_id" in fk_name:
+                batch_op.drop_constraint(fk_name, type_="foreignkey")
+                break
 
 
 def downgrade():
     with op.batch_alter_table("data_source", schema=None) as batch_op:
         batch_op.create_foreign_key(
-            "data_sources_user_id_fkey",
+            "data_source_user_id_fkey",
             "fm_user",
             ["user_id"],
             ["id"],
         )
         batch_op.create_foreign_key(
-            op.f("data_source_account_id_account_fkey"),
+            "data_source_account_id_account_fkey",
             "account",
             ["account_id"],
             ["id"],
