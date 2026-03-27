@@ -13,6 +13,7 @@ from timely_beliefs import BeliefsDataFrame
 
 from flexmeasures import Sensor, Source
 from flexmeasures.data import db
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.forecasting.utils import data_to_bdf
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.utils import save_to_db
@@ -83,7 +84,7 @@ class PredictPipeline(BasePipeline):
         self.quantiles = tuple(quantiles) if quantiles else None
         self.forecast_horizon = np.arange(1, max_forecast_horizon + 1)
         self.forecast_frequency = forecast_frequency
-        self.sensor_to_save = sensor_to_save
+        self.sensor_to_save = self._get_attached_sensor(sensor_to_save)
         self.predict_start = predict_start
         self.predict_end = predict_end
 
@@ -92,7 +93,22 @@ class PredictPipeline(BasePipeline):
         self.total_forecast_hours = (
             self.max_forecast_horizon * self.sensor_resolution.total_seconds() / 3600
         )
-        self.data_source = data_source
+        self.data_source = self._get_attached_data_source(data_source)
+
+    @staticmethod
+    def _get_attached_data_source(
+        data_source: Source | int | None,
+    ) -> DataSource | None:
+        """Reload the prediction source through the active session before saving beliefs."""
+        if data_source is None:
+            return None
+        source_id = (
+            data_source.id if isinstance(data_source, DataSource) else data_source
+        )
+        attached_source = db.session.get(DataSource, source_id)
+        if attached_source is None:
+            raise ValueError(f"Could not load data source with id {source_id}.")
+        return attached_source
 
     def load_model(self):
         """

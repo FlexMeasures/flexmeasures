@@ -13,14 +13,39 @@ from sqlalchemy import inspect as sa_inspect
 from flask import current_app
 
 from flexmeasures.data import db
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.models.forecasting.pipelines.predict import PredictPipeline
 from flexmeasures.data.models.forecasting.pipelines.train import TrainPipeline
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.forecasting.pipeline import (
     ForecasterParametersSchema,
     TrainPredictPipelineConfigSchema,
 )
 from flexmeasures.utils.flexmeasures_inflection import p
+
+
+def run_train_predict_cycle_job(
+    config: dict,
+    parameters: dict,
+    data_source_id: int,
+    delete_model: bool,
+    **cycle_params,
+):
+    """Reconstruct pipeline state inside the worker to avoid pickling ORM objects."""
+    pipeline = TrainPredictPipeline(config=config, delete_model=delete_model)
+    pipeline._parameters = pipeline._parameters_schema.load(parameters)
+    pipeline._data_source = db.session.get(DataSource, data_source_id)
+    return pipeline.run_cycle(**cycle_params)
+
+
+def run_train_predict_wrap_up_job(cycle_job_ids: list[str]):
+    """Log the status of all cycle jobs after completion."""
+    connection = current_app.queues["forecasting"].connection
+
+    for index, job_id in enumerate(cycle_job_ids):
+        status = Job.fetch(job_id, connection=connection).get_status()
+        logging.info(f"forecasting job-{index}: {job_id} status: {status}")
 
 
 class TrainPredictPipeline(Forecaster):
@@ -63,11 +88,7 @@ class TrainPredictPipeline(Forecaster):
 
     def run_wrap_up(self, cycle_job_ids: list[str]):
         """Log the status of all cycle jobs after completion."""
-        connection = current_app.queues["forecasting"].connection
-
-        for index, job_id in enumerate(cycle_job_ids):
-            status = Job.fetch(job_id, connection=connection).get_status()
-            logging.info(f"forecasting job-{index}: {job_id} status: {status}")
+        run_train_predict_wrap_up_job(cycle_job_ids)
 
     def run_cycle(
         self,
@@ -82,6 +103,7 @@ class TrainPredictPipeline(Forecaster):
         """
         Runs a single training and prediction cycle.
         """
+        self._reattach_worker_state()
         logging.info(
             f"Starting Train-Predict cycle from {train_start} to {predict_end}"
         )
@@ -182,6 +204,46 @@ class TrainPredictPipeline(Forecaster):
             {"data": forecasts, "sensor": self._parameters["sensor"]}
         )
         return total_runtime
+
+    @staticmethod
+    def _get_attached_sensor(sensor: Sensor | int) -> Sensor:
+        sensor_id = sensor.id if isinstance(sensor, Sensor) else sensor
+        attached_sensor = db.session.get(Sensor, sensor_id)
+        if attached_sensor is None:
+            raise ValueError(f"Could not load sensor with id {sensor_id}.")
+        return attached_sensor
+
+    @staticmethod
+    def _get_attached_data_source(
+        data_source: DataSource | int | None,
+    ) -> DataSource | None:
+        if data_source is None:
+            return None
+        source_id = (
+            data_source.id if isinstance(data_source, DataSource) else data_source
+        )
+        attached_source = db.session.get(DataSource, source_id)
+        if attached_source is None:
+            raise ValueError(f"Could not load data source with id {source_id}.")
+        return attached_source
+
+    def _reattach_worker_state(self) -> None:
+        """Reload ORM objects through the worker's active session."""
+        self._config["future_regressors"] = [
+            self._get_attached_sensor(sensor)
+            for sensor in self._config["future_regressors"]
+        ]
+        self._config["past_regressors"] = [
+            self._get_attached_sensor(sensor)
+            for sensor in self._config["past_regressors"]
+        ]
+        self._parameters["sensor"] = self._get_attached_sensor(
+            self._parameters["sensor"]
+        )
+        self._parameters["sensor_to_save"] = self._get_attached_sensor(
+            self._parameters["sensor_to_save"]
+        )
+        self._data_source = self._get_attached_data_source(self.data_source)
 
     def _compute_forecast(self, as_job: bool = False, **kwargs) -> list[dict[str, Any]]:
         # Run the train-and-predict pipeline
@@ -295,11 +357,11 @@ class TrainPredictPipeline(Forecaster):
         if as_job:
             cycle_job_ids = []
 
-            # Ensure the data source is attached to the current session before
-            # committing. get_or_create_source() only flushes (does not commit), so
-            # without this merge the data source would not be found by the worker.
-            db.session.merge(self.data_source)
+            # Ensure the data source ID is available in the database when the job runs.
+            self._data_source = db.session.merge(self.data_source)
             db.session.commit()
+            serialized_config = self._config_schema.dump(self._config)
+            serialized_parameters = self._parameters_schema.dump(self._parameters)
 
             # job metadata for tracking
             # Serialize start and end to ISO format strings
@@ -313,9 +375,16 @@ class TrainPredictPipeline(Forecaster):
             for cycle_params in cycles_job_params:
 
                 job = Job.create(
-                    self.run_cycle,
+                    run_train_predict_cycle_job,
                     # Some cycle job params override job kwargs
-                    kwargs={**job_kwargs, **cycle_params},
+                    kwargs={
+                        **job_kwargs,
+                        "config": serialized_config,
+                        "parameters": serialized_parameters,
+                        "data_source_id": self.data_source.id,
+                        "delete_model": self.delete_model,
+                        **cycle_params,
+                    },
                     connection=current_app.queues[queue].connection,
                     ttl=int(
                         current_app.config.get(
@@ -343,7 +412,7 @@ class TrainPredictPipeline(Forecaster):
                 )
 
             wrap_up_job = Job.create(
-                self.run_wrap_up,
+                run_train_predict_wrap_up_job,
                 kwargs={"cycle_job_ids": cycle_job_ids},  # cycles jobs IDs to wait for
                 connection=current_app.queues[queue].connection,
                 depends_on=cycle_job_ids,  # wrap-up job depends on all cycle jobs
@@ -359,8 +428,15 @@ class TrainPredictPipeline(Forecaster):
             if len(cycle_job_ids) > 1:
                 # Return the wrap-up job ID if multiple cycle jobs are queued
                 return {"job_id": wrap_up_job.id, "n_jobs": len(cycle_job_ids)}
+                return {"job_id": wrap_up_job.id, "n_jobs": len(cycle_job_ids)}
             else:
                 # Return the single cycle job ID if only one job is queued
+                return {
+                    "job_id": (
+                        cycle_job_ids[0] if len(cycle_job_ids) == 1 else wrap_up_job.id
+                    ),
+                    "n_jobs": 1,
+                }
                 return {
                     "job_id": (
                         cycle_job_ids[0] if len(cycle_job_ids) == 1 else wrap_up_job.id
