@@ -1076,6 +1076,9 @@ class MetaStorageScheduler(Scheduler):
 
         We search for a nearby SoC value in the interval
         ``[self.start - 4 * resolution, self.start + 4 * resolution]``.
+        Using four resolution steps keeps the lookup tolerant to small timing
+        offsets while still rejecting stale values. For example, a 15-minute
+        resolution yields a 1-hour lookup radius.
 
         :param sensor: Optional sensor whose resolution should be used.
         :returns:      Half-width of the SoC lookup interval.
