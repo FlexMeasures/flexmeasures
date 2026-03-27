@@ -251,6 +251,27 @@ The coordinator will:
 - Update agent instructions as recommended
 - Make atomic commits for each agent update
 
+### Must Not Create PRs Prematurely
+
+**PR numbers are a scarce, sequential, public resource. Never open a PR until there is at least one meaningful, non-empty commit to push.**
+
+Before opening a PR:
+- [ ] At least one commit exists that contains real code, documentation, or configuration changes
+- [ ] The commit is not a placeholder, empty fix, or "initial commit" with no substance
+- [ ] The work is far enough along that reviewers have something concrete to look at
+
+**Why this matters:**
+- PR numbers are permanently consumed and visible in the project history
+- An empty or trivially-small PR wastes a number and clutters the timeline
+- Reviewers expect a PR to contain reviewable work
+
+**Failure mode to avoid:**
+- Opening a PR "to track the work" before any commits exist
+- Creating a PR just to reserve a number
+- Opening a PR with only a changelog or documentation stub and no substantive change
+
+* * *
+
 ### Must Add Changelog Entry
 
 **Every PR or task MUST include a changelog entry.**
