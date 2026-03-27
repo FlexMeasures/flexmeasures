@@ -295,7 +295,7 @@ def format_json_field_change(field_name: str, old_value, new_value) -> str:
     ...     ],
     ... }
     >>> format_json_field_change(**json)
-    'Updated sensors_to_show:\\n1. Changed graph 1 (Power): added sensors [2]; added plot 2: {"sensor": 2}\\n2. Added graph 2: "Price" (sensors [3])'
+    'Updated sensors_to_show:\\n1. Changed graph 1 (Power): added plot 2: {"sensor": 2}\\n2. Added graph 2: "Price" (sensors [3])'
     """
     try:
         if field_name == "sensors_to_show":
