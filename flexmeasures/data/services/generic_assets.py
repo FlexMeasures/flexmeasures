@@ -55,35 +55,81 @@ def _sensor_ids_in_graph(graph) -> list:
     return ids
 
 
+def _describe_plot_key_changes(
+    old_plot: dict, new_plot: dict, plot_number: int
+) -> list:
+    """Describe field-level changes between two plots."""
+    changes = []
+    all_keys = sorted(set(old_plot) | set(new_plot))
+    for key in all_keys:  # for instance, flex-context and flex-model
+        ov = old_plot.get(key)
+        nv = new_plot.get(key)
+        if ov == nv:
+            continue
+        if ov is None:
+            changes.append(f'plot {plot_number}: set {key} to "{nv}"')
+        elif nv is None:
+            changes.append(f"plot {plot_number}: removed {key}")
+        else:
+            changes.append(f'plot {plot_number}: {key} "{ov}" → "{nv}"')
+    return changes
+
+
+def _describe_plot_replace_block(
+    old_plots: list, new_plots: list, i1: int, i2: int, j1: int, j2: int
+) -> list:
+    """Describe a replacement block produced by SequenceMatcher opcodes."""
+    import json as _json
+
+    changes = []
+    shared = min(i2 - i1, j2 - j1)
+    for offset in range(shared):
+        pi = i1 + offset
+        pj = j1 + offset
+        changes.extend(_describe_plot_key_changes(old_plots[pi], new_plots[pj], pj + 1))
+
+    for pi in range(i1 + shared, i2):
+        changes.append(f"removed plot {pi + 1}")
+    for pj in range(j1 + shared, j2):
+        changes.append(f"added plot {pj + 1}: {_json.dumps(new_plots[pj])}")
+    return changes
+
+
 def _describe_plot_changes(old_plots: list, new_plots: list) -> list:
     """Describe changes between old and new plots.
 
     Compares all keys generically rather than a fixed set, so future
     additions to the plot schema are diffed automatically.
     """
+    import difflib as _difflib
     import json as _json
 
     changes = []
-    max_len = max(len(old_plots), len(new_plots))
-    for pi in range(max_len):
-        if pi >= len(old_plots):
-            changes.append(f"added plot {pi + 1}: {_json.dumps(new_plots[pi])}")
-        elif pi >= len(new_plots):
-            changes.append(f"removed plot {pi + 1}")
-        else:
-            old_plot, new_plot = old_plots[pi], new_plots[pi]
-            all_keys = sorted(set(old_plot) | set(new_plot))
-            for key in all_keys:  # for instance, flex-context and flex-model
-                ov = old_plot.get(key)
-                nv = new_plot.get(key)
-                if ov == nv:
-                    continue
-                if ov is None:
-                    changes.append(f'plot {pi + 1}: set {key} to "{nv}"')
-                elif nv is None:
-                    changes.append(f"plot {pi + 1}: removed {key}")
-                else:
-                    changes.append(f'plot {pi + 1}: {key} "{ov}" → "{nv}"')
+    old_serialized = [_json.dumps(p, sort_keys=True) for p in old_plots]
+    new_serialized = [_json.dumps(p, sort_keys=True) for p in new_plots]
+
+    matcher = _difflib.SequenceMatcher(
+        a=old_serialized, b=new_serialized, autojunk=False
+    )
+
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+
+        if tag == "delete":
+            for pi in range(i1, i2):
+                changes.append(f"removed plot {pi + 1}")
+            continue
+
+        if tag == "insert":
+            for pj in range(j1, j2):
+                changes.append(f"added plot {pj + 1}: {_json.dumps(new_plots[pj])}")
+            continue
+
+        changes.extend(
+            _describe_plot_replace_block(old_plots, new_plots, i1, i2, j1, j2)
+        )
+
     return changes
 
 
@@ -95,15 +141,6 @@ def _describe_graph_changes(old_graph, new_graph, index: int) -> str | None:
     sub = []
     if old_title != new_title:
         sub.append(f'title: "{old_title}" → "{new_title}"')
-
-    old_ids = _sensor_ids_in_graph(old_graph)
-    new_ids = _sensor_ids_in_graph(new_graph)
-    added_ids = [s for s in new_ids if s not in old_ids]
-    removed_ids = [s for s in old_ids if s not in new_ids]
-    if added_ids:
-        sub.append(f"added sensors {added_ids}")
-    if removed_ids:
-        sub.append(f"removed sensors {removed_ids}")
 
     old_plots = old_graph.get("plots", [])
     new_plots = new_graph.get("plots", [])

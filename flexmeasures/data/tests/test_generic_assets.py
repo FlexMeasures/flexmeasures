@@ -85,3 +85,54 @@ def test_format_json_field_change_reports_nested_flex_model_changes():
     change = format_json_field_change("flex_model", old_value, new_value)
 
     assert change == "Updated flex_model:\n1. Changed soc-usage[1].sensor: 7 → 8"
+
+
+def test_format_json_field_change_handles_removed_middle_plot_without_false_replace():
+    old_value = [
+        {
+            "title": "Storages SoC",
+            "plots": [
+                {"sensor": 1},
+                {"sensor": 2, "flex-model": "soc-max"},
+                {"sensor": 2, "flex-model": "soc-min"},
+            ],
+        }
+    ]
+    new_value = [
+        {
+            "title": "Storages SoC",
+            "plots": [
+                {"sensor": 1},
+                {"sensor": 2, "flex-model": "soc-min"},
+            ],
+        }
+    ]
+
+    change = format_json_field_change("sensors_to_show", old_value, new_value)
+
+    assert (
+        change
+        == "Updated sensors_to_show:\n1. Changed graph 1 (Storages SoC): removed plot 2"
+    )
+
+
+def test_format_json_field_change_does_not_duplicate_added_sensor_messages():
+    old_value = [
+        {
+            "title": "Site capacity",
+            "plots": [{"sensor": 10}, {"sensor": 11}],
+        }
+    ]
+    new_value = [
+        {
+            "title": "Site capacity",
+            "plots": [{"sensor": 10}, {"sensor": 11}, {"sensor": 46903}],
+        }
+    ]
+
+    change = format_json_field_change("sensors_to_show", old_value, new_value)
+
+    assert (
+        change
+        == 'Updated sensors_to_show:\n1. Changed graph 1 (Site capacity): added plot 3: {"sensor": 46903}'
+    )
