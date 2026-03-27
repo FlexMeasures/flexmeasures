@@ -270,6 +270,42 @@ Before opening a PR:
 - Creating a PR just to reserve a number
 - Opening a PR with only a changelog or documentation stub and no substantive change
 
+### Must Use the PR Template
+
+**Every new PR MUST be opened using `.github/PULL_REQUEST_TEMPLATE.md` as the description base.**
+
+The template sections are:
+
+| Section | What to fill in |
+|---|---|
+| **Description** | Bullet-point summary of changes; tick the changelog checkbox when done |
+| **Look & Feel** | Screenshots, CLI output, or API request/response examples (write `N/A` if not applicable) |
+| **How to test** | Concrete steps or test function names |
+| **Further Improvements** | Known gaps, follow-up issues |
+| **Related Items** | Closes #issue or links to related PRs/discussions |
+| **Sign-off** | Tick both boxes for external contributors |
+
+**Why this matters:**
+- Reviewers get consistent, predictable structure
+- Changelog and test instructions are never accidentally omitted
+- Template checklist prevents common omissions
+
+### Must Not Overwrite Existing PR Titles or Descriptions
+
+**Never replace an existing PR title or description wholesale when following up on comments or reviews.**
+
+When a PR already exists and you are continuing work on it:
+- **Titles**: Keep the existing title unless the scope genuinely changed. If scope changed, *amend* the title to reflect the full scope — old work plus new work.
+- **Descriptions**: Append or update individual bullet points. Do not discard what is already written.
+- **Scope changes**: If new work broadens the PR, add bullet points that describe the additions while keeping the original bullets intact. The description must always accurately represent *all* work done in the PR, not just the latest increment.
+
+**Failure mode to avoid:**
+- Responding to a review comment by rewriting the description from scratch
+- Replacing the title with one that only describes the follow-up change, erasing the original intent
+- Leaving the description stale after adding new commits (it must stay in sync with the actual diff)
+
+**Practical rule**: treat the PR description like a living document — edit it surgically, never overwrite it.
+
 * * *
 
 ### Must Add Changelog Entry
