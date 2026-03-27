@@ -23,7 +23,7 @@ Infrastructure / Support
 * Improve contact information to get in touch with the FlexMeasures community [see `PR #2022 <https://www.github.com/FlexMeasures/flexmeasures/pull/2022>`_]
 * Expand audit logging for password life-cycle: password_reset, password_changed and reset_password_instructions_sent events [see `PR #2036 <https://github.com/FlexMeasures/flexmeasures/pull/2036>`_]
 * Upgraded some dependencies for security reasons [see `PR #2037 <https://www.github.com/FlexMeasures/flexmeasures/pull/2037>`_]
-* Update agent instructions and workflows to customize the primary entry point and to make the test environment used by agents and by the test workflow identical [see `PR #2066 <https://www.github.com/FlexMeasures/flexmeasures/pull/2066>`_ and `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_]
+* Update agent instructions and workflows to customize the primary entry point and to make the test environment used by agents and by the test workflow identical [see `PR #2066 <https://www.github.com/FlexMeasures/flexmeasures/pull/2066>`_, `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_ and `PR #2068 <https://www.github.com/FlexMeasures/flexmeasures/pull/2068>`_]
 
 Bugfixes
 -----------
