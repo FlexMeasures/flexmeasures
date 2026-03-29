@@ -25,6 +25,7 @@ Infrastructure / Support
 * Upgraded some dependencies for security reasons [see `PR #2037 <https://www.github.com/FlexMeasures/flexmeasures/pull/2037>`_]
 * Improve error logging for various exceptions [see `PR #2045 <https://www.github.com/FlexMeasures/flexmeasures/pull/2045>`_]
 * Update agent instructions and workflows to customize the primary entry point and to make the test environment used by agents and by the test workflow identical [see `PR #2066 <https://www.github.com/FlexMeasures/flexmeasures/pull/2066>`_, `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_ and `PR #2068 <https://www.github.com/FlexMeasures/flexmeasures/pull/2068>`_]
+* Filter out 404 (Not Found) errors from Sentry reports by default, configurable via ``FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY`` [see `PR #2071 <https://www.github.com/FlexMeasures/flexmeasures/pull/2071>`_]
 
 Bugfixes
 -----------
