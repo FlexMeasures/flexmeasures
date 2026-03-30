@@ -66,6 +66,7 @@ from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
 )
+from flexmeasures.data.models.planning.storage import SCHEDULING_RESULT_KEY
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.unit_utils import convert_units
@@ -1107,7 +1108,7 @@ class SensorAPI(FlaskView):
 
         # Returns None if the job predates the scheduling_result feature (no meta key),
         # or the dict with unresolved_targets if computed.
-        scheduling_result = job.meta.get("scheduling_result")
+        scheduling_result = job.meta.get(SCHEDULING_RESULT_KEY)
         d, s = request_processed(scheduler_info_msg)
         return (
             dict(

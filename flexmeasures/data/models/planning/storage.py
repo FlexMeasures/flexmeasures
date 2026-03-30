@@ -45,6 +45,10 @@ from flexmeasures.utils.unit_utils import ur, convert_units
 
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
 
+#: Key used to store and retrieve the ``SchedulingJobResult`` in RQ job metadata
+#: and in the multi-result list returned by ``StorageScheduler.compute()``.
+SCHEDULING_RESULT_KEY = "scheduling_result"
+
 
 class MetaStorageScheduler(Scheduler):
     """This class defines the constraints of a schedule for a storage device from the
@@ -1410,6 +1414,7 @@ class StorageScheduler(MetaStorageScheduler):
                   unmet target.  ``delta`` equals scheduled SoC minus target value (negative
                   means the SoC is below the minimum; positive means it exceeds the maximum).
         """
+        # Use the configured rounding precision, or the scheduler's default of 6.
         precision = self.round_to_decimals if self.round_to_decimals is not None else 6
         # Collect the earliest violation per constraint type across all devices.
         earliest_minima: dict | None = None
@@ -1625,7 +1630,7 @@ class StorageScheduler(MetaStorageScheduler):
             ]
             scheduling_result = [
                 {
-                    "name": "scheduling_result",
+                    "name": SCHEDULING_RESULT_KEY,
                     "data": SchedulingJobResult(unresolved_targets=unresolved_targets),
                 }
             ]

@@ -27,7 +27,10 @@ from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
-from flexmeasures.data.models.planning.storage import StorageScheduler
+from flexmeasures.data.models.planning.storage import (
+    StorageScheduler,
+    SCHEDULING_RESULT_KEY,
+)
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.models.planning.process import ProcessScheduler
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -632,8 +635,8 @@ def make_schedule(  # noqa: C901
 
     # Save any result that specifies a sensor to save it to
     for result in consumption_schedule:
-        if result.get("name") == "scheduling_result" and rq_job:
-            rq_job.meta["scheduling_result"] = result["data"].to_dict()
+        if result.get("name") == SCHEDULING_RESULT_KEY and rq_job:
+            rq_job.meta[SCHEDULING_RESULT_KEY] = result["data"].to_dict()
             rq_job.save_meta()
             continue
         if "sensor" not in result:
