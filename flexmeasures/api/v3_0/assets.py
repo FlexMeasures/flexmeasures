@@ -163,7 +163,7 @@ class KPIKwargsSchema(Schema):
 
 class CopyAssetSchema(Schema):
     account = AccountIdField(
-        data_key="account_id",
+        data_key="account",
         required=False,
         metadata=dict(
             description="Target account to copy the asset to.",
@@ -171,7 +171,7 @@ class CopyAssetSchema(Schema):
         ),
     )
     parent_asset = AssetIdField(
-        data_key="parent_id",
+        data_key="parent",
         required=False,
         metadata=dict(
             description="Target parent asset to copy the asset under.",
@@ -1621,14 +1621,14 @@ class AssetAPI(FlaskView):
 
             Parameters are passed as query parameters:
 
-            - `account_id`: target account id
-            - `parent_id`: target parent asset id
+            - `account`: target account id
+            - `parent`: target parent asset id
 
             Resolution rules:
 
             - If both are omitted, the copy remains in the same account and keeps the same parent.
-            - If `account` is provided and `parent_asset` is omitted, parent defaults to `null`.
-            - If `parent_asset` is provided and `account` is omitted, account is derived from that parent.
+            - If `account` is provided and `parent` is omitted, parent defaults to `null`.
+            - If `parent` is provided and `account` is omitted, account is derived from that parent.
             - If both are provided, it is possible to assign the copied asset to a different account than the parent.
 
           security:
@@ -1642,14 +1642,14 @@ class AssetAPI(FlaskView):
                 type: integer
                 format: int32
             - in: query
-              name: account_id
+              name: account
               description: Target account id.
               required: false
               schema:
                 type: integer
                 format: int32
             - in: query
-              name: parent_id
+              name: parent
               description: Target parent asset id.
               required: false
               schema:
@@ -1694,8 +1694,8 @@ class AssetAPI(FlaskView):
 
         new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)
 
-        account_given = "account_id" in request.args
-        parent_given = "parent_id" in request.args
+        account_given = "account" in request.args
+        parent_given = "parent" in request.args
 
         if not parent_given and not account_given:
             message = f"Successfully copied asset {asset.id}."
