@@ -962,39 +962,30 @@ def test_copy_asset_replaces_sensor_refs_in_config(
     Sensor references that belong to PUBLIC assets (account_id=None, e.g. a public
     price sensor) must be left unchanged.
 
-    Sensor references that belong to assets within the SAME SITE (same highest
-    ancestor asset) must be left unchanged.
-
-    Sensor references that belong to PRIVATE assets outside the site must be
-    removed from the config.
+    Sensor references that belong to PRIVATE assets not in the copied subtree must
+    be removed from the config.
 
     Asset layout:
 
-    Site  (Prosumer account, no parent – the site asset)
-    └── Battery  (EMS, Prosumer account)
-        ├── sensor_internal  – belongs to Battery, referenced in flex_context
-        ├── flex_context:
-        │     "consumption-capacity": {"sensor": <sensor_internal.id>}   ← internal (copied)
-        │     "production-price":     {"sensor": <price_sensor.id>}      ← external public
-        │     "private-external":     {"sensor": <private_ext_sensor.id>}← external private → removed
-        │     "site-sensor":          {"sensor": <sibling_sensor.id>}    ← same site → preserved
-        ├── flex_model:
-        │     "soc-min": "700.0 kWh"                                     ← no sensor
-        │     "consumption-capacity": {"sensor": <sensor_internal.id>}   ← internal (copied)
-        ├── sensors_to_show:
-        │     [{"title": "Chart", "plots": [
-        │         {"sensor": <sensor_internal.id>},                       ← internal (copied)
-        │         {"sensors": [<sensor_internal.id>, <price_sensor.id>,   ← mixed: internal/public/private/site
-        │                      <private_ext_sensor.id>, <sibling_sensor.id>]}
-        │     ]}]
-
-    Sibling  (Prosumer account, child of Site)
-    └── sibling_sensor  – belongs to Sibling, referenced from Battery → same site → preserved
+    Battery  (EMS, Prosumer account)
+    ├── sensor_internal  – belongs to Battery, referenced in flex_context
+    ├── flex_context:
+    │     "consumption-capacity": {"sensor": <sensor_internal.id>}   ← internal (copied)
+    │     "production-price":     {"sensor": <price_sensor.id>}      ← external public
+    │     "private-external":     {"sensor": <private_ext_sensor.id>}← external private → removed
+    ├── flex_model:
+    │     "soc-min": "700.0 kWh"                                     ← no sensor
+    │     "consumption-capacity": {"sensor": <sensor_internal.id>}   ← internal (copied)
+    ├── sensors_to_show:
+    │     [{"title": "Chart", "plots": [
+    │         {"sensor": <sensor_internal.id>},                       ← internal (copied)
+    │         {"sensors": [<sensor_internal.id>, <price_sensor.id>,   ← mixed: internal/public/private
+    │                      <private_ext_sensor.id>]}
+    │     ]}]
 
     After copying:
     - References to sensor_internal        → replaced with new copied sensor's ID
     - References to price_sensor (public)  → unchanged
-    - References to sibling_sensor (site)  → unchanged (same site as battery)
     - References to private_ext_sensor     → removed entirely
     """
     prosumer_account = setup_accounts["Prosumer"]
@@ -1023,40 +1014,12 @@ def test_copy_asset_replaces_sensor_refs_in_config(
     db.session.add(private_ext_sensor)
     db.session.flush()
 
-    # Site asset: the highest ancestor (the "site").
-    site_asset = GenericAsset(
-        name="Site for sensor ref test",
-        generic_asset_type_id=asset_type.id,
-        account_id=prosumer_account.id,
-    )
-    db.session.add(site_asset)
-    db.session.flush()
-
     battery = GenericAsset(
         name="Battery for sensor ref test",
         generic_asset_type_id=asset_type.id,
         account_id=prosumer_account.id,
-        parent_asset_id=site_asset.id,
     )
     db.session.add(battery)
-    db.session.flush()
-
-    # Sibling asset under the same site – its sensor should be preserved in copies.
-    sibling_asset = GenericAsset(
-        name="Sibling asset for sensor ref test",
-        generic_asset_type_id=asset_type.id,
-        account_id=prosumer_account.id,
-        parent_asset_id=site_asset.id,
-    )
-    db.session.add(sibling_asset)
-    db.session.flush()
-    sibling_sensor = Sensor(
-        name="sibling sensor",
-        generic_asset=sibling_asset,
-        event_resolution=timedelta(minutes=15),
-        unit="kW",
-    )
-    db.session.add(sibling_sensor)
     db.session.flush()
 
     sensor_internal = Sensor(
@@ -1072,7 +1035,6 @@ def test_copy_asset_replaces_sensor_refs_in_config(
         "consumption-capacity": {"sensor": sensor_internal.id},
         "production-price": {"sensor": price_sensor.id},
         "private-external": {"sensor": private_ext_sensor.id},
-        "site-sensor": {"sensor": sibling_sensor.id},
     }
     battery.flex_model = {
         "soc-min": "700.0 kWh",
@@ -1088,7 +1050,6 @@ def test_copy_asset_replaces_sensor_refs_in_config(
                         sensor_internal.id,
                         price_sensor.id,
                         private_ext_sensor.id,
-                        sibling_sensor.id,
                     ]
                 },
             ],
@@ -1107,12 +1068,11 @@ def test_copy_asset_replaces_sensor_refs_in_config(
     new_sensor = copied_sensors[0]
     assert new_sensor.id != sensor_internal.id
 
-    # flex_context: internal replaced, public preserved, same-site preserved, private removed.
+    # flex_context: internal replaced, public external preserved, private external removed.
     assert battery_copy.flex_context["consumption-capacity"] == {
         "sensor": new_sensor.id
     }
     assert battery_copy.flex_context["production-price"] == {"sensor": price_sensor.id}
-    assert battery_copy.flex_context["site-sensor"] == {"sensor": sibling_sensor.id}
     assert "private-external" not in battery_copy.flex_context
 
     # flex_model: internal replaced, plain string preserved.
@@ -1120,12 +1080,10 @@ def test_copy_asset_replaces_sensor_refs_in_config(
     assert battery_copy.flex_model["soc-min"] == "700.0 kWh"
 
     # sensors_to_show: single-sensor plot with private external is removed from plots;
-    # multi-sensor list has private external ID filtered out; same-site ID preserved.
+    # multi-sensor list has private external ID filtered out.
     chart = battery_copy.sensors_to_show[0]
     assert chart["plots"][0] == {"sensor": new_sensor.id}
-    assert chart["plots"][1] == {
-        "sensors": [new_sensor.id, price_sensor.id, sibling_sensor.id]
-    }
+    assert chart["plots"][1] == {"sensors": [new_sensor.id, price_sensor.id]}
 
     # Original asset config must not be mutated.
     assert battery.flex_context["consumption-capacity"] == {
