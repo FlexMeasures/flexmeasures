@@ -15,23 +15,30 @@ class SchedulingJobResult:
     """
 
     unresolved_targets: dict = field(default_factory=dict)
-    """First unmet ``soc-minima`` and/or ``soc-maxima`` targets, if any.
+    """First unmet ``soc-minima`` and/or ``soc-maxima`` targets, per sensor.
 
-    Each present key maps to a dict with:
+    The outer dict is keyed by sensor ID string (``str(sensor.id)``): the
+    state-of-charge sensor if the device has one, otherwise the power sensor.
+    Each value is a dict with constraint-type keys (``"soc-minima"`` and/or
+    ``"soc-maxima"``), each mapping to:
 
-    - ``"datetime"``: ISO 8601 timestamp of the first violated constraint.
-    - ``"delta"``: Signed difference (scheduled SoC minus target value) in MWh.
-      A negative ``delta`` for ``soc-minima`` means the SoC is below the minimum;
-      a positive ``delta`` for ``soc-maxima`` means the SoC exceeds the maximum.
+    - ``"datetime"``: ISO 8601 UTC timestamp of the first violated constraint.
+    - ``"delta"``: Always-positive magnitude of the violation in kWh,
+      formatted as e.g. ``"260.0 kWh"``.
+      For ``soc-minima`` this is the shortage (SoC fell short by this amount);
+      for ``soc-maxima`` this is the excess (SoC exceeded the target by this amount).
+
+    An empty dict means all targets have been met.
 
     Example::
 
         {
-            "soc-minima": {"datetime": "2024-01-01T10:00:00+00:00", "delta": -0.5},
-            "soc-maxima": {"datetime": "2024-01-01T14:00:00+00:00", "delta": 0.3},
+            "42": {
+                "soc-minima": {"datetime": "2024-01-01T10:00:00+00:00", "delta": "260.0 kWh"},
+            },
         }
 
-    If a constraint type has no violation the key is absent.
+    Devices with no violations are absent from the outer dict.
     """
 
     def to_dict(self) -> dict:

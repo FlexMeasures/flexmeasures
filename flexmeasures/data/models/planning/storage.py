@@ -1391,11 +1391,11 @@ class StorageScheduler(MetaStorageScheduler):
         end: datetime,
         resolution: timedelta,
     ) -> dict:
-        """Compute the first unmet SoC minima and maxima targets across all scheduled devices.
+        """Compute the first unmet SoC minima and maxima targets per device.
 
         For each device that has ``soc-minima`` or ``soc-maxima`` constraints in the flex model,
-        compares the computed MWh SoC schedule against those constraints.  The earliest-in-time
-        violation of each type, *across all devices*, is returned.
+        compares the computed MWh SoC schedule against those constraints and records the first
+        violation per constraint type for that device.
 
         Constraints are evaluated over the window ``(start + resolution, end)`` (i.e. the
         first scheduled slot through the end of the schedule).  The ``start`` slot itself is
@@ -1409,23 +1409,32 @@ class StorageScheduler(MetaStorageScheduler):
         :param start:             Start of the schedule.
         :param end:               End of the schedule.
         :param resolution:        Schedule resolution.
-        :returns: dict with keys ``"soc-minima"`` and/or ``"soc-maxima"``, each containing
-                  ``{"datetime": <ISO 8601 UTC string>, "delta": <float MWh>}`` for the first
-                  unmet target.  ``delta`` equals scheduled SoC minus target value (negative
-                  means the SoC is below the minimum; positive means it exceeds the maximum).
+        :returns: dict keyed by sensor ID string (state-of-charge sensor if available,
+                  else power sensor).  Each value is a dict with keys ``"soc-minima"``
+                  and/or ``"soc-maxima"`` (only present when a violation exists), each
+                  containing ``{"datetime": <ISO 8601 UTC string>, "delta": "<value> kWh"}``
+                  where ``delta`` is always positive: the shortage for ``soc-minima`` and
+                  the excess for ``soc-maxima``.  An empty dict means all targets were met.
         """
         # Use the configured rounding precision, or the scheduler's default of 6.
         precision = self.round_to_decimals if self.round_to_decimals is not None else 6
-        # Collect the earliest violation per constraint type across all devices.
-        earliest_minima: dict | None = None
-        earliest_minima_time: pd.Timestamp | None = None
-        earliest_maxima: dict | None = None
-        earliest_maxima_time: pd.Timestamp | None = None
+
+        result: dict = {}
 
         for d, flex_model_d in enumerate(flex_model):
             soc_mwh = soc_schedule_mwh.get(d)
             if soc_mwh is None:
                 continue
+
+            # Determine the key for this device: prefer SoC sensor, fall back to power sensor.
+            state_of_charge_sensor = flex_model_d.get("state_of_charge")
+            if isinstance(state_of_charge_sensor, Sensor):
+                device_key = str(state_of_charge_sensor.id)
+            else:
+                power_sensor = flex_model_d.get("sensor")
+                device_key = str(power_sensor.id)
+
+            device_violations: dict = {}
 
             # Check soc_minima (first time slot where scheduled SoC < minima)
             soc_minima_d = flex_model_d.get("soc_minima")
@@ -1442,19 +1451,15 @@ class StorageScheduler(MetaStorageScheduler):
                 defined_minima = soc_minima_series.dropna()
                 if len(defined_minima) > 0:
                     aligned_soc = soc_mwh.reindex(defined_minima.index)
-                    deltas = aligned_soc - defined_minima
-                    violations = deltas[deltas < 0]
+                    shortages = defined_minima - aligned_soc
+                    violations = shortages[shortages > 0]
                     if not violations.empty:
                         first_t = violations.index[0]
-                        if (
-                            earliest_minima_time is None
-                            or first_t < earliest_minima_time
-                        ):
-                            earliest_minima_time = first_t
-                            earliest_minima = {
-                                "datetime": first_t.tz_convert("UTC").isoformat(),
-                                "delta": round(float(deltas[first_t]), precision),
-                            }
+                        delta_kwh = round(float(violations[first_t]) * 1000, precision)
+                        device_violations["soc-minima"] = {
+                            "datetime": first_t.tz_convert("UTC").isoformat(),
+                            "delta": f"{delta_kwh} kWh",
+                        }
 
             # Check soc_maxima (first time slot where scheduled SoC > maxima)
             soc_maxima_d = flex_model_d.get("soc_maxima")
@@ -1471,25 +1476,19 @@ class StorageScheduler(MetaStorageScheduler):
                 defined_maxima = soc_maxima_series.dropna()
                 if len(defined_maxima) > 0:
                     aligned_soc = soc_mwh.reindex(defined_maxima.index)
-                    deltas = aligned_soc - defined_maxima
-                    violations = deltas[deltas > 0]
+                    excesses = aligned_soc - defined_maxima
+                    violations = excesses[excesses > 0]
                     if not violations.empty:
                         first_t = violations.index[0]
-                        if (
-                            earliest_maxima_time is None
-                            or first_t < earliest_maxima_time
-                        ):
-                            earliest_maxima_time = first_t
-                            earliest_maxima = {
-                                "datetime": first_t.tz_convert("UTC").isoformat(),
-                                "delta": round(float(deltas[first_t]), precision),
-                            }
+                        delta_kwh = round(float(violations[first_t]) * 1000, precision)
+                        device_violations["soc-maxima"] = {
+                            "datetime": first_t.tz_convert("UTC").isoformat(),
+                            "delta": f"{delta_kwh} kWh",
+                        }
 
-        result: dict = {}
-        if earliest_minima is not None:
-            result["soc-minima"] = earliest_minima
-        if earliest_maxima is not None:
-            result["soc-maxima"] = earliest_maxima
+            if device_violations:
+                result[device_key] = device_violations
+
         return result
 
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:

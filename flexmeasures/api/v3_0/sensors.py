@@ -933,18 +933,24 @@ class SensorAPI(FlaskView):
                         additionalProperties: true
 
                       scheduling_result:
-                        nullable: true
                         type: object
                         description: |
-                          Additional results produced by the scheduler, or ``null`` for jobs
-                          created before this field was introduced.
+                          Additional results produced by the scheduler.
+                          This field is left out for jobs created before this field was introduced.
 
                           The ``unresolved_targets`` field reports the first time at which the
-                          scheduled state of charge (SoC) violates a soft SoC constraint, along
-                          with the signed difference (scheduled SoC minus target value).
-                          A negative ``delta`` for ``soc-minima`` means the SoC is below the
-                          minimum; a positive ``delta`` for ``soc-maxima`` means the SoC exceeds
-                          the maximum.
+                          scheduled state of charge (SoC) violates a soft SoC constraint,
+                          per sensor (keyed by sensor ID string).  An empty ``unresolved_targets``
+                          dict means all targets have been met.
+
+                          Each per-sensor entry may have ``"soc-minima"`` and/or ``"soc-maxima"``
+                          sub-keys (only present when a violation exists), each with:
+
+                          - ``"datetime"``: ISO 8601 UTC timestamp of the first violation.
+                          - ``"delta"``: Always-positive magnitude in kWh, e.g. ``"260.0 kWh"``.
+                            For ``soc-minima`` this is the shortage (SoC fell short by this amount);
+                            for ``soc-maxima`` this is the excess (SoC exceeded the target by this
+                            amount).
 
                           Note: ``soc-targets`` are modelled as hard constraints, so the
                           scheduler will never allow a deviation from them by definition.
@@ -1110,13 +1116,15 @@ class SensorAPI(FlaskView):
         # or the dict with unresolved_targets if computed.
         scheduling_result = job.meta.get(SCHEDULING_RESULT_KEY)
         d, s = request_processed(scheduler_info_msg)
+        response_body = dict(
+            scheduler_info=scheduler_info,
+            **response,
+            **d,
+        )
+        if scheduling_result is not None:
+            response_body["scheduling_result"] = scheduling_result
         return (
-            dict(
-                scheduler_info=scheduler_info,
-                scheduling_result=scheduling_result,
-                **response,
-                **d,
-            ),
+            response_body,
             s,
         )
 

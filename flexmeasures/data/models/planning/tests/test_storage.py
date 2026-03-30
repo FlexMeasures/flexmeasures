@@ -312,15 +312,19 @@ def test_unresolved_targets_soc_minima(add_battery_assets, db):
 
     unresolved_targets = scheduling_result.unresolved_targets
     assert (
-        "soc-minima" in unresolved_targets
+        str(battery.id) in unresolved_targets
     ), "Expected an unresolved soc-minima since the target is unreachable"
-    # The scheduled SoC should be below the 0.9 MWh target (delta is negative)
-    assert unresolved_targets["soc-minima"]["delta"] < 0
+    assert "soc-minima" in unresolved_targets[str(battery.id)]
+    # The scheduled SoC should be below the 0.9 MWh target (delta == 260.0 kWh shortage)
+    assert unresolved_targets[str(battery.id)]["soc-minima"]["delta"] == "260.0 kWh"
     # The constraint is at 2015-01-02T00:00:00+01:00 = 2015-01-01T23:00:00+00:00 (UTC)
-    assert unresolved_targets["soc-minima"]["datetime"] == "2015-01-01T23:00:00+00:00"
+    assert (
+        unresolved_targets[str(battery.id)]["soc-minima"]["datetime"]
+        == "2015-01-01T23:00:00+00:00"
+    )
 
     # No soc-maxima was set, so it should not appear
-    assert "soc-maxima" not in unresolved_targets
+    assert "soc-maxima" not in unresolved_targets[str(battery.id)]
 
 
 def test_unresolved_targets_none_when_met(add_battery_assets, db):
@@ -375,8 +379,7 @@ def test_unresolved_targets_none_when_met(add_battery_assets, db):
     assert scheduling_result_entry is not None
     unresolved_targets = scheduling_result_entry["data"].unresolved_targets
     # The minima target is met, so no unresolved targets expected
-    assert "soc-minima" not in unresolved_targets
-    assert "soc-maxima" not in unresolved_targets
+    assert unresolved_targets == {}
 
 
 def test_unresolved_targets_soc_maxima(add_battery_assets, db):
@@ -436,12 +439,16 @@ def test_unresolved_targets_soc_maxima(add_battery_assets, db):
 
     unresolved_targets = scheduling_result_entry["data"].unresolved_targets
     assert (
-        "soc-maxima" in unresolved_targets
+        str(battery.id) in unresolved_targets
     ), "Expected an unresolved soc-maxima since the target is unreachable"
-    # The scheduled SoC should be above the 0.5 MWh target (delta is positive)
-    assert unresolved_targets["soc-maxima"]["delta"] > 0
+    assert "soc-maxima" in unresolved_targets[str(battery.id)]
+    # The scheduled SoC should be above the 0.5 MWh target (delta == 160.0 kWh excess)
+    assert unresolved_targets[str(battery.id)]["soc-maxima"]["delta"] == "160.0 kWh"
     # The constraint is at 2015-01-02T00:00:00+01:00 = 2015-01-01T23:00:00+00:00 (UTC)
-    assert unresolved_targets["soc-maxima"]["datetime"] == "2015-01-01T23:00:00+00:00"
+    assert (
+        unresolved_targets[str(battery.id)]["soc-maxima"]["datetime"]
+        == "2015-01-01T23:00:00+00:00"
+    )
 
     # No soc-minima was set, so it should not appear
-    assert "soc-minima" not in unresolved_targets
+    assert "soc-minima" not in unresolved_targets[str(battery.id)]
