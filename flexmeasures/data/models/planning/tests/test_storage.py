@@ -254,8 +254,10 @@ def test_battery_relaxation(add_battery_assets, db):
 def test_unresolved_targets_soc_minima(add_battery_assets, db):
     """Test that unresolved soc-minima targets are reported in the scheduling result.
 
-    A battery starts at 0.4 MWh with a very limited charging capacity (0.01 MW),
-    so it can only gain 0.01 * 24 = 0.24 MWh over 24 hours => max SoC ~0.64 MWh.
+    A battery starts at 0.4 MWh with a very limited charging capacity (0.01 MW).
+    With 100% efficiency and 24 hours, it can gain at most 0.01 * 24 = 0.24 MWh,
+    reaching a max SoC of ~0.64 MWh.  No roundtrip or storage efficiency is set,
+    so the default (100%) applies.
     A soc-minima of 0.9 MWh is set as a soft constraint (via a breach price).
     The scheduler will charge at full capacity but still fail to reach the target,
     so the scheduling result should report an unresolved soc-minima.
@@ -314,8 +316,8 @@ def test_unresolved_targets_soc_minima(add_battery_assets, db):
     ), "Expected an unresolved soc-minima since the target is unreachable"
     # The scheduled SoC should be below the 0.9 MWh target (delta is negative)
     assert unresolved_targets["soc-minima"]["delta"] < 0
-    # Confirm the datetime is the end of the schedule
-    assert unresolved_targets["soc-minima"]["datetime"].startswith("2015-01-01T")
+    # The constraint is at 2015-01-02T00:00:00+01:00 = 2015-01-01T23:00:00+00:00 (UTC)
+    assert unresolved_targets["soc-minima"]["datetime"] == "2015-01-01T23:00:00+00:00"
 
     # No soc-maxima was set, so it should not appear
     assert "soc-maxima" not in unresolved_targets

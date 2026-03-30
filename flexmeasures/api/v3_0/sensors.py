@@ -932,9 +932,11 @@ class SensorAPI(FlaskView):
                         additionalProperties: true
 
                       scheduling_result:
+                        nullable: true
                         type: object
                         description: |
-                          Additional results produced by the scheduler.
+                          Additional results produced by the scheduler, or ``null`` for jobs
+                          created before this field was introduced.
 
                           The ``unresolved_targets`` field reports the first time at which the
                           scheduled state of charge (SoC) violates a soft SoC constraint, along
@@ -1103,7 +1105,9 @@ class SensorAPI(FlaskView):
             unit=unit,
         )
 
-        scheduling_result = job.meta.get("scheduling_result", {})
+        # Returns None if the job predates the scheduling_result feature (no meta key),
+        # or the dict with unresolved_targets if computed.
+        scheduling_result = job.meta.get("scheduling_result")
         d, s = request_processed(scheduler_info_msg)
         return (
             dict(

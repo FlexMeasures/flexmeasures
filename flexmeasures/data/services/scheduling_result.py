@@ -15,6 +15,24 @@ class SchedulingJobResult:
     """
 
     unresolved_targets: dict = field(default_factory=dict)
+    """First unmet ``soc-minima`` and/or ``soc-maxima`` targets, if any.
+
+    Each present key maps to a dict with:
+
+    - ``"datetime"``: ISO 8601 timestamp of the first violated constraint.
+    - ``"delta"``: Signed difference (scheduled SoC minus target value) in MWh.
+      A negative ``delta`` for ``soc-minima`` means the SoC is below the minimum;
+      a positive ``delta`` for ``soc-maxima`` means the SoC exceeds the maximum.
+
+    Example::
+
+        {
+            "soc-minima": {"datetime": "2024-01-01T10:00:00+00:00", "delta": -0.5},
+            "soc-maxima": {"datetime": "2024-01-01T14:00:00+00:00", "delta": 0.3},
+        }
+
+    If a constraint type has no violation the key is absent.
+    """
 
     def to_dict(self) -> dict:
         """Serialize to a JSON-compatible dict."""

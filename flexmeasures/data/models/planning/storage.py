@@ -34,6 +34,7 @@ from flexmeasures.data.schemas.scheduling import (
     FlexContextSchema,
     MultiSensorFlexModelSchema,
 )
+from flexmeasures.data.services.scheduling_result import SchedulingJobResult
 from flexmeasures.utils.calculations import (
     integrate_time_series,
 )
@@ -1326,12 +1327,12 @@ class StorageScheduler(MetaStorageScheduler):
         for d, flex_model_d in enumerate(flex_model):
             state_of_charge_sensor = flex_model_d.get("state_of_charge", None)
             has_soc_sensor = isinstance(state_of_charge_sensor, Sensor)
-            has_soc_constraints = (
+            has_soc_minima_maxima = (
                 flex_model_d.get("soc_minima") is not None
                 or flex_model_d.get("soc_maxima") is not None
             )
-            # Skip devices that neither have a SoC sensor nor SoC constraints
-            if not has_soc_sensor and not has_soc_constraints:
+            # Skip devices that neither have a SoC sensor nor soc-minima/soc-maxima constraints
+            if not has_soc_sensor and not has_soc_minima_maxima:
                 continue
             # Skip devices without a known initial SoC (required for integration)
             if soc_at_start[d] is None:
@@ -1390,7 +1391,13 @@ class StorageScheduler(MetaStorageScheduler):
 
         For each device that has ``soc-minima`` or ``soc-maxima`` constraints in the flex model,
         compares the computed MWh SoC schedule against those constraints.  The first (earliest
-        in time) violation of each type is reported.
+        in time) violation of each type is reported, across all devices.  Once the first
+        violation of a given type is found for any device, subsequent devices are skipped for
+        that type.
+
+        Constraints are evaluated over the window ``(start + resolution, end)`` (i.e. the
+        first scheduled slot through the end of the schedule).  The ``start`` slot itself is
+        the initial condition (``soc_at_start``), not a scheduled value, so it is excluded.
 
         Note: ``soc-targets`` are modelled as hard constraints and are not checked here,
         as by definition the scheduler will not allow any deviation from them.
@@ -1406,6 +1413,7 @@ class StorageScheduler(MetaStorageScheduler):
                   means the SoC is below the minimum; positive means it exceeds the maximum).
         """
         result: dict = {}
+        precision = self.round_to_decimals if self.round_to_decimals is not None else 6
 
         for d, flex_model_d in enumerate(flex_model):
             soc_mwh = soc_schedule_mwh.get(d)
@@ -1433,7 +1441,7 @@ class StorageScheduler(MetaStorageScheduler):
                         first_t = violations.index[0]
                         result["soc-minima"] = {
                             "datetime": first_t.isoformat(),
-                            "delta": round(float(deltas[first_t]), 6),
+                            "delta": round(float(deltas[first_t]), precision),
                         }
 
             # Check soc_maxima (first time slot where scheduled SoC > maxima)
@@ -1457,7 +1465,7 @@ class StorageScheduler(MetaStorageScheduler):
                         first_t = violations.index[0]
                         result["soc-maxima"] = {
                             "datetime": first_t.isoformat(),
-                            "delta": round(float(deltas[first_t]), 6),
+                            "delta": round(float(deltas[first_t]), precision),
                         }
 
         return result
@@ -1558,10 +1566,6 @@ class StorageScheduler(MetaStorageScheduler):
             }
 
         if self.return_multiple:
-            from flexmeasures.data.services.scheduling_result import (
-                SchedulingJobResult,
-            )
-
             unresolved_targets = self._compute_unresolved_targets(
                 flex_model, soc_schedule_mwh, start, end, resolution
             )
