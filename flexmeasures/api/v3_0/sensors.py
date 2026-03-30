@@ -931,6 +931,23 @@ class SensorAPI(FlaskView):
                         description: Information about the scheduler that executed the job.
                         additionalProperties: true
 
+                      scheduling_result:
+                        type: object
+                        description: |
+                          Additional results produced by the scheduler.
+
+                          The ``unresolved_targets`` field reports the first time at which the
+                          scheduled state of charge (SoC) violates a soft SoC constraint, along
+                          with the signed difference (scheduled SoC minus target value).
+                          A negative ``delta`` for ``soc-minima`` means the SoC is below the
+                          minimum; a positive ``delta`` for ``soc-maxima`` means the SoC exceeds
+                          the maximum.
+
+                          Note: ``soc-targets`` are modelled as hard constraints, so the
+                          scheduler will never allow a deviation from them by definition.
+                          They are therefore not reported here.
+                        additionalProperties: true
+
                       values:
                         type: array
                         items:
@@ -1086,8 +1103,17 @@ class SensorAPI(FlaskView):
             unit=unit,
         )
 
+        scheduling_result = job.meta.get("scheduling_result", {})
         d, s = request_processed(scheduler_info_msg)
-        return dict(scheduler_info=scheduler_info, **response, **d), s
+        return (
+            dict(
+                scheduler_info=scheduler_info,
+                scheduling_result=scheduling_result,
+                **response,
+                **d,
+            ),
+            s,
+        )
 
     @route("/<id>", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")

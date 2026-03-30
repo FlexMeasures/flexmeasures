@@ -632,6 +632,10 @@ def make_schedule(  # noqa: C901
 
     # Save any result that specifies a sensor to save it to
     for result in consumption_schedule:
+        if result.get("name") == "scheduling_result" and rq_job:
+            rq_job.meta["scheduling_result"] = result["data"].to_dict()
+            rq_job.save_meta()
+            continue
         if "sensor" not in result:
             continue
 

@@ -13,6 +13,7 @@ from flexmeasures.data.models.planning.tests.utils import (
     get_sensors_from_db,
     series_to_ts_specs,
 )
+from flexmeasures.data.services.scheduling_result import SchedulingJobResult
 
 
 def test_battery_solver_multi_commitment(add_battery_assets, db):
@@ -248,3 +249,129 @@ def test_battery_relaxation(add_battery_assets, db):
         costs["all consumption breaches device 0"],
         device_power_breach_price * consumption_capacity_in_mw * 1000 * 4,
     )  # 100 EUR/(kW*h) * 0.025 MW * 1000 kW/MW * 4 hours
+
+
+def test_unresolved_targets_soc_minima(add_battery_assets, db):
+    """Test that unresolved soc-minima targets are reported in the scheduling result.
+
+    A battery starts at 0.4 MWh with a very limited charging capacity (0.01 MW),
+    so it can only gain 0.01 * 24 = 0.24 MWh over 24 hours => max SoC ~0.64 MWh.
+    A soc-minima of 0.9 MWh is set as a soft constraint (via a breach price).
+    The scheduler will charge at full capacity but still fail to reach the target,
+    so the scheduling result should report an unresolved soc-minima.
+    """
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 0.4
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    consumption_prices = pd.Series(100, index=index)
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": f"{soc_at_start} MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "0.01 MVA",  # very limited: max gain 0.24 MWh over 24 h
+            "soc-minima": [
+                {
+                    "datetime": "2015-01-02T00:00:00+01:00",
+                    "value": "0.9 MWh",  # unreachable
+                }
+            ],
+            "prefer-charging-sooner": False,
+        },
+        flex_context={
+            "consumption-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "production-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "site-power-capacity": "2 MW",
+            "soc-minima-breach-price": "1 EUR/kWh",  # soft constraint
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+
+    # The scheduling_result entry should be present
+    scheduling_result_entry = next(
+        (r for r in results if r.get("name") == "scheduling_result"), None
+    )
+    assert scheduling_result_entry is not None
+
+    scheduling_result = scheduling_result_entry["data"]
+    assert isinstance(scheduling_result, SchedulingJobResult)
+
+    unresolved_targets = scheduling_result.unresolved_targets
+    assert (
+        "soc-minima" in unresolved_targets
+    ), "Expected an unresolved soc-minima since the target is unreachable"
+    # The scheduled SoC should be below the 0.9 MWh target (delta is negative)
+    assert unresolved_targets["soc-minima"]["delta"] < 0
+    # Confirm the datetime is the end of the schedule
+    assert unresolved_targets["soc-minima"]["datetime"].startswith("2015-01-01T")
+
+    # No soc-maxima was set, so it should not appear
+    assert "soc-maxima" not in unresolved_targets
+
+
+def test_unresolved_targets_none_when_met(add_battery_assets, db):
+    """Test that no unresolved targets are reported when constraints are fully met.
+
+    A battery starts at 0.4 MWh and has a soc-minima of 0.5 MWh at end of schedule.
+    With enough capacity, the scheduler can easily charge to 0.5 MWh, so the
+    scheduling result should have no unresolved soc-minima.
+    """
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 0.4
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    consumption_prices = pd.Series(100, index=index)
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": f"{soc_at_start} MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "2 MVA",  # plenty of capacity to reach 0.5 MWh
+            "soc-minima": [
+                {
+                    "datetime": "2015-01-02T00:00:00+01:00",
+                    "value": "0.5 MWh",  # easily reachable
+                }
+            ],
+            "prefer-charging-sooner": False,
+        },
+        flex_context={
+            "consumption-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "production-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "site-power-capacity": "2 MW",
+            "soc-minima-breach-price": "1 EUR/kWh",  # soft constraint
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+
+    scheduling_result_entry = next(
+        (r for r in results if r.get("name") == "scheduling_result"), None
+    )
+    assert scheduling_result_entry is not None
+    unresolved_targets = scheduling_result_entry["data"].unresolved_targets
+    # The minima target is met, so no unresolved targets expected
+    assert "soc-minima" not in unresolved_targets
+    assert "soc-maxima" not in unresolved_targets
