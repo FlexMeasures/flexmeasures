@@ -377,3 +377,71 @@ def test_unresolved_targets_none_when_met(add_battery_assets, db):
     # The minima target is met, so no unresolved targets expected
     assert "soc-minima" not in unresolved_targets
     assert "soc-maxima" not in unresolved_targets
+
+
+def test_unresolved_targets_soc_maxima(add_battery_assets, db):
+    """Test that unresolved soc-maxima targets are reported in the scheduling result.
+
+    A battery starts at 0.9 MWh with a very limited discharge capacity (0.01 MW).
+    With 100% efficiency and 24 hours, it can discharge at most 0.01 * 24 = 0.24 MWh,
+    reaching a min SoC of ~0.66 MWh.  No roundtrip or storage efficiency is set,
+    so the default (100%) applies.
+    A soc-maxima of 0.5 MWh is set as a soft constraint (via a breach price).
+    The scheduler will discharge at full capacity but still remain above the target,
+    so the scheduling result should report an unresolved soc-maxima.
+    """
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 0.9
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    consumption_prices = pd.Series(100, index=index)
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": f"{soc_at_start} MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "0.01 MVA",  # very limited: max discharge 0.24 MWh over 24 h
+            "soc-maxima": [
+                {
+                    "datetime": "2015-01-02T00:00:00+01:00",
+                    "value": "0.5 MWh",  # unreachably low
+                }
+            ],
+            "prefer-charging-sooner": False,
+        },
+        flex_context={
+            "consumption-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "production-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "site-power-capacity": "2 MW",
+            "soc-maxima-breach-price": "1 EUR/kWh",  # soft constraint
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+
+    scheduling_result_entry = next(
+        (r for r in results if r.get("name") == "scheduling_result"), None
+    )
+    assert scheduling_result_entry is not None
+
+    unresolved_targets = scheduling_result_entry["data"].unresolved_targets
+    assert (
+        "soc-maxima" in unresolved_targets
+    ), "Expected an unresolved soc-maxima since the target is unreachable"
+    # The scheduled SoC should be above the 0.5 MWh target (delta is positive)
+    assert unresolved_targets["soc-maxima"]["delta"] > 0
+    # The constraint is at 2015-01-02T00:00:00+01:00 = 2015-01-01T23:00:00+00:00 (UTC)
+    assert unresolved_targets["soc-maxima"]["datetime"] == "2015-01-01T23:00:00+00:00"
+
+    # No soc-minima was set, so it should not appear
+    assert "soc-minima" not in unresolved_targets
