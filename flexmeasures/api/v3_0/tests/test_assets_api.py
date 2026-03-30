@@ -851,10 +851,12 @@ def test_copy_asset_to_another_account_preserves_config(
     charger_type = setup_generic_asset_types["wind"]
 
     # Build the source house asset.
+    # Use integer IDs (not ORM object references) to avoid SQLAlchemy cascade
+    # issues with potentially-detached session objects from earlier tests.
     house = GenericAsset(
         name="Test house for rich copy",
-        generic_asset_type=asset_type,
-        owner=prosumer_account,
+        generic_asset_type_id=asset_type.id,
+        account_id=prosumer_account.id,
     )
     db.session.add(house)
     db.session.flush()  # obtain house.id before adding sensors
@@ -878,8 +880,8 @@ def test_copy_asset_to_another_account_preserves_config(
     for i in range(1, 3):
         charger = GenericAsset(
             name=f"EV charger {i}",
-            generic_asset_type=charger_type,
-            owner=prosumer_account,
+            generic_asset_type_id=charger_type.id,
+            account_id=prosumer_account.id,
             parent_asset_id=house.id,
             flex_model={"power-capacity": "7.4 kW", "soc-unit": "kWh"},
         )
@@ -908,20 +910,33 @@ def test_copy_asset_to_another_account_preserves_config(
     # 2. Top-level in the target account (no parent given → parent_asset_id = None).
     assert house_copy.parent_asset_id is None
 
-    # 3. flex_context is preserved verbatim.
-    assert house_copy.flex_context == original_flex_context
-
     # 4. Direct sensors on the copied asset are duplicated.
     copied_house_sensors = db.session.scalars(
         select(Sensor).filter(Sensor.generic_asset_id == house_copy.id)
     ).all()
     assert len(copied_house_sensors) == 1
-    assert copied_house_sensors[0].name == site_capacity_sensor.name
-    assert copied_house_sensors[0].unit == site_capacity_sensor.unit
+    copied_site_capacity_sensor = copied_house_sensors[0]
+    assert copied_site_capacity_sensor.name == site_capacity_sensor.name
+    assert copied_site_capacity_sensor.unit == site_capacity_sensor.unit
     assert (
-        copied_house_sensors[0].event_resolution
+        copied_site_capacity_sensor.event_resolution
         == site_capacity_sensor.event_resolution
     )
+
+    # 3. flex_context: the internal sensor reference (site-power-capacity) is
+    #    updated to the new copied sensor ID; the external reference
+    #    (consumption-price on the public epex asset) is preserved as-is.
+    assert (
+        house_copy.flex_context["consumption-price"]
+        == original_flex_context["consumption-price"]
+    ), "External sensor reference must be unchanged"
+    assert house_copy.flex_context["site-power-capacity"] == {
+        "sensor": copied_site_capacity_sensor.id
+    }, "Internal sensor reference must point to the new copied sensor"
+    assert (
+        house_copy.flex_context["site-power-capacity"]["sensor"]
+        != site_capacity_sensor.id
+    ), "Internal sensor reference must not point to the original sensor"
 
     # 5. Deep copy for hierarchy: original child assets are duplicated.
     children_of_copy = db.session.scalars(
@@ -937,8 +952,148 @@ def test_copy_asset_to_another_account_preserves_config(
     assert len(copied_child_sensors) == 4
 
 
+def test_copy_asset_replaces_sensor_refs_in_config(
+    setup_api_test_data, setup_accounts, setup_markets, setup_generic_asset_types, db
+):
+    """
+    When copying an asset, sensor references inside flex_context, flex_model and
+    sensors_to_show must be updated to point to the newly copied sensors.
+
+    Sensor references that belong to PUBLIC assets (account_id=None, e.g. a public
+    price sensor) must be left unchanged.
+
+    Sensor references that belong to PRIVATE assets not in the copied subtree must
+    be removed from the config.
+
+    Asset layout:
+
+    Battery  (EMS, Prosumer account)
+    ├── sensor_internal  – belongs to Battery, referenced in flex_context
+    ├── flex_context:
+    │     "consumption-capacity": {"sensor": <sensor_internal.id>}   ← internal (copied)
+    │     "production-price":     {"sensor": <price_sensor.id>}      ← external public
+    │     "private-external":     {"sensor": <private_ext_sensor.id>}← external private → removed
+    ├── flex_model:
+    │     "soc-min": "700.0 kWh"                                     ← no sensor
+    │     "consumption-capacity": {"sensor": <sensor_internal.id>}   ← internal (copied)
+    ├── sensors_to_show:
+    │     [{"title": "Chart", "plots": [
+    │         {"sensor": <sensor_internal.id>},                       ← internal (copied)
+    │         {"sensors": [<sensor_internal.id>, <price_sensor.id>,   ← mixed: internal/public/private
+    │                      <private_ext_sensor.id>]}
+    │     ]}]
+
+    After copying:
+    - References to sensor_internal        → replaced with new copied sensor's ID
+    - References to price_sensor (public)  → unchanged
+    - References to private_ext_sensor     → removed entirely
+    """
+    prosumer_account = setup_accounts["Prosumer"]
+    supplier_account = setup_accounts["Supplier"]
+    price_sensor = setup_markets["epex_da"]
+    assert price_sensor.generic_asset.account_id is None, "epex must be a public asset"
+
+    asset_type = setup_generic_asset_types["battery"]
+
+    # A private sensor on a different account's asset (Supplier), NOT in the copy subtree.
+    # Use integer IDs (not ORM object references) to avoid SQLAlchemy cascade
+    # issues with potentially-detached session objects from earlier tests.
+    supplier_asset = GenericAsset(
+        name="Supplier asset for private sensor ref test",
+        generic_asset_type_id=asset_type.id,
+        account_id=supplier_account.id,
+    )
+    db.session.add(supplier_asset)
+    db.session.flush()
+    private_ext_sensor = Sensor(
+        name="private external sensor",
+        generic_asset=supplier_asset,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+    )
+    db.session.add(private_ext_sensor)
+    db.session.flush()
+
+    battery = GenericAsset(
+        name="Battery for sensor ref test",
+        generic_asset_type_id=asset_type.id,
+        account_id=prosumer_account.id,
+    )
+    db.session.add(battery)
+    db.session.flush()
+
+    sensor_internal = Sensor(
+        name="internal sensor",
+        generic_asset=battery,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+    )
+    db.session.add(sensor_internal)
+    db.session.flush()
+
+    battery.flex_context = {
+        "consumption-capacity": {"sensor": sensor_internal.id},
+        "production-price": {"sensor": price_sensor.id},
+        "private-external": {"sensor": private_ext_sensor.id},
+    }
+    battery.flex_model = {
+        "soc-min": "700.0 kWh",
+        "consumption-capacity": {"sensor": sensor_internal.id},
+    }
+    battery.sensors_to_show = [
+        {
+            "title": "Chart",
+            "plots": [
+                {"sensor": sensor_internal.id},
+                {
+                    "sensors": [
+                        sensor_internal.id,
+                        price_sensor.id,
+                        private_ext_sensor.id,
+                    ]
+                },
+            ],
+        }
+    ]
+    db.session.flush()
+
+    # --- Act ---
+    battery_copy = copy_asset(battery, account=prosumer_account)
+
+    # Locate the new copied sensor.
+    copied_sensors = db.session.scalars(
+        select(Sensor).filter(Sensor.generic_asset_id == battery_copy.id)
+    ).all()
+    assert len(copied_sensors) == 1
+    new_sensor = copied_sensors[0]
+    assert new_sensor.id != sensor_internal.id
+
+    # flex_context: internal replaced, public external preserved, private external removed.
+    assert battery_copy.flex_context["consumption-capacity"] == {
+        "sensor": new_sensor.id
+    }
+    assert battery_copy.flex_context["production-price"] == {"sensor": price_sensor.id}
+    assert "private-external" not in battery_copy.flex_context
+
+    # flex_model: internal replaced, plain string preserved.
+    assert battery_copy.flex_model["consumption-capacity"] == {"sensor": new_sensor.id}
+    assert battery_copy.flex_model["soc-min"] == "700.0 kWh"
+
+    # sensors_to_show: single-sensor plot with private external is removed from plots;
+    # multi-sensor list has private external ID filtered out.
+    chart = battery_copy.sensors_to_show[0]
+    assert chart["plots"][0] == {"sensor": new_sensor.id}
+    assert chart["plots"][1] == {"sensors": [new_sensor.id, price_sensor.id]}
+
+    # Original asset config must not be mutated.
+    assert battery.flex_context["consumption-capacity"] == {
+        "sensor": sensor_internal.id
+    }
+    assert battery.flex_model["consumption-capacity"] == {"sensor": sensor_internal.id}
+
+
 @pytest.mark.parametrize(
-    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
 )
 def test_copy_asset_api_copies_direct_sensors(
     client, setup_api_test_data, setup_accounts, requesting_user, db
