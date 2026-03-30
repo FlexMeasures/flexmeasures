@@ -1432,6 +1432,8 @@ class StorageScheduler(MetaStorageScheduler):
                 device_key = str(state_of_charge_sensor.id)
             else:
                 power_sensor = flex_model_d.get("sensor")
+                if power_sensor is None:
+                    continue
                 device_key = str(power_sensor.id)
 
             device_violations: dict = {}
