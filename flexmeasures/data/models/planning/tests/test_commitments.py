@@ -820,24 +820,26 @@ def test_two_devices_shared_stock(app, db):
     )
 
     # ---- discharge behaviour
-    # Both inverters have zero power at the end of the horizon
-    # Discharging happens mid-horizon (hours 12-19 approximately)
-    # through inverter 1 only (the less efficient one, because inverter 2
-    # has a lower discharging efficiency of 0.45 vs 0.95)
+    # Both inverters have zero power in the middle of the horizon
+    # Charging happens through inverter 2 (more efficient) as soon as possible (full SoC is preferred)
+    # Discharging happens through inverter 1 (more efficient) as late as possible (full SoC is preferred)
     assert (
-        power1_data.iloc[-4:] == 0
-    ).all(), "Battery should be idle at the end of the horizon through inverter 1."
+        power1_data.iloc[0 : int(96 / 2 + 13)] == 0
+    ).all(), "Inverter 1 should be idle at the beginning of the scheduling period."
 
     assert (
-        power2_data.iloc[-4:] == 0
-    ).all(), (
-        "Battery should be idle at the end of the horizon through inverter 2 as well."
-    )
+        power2_data.iloc[int(96 / 2 - 13) : -1] == 0
+    ).all(), "Inverter 2 should be idle at the end of the scheduling period."
 
-    # Verify that power1 actually discharges during middle hours (when inverter 1 goes negative)
-    assert (
-        power1_data < 0
-    ).any(), "Inverter 1 should discharge the battery during middle hours."
+    # Verify that inverter 1 actually discharges
+    assert (power1_data < 0).any(), "Inverter 1 should discharge the battery."
+    # Verify that inverter 1 never charges
+    assert not (power1_data > 0).any(), "Inverter 1 should not charge the battery."
+
+    # Verify that inverter 2 actually charges
+    assert (power2_data > 0).any(), "Inverter 2 should charge the battery."
+    # Verify that inverter 1 never charges
+    assert not (power2_data < 0).any(), "Inverter 2 should not discharge the battery."
 
     # ---- SOC behaviour
     assert soc_data.iloc[0] == pytest.approx(
