@@ -76,7 +76,6 @@ if gen_code_docs:
     extensions.extend(
         [
             "sphinx.ext.autosummary",
-            "sphinx.ext.autodoc.typehints",
             "sphinx.ext.autodoc",
         ]
     )
