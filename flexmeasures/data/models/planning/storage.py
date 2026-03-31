@@ -309,6 +309,10 @@ class MetaStorageScheduler(Scheduler):
             / pd.Timedelta("1h")
         )
 
+        ems_constraints = initialize_df(
+            StorageScheduler.COLUMNS, start, end, resolution
+        )
+
         # Set up commitments DataFrame
         for d, flex_model_d in enumerate(flex_model):
             commodity = flex_model_d.get("commodity", "electricity")
@@ -423,9 +427,6 @@ class MetaStorageScheduler(Scheduler):
                 "ems_production_breach_price"
             )
 
-            ems_constraints = initialize_df(
-                StorageScheduler.COLUMNS, start, end, resolution
-            )
             if ems_consumption_breach_price is not None:
 
                 # Convert to Series
