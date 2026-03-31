@@ -16,7 +16,6 @@ import timely_beliefs as tb
 
 from flexmeasures.data import db
 from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
-from flexmeasures.data.models.forecasting.exceptions import InvalidHorizonException
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.forecasting.utils import (
     get_query_window,
@@ -27,13 +26,12 @@ from flexmeasures.utils.time_utils import (
     as_server_time,
     server_now,
     forecast_horizons_for,
-    supported_horizons,
 )
 
 """
 The life cycle of a forecasting job:
 1. A forecasting job is born in create_forecasting_jobs.
-2. It is run in make_rolling_viewpoint_forecasts or make_fixed_viewpoint_forecasts, which write results to the db.
+2. It is run in make_forecasts, which writes results to the db.
    This is also where model specs are configured and a possible fallback model is stored for step 3.
 3. If an error occurs (and the worker is configured accordingly), handle_forecasting_exception comes in.
    This might re-enqueue the job or try a different model (which creates a new job).
@@ -96,7 +94,7 @@ def create_forecasting_jobs(
     jobs: list[Job] = []
     for horizon in horizons:
         job = Job.create(
-            make_rolling_viewpoint_forecasts,
+            make_forecasts,
             kwargs=dict(
                 sensor_id=sensor_id,
                 horizon=horizon,
@@ -130,35 +128,18 @@ def create_forecasting_jobs(
     return jobs
 
 
-def make_fixed_viewpoint_forecasts(
+def make_forecasts(
     sensor_id: int,
     horizon: timedelta,
     start: datetime,
     end: datetime,
     custom_model_params: dict = None,
 ) -> int:
-    """Build forecasting model specs, make fixed-viewpoint forecasts, and save the forecasts made.
+    """Build forecasting model specs, make forecasts, and save the forecasts made.
 
     Each individual forecast is a belief about a time interval.
-    Fixed-viewpoint forecasts share the same belief time.
-    See the timely-beliefs lib for relevant terminology.
-    """
-    # todo: implement fixed-viewpoint forecasts
-    raise NotImplementedError
-
-
-def make_rolling_viewpoint_forecasts(
-    sensor_id: int,
-    horizon: timedelta,
-    start: datetime,
-    end: datetime,
-    custom_model_params: dict = None,
-) -> int:
-    """Build forecasting model specs, make rolling-viewpoint forecasts, and save the forecasts made.
-
-    Each individual forecast is a belief about a time interval.
-    Rolling-viewpoint forecasts share the same belief horizon (the duration between belief time and knowledge time).
-    Model specs are also retrained in a rolling fashion, but with its own frequency set in custom_model_params.
+    Forecasts share the same belief horizon (the duration between belief time and knowledge time).
+    Model specs are retrained periodically, with frequency set in custom_model_params.
     See the timely-beliefs lib for relevant terminology.
 
     Parameters
@@ -214,12 +195,7 @@ def make_rolling_viewpoint_forecasts(
     rq_job.meta["fallback_model_search_term"] = fallback_model_search_term
     rq_job.save()
 
-    # before we run the model, check if horizon is okay and enough data is available
-    if horizon not in supported_horizons():
-        raise InvalidHorizonException(
-            "Invalid horizon on job %s: %s" % (rq_job.id, horizon)
-        )
-
+    # before we run the model, check if enough data is available
     query_window = get_query_window(
         model_specs.start_of_training,
         end,
@@ -290,7 +266,7 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
     if "fallback_model_search_term" in job.meta:
         if job.meta["fallback_model_search_term"] is not None:
             new_job = Job.create(
-                make_rolling_viewpoint_forecasts,
+                make_forecasts,
                 args=job.args,
                 kwargs=job.kwargs,
                 connection=current_app.queues["forecasting"].connection,

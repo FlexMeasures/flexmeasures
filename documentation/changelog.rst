@@ -17,6 +17,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Remove old rolling viewpoint forecasting infrastructure: ``make_fixed_viewpoint_forecasts`` (which only raised ``NotImplementedError``), ``make_rolling_viewpoint_forecasts`` (renamed to ``make_forecasts``), and the ``supported_horizons`` utility. The invalid-horizon validation check is also removed [see `PR #2075 <https://www.github.com/FlexMeasures/flexmeasures/pull/2075>`_]
 * Stop creating new toy assets when restarting the docker-compose stack [see `PR #2018 <https://www.github.com/FlexMeasures/flexmeasures/pull/2018>`_]
 * Migrate from ``pip`` to ``uv`` for dependency management, and from ``make`` to ``poe`` [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
 * Improve contact information to get in touch with the FlexMeasures community [see `PR #2022 <https://www.github.com/FlexMeasures/flexmeasures/pull/2022>`_]

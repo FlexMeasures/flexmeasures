@@ -199,25 +199,6 @@ def test_failed_forecasting_insufficient_data(
     check_failures(app.queues["forecasting"], 2 * ["NotEnoughDataException"])
 
 
-def test_failed_forecasting_invalid_horizon(
-    app, run_as_cli, clean_redis, setup_test_data
-):
-    """This one (as well as the fallback) should fail as the horizon is invalid."""
-
-    # asset has only 1 power sensor
-    solar_device_1: Sensor = setup_test_data["solar-asset-1"].sensors[0]
-
-    create_forecasting_jobs(
-        start_of_roll=as_server_time(datetime(2015, 1, 1, 21)),
-        end_of_roll=as_server_time(datetime(2015, 1, 1, 23)),
-        horizons=[timedelta(hours=18)],
-        sensor_id=solar_device_1.id,
-        custom_model_params=custom_model_params(),
-    )
-    work_on_rq(app.queues["forecasting"], exc_handler=handle_forecasting_exception)
-    check_failures(app.queues["forecasting"], 2 * ["InvalidHorizonException"])
-
-
 def test_failed_unknown_model(app, clean_redis, setup_test_data):
     """This one should fail because we use a model search term which yields no model configurator."""
 
