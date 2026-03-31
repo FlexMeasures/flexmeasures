@@ -938,19 +938,35 @@ class SensorAPI(FlaskView):
                           Additional results produced by the scheduler.
                           This field is left out for jobs created before this field was introduced.
 
-                          The ``unresolved_targets`` field reports the first time at which the
-                          scheduled state of charge (SoC) violates a soft SoC constraint,
-                          per sensor (keyed by sensor ID string).  An empty ``unresolved_targets``
-                          dict means all targets have been met.
+                          Requires a ``state-of-charge`` sensor to be set on the device.
+
+                          The ``unresolved_targets`` field lists soft SoC constraints that could
+                          not be satisfied, keyed by state-of-charge sensor ID string.
+                          An empty ``{}`` means all targets were met (or no constraints were
+                          defined).
 
                           Each per-sensor entry may have ``"soc-minima"`` and/or ``"soc-maxima"``
                           sub-keys (only present when a violation exists), each with:
 
                           - ``"datetime"``: ISO 8601 UTC timestamp of the first violation.
-                          - ``"delta"``: Always-positive magnitude in kWh, e.g. ``"260.0 kWh"``.
-                            For ``soc-minima`` this is the shortage (SoC fell short by this amount);
-                            for ``soc-maxima`` this is the excess (SoC exceeded the target by this
-                            amount).
+                          - ``"unmet"``: Always-positive shortage/excess in kWh, e.g.
+                            ``"260.0 kWh"``.  For ``soc-minima`` this is the shortage (SoC fell
+                            short by this amount); for ``soc-maxima`` this is the excess (SoC
+                            exceeded the target by this amount).
+
+                          The ``resolved_targets`` field lists soft SoC constraints that WERE
+                          satisfied, keyed by state-of-charge sensor ID string.
+                          An empty ``{}`` means no constraints of that type were defined.
+
+                          Each per-sensor entry may have ``"soc-minima"`` and/or ``"soc-maxima"``
+                          sub-keys (only present when the constraint type was defined and met),
+                          each with:
+
+                          - ``"datetime"``: ISO 8601 UTC timestamp of the tightest constraint
+                            slot (smallest positive margin).
+                          - ``"margin"``: Always-positive headroom in kWh, e.g. ``"40.0 kWh"``.
+                            For ``soc-minima`` this is how far above the minimum the SoC was;
+                            for ``soc-maxima`` this is how far below the maximum the SoC was.
 
                           Note: ``soc-targets`` are modelled as hard constraints, so the
                           scheduler will never allow a deviation from them by definition.

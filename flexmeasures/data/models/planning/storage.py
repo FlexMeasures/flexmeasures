@@ -1390,53 +1390,60 @@ class StorageScheduler(MetaStorageScheduler):
         start: datetime,
         end: datetime,
         resolution: timedelta,
-    ) -> dict:
-        """Compute the first unmet SoC minima and maxima targets per device.
+    ) -> tuple[dict, dict]:
+        """Compute unmet and met SoC minima/maxima targets per device.
 
-        For each device that has ``soc-minima`` or ``soc-maxima`` constraints in the flex model,
-        compares the computed MWh SoC schedule against those constraints and records the first
-        violation per constraint type for that device.
+        For each device that has a ``state_of_charge`` Sensor and ``soc-minima``
+        or ``soc-maxima`` constraints in the flex model, compares the computed MWh
+        SoC schedule against those constraints.  Devices without a
+        ``state_of_charge`` Sensor are skipped.
 
-        Constraints are evaluated over the window ``(start + resolution, end)`` (i.e. the
-        first scheduled slot through the end of the schedule).  The ``start`` slot itself is
-        the initial condition (``soc_at_start``), not a scheduled value, so it is excluded.
+        Constraints are evaluated over the window ``(start + resolution, end)`` (i.e.
+        the first scheduled slot through the end of the schedule).  The ``start``
+        slot itself is the initial condition (``soc_at_start``), not a scheduled
+        value, so it is excluded.
 
-        Note: ``soc-targets`` are modelled as hard constraints and are not checked here,
-        as by definition the scheduler will not allow any deviation from them.
+        Note: ``soc-targets`` are modelled as hard constraints and are not checked
+        here, as by definition the scheduler will not allow any deviation from them.
 
         :param flex_model:        The deserialized flex model (list of per-device dicts).
         :param soc_schedule_mwh:  MWh SoC schedule keyed by device index ``d``.
         :param start:             Start of the schedule.
         :param end:               End of the schedule.
         :param resolution:        Schedule resolution.
-        :returns: dict keyed by sensor ID string (state-of-charge sensor if available,
-                  else power sensor).  Each value is a dict with keys ``"soc-minima"``
-                  and/or ``"soc-maxima"`` (only present when a violation exists), each
-                  containing ``{"datetime": <ISO 8601 UTC string>, "delta": "<value> kWh"}``
-                  where ``delta`` is always positive: the shortage for ``soc-minima`` and
-                  the excess for ``soc-maxima``.  An empty dict means all targets were met.
+        :returns: A tuple ``(unresolved_targets, resolved_targets)``.
+
+                  ``unresolved_targets`` is keyed by state-of-charge sensor ID string.
+                  Each value is a dict with keys ``"soc-minima"`` and/or ``"soc-maxima"``
+                  (only present when a violation exists), each containing
+                  ``{"datetime": <ISO 8601 UTC string>, "unmet": "<value> kWh"}``
+                  where ``unmet`` is always positive.
+
+                  ``resolved_targets`` is also keyed by state-of-charge sensor ID string.
+                  Each value is a dict with keys ``"soc-minima"`` and/or ``"soc-maxima"``
+                  (only present when the constraint type was defined and fully met), each
+                  containing ``{"datetime": <ISO 8601 UTC string>, "margin": "<value> kWh"}``
+                  for the slot with the tightest (smallest positive) margin.
         """
         # Use the configured rounding precision, or the scheduler's default of 6.
         precision = self.round_to_decimals if self.round_to_decimals is not None else 6
 
-        result: dict = {}
+        unresolved: dict = {}
+        resolved: dict = {}
 
         for d, flex_model_d in enumerate(flex_model):
             soc_mwh = soc_schedule_mwh.get(d)
             if soc_mwh is None:
                 continue
 
-            # Determine the key for this device: prefer SoC sensor, fall back to power sensor.
+            # Only use state-of-charge sensors as keys; skip devices without one.
             state_of_charge_sensor = flex_model_d.get("state_of_charge")
-            if isinstance(state_of_charge_sensor, Sensor):
-                device_key = str(state_of_charge_sensor.id)
-            else:
-                power_sensor = flex_model_d.get("sensor")
-                if power_sensor is None:
-                    continue
-                device_key = str(power_sensor.id)
+            if not isinstance(state_of_charge_sensor, Sensor):
+                continue
+            device_key = str(state_of_charge_sensor.id)
 
             device_violations: dict = {}
+            device_resolved: dict = {}
 
             # Check soc_minima (first time slot where scheduled SoC < minima)
             soc_minima_d = flex_model_d.get("soc_minima")
@@ -1457,10 +1464,19 @@ class StorageScheduler(MetaStorageScheduler):
                     violations = shortages[shortages > 0]
                     if not violations.empty:
                         first_t = violations.index[0]
-                        delta_kwh = round(float(violations[first_t]) * 1000, precision)
+                        unmet_kwh = round(float(violations[first_t]) * 1000, precision)
                         device_violations["soc-minima"] = {
                             "datetime": first_t.tz_convert("UTC").isoformat(),
-                            "delta": f"{delta_kwh} kWh",
+                            "unmet": f"{unmet_kwh} kWh",
+                        }
+                    else:
+                        # All minima met — record the tightest margin (min headroom above min)
+                        margins = aligned_soc - defined_minima
+                        tightest_t = margins.idxmin()
+                        margin_kwh = round(float(margins[tightest_t]) * 1000, precision)
+                        device_resolved["soc-minima"] = {
+                            "datetime": tightest_t.tz_convert("UTC").isoformat(),
+                            "margin": f"{margin_kwh} kWh",
                         }
 
             # Check soc_maxima (first time slot where scheduled SoC > maxima)
@@ -1482,16 +1498,27 @@ class StorageScheduler(MetaStorageScheduler):
                     violations = excesses[excesses > 0]
                     if not violations.empty:
                         first_t = violations.index[0]
-                        delta_kwh = round(float(violations[first_t]) * 1000, precision)
+                        unmet_kwh = round(float(violations[first_t]) * 1000, precision)
                         device_violations["soc-maxima"] = {
                             "datetime": first_t.tz_convert("UTC").isoformat(),
-                            "delta": f"{delta_kwh} kWh",
+                            "unmet": f"{unmet_kwh} kWh",
+                        }
+                    else:
+                        # All maxima met — record the tightest margin (min headroom below max)
+                        margins = defined_maxima - aligned_soc
+                        tightest_t = margins.idxmin()
+                        margin_kwh = round(float(margins[tightest_t]) * 1000, precision)
+                        device_resolved["soc-maxima"] = {
+                            "datetime": tightest_t.tz_convert("UTC").isoformat(),
+                            "margin": f"{margin_kwh} kWh",
                         }
 
             if device_violations:
-                result[device_key] = device_violations
+                unresolved[device_key] = device_violations
+            if device_resolved:
+                resolved[device_key] = device_resolved
 
-        return result
+        return unresolved, resolved
 
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
@@ -1595,7 +1622,7 @@ class StorageScheduler(MetaStorageScheduler):
             }
 
         if self.return_multiple:
-            unresolved_targets = self._compute_unresolved_targets(
+            unresolved_targets, resolved_targets = self._compute_unresolved_targets(
                 flex_model, soc_schedule_mwh, start, end, resolution
             )
             storage_schedules = [
@@ -1632,7 +1659,10 @@ class StorageScheduler(MetaStorageScheduler):
             scheduling_result = [
                 {
                     "name": SCHEDULING_RESULT_KEY,
-                    "data": SchedulingJobResult(unresolved_targets=unresolved_targets),
+                    "data": SchedulingJobResult(
+                        unresolved_targets=unresolved_targets,
+                        resolved_targets=resolved_targets,
+                    ),
                 }
             ]
             return (
