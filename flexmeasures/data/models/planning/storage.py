@@ -102,13 +102,6 @@ class MetaStorageScheduler(Scheduler):
         # Identify stock models (entries defining SOC limits and a (state-of-charge) sensor)
         self.stock_models = {}
 
-        for fm in flex_model:
-            if fm.get("soc_at_start") is not None and (soc_sensor := fm.get("sensor")):
-                if isinstance(soc_sensor, Sensor):
-                    self.stock_models[soc_sensor.id] = fm
-                else:
-                    self.stock_models[soc_sensor] = fm
-
         device_models = []
         stock_models = {}
 
