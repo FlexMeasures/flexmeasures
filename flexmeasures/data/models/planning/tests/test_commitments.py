@@ -753,9 +753,6 @@ def test_two_devices_shared_stock(app, db):
             "soc-min": 10,
             "soc-max": 200.0,
             "soc-targets": [{"datetime": "2024-01-01T12:00:00+01:00", "value": 189.0}],
-            "power-capacity": "50 kW",
-            "charging-efficiency": 0.45,
-            "discharging-efficiency": 0.45,
         },
     ]
 
