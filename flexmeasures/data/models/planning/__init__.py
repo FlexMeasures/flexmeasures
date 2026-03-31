@@ -79,10 +79,13 @@ class Scheduler:
                 soc_sensor_to_stock_model[soc_sensor] = i
 
         # group devices by soc sensor
+        missing_soc_sensor_i = -len(flex_model)
         for d, fm in enumerate(flex_model):
             soc = fm.get("state_of_charge")
 
             if soc is None:
+                groups[missing_soc_sensor_i].append(d)
+                missing_soc_sensor_i += 1
                 continue
 
             groups[soc.id].append(d)

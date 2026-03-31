@@ -102,9 +102,10 @@ class MetaStorageScheduler(Scheduler):
         # Identify stock models: entries not defining a power sensor, but only a (state-of-charge) sensor
         self.stock_models = {}
 
-        device_models = []
-        stock_models = {}
+        device_models = []  # everything except stock models
+        stock_models = {}  # stock models only
 
+        missing_soc_sensor_i = -len(flex_model)
         for fm in flex_model:
 
             # stock model: entry in the flex-model list where the sensor key is the state-of-charge sensor of the device (e.g. a stock)
@@ -135,8 +136,10 @@ class MetaStorageScheduler(Scheduler):
             """
 
             # device model: entry in the flex-model list where the sensor key is the power sensor of the device (e.g. a feeder)
-            if fm.get("state_of_charge") is not None:
-                device_models.append(fm)
+            device_models.append(fm)
+            if fm.get("state_of_charge") is None:
+                stock_models[missing_soc_sensor_i] = fm
+                missing_soc_sensor_i += 1
 
         flex_model = device_models
         self.stock_models = stock_models
