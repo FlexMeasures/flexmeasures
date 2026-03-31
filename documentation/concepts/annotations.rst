@@ -24,7 +24,7 @@ Each annotation includes:
       :target: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/annotations-on-graphs-example.png
       :align: center
     
-      An annotation displayed in the FlexMeasures graphs dashboard
+      An annotation displayed on the sensor page
 
 
 Use cases
