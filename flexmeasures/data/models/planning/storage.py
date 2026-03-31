@@ -1470,7 +1470,8 @@ class StorageScheduler(MetaStorageScheduler):
                             "unmet": f"{unmet_kwh} kWh",
                         }
                     else:
-                        # All minima met — record the tightest margin (min headroom above min)
+                        # All minima met — record the tightest margin (min headroom above min).
+                        # violations.empty guarantees shortages <= 0, so margins (soc - minima) >= 0.
                         margins = aligned_soc - defined_minima
                         tightest_t = margins.idxmin()
                         margin_kwh = round(float(margins[tightest_t]) * 1000, precision)
@@ -1504,7 +1505,8 @@ class StorageScheduler(MetaStorageScheduler):
                             "unmet": f"{unmet_kwh} kWh",
                         }
                     else:
-                        # All maxima met — record the tightest margin (min headroom below max)
+                        # All maxima met — record the tightest margin (min headroom below max).
+                        # violations.empty guarantees excesses <= 0, so margins (maxima - soc) >= 0.
                         margins = defined_maxima - aligned_soc
                         tightest_t = margins.idxmin()
                         margin_kwh = round(float(margins[tightest_t]) * 1000, precision)

@@ -348,7 +348,11 @@ The ``resolved_targets`` field lists soft SoC constraints that *were* satisfied,
 
 An empty ``{}`` means no constraints of that type were defined.
 
-.. note:: Setting a ``state-of-charge`` sensor on the device is required to populate ``unresolved_targets`` and ``resolved_targets``.
+.. note:: Setting a ``state-of-charge`` sensor on the device is required to populate
+          ``unresolved_targets`` and ``resolved_targets``.  Configure it via the
+          ``state-of-charge`` field in the device's flex model, e.g.
+          ``"state-of-charge": {"sensor": <sensor_id>}``.  See the flex-model
+          documentation for the StorageScheduler for details.
 
 For full technical details of the response schema, refer to the API endpoint documentation for ``GET /sensors/<id>/schedules/<uuid>``.
 
