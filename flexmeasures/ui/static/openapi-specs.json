@@ -1178,7 +1178,7 @@
     "/api/v3_0/sensors/{id}/annotations": {
       "post": {
         "summary": "Creates a new sensor annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">the docs</a> on a sensor.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">annotation</a> on a sensor.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1924,7 +1924,7 @@
     "/api/v3_0/accounts/{id}/annotations": {
       "post": {
         "summary": "Creates a new account annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">the docs</a> on an account.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">annotation</a> on an account.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3605,7 +3605,7 @@
     "/api/v3_0/assets/{id}/annotations": {
       "post": {
         "summary": "Creates a new asset annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">the docs</a> on an asset.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">annotation</a> on an asset.\n",
         "security": [
           {
             "ApiKeyAuth": []

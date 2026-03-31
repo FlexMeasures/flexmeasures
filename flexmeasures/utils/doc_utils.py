@@ -8,8 +8,8 @@ def rst_to_openapi(text: str) -> str:
     """
     Convert a string with RST markup to OpenAPI-safe text.
 
-    - Replaces :ref:`to some section` with "the docs"
-    - Replaces :ref:`section A <anchor>` with "section A in the docs"
+    - Replaces :ref:`to some section` with "the docs" and links in the docs with a search link
+    - Replaces :ref:`section A <anchor>` with "section A", also adding the search link for "anchor"
     - Removes any RST footnote references like [#]_ or [1]_ or [label]_
     - Replaces :abbr:`X (Y)` with <abbr title="Y">X</abbr>
     - Converts :math:`base^{exp}` into HTML sup/sub notation for OpenAPI
@@ -27,12 +27,13 @@ def rst_to_openapi(text: str) -> str:
         if m:
             title = m.group(1).strip()
             search_term = title
+            link_text = title
         else:
             title = content.strip()
             search_term = title
-
+            link_text = "the docs"
         url = DOCS_SEARCH_PATH + quote_plus(search_term)
-        return f'<a href="{url}" target="_blank">the docs</a>'
+        return f'<a href="{url}" target="_blank">{link_text}</a>'
 
     text = re.sub(r":ref:`([^`]+)`", ref_repl, text)
 
