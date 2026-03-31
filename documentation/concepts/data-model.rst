@@ -43,7 +43,8 @@ Asset belong to accounts (read more on accounts below).
 
 Assets are often represented in other systems (e.g. IoT gateways / local EMS) with another ID. To link FlexMeasures' representation of assets with such external representations, you can store those IDs as `external_id`. 
 
-About asset types:
+About asset types
+^^^^^^^^^^^^^^^^^
 
 We model asset types explicitly. None are required for running FlexMeasures.
 Some asset types have support in the UI (for icons, like a sun for ``"solar"``), and in the toy tutorial and test.
@@ -148,6 +149,31 @@ Annotations appear in:
 - API responses when querying chart data with annotation flags
 
 More information, including code examples, is available in :ref:`annotations`.
+
+
+.. _signs_of_power_beliefs:
+
+About signs of power & energy values
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+In short: You can use any sign you want for power data.
+But the scheduler in FlexMeasures needs to know how to apply the signs. Positive (+) means consumption, negative (-) means production.
+Let us explain.
+
+When beliefs are about power or energy, the sign of the value is important. It indicates whether the asset is consuming or producing.
+However, there is no universal standard for this. Some systems use positive values for production and negative values for consumption, while others do the opposite.
+
+FlexMeasures doesn't enforce any perspective (we have a design philosophy of letting users model the system in their own way). 
+
+For example, users can create PV power data with positive values indicating production, and they can also create building power data with positive values indicating consumption.
+We allow this because we want the UI to match what is in the database, and users often desire both of these datasets to be shown as positive values.
+We assume that this is what users send in.
+
+Note that, if forecasts are created, they will have the same sign as original data.
+
+For schedules, the sign of resulting power data (beliefs) is being switched when data is stored (assuming consumption , and you can prevent that by setting ``sensor.attributes["consumption_is_positive"] = True``.
+
+
+.. note:: We will soon document better what the scheduler does in detail, and how the attribute works.
 
 
 Accounts & Users

@@ -260,6 +260,11 @@ def unknown_schedule(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="UNKNOWN_SCHEDULE", message=message), 400
 
 
+@BaseMessage("No known forecast for this time period.")
+def unknown_forecast(message: str) -> ResponseTuple:
+    return dict(result="Rejected", status="UNKNOWN_FORECAST", message=message), 400
+
+
 def fallback_schedule_redirect(message: str, location: str) -> ResponseTuple:
     return (
         dict(result="Rejected", status="UNKNOWN_SCHEDULE", message=message),

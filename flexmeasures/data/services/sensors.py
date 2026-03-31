@@ -20,7 +20,7 @@ import sqlalchemy as sa
 
 from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
-from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
@@ -70,10 +70,10 @@ def _get_sensor_bdfs_by_source_type(
     sensor: Sensor, staleness_search: dict
 ) -> dict[str, BeliefsDataFrame] | None:
     """Get latest event, split by source type for a given sensor with given search parameters.
-    For now we use 'demo script', 'user', 'forecaster', 'scheduler' and 'reporter' source types
+    We only look for the default data source types!
     """
     bdfs_by_source = dict()
-    for source_type in ("demo script", "user", "forecaster", "scheduler", "reporter"):
+    for source_type in DEFAULT_DATASOURCE_TYPES:
         bdf = TimedBelief.search(
             sensors=sensor,
             most_recent_only=True,

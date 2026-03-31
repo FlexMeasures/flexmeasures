@@ -12,16 +12,18 @@ sphinx:
 #formats:
 #  - pdf  # stopped working (e.g. https://readthedocs.org/projects/flexmeasures/builds/26604114/, also not required)
 
+# From https://docs.readthedocs.com/platform/stable/build-customization.html#install-dependencies-with-uv
 build:
-  os: ubuntu-20.04
-  tools:
-    python: "3.10"
-  jobs:
-    post_create_environment:
-      - pip install . --no-deps  # as python install step, RTD installs deps eagerly
-
-python: 
-  install:
-    - requirements: requirements/3.10/app.txt
-    - requirements: requirements/3.10/docs.txt
+   os: ubuntu-lts-latest
+   tools:
+      python: "3.12"
+   jobs:
+      pre_create_environment:
+         - asdf plugin add uv
+         - asdf install uv 0.10.3
+         - asdf global uv 0.10.3
+      create_environment:
+         - uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
+      install:
+         - UV_PROJECT_ENVIRONMENT="${READTHEDOCS_VIRTUALENV_PATH}" uv sync --frozen --group docs
 

@@ -98,7 +98,7 @@ This agent owns the creation, structure, and evolution of all other agents.
 5. **API & Backward Compatibility Specialist** - User and integrator protection
 6. **Documentation & Developer Experience Specialist** - Project understandability
 7. **Tooling & CI Specialist** - Automation reliability and maintainability
-8. **Review Lead** - Orchestrates agents in response to a user assignment
+8. **Lead** - Main entry point; orchestrates agents for reviews, development, and mixed tasks
 
 ### Standard Agent Template
 
@@ -240,7 +240,7 @@ parameters = {
 | **Test Specialist** | Detect format mismatches in test failures | Test compares data sources |
 | **API Specialist** | Verify API documentation matches format | Schema changes |
 | **Architecture Specialist** | Enforce schema-as-source-of-truth invariant | Any dict parameter usage |
-| **Review Lead** | Coordinate format verification across agents | Schema PRs |
+| **Lead** | Coordinate format verification across agents | Schema PRs |
 | **Coordinator** | Track pattern, update template checklist | Schema migration PRs |
 
 **Checklist for Schema Format Migrations**:
@@ -465,8 +465,8 @@ Required verification:
 **Agents must make successful use of working FlexMeasures dev environment.**
 Key capabilities:
 
-- Set up environment: `make install-for-dev` or `make install-for-test`
-- Run tests: `pytest` or `make test`
+- Set up environment: `uv sync --group dev --group test`
+- Run tests: `uv run poe test`
 - Test CLI: `flexmeasures <command> <args>`
 - Run pre-commit: `pre-commit run --all-files`
 - Build docs: `make update-docs`
@@ -495,31 +495,31 @@ The Coordinator has identified these recurring issues:
 5. **Agents didn't verify fixes** - Didn't test against actual bug scenarios
 6. **Unfounded claims** - "1000x faster" without benchmarks
 7. **Wrong examples** - Used PT1H instead of PT2H (the actual bug case)
-8. **Tasks not completed** - Review-lead didn't run coordinator despite assignment
+8. **Tasks not completed** - lead agent didn't run coordinator despite assignment
 
 ### Additional Pattern Discovered (2026-02-06)
 
-**Pattern**: Review Lead as Coordinator proxy failure
+**Pattern**: Lead as Coordinator proxy failure
 
 **Observation**: When users ask for "agent instruction updates" or "governance review":
-- Review Lead should invoke Coordinator as subagent
-- Instead, Review Lead may try to do Coordinator work itself
+- Lead should invoke Coordinator as subagent
+- Instead, Lead may try to do Coordinator work itself
 - This misses structural issues and prevents proper governance
 
-**Root cause**: Role confusion between Review Lead (task orchestrator) and Coordinator (meta-agent)
+**Root cause**: Role confusion between Lead (task orchestrator) and Coordinator (meta-agent)
 
 **Solution implemented**: 
-- Updated Review Lead instructions with "Must Actually Run Coordinator When Requested"
-- Clarified that Review Lead ≠ Coordinator
+- Updated Lead instructions with "Must Actually Run Coordinator When Requested"
+- Clarified that Lead ≠ Coordinator
 - Added explicit trigger patterns (e.g., "agent instructions", "governance")
 
 **Why it matters**: 
 - Agent self-improvement depends on Coordinator oversight
-- Review Lead can't replace Coordinator's structural expertise
+- Lead can't replace Coordinator's structural expertise
 - Users expect governance work when they ask about agent instructions
 
 **Verification**: Check future sessions where users mention "agent instructions" - 
-Review Lead should now invoke Coordinator as subagent.
+Lead should now invoke Coordinator as subagent.
 
 ### Governance Failure Pattern (2026-02-10)
 
