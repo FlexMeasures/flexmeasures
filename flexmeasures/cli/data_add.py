@@ -882,7 +882,7 @@ def add_annotation(
     _source = get_or_create_source(user)
 
     # Create annotation
-    annotation = get_or_create_annotation(
+    annotation, _ = get_or_create_annotation(
         Annotation(
             content=content,
             start=start,
@@ -974,17 +974,16 @@ def add_holidays(
         for holiday in holidays:
             start = pd.Timestamp(holiday[0])
             end = start + pd.offsets.DateOffset(days=1)
-            annotations.append(
-                get_or_create_annotation(
-                    Annotation(
-                        content=holiday[1],
-                        start=start,
-                        end=end,
-                        source=_source,
-                        type="holiday",
-                    )
+            annotation, _ = get_or_create_annotation(
+                Annotation(
+                    content=holiday[1],
+                    start=start,
+                    end=end,
+                    source=_source,
+                    type="holiday",
                 )
             )
+            annotations.append(annotation)
         num_holidays[country] = len(holidays)
     db.session.add_all(annotations)
     for account in accounts:
@@ -1151,8 +1150,8 @@ def add_forecast(  # noqa: C901
             return
 
         # as_job case → list of job dicts like {"job-1": "<uuid>"}
-        if parameters.get("as_job"):
-            n_jobs = len(pipeline_returns)
+        if as_job:
+            n_jobs = pipeline_returns["n_jobs"]
             click.secho(f"Created {n_jobs} forecasting job(s).", **MsgStyle.SUCCESS)
             return
 
@@ -1826,19 +1825,31 @@ def add_toy_account(kind: str, name: str):
         db.session.flush()
         battery = discharging_sensor.generic_asset
         battery.sensors_to_show = [
-            {"title": "Prices", "sensor": day_ahead_sensor.id},
+            {"title": "Prices", "plots": [{"sensor": day_ahead_sensor.id}]},
             {
                 "title": "Power flows",
-                "sensors": [production_sensor.id, discharging_sensor.id],
+                "plots": [
+                    {"sensors": [production_sensor.id, discharging_sensor.id]},
+                ],
             },
         ]
 
         # the site gets a similar dashboard (TODO: after #1801, add also capacity constraint)
         building_asset.sensors_to_show = [
-            {"title": "Prices", "sensor": day_ahead_sensor.id},
+            {
+                "title": "Prices",
+                "plots": [
+                    {
+                        "asset": building_asset.id,
+                        "flex-context": "consumption-price",
+                    }
+                ],
+            },
             {
                 "title": "Power flows",
-                "sensors": [production_sensor.id, discharging_sensor.id],
+                "plots": [
+                    {"sensors": [production_sensor.id, discharging_sensor.id]},
+                ],
             },
         ]
 
@@ -1878,10 +1889,10 @@ def add_toy_account(kind: str, name: str):
 
         process = shiftable_power.generic_asset
         process.sensors_to_show = [
-            {"title": "Prices", "sensor": day_ahead_sensor.id},
-            {"title": "Inflexible", "sensor": inflexible_power.id},
-            {"title": "Breakable", "sensor": breakable_power.id},
-            {"title": "Shiftable", "sensor": shiftable_power.id},
+            {"title": "Prices", "plots": [{"sensor": day_ahead_sensor.id}]},
+            {"title": "Inflexible", "plots": [{"sensor": inflexible_power.id}]},
+            {"title": "Breakable", "plots": [{"sensor": breakable_power.id}]},
+            {"title": "Shiftable", "plots": [{"sensor": shiftable_power.id}]},
         ]
 
         db.session.commit()

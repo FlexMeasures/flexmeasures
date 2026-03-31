@@ -198,18 +198,6 @@ def set_random_password(user: User):
     )
     update_password(user, new_random_password)
 
-    active_user_id, active_user_name = None, None
-    if hasattr(current_user, "id"):
-        active_user_id, active_user_name = current_user.id, current_user.username
-    user_audit_log = AuditLog(
-        event_datetime=server_now(),
-        event=f"Password reset for user {user.username}",
-        active_user_id=active_user_id,
-        active_user_name=active_user_name,
-        affected_user_id=user.id,
-    )
-    db.session.add(user_audit_log)
-
 
 def remove_cookie_and_token_access(user: User):
     """

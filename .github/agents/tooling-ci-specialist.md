@@ -50,7 +50,7 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 - [ ] **Hook versions**: Hooks use recent, stable versions
 - [ ] **Hook coverage**: Appropriate hooks for code quality
 - [ ] **Performance**: Hooks run in reasonable time
-- [ ] **Configuration**: Hooks configured via `setup.cfg` or `pyproject.toml`
+- [ ] **Configuration**: Hooks configured via `pyproject.toml`
 - [ ] **Local vs CI**: Some hooks can skip in CI
 
 #### generate-openapi-specs Hook: Known Regressions
@@ -99,7 +99,7 @@ git diff flexmeasures/ui/static/openapi-specs.json | grep -c '"Asia/'
 
 ### Linter Configuration
 
-- [ ] **Flake8**: Configured in `setup.cfg` with appropriate rules
+- [ ] **Flake8**: Configured in `.flake8` with appropriate rules
 - [ ] **Black**: Line length and style consistent
 - [ ] **Mypy**: Type checking configuration appropriate
 - [ ] **Consistency**: Settings match across local and CI
@@ -111,6 +111,115 @@ git diff flexmeasures/ui/static/openapi-specs.json | grep -c '"Asia/'
 - [ ] **OS matrix**: Ubuntu latest (add others if needed)
 - [ ] **Fail-fast**: Usually false for comprehensive testing
 - [ ] **Coverage**: One Python version runs coverage
+
+### Pre-commit Hook Execution (CRITICAL)
+
+**Every commit MUST pass pre-commit hooks BEFORE being committed.**
+
+This is mandatory. Committing code that fails pre-commit hooks is a process failure.
+
+#### Why This Matters
+
+Pre-commit hooks enforce code quality standards:
+- **Flake8**: Catches linting errors (unused imports, complexity, style violations)
+- **Black**: Ensures consistent code formatting
+- **Mypy**: Validates type annotations
+
+Code that bypasses pre-commit:
+- Fails in CI (wastes resources)
+- Forces maintainers to fix formatting
+- Creates noisy review feedback
+- Delays PR merge
+
+#### Execution Requirements
+
+**Before ANY commit:**
+
+1. **Install pre-commit**:
+   ```bash
+   pip install pre-commit
+   pre-commit install  # Install git hooks (optional but recommended)
+   ```
+
+2. **Run all hooks**:
+   ```bash
+   pre-commit run --all-files
+   ```
+
+3. **Verify zero failures**:
+   - ✅ All hooks pass
+   - ✅ No files modified by hooks (or modifications committed)
+   - ✅ No errors from flake8, black, or mypy
+
+4. **Document execution**:
+   ```
+   Pre-commit verification:
+   - Command: pre-commit run --all-files
+   - Result: All hooks passed
+   - Modified files: None (or included in commit)
+   ```
+
+#### Responsibility Assignment
+
+**Who runs pre-commit:**
+- **During code changes**: Agent making changes runs pre-commit before committing
+- **Before PR close**: Review Lead verifies pre-commit execution
+- **In PR review**: Tooling & CI Specialist validates config matches CI
+
+**Enforcement:**
+- Review Lead's session close checklist includes pre-commit verification
+- Review Lead cannot close session without pre-commit evidence
+- If pre-commit fails, agent must fix all issues before proceeding
+
+#### Common Failures and Fixes
+
+**Flake8 failures:**
+```bash
+# Common issues:
+# - E501: Line too long (black should handle this)
+# - F401: Unused import (remove import)
+# - C901: Function too complex (refactor)
+# - W503: Line break before binary operator (ignore, conflicts with black)
+
+# Quick check:
+flake8 path/to/file.py
+```
+
+**Black failures:**
+```bash
+# Auto-fix formatting:
+black path/to/file.py
+
+# Or format entire codebase:
+black .
+```
+
+**Mypy failures:**
+```bash
+# Type annotation required
+# Manual fix needed:
+# - Add type hints to function signatures
+# - Fix type mismatches
+# - Add # type: ignore comments with justification
+
+# Run mypy:
+ci/run_mypy.sh
+```
+
+#### Integration with Review Lead
+
+**Review Lead checklist items:**
+- [ ] Pre-commit hooks installed
+- [ ] All hooks pass: `pre-commit run --all-files`
+- [ ] Zero failures from flake8, black, mypy
+- [ ] If hooks modified files, changes committed
+
+**Evidence required:**
+- Show pre-commit output confirming all hooks passed
+- Or confirm: "Pre-commit verified: all hooks passed"
+
+**Enforcement:**
+Review Lead MUST verify pre-commit execution before closing session.
 
 ### Agent Environment Setup
 
@@ -124,9 +233,8 @@ This file defines standardized environment setup for GitHub Copilot agents. When
   - Other system tools
   
 - [ ] **Python environment**: 
-  - Is Python version appropriate? (Default: 3.11)
-  - Are dependencies installed correctly? (`pip-sync`, `pip install -e .`)
-  - Is pip-tools version pinned?
+  - Is Python version appropriate according to `.python-version`?
+  - Are dependencies installed correctly? (`uv sync`)
   
 - [ ] **Database setup**:
   - Is PostgreSQL service started?
@@ -187,18 +295,25 @@ This file defines standardized environment setup for GitHub Copilot agents. When
 
 Setup:
 ```bash
-pip install pre-commit
+uv tool install pre-commit
 pre-commit run --all-files
 ```
 
 ### Flake8 Configuration
 
-`setup.cfg`:
+`.flake8`:
 ```ini
 [flake8]
+exclude = .git,__pycache__,documentation
 max-line-length = 160
 max-complexity = 13
+select = B,C,E,F,W,B9
 ignore = E501, W503, E203
+per-file-ignores =
+    flexmeasures/__init__.py:F401
+    flexmeasures/data/schemas/__init__.py:F401
+    flexmeasures/ui/crud/assets/__init__.py:F401
+
 ```
 
 Ignored rules:
@@ -216,13 +331,13 @@ Ignored rules:
 
 **Test execution**:
 ```bash
-make install-for-test  # Install dependencies
-make test              # Run pytest
+uv sync --group test  # Install dependencies
+uv run poe test              # Run pytest
 ```
 
 ### Caching Strategy
 
-Pip cache configuration:
+Uv cache configuration:
 ```yaml
 uses: actions/cache@v4
 with:
@@ -259,10 +374,9 @@ pytest -k test_auth_token  # Ensure auth setup runs
 
 - Workflows: `.github/workflows/`
 - Pre-commit: `.pre-commit-config.yaml`
-- Linter config: `setup.cfg`
-- Mypy runner: `ci/run_mypy.sh`
+- Linter config: `.flake8`
+- Task runner: `pyproject.toml` (poethepoet tasks)
 - PostgreSQL setup: `ci/setup-postgres.sh`
-- Makefile: `Makefile`
 - Docker: `Dockerfile`, `docker-compose.yml`
 
 ## Interaction Rules
@@ -349,15 +463,15 @@ Before committing CI changes:
 
 1. **Test pre-commit hooks locally**:
    ```bash
-   pip install pre-commit
+   uv tool install pre-commit
    pre-commit install
    pre-commit run --all-files
    ```
 2. **Test make targets**:
    ```bash
-   make install-for-test
-   make test
-   make update-docs
+   uv sync --group test
+   uv run poe test
+   uv run poe update-docs
    ```
 3. **Verify pytest configuration**:
    ```bash

@@ -548,6 +548,31 @@ def create_assets(
             ),
         )
         db.session.add(sensor)
+        scc_sensor = Sensor(
+            name="site-consumption-capacity",
+            generic_asset=asset,
+            event_resolution=timedelta(minutes=15),
+            unit="MW",
+        )
+        db.session.add(scc_sensor)
+        cc_sensor = Sensor(
+            name="consumption-capacity",
+            generic_asset=asset,
+            event_resolution=timedelta(minutes=15),
+            unit="MW",
+        )
+        db.session.add(cc_sensor)
+        pc_sensor = Sensor(
+            name="production-capacity",
+            generic_asset=asset,
+            event_resolution=timedelta(minutes=15),
+            unit="MW",
+        )
+        db.session.add(pc_sensor)
+        db.session.flush()  # assign sensor IDs
+        asset.flex_model["consumption-capacity"] = {"sensor": cc_sensor.id}
+        asset.flex_model["production-capacity"] = {"sensor": pc_sensor.id}
+        asset.flex_context["site-consumption-capacity"] = {"sensor": scc_sensor.id}
         assets.append(asset)
 
         # one day of test data (one complete sine curve)
@@ -567,6 +592,37 @@ def create_assets(
         )
     db.session.commit()
     return {asset.name: asset for asset in assets}
+
+
+@pytest.fixture(scope="function")
+def setup_probabilistic_beliefs(db, setup_markets, setup_sources) -> dict[str, dict]:
+    """
+    Make some probabilistic beliefs.
+
+    :returns: the number of beliefs set up per sensor
+    """
+    sensor = setup_markets["epex_da"]
+    source = setup_sources["ENTSO-E"]
+    beliefs = [
+        TimedBelief(
+            sensor=sensor,
+            source=source,
+            event_value=19,
+            event_start="2026-03-25 17:00+01",
+            belief_horizon=timedelta(hours=0),
+            cp=0.19,
+        ),
+        TimedBelief(
+            sensor=sensor,
+            source=source,
+            event_value=50,
+            event_start="2026-03-25 17:00+01",
+            belief_horizon=timedelta(hours=0),
+            cp=0.4,
+        ),
+    ]
+    db.session.add_all(beliefs)
+    return {sensor.name: {"sensor": sensor, "n_beliefs": len(beliefs)}}
 
 
 @pytest.fixture(scope="module")
