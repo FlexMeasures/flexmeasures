@@ -112,7 +112,7 @@ def test_format_json_field_change_handles_removed_middle_plot_without_false_repl
 
     assert (
         change
-        == "Updated sensors_to_show:\n1. Changed graph 1 (Storages SoC): removed plot 2"
+        == 'Updated sensors_to_show:\n1. Changed graph 1 (Storages SoC): removed plot 2: {"sensor": 2, "flex-model": "soc-max"}'
     )
 
 

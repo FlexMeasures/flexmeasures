@@ -89,7 +89,7 @@ def _describe_plot_replace_block(
         changes.extend(_describe_plot_key_changes(old_plots[pi], new_plots[pj], pj + 1))
 
     for pi in range(i1 + shared, i2):
-        changes.append(f"removed plot {pi + 1}")
+        changes.append(f"removed plot {pi + 1}: {_json.dumps(old_plots[pi])}")
     for pj in range(j1 + shared, j2):
         changes.append(f"added plot {pj + 1}: {_json.dumps(new_plots[pj])}")
     return changes
@@ -118,7 +118,7 @@ def _describe_plot_changes(old_plots: list, new_plots: list) -> list:
 
         if tag == "delete":
             for pi in range(i1, i2):
-                changes.append(f"removed plot {pi + 1}")
+                changes.append(f"removed plot {pi + 1}: {_json.dumps(old_plots[pi])}")
             continue
 
         if tag == "insert":
