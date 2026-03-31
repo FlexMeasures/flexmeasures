@@ -225,3 +225,120 @@ def test_save_probabilistic_belief_with_different_event_value_raises_error(
 
     # Rollback the session to clean up after the failed transaction
     db.session.rollback()
+
+
+def test_drop_unchanged_compares_against_latest_prior_belief(setup_beliefs, db):
+    """Repro: candidate equal to an older belief should still compare to latest prior."""
+
+    sensor = get_test_sensor(db)
+    assert sensor is not None
+    source = DataSource(name="Drop unchanged repro source", type="demo script")
+    db.session.add(source)
+    db.session.commit()
+
+    event_start = pd.Timestamp("2021-03-28 16:00:00+00:00")
+    belief_time_1 = pd.Timestamp("2021-03-27 08:00:00+00:00")
+    belief_time_2 = pd.Timestamp("2021-03-27 09:00:00+00:00")
+    belief_time_3 = pd.Timestamp("2021-03-27 10:00:00+00:00")
+
+    initial_beliefs = tb.BeliefsDataFrame(
+        [
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start,
+                belief_time=belief_time_1,
+                event_value=2.0,
+            ),
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start,
+                belief_time=belief_time_2,
+                event_value=1.0,
+            ),
+        ]
+    )
+    save_to_db(initial_beliefs, save_changed_beliefs_only=False)
+    db.session.commit()
+
+    candidate_belief = tb.BeliefsDataFrame(
+        [
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start,
+                belief_time=belief_time_3,
+                event_value=2.0,
+            )
+        ]
+    )
+    save_to_db(candidate_belief, save_changed_beliefs_only=True)
+    db.session.commit()
+
+    beliefs = sensor.search_beliefs(
+        source=source,
+        most_recent_beliefs_only=False,
+        event_starts_after=event_start - pd.Timedelta(minutes=1),
+        event_ends_before=event_start + sensor.event_resolution,
+    )
+    beliefs = beliefs[beliefs.event_starts == event_start]
+    belief_values_by_time = {
+        bt.isoformat(): value
+        for bt, value in zip(beliefs.belief_times, beliefs.event_value)
+    }
+    assert len(belief_values_by_time) == 3
+    assert belief_values_by_time[belief_time_3.isoformat()] == 2.0
+
+
+def test_drop_unchanged_helper_uses_wrong_prior_when_belief_times_descending(
+    setup_beliefs, db
+):
+    """Regression: candidate should compare against latest prior, not older prior."""
+
+    sensor = get_test_sensor(db)
+    assert sensor is not None
+    source = DataSource(name="Drop unchanged direct helper repro", type="demo script")
+    db.session.add(source)
+    db.session.commit()
+
+    event_start = pd.Timestamp("2021-03-28 16:00:00+00:00")
+    belief_time_1 = pd.Timestamp("2021-03-27 08:00:00+00:00")  # older
+    belief_time_2 = pd.Timestamp("2021-03-27 09:00:00+00:00")  # latest prior
+    belief_time_3 = pd.Timestamp("2021-03-27 10:00:00+00:00")  # candidate
+
+    bdf_db = tb.BeliefsDataFrame(
+        [
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start,
+                belief_time=belief_time_2,
+                event_value=1.0,
+            ),
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start,
+                belief_time=belief_time_1,
+                event_value=2.0,
+            ),
+        ]
+    )
+    bdf_db = bdf_db.sort_index(ascending=False)
+    assert list(bdf_db.belief_times) == [belief_time_2, belief_time_1]
+
+    candidate = tb.BeliefsDataFrame(
+        [
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start,
+                belief_time=belief_time_3,
+                event_value=2.0,
+            )
+        ]
+    )
+
+    filtered = _drop_unchanged_beliefs_compared_to_db(candidate, bdf_db=bdf_db)
+    assert len(filtered) == 1
