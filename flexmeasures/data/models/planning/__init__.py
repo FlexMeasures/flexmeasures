@@ -67,7 +67,7 @@ class Scheduler:
     return_multiple: bool = False
 
     @staticmethod
-    def _build_stock_groups(self, flex_model: list[dict]) -> dict:
+    def _build_stock_groups(flex_model: list[dict]) -> dict:
 
         groups = defaultdict(list)
         soc_sensor_to_stock_model = {}
