@@ -20,6 +20,13 @@ Each annotation includes:
 - **Source**: The data source that created the annotation (typically a user or automated system)
 
 
+   .. figure:: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/annotations-on-graphs-example.png 
+      :target: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/annotations-on-graphs-example.png
+      :align: center
+    
+      An annotation displayed in the FlexMeasures graphs dashboard
+
+
 Use cases
 ---------
 
