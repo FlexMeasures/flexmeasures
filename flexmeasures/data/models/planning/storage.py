@@ -1465,121 +1465,109 @@ class StorageScheduler(MetaStorageScheduler):
         ems_schedule: list[pd.Series],
         soc_at_start: list[float],
         device_constraints: list,
-        stock_groups: dict,
         resolution: timedelta,
+        stock_groups: dict[int, list[int]],
     ) -> dict:
-        """Build the state-of-charge schedule for each device that has a state-of-charge sensor.
+        """Build the state-of-charge schedule for each stock group.
 
-        Converts the integrated power schedule from MWh to the sensor's unit.
-        For sensors with a '%' unit, the soc-max flex-model field is used as capacity.
-        If soc-max is missing or zero for a '%' sensor, the schedule is skipped with a warning.
+        Supports both:
+        - original logic: one device per stock group
+        - local/shared-stock logic: multiple devices contribute to one shared stock
 
-        Note: soc-max is a QuantityField (not a VariableQuantityField), so it is always a float
-        after deserialization and cannot be a sensor reference. The isinstance guard below is
-        therefore a defensive check for forward-compatibility.
+        For shared stock groups, each device contribution is integrated separately with
+        its own efficiencies and stock delta, then summed on top of the shared initial stock.
+
+        Converts the integrated stock schedule from MWh to the state-of-charge sensor unit.
+        For '%' sensors, the soc-max flex-model field is used as capacity.
         """
         soc_schedule = {}
-        for d, flex_model_d in enumerate(flex_model):
-            state_of_charge_sensor = flex_model_d.get("state_of_charge", None)
+
+        for stock_id, devices in stock_groups.items():
+            if not devices:
+                continue
+
+            d0 = devices[0]
+            flex_model_d0 = flex_model[d0]
+
+            state_of_charge_sensor = flex_model_d0.get("state_of_charge")
             if not isinstance(state_of_charge_sensor, Sensor):
                 continue
+
+            # Build the SoC series for this stock group
+            if len(devices) > 1:
+                soc_contributions = []
+                reference_index = None
+
+                for d in devices:
+                    contribution = integrate_time_series(
+                        series=ems_schedule[d],
+                        initial_stock=0,
+                        stock_delta=device_constraints[d]["stock delta"]
+                        * resolution
+                        / timedelta(hours=1),
+                        up_efficiency=device_constraints[d]["derivative up efficiency"],
+                        down_efficiency=device_constraints[d][
+                            "derivative down efficiency"
+                        ],
+                        storage_efficiency=device_constraints[d]["efficiency"]
+                        .astype(float)
+                        .fillna(1),
+                    )
+                    soc_contributions.append(contribution)
+
+                    if reference_index is None:
+                        reference_index = contribution.index
+
+                initial_stock = soc_at_start[d0] if soc_at_start[d0] is not None else 0
+                soc = pd.Series(
+                    [
+                        initial_stock
+                        + sum(contrib.iloc[i] for contrib in soc_contributions)
+                        for i in range(len(soc_contributions[0]))
+                    ],
+                    index=reference_index,
+                )
+            else:
+                soc = integrate_time_series(
+                    series=ems_schedule[d0],
+                    initial_stock=soc_at_start[d0],
+                    stock_delta=device_constraints[d0]["stock delta"]
+                    * resolution
+                    / timedelta(hours=1),
+                    up_efficiency=device_constraints[d0]["derivative up efficiency"],
+                    down_efficiency=device_constraints[d0][
+                        "derivative down efficiency"
+                    ],
+                    storage_efficiency=device_constraints[d0]["efficiency"]
+                    .astype(float)
+                    .fillna(1),
+                )
+
+            # Convert to sensor unit
             soc_unit = state_of_charge_sensor.unit
             capacity = None
             if soc_unit == "%":
-                soc_max = flex_model_d.get("soc_max")
+                soc_max = flex_model_d0.get("soc_max")
                 if isinstance(soc_max, Sensor):
                     raise ValueError(
-                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
-                        "soc-max as a sensor reference is not supported for '%' unit conversion. "
-                        "Skipping state-of-charge schedule."
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor "
+                        f"{state_of_charge_sensor.id}: soc-max as a sensor reference is "
+                        "not supported for '%' unit conversion."
                     )
                 if not soc_max:
                     raise ValueError(
-                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
-                        "soc-max is missing or zero. Skipping state-of-charge schedule."
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor "
+                        f"{state_of_charge_sensor.id}: soc-max is missing or zero."
                     )
-                capacity = f"{soc_max} MWh"  # all flex model fields are in MWh by now
+                capacity = f"{soc_max} MWh"
+
             soc_schedule[state_of_charge_sensor] = convert_units(
-                integrate_time_series(
-                    series=ems_schedule[d],
-                    initial_stock=soc_at_start[d],
-                    stock_delta=device_constraints[d]["stock delta"]
-                    * resolution
-                    / timedelta(hours=1),
-                    up_efficiency=device_constraints[d]["derivative up efficiency"],
-                    down_efficiency=device_constraints[d]["derivative down efficiency"],
-                    storage_efficiency=device_constraints[d]["efficiency"]
-                    .astype(float)
-                    .fillna(1),
-                ),
+                soc,
                 from_unit="MWh",
                 to_unit=soc_unit,
                 capacity=capacity,
             )
 
-        # for stock_idx, (stock_id, devices) in enumerate(stock_groups.items()):
-        #     d0 = devices[0]
-        #
-        #     # For shared stock with multiple devices, each device may have different efficiencies.
-        #     # We must calculate the stock contribution of each device separately using its own
-        #     # efficiencies, then sum them. We cannot aggregate power and apply one device's efficiencies.
-        #     if len(devices) > 1:
-        #         # Multiple devices sharing the same stock - must account for individual efficiencies
-        #         # Calculate stock change for each device individually, then sum
-        #         soc_contributions = []
-        #         for d in devices:
-        #             soc_d = integrate_time_series(
-        #                 series=ems_schedule[d],
-        #                 initial_stock=0,  # Start at 0 since we're just tracking contribution
-        #                 stock_delta=device_constraints[d]["stock delta"]
-        #                 * resolution
-        #                 / timedelta(hours=1),
-        #                 up_efficiency=device_constraints[d]["derivative up efficiency"],
-        #                 down_efficiency=device_constraints[d][
-        #                     "derivative down efficiency"
-        #                 ],
-        #                 storage_efficiency=device_constraints[d]["efficiency"]
-        #                 .astype(float)
-        #                 .fillna(1),
-        #             )
-        #             soc_contributions.append(soc_d)
-        #
-        #         # Sum all contributions and add initial stock
-        #         soc = pd.Series(
-        #             [
-        #                 soc_at_start[d0]
-        #                 + sum(contrib.iloc[i] for contrib in soc_contributions)
-        #                 for i in range(len(soc_contributions[0]))
-        #             ],
-        #             index=soc_contributions[0].index,
-        #         )
-        #     else:
-        #         # Single device - use original logic
-        #         stock_series = ems_schedule[d0]
-        #         soc = integrate_time_series(
-        #             series=stock_series,
-        #             initial_stock=soc_at_start[d0],
-        #             stock_delta=device_constraints[d0]["stock delta"]
-        #             * resolution
-        #             / timedelta(hours=1),
-        #             up_efficiency=device_constraints[d0]["derivative up efficiency"],
-        #             down_efficiency=device_constraints[d0][
-        #                 "derivative down efficiency"
-        #             ],
-        #             storage_efficiency=device_constraints[d0]["efficiency"]
-        #             .astype(float)
-        #             .fillna(1),
-        #         )
-        #
-        #     # attach SOC sensor if defined
-        #     soc_sensor = flex_model[d0].get("state_of_charge")
-        #
-        #     if isinstance(soc_sensor, Sensor):
-        #         soc_schedule[soc_sensor] = convert_units(
-        #             soc,
-        #             from_unit="MWh",
-        #             to_unit=soc_sensor.unit,
-        #         )
         return soc_schedule
 
     def compute(  # noqa: C901
