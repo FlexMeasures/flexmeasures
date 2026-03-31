@@ -638,6 +638,15 @@ See `here <https://docs.sentry.io/platforms/python/configuration/options/>_` for
 Default: ``{}``
 
 
+FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If ``True``, 404 (Not Found) errors will not be forwarded to Sentry. Online platforms see many automated scans for known vulnerable paths,
+so without this filter, 404 errors can inflate Sentry error budgets unnecessarily.
+
+Default: ``True``
+
+
 FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
