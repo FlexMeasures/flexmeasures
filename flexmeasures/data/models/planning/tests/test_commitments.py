@@ -748,7 +748,7 @@ def test_two_devices_shared_stock(app, db):
             "discharging-efficiency": 0.45,
         },
         {
-            "state-of-charge": state_of_charge.id,
+            "state-of-charge": {"sensor": state_of_charge.id},
             "soc-at-start": 20.0,
             "soc-min": 10,
             "soc-max": 200.0,
