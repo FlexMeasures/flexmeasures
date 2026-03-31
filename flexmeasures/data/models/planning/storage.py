@@ -561,6 +561,11 @@ class MetaStorageScheduler(Scheduler):
         for d, (prefer_charging_sooner_d, prefer_curtailing_later_d) in enumerate(
             zip(prefer_charging_sooner, prefer_curtailing_later)
         ):
+            soc_max_d = soc_max[d]
+            soc_at_start_d = soc_at_start[d]
+
+            if soc_max_d is None or soc_at_start_d is None:
+                continue
             if prefer_charging_sooner_d:
                 tiny_price_slope = (
                     add_tiny_price_slope(
