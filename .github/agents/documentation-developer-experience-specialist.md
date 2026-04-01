@@ -75,6 +75,51 @@ Keep FlexMeasures understandable and contributor-friendly by ensuring excellent 
 - [ ] **Maintenance**: Comment doesn't duplicate nearby docstring
 - [ ] **TODOs**: TODOs include context and optional issue number
 
+### API Feature Documentation
+
+- [ ] **Structure**: Follow standard feature guide structure (see Domain Knowledge)
+- [ ] **Examples**: Provide both curl and Python examples for all endpoints
+- [ ] **Error handling**: Include error handling in all code examples
+- [ ] **Timezone awareness**: Use timezone-aware datetimes in all examples
+- [ ] **Imports**: Verify all imports are correct and work
+- [ ] **Field descriptions**: Match OpenAPI schema field descriptions
+- [ ] **Completeness**: Cover What, Why, Types, Usage, Auth, Errors, Best Practices, Limitations
+- [ ] **Testing**: Verify examples run and produce expected output
+
+### Endpoint Migration Documentation
+
+When API endpoints are migrated or restructured:
+
+- [ ] **Update all endpoint URLs** in documentation
+- [ ] **Update curl examples** with new endpoint structure
+- [ ] **Update Python examples** with new URL patterns  
+- [ ] **Add migration note** explaining old → new pattern
+- [ ] **Update API overview** with new structure
+- [ ] **Verify internal links** work in generated docs
+- [ ] **Document backward compatibility** approach if endpoints support both patterns
+
+**Pattern for nested resource endpoints:**
+
+When migrating from flat to nested RESTful structure:
+
+```rst
+.. http:get:: /api/v3_0/accounts/(int:account_id)/annotations
+
+   Get annotations for a specific account.
+   
+   **URL structure**: This endpoint follows RESTful nesting under account resources.
+   
+   **Replaces (deprecated):** ``/api/v3_0/annotations?account_id=<id>``
+```
+
+**Checklist for endpoint migration docs:**
+
+- [ ] All examples updated to new URL structure
+- [ ] Both curl and Python code examples reflect new pattern
+- [ ] Migration guide explains what changed and why
+- [ ] Deprecated endpoints marked clearly
+- [ ] Timeline for deprecation (if applicable)
+
 ## Domain Knowledge
 
 ### FlexMeasures Documentation Structure
@@ -164,12 +209,104 @@ Avoid redundant comments:
 name = value
 ```
 
+### API Feature Documentation Structure
+
+When documenting a new API feature (learned from annotation API session 2026-02-10):
+
+**Standard Feature Guide Structure:**
+
+1. **What** - Brief description of the feature (1-2 paragraphs)
+2. **Why** - Use cases and benefits (bullet list)
+3. **Types/Models** - Data structures involved (with field descriptions)
+4. **Usage** - How to use the feature
+   - Authentication section
+   - Multiple examples (curl and Python)
+   - Request/response examples
+5. **Permissions** - Access control requirements
+6. **Error Handling** - Common errors and solutions
+7. **Best Practices** - Tips for optimal usage
+8. **Limitations** - Known constraints
+
+**Example Requirements:**
+
+Always provide **both** curl and Python examples:
+
+```bash
+# curl example with authentication
+curl -X POST "https://flexmeasures.example.com/api/v3/sensors/1/annotations" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Example annotation",
+    "start": "2024-01-15T10:00:00+01:00"
+  }'
+```
+
+```python
+# Python example with error handling and timezone awareness
+from datetime import datetime, timezone
+import requests
+
+# Always use timezone-aware datetimes
+start_time = datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc)
+
+response = requests.post(
+    "https://flexmeasures.example.com/api/v3/sensors/1/annotations",
+    headers={"Authorization": "Bearer YOUR_TOKEN"},
+    json={
+        "content": "Example annotation",
+        "start": start_time.isoformat()
+    }
+)
+
+# Include error handling
+if response.status_code == 201:
+    annotation = response.json()
+    print(f"Created annotation: {annotation['id']}")
+else:
+    print(f"Error: {response.status_code} - {response.json()}")
+```
+
+**Critical Requirements for API Examples:**
+
+1. **Timezone-aware datetimes**: Always import `timezone` from `datetime` and use timezone-aware datetime objects
+2. **Error handling**: Include response status code checks and error output
+3. **Complete imports**: Verify all imports are included and work
+4. **Real endpoints**: Use actual API endpoint paths from the codebase
+5. **Valid JSON**: Ensure JSON structure matches OpenAPI schema
+6. **Field descriptions**: Copy field descriptions from OpenAPI specs exactly
+
+**Documentation Placement:**
+
+- **Feature guides**: `documentation/features/<feature-name>.rst`
+- **API reference**: Add endpoint to `documentation/api/v3.0.rst`
+- **Data models**: Update `documentation/concepts/data.rst` if new models introduced
+
+**Testing API Documentation:**
+
+```bash
+# 1. Verify imports work
+python3 -c "from datetime import datetime, timezone; import requests"
+
+# 2. Check field descriptions match schema
+grep -A 10 "annotation" openapi-specs.json
+
+# 3. Verify endpoints exist in code
+grep -r "annotations" flexmeasures/api/
+
+# 4. Build docs to check for errors
+make update-docs
+```
+
 ### Related Files
 
 - Documentation: `documentation/`
 - API specs: `openapi-specs.json`
 - README: `README.md`
 - CLI: `flexmeasures/cli/`
+- API feature guides: `documentation/features/`
+- API reference: `documentation/api/`
+- Data model docs: `documentation/concepts/data.rst`
 
 ## Interaction Rules
 
@@ -213,6 +350,17 @@ name = value
 - Document new documentation patterns
 - Update checklist based on real gaps
 - Refine guidance on error messages
+
+**Patterns Learned:**
+
+- **2026-02-10 (Annotation API #470)**: Comprehensive API feature documentation requires:
+  - 8-section structure (What, Why, Types, Usage, Auth, Errors, Best Practices, Limitations)
+  - Both curl and Python examples for every operation
+  - Timezone-aware datetime objects in all examples (import `timezone` from `datetime`)
+  - Error handling in code examples
+  - Field descriptions matching OpenAPI schema exactly
+  - Testing all imports work before finalizing
+  - ~500 lines for complete feature coverage
 
 ### Continuous Improvement
 
@@ -313,6 +461,25 @@ Before finalizing documentation:
 4. **Verify doctests pass**:
    ```bash
    pytest --doctest-modules
+   ```
+
+**Additional Testing for API Documentation:**
+
+5. **Verify Python examples work**:
+   ```bash
+   # Extract and test Python code blocks
+   python3 -c "from datetime import datetime, timezone; import requests"
+   ```
+6. **Check timezone imports**:
+   ```bash
+   # Ensure all datetime examples include timezone
+   grep -r "datetime(" documentation/features/ | grep -v "timezone"
+   ```
+7. **Validate field descriptions**:
+   ```bash
+   # Compare docs to OpenAPI specs
+   diff <(grep "field_name" documentation/features/feature.rst) \
+        <(grep "field_name" openapi-specs.json)
    ```
 
 ### Self-Improvement Loop
