@@ -191,6 +191,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     concepts/security_auth
     concepts/commitments
     concepts/device_scheduler
+    concepts/annotations
 
 
 .. toctree::
