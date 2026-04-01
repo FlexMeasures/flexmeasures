@@ -295,9 +295,7 @@ class StorageFlexModelSchema(Schema):
             )
 
     @validates("state_of_charge")
-    def validate_state_of_charge(
-        self, state_of_charge: Sensor | list[dict] | ur.Quantity, **kwargs
-    ):
+    def validate_state_of_charge(self, state_of_charge: Sensor | list[dict], **kwargs):
         if isinstance(
             state_of_charge, Sensor
         ) and state_of_charge.event_resolution != timedelta(0):
