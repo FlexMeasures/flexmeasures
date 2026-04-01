@@ -502,6 +502,7 @@ def _create_temp_sensor_layers(
     sensor_type: str,
     unit: str,
     sensor_title: str = "Sensor",
+    include_hover_ruler: bool = False,
 ) -> list[dict]:
     """Create Vega-Lite layers for temporary sensors with fixed values.
 
@@ -571,6 +572,52 @@ def _create_temp_sensor_layers(
         "encoding": {"x": x_encoding},
     }
 
+    manual_ruler_layer = {
+        "data": {"values": combined_manual_data},
+        "mark": {
+            "type": "rule",
+            "color": "#6b7280",
+            "strokeWidth": 1,
+        },
+        "encoding": {
+            "x": x_encoding,
+            "opacity": {
+                "condition": {
+                    "test": {
+                        "or": [
+                            {"param": "hover_x_brush", "empty": False},
+                            {"param": "hover_nearest_brush", "empty": False},
+                        ]
+                    },
+                    "value": 1,
+                },
+                "value": 0,
+            },
+            "tooltip": temp_tooltip,
+        },
+        "params": [
+            {
+                "name": "hover_x_brush",
+                "select": {
+                    "type": "point",
+                    "encodings": ["x"],
+                    "on": "mouseover",
+                    "nearest": False,
+                    "clear": "mouseout",
+                },
+            },
+            {
+                "name": "hover_nearest_brush",
+                "select": {
+                    "type": "point",
+                    "on": "mouseover",
+                    "nearest": True,
+                    "clear": "mouseout",
+                },
+            },
+        ],
+    }
+
     manual_circle_layer = {
         "data": {"values": combined_manual_data},
         "mark": {"type": "circle", "clip": True},
@@ -579,29 +626,38 @@ def _create_temp_sensor_layers(
             "y": {"field": "event_value", "type": "quantitative"},
             "color": color_encoding,
             "opacity": {
-                "condition": {"value": 1, "param": "temp_hover", "empty": False},
+                "condition": {
+                    "test": {
+                        "or": [
+                            {"param": "hover_x_brush", "empty": False},
+                            {"param": "hover_nearest_brush", "empty": False},
+                        ]
+                    },
+                    "value": 1,
+                },
                 "value": 0,
             },
             "size": {
-                "condition": {"value": 100, "param": "temp_hover", "empty": False},
+                "condition": {
+                    "test": {
+                        "or": [
+                            {"param": "hover_x_brush", "empty": False},
+                            {"param": "hover_nearest_brush", "empty": False},
+                        ]
+                    },
+                    "value": 100,
+                },
                 "value": 0,
             },
             "tooltip": temp_tooltip,
         },
-        "params": [
-            {
-                "name": "temp_hover",
-                "select": {
-                    "type": "point",
-                    "on": "mouseover",
-                    "nearest": True,
-                    "clear": "mouseout",
-                },
-            }
-        ],
     }
 
-    return [manual_line_layer, manual_rect_layer, manual_circle_layer]
+    layers = [manual_line_layer, manual_rect_layer]
+    if include_hover_ruler:
+        layers.append(manual_ruler_layer)
+    layers.append(manual_circle_layer)
+    return layers
 
 
 def _build_temp_sensor_data(
@@ -1061,6 +1117,7 @@ def _build_layers(
             sensor_type=sensor_type,
             unit=unit,
             sensor_title=sensor_title,
+            include_hover_ruler=not real_sensors,
         )
         layers.extend(temp_layers)
 
@@ -1071,6 +1128,16 @@ def _build_layers(
     if len(row_sensors) == 1 and real_sensors:
         layers.append(
             create_rect_layer(
+                event_start_field_definition,
+                event_value_field_definition,
+                shared_tooltip,
+            )
+        )
+
+    if real_sensors:
+        layers.append(
+            create_hover_ruler_layer(
+                row_sensors,
                 event_start_field_definition,
                 event_value_field_definition,
                 shared_tooltip,
@@ -1214,31 +1281,6 @@ def create_circle_layer(
         shared_tooltip
     )  # deepcopy so the next line doesn't update the dicts
     scaled_shared_tooltip[1]["field"] = "scaled_event_value"
-    params = [
-        {
-            "name": "hover_x_brush",
-            "select": {
-                "type": "point",
-                "encodings": ["x"],
-                "on": "mouseover",
-                "nearest": False,
-                "clear": "mouseout",
-            },
-        }
-    ]
-    if len(sensors) > 1:
-        # extra brush for showing the tooltip of the closest sensor
-        params.append(
-            {
-                "name": "hover_nearest_brush",
-                "select": {
-                    "type": "point",
-                    "on": "mouseover",
-                    "nearest": True,
-                    "clear": "mouseout",
-                },
-            }
-        )
     or_conditions = [{"param": "hover_x_brush", "empty": False}]
     if len(sensors) > 1:
         or_conditions.append({"param": "hover_nearest_brush", "empty": False})
@@ -1258,7 +1300,6 @@ def create_circle_layer(
             },
             "tooltip": scaled_shared_tooltip,
         },
-        "params": params,
         "transform": [
             {
                 "calculate": (
@@ -1271,6 +1312,69 @@ def create_circle_layer(
         ],
     }
     return circle_layer
+
+
+def create_hover_ruler_layer(
+    sensors: list["Sensor"],  # noqa F821
+    event_start_field_definition: dict,
+    event_value_field_definition: dict,
+    shared_tooltip: list,
+) -> dict:
+    """Create a vertical ruler that appears when hovering a chart row."""
+    scaled_shared_tooltip: list[dict] = deepcopy(shared_tooltip)
+    scaled_shared_tooltip[1]["field"] = "scaled_event_value"
+
+    params = [
+        {
+            "name": "hover_x_brush",
+            "select": {
+                "type": "point",
+                "encodings": ["x"],
+                "on": "mouseover",
+                "nearest": False,
+                "clear": "mouseout",
+            },
+        }
+    ]
+    if len(sensors) > 1:
+        params.append(
+            {
+                "name": "hover_nearest_brush",
+                "select": {
+                    "type": "point",
+                    "on": "mouseover",
+                    "nearest": True,
+                    "clear": "mouseout",
+                },
+            }
+        )
+
+    or_conditions = [{"param": "hover_x_brush", "empty": False}]
+    if len(sensors) > 1:
+        or_conditions.append({"param": "hover_nearest_brush", "empty": False})
+
+    return {
+        "mark": {
+            "type": "rule",
+            "color": "#6b7280",
+            "strokeWidth": 1,
+        },
+        "encoding": {
+            "x": event_start_field_definition,
+            "opacity": {
+                "condition": {"test": {"or": or_conditions}, "value": 1},
+                "value": 0,
+            },
+            "tooltip": scaled_shared_tooltip,
+        },
+        "params": params,
+        "transform": [
+            {
+                "calculate": "isValid(datum.scale_factor) ? datum.event_value * datum.scale_factor : datum.event_value",
+                "as": "scaled_event_value",
+            }
+        ],
+    }
 
 
 def create_rect_layer(
