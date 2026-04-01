@@ -1,3 +1,5 @@
+from typing import Any
+
 from flask import current_app
 from sqlalchemy import delete
 
@@ -30,8 +32,26 @@ def create_asset(asset_data: dict) -> GenericAsset:
     return asset
 
 
-def _graph_label(graph) -> str:
-    """Generate a label for a graph showing title and sensors."""
+def _graph_label(graph: dict[str, Any]) -> str:
+    """Generate a compact label for one modern ``sensors_to_show`` graph entry.
+
+    Expected input structure (a single graph entry):
+    {
+        "title": "Some graph title",  # optional
+        "plots": [
+            {"sensor": 1},
+            {"sensors": [2, 3]},
+            {"asset": 4239, "flex-model": "soc-min"},
+        ]
+    }
+
+    We read ``title`` and scan ``plots`` for ``sensor`` and ``sensors`` keys to
+    build a human-readable label used in audit log messages.
+
+    Response example:
+    >>> _graph_label({"title": "Power", "plots": [{"sensor": 1}, {"sensors": [2, 3]}]})
+    '"Power" (sensors [1, 2, 3])'
+    """
     title = graph.get("title") or "Untitled graph"
     plots = graph.get("plots", [])
     sensor_ids = []
@@ -42,17 +62,6 @@ def _graph_label(graph) -> str:
             sensor_ids.extend(str(s) for s in p["sensors"])
     sensors_str = f"sensors [{', '.join(sensor_ids)}]" if sensor_ids else "no sensors"
     return f'"{title}" ({sensors_str})'
-
-
-def _sensor_ids_in_graph(graph) -> list:
-    """Extract all sensor IDs from a graph."""
-    ids = []
-    for p in graph.get("plots", []):
-        if "sensor" in p:
-            ids.append(p["sensor"])
-        elif "sensors" in p:
-            ids.extend(p["sensors"])
-    return ids
 
 
 def _describe_plot_key_changes(
