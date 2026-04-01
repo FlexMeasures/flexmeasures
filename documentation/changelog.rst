@@ -7,6 +7,8 @@ FlexMeasures Changelog
 v0.32.0 | April XX, 2026
 ============================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 New features
 -------------
 * Support fetching a schedule in a different unit still compatible to the sensor unit [see `PR #1993 <https://www.github.com/FlexMeasures/flexmeasures/pull/1993>`_]
@@ -14,6 +16,7 @@ New features
 * Version headers (for server and API) in API responses [see `PR #2021 <https://www.github.com/FlexMeasures/flexmeasures/pull/2021>`_]
 * Show sensor attributes on sensor page, if not empty [see `PR #2015 <https://www.github.com/FlexMeasures/flexmeasures/pull/2015>`_]
 * Separate the ``StorageScheduler``'s tie-breaking preference for a full :abbr:`SoC (state of charge)` from its reported energy costs [see `PR #2023 <https://www.github.com/FlexMeasures/flexmeasures/pull/2023>`_]
+* Improve asset audit log messages for JSON field edits (especially ``sensors_to_show`` and nested flex-config values) [see `PR #2055 <https://www.github.com/FlexMeasures/flexmeasures/pull/2055>`_]
 
 Infrastructure / Support
 ----------------------
@@ -22,6 +25,7 @@ Infrastructure / Support
 * Improve contact information to get in touch with the FlexMeasures community [see `PR #2022 <https://www.github.com/FlexMeasures/flexmeasures/pull/2022>`_]
 * Expand audit logging for password life-cycle: password_reset, password_changed and reset_password_instructions_sent events [see `PR #2036 <https://github.com/FlexMeasures/flexmeasures/pull/2036>`_]
 * Upgraded some dependencies for security reasons [see `PR #2037 <https://www.github.com/FlexMeasures/flexmeasures/pull/2037>`_]
+* Remove unused ``dictdiffer`` dependency after replacing JSON audit-diff logic with internal formatting utilities [see `PR #2055 <https://www.github.com/FlexMeasures/flexmeasures/pull/2055>`_]
 * Upgraded dependencies, including sphinx from v8 to v9 [see `PR #2061 <https://www.github.com/FlexMeasures/flexmeasures/pull/2061>`_]
 * Prevent ``save_to_db`` from failing on saving duplicate beliefs in case ``FLEXMEASURES_ALLOW_DATA_OVERWRITE = False`` [see `PR #2059 <https://www.github.com/FlexMeasures/flexmeasures/pull/2059>`_]
 * Improve error logging for various exceptions [see `PR #2045 <https://www.github.com/FlexMeasures/flexmeasures/pull/2045>`_]
