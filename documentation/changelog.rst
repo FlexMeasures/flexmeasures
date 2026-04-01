@@ -14,6 +14,7 @@ New features
 * Version headers (for server and API) in API responses [see `PR #2021 <https://www.github.com/FlexMeasures/flexmeasures/pull/2021>`_]
 * Show sensor attributes on sensor page, if not empty [see `PR #2015 <https://www.github.com/FlexMeasures/flexmeasures/pull/2015>`_]
 * Separate the ``StorageScheduler``'s tie-breaking preference for a full :abbr:`SoC (state of charge)` from its reported energy costs [see `PR #2023 <https://www.github.com/FlexMeasures/flexmeasures/pull/2023>`_]
+* Support inferring ``soc-at-start`` from configured ``state-of-charge`` sources and fail early when those values are stale or missing near schedule start [see `PR #2026 <https://www.github.com/FlexMeasures/flexmeasures/pull/2026>`_]
 
 Infrastructure / Support
 ----------------------
@@ -1555,4 +1556,3 @@ Infrastructure / Support
 * Start using marshmallow for input validation, also introducing ``HTTP status 422 (Unprocessable Entity)`` in the API [see `PR #25 <https://www.github.com/FlexMeasures/flexmeasures/pull/25>`_]
 * Replace ``solarpy`` with ``pvlib`` (due to license conflict) [see `PR #16 <https://www.github.com/FlexMeasures/flexmeasures/pull/16>`_]
 * Stop supporting the creation of new users on asset creation (to reduce complexity) [see `PR #36 <https://www.github.com/FlexMeasures/flexmeasures/pull/36>`_]
-
