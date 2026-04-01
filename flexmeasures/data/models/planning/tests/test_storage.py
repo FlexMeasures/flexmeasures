@@ -9,7 +9,7 @@ import pandas as pd
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.planning.utils import initialize_index
-from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.tests.utils import (
     check_constraints,
     get_sensors_from_db,
@@ -391,3 +391,46 @@ def test_deserialize_storage_soc_at_start_rejects_missing_state_of_charge_sensor
         scheduler._resolve_soc_at_start_from_state_of_charge(  # noqa: SLF001
             scheduler.flex_model, power_sensor
         )
+
+
+def test_resolve_soc_at_start_from_percent_sensor_uses_device_sensor_fallback(
+    add_charging_station_assets, db, setup_sources
+):
+    start = pd.Timestamp("2015-01-01T00:00:00+01:00")
+    end = start + timedelta(hours=12)
+    charging_station = add_charging_station_assets["Test charging station"]
+    power_sensor = next(s for s in charging_station.sensors if s.name == "power")
+    soc_sensor = Sensor(
+        name="soc-percent",
+        generic_asset=charging_station,
+        event_resolution=timedelta(0),
+        unit="%",
+    )
+    db.session.add(soc_sensor)
+    db.session.flush()
+    db.session.add(
+        TimedBelief(
+            sensor=soc_sensor,
+            source=setup_sources["Seita"],
+            event_start=start - timedelta(minutes=15),
+            belief_horizon=timedelta(0),
+            event_value=50,
+        )
+    )
+    db.session.flush()
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=power_sensor.generic_asset.parent_asset,
+        start=start,
+        end=end,
+        resolution=power_sensor.event_resolution,
+        flex_model={},
+    )
+
+    assert scheduler.sensor is None
+    assert (
+        scheduler._resolve_soc_at_start_from_sensor(  # noqa: SLF001
+            soc_sensor, {}, power_sensor
+        )
+        == 2.5
+    )

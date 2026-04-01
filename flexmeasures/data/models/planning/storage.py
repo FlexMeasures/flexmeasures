@@ -1095,17 +1095,21 @@ class MetaStorageScheduler(Scheduler):
             resolution = self.default_resolution
         return slack_steps * resolution
 
-    def _get_soc_capacity_for_percent_conversion(self, flex_model: dict) -> str:
+    def _get_soc_capacity_for_percent_conversion(
+        self, flex_model: dict, sensor: Sensor | None = None
+    ) -> str:
         """Return the capacity used to convert percentage-based SoC values.
 
         :param flex_model: Flex model containing the SoC configuration.
+        :param sensor:     Optional scheduled power sensor whose asset can provide fallback capacity.
         :returns:          Capacity expressed in MWh.
         """
         soc_max = flex_model.get("soc-max")
-        if soc_max is None and self.sensor is not None:
-            soc_max = self.sensor.generic_asset.flex_model.get("soc-max")
-        if soc_max is None and self.sensor is not None:
-            soc_max = self.sensor.generic_asset.get_attribute("max_soc_in_mwh")
+        capacity_sensor = sensor or self.sensor
+        if soc_max is None and capacity_sensor is not None:
+            soc_max = capacity_sensor.generic_asset.flex_model.get("soc-max")
+        if soc_max is None and capacity_sensor is not None:
+            soc_max = capacity_sensor.generic_asset.get_attribute("max_soc_in_mwh")
         if soc_max is None:
             raise ValueError(
                 "Cannot derive state of charge from a `state-of-charge` sensor with '%' unit without `soc-max`."
@@ -1119,10 +1123,14 @@ class MetaStorageScheduler(Scheduler):
         return str(ur.Quantity(soc_max).to("MWh"))
 
     def _convert_soc_value_to_mwh(
-        self, value: float, from_unit: str, flex_model: dict
+        self,
+        value: float,
+        from_unit: str,
+        flex_model: dict,
+        sensor: Sensor | None = None,
     ) -> float:
         capacity = (
-            self._get_soc_capacity_for_percent_conversion(flex_model)
+            self._get_soc_capacity_for_percent_conversion(flex_model, sensor)
             if from_unit == "%"
             else None
         )
@@ -1171,6 +1179,7 @@ class MetaStorageScheduler(Scheduler):
             value=nearest_belief["event_value"],
             from_unit=state_of_charge_sensor.unit,
             flex_model=flex_model,
+            sensor=sensor,
         )
 
     def _resolve_soc_at_start_from_time_series(
