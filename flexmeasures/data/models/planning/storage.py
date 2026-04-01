@@ -11,6 +11,7 @@ from flask import current_app
 
 
 from flexmeasures import Asset, Sensor
+from flexmeasures.data import db
 from flexmeasures.data.models.planning import (
     FlowCommitment,
     Scheduler,
@@ -1235,9 +1236,11 @@ class MetaStorageScheduler(Scheduler):
         if isinstance(state_of_charge, list):
             return self._resolve_soc_at_start_from_time_series(state_of_charge, sensor)
         if isinstance(state_of_charge, dict) and "sensor" in state_of_charge:
-            state_of_charge_sensor = Sensor.query.filter_by(
-                id=state_of_charge["sensor"]
-            ).one()
+            state_of_charge_sensor = db.session.get(Sensor, state_of_charge["sensor"])
+            if state_of_charge_sensor is None:
+                raise ValueError(
+                    f"State-of-charge sensor with id {state_of_charge['sensor']} was not found."
+                )
             return self._resolve_soc_at_start_from_sensor(
                 state_of_charge_sensor, flex_model, sensor
             )

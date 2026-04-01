@@ -360,3 +360,34 @@ def test_deserialize_storage_soc_at_start_rejects_stale_state_of_charge_sensor(
 
     with pytest.raises(ValueError, match="No recent state-of-charge value found"):
         scheduler.deserialize_config()
+
+
+def test_deserialize_storage_soc_at_start_rejects_missing_state_of_charge_sensor(
+    add_charging_station_assets, setup_markets
+):
+    start = pd.Timestamp("2015-01-01T00:00:00+01:00")
+    end = start + timedelta(hours=12)
+    charging_station = add_charging_station_assets["Test charging station"]
+    power_sensor = next(s for s in charging_station.sensors if s.name == "power")
+
+    scheduler = StorageScheduler(
+        power_sensor,
+        start,
+        end,
+        power_sensor.event_resolution,
+        flex_model={
+            "state-of-charge": {"sensor": 999999},
+            "soc-min": "0 MWh",
+            "soc-max": "5 MWh",
+            "power-capacity": "2 MW",
+        },
+        flex_context={"consumption-price": {"sensor": setup_markets["epex_da"].id}},
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="State-of-charge sensor with id 999999 was not found.",
+    ):
+        scheduler._resolve_soc_at_start_from_state_of_charge(  # noqa: SLF001
+            scheduler.flex_model, power_sensor
+        )
