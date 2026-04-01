@@ -80,7 +80,7 @@ def _graph_label(graph: dict[str, Any]) -> str:
     if not summary_parts:
         summary_parts.append("no sensors")
 
-    return f'"{title}" ({', '.join(summary_parts)})'
+    return f'"{title}" ({", ".join(summary_parts)})'
 
 
 def _describe_plot_key_changes(
