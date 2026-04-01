@@ -503,6 +503,7 @@ def _create_temp_sensor_layers(
     unit: str,
     sensor_title: str = "Sensor",
     include_hover_ruler: bool = False,
+    temp_sensor_resolution: timedelta | None = None,
 ) -> list[dict]:
     """Create Vega-Lite layers for temporary sensors with fixed values.
 
@@ -521,7 +522,10 @@ def _create_temp_sensor_layers(
         List of Vega-Lite layer specifications
     """
     combined_manual_data = _build_temp_sensor_data(
-        temp_sensors, event_starts_after, event_ends_before
+        temp_sensors,
+        event_starts_after,
+        event_ends_before,
+        temp_sensor_resolution,
     )
 
     temp_tooltip = [
@@ -570,6 +574,27 @@ def _create_temp_sensor_layers(
         "data": {"values": combined_manual_data},
         "mark": {"type": "rect", "opacity": 0, "clip": True},
         "encoding": {"x": x_encoding},
+        "params": [
+            {
+                "name": "temp_hover_x_brush",
+                "select": {
+                    "type": "point",
+                    "encodings": ["x"],
+                    "on": "mouseover",
+                    "nearest": False,
+                    "clear": "mouseout",
+                },
+            },
+            {
+                "name": "temp_hover_nearest_brush",
+                "select": {
+                    "type": "point",
+                    "on": "mouseover",
+                    "nearest": True,
+                    "clear": "mouseout",
+                },
+            },
+        ],
     }
 
     manual_ruler_layer = {
@@ -587,13 +612,14 @@ def _create_temp_sensor_layers(
                         "or": [
                             {"param": "hover_x_brush", "empty": False},
                             {"param": "hover_nearest_brush", "empty": False},
+                            {"param": "temp_hover_x_brush", "empty": False},
+                            {"param": "temp_hover_nearest_brush", "empty": False},
                         ]
                     },
                     "value": 1,
                 },
                 "value": 0,
             },
-            "tooltip": temp_tooltip,
         },
         "params": [
             {
@@ -643,6 +669,8 @@ def _create_temp_sensor_layers(
                         "or": [
                             {"param": "hover_x_brush", "empty": False},
                             {"param": "hover_nearest_brush", "empty": False},
+                            {"param": "temp_hover_x_brush", "empty": False},
+                            {"param": "temp_hover_nearest_brush", "empty": False},
                         ]
                     },
                     "value": 100,
@@ -664,6 +692,7 @@ def _build_temp_sensor_data(
     temp_sensors: list["Sensor"],  # noqa F821
     event_starts_after: datetime | None,
     event_ends_before: datetime | None,
+    temp_sensor_resolution: timedelta | None = None,
 ) -> list[dict]:
     """Build manual data points for temporary sensors.
 
@@ -676,15 +705,28 @@ def _build_temp_sensor_data(
         List of data point dictionaries
     """
     combined_manual_data = []
+    start_ts, end_ts = _get_time_range(event_starts_after, event_ends_before)
+    resolution_ms = None
+    if temp_sensor_resolution and temp_sensor_resolution > timedelta(0):
+        resolution_ms = max(int(temp_sensor_resolution.total_seconds() * 1000), 1)
+
+    if resolution_ms is not None:
+        timestamps = list(range(start_ts, end_ts + resolution_ms, resolution_ms))
+        if timestamps[-1] != end_ts:
+            timestamps.append(end_ts)
+    else:
+        chart_duration_ms = max(end_ts - start_ts, 1)
+        num_points = min(1000, max(200, int(chart_duration_ms // (15 * 60 * 1000))))
+        timestamps = [
+            int(start_ts + i * (end_ts - start_ts) / num_points)
+            for i in range(num_points + 1)
+        ]
 
     for tsensor in temp_sensors:
         custom_value = _get_temp_sensor_value(tsensor)
-        start_ts, end_ts = _get_time_range(event_starts_after, event_ends_before)
         tsensor_description = _get_sensor_description(tsensor)
 
-        num_points = 50
-        for i in range(num_points + 1):
-            ts = start_ts + i * (end_ts - start_ts) / num_points
+        for ts in timestamps:
             combined_manual_data.append(
                 {
                     "event_start": ts,
@@ -937,9 +979,14 @@ def chart_for_multiple_sensors(
         Vega-Lite chart specification dictionary
     """
     all_shown_sensors = flatten_unique(sensors_to_show)
+    real_sensors = [
+        sensor
+        for sensor in all_shown_sensors
+        if (getattr(sensor, "id", None) is None or sensor.id >= 0)
+    ]
     condition = list(
         sensor.event_resolution
-        for sensor in all_shown_sensors
+        for sensor in real_sensors
         if sensor.event_resolution > timedelta(0)
     )
     minimum_non_zero_resolution = min(condition) if any(condition) else timedelta(0)
@@ -962,6 +1009,7 @@ def chart_for_multiple_sensors(
             event_ends_before,
             combine_legend,
             sensor_title,
+            minimum_non_zero_resolution,
         )
         if sensor_spec:
             sensors_specs.append(sensor_spec)
@@ -976,6 +1024,7 @@ def _process_sensor_entry(
     event_ends_before: datetime | None,
     combine_legend: bool,
     sensor_title: str = "Sensor",
+    temp_sensor_resolution: timedelta | None = None,
 ) -> dict | None:
     """Process a single sensor entry from sensors_to_show.
 
@@ -1032,6 +1081,7 @@ def _process_sensor_entry(
         shared_tooltip,
         combine_legend,
         sensor_title,
+        temp_sensor_resolution,
     )
 
     if not layers:
@@ -1073,6 +1123,7 @@ def _build_layers(
     shared_tooltip: list,
     combine_legend: bool,
     sensor_title: str = "Sensor",
+    temp_sensor_resolution: timedelta | None = None,
 ) -> list[dict]:
     """Build all layers for a sensor row.
 
@@ -1118,6 +1169,7 @@ def _build_layers(
             unit=unit,
             sensor_title=sensor_title,
             include_hover_ruler=not real_sensors,
+            temp_sensor_resolution=temp_sensor_resolution,
         )
         layers.extend(temp_layers)
 
@@ -1139,8 +1191,6 @@ def _build_layers(
             create_hover_ruler_layer(
                 row_sensors,
                 event_start_field_definition,
-                event_value_field_definition,
-                shared_tooltip,
             )
         )
 
@@ -1346,13 +1396,8 @@ def create_circle_layer(
 def create_hover_ruler_layer(
     sensors: list["Sensor"],  # noqa F821
     event_start_field_definition: dict,
-    event_value_field_definition: dict,
-    shared_tooltip: list,
 ) -> dict:
     """Create a vertical ruler that appears when hovering a chart row."""
-    scaled_shared_tooltip: list[dict] = deepcopy(shared_tooltip)
-    scaled_shared_tooltip[1]["field"] = "scaled_event_value"
-
     params = [
         {
             "name": "hover_x_brush",
@@ -1394,15 +1439,8 @@ def create_hover_ruler_layer(
                 "condition": {"test": {"or": or_conditions}, "value": 1},
                 "value": 0,
             },
-            "tooltip": scaled_shared_tooltip,
         },
         "params": params,
-        "transform": [
-            {
-                "calculate": "isValid(datum.scale_factor) ? datum.event_value * datum.scale_factor : datum.event_value",
-                "as": "scaled_event_value",
-            }
-        ],
     }
 
 
