@@ -136,3 +136,20 @@ def test_format_json_field_change_does_not_duplicate_added_sensor_messages():
         change
         == 'Updated sensors_to_show:\n1. Changed graph 1 (Site capacity): added plot 3: {"sensor": 46903}'
     )
+
+
+def test_format_json_field_change_added_graph_with_flex_context_reference():
+    old_value = []
+    new_value = [
+        {
+            "title": "No Title",
+            "plots": [{"asset": 1, "flex-context": "site-power-capacity"}],
+        }
+    ]
+
+    change = format_json_field_change("sensors_to_show", old_value, new_value)
+
+    assert (
+        change
+        == 'Updated sensors_to_show:\n1. Added graph 1: "No Title" (refs [asset 1, flex-context: site-power-capacity])'
+    )

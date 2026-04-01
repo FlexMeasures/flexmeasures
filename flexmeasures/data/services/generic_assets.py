@@ -45,8 +45,11 @@ def _graph_label(graph: dict[str, Any]) -> str:
         ]
     }
 
-    We read ``title`` and scan ``plots`` for ``sensor`` and ``sensors`` keys to
-    build a human-readable label used in audit log messages.
+    We read ``title`` and scan ``plots`` for:
+    - ``sensor`` / ``sensors`` keys
+    - ``asset`` + ``flex-context``/``flex-model`` references
+
+    to build a human-readable label used in audit log messages.
 
     Response example:
     >>> _graph_label({"title": "Power", "plots": [{"sensor": 1}, {"sensors": [2, 3]}]})
@@ -55,13 +58,29 @@ def _graph_label(graph: dict[str, Any]) -> str:
     title = graph.get("title") or "Untitled graph"
     plots = graph.get("plots", [])
     sensor_ids = []
+    flex_refs = []
     for p in plots:
         if "sensor" in p:
             sensor_ids.append(str(p["sensor"]))
         elif "sensors" in p:
             sensor_ids.extend(str(s) for s in p["sensors"])
-    sensors_str = f"sensors [{', '.join(sensor_ids)}]" if sensor_ids else "no sensors"
-    return f'"{title}" ({sensors_str})'
+        elif "asset" in p and ("flex-context" in p or "flex-model" in p):
+            if "flex-context" in p:
+                flex_refs.append(
+                    f"asset {p['asset']}, flex-context: {p['flex-context']}"
+                )
+            if "flex-model" in p:
+                flex_refs.append(f"asset {p['asset']}, flex-model: {p['flex-model']}")
+
+    summary_parts = []
+    if sensor_ids:
+        summary_parts.append(f"sensors [{', '.join(sensor_ids)}]")
+    if flex_refs:
+        summary_parts.append(f"refs [{'; '.join(flex_refs)}]")
+    if not summary_parts:
+        summary_parts.append("no sensors")
+
+    return f'"{title}" ({', '.join(summary_parts)})'
 
 
 def _describe_plot_key_changes(
