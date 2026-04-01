@@ -1340,20 +1340,24 @@ def create_circle_layer(
         stroke_encoding = {
             "stroke": {
                 "condition": {
-                    "test": {"and": [
-                        {"param": "hover_nearest_brush", "empty": False},
-                        {"param": "hover_x_brush", "empty": False},
-                    ]},
+                    "test": {
+                        "and": [
+                            {"param": "hover_nearest_brush", "empty": False},
+                            {"param": "hover_x_brush", "empty": False},
+                        ]
+                    },
                     "value": "black",
                 },
                 "value": None,
             },
             "strokeWidth": {
                 "condition": {
-                    "test": {"and": [
-                        {"param": "hover_nearest_brush", "empty": False},
-                        {"param": "hover_x_brush", "empty": False},
-                    ]},
+                    "test": {
+                        "and": [
+                            {"param": "hover_nearest_brush", "empty": False},
+                            {"param": "hover_x_brush", "empty": False},
+                        ]
+                    },
                     "value": 2,
                 },
                 "value": 0,
