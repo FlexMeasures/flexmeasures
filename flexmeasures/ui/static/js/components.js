@@ -52,7 +52,7 @@ export async function renderAssetPlotCard(
   graphIndex,
   plotIndex,
 ) {
-  const Asset = await getAsset(assetPlot.asset);
+  const Asset = await getAsset(assetPlot.asset, false);
   let IsFlexContext = false;
   let IsFlexModel = false;
   let flexConfigValue = null;
