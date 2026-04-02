@@ -1294,7 +1294,8 @@ class MetaStorageScheduler(Scheduler):
 
         if not self.has_soc_at_start_in(flex_model) and "state-of-charge" in flex_model:
             flex_model["soc-at-start"] = (
-                self._resolve_soc_at_start_from_state_of_charge(flex_model, sensor)
+                str(self._resolve_soc_at_start_from_state_of_charge(flex_model, sensor))
+                + " MWh"
             )
 
         if not self.has_soc_at_start_in(flex_model) and sensor is not None:
