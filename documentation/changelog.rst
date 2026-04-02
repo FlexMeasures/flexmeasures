@@ -44,6 +44,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix ``StorageScheduler`` crash (``AttributeError: 'NoneType' object has no attribute 'event_resolution'``) when scheduling a site whose asset tree contains non-storage devices with only a ``power-capacity`` in their ``flex-model`` (no ``sensor`` key) [see `issue #2084 <https://github.com/FlexMeasures/flexmeasures/issues/2084>`_]
 * Fix DST transition handling by supporting both native Python ``datetime`` and pandas ``Timestamp`` objects in time series segment processing, preventing ``AttributeError`` when processing segments with differing UTC offsets [see `PR #2197 <https://github.com/FlexMeasures/flexmeasures/pull/2197>`_]
 * Fix forecasting regressor filtering to use only regressor beliefs known at the forecast ``belief_time`` [see `PR #2134 <https://www.github.com/FlexMeasures/flexmeasures/pull/2134>`_]
 * Make the sensor page forecast button train from available sensor history instead of the default 30-day window [see `PR #2187 <https://www.github.com/FlexMeasures/flexmeasures/pull/2187>`_]
