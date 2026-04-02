@@ -118,11 +118,11 @@ If ANY test fails during full suite execution:
 **Click context errors**:
 - Check IdField decorators (`@with_appcontext` vs `@with_appcontext_if_needed()`)
 - Compare against SensorIdField pattern
-- See Review Lead's Click context error pattern
+- See Lead's Click context error pattern
 
-### Integration with Review Lead
+### Integration with Lead
 
-The Test Specialist MUST provide evidence of full test suite execution to Review Lead.
+The Test Specialist MUST provide evidence of full test suite execution to Lead.
 
 **Required evidence format:**
 ```
@@ -134,14 +134,14 @@ Full test suite execution:
 - Coverage: 87.2% (unchanged)
 ```
 
-**Review Lead verification:**
-Review Lead's session close checklist includes:
+**Lead verification:**
+Lead's session close checklist includes:
 - [ ] Test Specialist confirmed full test suite execution
 - [ ] All tests pass (100%)
 - [ ] Test output captured and reviewed
 
 **Enforcement:**
-Review Lead cannot close session until Test Specialist provides evidence of full test suite execution with 100% pass rate.
+Lead cannot close session until Test Specialist provides evidence of full test suite execution with 100% pass rate.
 
 
 ## Testing Patterns for flexmeasures
