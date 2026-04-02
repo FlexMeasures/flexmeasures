@@ -35,7 +35,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-
+* Fix ``StorageScheduler`` crash (``AttributeError: 'NoneType' object has no attribute 'event_resolution'``) when scheduling a site whose asset tree contains non-storage devices with only a ``power-capacity`` in their ``flex-model`` (no ``sensor`` key) [see `issue #2084 <https://github.com/FlexMeasures/flexmeasures/issues/2084>`_]
 
 v0.31.2 | March 18, 2026
 ============================
