@@ -1358,7 +1358,7 @@ def create_circle_layer(
                             {"param": "hover_x_brush", "empty": False},
                         ]
                     },
-                    "value": 2,
+                    "value": STROKE_WIDTH,
                 },
                 "value": 0,
             },
