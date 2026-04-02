@@ -1105,6 +1105,7 @@ class MetaStorageScheduler(Scheduler):
         :returns:          Capacity expressed in MWh.
         """
         soc_max = flex_model.get("soc-max")
+        soc_unit = flex_model.get("soc-unit")
         capacity_sensor = sensor or self.sensor
         if soc_max is None and capacity_sensor is not None:
             soc_max = capacity_sensor.generic_asset.flex_model.get("soc-max")
@@ -1119,7 +1120,7 @@ class MetaStorageScheduler(Scheduler):
                 "Cannot derive state of charge from a `state-of-charge` sensor with '%' unit when `soc-max` is a sensor reference."
             )
         if isinstance(soc_max, (int, float)):
-            return str(ur.Quantity(soc_max, "MWh"))
+            return str(ur.Quantity(soc_max, soc_unit).to("MWh"))
         return str(ur.Quantity(soc_max).to("MWh"))
 
     def _convert_soc_value_to_mwh(
