@@ -18,7 +18,9 @@ def test_get_or_create_annotation(db, setup_sources):
         source=source,
         type="holiday",
     )
-    assert first_annotation == get_or_create_annotation(first_annotation)
+    result_annotation, is_new = get_or_create_annotation(first_annotation)
+    assert result_annotation == first_annotation
+    assert is_new is True
     num_annotations_intermediate = db.session.scalar(
         select(func.count()).select_from(Annotation)
     )
@@ -42,7 +44,9 @@ def test_get_or_create_annotation(db, setup_sources):
         source=source,
         type="holiday",
     )
-    assert first_annotation == get_or_create_annotation(second_annotation)
+    result_annotation, is_new = get_or_create_annotation(second_annotation)
+    assert result_annotation == first_annotation
+    assert is_new is False
     num_annotations_after = db.session.scalar(select(func.count(Annotation.id)))
     assert num_annotations_after == num_annotations_intermediate
     assert second_annotation.id is None
