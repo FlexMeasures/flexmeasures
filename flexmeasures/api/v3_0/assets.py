@@ -25,7 +25,10 @@ from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
     get_sensor_stats,
 )
-from flexmeasures.api.common.schemas.utils import make_openapi_compatible
+from flexmeasures.api.common.schemas.scheduling import (
+    flex_context_schema_openAPI,
+    storage_flex_model_schema_openAPI,
+)
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 from flexmeasures.api.common.schemas.assets import (
     AssetAPIQuerySchema,
@@ -35,6 +38,7 @@ from flexmeasures.api.common.schemas.assets import (
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
+from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -43,13 +47,14 @@ from flexmeasures.data.queries.generic_assets import (
     query_assets_by_search_terms,
 )
 from flexmeasures.data.schemas import AwareDateTimeField
+from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
+    SensorsToShowSchema,
 )
-from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
-from flexmeasures.data.schemas.scheduling import AssetTriggerSchema, FlexContextSchema
+from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
     create_simultaneous_scheduling_job,
@@ -61,20 +66,17 @@ from flexmeasures.api.common.responses import (
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
-from flexmeasures.utils.coding_utils import (
-    flatten_unique,
-)
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data.schemas.sensors import (
     SensorSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.utils.time_utils import naturalized_datetime_str
 from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
+annotation_schema = AnnotationSchema()
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
@@ -82,12 +84,12 @@ sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
 
 
-# Create FlexContext, FlexModel and AssetTrigger OpenAPI compatible schemas
-storage_flex_model_schema_openAPI = make_openapi_compatible(StorageFlexModelSchema)
-flex_context_schema_openAPI = make_openapi_compatible(FlexContextSchema)
-
-
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
+
+    def __init__(self, *args, **kwargs):
+        kwargs["exclude"] = ["asset"]
+        super().__init__(*args, **kwargs)
+
     flex_context = fields.Nested(
         flex_context_schema_openAPI,
         required=True,
@@ -97,7 +99,7 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
         ),
     )
     flex_model = fields.Nested(
-        storage_flex_model_schema_openAPI,
+        storage_flex_model_schema_openAPI(exclude=["asset"]),
         required=True,
         data_key="flex-model",
         metadata=dict(
@@ -663,7 +665,6 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(asset), 200
 
     @route("/<id>", methods=["PATCH"])
-    @use_args(patch_asset_schema)
     @use_kwargs(
         {
             "db_asset": AssetIdField(
@@ -674,7 +675,7 @@ class AssetAPI(FlaskView):
     )
     @permission_required_for_context("update", ctx_arg_name="db_asset")
     @as_json
-    def patch(self, asset_data: dict, id: int, db_asset: GenericAsset):
+    def patch(self, id: int, db_asset: GenericAsset):
         """
         .. :quickref: Assets; Update an asset given its identifier.
         ---
@@ -732,10 +733,26 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        # For us to be able to add our own context, we need to validate the data ourselves
+        asset_data = request.get_json()
+        if not asset_data:
+            return unprocessable_entity("No JSON data provided.")
+
+        asset_schema = AssetSchema(partial=True)
+        asset_schema.context = {
+            "asset": db_asset
+        }  # context for validating fields like parent_asset_id
+
         try:
-            db_asset = patch_asset(db_asset, asset_data)
+            validated_data = asset_schema.load(asset_data)
         except ValidationError as e:
-            return unprocessable_entity(str(e.messages))
+            return unprocessable_entity(e.messages)
+
+        try:
+            db_asset = patch_asset(db_asset, validated_data)
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200
@@ -897,7 +914,7 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        sensors = flatten_unique(asset.validate_sensors_to_show())
+        sensors = SensorsToShowSchema.flatten(asset.validate_sensors_to_show())
         return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
 
     @route("/<id>/auditlog")
@@ -1004,7 +1021,7 @@ class AssetAPI(FlaskView):
         audit_logs_response: list = [
             {
                 "event": audit_log.event,
-                "event_datetime": naturalized_datetime_str(audit_log.event_datetime),
+                "event_datetime": audit_log.event_datetime.isoformat(),
                 "active_user_name": audit_log.active_user_name,
                 "active_user_id": audit_log.active_user_id,
             }
@@ -1236,6 +1253,7 @@ class AssetAPI(FlaskView):
         asset: GenericAsset,
         start_of_schedule: datetime,
         duration: timedelta,
+        resolution: timedelta | None = None,
         belief_time: datetime | None = None,
         flex_model: dict | None = None,
         flex_context: dict | None = None,
@@ -1273,6 +1291,9 @@ class AssetAPI(FlaskView):
             Finally, the schedule length is limited by [a config setting](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.
             Targets that exceed the max planning horizon are not accepted.
 
+            The 'resolution' field governs how often setpoints are allowed to change.
+            Note that the resulting schedule is still saved in the resolution of each individual sensor.
+
             The appropriate algorithm is chosen by FlexMeasures (based on asset type).
             It's also possible to use custom schedulers and custom flexibility models, [see plugin_customization](https://flexmeasures.readthedocs.io/stable/plugin/customisation.html#plugin-customization).
 
@@ -1283,9 +1304,7 @@ class AssetAPI(FlaskView):
             - in: path
               name: id
               required: true
-              description: ID of the asset to schedule.
-              schema:
-                type: integer
+              $ref: '#/components/parameters/AssetIdPath'
 
           requestBody:
               content:
@@ -1402,6 +1421,7 @@ class AssetAPI(FlaskView):
             start=start_of_schedule,
             end=end_of_schedule,
             belief_time=belief_time,  # server time if no prior time was sent
+            resolution=resolution,
             flex_model=flex_model,
             flex_context=flex_context,
         )
@@ -1523,3 +1543,60 @@ class AssetAPI(FlaskView):
             }
             kpis.append(kpi_dict)
         return dict(data=kpis), 200
+
+    @route("/<id>/annotations", methods=["POST"])
+    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @use_args(annotation_schema)
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    def post_annotation(self, annotation: Annotation, id: int, asset: GenericAsset):
+        """.. :quickref: Assets; Add an annotation to an asset.
+        ---
+        post:
+          summary: Creates a new asset annotation.
+          description: |
+            This endpoint creates a new :ref:`annotation <annotations>` on an asset.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: The ID of the asset to register the annotation on.
+              required: true
+              schema:
+                type: integer
+                format: int32
+          requestBody:
+            content:
+              application/json:
+                schema: AnnotationSchema
+          responses:
+            200:
+              description: OK
+            201:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+            - Annotations
+        """
+
+        # Use get_or_create to handle duplicates gracefully
+        annotation, is_new = get_or_create_annotation(annotation)
+
+        # Link annotation to asset
+        if annotation not in asset.annotations:
+            asset.annotations.append(annotation)
+
+        db.session.commit()
+
+        # Return appropriate status code
+        status_code = 201 if is_new else 200
+        return annotation_schema.dump(annotation), status_code

@@ -27,6 +27,8 @@ This is described by:
 This information goes beyond the usual time series recorded by an asset's sensors. It can be sent to FlexMeasures through the API when triggering schedule computation.
 Also, this information can be persisted on the FlexMeasures data model (in the db), and is editable through the UI (actually, that is design work in progress, currently possible with the flex context).
 
+.. note:: You can also specify the **scheduling resolution** to control how often setpoints can change in the schedule. See :ref:`scheduling_resolution` for details on when and how to use custom resolutions.
+
 Let's dive into the details ― what can you tell FlexMeasures about your optimization problem?
 
 
@@ -59,6 +61,9 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``inflexible-device-sensors``
      - |INFLEXIBLE_DEVICE_SENSORS.example|
      - .. include:: ../_autodoc/INFLEXIBLE_DEVICE_SENSORS.rst
+   * - ``aggregate-power``
+     - |AGGREGATE_POWER.example|
+     - .. include:: ../_autodoc/AGGREGATE_POWER.rst
    * - ``consumption-price``
      - |CONSUMPTION_PRICE.example|
      - .. include:: ../_autodoc/CONSUMPTION_PRICE.rst
@@ -107,6 +112,9 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``production-breach-price``
      - |PRODUCTION_BREACH_PRICE.example|
      - .. include:: ../_autodoc/PRODUCTION_BREACH_PRICE.rst
+   * - ``commitments``
+     - |COMMITMENTS.example|
+     - .. include:: ../_autodoc/COMMITMENTS.rst
 
 .. [#old_consumption_price_field] This field replaced the ``consumption-price-sensor`` field, which only accepted an integer (sensor ID).
 
@@ -175,6 +183,9 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - Field
      - Example value
      - Description 
+   * - ``state-of-charge``
+     - |STATE_OF_CHARGE.example|
+     - .. include:: ../_autodoc/STATE_OF_CHARGE.rst
    * - ``soc-at-start``
      - |SOC_AT_START.example|
      - .. include:: ../_autodoc/SOC_AT_START.rst

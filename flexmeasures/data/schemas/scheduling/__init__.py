@@ -1,14 +1,17 @@
 from __future__ import annotations
+from datetime import timedelta
 from typing import Any, Callable, Dict
 
 from marshmallow import (
     Schema,
     fields,
     validate,
+    validates,
     validates_schema,
     ValidationError,
     pre_load,
     post_dump,
+    post_load,
 )
 
 from flexmeasures import Sensor
@@ -19,8 +22,13 @@ from flexmeasures.data.schemas.sensors import (
     SensorIdField,
 )
 from flexmeasures.data.schemas.scheduling import metadata
+from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.utils.doc_utils import rst_to_openapi
-from flexmeasures.data.schemas.times import AwareDateTimeField, PlanningDurationField
+from flexmeasures.data.schemas.times import (
+    AwareDateTimeField,
+    DurationField,
+    PlanningDurationField,
+)
 from flexmeasures.data.schemas.utils import FMValidationError
 from flexmeasures.utils.flexmeasures_inflection import p
 from flexmeasures.utils.unit_utils import (
@@ -289,6 +297,12 @@ class FlexContextSchema(Schema):
         data_key="inflexible-device-sensors",
         metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
     )
+    aggregate_power = VariableQuantityField(
+        to_unit="MW",
+        data_key="aggregate-power",
+        required=False,
+        metadata=metadata.AGGREGATE_POWER.to_dict(),
+    )
 
     curtailable_device_sensors = fields.List(
         SensorIdField(),
@@ -311,6 +325,13 @@ class FlexContextSchema(Schema):
                 + self.declared_fields[field].to_unit.split("/")[-1]
             )
         return data
+
+    @validates("aggregate_power")
+    def validate_aggregate_power_is_sensor(
+        self, aggregate_power: Sensor | list[dict] | ur.Quantity, **kwargs
+    ):
+        if not isinstance(aggregate_power, Sensor):
+            raise ValidationError("The `aggregate-power` field can only be a Sensor.")
 
     @validates_schema(pass_original=True)
     def check_prices(self, data: dict, original_data: dict, **kwargs):
@@ -557,6 +578,11 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "commitments": {
         "default": None,
         "description": rst_to_openapi(metadata.COMMITMENTS.description),
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "aggregate-power": {
+        "default": None,
+        "description": rst_to_openapi(metadata.AGGREGATE_POWER.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
 }
@@ -931,6 +957,14 @@ class AssetTriggerSchema(Schema):
             example="PT24H",
         ),
     )
+    resolution = DurationField(
+        metadata=dict(
+            description="The resolution of the requested schedule in ISO 8601 duration format. "
+            "This governs how often setpoints are allowed to change. "
+            "Note that the resulting schedule is still saved in the resolution of each individual sensor.",
+            example="PT2H",
+        )
+    )
     flex_model = fields.List(
         fields.Nested(MultiSensorFlexModelSchema()),
         data_key="flex-model",
@@ -962,4 +996,33 @@ class AssetTriggerSchema(Schema):
                     f"Sensor {sensor_flex_model['sensor'].id} does not belong to asset {asset.id} (or to one of its offspring)"
                 )
             sensors.append(sensor)
+        return data
+
+
+class GetScheduleSchema(Schema):
+    sensor = SensorIdField(required=True, data_key="id")
+    job_id = fields.Str(required=True, data_key="uuid")
+    duration = DurationField(load_default=timedelta(hours=6))
+    unit = UnitField(load_default=None)
+
+    @post_load
+    def finalize_unit_and_duration(self, data, **kwargs):
+        sensor = data["sensor"]
+        unit = data.get("unit")
+
+        if unit is None:
+            data["unit"] = sensor.unit
+        elif unit != sensor.unit and not units_are_convertible(sensor.unit, unit):
+            raise ValidationError(
+                f"Incompatible units: {sensor.unit} cannot be converted to {unit}.",
+                field_name="unit",
+            )
+
+        duration = data["duration"]
+
+        data["duration"] = DurationField.ground_from(
+            duration,
+            data.get("start", data.get("datetime")),
+        )
+
         return data

@@ -4,56 +4,148 @@ FlexMeasures Changelog
 **********************
 
 
-v0.31.0 | February XX, 2026
+v0.32.0 | April XX, 2026
 ============================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
 New features
 -------------
+* Support fetching a schedule in a different unit still compatible to the sensor unit [see `PR #1993 <https://www.github.com/FlexMeasures/flexmeasures/pull/1993>`_]
+* Support saving state-of-charge schedules to sensors with ``"%"`` unit, using the ``soc-max`` flex-model field as the capacity for unit conversion [see `PR #1996 <https://www.github.com/FlexMeasures/flexmeasures/pull/1996>`_]
+* Version headers (for server and API) in API responses [see `PR #2021 <https://www.github.com/FlexMeasures/flexmeasures/pull/2021>`_]
+* Support forecasting from a given time in the past, by allowing to specify a ``prior`` belief time in the forecasting API endpoint (as already possible with CLI command) [see `PR #1978 <https://www.github.com/FlexMeasures/flexmeasures/pull/1978>`_]
+* Show sensor attributes on sensor page, if not empty [see `PR #2015 <https://www.github.com/FlexMeasures/flexmeasures/pull/2015>`_]
+* Separate the ``StorageScheduler``'s tie-breaking preference for a full :abbr:`SoC (state of charge)` from its reported energy costs [see `PR #2023 <https://www.github.com/FlexMeasures/flexmeasures/pull/2023>`_]
+* Improve asset audit log messages for JSON field edits (especially ``sensors_to_show`` and nested flex-config values) [see `PR #2055 <https://www.github.com/FlexMeasures/flexmeasures/pull/2055>`_]
+
+Infrastructure / Support
+----------------------
+* Stop creating new toy assets when restarting the docker-compose stack [see `PR #2018 <https://www.github.com/FlexMeasures/flexmeasures/pull/2018>`_]
+* Migrate from ``pip`` to ``uv`` for dependency management, and from ``make`` to ``poe`` [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
+* Improve contact information to get in touch with the FlexMeasures community [see `PR #2022 <https://www.github.com/FlexMeasures/flexmeasures/pull/2022>`_]
+* Expand audit logging for password life-cycle: password_reset, password_changed and reset_password_instructions_sent events [see `PR #2036 <https://github.com/FlexMeasures/flexmeasures/pull/2036>`_]
+* Upgraded some dependencies for security reasons [see `PR #2037 <https://www.github.com/FlexMeasures/flexmeasures/pull/2037>`_]
+* Remove unused ``dictdiffer`` dependency after replacing JSON audit-diff logic with internal formatting utilities [see `PR #2055 <https://www.github.com/FlexMeasures/flexmeasures/pull/2055>`_]
+* Upgraded dependencies, including sphinx from v8 to v9 [see `PR #2061 <https://www.github.com/FlexMeasures/flexmeasures/pull/2061>`_]
+* Prevent ``save_to_db`` from failing on saving duplicate beliefs in case ``FLEXMEASURES_ALLOW_DATA_OVERWRITE = False`` [see `PR #2059 <https://www.github.com/FlexMeasures/flexmeasures/pull/2059>`_]
+* Improve error logging for various exceptions [see `PR #2045 <https://www.github.com/FlexMeasures/flexmeasures/pull/2045>`_]
+* Update agent instructions and workflows to customize the primary entry point and to make the test environment used by agents and by the test workflow identical [see `PR #2066 <https://www.github.com/FlexMeasures/flexmeasures/pull/2066>`_, `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_ and `PR #2068 <https://www.github.com/FlexMeasures/flexmeasures/pull/2068>`_]
+* Filter out 404 (Not Found) errors from Sentry reports by default, configurable via ``FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY`` [see `PR #2071 <https://www.github.com/FlexMeasures/flexmeasures/pull/2071>`_]
+
+Bugfixes
+-----------
+
+
+v0.31.2 | March 18, 2026
+============================
+
+Bugfixes
+-----------
+* Fix bug with resampling time series of e.g. SoC minima with different belief times for adjacent time slots [see `PR #2012 <https://www.github.com/FlexMeasures/flexmeasures/pull/2012>`_]
+* Fix an issue where asset context was accessed in schemas that do not define a ``context`` attribute [see `PR #2014 <https://www.github.com/FlexMeasures/flexmeasures/pull/2014>`_]
+* Fix wrap-up forecasting job [see `PR #2011 <https://www.github.com/FlexMeasures/flexmeasures/pull/2011>`_]
+* Stop failure in the API endpoint that lists available endpoints (/api/v3_0/) [see `PR #2032 <https://github.com/FlexMeasures/flexmeasures/pull/2032>`_]
+
+Infrastructure / Support
+------------------------
+* Re-add bcrypt dependency  [see `PR #2029 <https://github.com/FlexMeasures/flexmeasures/pull/2029>`_]
+
+
+v0.31.1 | March 6, 2026
+============================
+
+Bugfixes
+-----------
+* Fix CLI command ``flexmeasures add forecasts`` [see `PR #2007 <https://www.github.com/FlexMeasures/flexmeasures/pull/2007>`_]
+* Add missing field documentation for ``aggregate-power`` and ``state-of-charge`` fields, which can be used to reference a sensor on which to record extra scheduling results [see `PR #2003 <https://www.github.com/FlexMeasures/flexmeasures/pull/2003>`_ and `PR #2006 <https://www.github.com/FlexMeasures/flexmeasures/pull/2006>`_]
+
+
+v0.31.0 | February 28, 2026
+============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v031-forecasting-api-annotations/>`_.
+
+.. warning:: As of this version, power schedules will no longer appear flipped (in UI charts) when they are recorded on *consumption* sensors.
+             Please note that:
+
+             - Schedules obtained via the dedicated API endpoints for scheduling are not affected by this change!
+             - The ``consumption_is_positive`` sensor attribute governs the sign of schedules saved to the database.
+               The sign convention of UI charts is to simply match what is in the database.
+             - If you inadvertently make use of the `sensor data API endpoint <https://flexmeasures.readthedocs.io/v0.30.3/api/v3_0.html#get--api-v3_0-sensors-id-data>`_ to fetch *schedules*,
+               or have reporters that compute reports on *schedules*, rather than on *measurements*, be advised that you may experience flipped results.
+               You may need to adjust your client-side code or reporter configuration accordingly.
+               (Updating a reporter configuration automatically leads to a fresh data source for the saved time series.)
+             - Finally, if you maintain a plugin with a custom ``Scheduler`` class that returns time series to be saved on power sensors, we recommend incrementing the version of the ``Scheduler`` class.
+               This will yield a fresh data source for new schedules and allow you to discriminate your flipped schedules, which, for instance, will make it easier to flip back the historical schedules if you later want to.
+
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
+New features
+-------------
 * Improve CSV upload validation by inferring the intended base resolution even when data contains valid gaps, instead of requiring perfectly regular timestamps [see `PR #1918 <https://www.github.com/FlexMeasures/flexmeasures/pull/1918>`_]
-* New forecasting API endpoints `[POST] /sensors/(id)/forecasts/trigger <api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>`_ and `[GET] /sensors/(id)/forecasts/(uuid) <api/v3_0.html#get--api-v3_0-sensors-id-forecasts-uuid>`_ to forecast sensor data [see `PR #1813 <https://www.github.com/FlexMeasures/flexmeasures/pull/1813>`_ and `PR #1823 <https://www.github.com/FlexMeasures/flexmeasures/pull/1823>`_]
+* New API endpoints to create annotations for accounts, assets, and sensors: `[POST] /annotations/accounts/(id) <api/v3_0.html#post--api-v3_0-annotations-accounts-id>`_, `[POST] /annotations/assets/(id) <api/v3_0.html#post--api-v3_0-annotations-assets-id>`_ and `[POST] /annotations/sensors/(id) <api/v3_0.html#post--api-v3_0-annotations-sensors-id>`_ [see `PR #1968 <https://github.com/FlexMeasures/flexmeasures/pull/1968>`_]
+* New forecasting API endpoints, and all timing parameters in forecasting CLI got sensible defaults for ease of use `[POST] /sensors/(id)/forecasts/trigger <api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>`_ and `[GET] /sensors/(id)/forecasts/(uuid) <api/v3_0.html#get--api-v3_0-sensors-id-forecasts-uuid>`_ to forecast sensor data [see `PR #1813 <https://www.github.com/FlexMeasures/flexmeasures/pull/1813>`_, `PR #1823 <https://www.github.com/FlexMeasures/flexmeasures/pull/1823>`_, `PR #1917 <https://www.github.com/FlexMeasures/flexmeasures/pull/1917>`_ and `PR #1982 <https://www.github.com/FlexMeasures/flexmeasures/pull/1982>`_]
+* Support setting a resolution when triggering a schedule via the API or CLI [see `PR #1857 <https://www.github.com/FlexMeasures/flexmeasures/pull/1857>`_]
 * Support variable peak pricing and changes in commitment baselines [see `PR #1835 <https://www.github.com/FlexMeasures/flexmeasures/pull/1835>`_]
+* Support storing the aggregate power schedule [see `PR #1736 <https://www.github.com/FlexMeasures/flexmeasures/pull/1736>`_]
 * Make listing public assets on account page optional [see `PR #1872 <https://www.github.com/FlexMeasures/flexmeasures/pull/1872>`_]
 * Step-by-step replay in the UI, using the **n** key to go to the **n**\ ext time step [see `PR #1898 <https://www.github.com/FlexMeasures/flexmeasures/pull/1898>`_]
 * Support changing a sensor's timezone in the UI [see `PR #1900 <https://www.github.com/FlexMeasures/flexmeasures/pull/1900>`_]
 * Improved the UX for creating sensors, clicking on ``Enter`` now validates and creates a sensor [see `PR #1876 <https://www.github.com/FlexMeasures/flexmeasures/pull/1876>`_]
-* Show zero values in bar charts even though they have 0 area [see `PR #1932 <https://www.github.com/FlexMeasures/flexmeasures/pull/1932>`_]
+* Show zero values in bar charts even though they have 0 area [see `PR #1932 <https://www.github.com/FlexMeasures/flexmeasures/pull/1932>`_ and `PR #1936 <https://www.github.com/FlexMeasures/flexmeasures/pull/1936>`_]
 * Added ``root`` and ``depth`` fields to the `[GET] /assets` endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth [see `PR #1874 <https://www.github.com/FlexMeasures/flexmeasures/pull/1874>`_]
-* Give ability to edit sensor timezone from the UI [see `PR #1900 <https://www.github.com/FlexMeasures/flexmeasures/pull/1900>`_]
 * Support creating schedules with only information known prior to some time, now also via the CLI (the API already supported it) [see `PR #1871 <https://www.github.com/FlexMeasures/flexmeasures/pull/1871>`_].
+* Added capability to update an asset's parent from the UI [`PR #1957 <https://www.github.com/FlexMeasures/flexmeasures/pull/1957>`_]
 * Add ``fields`` param to the asset-listing endpoints, to save bandwidth in response data [see `PR #1884 <https://www.github.com/FlexMeasures/flexmeasures/pull/1884>`_]
+* Support for flex-config in the ``SensorsToShowSchema`` [see `PR #1904 <https://www.github.com/FlexMeasures/flexmeasures/pull/1904>`_]
+* Upgrade graph modal to support flex-config references in plots  [see `PR #1926 <https://www.github.com/FlexMeasures/flexmeasures/pull/1926>`_]
+
 
   .. note:: For backwards-compatibility, the new ``fields`` parameter will only be fully active, i.e. also returning less fields per default, in v0.32. Set ``FLEXMEASURES_API_SUNSET_ACTIVE=True`` to test the full effect now.
 
 * Allow testing out the scheduling CLI without saving anything, using ``flexmeasures add schedule --dry-run`` [see `PR #1892 <https://www.github.com/FlexMeasures/flexmeasures/pull/1892>`_]
 * Allow unsupported ``flex-context`` or ``flex-model`` fields to be shown in the UI editors (they will be un-editable) [see `PR #1915 <https://www.github.com/FlexMeasures/flexmeasures/pull/1915>`_]
 * Add back save buttons to both ``flex-context`` and ``flex-model`` UI editors [see `PR #1916 <https://www.github.com/FlexMeasures/flexmeasures/pull/1916>`_]
-
+* Add a documentation section on the concept of ``Commitments`` [see `PR #1849 <https://www.github.com/FlexMeasures/flexmeasures/pull/1849>`_]
+* Add resolution column to sensors list on asset context page [see `PR #1986 <https://www.github.com/FlexMeasures/flexmeasures/pull/1986>`_]
 
 Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #1847 <https://www.github.com/FlexMeasures/flexmeasures/pull/1847>`_]
+* End support for Python3.9 [see `PR #1965 <https://www.github.com/FlexMeasures/flexmeasures/pull/1965>`_]
 * Improve general description on SwaggerDocs page and add three settings for hosts: FLEXMEASURES_SUPPORT_PAGE, FLEXMEASURES_SIGNUP_PAGE and FLEXMEASURES_TOS_PAGE [see `PR #1851 <https://www.github.com/FlexMeasures/flexmeasures/pull/1851>`_ and `PR #1889 <https://www.github.com/FlexMeasures/flexmeasures/pull/1889>`_]
 * Allow plugins to register forecasters [see `PR #1863 <https://www.github.com/FlexMeasures/flexmeasures/pull/1863>`_]
 * Support setting a ``custom-scheduler`` by name [see `PR #1924 <https://www.github.com/FlexMeasures/flexmeasures/pull/1924>`_]
 * Allow plugin schedulers to skip saving any sensor data, while still making their results retrievable [see `PR #1933 <https://www.github.com/FlexMeasures/flexmeasures/pull/1933>`_]
 * Migrated JSON fields to JSONB, so they can be used to look up sensors, attributes, sources [see `PR #1867 <https://www.github.com/FlexMeasures/flexmeasures/pull/1867>`_]
+* Use ``flexmeasures jobs stats`` to show statistics of the job queueing system [see `PR #1838 <https://www.github.com/FlexMeasures/flexmeasures/pull/1838>`_]
 * Less verbose error logs given common HTTP requests such as those leading to 404 (Not Found) responses [see `PR #1883 <https://www.github.com/FlexMeasures/flexmeasures/pull/1883>`_]
 * Refactor base.html template from 1500 to ~300 lines [see `PR #1868 <https://www.github.com/FlexMeasures/flexmeasures/pull/1868>`_]
 * 2FA UX: Hide rescue form by default & improve main message [see `PR #1875 <https://www.github.com/FlexMeasures/flexmeasures/pull/1875>`_]
 * Add extra security layer to check for breached passwords [see `PR #1919 <https://www.github.com/FlexMeasures/flexmeasures/pull/1919>`_]
 * Support and document data container in docker compose stack better [see `PR #1790 <https://www.github.com/FlexMeasures/flexmeasures/pull/1790>`_]
 * Improve reported test coverage by including doctests and bringing back CLI tests to GitHub Actions [see `PR #1914 <https://www.github.com/FlexMeasures/flexmeasures/pull/1914>`_ and `PR #778 <https://www.github.com/FlexMeasures/flexmeasures/pull/778>`_, respectively]
+* Add DEFAULT_DATASOURCE_TYPES and use it in CLI and status page [see `PR #1938 <https://www.github.com/FlexMeasures/flexmeasures/pull/1938>`_]
 * Fix README badges [see `PR #1913 <https://www.github.com/FlexMeasures/flexmeasures/pull/1913>`_]
+* Allow seeing complete datetimes in the audit log [see `PR #1949 <https://www.github.com/FlexMeasures/flexmeasures/pull/1949>`_]
+* Add latest dependabot alert suggestions [see `PR #1959 <https://www.github.com/FlexMeasures/flexmeasures/pull/1959>`_]
+* Add standardized GitHub Copilot agent environment setup file for consistent development environment across agent sessions [see `PR #1962 <https://www.github.com/FlexMeasures/flexmeasures/pull/1962>`_, `PR #1963 <https://www.github.com/FlexMeasures/flexmeasures/pull/1963>`_ and `PR #1964 <https://www.github.com/FlexMeasures/flexmeasures/pull/1964>`_]
 
 Bugfixes
 -----------
+* Fix: schedules are no longer saved upside down [see `PR #1348 <https://www.github.com/FlexMeasures/flexmeasures/pull/1348>`_]
+* Fix: visiting the job page for any forecasting job led to a server error ("Object of type datetime is not JSON serializable"), by storing serialized kwargs in forecasting job meta [see `PR #1990 <https://www.github.com/FlexMeasures/flexmeasures/pull/1990>`_]
 * Fix: flex-context dialogue is empty when flex-context has two booleans with the same value [see `PR #1907 <https://www.github.com/FlexMeasures/flexmeasures/pull/1907>`_]
+* Bring back the ability to show (timed) annotations on the sensor page, and add some color highlighting, too, while we're at it [see `PR #1967 <https://www.github.com/FlexMeasures/flexmeasures/pull/1967>`_]
 * Fixed toast notification display on the sensor detail upload form [see `PR #1921 <https://www.github.com/FlexMeasures/flexmeasures/pull/1921>`_]
 * Fix: return validation errors instead of database errors for API/CLI fields that map to database objects [see `PR #1923 <https://www.github.com/FlexMeasures/flexmeasures/pull/1923>`_]
+* Correct field documentation for flex-config fields that strictly allow sensor references [see `PR #1951 <https://www.github.com/FlexMeasures/flexmeasures/pull/1951>`_]
+* Have the ``StorageScheduler`` correctly combine multiple sessions targeting the same sensor [see `PR #1948 <https://www.github.com/FlexMeasures/flexmeasures/pull/1948>`_]
 * Mutate job state when running ``flexmeasures jobs run-job <job ID>`` [see `PR #1929 <https://www.github.com/FlexMeasures/flexmeasures/pull/1929>`_ and `PR #1930 <https://www.github.com/FlexMeasures/flexmeasures/pull/1930>`_]
 * Prevent inplace operation when using ``simplify_index`` [see `PR #1931 <https://www.github.com/FlexMeasures/flexmeasures/pull/1931>`_]
+* Fix API tests failing with 401 UNAUTHORIZED when run in isolation by properly setting Flask-Security's ``fs_authn_via`` attribute in the ``requesting_user`` fixture [see `PR #1960 <https://www.github.com/FlexMeasures/flexmeasures/pull/1960>`_]
+* Fix ReadTheDocs build pipeline [see `PR #1972 <https://www.github.com/FlexMeasures/flexmeasures/pull/1972>`_]
 
 
 v0.30.3 | January 12, 2026

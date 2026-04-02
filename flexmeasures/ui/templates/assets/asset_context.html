@@ -382,7 +382,7 @@
 
         setTimeout(() => {
             const card = document.getElementById(`${fieldName}-control`);
-            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price");
+            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price" || fieldName === "aggregate-power");
             card.classList.add('border-on-click'); // Add border to the clicked card
             flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, isOnlySensorField));
             handleFlexSelectChange(fieldName);
@@ -396,7 +396,13 @@
     async function updateFlexContext() {
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
         let data = getFlexContext();
-        console.log("Updating flex context with data:", data);
+
+        // Take out keys thats are not in the specs
+        for (const key in data) {
+            if (!assetFlexContextSchema.hasOwnProperty(key)) {
+                delete data[key];
+            }
+        }
 
         // Clean null values
         for (const [key, value] of Object.entries(data)) {
@@ -409,7 +415,6 @@
                 delete data[key];
             }
         }
-
 
         const requestBody = JSON.stringify({ flex_context: JSON.stringify(data) });
 
@@ -571,7 +576,7 @@
         const card = document.createElement("div");
         card.className = `card m-1 p-2 card-highlight ${isActiveCard() ? "border-on-click" : ""}`;
         card.id = `${fieldName}-control`;
-        // set card element to disabled if it's an extrafield
+        // set card element to disabled if it's an extra field
         if (isExtraField) {
             card.setAttribute("data-disabled", "true");
             card.style.pointerEvents = "none";
@@ -599,7 +604,7 @@
             document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click")); // Remove border from all cards
             card.classList.add("border-on-click"); // Add border to the clicked card
             handleFlexSelectChange(fieldName);
-            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price");
+            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price" || fieldName === "aggregate-power");
             flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, (isOnlySensorField)));
             setActiveCard(card);
             // Store active card in local storage
@@ -711,7 +716,7 @@
         if (storedActiveCard && activeCard()) {
             const flexId = (activeCard() ? activeCard().id : null).slice(0, -8);
             if (assetFlexContext[storedActiveCard]) {
-                const isOnlySensorField = (flexId === "inflexible-device-sensors" || flexId === "consumption-price" || flexId === "production-price");
+                const isOnlySensorField = (flexId === "inflexible-device-sensors" || flexId === "consumption-price" || flexId === "production-price" || flexId === "aggregate-power");
                 setTimeout(() => {
                     flexOptionsContainer.innerHTML = "";
                     flexOptionsContainer.appendChild(renderFlexInputOptions(flexId, isOnlySensorField));

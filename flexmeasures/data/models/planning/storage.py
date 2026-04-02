@@ -105,11 +105,12 @@ class MetaStorageScheduler(Scheduler):
                 s.asset if s is not None else flex_model_d.get("asset")
                 for s, flex_model_d in zip(sensors, self.flex_model)
             ]
-            # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
-            resolution = determine_minimum_resampling_resolution(
-                [s.event_resolution for s in sensors if s is not None],
-                fallback_resolution=self.default_resolution,
-            )
+            if resolution is None:
+                # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
+                resolution = determine_minimum_resampling_resolution(
+                    [s.event_resolution for s in sensors if s is not None],
+                    fallback_resolution=self.default_resolution,
+                )
             asset = self.asset
         else:
             # For backwards compatibility with the single asset scheduler
@@ -196,17 +197,6 @@ class MetaStorageScheduler(Scheduler):
 
         start = pd.Timestamp(start).tz_convert("UTC")
         end = pd.Timestamp(end).tz_convert("UTC")
-
-        # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
-        # We penalise future consumption and reward future production with at most 1 per thousand times the energy price spread.
-        # todo: move to flow or stock commitment per device
-        if any(prefer_charging_sooner):
-            up_deviation_prices = add_tiny_price_slope(
-                up_deviation_prices, "event_value"
-            )
-            down_deviation_prices = add_tiny_price_slope(
-                down_deviation_prices, "event_value"
-            )
 
         # Create Series with EMS capacities
         ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
@@ -440,23 +430,32 @@ class MetaStorageScheduler(Scheduler):
             # Take the contracted capacity as a hard constraint
             ems_constraints["derivative min"] = ems_production_capacity
 
-        # Flow commitments per device
+        # Commitments per device
 
-        # Add tiny price slope to prefer curtailing later rather than now.
-        # The price slope is half of the slope to prefer charging sooner
-        for d, prefer_curtailing_later_d in enumerate(prefer_curtailing_later):
-            if prefer_curtailing_later_d:
+        # StockCommitment per device to prefer a full storage by penalizing not being full
+        # This corresponds to a preference for charging now rather than later, and discharging later rather than now.
+        for d, (prefer_charging_sooner_d, prefer_curtailing_later_d) in enumerate(
+            zip(prefer_charging_sooner, prefer_curtailing_later)
+        ):
+            if prefer_charging_sooner_d:
                 tiny_price_slope = (
-                    add_tiny_price_slope(up_deviation_prices, "event_value")
+                    add_tiny_price_slope(
+                        up_deviation_prices, "event_value", order="desc"
+                    )
                     - up_deviation_prices
                 )
-                tiny_price_slope *= 0.5
-                commitment = FlowCommitment(
-                    name=f"prefer curtailing device {d} later",
-                    # Prefer curtailing consumption later by penalizing later consumption
-                    upwards_deviation_price=tiny_price_slope,
-                    # Prefer curtailing production later by penalizing later production
-                    downwards_deviation_price=-tiny_price_slope,
+                if prefer_curtailing_later_d:
+                    # Use a tiny price slope to prefer a fuller SoC sooner rather than later, by lowering penalties later
+                    penalty = tiny_price_slope
+                else:
+                    # Constant penalty
+                    penalty = tiny_price_slope.iloc[0][0]
+                commitment = StockCommitment(
+                    name=f"prefer a full storage {d} sooner",
+                    quantity=(soc_max[d] - soc_at_start[d])
+                    * (timedelta(hours=1) / resolution),
+                    upwards_deviation_price=0,
+                    downwards_deviation_price=-penalty,
                     index=index,
                     device=d,
                 )
@@ -899,6 +898,12 @@ class MetaStorageScheduler(Scheduler):
             elif storage_efficiency[d] is not None:
                 device_constraints[d]["efficiency"] = storage_efficiency[d]
 
+            # Convert efficiency from sensor resolution to scheduling resolution
+            if sensor_d.event_resolution != timedelta(0):
+                device_constraints[d]["efficiency"] **= (
+                    resolution / sensor_d.event_resolution
+                )
+
             # check that storage constraints are fulfilled
             if not skip_validation:
                 constraint_violations = validate_storage_constraints(
@@ -933,7 +938,7 @@ class MetaStorageScheduler(Scheduler):
     def convert_to_commitments(
         self,
         **timing_kwargs,
-    ) -> list[FlowCommitment]:
+    ) -> list[FlowCommitment | StockCommitment]:
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
         commitment_specs = self.flex_context.get("commitments", [])
         if len(commitment_specs) == 0:
@@ -1217,7 +1222,7 @@ class MetaStorageScheduler(Scheduler):
 
 
 class StorageFallbackScheduler(MetaStorageScheduler):
-    __version__ = "2"
+    __version__ = "3"
     __author__ = "Seita"
 
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
@@ -1286,10 +1291,68 @@ class StorageFallbackScheduler(MetaStorageScheduler):
 
 
 class StorageScheduler(MetaStorageScheduler):
-    __version__ = "6"
+    __version__ = "8"
     __author__ = "Seita"
 
     fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
+
+    @staticmethod
+    def _build_soc_schedule(
+        flex_model: list[dict],
+        ems_schedule: pd.DataFrame,
+        soc_at_start: list[float],
+        device_constraints: list,
+        resolution: timedelta,
+    ) -> dict:
+        """Build the state-of-charge schedule for each device that has a state-of-charge sensor.
+
+        Converts the integrated power schedule from MWh to the sensor's unit.
+        For sensors with a '%' unit, the soc-max flex-model field is used as capacity.
+        If soc-max is missing or zero for a '%' sensor, the schedule is skipped with a warning.
+
+        Note: soc-max is a QuantityField (not a VariableQuantityField), so it is always a float
+        after deserialization and cannot be a sensor reference. The isinstance guard below is
+        therefore a defensive check for forward-compatibility.
+        """
+        soc_schedule = {}
+        for d, flex_model_d in enumerate(flex_model):
+            state_of_charge_sensor = flex_model_d.get("state_of_charge", None)
+            if not isinstance(state_of_charge_sensor, Sensor):
+                continue
+            soc_unit = state_of_charge_sensor.unit
+            capacity = None
+            if soc_unit == "%":
+                soc_max = flex_model_d.get("soc_max")
+                if isinstance(soc_max, Sensor):
+                    raise ValueError(
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
+                        "soc-max as a sensor reference is not supported for '%' unit conversion. "
+                        "Skipping state-of-charge schedule."
+                    )
+                if not soc_max:
+                    raise ValueError(
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
+                        "soc-max is missing or zero. Skipping state-of-charge schedule."
+                    )
+                capacity = f"{soc_max} MWh"  # all flex model fields are in MWh by now
+            soc_schedule[state_of_charge_sensor] = convert_units(
+                integrate_time_series(
+                    series=ems_schedule[d],
+                    initial_stock=soc_at_start[d],
+                    stock_delta=device_constraints[d]["stock delta"]
+                    * resolution
+                    / timedelta(hours=1),
+                    up_efficiency=device_constraints[d]["derivative up efficiency"],
+                    down_efficiency=device_constraints[d]["derivative down efficiency"],
+                    storage_efficiency=device_constraints[d]["efficiency"]
+                    .astype(float)
+                    .fillna(1),
+                ),
+                from_unit="MWh",
+                to_unit=soc_unit,
+                capacity=capacity,
+            )
+        return soc_schedule
 
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
@@ -1327,11 +1390,20 @@ class StorageScheduler(MetaStorageScheduler):
             raise InfeasibleProblemException(tc)
 
         # Obtain the storage schedule from all device schedules within the EMS
-        storage_schedule = {
-            sensor: ems_schedule[d]
-            for d, sensor in enumerate(sensors)
-            if sensor is not None
-        }
+        storage_schedule = dict()
+        # Accumulate schedules when multiple devices share the same sensor.
+        for d, sensor in enumerate(sensors):
+            if sensor is not None and sensor not in storage_schedule:
+                storage_schedule[sensor] = ems_schedule[d]
+            elif sensor is not None and sensor in storage_schedule:
+                storage_schedule[sensor] += ems_schedule[d]
+
+        # Obtain the aggregate power schedule, too, if the flex-context states the associated sensor. Fill with the sum of schedules made here.
+        aggregate_power_sensor = self.flex_context.get("aggregate_power", None)
+        if isinstance(aggregate_power_sensor, Sensor):
+            storage_schedule[aggregate_power_sensor] = pd.concat(
+                ems_schedule, axis=1
+            ).sum(axis=1)
 
         # Convert each device schedule to the unit of the device's power sensor
         storage_schedule = {
@@ -1341,7 +1413,7 @@ class StorageScheduler(MetaStorageScheduler):
                 sensor.unit,
                 event_resolution=sensor.event_resolution,
             )
-            for sensor in sensors
+            for sensor in storage_schedule.keys()
             if sensor is not None
         }
 
@@ -1351,26 +1423,9 @@ class StorageScheduler(MetaStorageScheduler):
             flex_model["sensor"] = sensors[0]
             flex_model = [flex_model]
 
-        soc_schedule = {
-            flex_model_d["state_of_charge"]: convert_units(
-                integrate_time_series(
-                    series=ems_schedule[d],
-                    initial_stock=soc_at_start[d],
-                    stock_delta=device_constraints[d]["stock delta"]
-                    * resolution
-                    / timedelta(hours=1),
-                    up_efficiency=device_constraints[d]["derivative up efficiency"],
-                    down_efficiency=device_constraints[d]["derivative down efficiency"],
-                    storage_efficiency=device_constraints[d]["efficiency"]
-                    .astype(float)
-                    .fillna(1),
-                ),
-                from_unit="MWh",
-                to_unit=flex_model_d["state_of_charge"].unit,
-            )
-            for d, flex_model_d in enumerate(flex_model)
-            if isinstance(flex_model_d.get("state_of_charge", None), Sensor)
-        }
+        soc_schedule = self._build_soc_schedule(
+            flex_model, ems_schedule, soc_at_start, device_constraints, resolution
+        )
 
         # Resample each device schedule to the resolution of the device's power sensor
         if self.resolution is None:
@@ -1378,7 +1433,7 @@ class StorageScheduler(MetaStorageScheduler):
                 sensor: storage_schedule[sensor]
                 .resample(sensor.event_resolution)
                 .mean()
-                for sensor in sensors
+                for sensor in storage_schedule.keys()
                 if sensor is not None
             }
 
@@ -1386,7 +1441,7 @@ class StorageScheduler(MetaStorageScheduler):
         if self.round_to_decimals:
             storage_schedule = {
                 sensor: storage_schedule[sensor].round(self.round_to_decimals)
-                for sensor in sensors
+                for sensor in storage_schedule.keys()
                 if sensor is not None
             }
             soc_schedule = {
@@ -1402,7 +1457,7 @@ class StorageScheduler(MetaStorageScheduler):
                     "data": storage_schedule[sensor],
                     "unit": sensor.unit,
                 }
-                for sensor in sensors
+                for sensor in storage_schedule.keys()
                 if sensor is not None
             ]
             commitment_costs = [

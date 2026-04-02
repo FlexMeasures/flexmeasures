@@ -425,7 +425,7 @@ Default:
 SQLALCHEMY_TEST_DATABASE_URI
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When running tests (``make test``, which runs ``pytest``), the default database URI is set in ``utils.config_defaults.TestingConfig``.
+When running tests (``uv run poe test``), the default database URI is set in ``utils.config_defaults.TestingConfig``.
 You can use this setting to overwrite that URI and point the tests to an (empty) database of your choice. 
 
 .. note:: This setting is only supported as an environment variable, not in a config file, and only during testing.
@@ -636,6 +636,15 @@ A dictionary with values to configure reporting to Sentry. Some options are take
 See `here <https://docs.sentry.io/platforms/python/configuration/options/>_` for a complete list.
 
 Default: ``{}``
+
+
+FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If ``True``, 404 (Not Found) errors will not be forwarded to Sentry. Online platforms see many automated scans for known vulnerable paths,
+so without this filter, 404 errors can inflate Sentry error budgets unnecessarily.
+
+Default: ``True``
 
 
 FLEXMEASURES_TASK_CHECK_AUTH_TOKEN

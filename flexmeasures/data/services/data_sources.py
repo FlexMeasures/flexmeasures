@@ -4,13 +4,16 @@ import logging
 
 from flask import current_app
 from sqlalchemy import select
-from typing import Type
+from typing import Type, TypeVar
 
 from flexmeasures import User, Source
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource, DataGenerator
 from flexmeasures.data.models.user import is_user
 from flask import current_app as app
+
+
+DG = TypeVar("DG", bound=DataGenerator)
 
 
 def get_or_create_source(
@@ -79,8 +82,8 @@ def get_data_generator(
     model: str,
     config: dict,
     save_config: bool,
-    data_generator_type: Type,
-) -> DataGenerator | None:
+    data_generator_type: Type[DG],
+) -> DG | None:
     dg_type_name = data_generator_type.__name__
     if source is None:
         logging.info(

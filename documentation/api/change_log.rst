@@ -5,18 +5,32 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-29 | 2025-12-30
+v3.0-30 | 2026-XX-XX
+""""""""""""""""""""
+- Added ``unit`` field to the `/sensors/<id>/schedules/<uuid>` (GET) endpoint for fetching a schedule, to get the schedule in a different unit still compatible to the sensor unit.
+- Added ``prior`` field to the `/sensors/<id>/forecasts/trigger` (POST) endpoint, to forecast from a given time in the past.
+- Added ``FlexMeasures-Version`` response header to all API responses, containing the current server version (e.g. ``FlexMeasures-Version: 0.32.0``).
+- Added ``API-Version`` response header to all API responses under ``/api/v3_0``, containing the API version (e.g. ``API-Version: v3_0``).
+
+
+v3.0-29 | 2026-02-28
 """"""""""""""""""""
 
-Added two new forecasting API endpoints:
+- Added two new forecasting API endpoints:
 
-* `POST /sensors/<id>/forecasts/trigger` — queue forecasting jobs for a sensor
-* `GET /sensors/<id>/forecasts/<uuid>` — retrieve job status and forecast results
+  * `POST /sensors/<id>/forecasts/trigger` — queue forecasting jobs for a sensor
+  * `GET /sensors/<id>/forecasts/<uuid>` — retrieve job status and forecast results
 
-These endpoints enable programmatic triggering and retrieval of forecasts via the REST API.
+  These endpoints enable programmatic triggering and retrieval of forecasts via the REST API.
 
-Also:
+- Added three new API endpoints to create annotations for accounts, assets, and sensors:
 
+  * `POST /accounts/(id)/annotations <api/v3_0.html#post--api-v3_0-accounts-id-annotations>`_
+  * `POST /assets/(id)/annotations <api/v3_0.html#post--api-v3_0-assets-id-annotations>`_
+  * `POST /sensors/(id)/annotations <api/v3_0.html#post--api-v3_0-sensors-id-annotations>`_
+
+- Schedules are no longer saved upside down.
+- Support saving the aggregate power schedule by referencing a power sensor in the ``flex-context`` (new field ``aggregate-power``).
 - Added ``root`` and ``depth`` fields to the `/assets` (GET) endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth.
 - Added ``fields`` field to the `/assets` (GET) and `/assets/public` endpoints, to transfer less data by default (will be fully active, i.e. also returning less fields per default, in v0.32).
 - Return validation errors instead of database errors for fields that map to database objects.
