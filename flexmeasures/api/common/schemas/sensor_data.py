@@ -16,6 +16,7 @@ from flexmeasures.api.common.schemas.sensors import (
     SensorEntityAddressField,
     SensorIdField,
 )
+from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SourceIdField
@@ -152,6 +153,7 @@ class SensorDataDescriptionSchema(SensorDataTimingDescriptionSchema):
 class GetSensorDataSchema(SensorDataDescriptionSchema):
     resolution = DurationField(required=False)
     source = SourceIdField(required=False)
+    source_account = AccountIdField(required=False, data_key="source_account_id")
 
     # Optional field that can be used for extra validation
     type = fields.Str(
@@ -202,6 +204,7 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         unit = sensor_data_description["unit"]
         resolution = sensor_data_description.get("resolution")
         source = sensor_data_description.get("source")
+        source_account = sensor_data_description.get("source_account")
 
         # Post-load configuration of event frequency
         if resolution is None:
@@ -231,6 +234,7 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
                 horizons_at_least=horizons_at_least,
                 horizons_at_most=horizons_at_most,
                 source=source,
+                source_account_ids=source_account.id if source_account else None,
                 beliefs_before=sensor_data_description.get("prior", None),
                 one_deterministic_belief_per_event=True,
                 resolution=resolution,
@@ -262,6 +266,14 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         )
 
         return response
+
+
+class GetSensorDataQuerySchema(SensorDataTimingDescriptionSchema):
+    """Document the actual query parameters for GET /sensors/<id>/data."""
+
+    resolution = DurationField(required=False)
+    source = SourceIdField(required=False)
+    source_account = AccountIdField(required=False, data_key="source_account_id")
 
 
 class PostSensorDataSchema(SensorDataDescriptionSchema):
