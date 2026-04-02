@@ -700,15 +700,6 @@ wheels = [
 ]
 
 [[package]]
-name = "dictdiffer"
-version = "0.9.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/61/7b/35cbccb7effc5d7e40f4c55e2b79399e1853041997fcda15c9ff160abba0/dictdiffer-0.9.0.tar.gz", hash = "sha256:17bacf5fbfe613ccf1b6d512bd766e6b21fb798822a133aa86098b8ac9997578", size = 31513, upload-time = "2021-07-22T13:24:29.276Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/47/ef/4cb333825d10317a36a1154341ba37e6e9c087bac99c1990ef07ffdb376f/dictdiffer-0.9.0-py2.py3-none-any.whl", hash = "sha256:442bfc693cfcadaf46674575d2eba1c53b42f5e404218ca2c2ff549f2df56595", size = 16754, upload-time = "2021-07-22T13:24:26.783Z" },
-]
-
-[[package]]
 name = "dill"
 version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1057,7 +1048,6 @@ dependencies = [
     { name = "click" },
     { name = "click-default-group" },
     { name = "cryptography" },
-    { name = "dictdiffer" },
     { name = "email-validator" },
     { name = "flask" },
     { name = "flask-classful" },
@@ -1179,7 +1169,6 @@ requires-dist = [
     { name = "click", specifier = "<8.2.0" },
     { name = "click-default-group", specifier = ">=1.2.4" },
     { name = "cryptography", specifier = ">=46.0.5" },
-    { name = "dictdiffer", specifier = ">=0.9.0" },
     { name = "email-validator", specifier = ">=2.3.0" },
     { name = "flask", specifier = ">=3.1.3" },
     { name = "flask-classful", specifier = ">=0.16" },
