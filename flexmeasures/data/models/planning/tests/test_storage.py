@@ -289,6 +289,7 @@ def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(
     scheduler.deserialize_config()
 
     assert scheduler.flex_model["soc_at_start"] == 2.75
+    assert scheduler.flex_model["soc_unit"] == "MWh"
 
 
 def test_deserialize_storage_soc_at_start_from_state_of_charge_time_series(
