@@ -31,6 +31,7 @@ from flexmeasures.api.common.schemas.utils import make_openapi_compatible
 from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
     SensorDataDescriptionSchema,
     GetSensorDataSchema,
+    GetSensorDataQuerySchema,
     PostSensorDataSchema,
 )
 from flexmeasures.api.common.schemas.sensors import SensorId  # noqa F401
@@ -585,7 +586,8 @@ class SensorAPI(FlaskView):
             - "resolution" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))
             - "horizon" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))
             - "prior" (the belief timing docs also apply here)
-            - "source" (read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))
+            - "source" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))
+            - "source_account_id" (filter by the account ID linked to data sources)
 
             An example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m³/h:
 
@@ -602,7 +604,7 @@ class SensorAPI(FlaskView):
               required: true
               schema: SensorId
             - in: query
-              schema: SensorDataTimingDescriptionSchema
+              schema: GetSensorDataQuerySchema
 
           responses:
             200:
