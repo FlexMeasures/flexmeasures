@@ -584,7 +584,6 @@ If Lead repeatedly closes sessions without completing checklist:
 
 These patterns must not repeat. Agent instructions have been updated to prevent recurrence.
 
-<<<<<<< HEAD
 ### Additional Pattern Discovered (2026-03-24)
 
 **Pattern**: Persistent self-improvement failure and missing API Specialist agent selection
@@ -705,4 +704,3 @@ If any agent hasn't self-improved, Lead must:
 4. Then mark task complete
 
 **This makes self-improvement blocking, not optional.**
->>>>>>> origin/main
