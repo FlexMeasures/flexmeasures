@@ -395,6 +395,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
         user_source_ids: int | list[int] | None = None,
+        source_account_ids: int | list[int] | None = None,
         source_types: list[str] | None = None,
         exclude_source_types: list[str] | None = None,
         use_latest_version_per_event: bool = True,
@@ -419,6 +420,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources. Without this set and a most recent parameter used (see below), the results can be of any source.
         :param user_source_ids: Optional list of user source ids to query only specific user sources
+        :param source_account_ids: Optional list of account ids to query only sources linked to specific accounts
         :param source_types: Optional list of source type names to query only specific source types *
         :param exclude_source_types: Optional list of source type names to exclude specific source types *
         :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
@@ -442,6 +444,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             horizons_at_most=horizons_at_most,
             source=source,
             user_source_ids=user_source_ids,
+            source_account_ids=source_account_ids,
             source_types=source_types,
             exclude_source_types=exclude_source_types,
             use_latest_version_per_event=use_latest_version_per_event,
@@ -851,6 +854,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
         user_source_ids: int | list[int] | None = None,
+        source_account_ids: int | list[int] | None = None,
         source_types: list[str] | None = None,
         exclude_source_types: list[str] | None = None,
         use_latest_version_per_event: bool = True,
@@ -875,6 +879,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param user_source_ids: Optional list of user source ids to query only specific user sources
+        :param source_account_ids: Optional list of account ids to query only sources linked to specific accounts
         :param source_types: Optional list of source type names to query only specific source types *
         :param exclude_source_types: Optional list of source type names to exclude specific source types *
         :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
@@ -915,7 +920,11 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
 
         parsed_sources = parse_source_arg(source)
         source_criteria = get_source_criteria(
-            cls, user_source_ids, source_types, exclude_source_types
+            cls,
+            user_source_ids,
+            source_account_ids,
+            source_types,
+            exclude_source_types,
         )
         custom_join_targets = [] if parsed_sources else [DataSource]
 
