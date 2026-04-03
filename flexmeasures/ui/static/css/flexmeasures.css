@@ -1005,12 +1005,13 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 @media (min-width: 768px) {
     .sidepanel {
-        position: relative; /* creates positioning context for all contained panels */
+        position: relative;
+        z-index: var(--z-index-sidepanel); /* single shared stacking context for all contained panels */
     }
     .sidepanel-container {
-        position: relative;
+        position: relative; /* positions label/content relative to this container */
         height: 60px; /* space for the label tab */
-        z-index: var(--z-index-sidepanel);
+        /* no z-index here — avoids creating a separate stacking context per container */
     }
     .sidepanel-label {
         position: absolute;
