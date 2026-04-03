@@ -62,10 +62,10 @@ h1, h2, h3 {
     font-weight: 600;
     color: var(--primary-color);
 }
-.sidepanel h1,
-.sidepanel h2,
-.sidepanel h3,
-.sidepanel label {
+.sidepanel-content h1,
+.sidepanel-content h2,
+.sidepanel-content h3,
+.sidepanel-content label {
     color: var(--white) !important;
 }
 
@@ -967,7 +967,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     vertical-align: top;
     border-top: 1px solid var(--light-gray) ;
 }
-.left-sidepanel-label{
+.sidepanel-label {
     margin-left: 20px !important;
 }
 
@@ -991,163 +991,81 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 /* ---- Side panel ---- */
 
+:root {
+    --z-index-sidepanel: 20;
+    --z-index-sidepanel-label: 21;
+    --z-index-sidepanel-content: 100;
+}
+
 @media (max-width: 767px) {
-        .left-sidepanel-label {
-            visibility: collapse;
-        }
-    }
-/*
-@media (min-width: 768px) {
-    .sidepanel h1,
-    .sidepanel h2,
-    .sidepanel h3,
-    .sidepanel label {
-        color: var(--nav-default-color) !important;
-    }
-    .leftside-dropdown {
-        margin-left: -95px !important;
-        color: var(--nav-default-color);
-        background: var(--nav-default-background-color);
-        width: calc(var(--litepicker-day-width) * 6);
-        padding: 13px 10px;
-        min-height: 35px;  // line-height + padding-top + padding-bottom
-        border-top-left-radius: 0px;
-        border-bottom-left-radius: 0px;
-        border-top-right-radius: 15px;
-        border-bottom-right-radius: 15px;
-        text-align: right;
-    }
-    .sidepanel-container {
-        z-index: 20;
-        position: absolute;
-    }
-    .sidepanel,
-    .left-sidepanel-label {
-        color: var(--nav-default-color);
-        background: var(--nav-default-background-color);
-        width: calc(var(--litepicker-day-width) * 9);
-        margin: 15px;
-        padding: 20px 15px;
-        min-height: 60px; // line-height + padding-top + padding-bottom
-     }
-     .sidepanel {
-        transition: .3s;
-        -webkit-transition: .3s;
-        -moz-transition: .3s;
-        -ms-transition: .3s;
-        -o-transition: .3s;
-    }
-    .left-sidepanel,
-    .left-sidepanel-label {
-        border-top-left-radius: 0px;
-        border-bottom-left-radius: 0px;
-        border-top-right-radius: 15px;
-        border-bottom-right-radius: 15px;
-    }
-    .sidepanel-container > .left-sidepanel:not(.sidepanel-show) {
-        transform: translateX(-106%);
-    }
-    .left-sidepanel-label {
-        margin: 0px;
-        transform: translateX(-70%);
-        text-align: right;
-        position: relative;
-    }
-    @media (hover: hover) {
-        .sidepanel-container:hover > .left-sidepanel,
-        .sidepanel-container:focus-within > .left-sidepanel {
-            transform: translateX(-30px);
-            height: 90%;
-        }
-    }
-    @media (hover: none) {
-        .sidepanel-container > .left-sidepanel.sidepanel-show {
-            transform: translateX(-30px);
-            height: auto;
-        }
+    .sidepanel-label {
+        visibility: collapse;
     }
 }
-*/
+
 @media (min-width: 768px) {
-    .sidepanels: {
-        position: relative; /* creates global z-stacking index for all */
+    .sidepanel {
+        position: relative; /* creates positioning context for all contained panels */
     }
     .sidepanel-container {
-        z-index: 20;
         position: relative;
-        margin-bottom: 20px; /* Add space between containers if needed */
+        height: 60px; /* space for the label tab */
+        z-index: var(--z-index-sidepanel);
     }
-    .left-sidepanel-label {
-        position: absolute !important;
+    .sidepanel-label {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: var(--z-index-sidepanel-label);
         margin: 0;
         transform: translateX(-70%);
         text-align: right;
-        top: 0; /* Align to the top of the container */
-        left: 0;
-        z-index: 21;
     }
-    .sidepanel {
-        position: absolute !important;
+    .sidepanel-content {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: var(--z-index-sidepanel-content);
         height: 0;
         overflow: hidden;
         visibility: hidden;
         opacity: 0;
-        min-height: 0;
-        transition: height 0.3s, transform 0.3s;
-        top: 0; /* Align to the top of the container */
-        left: 0;
-        z-index: 100;
+        transition: height 0.3s, opacity 0.3s;
     }
-    .sidepanel,
-    .left-sidepanel-label {
+    .sidepanel-content,
+    .sidepanel-label {
         color: var(--nav-default-color);
         background: var(--nav-default-background-color);
         width: calc(var(--litepicker-day-width) * 9);
-        margin: 15px;
         padding: 20px 15px;
-        min-height: 60px; // line-height + padding-top + padding-bottom
         border-top-left-radius: 0px;
         border-bottom-left-radius: 0px;
         border-top-right-radius: 15px;
         border-bottom-right-radius: 15px;
-     }
-    .sidepanel-container:hover > .left-sidepanel,
-    .sidepanel-container:focus-within > .left-sidepanel {
-        height: auto;
-        transform: translateX(-30px);
-        visibility: visible;
-        opacity: 1;
     }
-    /* Add space between containers if you have multiple
-    .sidepanel-container + .sidepanel-container {
-        margin-top: 60px;
-    } */
-}
- 
-.sidepanel-container:nth-child(1) .left-sidepanel-label,
-.sidepanel-container:nth-child(1) .sidepanel {
-    top: 0;
-}
-.sidepanel-container:nth-child(2) .left-sidepanel-label,
-.sidepanel-container:nth-child(2) .sidepanel {
-    top: 20px;
-}
-.sidepanel-container:nth-child(3) .left-sidepanel-label,
-.sidepanel-container:nth-child(3) .sidepanel {
-    top: 100px;
-}
-.sidepanel-container:nth-child(4) .left-sidepanel-label,
-.sidepanel-container:nth-child(4) .sidepanel {
-    top: 180px;
+    .sidepanel-label {
+        min-height: 60px; /* line-height + padding-top + padding-bottom */
+    }
+    @media (hover: hover) {
+        .sidepanel-container:hover > .sidepanel-content,
+        .sidepanel-container:focus-within > .sidepanel-content {
+            height: auto;
+            transform: translateX(-30px);
+            visibility: visible;
+            opacity: 1;
+        }
+    }
+    @media (hover: none) {
+        .sidepanel-container > .sidepanel-content.sidepanel-show {
+            height: auto;
+            transform: translateX(-30px);
+            visibility: visible;
+            opacity: 1;
+        }
+    }
 }
 
-/*
-TODO:
-- fix z-index, use one global stacking index
-- better class names: .sidepanel > sidepanel-container > sidepanel-label / sidepanel-content
-- accomodate chart dropdown and delete button (move all below the sidepanel?)
-- Mistral asks for a complete example (HTML+CSS) which sounds like a good idea
-*/
+/* ---- End Side panel ---- */
 
 
 /* ---- Date picker ---- */

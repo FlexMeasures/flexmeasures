@@ -17,8 +17,8 @@
 
             {% if user_can_update_asset %}
             <div class="sidepanel-container">
-                <div class="left-sidepanel-label">Edit asset</div>
-                <div class="sidepanel left-sidepanel">
+                <div class="sidepanel-label">Edit asset</div>
+                <div class="sidepanel-content">
                     <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}">
                         {{ asset_form.csrf_token }}
                         {{ asset_form.hidden_tag() }}
