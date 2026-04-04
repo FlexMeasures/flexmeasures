@@ -68,27 +68,36 @@ class Scheduler:
 
     @staticmethod
     def _build_stock_groups(flex_model: list[dict]) -> dict:
-
+        """
+        Build stock groups where devices sharing the same state-of-charge sensor are grouped together.
+        """
         groups = defaultdict(list)
-        soc_sensor_to_stock_model = {}
+        soc_usage = defaultdict(list)
 
-        # identify stock models
-        for i, fm in enumerate(flex_model):
-            if fm.get("soc_at_start") is not None:
-                soc_sensor = fm["sensor"]
-                soc_sensor_to_stock_model[soc_sensor] = i
-
-        # group devices by soc sensor
-        missing_soc_sensor_i = -len(flex_model)
         for d, fm in enumerate(flex_model):
-            soc = fm.get("state_of_charge")
-
-            if soc is None:
-                groups[missing_soc_sensor_i].append(d)
-                missing_soc_sensor_i += 1
+            if fm.get("sensor") is None:
                 continue
 
-            groups[soc.id].append(d)
+            soc = fm.get("state_of_charge")
+            if soc is not None:
+                if hasattr(soc, "id"):
+                    soc_id = soc.id
+                elif isinstance(soc, dict) and "sensor" in soc:
+                    sensor = soc["sensor"]
+                    soc_id = sensor.id if hasattr(sensor, "id") else sensor
+                else:
+                    soc_id = soc
+
+                soc_usage[soc_id].append(d)
+
+        for soc_id, device_list in soc_usage.items():
+            groups[soc_id] = device_list
+
+        missing_soc_sensor_i = -len(flex_model)
+        for d, fm in enumerate(flex_model):
+            if fm.get("sensor") is not None and fm.get("state_of_charge") is None:
+                groups[missing_soc_sensor_i].append(d)
+                missing_soc_sensor_i += 1
 
         return dict(groups)
 
