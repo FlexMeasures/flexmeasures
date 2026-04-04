@@ -131,7 +131,6 @@ class MetaStorageScheduler(Scheduler):
                 "state-of-charge": {"sensor": 2},
                 "storage-efficiency": 0.99,
               },
-              
             ]
             """
 
@@ -1080,6 +1079,12 @@ class MetaStorageScheduler(Scheduler):
                     )
 
         # --- apply shared stock groups
+        # Store original stock_delta values for use in _build_soc_schedule
+        original_stock_deltas = [
+            device_constraints[d]["stock delta"].copy()
+            for d in range(len(device_constraints))
+        ]
+
         if hasattr(self, "stock_groups") and self.stock_groups:
             for stock_id, devices in self.stock_groups.items():
 
@@ -1088,20 +1093,25 @@ class MetaStorageScheduler(Scheduler):
 
                 d0 = devices[0]
 
+                # Combine all stock_deltas on the primary device
+                # This ensures the optimizer sees a single shared stock
                 combined_delta = sum(
                     device_constraints[d]["stock delta"] for d in devices
                 )
-
                 device_constraints[d0]["stock delta"] = combined_delta
 
-                # secondary devices keep their delta but must not have SOC constraints
+                # Secondary devices: zero out stock_delta (it's now in primary) but keep power contribution
                 for d in devices[1:]:
+                    # Zero out stock_delta since it's now in primary device's combined_delta
                     device_constraints[d]["stock delta"] = 0
 
                     # disable stock bounds for secondary devices
                     device_constraints[d]["equals"] = np.nan
                     device_constraints[d]["min"] = np.nan
                     device_constraints[d]["max"] = np.nan
+
+        # Store original stock_deltas for use in _build_soc_schedule
+        self.original_stock_deltas = original_stock_deltas
         return (
             sensors,
             start,
@@ -1219,9 +1229,21 @@ class MetaStorageScheduler(Scheduler):
                 self.flex_model
             )
             for d, sensor_flex_model in enumerate(self.flex_model):
+                soc_sensor_id = (
+                    sensor_flex_model["sensor_flex_model"]
+                    .get("state-of-charge", {})
+                    .get("sensor", None)
+                )
+                soc_sensor = None
+                if soc_sensor_id is not None:
+                    soc_sensor = Sensor.query.filter_by(id=soc_sensor_id).first()
                 self.flex_model[d] = StorageFlexModelSchema(
                     start=self.start,
-                    sensor=sensor_flex_model.get("sensor"),
+                    sensor=(
+                        sensor_flex_model.get("sensor")
+                        if sensor_flex_model.get("sensor") is not None
+                        else soc_sensor
+                    ),
                     default_soc_unit=sensor_flex_model["sensor_flex_model"].get(
                         "soc-unit"
                     ),
