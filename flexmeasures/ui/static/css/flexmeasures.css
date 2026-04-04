@@ -1007,6 +1007,10 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     .sidepanel {
         position: relative;
         z-index: var(--z-index-sidepanel); /* single shared stacking context for all contained panels */
+        margin: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
     }
     .sidepanel-container {
         position: relative; /* positions label/content relative to this container */
@@ -1018,7 +1022,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
         top: 0;
         left: 0;
         z-index: var(--z-index-sidepanel-label);
-        margin: 0;
         transform: translateX(-70%);
         text-align: right;
     }
