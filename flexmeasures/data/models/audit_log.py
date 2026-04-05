@@ -37,6 +37,8 @@ class AuditLog(db.Model, AuthModelMixin):
 
     # Relationships to navigate to User and Account without database-level FK constraints
     # This allows audit logs to maintain references to deleted users/accounts for lineage purposes
+    # The foreign_keys= parameter inside db.relationship(...) is a SQLAlchemy ORM hint only — it has zero effect on the database schema.
+    # It's needed here because SQLAlchemy can't automatically infer which column is the "FK side" of the join when there's no actual ForeignKey() in the column definition
     active_user = db.relationship(
         "User",
         primaryjoin="AuditLog.active_user_id == User.id",
