@@ -31,7 +31,7 @@ def test_delete_account(
         (ds.id, ds.user_id, ds.account_id) for ds in data_sources_before
     ]
 
-    # Add creation audit log record
+    # Add creation audit log record, as that has not automatically been done when setting up test data
     user_creation_audit_log = AuditLog(
         event="User Test Prosumer User created test",
         affected_user_id=prosumer.id,
