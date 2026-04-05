@@ -1779,7 +1779,10 @@ class SensorAPI(FlaskView):
             )
         if job.dependency_ids:
             forecast_job_ids = [
-                dep.decode("utf-8").replace("rq:job:", "") for dep in job.dependency_ids
+                (dep.decode("utf-8") if isinstance(dep, bytes) else dep).replace(
+                    "rq:job:", ""
+                )
+                for dep in job.dependency_ids
             ]
             response = dict(
                 message="The forecasting job led to forecasts over different periods. Please query an individual period by calling this endpoint with one of the listed job IDs",

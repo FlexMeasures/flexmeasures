@@ -273,15 +273,25 @@ def refresh_data_source(data_source: DataSource) -> DataSource:
 
     This avoids a sqlalchemy.exc.IntegrityError / psycopg2.errors.ForeignKeyViolation
     for the data source ID not being present in the data_source table.
+
+    Prefer looking up by ID when available: this sidesteps the ``attributes_hash``
+    mismatch that arises because PostgreSQL JSONB returns keys in alphabetical order,
+    while the stored hash was originally computed from the Python insertion-order dict.
     """
+
+    from flexmeasures.data import db
+
+    if data_source.id is not None:
+        refreshed = db.session.get(DataSource, data_source.id)
+        if refreshed is not None:
+            return refreshed
 
     from flexmeasures.data.services.data_sources import get_or_create_source
 
-    source = get_or_create_source(
+    return get_or_create_source(
         data_source.name,
         source_type=data_source.type,
         model=data_source.model,
         version=data_source.version,
         attributes=data_source.attributes,
     )
-    return source
