@@ -1779,9 +1779,7 @@ class SensorAPI(FlaskView):
             )
         if job.dependency_ids:
             forecast_job_ids = [
-                (dep.decode("utf-8") if isinstance(dep, bytes) else dep).replace(
-                    "rq:job:", ""
-                )
+                dep.decode("utf-8") if isinstance(dep, bytes) else dep
                 for dep in job.dependency_ids
             ]
             response = dict(

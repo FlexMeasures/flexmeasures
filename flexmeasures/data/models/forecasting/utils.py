@@ -279,8 +279,6 @@ def refresh_data_source(data_source: DataSource) -> DataSource:
     while the stored hash was originally computed from the Python insertion-order dict.
     """
 
-    from flexmeasures.data import db
-
     if data_source.id is not None:
         refreshed = db.session.get(DataSource, data_source.id)
         if refreshed is not None:
