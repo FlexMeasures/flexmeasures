@@ -226,21 +226,10 @@ class StorageFlexModelSchema(Schema):
         metadata=metadata.SOC_USAGE.to_dict(),
     )
     commodity = fields.Str(
-        required=False,
         data_key="commodity",
         load_default="electricity",
         validate=OneOf(["electricity", "gas"]),
         metadata=dict(description="Commodity label for this device/asset."),
-    )
-    stock_id = fields.Str(
-        data_key="stock-id",
-        required=False,
-        load_default=None,
-        validate=validate.Length(min=1),
-        metadata=dict(
-            description="Identifier of a shared storage (stock) that this device charges/discharges. "
-            "Devices with the same stock-id share one SOC state."
-        ),
     )
 
     def __init__(
@@ -524,16 +513,6 @@ class DBStorageFlexModelSchema(Schema):
         load_default="electricity",
         validate=OneOf(["electricity", "gas"]),
         metadata=dict(description="Commodity label for this device/asset."),
-    )
-    stock_id = fields.Str(
-        data_key="stock-id",
-        required=False,
-        load_default=None,
-        validate=validate.Length(min=1),
-        metadata=dict(
-            description="Identifier of a shared storage (stock) that this device charges/discharges. "
-            "Devices with the same stock-id share one SOC state."
-        ),
     )
 
     mapped_schema_keys: dict
