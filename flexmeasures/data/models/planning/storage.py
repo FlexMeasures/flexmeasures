@@ -136,7 +136,20 @@ class MetaStorageScheduler(Scheduler):
 
             # device model: entry in the flex-model list where the sensor key is the power sensor of the device (e.g. a feeder)
             device_models.append(fm)
-            if fm.get("state_of_charge") is None:
+
+            # If this device has state-of-charge parameters (soc-at-start, soc-min, etc.),
+            # also create a stock model entry so those parameters are properly captured
+            soc_sensor = fm.get("state_of_charge")
+            if soc_sensor is not None:
+                soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
+                # Check if there are SOC parameters in this device entry
+                has_soc_params = any(
+                    param in fm
+                    for param in ["soc_at_start", "soc_min", "soc_max", "soc_targets"]
+                )
+                if has_soc_params:
+                    stock_models[soc_id] = fm
+            elif fm.get("state_of_charge") is None:
                 stock_models[missing_soc_sensor_i] = fm
                 missing_soc_sensor_i += 1
 
