@@ -30,11 +30,9 @@ class AuditLog(db.Model, AuthModelMixin):
     event_datetime = Column(DateTime())
     event = Column(String(500))
     active_user_name = Column(String(255))
-    # No DB-level FK with cascade for active_user_id so that deleting a user preserves the lineage reference in this column.
+    # No DB-level FK with cascade for any user_id or account_id so that deleting a user preserves the lineage reference in this column.
     active_user_id = Column("active_user_id", Integer(), nullable=True)
-    # No DB-level FK with cascade for affected_user_id so that deleting a user preserves the lineage reference in this column.
     affected_user_id = Column("affected_user_id", Integer(), nullable=True)
-    # No DB-level FK with cascade for affected_account_id so that deleting an account preserves the lineage reference in this column.
     affected_account_id = Column("affected_account_id", Integer(), nullable=True)
 
     # Relationships to navigate to User and Account without database-level FK constraints
