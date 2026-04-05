@@ -611,6 +611,8 @@ def test_mixed_gas_and_electricity_assets(app, db):
     )
     boiler_data = boiler_schedule["data"]
 
+    # ---- Verify both devices operate as expected
+    assert (battery_data > 0).any(), "Battery should charge at some point"
     assert (boiler_data == 1.0).all(), "Boiler should have constant 1 kW consumption"
 
     costs_data = commitment_costs[0]["data"]
@@ -629,14 +631,14 @@ def test_mixed_gas_and_electricity_assets(app, db):
         f"got {costs_data['gas energy 1']}"
     )
 
-    # Total energy cost: battery (4.32) + boiler (1.20) = 5.52 EUR
+    # Total electricity + gas energy costs: battery (4.32) + boiler (1.20) = 5.52 EUR
     total_energy_cost = sum(
         v
         for k, v in costs_data.items()
-        if k.startswith("electricity energy") or k.startswith("gas energy")
+        if k.endswith(" energy 0") or k.endswith(" energy 1")
     )
     assert total_energy_cost == pytest.approx(5.52, rel=1e-2), (
-        f"Total energy cost (battery 4.32 + boiler 1.20): "
+        f"Total energy cost (electricity 4.32 + gas 1.20): "
         f"= 5.52 EUR, got {total_energy_cost}"
     )
 
@@ -646,22 +648,30 @@ def test_mixed_gas_and_electricity_assets(app, db):
     assert all(battery_data[4:-1] == 0)
     assert battery_data[-1] == -20
 
-    # Boiler constant consumption throughout (1 kW for all 24 hours)
-    assert all(boiler_data == 1.0)
+    # ---- RELATIVE COSTS: Battery vs Boiler (different commodities)
+    # Battery has storage flexibility; Boiler is pass-through with constant load
+    # Battery preference costs should be higher than boiler's due to flexibility
+    battery_total_pref = costs_data["prefer a full storage 0 sooner"]
+    boiler_total_pref = costs_data["prefer a full storage 1 sooner"]
 
-    # ---- PREFERENCE COSTS: Battery only
-    # Battery has preference cost since it can optimize charging/discharging timing.
-    # Boiler has NO preference cost since it has a constant 1kW consumption (fully constrained).
-    battery_total_pref = costs_data.get("prefer a full storage 0 sooner", 0)
-    boiler_total_pref = costs_data.get("prefer a full storage 1 sooner", 0)
+    assert battery_total_pref > boiler_total_pref, (
+        f"Battery preference costs ({battery_total_pref:.2e}) should be greater than "
+        f"boiler ({boiler_total_pref:.2e}) preference costs, since battery has storage flexibility "
+        f"(can shift charging) while boiler has constant load (no flexibility). "
+        f"Ratio: {battery_total_pref / boiler_total_pref:.1f}× (if boiler > 0)"
+    )
 
-    assert (
-        battery_total_pref > 0
-    ), "Battery should have a preference cost since it optimizes charging/discharging timing."
+    # Verify boiler has zero preference cost since it has no flexibility (constant 1 kW)
+    assert boiler_total_pref == pytest.approx(0, abs=1e-8), (
+        f"Boiler preference cost should be ~0 since it has constant load with no flexibility, "
+        f"got {boiler_total_pref:.2e}"
+    )
 
-    assert (
-        boiler_total_pref == 0
-    ), "Boiler should have NO preference cost since its consumption is fully constrained to 1kW constant."
+    # Verify battery has positive preference cost from optimizing early fill
+    assert battery_total_pref > 0, (
+        f"Battery preference cost should be positive since it can optimize charging timing, "
+        f"got {battery_total_pref:.2e}"
+    )
 
 
 def test_two_devices_shared_stock(app, db):
