@@ -1030,11 +1030,10 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
         top: 0;
         left: 0;
         z-index: var(--z-index-sidepanel-content);
-        height: 0;
-        overflow: hidden;
         visibility: hidden;
-        opacity: 0;
-        transition: height 0.3s, opacity 0.3s;
+        transform: translateX(-106%);
+        /* closing: slide off-screen first, then hide from accessibility tree */
+        transition: transform 0.3s, visibility 0s 0.3s;
     }
     .sidepanel-content,
     .sidepanel-label {
@@ -1053,18 +1052,18 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     @media (hover: hover) {
         .sidepanel-container:hover > .sidepanel-content,
         .sidepanel-container:focus-within > .sidepanel-content {
-            height: auto;
             transform: translateX(-30px);
             visibility: visible;
-            opacity: 1;
+            /* opening: reveal immediately, then slide in */
+            transition: transform 0.3s, visibility 0s;
         }
     }
     @media (hover: none) {
         .sidepanel-container > .sidepanel-content.sidepanel-show {
-            height: auto;
             transform: translateX(-30px);
             visibility: visible;
-            opacity: 1;
+            /* opening: reveal immediately, then slide in */
+            transition: transform 0.3s, visibility 0s;
         }
     }
 }
