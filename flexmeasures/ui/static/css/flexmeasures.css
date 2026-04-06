@@ -1053,7 +1053,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     @media (hover: hover) {
         .sidepanel-container:hover > .sidepanel-content,
         .sidepanel-container:focus-within > .sidepanel-content {
-            transform: translateX(-30px);
+            transform: translateX(0);
             visibility: visible;
             /* opening: reveal immediately, then slide in */
             transition: transform 0.3s, visibility 0s;
@@ -1061,7 +1061,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     }
     @media (hover: none) {
         .sidepanel-container > .sidepanel-content.sidepanel-show {
-            transform: translateX(-30px);
+            transform: translateX(0);
             visibility: visible;
             /* opening: reveal immediately, then slide in */
             transition: transform 0.3s, visibility 0s;
