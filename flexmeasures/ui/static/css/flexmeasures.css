@@ -1015,6 +1015,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     .sidepanel-container {
         position: relative; /* positions label/content relative to this container */
         height: 60px; /* space for the label tab */
+        width: calc(var(--litepicker-day-width) * 2.7); /* match visible tab width (30% of full label) */
         /* no z-index here — avoids creating a separate stacking context per container */
     }
     .sidepanel-label {
