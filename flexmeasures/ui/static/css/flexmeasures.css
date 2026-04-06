@@ -1335,6 +1335,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 .header-action-button {
     padding-top: 5px;
+    margin-left: 1em;
     display: flex;
     justify-content: space-around;
 
