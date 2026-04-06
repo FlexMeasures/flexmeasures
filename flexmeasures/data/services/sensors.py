@@ -560,10 +560,23 @@ def _get_sensor_stats(
 
 
 # Per-key TTL cache for sensor stats.
-# key: (sensor_id, event_end_time, event_start_time, sort_keys)
-# value: (populated_at: float, result: dict)
+#
+# Design:
+# - The key includes a 120-second time bucket (round(time.time() / TTL)) so
+#   at most ONE DB hit per sensor per 120-second window is possible, even
+#   under repeated requests.  This limits the attack surface for cache
+#   exhaustion: a caller can generate at most one new key per sensor per
+#   bucket period.
+# - Empty results are never stored, so freshly-uploaded data is always
+#   visible on the next call (at the cost of one DB hit per empty request).
+# - The dict is capped at _SENSOR_STATS_MAX_SIZE entries; when full, the
+#   oldest entry (FIFO insertion order, Python 3.7+) is evicted first.
+#
+# key:   (sensor_id, event_end_time, event_start_time, sort_keys, time_bucket)
+# value: result dict (non-empty only)
 _sensor_stats_cache: dict = {}
 _SENSOR_STATS_TTL = 120  # seconds
+_SENSOR_STATS_MAX_SIZE = 1000
 
 
 def get_sensor_stats(
@@ -571,20 +584,23 @@ def get_sensor_stats(
 ) -> dict:
     """Get stats for a sensor.
 
-    Non-empty results are cached per sensor for up to 120 seconds.
-    Empty results are never served from cache so that data uploaded to a
-    previously-empty sensor is visible immediately on the very next call,
-    without requiring a global cache eviction.
+    Non-empty results are cached per sensor for up to 120 seconds (one DB hit
+    per 120-second time bucket).  Empty results are never cached so that data
+    uploaded to a previously-empty sensor is visible immediately.
     """
-    key = (sensor.id, event_end_time, event_start_time, sort_keys)
-    now = time.time()
+    bucket = round(time.time() / _SENSOR_STATS_TTL)
+    key = (sensor.id, event_end_time, event_start_time, sort_keys, bucket)
 
-    entry = _sensor_stats_cache.get(key)
-    if entry is not None:
-        ts, cached = entry
-        if now - ts < _SENSOR_STATS_TTL and cached:
-            return cached
+    if key in _sensor_stats_cache:
+        return _sensor_stats_cache[key]
 
     result = _get_sensor_stats(sensor, event_end_time, event_start_time, sort_keys)
-    _sensor_stats_cache[key] = (now, result)
+
+    # Only cache non-empty results to keep empty sensors always fresh.
+    if result:
+        if len(_sensor_stats_cache) >= _SENSOR_STATS_MAX_SIZE:
+            # Evict the oldest entry (FIFO; dict preserves insertion order).
+            _sensor_stats_cache.pop(next(iter(_sensor_stats_cache)))
+        _sensor_stats_cache[key] = result
+
     return result
