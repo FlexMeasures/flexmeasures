@@ -4,7 +4,7 @@ import json
 import hashlib
 from datetime import datetime, timedelta
 from flask import current_app
-from functools import lru_cache
+
 from isodate import duration_isoformat
 import time
 from timely_beliefs import BeliefsDataFrame
@@ -447,13 +447,11 @@ def build_asset_jobs_data(
     return jobs_data
 
 
-@lru_cache()
 def _get_sensor_stats(
     sensor: Sensor,
     event_end_time: str,
     event_start_time: str,
     sort_keys: bool,
-    ttl_hash=None,
 ) -> dict:
     # parse incoming datetimes (or leave None)
     start_dt = pd.to_datetime(event_start_time) if event_start_time else None
@@ -561,13 +559,11 @@ def _get_sensor_stats(
     return stats
 
 
-def _get_ttl_hash(seconds=120) -> int:
-    """Returns the same value within "seconds" time period
-    Is needed to make LRU cache a TTL one
-    (lru_cache is used when call arguments are the same,
-    here we ensure that call arguments are the same in "seconds" period of time).
-    """
-    return round(time.time() / seconds)
+# Per-key TTL cache for sensor stats.
+# key: (sensor_id, event_end_time, event_start_time, sort_keys)
+# value: (populated_at: float, result: dict)
+_sensor_stats_cache: dict = {}
+_SENSOR_STATS_TTL = 120  # seconds
 
 
 def get_sensor_stats(
@@ -575,40 +571,20 @@ def get_sensor_stats(
 ) -> dict:
     """Get stats for a sensor.
 
-    Results are cached for up to 120 seconds via a TTL-based LRU cache.
-    When the cached result is empty (no data found) the cache is bypassed
-    with a unique ttl_hash so that data uploaded after the last cache
-    population is discovered immediately.  If the fresh query finds data, the
-    stale empty entry is evicted and the normal TTL slot is re-populated, so
-    all subsequent calls within the window are served from cache rather than
-    hitting the database each time.
+    Non-empty results are cached per sensor for up to 120 seconds.
+    Empty results are never served from cache so that data uploaded to a
+    previously-empty sensor is visible immediately on the very next call,
+    without requiring a global cache eviction.
     """
-    ttl = _get_ttl_hash()
-    result = _get_sensor_stats(
-        sensor, event_end_time, event_start_time, sort_keys, ttl_hash=ttl
-    )
-    if not result:
-        # The LRU cache may be holding a stale "no data" entry.  Query the DB
-        # directly via a one-off unique ttl_hash.
-        fresh = _get_sensor_stats(
-            sensor,
-            event_end_time,
-            event_start_time,
-            sort_keys,
-            ttl_hash=time.time(),
-        )
-        if fresh:
-            # Data was found.  Evict all stale entries (infrequent event —
-            # only happens when a sensor transitions from empty to non-empty)
-            # and re-populate the normal TTL slot so future calls are cached.
-            _get_sensor_stats.cache_clear()
-            result = _get_sensor_stats(
-                sensor,
-                event_end_time,
-                event_start_time,
-                sort_keys,
-                ttl_hash=ttl,
-            )
-        else:
-            result = fresh
+    key = (sensor.id, event_end_time, event_start_time, sort_keys)
+    now = time.time()
+
+    entry = _sensor_stats_cache.get(key)
+    if entry is not None:
+        ts, cached = entry
+        if now - ts < _SENSOR_STATS_TTL and cached:
+            return cached
+
+    result = _get_sensor_stats(sensor, event_end_time, event_start_time, sort_keys)
+    _sensor_stats_cache[key] = (now, result)
     return result
