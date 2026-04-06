@@ -573,7 +573,26 @@ def _get_ttl_hash(seconds=120) -> int:
 def get_sensor_stats(
     sensor: Sensor, event_start_time: str, event_end_time: str, sort_keys: bool = True
 ) -> dict:
-    """Get stats for a sensor"""
-    return _get_sensor_stats(
+    """Get stats for a sensor.
+
+    Results are cached for up to 120 seconds via a TTL-based LRU cache.
+    However, when the cached result is empty (no data found), the cache is
+    bypassed on every call so that data uploaded after the last cache
+    population is discovered immediately rather than waiting for the TTL to
+    expire.
+    """
+    result = _get_sensor_stats(
         sensor, event_end_time, event_start_time, sort_keys, ttl_hash=_get_ttl_hash()
     )
+    if not result:
+        # The LRU cache may be holding a stale "no data" entry from before any
+        # data was uploaded.  Use a unique ttl_hash to bypass the cached empty
+        # result and query the database directly.
+        result = _get_sensor_stats(
+            sensor,
+            event_end_time,
+            event_start_time,
+            sort_keys,
+            ttl_hash=time.time(),
+        )
+    return result
