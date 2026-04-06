@@ -576,23 +576,39 @@ def get_sensor_stats(
     """Get stats for a sensor.
 
     Results are cached for up to 120 seconds via a TTL-based LRU cache.
-    However, when the cached result is empty (no data found), the cache is
-    bypassed on every call so that data uploaded after the last cache
-    population is discovered immediately rather than waiting for the TTL to
-    expire.
+    When the cached result is empty (no data found) the cache is bypassed
+    with a unique ttl_hash so that data uploaded after the last cache
+    population is discovered immediately.  If the fresh query finds data, the
+    stale empty entry is evicted and the normal TTL slot is re-populated, so
+    all subsequent calls within the window are served from cache rather than
+    hitting the database each time.
     """
+    ttl = _get_ttl_hash()
     result = _get_sensor_stats(
-        sensor, event_end_time, event_start_time, sort_keys, ttl_hash=_get_ttl_hash()
+        sensor, event_end_time, event_start_time, sort_keys, ttl_hash=ttl
     )
     if not result:
-        # The LRU cache may be holding a stale "no data" entry from before any
-        # data was uploaded.  Use a unique ttl_hash to bypass the cached empty
-        # result and query the database directly.
-        result = _get_sensor_stats(
+        # The LRU cache may be holding a stale "no data" entry.  Query the DB
+        # directly via a one-off unique ttl_hash.
+        fresh = _get_sensor_stats(
             sensor,
             event_end_time,
             event_start_time,
             sort_keys,
             ttl_hash=time.time(),
         )
+        if fresh:
+            # Data was found.  Evict all stale entries (infrequent event —
+            # only happens when a sensor transitions from empty to non-empty)
+            # and re-populate the normal TTL slot so future calls are cached.
+            _get_sensor_stats.cache_clear()
+            result = _get_sensor_stats(
+                sensor,
+                event_end_time,
+                event_start_time,
+                sort_keys,
+                ttl_hash=ttl,
+            )
+        else:
+            result = fresh
     return result
