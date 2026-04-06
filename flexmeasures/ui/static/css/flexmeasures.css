@@ -1015,7 +1015,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     .sidepanel-container {
         position: relative; /* positions label/content relative to this container */
         height: 60px; /* space for the label tab */
-        width: calc(var(--litepicker-day-width) * 2.7); /* match visible tab width (30% of full label) */
+        width: calc(var(--sidepanel-width, calc(var(--litepicker-day-width) * 9)) * 0.3); /* match visible tab width (30% of full panel) */
         /* no z-index here — avoids creating a separate stacking context per container */
     }
     .sidepanel-label {
@@ -1040,7 +1040,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     .sidepanel-label {
         color: var(--nav-default-color);
         background: var(--nav-default-background-color);
-        width: calc(var(--litepicker-day-width) * 9);
+        width: var(--sidepanel-width, calc(var(--litepicker-day-width) * 9));
         padding: 20px 15px;
         border-top-left-radius: 0px;
         border-bottom-left-radius: 0px;

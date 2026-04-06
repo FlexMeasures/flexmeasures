@@ -16,7 +16,7 @@
         <div class="col-md-2 on-top-md">
 
             {% if user_can_update_asset %}
-            <div class="sidepanel-container">
+            <div class="sidepanel-container" style="--sidepanel-width: 450px">
                 <div class="sidepanel-label">Edit asset</div>
                 <div class="sidepanel-content">
                     <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}">
