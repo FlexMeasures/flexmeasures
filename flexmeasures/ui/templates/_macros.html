@@ -208,10 +208,18 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
   Render a button that opens the JSON attributes editor modal.
   Call json_attributes_editor_modal() once on the same page to include the modal + JS.
   Parameters:
-    modal_id: unique HTML id for the modal (default "jsonAttributesModal")
-    label:    button label text
+    modal_id:          unique HTML id for the modal (default "jsonAttributesModal")
+    label:             button label text
+    field_label:       optional form-field label rendered above the button
+    field_description: optional small description rendered below the label
 #}
-{% macro json_attributes_editor_button(modal_id="jsonAttributesModal", label="Custom attributes") %}
+{% macro json_attributes_editor_button(modal_id="jsonAttributesModal", label="Custom attributes", field_label=None, field_description=None) %}
+{% if field_label %}
+<label class="form-label">{{ field_label }}</label>
+{% endif %}
+{% if field_description %}
+<small class="d-block text-muted mb-1">{{ field_description }}</small>
+{% endif %}
 <button type="button"
         class="btn btn-sm btn-secondary mt-2 w-100"
         data-bs-toggle="modal"

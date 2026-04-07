@@ -16,6 +16,10 @@ from flexmeasures.ui.views.assets.utils import (
     user_can_delete,
     user_can_update,
 )
+from flexmeasures.ui.views.assets.forms import (
+    ATTRIBUTES_FIELD_LABEL,
+    ATTRIBUTES_FIELD_DESCRIPTION,
+)
 
 
 class SensorUI(FlaskView):
@@ -49,4 +53,6 @@ class SensorUI(FlaskView):
             breadcrumb_info=get_breadcrumb_info(sensor),
             event_starts_after=request.args.get("start_time"),
             event_ends_before=request.args.get("end_time"),
+            attributes_label=ATTRIBUTES_FIELD_LABEL,
+            attributes_description=ATTRIBUTES_FIELD_DESCRIPTION,
         )
