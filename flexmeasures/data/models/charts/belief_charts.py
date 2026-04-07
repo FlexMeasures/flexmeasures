@@ -503,7 +503,7 @@ def _create_temp_sensor_layers(
     unit: str,
     sensor_title: str = "Sensor",
     include_hover_ruler: bool = False,
-    temp_sensor_resolution: timedelta | None = None,
+    minimum_non_zero_resolution: timedelta | None = None,
 ) -> list[dict]:
     """Create Vega-Lite layers for temporary sensors with fixed values.
 
@@ -525,7 +525,7 @@ def _create_temp_sensor_layers(
         temp_sensors,
         event_starts_after,
         event_ends_before,
-        temp_sensor_resolution,
+        minimum_non_zero_resolution=minimum_non_zero_resolution,
     )
 
     temp_tooltip = [
@@ -692,7 +692,7 @@ def _build_temp_sensor_data(
     temp_sensors: list["Sensor"],  # noqa F821
     event_starts_after: datetime | None,
     event_ends_before: datetime | None,
-    temp_sensor_resolution: timedelta | None = None,
+    minimum_non_zero_resolution: timedelta | None = None,
 ) -> list[dict]:
     """Build manual data points for temporary sensors.
 
@@ -707,16 +707,21 @@ def _build_temp_sensor_data(
     combined_manual_data = []
     start_ts, end_ts = _get_time_range(event_starts_after, event_ends_before)
     resolution_ms = None
-    if temp_sensor_resolution and temp_sensor_resolution > timedelta(0):
-        resolution_ms = max(int(temp_sensor_resolution.total_seconds() * 1000), 1)
+    if minimum_non_zero_resolution and minimum_non_zero_resolution > timedelta(0):
+        resolution_ms = max(int(minimum_non_zero_resolution.total_seconds() * 1000), 1)
 
     if resolution_ms is not None:
         timestamps = list(range(start_ts, end_ts + resolution_ms, resolution_ms))
         if timestamps[-1] != end_ts:
             timestamps.append(end_ts)
     else:
+        # Fallback used when no real sensors are present to derive a resolution from.
+        # One point per 15 minutes gives 96 points/day, which matches the granularity
+        # our UI graphs typically show.  The bounds are expressed as multiples of 96 so
+        # they stay on clean day boundaries: 192 = 2 days (minimum for short windows),
+        # 960 = 10 days (cap to avoid sending excessive data for long windows).
         chart_duration_ms = max(end_ts - start_ts, 1)
-        num_points = min(1000, max(200, int(chart_duration_ms // (15 * 60 * 1000))))
+        num_points = min(960, max(192, int(chart_duration_ms // (15 * 60 * 1000))))
         timestamps = [
             int(start_ts + i * (end_ts - start_ts) / num_points)
             for i in range(num_points + 1)
@@ -1009,7 +1014,7 @@ def chart_for_multiple_sensors(
             event_ends_before,
             combine_legend,
             sensor_title,
-            minimum_non_zero_resolution,
+            minimum_non_zero_resolution=minimum_non_zero_resolution,
         )
         if sensor_spec:
             sensors_specs.append(sensor_spec)
@@ -1024,7 +1029,7 @@ def _process_sensor_entry(
     event_ends_before: datetime | None,
     combine_legend: bool,
     sensor_title: str = "Sensor",
-    temp_sensor_resolution: timedelta | None = None,
+    minimum_non_zero_resolution: timedelta | None = None,
 ) -> dict | None:
     """Process a single sensor entry from sensors_to_show.
 
@@ -1034,6 +1039,8 @@ def _process_sensor_entry(
         event_starts_after: Start of time window
         event_ends_before: End of time window
         combine_legend: Whether to combine legends
+        sensor_title: Title for the sensor field
+        minimum_non_zero_resolution: Minimum non-zero resolution derived from real sensors
 
     Returns:
         Sensor specification dictionary or None if entry should be skipped
@@ -1081,7 +1088,7 @@ def _process_sensor_entry(
         shared_tooltip,
         combine_legend,
         sensor_title,
-        temp_sensor_resolution,
+        minimum_non_zero_resolution=minimum_non_zero_resolution,
     )
 
     if not layers:
@@ -1123,7 +1130,7 @@ def _build_layers(
     shared_tooltip: list,
     combine_legend: bool,
     sensor_title: str = "Sensor",
-    temp_sensor_resolution: timedelta | None = None,
+    minimum_non_zero_resolution: timedelta | None = None,
 ) -> list[dict]:
     """Build all layers for a sensor row.
 
@@ -1168,8 +1175,9 @@ def _build_layers(
             sensor_type=sensor_type,
             unit=unit,
             sensor_title=sensor_title,
+            # Temp-only rows need to own the hover ruler because no real-sensor layer exists to define it.
             include_hover_ruler=not real_sensors,
-            temp_sensor_resolution=temp_sensor_resolution,
+            minimum_non_zero_resolution=minimum_non_zero_resolution,
         )
         layers.extend(temp_layers)
 
