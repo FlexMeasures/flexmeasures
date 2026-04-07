@@ -2107,3 +2107,24 @@ body.touched [title]:hover:after {
   background-image: none;
 }
 
+/* ---- Fix: .je-modal divs must not affect .btn-group border-radius ---- *
+ * @json-editor/json-editor places a div.je-modal inside .btn-group as a   *
+ * panel container (not a button).  Bootstrap's sibling selectors treat it *
+ * as a positional marker and strip radius from the adjacent buttons:       *
+ *   • ":not(:last-child)" → strips right-radius from last .btn when       *
+ *     .je-modal trails the group                                            *
+ *   • ":not(.btn-check)+.btn" → strips left-radius from a .btn that       *
+ *     directly follows .je-modal                                            *
+ * Restore the expected radii with explicit overrides.                       */
+
+/* Last button in a group that contains a .je-modal sibling: restore right radius */
+.fm-je-container .btn-group:has(> div.je-modal) > button:last-of-type {
+  border-top-right-radius: var(--bs-btn-border-radius, 0.25rem) !important;
+  border-bottom-right-radius: var(--bs-btn-border-radius, 0.25rem) !important;
+}
+
+/* Button immediately following a .je-modal div: restore left radius */
+.fm-je-container .btn-group > div.je-modal + button {
+  border-top-left-radius: var(--bs-btn-border-radius, 0.25rem) !important;
+  border-bottom-left-radius: var(--bs-btn-border-radius, 0.25rem) !important;
+}
