@@ -11,6 +11,57 @@
       <div class="sensor-data charts text-center container-fluid">
           <div class="row on-top-md">
               <div class="col-md-2 ps-0">
+                  {% if user_can_create_children_sensor %}
+                      <div class="sidepanel-container">
+                          <div class="sidepanel-label">Forecast</div>
+                          <div class="sidepanel-content" style="text-align: left;">
+                              <fieldset>
+                                  <!-- Start input: hidden if no data on page load; JS reveals it when data arrives -->
+                                  <div class="mb-3{% if not sensor_has_enough_data_for_forecast %} d-none{% endif %}" id="forecastStartContainer">
+                                      <label for="forecastStart" class="form-label fw-bold">Start</label>
+                                      <input type="datetime-local" class="form-control" id="forecastStart" />
+                                  </div>
+                                  <div class="mb-3">
+                                      <label for="forecastDuration" class="form-label fw-bold">Duration (days)</label>
+                                      <input type="number" class="form-control" id="forecastDuration" min="1" max="7" value="{{ forecast_default_duration_days }}" />
+                                  </div>
+                                  <!-- "Not enough data" message: shown when no data, hidden by JS when data arrives -->
+                                  <div class="mb-3{% if sensor_has_enough_data_for_forecast %} d-none{% endif %}" id="forecastNoDataMessage">
+                                      <p>At least two days of sensor data are needed to create a forecast.</p>
+                                  </div>
+                                  <div style="display: flex; align-items: center; justify-content: space-between;">
+                                      <a href="/api/v3_0/docs/#/Sensors/post_api_v3_0_sensors__id__forecasts_trigger" target="_blank" style="font-size: 0.8em;">
+                                          More options <i class="fa fa-external-link ms-1"></i>
+                                      </a>
+                                      <!-- Enabled button: hidden when no data, revealed by JS when data arrives -->
+                                      <button
+                                          id="triggerForecastButton"
+                                          class="btn btn-sm btn-responsive btn-success create-button{% if not sensor_has_enough_data_for_forecast %} d-none{% endif %}"
+                                          type="button"
+                                          title="Queues a job to forecast the next few days, using a model trained on the last 30 days. Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
+                                          style="border: 1px solid var(--light-gray);">
+                                          Trigger forecast
+                                      </button>
+                                      <span id="spinner-forecast" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                                      <!-- Disabled button: shown when no data, hidden by JS when data arrives -->
+                                      <span
+                                          id="forecastButtonDisabled"
+                                          title="Queues a job to forecast the next few days, using a model trained on the last 30 days. Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
+                                          class="{% if sensor_has_enough_data_for_forecast %}d-none{% endif %}">
+                                          <button
+                                              class="btn btn-sm btn-responsive btn-success create-button"
+                                              type="button"
+                                              disabled
+                                              style="border: 1px solid var(--light-gray);">
+                                              Trigger forecast
+                                          </button>
+                                      </span>
+                                  </div>
+                              </fieldset>
+                          </div>
+                      </div>
+                  {% endif %}
+
                   <div class="sidepanel">
                       <div class="sidepanel-container">
                           <div class="sidepanel-label">Select dates</div>
@@ -147,58 +198,7 @@ For the data, note the following:
                       {% endif %}
                   </div>
 
-                  {% if user_can_create_children_sensor %}
-                      <div class="sidepanel-container">
-                          <div class="sidepanel-label">Forecast</div>
-                          <div class="sidepanel-content" style="text-align: left;">
-                              <fieldset>
-                                  <!-- Start input: hidden if no data on page load; JS reveals it when data arrives -->
-                                  <div class="mb-3{% if not sensor_has_enough_data_for_forecast %} d-none{% endif %}" id="forecastStartContainer">
-                                      <label for="forecastStart" class="form-label fw-bold">Start</label>
-                                      <input type="datetime-local" class="form-control" id="forecastStart" />
-                                  </div>
-                                  <div class="mb-3">
-                                      <label for="forecastDuration" class="form-label fw-bold">Duration (days)</label>
-                                      <input type="number" class="form-control" id="forecastDuration" min="1" max="7" value="{{ forecast_default_duration_days }}" />
-                                  </div>
-                                  <!-- "Not enough data" message: shown when no data, hidden by JS when data arrives -->
-                                  <div class="mb-3{% if sensor_has_enough_data_for_forecast %} d-none{% endif %}" id="forecastNoDataMessage">
-                                      <p>At least two days of sensor data are needed to create a forecast.</p>
-                                  </div>
-                                  <div style="display: flex; align-items: center; justify-content: space-between;">
-                                      <a href="/api/v3_0/docs/#/Sensors/post_api_v3_0_sensors__id__forecasts_trigger" target="_blank" style="font-size: 0.8em;">
-                                          More options <i class="fa fa-external-link ms-1"></i>
-                                      </a>
-                                      <!-- Enabled button: hidden when no data, revealed by JS when data arrives -->
-                                      <button
-                                          id="triggerForecastButton"
-                                          class="btn btn-sm btn-responsive btn-success create-button{% if not sensor_has_enough_data_for_forecast %} d-none{% endif %}"
-                                          type="button"
-                                          title="Queues a job to forecast the next few days, using a model trained on the last 30 days. Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
-                                          style="border: 1px solid var(--light-gray);">
-                                          Trigger forecast
-                                      </button>
-                                      <span id="spinner-forecast" class="spinner-border spinner-border-sm d-none" role="status"></span>
-                                      <!-- Disabled button: shown when no data, hidden by JS when data arrives -->
-                                      <span
-                                          id="forecastButtonDisabled"
-                                          title="Queues a job to forecast the next few days, using a model trained on the last 30 days. Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
-                                          class="{% if sensor_has_enough_data_for_forecast %}d-none{% endif %}">
-                                          <button
-                                              class="btn btn-sm btn-responsive btn-success create-button"
-                                              type="button"
-                                              disabled
-                                              style="border: 1px solid var(--light-gray);">
-                                              Trigger forecast
-                                          </button>
-                                      </span>
-                                  </div>
-                              </fieldset>
-                          </div>
-                      </div>
-                  {% endif %}
-
-                  <div id="chart-type-picker" class="leftside-dropdown dropdown">
+                  <div id="chart-type-picker" class="leftside-dropdown dropdown mt-3">
                       <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                           Select chart
                       </button>
