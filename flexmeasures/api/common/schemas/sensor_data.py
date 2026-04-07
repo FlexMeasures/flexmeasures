@@ -150,10 +150,33 @@ class SensorDataDescriptionSchema(SensorDataTimingDescriptionSchema):
             )
 
 
-class GetSensorDataSchema(SensorDataDescriptionSchema):
-    resolution = DurationField(required=False)
-    source = SourceIdField(required=False)
-    account = AccountIdField(required=False)
+class GetSensorDataFilterSchemaMixin:
+    """Shared filters for GET sensor data request parsing and docs."""
+
+    resolution = DurationField(
+        required=False,
+        metadata=dict(
+            description="Resolution of the returned sensor data in ISO 8601 duration format.",
+            example="PT15M",
+        ),
+    )
+    source = SourceIdField(
+        required=False,
+        metadata=dict(
+            description="Filter by a specific data source ID.",
+            example=42,
+        ),
+    )
+    account = AccountIdField(
+        required=False,
+        metadata=dict(
+            description="Filter by the account linked to data sources.",
+            example=3,
+        ),
+    )
+
+
+class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionSchema):
 
     # Optional field that can be used for extra validation
     type = fields.Str(
@@ -268,30 +291,10 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         return response
 
 
-class GetSensorDataQuerySchema(SensorDataTimingDescriptionSchema):
+class GetSensorDataQuerySchema(
+    GetSensorDataFilterSchemaMixin, SensorDataTimingDescriptionSchema
+):
     """Document the actual query parameters for GET /sensors/<id>/data."""
-
-    resolution = DurationField(
-        required=False,
-        metadata=dict(
-            description="Resolution of the returned sensor data in ISO 8601 duration format.",
-            example="PT15M",
-        ),
-    )
-    source = SourceIdField(
-        required=False,
-        metadata=dict(
-            description="Filter by a specific data source ID.",
-            example=42,
-        ),
-    )
-    account = AccountIdField(
-        required=False,
-        metadata=dict(
-            description="Filter by the account linked to data sources.",
-            example=3,
-        ),
-    )
 
 
 class PostSensorDataSchema(SensorDataDescriptionSchema):
