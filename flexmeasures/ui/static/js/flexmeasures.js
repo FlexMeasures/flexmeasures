@@ -733,6 +733,7 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
 
 function presetForecastStartToLatest(data) {
     const forecastStartInput = document.getElementById("forecastStart");
+    if (!forecastStartInput) return; // panel not rendered (sensor had no data on page load)
 
     // Extract all "Last event end" values as Date objects
     const lastEventDates = Object.values(data)
