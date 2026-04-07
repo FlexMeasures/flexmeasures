@@ -365,6 +365,28 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
   /* ------------------------------------------------------------------ */
   /* Tab-switch sync                                                      */
   /* ------------------------------------------------------------------ */
+
+  /* show.bs.tab fires BEFORE Bootstrap moves focus.  Calling preventDefault()
+   * here cancels the switch entirely, keeping the user on the current tab. */
+  document.querySelectorAll(
+    "#" + _modalId + "Tabs [data-bs-toggle='tab']"
+  ).forEach(function (tab) {
+    tab.addEventListener("show.bs.tab", function (event) {
+      var target = event.target.getAttribute("data-bs-target");
+      /* Switching JSON → Form: textarea must contain valid JSON */
+      if (target === "#" + _modalId + "FormTab") {
+        try {
+          JSON.parse(document.getElementById(_modalId + "JsonTextarea").value);
+        } catch (e) {
+          event.preventDefault();
+          showToast("Invalid JSON — please fix errors before switching tabs.", "error");
+        }
+      }
+    });
+  });
+
+  /* shown.bs.tab fires AFTER Bootstrap completes the switch (only reached
+   * when show.bs.tab was not cancelled). */
   document.querySelectorAll(
     "#" + _modalId + "Tabs [data-bs-toggle='tab']"
   ).forEach(function (tab) {
@@ -379,16 +401,13 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
             JSON.stringify(val, null, 2);
         } catch (e) {}
       } else {
-        /* JSON → Form: parse textarea and reload form */
+        /* JSON → Form: parse textarea and push into form editor */
         _activeTab = "form";
-        try {
-          var raw    = document.getElementById(_modalId + "JsonTextarea").value;
-          var parsed = JSON.parse(raw);
-          if (_jeInstance) { _jeInstance.setValue(parsed); }
-          _startval = parsed;
-        } catch (e) {
-          showToast("Invalid JSON — fix errors before switching tabs.", "error");
-        }
+        var parsed = JSON.parse(
+          document.getElementById(_modalId + "JsonTextarea").value
+        );
+        if (_jeInstance) { _jeInstance.setValue(parsed); }
+        _startval = parsed;
       }
     });
   });
