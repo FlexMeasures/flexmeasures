@@ -125,10 +125,10 @@ def test_forecast_button_disabled_with_insufficient_data(
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert b"Trigger forecast" in response.data
-    # The enabled button (identified by its unique id) is absent
-    assert b"triggerForecastButton" not in response.data
-    # The explanatory message is shown
-    assert b"At least two days of sensor data are needed" in response.data
+    # The enabled trigger button is present in the DOM but hidden (d-none).
+    # The disabled-state button wrapper (forecastButtonDisabled) is visible.
+    assert b'class="mb-3 d-none" id="forecastStartContainer"' in response.data
+    assert b'class="mb-3" id="forecastNoDataMessage"' in response.data
 
 
 def test_forecast_button_enabled_with_sufficient_data(
@@ -153,8 +153,10 @@ def test_forecast_button_enabled_with_sufficient_data(
         )
 
     assert response.status_code == 200
-    assert b"triggerForecastButton" in response.data
-    assert b"At least two days of sensor data are needed" not in response.data
+    # The enabled trigger button is visible (no d-none on its container) and
+    # the "not enough data" message is hidden.
+    assert b'class="mb-3" id="forecastStartContainer"' in response.data
+    assert b'class="mb-3 d-none" id="forecastNoDataMessage"' in response.data
 
 
 def test_forecast_boundary_just_under_two_days(
@@ -177,8 +179,9 @@ def test_forecast_boundary_just_under_two_days(
         )
 
     assert response.status_code == 200
-    assert b"triggerForecastButton" not in response.data
-    assert b"At least two days of sensor data are needed" in response.data
+    # Just under two days: enabled form is hidden, no-data message is visible.
+    assert b'class="mb-3 d-none" id="forecastStartContainer"' in response.data
+    assert b'class="mb-3" id="forecastNoDataMessage"' in response.data
 
 
 # ---------------------------------------------------------------------------

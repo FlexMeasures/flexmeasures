@@ -733,7 +733,7 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
 
 function presetForecastStartToLatest(data) {
     const forecastStartInput = document.getElementById("forecastStart");
-    if (!forecastStartInput) return; // panel not rendered (sensor had no data on page load)
+    if (!forecastStartInput) return; // panel not rendered (user has no permission)
 
     // Extract all "Last event end" values as Date objects
     const lastEventDates = Object.values(data)
@@ -751,4 +751,15 @@ function presetForecastStartToLatest(data) {
 
     // Set the input value
     forecastStartInput.value = localDatetimeValue;
+
+    // If the forecast panel was in the "no data" state, switch it to the enabled state.
+    // This handles the case where a user uploads data after the page has loaded.
+    const forecastStartContainer = document.getElementById("forecastStartContainer");
+    const forecastNoDataMessage = document.getElementById("forecastNoDataMessage");
+    const triggerForecastButton = document.getElementById("triggerForecastButton");
+    const forecastButtonDisabled = document.getElementById("forecastButtonDisabled");
+    if (forecastStartContainer) forecastStartContainer.classList.remove("d-none");
+    if (forecastNoDataMessage) forecastNoDataMessage.classList.add("d-none");
+    if (triggerForecastButton) triggerForecastButton.classList.remove("d-none");
+    if (forecastButtonDisabled) forecastButtonDisabled.classList.add("d-none");
 }

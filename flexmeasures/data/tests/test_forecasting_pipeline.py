@@ -445,3 +445,79 @@ def test_train_period_capped_logs_warning(
     assert config_used["train_period_in_hours"] == timedelta(days=10) / timedelta(
         hours=1
     ), "train_period_in_hours should be capped to max_training_period"
+
+
+def test_prior_restricts_training_beliefs(
+    app,
+    setup_fresh_test_forecast_data_with_anomalous_beliefs,
+):
+    """
+    Verify that the 'prior' parameter restricts which beliefs are used by the forecasting pipeline.
+
+    The fixture provides a sensor with two sets of beliefs for Jan 1–7 2025:
+    - Phase 1 (normal): value = 50 kW, recorded on Dec 31, 2024
+    - Phase 2 (anomalous): value = 5000 kW, recorded on Jan 10, 2025
+
+    When 'prior' is set before Jan 10, only Phase 1 beliefs are available,
+    so the model is trained on normal values and produces low forecasts.
+    When 'prior' is set after Jan 10, Phase 2 beliefs become the most recent
+    per event, so the model is trained on anomalous values and produces high forecasts.
+    """
+    sensor = setup_fresh_test_forecast_data_with_anomalous_beliefs["anomaly-sensor"]
+
+    normal_value = 50.0
+    anomalous_value = 5000.0
+
+    base_config = {
+        "train-start": "2025-01-01T00:00+00:00",
+    }
+    base_params = {
+        "sensor": sensor.id,
+        "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+        "output-path": None,
+        "start": "2025-01-08T00:00+00:00",
+        "end": "2025-01-09T00:00+00:00",
+        "sensor-to-save": None,
+        "max-forecast-horizon": "PT1H",
+        "forecast-frequency": "PT1H",
+        "probabilistic": False,
+    }
+
+    # Run with prior before the anomalous beliefs (Jan 10) → only normal values used
+    params_before_anomaly = {
+        **base_params,
+        "prior": "2025-01-05T00:00+00:00",  # before late_belief_time (Jan 10)
+    }
+    pipeline_before = TrainPredictPipeline(config=base_config)
+    returns_before = pipeline_before.compute(parameters=params_before_anomaly)
+    forecasts_before = returns_before[0]["data"]
+
+    # Run with prior after the anomalous beliefs (Jan 10) → anomalous values used
+    params_after_anomaly = {
+        **base_params,
+        "prior": "2025-01-15T00:00+00:00",  # after late_belief_time (Jan 10)
+    }
+    pipeline_after = TrainPredictPipeline(config=base_config)
+    returns_after = pipeline_after.compute(parameters=params_after_anomaly)
+    forecasts_after = returns_after[0]["data"]
+
+    mean_before = float(forecasts_before["event_value"].mean())
+    mean_after = float(forecasts_after["event_value"].mean())
+
+    # When prior is before the anomaly, forecasts should reflect normal values (close to 50)
+    assert mean_before < anomalous_value / 2, (
+        f"Forecasts with prior before anomaly should be well below {anomalous_value / 2}, "
+        f"but mean was {mean_before:.1f}"
+    )
+
+    # When prior is after the anomaly, forecasts should reflect anomalous values (close to 5000)
+    assert mean_after > normal_value * 5, (
+        f"Forecasts with prior after anomaly should be well above {normal_value * 5}, "
+        f"but mean was {mean_after:.1f}"
+    )
+
+    # The two runs must produce meaningfully different forecasts
+    assert mean_after > mean_before * 10, (
+        f"Forecasts after anomaly ({mean_after:.1f}) should be at least 10x higher "
+        f"than forecasts before anomaly ({mean_before:.1f})"
+    )
