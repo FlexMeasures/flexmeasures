@@ -271,9 +271,27 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
 class GetSensorDataQuerySchema(SensorDataTimingDescriptionSchema):
     """Document the actual query parameters for GET /sensors/<id>/data."""
 
-    resolution = DurationField(required=False)
-    source = SourceIdField(required=False)
-    account = AccountIdField(required=False)
+    resolution = DurationField(
+        required=False,
+        metadata=dict(
+            description="Resolution of the returned sensor data in ISO 8601 duration format.",
+            example="PT15M",
+        ),
+    )
+    source = SourceIdField(
+        required=False,
+        metadata=dict(
+            description="Filter by a specific data source ID.",
+            example=42,
+        ),
+    )
+    account = AccountIdField(
+        required=False,
+        metadata=dict(
+            description="Filter by the account linked to data sources.",
+            example=3,
+        ),
+    )
 
 
 class PostSensorDataSchema(SensorDataDescriptionSchema):

@@ -411,8 +411,10 @@
           {
             "in": "query",
             "name": "resolution",
+            "description": "Resolution of the returned sensor data in ISO 8601 duration format.",
             "schema": {
               "type": "string",
+              "example": "PT15M",
               "format": "duration"
             },
             "required": false
@@ -420,16 +422,20 @@
           {
             "in": "query",
             "name": "source",
+            "description": "Filter by a specific data source ID.",
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "example": 42
             },
             "required": false
           },
           {
             "in": "query",
             "name": "account",
+            "description": "Filter by the account linked to data sources.",
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "example": 3
             },
             "required": false
           }
