@@ -308,14 +308,18 @@ def _replace_sensor_refs(data, sensor_id_map: dict[int, int]):
       the containing ``{"sensor": id}`` dict is dropped (returns :data:`_REMOVED`)
       and plain integer IDs in ``{"sensors": [...]}`` lists are filtered out.
     """
+
     if isinstance(data, dict):
         return _replace_sensor_refs_in_dict(data, sensor_id_map)
     if isinstance(data, list):
+        # Update the ids in the list with the new ones, except for sensors from public assets, which are kept as is.
         return [
-            processed
-            for item in data
-            for processed in [_replace_sensor_refs(item, sensor_id_map)]
-            if processed is not _REMOVED
+            (
+                _resolve_sensor_id(sensor_id, sensor_id_map)
+                if isinstance(sensor_id, int)
+                else _replace_sensor_refs(sensor_id, sensor_id_map)
+            )
+            for sensor_id in data
         ]
     return data
 

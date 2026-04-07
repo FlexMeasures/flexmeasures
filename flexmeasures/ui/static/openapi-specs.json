@@ -3676,62 +3676,6 @@
         ]
       }
     },
-    "/api/v3_0/assets/{id}/annotations": {
-      "post": {
-        "summary": "Creates a new asset annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">annotation</a> on an asset.\n",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "The ID of the asset to register the annotation on.",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AnnotationSchema"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "201": {
-            "description": "PROCESSED"
-          },
-          "400": {
-            "description": "INVALID_REQUEST"
-          },
-          "401": {
-            "description": "UNAUTHORIZED"
-          },
-          "403": {
-            "description": "INVALID_SENDER"
-          },
-          "422": {
-            "description": "UNPROCESSABLE_ENTITY"
-          }
-        },
-        "tags": [
-          "Assets",
-          "Annotations"
-        ]
-      }
-    },
     "/api/v3_0/assets/public": {
       "get": {
         "summary": "Return all public assets.",

@@ -553,9 +553,15 @@
         // This function is for backward compatibility with the previous format of sensors_to_show
         function sensorsToShowFormatter(graphs) {
             const newShape = [];
-
             for (const graph of graphs) {
-                if (typeof graph === "object") {
+                // isKeyValueObject
+                const isArray = Array.isArray(graph)
+                const isKeyValueObject = typeof graph === "object" &&
+                    graph !== null &&
+                    !Array.isArray(graph) && // Exclude arrays
+                    Object.keys(graph).length > 0;
+
+                if (isKeyValueObject) {
                     if ("sensors" in graph) {
                         const item = {};
                         item['title'] = graph['title'] || "No Title";
@@ -577,10 +583,15 @@
                         // raise toast error of "unknown format"
                         showToast(`Unknown graph format: ${JSON.stringify(graph)}`, "danger");
                     }
-                } else if (typeof graph === "number") {
+                } else if (isArray) {
                     const item = {};
                     item['title'] = "No Title";
-                    item['plots'] = [{ "sensor": graph }];
+                    // Check if more than 1 sensor is present in the array, if yes, then we can assume it's a plot with multiple sensors, if not, then it's a single sensor plot
+                    if (graph.length === 1) {
+                        item['plots'] = [{ "sensor": graph[0] }];
+                    } else {
+                        item['plots'] = [{ "sensors": graph }];
+                    }
                     newShape.push(item);
                 } else {
                     // raise toast error of "unknown format"
