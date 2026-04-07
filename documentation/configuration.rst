@@ -195,6 +195,30 @@ The path can be a complete URL or a relative from the app root.
 Default: ``""``
 
 
+FLEXMEASURES_JSONEDITOR_THEME
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Visual theme for the in-app JSON attributes editor (used on the sensor, asset and account pages).
+
+Available values:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Value
+     - Appearance
+   * - ``"default"``
+     - Standard look: FlexMeasures primary colour for the menu bar, white editor body.
+   * - ``"dark"``
+     - Dark editor body (VS Code inspired) with a monokai-style Ace colour scheme for the JSON code view.
+   * - ``"github"``
+     - GitHub-style: dark header bar, otherwise light.
+   * - ``"tomorrow_night"``
+     - Tomorrow Night Ace theme for the JSON code view; dark menu bar.
+
+Default: ``"default"``
+
+
 FLEXMEASURES_ROOT_VIEW
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 

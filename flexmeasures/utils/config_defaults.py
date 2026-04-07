@@ -127,6 +127,7 @@ class Config(object):
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
     FLEXMEASURES_MENU_LOGO_PATH: str = ""
     FLEXMEASURES_EXTRA_CSS_PATH: str = ""
+    FLEXMEASURES_JSONEDITOR_THEME: str = "default"
     FLEXMEASURES_ROOT_VIEW: str | list[str | tuple[str, list[str]]] = []
     FLEXMEASURES_MENU_LISTED_VIEWS: list[str | tuple[str, list[str]]] = [
         "dashboard",

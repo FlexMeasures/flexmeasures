@@ -212,7 +212,8 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
     label:    button label text
 #}
 {% macro json_attributes_editor_button(modal_id="jsonAttributesModal", label="Edit attributes") %}
-<button class="btn btn-sm btn-secondary mt-2 w-100"
+<button type="button"
+        class="btn btn-sm btn-secondary mt-2 w-100"
         data-bs-toggle="modal"
         data-bs-target="#{{ modal_id }}">
   <i class="fa fa-pencil me-1"></i> {{ label }}
@@ -228,6 +229,21 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
     modal_id:            must match the id passed to json_attributes_editor_button()
 #}
 {% macro json_attributes_editor_modal(api_url, initial_attributes, entity_name="", modal_id="jsonAttributesModal") %}
+{# Resolve theme from Flask config — falls back to "default" #}
+{% set _jse_theme = config.get("FLEXMEASURES_JSONEDITOR_THEME", "default") %}
+{% if _jse_theme == "dark" %}
+  {% set _ace_theme = "ace/theme/monokai" %}
+  {% set _css_class = "jse-theme-dark" %}
+{% elif _jse_theme == "github" %}
+  {% set _ace_theme = "ace/theme/github" %}
+  {% set _css_class = "jse-theme-github" %}
+{% elif _jse_theme == "tomorrow_night" %}
+  {% set _ace_theme = "ace/theme/tomorrow_night" %}
+  {% set _css_class = "jse-theme-dark" %}
+{% else %}
+  {% set _ace_theme = "ace/theme/jsoneditor" %}
+  {% set _css_class = "" %}
+{% endif %}
 <div class="modal fade" id="{{ modal_id }}" tabindex="-1">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
@@ -250,16 +266,16 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
         </ul>
         <div class="tab-content">
           <div class="tab-pane fade show active" id="{{ modal_id }}TreeTab">
-            <div id="{{ modal_id }}EditorTree" style="height: 500px;"></div>
+            <div id="{{ modal_id }}EditorTree" class="{{ _css_class }}" style="height: 500px;"></div>
           </div>
           <div class="tab-pane fade" id="{{ modal_id }}CodeTab">
-            <div id="{{ modal_id }}EditorCode" style="height: 500px;"></div>
+            <div id="{{ modal_id }}EditorCode" class="{{ _css_class }}" style="height: 500px;"></div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn btn-success" id="{{ modal_id }}SaveBtn">Save</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success" id="{{ modal_id }}SaveBtn">Save</button>
       </div>
     </div>
   </div>
@@ -268,6 +284,7 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
 (function () {
   var _modalId = {{ modal_id | tojson }};
   var _apiUrl  = {{ api_url  | tojson }};
+  var _aceTheme = {{ _ace_theme | tojson }};
   var _currentData = {{ initial_attributes | tojson | safe }};
   var _editorTree = null;
   var _editorCode = null;
@@ -288,6 +305,8 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
       _editorCode = new JSONEditor(
         document.getElementById(_modalId + "EditorCode"),
         { mode: "code", modes: ["code"],
+          ace: window.ace,
+          aceOptions: { theme: _aceTheme },
           onChange: function () { try { _currentData = _editorCode.get(); } catch (e) {} } }
       );
     }
@@ -298,7 +317,14 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
   document.querySelectorAll("#" + _modalId + "Tabs [data-bs-toggle='tab']").forEach(function (tab) {
     tab.addEventListener("shown.bs.tab", function (event) {
       if (event.target.dataset.bsTarget === "#" + _modalId + "CodeTab") {
-        try { _currentData = _editorTree.get(); _editorCode && _editorCode.update(_currentData); } catch (e) {}
+        try {
+          _currentData = _editorTree.get();
+          _editorCode && _editorCode.update(_currentData);
+          /* Fix caret/cursor desync: resize Ace after the tab becomes visible */
+          if (_editorCode && _editorCode.aceEditor) {
+            _editorCode.aceEditor.resize(true);
+          }
+        } catch (e) {}
       } else {
         try { _currentData = _editorCode.get(); _editorTree && _editorTree.update(_currentData); } catch (e) {}
       }
