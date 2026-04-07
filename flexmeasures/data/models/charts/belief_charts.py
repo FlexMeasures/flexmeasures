@@ -1343,36 +1343,32 @@ def create_circle_layer(
     if len(sensors) > 1:
         or_conditions.append({"param": "hover_nearest_brush", "empty": False})
 
-    # Draw a circle around the data point for which the tooltip is shown
-    if len(sensors) > 1:
-        stroke_encoding = {
-            "stroke": {
-                "condition": {
-                    "test": {
-                        "and": [
-                            {"param": "hover_nearest_brush", "empty": False},
-                            {"param": "hover_x_brush", "empty": False},
-                        ]
-                    },
-                    "value": "black",
+    stroke_encoding = {
+        "stroke": {
+            "condition": {
+                "test": {
+                    "and": [
+                        {"param": "hover_nearest_brush", "empty": False},
+                        {"param": "hover_x_brush", "empty": False},
+                    ]
                 },
-                "value": None,
+                "value": "black",
             },
-            "strokeWidth": {
-                "condition": {
-                    "test": {
-                        "and": [
-                            {"param": "hover_nearest_brush", "empty": False},
-                            {"param": "hover_x_brush", "empty": False},
-                        ]
-                    },
-                    "value": STROKE_WIDTH,
+            "value": None,
+        },
+        "strokeWidth": {
+            "condition": {
+                "test": {
+                    "and": [
+                        {"param": "hover_nearest_brush", "empty": False},
+                        {"param": "hover_x_brush", "empty": False},
+                    ]
                 },
-                "value": 0,
+                "value": STROKE_WIDTH,
             },
-        }
-    else:
-        stroke_encoding = {}
+            "value": 0,
+        },
+    }
 
     circle_layer = {
         "mark": {
