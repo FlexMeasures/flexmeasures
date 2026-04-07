@@ -2066,3 +2066,14 @@ body.touched [title]:hover:after {
   border-bottom-color: #fff;
   background-color: #fff;
 }
+
+
+/* JSON editor */
+.jsoneditor {
+  border: 1px solid #dee2e6;
+  border-radius: 0.5rem;
+}
+
+.jsoneditor-menu {
+  background-color: #f8f9fa;
+}
