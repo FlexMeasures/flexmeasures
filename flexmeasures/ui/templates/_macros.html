@@ -407,7 +407,7 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
         data = _jeInstance ? _jeInstance.getValue() : _startval;
       }
     } catch (e) {
-      alert("Invalid JSON — please fix errors before saving.");
+      showToast("Invalid JSON — please fix errors before saving.", "error");
       return;
     }
 
