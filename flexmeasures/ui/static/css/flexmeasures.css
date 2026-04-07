@@ -2073,6 +2073,8 @@ body.touched [title]:hover:after {
 /* Plain-text JSON textarea (JSON tab) */
 .fm-json-textarea {
   min-height: 420px;
+  height: 420px;     /* explicit height so Bootstrap's form-control baseline
+                        doesn't shrink it to a single row on some browsers   */
   font-size: 0.85rem;
   line-height: 1.5;
   resize: vertical;
@@ -2082,3 +2084,26 @@ body.touched [title]:hover:after {
 .fm-je-container {
   min-height: 200px;
 }
+
+/* Remove Bootstrap validation decorations inside the form editor.
+ * @json-editor/json-editor marks all fields .is-valid because our open schema
+ * ({}) validates everything.  Bootstrap then adds a green border + checkmark
+ * background-image to <select> elements, which overlaps the selected text. */
+.fm-je-container .form-select.is-valid,
+.fm-je-container .was-validated .form-select:valid {
+  border-color: var(--bs-border-color);
+  padding-right: 2.25rem;   /* back to normal — only the dropdown arrow       */
+  /* Restore the plain dropdown-arrow background image (no checkmark overlay) */
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-size: 16px 12px;
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+}
+
+.fm-je-container .form-control.is-valid,
+.fm-je-container .was-validated .form-control:valid {
+  border-color: var(--bs-border-color);
+  padding-right: 0.75rem;
+  background-image: none;
+}
+

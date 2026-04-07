@@ -271,6 +271,7 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
           <div class="tab-pane fade" id="{{ modal_id }}JsonTab" role="tabpanel">
             <textarea id="{{ modal_id }}JsonTextarea"
                       class="form-control font-monospace fm-json-textarea"
+                      rows="20"
                       spellcheck="false"
                       autocomplete="off"></textarea>
           </div>
@@ -321,10 +322,11 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
       document.getElementById(_modalId + "EditorContainer"),
       {
         theme:    _theme,
-        iconlib:  "fontawesome5",
+        iconlib:  "fontawesome4",        /* FA 4.7 is loaded in base.html    */
         schema: {
           type:  "object",
-          title: "",
+          title: "\u200b",              /* zero-width space: truthy → avoids
+                                           the "root" label fallback          */
           /*
            * additionalProperties: {} lets @json-editor/json-editor render
            * each existing key as a text input and provides a "+" button
@@ -334,13 +336,31 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
           additionalProperties: {}
         },
         startval:                _startval,
-        disable_edit_json:       true,   /* handled by the JSON tab      */
+        disable_edit_json:       true,   /* handled by the JSON tab          */
         disable_collapse:        true,
         no_additional_properties: false,
         prompt_before_delete:    false
       }
     );
-  }
+
+    /* Fix border-radius for lone buttons in .btn-group.
+     * @json-editor/json-editor places action buttons in a .btn-group but may
+     * leave hidden sibling elements in the DOM (e.g. collapse / edit-JSON
+     * buttons that are disabled via options).  Bootstrap's :not(:last-child)
+     * rule then flattens the wrong corners of the one visible button. */
+    var _editorEl = document.getElementById(_modalId + "EditorContainer");
+    _editorEl.querySelectorAll(".btn-group").forEach(function (grp) {
+      var visible = Array.from(grp.children).filter(function (el) {
+        return el.classList.contains("btn") &&
+               window.getComputedStyle(el).display !== "none";
+      });
+      if (visible.length === 1) {
+        visible[0].style.setProperty(
+          "border-radius", "var(--bs-btn-border-radius, 0.375rem)", "important"
+        );
+      }
+    });
+  }  /* end _initForm */
 
   /* ------------------------------------------------------------------ */
   /* Tab-switch sync                                                      */
