@@ -134,12 +134,20 @@ class MetaStorageScheduler(Scheduler):
             ]
             """
 
+            # Check if this is a stock-only model (no power sensor)
+            # Stock-only entries have SOC parameters but no power sensor
+            soc_sensor = fm.get("state_of_charge")
+            if fm.get("sensor") is None and soc_sensor is not None:
+                # This is a stock-only entry, add to stock_models only
+                soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
+                stock_models[soc_id] = fm
+                continue
+
             # device model: entry in the flex-model list where the sensor key is the power sensor of the device (e.g. a feeder)
             device_models.append(fm)
 
             # If this device has state-of-charge parameters (soc-at-start, soc-min, etc.),
             # also create a stock model entry so those parameters are properly captured
-            soc_sensor = fm.get("state_of_charge")
             if soc_sensor is not None:
                 soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
                 # Check if there are SOC parameters in this device entry
@@ -155,6 +163,13 @@ class MetaStorageScheduler(Scheduler):
 
         flex_model = device_models
         self.stock_models = stock_models
+        self._device_models = (
+            device_models  # Store filtered model for later use in _build_soc_schedule
+        )
+
+        # Rebuild stock_groups using only device_models (which have sensors)
+        # This ensures the mapping aligns with the device indices
+        self.stock_groups = self._build_stock_groups(device_models)
 
         # List the asset(s) and sensor(s) being scheduled
         if self.asset is not None:
@@ -1698,14 +1713,22 @@ class StorageScheduler(MetaStorageScheduler):
             if sensor is not None
         }
 
-        flex_model = self.flex_model.copy()
+        # Use the filtered device_models (stored during _prepare) not self.flex_model
+        # because stock_groups was rebuilt with device indices, not original indices
+        flex_model_for_soc = getattr(self, "_device_models", None)
+        if flex_model_for_soc is None:
+            # Fallback: reconstruct if not available (shouldn't happen in normal flow)
+            flex_model_for_soc = (
+                self.flex_model.copy()
+                if isinstance(self.flex_model, dict)
+                else [fm for fm in self.flex_model if fm.get("sensor") is not None]
+            )
 
-        if not isinstance(self.flex_model, list):
-            flex_model["sensor"] = sensors[0]
-            flex_model = [flex_model]
+        if not isinstance(flex_model_for_soc, list):
+            flex_model_for_soc = [flex_model_for_soc]
 
         soc_schedule = self._build_soc_schedule(
-            flex_model=flex_model,
+            flex_model=flex_model_for_soc,
             ems_schedule=ems_schedule,
             soc_at_start=soc_at_start,
             device_constraints=device_constraints,

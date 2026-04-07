@@ -108,6 +108,11 @@ def device_scheduler(  # noqa C901
         for g, devices in stock_groups.items():
             for d in devices:
                 device_to_group[d] = g
+        # For devices not in any stock group (e.g., inflexible devices),
+        # map them to themselves so they're treated as individual groups
+        for d in range(len(device_constraints)):
+            if d not in device_to_group:
+                device_to_group[d] = d
     else:
         for d in range(len(device_constraints)):
             device_to_group[d] = d

@@ -16,6 +16,7 @@ from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.utils import save_to_db
 
 
 def test_multi_feed_device_scheduler_shared_buffer():
@@ -868,3 +869,268 @@ def test_two_devices_shared_stock(app, db):
         "which should dominate since it performs most charging: "
         "~682.8 kWh at 0.99 efficiency * 100 EUR/MWh ≈ 17.07 EUR."
     )
+
+
+def test_simulation_copy(app, db):
+    # ---- asset types and assets
+    gas_boiler_type = get_or_create_model(GenericAssetType, name="gas-boiler")
+    tank_type = get_or_create_model(GenericAssetType, name="gas-tank")
+    site_type = get_or_create_model(GenericAssetType, name="site")
+
+    site = GenericAsset(
+        name="Test Site",
+        generic_asset_type=site_type,
+    )
+    building = GenericAsset(
+        name="Building", generic_asset_type=site_type, parent_asset_id=site.id
+    )
+    pv = GenericAsset(
+        name="PV",
+        generic_asset_type=get_or_create_model(GenericAssetType, name="pv"),
+        parent_asset_id=site.id,
+    )
+
+    gas_boiler = GenericAsset(
+        name="Gas Boiler", generic_asset_type=gas_boiler_type, parent_asset_id=site.id
+    )
+
+    gas_tank = GenericAsset(
+        name="Gas Tank", generic_asset_type=tank_type, parent_asset_id=site.id
+    )
+    battery = GenericAsset(
+        name="Battery",
+        generic_asset_type=get_or_create_model(GenericAssetType, name="battery"),
+        parent_asset_id=site.id,
+    )
+
+    db.session.add_all([gas_boiler, gas_tank, building, battery, pv, site])
+    db.session.commit()
+
+    # ---- sensors
+    start = pd.Timestamp("2026-04-07T00:00:00+01:00")
+    end = pd.Timestamp(
+        "2026-04-09T06:00:00+01:00"
+    )  # Extended to allow discharge target on April 8
+    belief_time = pd.Timestamp(
+        "2026-04-05T00:00:00+01:00"
+    )  # 2 days before start for generous planning horizon
+    power_resolution = pd.Timedelta("15m")
+    energy_resolution = pd.Timedelta(0)
+
+    building_raw_power = Sensor(
+        name="building raw power",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=building,
+    )
+
+    pv_power = Sensor(
+        name="PV power",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=pv,
+    )
+
+    pv_raw_power = Sensor(
+        name="PV raw power",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=pv,
+    )
+
+    battery_power = Sensor(
+        name="battery power",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=battery,
+    )
+
+    battery_soc = Sensor(
+        name="battery state-of-charge",
+        unit="kWh",
+        event_resolution=energy_resolution,  # instantaneous
+        generic_asset=battery,
+    )
+
+    boiler_power = Sensor(
+        name="boiler power",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=gas_boiler,
+    )
+
+    tank_power = Sensor(
+        name="tank power",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=gas_tank,
+    )
+
+    tank_soc = Sensor(
+        name="tank state-of-charge",
+        unit="kWh",
+        event_resolution=energy_resolution,  # instantaneous
+        generic_asset=gas_tank,
+    )
+
+    tank_soc_usage = Sensor(
+        name="tank soc usage",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=gas_tank,
+    )
+
+    db.session.add_all(
+        [
+            boiler_power,
+            tank_soc,
+            tank_power,
+            tank_soc_usage,
+            building_raw_power,
+            battery_power,
+            pv_power,
+            pv_raw_power,
+            battery_soc,
+        ]
+    )
+    db.session.commit()
+    import timely_beliefs as tb
+    from flexmeasures import Source
+
+    # add dummy data to building raw power to ensure site-level constraints are respected
+    building_data = pd.Series(
+        100.0,
+        index=pd.date_range(start, end, freq=power_resolution, name="event_start"),
+        name="event_value",
+    ).reset_index()
+
+    bdf = tb.BeliefsDataFrame(
+        building_data,
+        belief_horizon=-pd.Timedelta(seconds=1) * np.array(range(len(building_data))),
+        sensor=building_raw_power,
+        source=get_or_create_model(Source, name="Simulation"),
+    )
+    save_to_db(bdf, bulk_save_objects=False, save_changed_beliefs_only=False)
+
+    bdf = tb.BeliefsDataFrame(
+        building_data,
+        belief_horizon=-pd.Timedelta(seconds=1) * np.array(range(len(building_data))),
+        sensor=tank_soc_usage,
+        source=get_or_create_model(Source, name="Simulation"),
+    )
+
+    save_to_db(bdf, bulk_save_objects=False, save_changed_beliefs_only=False)
+
+    # add dummy data to PV power to ensure site-level constraints are respected
+    # Create realistic PV data with solar curve pattern
+    pv_index = pd.date_range(start, end, freq=power_resolution, name="event_start")
+    # Solar generation typically peaks around noon and follows a bell curve
+    # Hours: 0-8 (night), 8-10 (morning ramp), 10-14 (peak 5-20kW), 14-16 (evening ramp), 16-24 (night)
+    hours = pv_index.hour + pv_index.minute / 60.0
+
+    pv_values = []
+    for hour in hours:
+        if hour < 8 or hour >= 18:  # Night time
+            pv_values.append(0.0)
+        elif 8 <= hour < 10:  # Morning ramp
+            pv_values.append((hour - 8) * 5.0)  # 0 to 10 kW
+        elif 10 <= hour < 11:  # Morning continued
+            pv_values.append(10.0 + (hour - 10) * 10.0)  # 10 to 20 kW
+        elif 11 <= hour < 12:  # Peak approach
+            pv_values.append(20.0 + (hour - 11) * 5.0)  # 20 to 25 kW
+        elif 12 <= hour < 14:  # Peak sustained
+            pv_values.append(23.0)  # ~23 kW peak
+        elif 14 <= hour < 15:  # Afternoon decline
+            pv_values.append(23.0 - (hour - 14) * 10.0)  # 23 to 13 kW
+        elif 15 <= hour < 16:  # Afternoon continued
+            pv_values.append(13.0 - (hour - 15) * 5.0)  # 13 to 8 kW
+        elif 16 <= hour < 18:  # Evening ramp down
+            pv_values.append((18 - hour) * 4.0)  # 8 to 0 kW
+
+    pv_data = pd.DataFrame({"event_start": pv_index, "event_value": pv_values})
+
+    pv_bdf = tb.BeliefsDataFrame(
+        pv_data,
+        belief_horizon=-pd.Timedelta(seconds=1) * np.array(range(len(pv_data))),
+        sensor=pv_raw_power,
+        source=get_or_create_model(Source, name="Simulation"),
+    )
+    save_to_db(pv_bdf, bulk_save_objects=False, save_changed_beliefs_only=False)
+
+    # ---- flex-model with time-varying power capacity
+    # Device 0: boiler with time-varying power capacity (30 kW throughout the entire period)
+    # Storage container: tank with shared state-of-charge
+    flex_model = [
+        # {
+        #     "sensor": pv_power.id,
+        #     "consumption-capacity": "0 kW",
+        #     "production-capacity": {"sensor": pv_raw_power.id},
+        #     "power-capacity": "1 GW",
+        # },
+        # {
+        #     "sensor": battery_power.id,
+        #     "soc-min": 0.0,
+        #     "soc-max": 100.0,
+        #     "soc-at-start": 20.0,
+        #     "power-capacity": "20 kW",
+        #     "roundtrip-efficiency": 0.9,
+        #     "soc-targets": [{"datetime": "2026-04-07T20:00:00+01:00", "value": 80.0}],
+        #     "state-of-charge": {"sensor": battery_soc.id},
+        #     "commodity": "electricity",
+        #
+        # },
+        {
+            "sensor": boiler_power.id,
+            "state-of-charge": {"sensor": tank_soc.id},
+            "production-capacity": "100 kW",
+            "power-capacity": "100 kW",
+            "charging-efficiency": 0.5,
+            "commodity": "gas",
+            "discharging-efficiency": 0.5,
+        },
+        {
+            # "sensor": tank_power.id,
+            "soc-min": 200.0,
+            "soc-max": 1000.0,
+            "soc-at-start": 200.0,
+            "power-capacity": "100 kW",
+            # "soc-targets": [
+            #     {"datetime": "2026-04-07T20:00:00+01:00", "value": 700.0},
+            #     # {"datetime": "2026-04-08T18:00:00+01:00", "value": 400.0},  # Discharge target - tank discharges after charging
+            # ],
+            "commodity": "gas",
+            "state-of-charge": {"sensor": tank_soc.id},
+            "discharging-efficiency": 1,
+            "charging-efficiency": 1,
+        },
+    ]
+
+    flex_context = {
+        "consumption-price": "100 EUR/MWh",
+        "production-price": "100 EUR/MWh",
+        "gas-price": "50 EUR/MWh",
+        "site-power-capacity": "4700 kW",
+        "site-consumption-capacity": "4000 kW",
+        "site-production-capacity": "0 kW",
+        "site-consumption-breach-price": "100000 EUR/kW",
+        "site-production-breach-price": "100000 EUR/kW",
+        "relax-constraints": True,
+        "inflexible-device-sensors": [building_raw_power.id],
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=power_resolution,
+        belief_time=belief_time,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    pd.set_option("display.max_rows", None)
+    schedules = scheduler.compute(skip_validation=True)
+
+    # ---- verify outputs
+    print(schedules)
