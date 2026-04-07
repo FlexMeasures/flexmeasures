@@ -133,7 +133,7 @@ def test_get_sensor_data_filtered_by_source_account(
         "duration": "PT1H20M",
         "horizon": "PT0H",
         "unit": "m³/h",
-        "source_account_id": source_user.account_id,
+        "account": source_user.account_id,
         "resolution": "PT20M",
     }
     response = client.get(
