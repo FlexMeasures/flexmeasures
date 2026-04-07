@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data import db
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
@@ -483,6 +484,14 @@ def copy_asset(
         )
         if sensor_id_map:
             _update_sensor_refs_in_subtree(copied_root, sensor_id_map)
+
+        AssetAuditLog.add_record(
+            copied_root,
+            (
+                f"Copied asset '{asset.name}': {asset.id} "
+                f"to '{copied_root.name}': {copied_root.id}"
+            ),
+        )
         db.session.commit()
         return copied_root
     except Exception as e:

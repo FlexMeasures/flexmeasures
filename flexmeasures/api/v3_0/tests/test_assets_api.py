@@ -1121,6 +1121,8 @@ def test_copy_asset_api_copies_direct_sensors(
     assert response.status_code == 201
 
     copied_asset_id = response.json["asset"]
+    copied_asset = db.session.get(GenericAsset, copied_asset_id)
+    assert copied_asset is not None
     copied_sensor = db.session.scalars(
         select(Sensor).filter(
             Sensor.generic_asset_id == copied_asset_id,
@@ -1131,3 +1133,13 @@ def test_copy_asset_api_copies_direct_sensors(
     assert copied_sensor is not None
     assert copied_sensor.unit == source_sensor.unit
     assert copied_sensor.event_resolution == source_sensor.event_resolution
+
+    check_audit_log_event(
+        db=db,
+        event=(
+            f"Copied asset '{source_asset.name}': {source_asset.id} "
+            f"to '{copied_asset.name}': {copied_asset.id}"
+        ),
+        user=requesting_user,
+        asset=copied_asset,
+    )
