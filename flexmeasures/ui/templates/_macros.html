@@ -203,3 +203,134 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
   </tbody>
 </table>    
 {% endmacro %}
+
+{#
+  Render a button that opens the JSON attributes editor modal.
+  Call json_attributes_editor_modal() once on the same page to include the modal + JS.
+  Parameters:
+    modal_id: unique HTML id for the modal (default "jsonAttributesModal")
+    label:    button label text
+#}
+{% macro json_attributes_editor_button(modal_id="jsonAttributesModal", label="Edit attributes") %}
+<button class="btn btn-sm btn-secondary mt-2 w-100"
+        data-bs-toggle="modal"
+        data-bs-target="#{{ modal_id }}">
+  <i class="fa fa-pencil me-1"></i> {{ label }}
+</button>
+{% endmacro %}
+
+{#
+  Render the JSON attributes editor modal and its JavaScript.
+  Parameters:
+    api_url:             full API PATCH URL for this entity
+    initial_attributes:  the current attributes dict (Jinja variable, will be tojson'd)
+    entity_name:         displayed in the modal title
+    modal_id:            must match the id passed to json_attributes_editor_button()
+#}
+{% macro json_attributes_editor_modal(api_url, initial_attributes, entity_name="", modal_id="jsonAttributesModal") %}
+<div class="modal fade" id="{{ modal_id }}" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          Edit Attributes{% if entity_name %} — {{ entity_name }}{% endif %}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <ul class="nav nav-tabs mb-3" id="{{ modal_id }}Tabs">
+          <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab"
+                    data-bs-target="#{{ modal_id }}TreeTab">Tree</button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab"
+                    data-bs-target="#{{ modal_id }}CodeTab">JSON</button>
+          </li>
+        </ul>
+        <div class="tab-content">
+          <div class="tab-pane fade show active" id="{{ modal_id }}TreeTab">
+            <div id="{{ modal_id }}EditorTree" style="height: 500px;"></div>
+          </div>
+          <div class="tab-pane fade" id="{{ modal_id }}CodeTab">
+            <div id="{{ modal_id }}EditorCode" style="height: 500px;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-success" id="{{ modal_id }}SaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var _modalId = {{ modal_id | tojson }};
+  var _apiUrl  = {{ api_url  | tojson }};
+  var _currentData = {{ initial_attributes | tojson | safe }};
+  var _editorTree = null;
+  var _editorCode = null;
+
+  document.getElementById(_modalId).addEventListener("shown.bs.modal", function () {
+    _initEditors();
+  });
+
+  function _initEditors() {
+    if (!_editorTree) {
+      _editorTree = new JSONEditor(
+        document.getElementById(_modalId + "EditorTree"),
+        { mode: "tree", modes: ["tree"],
+          onChange: function () { try { _currentData = _editorTree.get(); } catch (e) {} } }
+      );
+    }
+    if (!_editorCode) {
+      _editorCode = new JSONEditor(
+        document.getElementById(_modalId + "EditorCode"),
+        { mode: "code", modes: ["code"],
+          onChange: function () { try { _currentData = _editorCode.get(); } catch (e) {} } }
+      );
+    }
+    _editorTree.set(_currentData);
+    _editorCode.set(_currentData);
+  }
+
+  document.querySelectorAll("#" + _modalId + "Tabs [data-bs-toggle='tab']").forEach(function (tab) {
+    tab.addEventListener("shown.bs.tab", function (event) {
+      if (event.target.dataset.bsTarget === "#" + _modalId + "CodeTab") {
+        try { _currentData = _editorTree.get(); _editorCode && _editorCode.update(_currentData); } catch (e) {}
+      } else {
+        try { _currentData = _editorCode.get(); _editorTree && _editorTree.update(_currentData); } catch (e) {}
+      }
+    });
+  });
+
+  document.getElementById(_modalId + "SaveBtn").addEventListener("click", function () {
+    try {
+      var data = _editorCode.get();
+      fetch(_apiUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attributes: JSON.stringify(data) })
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (resp) {
+        if (resp.id !== undefined) {
+          showToast("Attributes saved successfully!", "success");
+          bootstrap.Modal.getInstance(document.getElementById(_modalId)).hide();
+          _currentData = data;
+        } else {
+          var msg = (resp.message && resp.message.json && resp.message.json.attributes && resp.message.json.attributes[0])
+                    || resp.message || "Save failed";
+          showToast("Error: " + msg, "error");
+        }
+      })
+      .catch(function (err) { showToast("Error: " + err, "error"); });
+    } catch (e) {
+      alert("Invalid JSON — please fix errors before saving.");
+    }
+  });
+}());
+</script>
+{% endmacro %}
+

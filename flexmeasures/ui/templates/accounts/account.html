@@ -6,6 +6,7 @@
     <div class="col-md-2 on-top-md">
       
       {% if user_can_update_account %}  
+      {% from "_macros.html" import json_attributes_editor_button %}
       <div class="sidepanel-container">
         <div
           class="left-sidepanel-label"
@@ -153,6 +154,9 @@
                 >
                   Save
                 </button>
+                <div style="clear: both; padding-top: 60px;">
+                  {{ json_attributes_editor_button() }}
+                </div>
               </div>
             </fieldset>
           </form>
@@ -693,4 +697,15 @@ $(document).ready(function () {
       });
   });
 </script>
-{% block paginate_tables_script %} {{ super() }} {% endblock %} {% endblock %}
+{% block paginate_tables_script %} {{ super() }} {% endblock %}
+
+{% if user_can_update_account %}
+{% from "_macros.html" import json_attributes_editor_modal %}
+{{ json_attributes_editor_modal(
+     api_url="/api/v3_0/accounts/" ~ account.id,
+     initial_attributes=account.attributes,
+     entity_name=account.name
+) }}
+{% endif %}
+
+{% endblock %}

@@ -9,6 +9,8 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.dialects.postgresql import JSONB
 from timely_beliefs import utils as tb_utils
 
 from flexmeasures.data import db
@@ -66,6 +68,7 @@ class Account(db.Model, AuthModelMixin):
     primary_color = Column(String(7), default=None)
     secondary_color = Column(String(7), default=None)
     logo_url = Column(String(255), default=None)
+    attributes = Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_accounts",

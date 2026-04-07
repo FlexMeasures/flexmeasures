@@ -8,53 +8,6 @@
 
     {% block breadcrumbs %} {{ super() }} {% endblock %}
 
-      <button class="btn btn-primary" onclick="openJsonEditor()">
-  Edit asset attributes
-</button>
-
-<div class="modal fade" id="jsonEditorModal" tabindex="-1">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
-    <div class="modal-content">
-
-      <div class="modal-header">
-        <h5 class="modal-title">Edit Asset Attributes</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-
-      <div class="modal-body">
-        <!-- Tabs -->
-        <ul class="nav nav-tabs mb-3" id="editorTabs">
-          <li class="nav-item">
-            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#formTab">
-              Form
-            </button>
-          </li>
-          <li class="nav-item">
-            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#jsonTab">
-              JSON
-            </button>
-          </li>
-        </ul>
-
-        <div class="tab-content">
-          <div class="tab-pane fade show active" id="formTab">
-            <div id="jsoneditor_form" style="height: 500px;"></div>
-          </div>
-
-          <div class="tab-pane fade" id="jsonTab">
-            <div id="jsoneditor_code" style="height: 500px;"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn btn-success" onclick="saveJson()">Save</button>
-      </div>
-
-    </div>
-  </div>
-</div>
 
       <div class="sensor-data charts text-center">
           <div class="row on-top-md">
@@ -78,6 +31,7 @@
                   </div>
 
                   {% if user_can_update_sensor %}
+                    {% from "_macros.html" import json_attributes_editor_button %}
                     <div class="sidepanel-container">
                       <div class="left-sidepanel-label">Edit sensor</div>
                         <div class="sidepanel left-sidepanel" style="text-align: left;">
@@ -101,6 +55,9 @@
                                         Save
                                     </button>
                                 </form>
+                                <div style="clear: both; padding-top: 10px;">
+                                    {{ json_attributes_editor_button() }}
+                                </div>
                             </fieldset>
                         </div>
                     </div>
@@ -494,109 +451,13 @@ For the data, note the following:
     });
 </script>
 
-<script>
-let editorForm = null;
-let editorCode = null;
-
-let currentData = {};  // source of truth
-
-function openJsonEditor() {
-  // Example: fetch from backend
-  currentData = {
-    name: "Battery 1",
-    capacity: 100,
-    config: {
-      nested: {
-        enabled: true,
-        thresholds: [1, 2, 3]
-      }
-    }
-  };
-
-  const modal = new bootstrap.Modal(document.getElementById('jsonEditorModal'));
-  modal.show();
-
-  setTimeout(initEditors, 200);  // wait for modal render
-}
-
-function initEditors() {
-  if (!editorForm) {
-    editorForm = new JSONEditor(document.getElementById("jsoneditor_form"), {
-      mode: "tree",
-      modes: ["tree"],  // form-like
-      onChange: () => {
-        try {
-          currentData = editorForm.get();
-        } catch (e) {}
-      }
-    });
-  }
-
-  if (!editorCode) {
-    editorCode = new JSONEditor(document.getElementById("jsoneditor_code"), {
-      mode: "code",
-      modes: ["code"],
-      onChange: () => {
-        try {
-          currentData = editorCode.get();
-        } catch (e) {}
-      }
-    });
-  }
-
-  editorForm.set(currentData);
-  editorCode.set(currentData);
-}
-
-/**
- * Sync when switching tabs
- */
-document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
-  tab.addEventListener('shown.bs.tab', function (event) {
-    if (event.target.dataset.bsTarget === "#jsonTab") {
-      syncFormToCode();
-    } else {
-      syncCodeToForm();
-    }
-  });
-});
-
-function syncFormToCode() {
-  try {
-    currentData = editorForm.get();
-    editorCode.update(currentData);
-  } catch (e) {
-    console.warn("Invalid form state");
-  }
-}
-
-function syncCodeToForm() {
-  try {
-    currentData = editorCode.get();
-    editorForm.update(currentData);
-  } catch (e) {
-    console.warn("Invalid JSON");
-  }
-}
-
-function saveJson() {
-  try {
-    const data = editorCode.get();  // always validate from code view
-
-    console.log("Saving:", data);
-
-    // Example POST
-    fetch("/api/assets/123/attributes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
-    });
-
-    bootstrap.Modal.getInstance(document.getElementById('jsonEditorModal')).hide();
-  } catch (e) {
-    alert("Invalid JSON, cannot save.");
-  }
-}
-</script>
+{% if user_can_update_sensor %}
+  {% from "_macros.html" import json_attributes_editor_modal %}
+  {{ json_attributes_editor_modal(
+       api_url="/api/v3_0/sensors/" ~ sensor.id,
+       initial_attributes=sensor.attributes,
+       entity_name=sensor.name
+  ) }}
+{% endif %}
 
 {% endblock %}
