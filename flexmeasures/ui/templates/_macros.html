@@ -222,28 +222,23 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
 
 {#
   Render the JSON attributes editor modal and its JavaScript.
+  Uses @json-editor/json-editor (https://github.com/json-editor/json-editor).
   Parameters:
     api_url:             full API PATCH URL for this entity
     initial_attributes:  the current attributes dict (Jinja variable, will be tojson'd)
     entity_name:         displayed in the modal title
     modal_id:            must match the id passed to json_attributes_editor_button()
+
+  The modal has two tabs:
+    Form — schema-driven Bootstrap form (good for simple flat attributes)
+    JSON — raw editable textarea (type-accurate; authoritative on Save)
+
+  Active theme is read from FLEXMEASURES_JSONEDITOR_THEME config.
+  Available themes: "bootstrap5" (default), "bootstrap4", "bootstrap3",
+                    "tailwind", "spectre", "barebones", "html"
 #}
 {% macro json_attributes_editor_modal(api_url, initial_attributes, entity_name="", modal_id="jsonAttributesModal") %}
-{# Resolve theme from Flask config — falls back to "default" #}
-{% set _jse_theme = config.get("FLEXMEASURES_JSONEDITOR_THEME", "default") %}
-{% if _jse_theme == "dark" %}
-  {% set _ace_theme = "ace/theme/monokai" %}
-  {% set _css_class = "jse-theme-dark" %}
-{% elif _jse_theme == "github" %}
-  {% set _ace_theme = "ace/theme/github" %}
-  {% set _css_class = "jse-theme-github" %}
-{% elif _jse_theme == "tomorrow_night" %}
-  {% set _ace_theme = "ace/theme/tomorrow_night" %}
-  {% set _css_class = "jse-theme-dark" %}
-{% else %}
-  {% set _ace_theme = "ace/theme/jsoneditor" %}
-  {% set _css_class = "" %}
-{% endif %}
+{% set _theme = config.get("FLEXMEASURES_JSONEDITOR_THEME", "bootstrap5") %}
 <div class="modal fade" id="{{ modal_id }}" tabindex="-1">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
@@ -253,108 +248,170 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
+
       <div class="modal-body">
-        <ul class="nav nav-tabs mb-3" id="{{ modal_id }}Tabs">
-          <li class="nav-item">
+        <ul class="nav nav-tabs mb-3" id="{{ modal_id }}Tabs" role="tablist">
+          <li class="nav-item" role="presentation">
             <button class="nav-link active" data-bs-toggle="tab"
-                    data-bs-target="#{{ modal_id }}TreeTab">Tree</button>
+                    data-bs-target="#{{ modal_id }}FormTab" role="tab">Form</button>
           </li>
-          <li class="nav-item">
+          <li class="nav-item" role="presentation">
             <button class="nav-link" data-bs-toggle="tab"
-                    data-bs-target="#{{ modal_id }}CodeTab">JSON</button>
+                    data-bs-target="#{{ modal_id }}JsonTab" role="tab">JSON</button>
           </li>
         </ul>
+
         <div class="tab-content">
-          <div class="tab-pane fade show active" id="{{ modal_id }}TreeTab">
-            <div id="{{ modal_id }}EditorTree" class="{{ _css_class }}" style="height: 500px;"></div>
+          {# Form tab — rendered by @json-editor/json-editor with selected theme #}
+          <div class="tab-pane fade show active" id="{{ modal_id }}FormTab" role="tabpanel">
+            <div id="{{ modal_id }}EditorContainer" class="fm-je-container"></div>
           </div>
-          <div class="tab-pane fade" id="{{ modal_id }}CodeTab">
-            <div id="{{ modal_id }}EditorCode" class="{{ _css_class }}" style="height: 500px;"></div>
+
+          {# JSON tab — plain Bootstrap textarea; always type-accurate #}
+          <div class="tab-pane fade" id="{{ modal_id }}JsonTab" role="tabpanel">
+            <textarea id="{{ modal_id }}JsonTextarea"
+                      class="form-control font-monospace fm-json-textarea"
+                      spellcheck="false"
+                      autocomplete="off"></textarea>
           </div>
         </div>
       </div>
+
       <div class="modal-footer">
+        <small class="text-muted me-auto">
+          Save always uses the currently active tab.
+        </small>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
         <button type="button" class="btn btn-success" id="{{ modal_id }}SaveBtn">Save</button>
       </div>
     </div>
   </div>
 </div>
+
 <script>
 (function () {
-  var _modalId = {{ modal_id | tojson }};
-  var _apiUrl  = {{ api_url  | tojson }};
-  var _aceTheme = {{ _ace_theme | tojson }};
-  var _currentData = {{ initial_attributes | tojson | safe }};
-  var _editorTree = null;
-  var _editorCode = null;
+  var _modalId   = {{ modal_id | tojson }};
+  var _apiUrl    = {{ api_url  | tojson }};
+  var _theme     = {{ _theme   | tojson }};
+  var _startval  = {{ initial_attributes | tojson | safe }};
+  var _jeInstance = null;   /* @json-editor/json-editor instance        */
+  var _activeTab  = "form"; /* "form" | "json"                          */
 
+  /* ------------------------------------------------------------------ */
+  /* Initialise on first modal open                                       */
+  /* ------------------------------------------------------------------ */
   document.getElementById(_modalId).addEventListener("shown.bs.modal", function () {
-    _initEditors();
+    /* Always start on the Form tab */
+    var formTabEl = document.querySelector(
+      "#" + _modalId + "Tabs [data-bs-target='#" + _modalId + "FormTab']"
+    );
+    if (formTabEl) { bootstrap.Tab.getOrCreateInstance(formTabEl).show(); }
+    _activeTab = "form";
+    _initForm();
+    document.getElementById(_modalId + "JsonTextarea").value =
+      JSON.stringify(_startval, null, 2);
   });
 
-  function _initEditors() {
-    if (!_editorTree) {
-      _editorTree = new JSONEditor(
-        document.getElementById(_modalId + "EditorTree"),
-        { mode: "tree", modes: ["tree"],
-          onChange: function () { try { _currentData = _editorTree.get(); } catch (e) {} } }
-      );
+  function _initForm() {
+    if (_jeInstance) {
+      _jeInstance.setValue(_startval);
+      return;
     }
-    if (!_editorCode) {
-      _editorCode = new JSONEditor(
-        document.getElementById(_modalId + "EditorCode"),
-        { mode: "code", modes: ["code"],
-          ace: window.ace,
-          aceOptions: { theme: _aceTheme },
-          onChange: function () { try { _currentData = _editorCode.get(); } catch (e) {} } }
-      );
-    }
-    _editorTree.set(_currentData);
-    _editorCode.set(_currentData);
+    _jeInstance = new JSONEditor(
+      document.getElementById(_modalId + "EditorContainer"),
+      {
+        theme:    _theme,
+        iconlib:  "fontawesome5",
+        schema: {
+          type:  "object",
+          title: "",
+          /*
+           * additionalProperties: {} lets @json-editor/json-editor render
+           * each existing key as a text input and provides a "+" button
+           * to add new keys.  All values are treated as strings in the
+           * form view; for non-string types use the JSON tab.
+           */
+          additionalProperties: {}
+        },
+        startval:                _startval,
+        disable_edit_json:       true,   /* handled by the JSON tab      */
+        disable_collapse:        true,
+        no_additional_properties: false,
+        prompt_before_delete:    false
+      }
+    );
   }
 
-  document.querySelectorAll("#" + _modalId + "Tabs [data-bs-toggle='tab']").forEach(function (tab) {
+  /* ------------------------------------------------------------------ */
+  /* Tab-switch sync                                                      */
+  /* ------------------------------------------------------------------ */
+  document.querySelectorAll(
+    "#" + _modalId + "Tabs [data-bs-toggle='tab']"
+  ).forEach(function (tab) {
     tab.addEventListener("shown.bs.tab", function (event) {
-      if (event.target.dataset.bsTarget === "#" + _modalId + "CodeTab") {
+      var target = event.target.getAttribute("data-bs-target");
+      if (target === "#" + _modalId + "JsonTab") {
+        /* Form → JSON: stringify current form values */
+        _activeTab = "json";
         try {
-          _currentData = _editorTree.get();
-          _editorCode && _editorCode.update(_currentData);
-          /* Fix caret/cursor desync: resize Ace after the tab becomes visible */
-          if (_editorCode && _editorCode.aceEditor) {
-            _editorCode.aceEditor.resize(true);
-          }
+          var val = _jeInstance ? _jeInstance.getValue() : _startval;
+          document.getElementById(_modalId + "JsonTextarea").value =
+            JSON.stringify(val, null, 2);
         } catch (e) {}
       } else {
-        try { _currentData = _editorCode.get(); _editorTree && _editorTree.update(_currentData); } catch (e) {}
+        /* JSON → Form: parse textarea and reload form */
+        _activeTab = "form";
+        try {
+          var raw    = document.getElementById(_modalId + "JsonTextarea").value;
+          var parsed = JSON.parse(raw);
+          if (_jeInstance) { _jeInstance.setValue(parsed); }
+          _startval = parsed;
+        } catch (e) {
+          showToast("Invalid JSON — fix errors before switching tabs.", "error");
+        }
       }
     });
   });
 
+  /* ------------------------------------------------------------------ */
+  /* Save                                                                 */
+  /* ------------------------------------------------------------------ */
   document.getElementById(_modalId + "SaveBtn").addEventListener("click", function () {
+    var data;
     try {
-      var data = _editorCode.get();
-      fetch(_apiUrl, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attributes: JSON.stringify(data) })
-      })
-      .then(function (r) { return r.json(); })
-      .then(function (resp) {
-        if (resp.id !== undefined) {
-          showToast("Attributes saved successfully!", "success");
-          bootstrap.Modal.getInstance(document.getElementById(_modalId)).hide();
-          _currentData = data;
-        } else {
-          var msg = (resp.message && resp.message.json && resp.message.json.attributes && resp.message.json.attributes[0])
-                    || resp.message || "Save failed";
-          showToast("Error: " + msg, "error");
-        }
-      })
-      .catch(function (err) { showToast("Error: " + err, "error"); });
+      if (_activeTab === "json") {
+        data = JSON.parse(
+          document.getElementById(_modalId + "JsonTextarea").value
+        );
+      } else {
+        data = _jeInstance ? _jeInstance.getValue() : _startval;
+      }
     } catch (e) {
       alert("Invalid JSON — please fix errors before saving.");
+      return;
     }
+
+    fetch(_apiUrl, {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ attributes: JSON.stringify(data) })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (resp) {
+      if (resp.id !== undefined) {
+        showToast("Attributes saved successfully!", "success");
+        bootstrap.Modal.getInstance(document.getElementById(_modalId)).hide();
+        _startval = data;
+      } else {
+        var msg =
+          (resp.message && resp.message.json &&
+           resp.message.json.attributes &&
+           resp.message.json.attributes[0])
+          || resp.message || "Save failed";
+        showToast("Error: " + msg, "error");
+      }
+    })
+    .catch(function (err) { showToast("Error: " + err, "error"); });
   });
 }());
 </script>

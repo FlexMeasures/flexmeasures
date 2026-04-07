@@ -2068,52 +2068,17 @@ body.touched [title]:hover:after {
 }
 
 
-/* JSON editor — base */
-.jsoneditor {
-  border: 1px solid #dee2e6;
-  border-radius: 0.5rem;
+/* ---- JSON attributes editor (@json-editor/json-editor + Bootstrap 5) ---- */
+
+/* Plain-text JSON textarea (JSON tab) */
+.fm-json-textarea {
+  min-height: 420px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  resize: vertical;
 }
 
-/* Default menu: use FlexMeasures primary colour so white icons are readable */
-.jsoneditor-menu {
-  background-color: var(--primary-color, #1a3443);
-  border-bottom-color: var(--primary-border-color, #0d1f28);
-  border-radius: 0.5rem 0.5rem 0 0;
-}
-
-/* ---- Theme: dark ---- */
-.jse-theme-dark .jsoneditor {
-  border-color: #444;
-}
-.jse-theme-dark .jsoneditor-menu {
-  background-color: #1e1e1e;
-  border-bottom-color: #111;
-}
-.jse-theme-dark .jsoneditor-tree,
-.jse-theme-dark .jsoneditor-outer {
-  background-color: #252526;
-}
-.jse-theme-dark .jsoneditor-field,
-.jse-theme-dark .jsoneditor-value,
-.jse-theme-dark .jsoneditor-separator {
-  color: #d4d4d4;
-}
-.jse-theme-dark .jsoneditor-value.jsoneditor-string { color: #ce9178; }
-.jse-theme-dark .jsoneditor-value.jsoneditor-number { color: #b5cea8; }
-.jse-theme-dark .jsoneditor-value.jsoneditor-boolean { color: #569cd6; }
-.jse-theme-dark .jsoneditor-value.jsoneditor-null   { color: #569cd6; }
-.jse-theme-dark .jsoneditor-expand-collapse-btn,
-.jse-theme-dark .jsoneditor-contextmenu-button {
-  color: #d4d4d4;
-}
-.jse-theme-dark .jsoneditor-frame,
-.jse-theme-dark .jsoneditor-search {
-  background-color: #1e1e1e;
-  color: #d4d4d4;
-}
-
-/* ---- Theme: github ---- */
-.jse-theme-github .jsoneditor-menu {
-  background-color: #24292e;
-  border-bottom-color: #1b1f23;
+/* Keep the form editor from collapsing to zero height */
+.fm-je-container {
+  min-height: 200px;
 }

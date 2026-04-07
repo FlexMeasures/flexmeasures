@@ -199,6 +199,8 @@ FLEXMEASURES_JSONEDITOR_THEME
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Visual theme for the in-app JSON attributes editor (used on the sensor, asset and account pages).
+The editor is rendered by `@json-editor/json-editor <https://github.com/json-editor/json-editor>`_
+and the theme value is passed directly to that library.
 
 Available values:
 
@@ -207,16 +209,22 @@ Available values:
 
    * - Value
      - Appearance
-   * - ``"default"``
-     - Standard look: FlexMeasures primary colour for the menu bar, white editor body.
-   * - ``"dark"``
-     - Dark editor body (VS Code inspired) with a monokai-style Ace colour scheme for the JSON code view.
-   * - ``"github"``
-     - GitHub-style: dark header bar, otherwise light.
-   * - ``"tomorrow_night"``
-     - Tomorrow Night Ace theme for the JSON code view; dark menu bar.
+   * - ``"bootstrap5"``
+     - Bootstrap 5 styling (default; matches the rest of the FlexMeasures UI).
+   * - ``"bootstrap4"``
+     - Bootstrap 4 styling.
+   * - ``"bootstrap3"``
+     - Bootstrap 3 styling.
+   * - ``"tailwind"``
+     - Tailwind CSS styling.
+   * - ``"spectre"``
+     - Spectre CSS styling.
+   * - ``"barebones"``
+     - Minimal unstyled HTML.
+   * - ``"html"``
+     - Plain HTML elements only, no extra classes.
 
-Default: ``"default"``
+Default: ``"bootstrap5"``
 
 
 FLEXMEASURES_ROOT_VIEW
