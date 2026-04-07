@@ -920,11 +920,11 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
 
         parsed_sources = parse_source_arg(source)
         source_criteria = get_source_criteria(
-            cls,
-            user_source_ids,
-            source_account_ids,
-            source_types,
-            exclude_source_types,
+            cls=cls,
+            user_source_ids=user_source_ids,
+            source_account_ids=source_account_ids,
+            source_types=source_types,
+            exclude_source_types=exclude_source_types,
         )
         custom_join_targets = [] if parsed_sources else [DataSource]
 
