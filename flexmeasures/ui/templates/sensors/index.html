@@ -145,11 +145,10 @@ For the data, note the following:
                             </div>
                         </div>
                       {% endif %}
-                  </div>
 
-                  {% if user_can_create_children_sensor %}
-                      <div class="sidepanel-container">
-                          <div class="sidepanel-label">Forecast</div>
+                      {% if user_can_create_children_sensor %}
+                          <div class="sidepanel-container">
+                              <div class="sidepanel-label">Forecast</div>
                           <div class="sidepanel-content" style="text-align: left;">
                               <fieldset>
                                   <!-- Start input: hidden if no data on page load; JS reveals it when data arrives -->
@@ -197,6 +196,7 @@ For the data, note the following:
                           </div>
                       </div>
                   {% endif %}
+                  </div><!-- end .sidepanel -->
 
                   <div id="chart-type-picker" class="leftside-dropdown dropdown mt-3">
                       <button class="btn dropdown-toggle" type="button" id="chartTypeDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
