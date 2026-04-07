@@ -180,6 +180,8 @@
                     );
                     uploadSpinner.classList.add('d-none');
                     upload.classList.remove('d-none');
+                    // Reload the chart so newly-uploaded data is immediately visible
+                    document.dispatchEvent(new CustomEvent('sensorsToShowUpdated'));
                 } else {
                     const data = await response.json();
                     const messageKeys = Object.keys(data.message);
