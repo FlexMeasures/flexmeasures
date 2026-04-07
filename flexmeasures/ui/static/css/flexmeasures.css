@@ -2133,3 +2133,19 @@ body.touched [title]:hover:after {
 .fm-json-modal .modal-content {
   min-height: 70vh;
 }
+
+/* ---- Inline JSON panel (.je-modal) inside json-editor ---- *
+ * Clicking the 'Edit JSON' button opens a div.je-modal that contains       *
+ * a textarea and Save / Copy / Cancel buttons.  By default the panel       *
+ * is width-constrained which wraps the footer buttons onto a second row.   *
+ * Stretch it to the full container width; the textarea inherits that.      */
+.fm-je-container .je-modal {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+.fm-je-container .je-modal textarea {
+  width: 100% !important;
+  box-sizing: border-box;
+}
