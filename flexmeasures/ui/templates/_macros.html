@@ -247,7 +247,7 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
 #}
 {% macro json_attributes_editor_modal(api_url, initial_attributes, entity_name="", modal_id="jsonAttributesModal") %}
 {% set _theme = config.get("FLEXMEASURES_JSONEDITOR_THEME", "bootstrap5") %}
-<div class="modal fade" id="{{ modal_id }}" tabindex="-1">
+<div class="modal fade fm-json-modal" id="{{ modal_id }}" tabindex="-1">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">

@@ -2128,3 +2128,8 @@ body.touched [title]:hover:after {
   border-top-left-radius: var(--bs-btn-border-radius, 0.25rem) !important;
   border-bottom-left-radius: var(--bs-btn-border-radius, 0.25rem) !important;
 }
+
+/* ---- Edit Attributes modal: ensure generous initial height ---- */
+.fm-json-modal .modal-content {
+  min-height: 70vh;
+}
