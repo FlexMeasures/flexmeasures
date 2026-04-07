@@ -181,7 +181,7 @@
                     uploadSpinner.classList.add('d-none');
                     upload.classList.remove('d-none');
                     // Reload the chart so newly-uploaded data is immediately visible
-                    document.dispatchEvent(new CustomEvent('sensorsToShowUpdated'));
+                    document.dispatchEvent(new CustomEvent('newDataAvailable'));
                 } else {
                     const data = await response.json();
                     const messageKeys = Object.keys(data.message);
@@ -257,8 +257,8 @@
         }
     }, false);
 
-    // Sensors To Show Updated Listener
-    document.addEventListener('sensorsToShowUpdated', async function () {
+    // Sensors To Show Updated / New Data Available Listener
+    async function reloadChartData() {
         $("#spinner").show();
         let newData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
             method: "GET",
@@ -280,7 +280,9 @@
             end: sessionEnd,
             data: fetchedInitialData
         };
-    });
+    }
+    document.addEventListener('sensorsToShowUpdated', reloadChartData);
+    document.addEventListener('newDataAvailable', reloadChartData);
 
     {% if event_starts_after and event_ends_before %}
     $("#spinner").show();
