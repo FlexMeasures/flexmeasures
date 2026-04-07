@@ -13,7 +13,7 @@ from flask_login import current_user
 from flexmeasures.data.services.users import find_user_by_email
 
 
-EDITOR_BUTTON_MARKER = b"Edit attributes"
+EDITOR_BUTTON_MARKER = b"Open editor"
 EDITOR_MODAL_MARKER = b"jsonAttributesModal"
 
 
