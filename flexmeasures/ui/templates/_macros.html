@@ -307,6 +307,50 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
   var _activeTab  = "form"; /* "form" | "json"                          */
 
   /* ------------------------------------------------------------------ */
+  /* Patch @json-editor/json-editor: insert array copy at index+1        */
+  /* The library's default appends the clone at the END of the array;    */
+  /* we replace createCopyButton so it splices at index+1 instead.       */
+  /* The guard flag ensures the patch is only applied once even when      */
+  /* multiple modals are present on the same page.                        */
+  /* ------------------------------------------------------------------ */
+  (function patchArrayCopy() {
+    var ae = JSONEditor &&
+             JSONEditor.defaults &&
+             JSONEditor.defaults.editors &&
+             JSONEditor.defaults.editors.array;
+    if (!ae || !ae.prototype ||
+        typeof ae.prototype.createCopyButton !== "function") { return; }
+    if (ae.prototype._fmCopyPatched) { return; }
+    ae.prototype._fmCopyPatched = true;
+
+    ae.prototype.createCopyButton = function (rowIndex, rowEditor) {
+      var self   = this;
+      var btn    = this.getButton(
+        this.getItemTitle(), "copy", "button_copy_row_title", [this.getItemTitle()]
+      );
+      btn.classList.add("copy", "json-editor-btntype-copy");
+      btn.setAttribute("data-i", rowIndex);
+
+      btn.addEventListener("click", function (evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        var idx  = 1 * evt.currentTarget.getAttribute("data-i");
+        var vals = self.getValue();
+        /* Deep-clone the item at idx, then insert right after it */
+        var copy = JSON.parse(JSON.stringify(vals[idx]));
+        vals.splice(idx + 1, 0, copy);
+        self.setValue(vals);
+        self.refreshValue(true);
+        self.onChange(true);
+        self.jsoneditor.trigger("copyRow", self.rows[idx]);
+      });
+
+      rowEditor.appendChild(btn);
+      return btn;
+    };
+  }());
+
+  /* ------------------------------------------------------------------ */
   /* Initialise on first modal open                                       */
   /* ------------------------------------------------------------------ */
   document.getElementById(_modalId).addEventListener("shown.bs.modal", function () {
