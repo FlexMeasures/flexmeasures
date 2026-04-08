@@ -306,49 +306,6 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
   var _jeInstance = null;   /* @json-editor/json-editor instance        */
   var _activeTab  = "form"; /* "form" | "json"                          */
 
-  /* ------------------------------------------------------------------ */
-  /* Patch @json-editor/json-editor: insert array copy at index+1        */
-  /* The library's default appends the clone at the END of the array;    */
-  /* we replace createCopyButton so it splices at index+1 instead.       */
-  /* The guard flag ensures the patch is only applied once even when      */
-  /* multiple modals are present on the same page.                        */
-  /* ------------------------------------------------------------------ */
-  (function patchArrayCopy() {
-    var ae = JSONEditor &&
-             JSONEditor.defaults &&
-             JSONEditor.defaults.editors &&
-             JSONEditor.defaults.editors.array;
-    if (!ae || !ae.prototype ||
-        typeof ae.prototype.createCopyButton !== "function") { return; }
-    if (ae.prototype._fmCopyPatched) { return; }
-    ae.prototype._fmCopyPatched = true;
-
-    ae.prototype.createCopyButton = function (rowIndex, rowEditor) {
-      var self   = this;
-      var btn    = this.getButton(
-        this.getItemTitle(), "copy", "button_copy_row_title", [this.getItemTitle()]
-      );
-      btn.classList.add("copy", "json-editor-btntype-copy");
-      btn.setAttribute("data-i", rowIndex);
-
-      btn.addEventListener("click", function (evt) {
-        evt.preventDefault();
-        evt.stopPropagation();
-        var idx  = 1 * evt.currentTarget.getAttribute("data-i");
-        var vals = self.getValue();
-        /* Deep-clone the item at idx, then insert right after it */
-        var copy = JSON.parse(JSON.stringify(vals[idx]));
-        vals.splice(idx + 1, 0, copy);
-        self.setValue(vals);
-        self.refreshValue(true);
-        self.onChange(true);
-        self.jsoneditor.trigger("copyRow", self.rows[idx]);
-      });
-
-      rowEditor.appendChild(btn);
-      return btn;
-    };
-  }());
 
   /* ------------------------------------------------------------------ */
   /* Initialise on first modal open                                       */
@@ -413,6 +370,44 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
         );
       }
     });
+
+    /* Fix array copy: insert clone at index+1 instead of appending at end.
+     *
+     * The library's _createCopyButton handler has two bugs:
+     *   1. It appends the copy at the END of the array (e.push) instead of
+     *      inserting it after the source row.
+     *   2. It accesses schema.items.type without a null-guard, crashing when
+     *      items is undefined (arrays from additionalProperties: {}).
+     *
+     * Fix: register a capture-phase listener on the editor container.
+     * Capture fires BEFORE the button's own listener (bubble phase), so
+     * stopPropagation() here prevents the broken handler from running at all.
+     * Each editor container has data-schemapath set by json-editor; we use
+     * getEditor(path) to retrieve the array editor instance and splice. */
+    _editorEl.addEventListener("click", function (evt) {
+      var btn = evt.target.closest(".json-editor-btntype-copy");
+      if (!btn) { return; }
+      evt.preventDefault();
+      evt.stopPropagation();   /* block the library's own broken handler   */
+
+      var idx           = parseInt(btn.getAttribute("data-i"), 10);
+      var arrayContainer = btn.closest("[data-schemapath]");
+      if (!arrayContainer) { return; }
+
+      var arrayEditor = _jeInstance.getEditor(
+        arrayContainer.getAttribute("data-schemapath")
+      );
+      if (!arrayEditor) { return; }
+
+      var vals = arrayEditor.getValue();
+      if (!Array.isArray(vals)) { return; }
+
+      var copy = JSON.parse(JSON.stringify(vals[idx]));
+      vals.splice(idx + 1, 0, copy);
+      arrayEditor.setValue(vals);
+      if (arrayEditor.refreshValue) { arrayEditor.refreshValue(true); }
+      if (arrayEditor.onChange)     { arrayEditor.onChange(true); }
+    }, true /* capture phase */);
   }  /* end _initForm */
 
   /* ------------------------------------------------------------------ */
