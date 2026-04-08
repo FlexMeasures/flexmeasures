@@ -2140,8 +2140,8 @@ body.touched [title]:hover:after {
  * is width-constrained which wraps the footer buttons onto a second row.   *
  * Stretch it to the full container width; the textarea inherits that.      */
 .fm-je-container .je-modal {
-  width: 100% !important;
-  max-width: 100% !important;
+  width: 150% !important;
+  max-width: 150% !important;
   box-sizing: border-box;
 }
 
