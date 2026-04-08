@@ -19,10 +19,8 @@ from flexmeasures.data.queries.sensors import (
     query_sensor_by_name_and_generic_asset_type_name,
 )
 from flexmeasures.utils.time_utils import as_server_time
-from flexmeasures.data.services.forecasting import (
-    create_forecasting_jobs,
-    handle_forecasting_exception,
-)
+from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+from flexmeasures.data.services.forecasting import handle_forecasting_exception
 
 """
 These functions are meant for FlexMeasures developers to manually test some internal 
@@ -35,7 +33,7 @@ They are not registered as app command per default, as we don't need to show the
 # @app.cli.command()
 def test_making_forecasts():
     """
-    Manual test to enqueue and process a forecasting job via redis queue
+    Manual test to enqueue and process a fixed-viewpoint forecasting job via redis queue.
     """
 
     click.echo("Manual forecasting job queuing started ...")
@@ -54,11 +52,21 @@ def test_making_forecasts():
     forecast_filter.delete()
     click.echo("Forecasts found before : %d" % forecast_filter.count())
 
-    create_forecasting_jobs(
-        sensor_id=sensor_id,
-        horizons=[timedelta(hours=6)],
-        start_of_roll=as_server_time(datetime(2015, 4, 1)),
-        end_of_roll=as_server_time(datetime(2015, 4, 3)),
+    pipeline = TrainPredictPipeline(
+        config={
+            "train-start": "2015-03-01T00:00:00+00:00",
+            "retrain-frequency": "PT24H",
+        }
+    )
+    pipeline.compute(
+        as_job=True,
+        parameters={
+            "sensor": sensor_id,
+            "start": as_server_time(datetime(2015, 4, 1)).isoformat(),
+            "end": as_server_time(datetime(2015, 4, 3)).isoformat(),
+            "max-forecast-horizon": "PT6H",
+            "forecast-frequency": "PT24H",
+        },
     )
 
     click.echo("Queue before working: %s" % app.queues["forecasting"].jobs)
@@ -73,8 +81,7 @@ def test_making_forecasts():
     click.echo("Queue after working: %s" % app.queues["forecasting"].jobs)
 
     click.echo(
-        "Forecasts found after (should be 24 * 2 * 4 = 192): %d"
-        % forecast_filter.count()
+        "Forecasts found after processing the queue: %d" % forecast_filter.count()
     )
 
 

@@ -12,8 +12,8 @@ from flexmeasures.api.common.schemas.sensor_data import (
     PostSensorDataSchema,
     GetSensorDataSchema,
 )
+from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.data.services.sensors import (
     get_stalenesses,
@@ -434,15 +434,6 @@ def test_asset_sensors_metadata(
     ]
 
 
-def custom_model_params():
-    """little training as we have little data, turn off transformations until they let this test run (TODO)"""
-    return dict(
-        training_and_testing_period=timedelta(hours=2),
-        outcome_var_transformation=None,
-        regressor_transformation={},
-    )
-
-
 def test_build_asset_jobs_data(db, app, add_battery_assets):
     """Check that we get both types of jobs for a battery asset."""
     battery_asset = add_battery_assets["Test battery"]
@@ -457,24 +448,40 @@ def test_build_asset_jobs_data(db, app, add_battery_assets):
         belief_time=start,
         resolution=timedelta(minutes=15),
     )
-    forecasting_jobs = create_forecasting_jobs(
-        start_of_roll=as_server_time(datetime(2015, 1, 1, 6)),
-        end_of_roll=as_server_time(datetime(2015, 1, 1, 7)),
-        horizons=[timedelta(hours=1)],
-        sensor_id=battery.id,
-        custom_model_params=custom_model_params(),
+    pipeline = TrainPredictPipeline(
+        config={
+            "train-start": "2015-01-01T00:00:00+00:00",
+            "retrain-frequency": "PT1H",
+        }
     )
+    pipeline_returns = pipeline.compute(
+        as_job=True,
+        parameters={
+            "sensor": battery.id,
+            "start": as_server_time(datetime(2015, 1, 1, 6)).isoformat(),
+            "end": as_server_time(datetime(2015, 1, 1, 7)).isoformat(),
+            "max-forecast-horizon": "PT1H",
+            "forecast-frequency": "PT1H",
+        },
+    )
+    forecasting_job = app.queues["forecasting"].fetch_job(pipeline_returns["job_id"])
 
     jobs_data = build_asset_jobs_data(battery_asset)
-    assert sorted([j["queue"] for j in jobs_data]) == ["forecasting", "scheduling"]
+    forecasting_jobs_data = [j for j in jobs_data if j["queue"] == "forecasting"]
+    scheduling_jobs_data = [j for j in jobs_data if j["queue"] == "scheduling"]
+    assert len(forecasting_jobs_data) == 1
+    assert scheduling_jobs_data
+    scheduling_job_ids = set()
     for job_data in jobs_data:
         metadata = json.loads(job_data["metadata"])
         if job_data["queue"] == "forecasting":
-            assert metadata["job_id"] == forecasting_jobs[0].id
+            assert metadata["job_id"] == forecasting_job.id
+            assert job_data["entity"] == f"sensor: {battery.name} (Id: {battery.id})"
         else:
-            assert metadata["job_id"] == scheduling_job.id
+            scheduling_job_ids.add(metadata["job_id"])
         assert job_data["status"] == "queued"
-        assert job_data["entity"] == f"sensor: {battery.name} (Id: {battery.id})"
+
+    assert scheduling_job.id in scheduling_job_ids
 
     # Clean up queues
     app.queues["scheduling"].empty()
