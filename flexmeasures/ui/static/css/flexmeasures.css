@@ -2119,14 +2119,14 @@ body.touched [title]:hover:after {
 
 /* Last button in a group that contains a .je-modal sibling: restore right radius */
 .fm-je-container .btn-group:has(> div.je-modal) > button:last-of-type {
-  border-top-right-radius: var(--bs-btn-border-radius, 0.25rem) !important;
-  border-bottom-right-radius: var(--bs-btn-border-radius, 0.25rem) !important;
+  border-top-right-radius: 6px !important;
+  border-bottom-right-radius: 6px !important;
 }
 
 /* Button immediately following a .je-modal div: restore left radius */
 .fm-je-container .btn-group > div.je-modal + button {
-  border-top-left-radius: var(--bs-btn-border-radius, 0.25rem) !important;
-  border-bottom-left-radius: var(--bs-btn-border-radius, 0.25rem) !important;
+  border-top-left-radius: 6px !important;
+  border-bottom-left-radius: 6px !important;
 }
 
 /* ---- Edit Attributes modal: ensure generous initial height ---- */
