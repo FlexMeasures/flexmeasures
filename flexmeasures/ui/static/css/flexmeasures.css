@@ -2100,6 +2100,12 @@ body.touched [title]:hover:after {
   background-repeat: no-repeat;
 }
 
+/* Type-switcher dropdown: give enough right-padding so the selected text
+ * does not slide under the native dropdown arrow (which sits at ~40 px). */
+.fm-je-container .je-switcher {
+  padding: 0px 50px 0px 3px;
+}
+
 .fm-je-container .form-control.is-valid,
 .fm-je-container .was-validated .form-control:valid {
   border-color: var(--bs-border-color);
