@@ -329,6 +329,7 @@ def test_inflexible_device_sensors_priority(
     fresh_db,
     add_market_prices_fresh_db,
     add_battery_assets_fresh_db,
+    setup_fresh_test_forecast_data,
     battery_soc_sensor_fresh_db,
     add_charging_station_assets_fresh_db,
     keep_scheduling_queue_empty,
@@ -346,6 +347,9 @@ def test_inflexible_device_sensors_priority(
         "consumption-price": {"sensor": price_sensor_id},
         "production-price": {"sensor": price_sensor_id},
         "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
+        "curtailable-device-sensors": [
+            setup_fresh_test_forecast_data["solar-sensor"].id
+        ],
     }
     if context_sensor_num:
         other_asset = add_battery_assets_fresh_db["Test small battery"]
