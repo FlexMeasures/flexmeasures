@@ -142,6 +142,10 @@
                   {% endif %}
                 </div>
 
+                <div class="form-group pt-3">
+                  {{ json_attributes_editor_button(label="Open editor", field_label=attributes_label, field_description=attributes_description) }}
+                </div>
+
                 <button
                   class="btn btn-sm btn-responsive btn-success create-button"
                   type="submit"
@@ -154,9 +158,6 @@
                 >
                   Save
                 </button>
-                <div style="clear: both; padding-top: 60px;">
-                  {{ json_attributes_editor_button(label="Open editor", field_label=attributes_label, field_description=attributes_description) }}
-                </div>
               </div>
             </fieldset>
           </form>
