@@ -40,8 +40,6 @@ jobs:
         run:
           echo "SQLALCHEMY_DATABASE_URI=postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test"
           >> .env
-      - name: Debug .env file
-        run: cat .env
       - name: Keep running flexmeasures container in background
         run: docker run -t -d --env-file .env --network=host --name fm-container flexmeasures:latest
       - name: Execute database upgrade
