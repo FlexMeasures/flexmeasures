@@ -390,17 +390,29 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
       evt.preventDefault();
       evt.stopPropagation();   /* block the library's own broken handler   */
 
-      var idx           = parseInt(btn.getAttribute("data-i"), 10);
-      var arrayContainer = btn.closest("[data-schemapath]");
-      if (!arrayContainer) { return; }
+      var idx = parseInt(btn.getAttribute("data-i"), 10);
 
-      var arrayEditor = _jeInstance.getEditor(
-        arrayContainer.getAttribute("data-schemapath")
-      );
+      /* Walk up the DOM from the button to find the nearest ancestor whose
+       * editor returns an Array value — that is the array editor we need.
+       * btn.closest("[data-schemapath]") alone is not sufficient because the
+       * first match is the *item* editor container (e.g. root.tags.0), not
+       * the array editor container (e.g. root.tags). */
+      var arrayEditor = null;
+      var el = btn;
+      while (el && el !== _editorEl) {
+        el = el.parentElement;
+        if (!el || !el.getAttribute) { continue; }
+        var sp = el.getAttribute("data-schemapath");
+        if (!sp) { continue; }
+        var ed = _jeInstance.getEditor(sp);
+        if (ed && Array.isArray(ed.getValue())) {
+          arrayEditor = ed;
+          break;
+        }
+      }
       if (!arrayEditor) { return; }
 
       var vals = arrayEditor.getValue();
-      if (!Array.isArray(vals)) { return; }
 
       var copy = JSON.parse(JSON.stringify(vals[idx]));
       vals.splice(idx + 1, 0, copy);
