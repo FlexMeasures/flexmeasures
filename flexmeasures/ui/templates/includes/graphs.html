@@ -282,6 +282,7 @@
     }
     document.addEventListener('sensorsToShowUpdated', reloadChartData);
     document.addEventListener('newDataAvailable', reloadChartData);
+    document.addEventListener('dataDeleted', reloadChartData);
 
     {% if event_starts_after and event_ends_before %}
     $("#spinner").show();
