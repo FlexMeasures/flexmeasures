@@ -854,19 +854,6 @@ def _build_layers(
     if not layers:
         return layers
 
-    # Invisible full-height rect at every data point: acts as the hover hit-area
-    # so that the tooltip appears whenever the cursor is anywhere in the chart
-    # column above a data point, not only when hovering exactly on a circle mark.
-    # Added unconditionally (single- and multi-sensor rows alike).
-    if all_row_sensors:
-        layers.append(
-            create_rect_layer(
-                event_start_field_definition,
-                event_value_field_definition,
-                shared_tooltip,
-            )
-        )
-
     if all_row_sensors:
         layers.append(
             create_hover_ruler_layer(
@@ -888,6 +875,21 @@ def _build_layers(
 
     layers.append(REPLAY_RULER)
 
+    # Invisible full-height rect at every data point: acts as the hover hit-area
+    # so that the tooltip appears whenever the cursor is anywhere in the chart
+    # column above a data point, not only when hovering exactly on a circle mark.
+    # Added unconditionally (single- and multi-sensor rows alike).
+    # The rect layer is added last so it is the topmost layer.
+    # Placing it on top prevents contents in other layers (which may have opacity=0 but still capture mouse events)
+    # from silently consuming events before the rect can handle them.
+    if all_row_sensors:
+        layers.append(
+            create_rect_layer(
+                event_start_field_definition,
+                event_value_field_definition,
+                shared_tooltip,
+            )
+        )
     return layers
 
 
