@@ -133,7 +133,7 @@ def create_bar_chart_or_histogram_specs(
                 },
                 "transform": [
                     {
-                        "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
+                        "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
                         "as": "source_name_and_id",
                     },
                 ],
@@ -350,7 +350,7 @@ def heatmap(
                         "filter": "timezoneoffset(datum.event_start) >= timezoneoffset(datum.event_start + 60 * 60 * 1000) && timezoneoffset(datum.event_start) <= timezoneoffset(datum.event_start - 60 * 60 * 1000)"
                     },
                     {
-                        "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
+                        "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
                         "as": "source_name_and_id",
                     },
                     # In case of multiple sources, show the one with the most visible data
@@ -485,7 +485,7 @@ def create_fall_dst_transition_layer(
                 "as": "dst_transition_event_start_next",
             },
             {
-                "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
+                "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
                 "as": "source_name_and_id",
             },
         ],
@@ -640,7 +640,7 @@ def _build_chart_specs(
         vconcat=[*sensors_specs],
         transform=[
             {
-                "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
+                "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
                 "as": "source_name_and_id",
             },
         ],
