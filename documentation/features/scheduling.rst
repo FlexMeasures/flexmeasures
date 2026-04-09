@@ -317,6 +317,46 @@ You can add new shiftable-process schedules with the CLI command ``flexmeasures 
 .. note:: Currently, the ``ProcessScheduler`` uses only the ``consumption-price`` field of the flex-context, so it ignores any site capacities and inflexible devices.
 
 
+The schedule
+------------
+
+A schedule produced by FlexMeasures is a series of power values for each flexible device (represented by its power sensor), covering the scheduling window at the scheduling resolution.
+
+Besides the power values themselves, FlexMeasures also returns additional scheduling metadata in a ``scheduling_result`` field.  This field is populated when the device has a ``state-of-charge`` sensor configured (via the ``state-of-charge`` field in the flex model).
+
+**Unresolved targets** (``unresolved_targets``)
+
+The ``unresolved_targets`` field lists soft SoC constraints (``soc-minima`` and/or ``soc-maxima``) that could *not* be satisfied, keyed by state-of-charge sensor ID.  For each violated constraint type, it reports:
+
+- ``"datetime"``: the ISO 8601 UTC timestamp of the first violation.
+- ``"unmet"``: the magnitude of the violation in kWh (always positive).
+  For ``soc-minima`` this is the shortage (SoC fell short by this amount);
+  for ``soc-maxima`` this is the excess (SoC exceeded the target by this amount).
+
+An empty ``{}`` means all constraints of that type were satisfied (or none were defined).
+
+*Example use case*: for EV charging, if the battery could not be fully charged for a planned trip, the ``unresolved_targets`` field will report how much charge is missing.  The fleet operator can then plan to use public charge points to make up the difference.
+
+**Resolved targets** (``resolved_targets``)
+
+The ``resolved_targets`` field lists soft SoC constraints that *were* satisfied, keyed by state-of-charge sensor ID.  For each met constraint type, it reports the tightest (smallest-margin) slot:
+
+- ``"datetime"``: the ISO 8601 UTC timestamp of the tightest constraint slot.
+- ``"margin"``: the headroom available at that slot in kWh (always positive).
+  For ``soc-minima`` this is how far above the minimum the SoC was;
+  for ``soc-maxima`` this is how far below the maximum the SoC was.
+
+An empty ``{}`` means no constraints of that type were defined.
+
+.. note:: Setting a ``state-of-charge`` sensor on the device is required to populate
+          ``unresolved_targets`` and ``resolved_targets``.  Configure it via the
+          ``state-of-charge`` field in the device's flex model, e.g.
+          ``"state-of-charge": {"sensor": <sensor_id>}``.  See the flex-model
+          documentation for the StorageScheduler for details.
+
+For full technical details of the response schema, refer to the API endpoint documentation for ``GET /sensors/<id>/schedules/<uuid>``.
+
+
 Work on other schedulers
 --------------------------
 
