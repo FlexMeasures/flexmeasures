@@ -627,7 +627,7 @@ def _create_temp_sensor_layers(
                             {"param": "hover_nearest_brush", "empty": False},
                         ]
                     },
-                    "value": 100,
+                    "value": 200,
                 },
                 "value": 0,
             },
