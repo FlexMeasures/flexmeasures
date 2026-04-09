@@ -904,7 +904,17 @@ class MultiSensorFlexModelSchema(Schema):
             and data["sensor"].asset != data["asset"]
         ):
             raise ValidationError("Sensor does not belong to asset.")
-        if "sensor" not in data and "asset" not in data:
+        # if (
+        #     "state-of-charge" in data["sensor_flex_model"]
+        #     and "asset" in data
+        #     and data["sensor_flex_model"]["state-of-charge"].asset != data["asset"]
+        # ):
+        #     raise ValidationError("Sensor does not belong to asset.")
+        if (
+            "sensor" not in data
+            and "state-of-charge" not in data["sensor_flex_model"]
+            and "asset" not in data
+        ):
             raise ValidationError("Specify either a sensor or an asset.")
 
     @pre_load

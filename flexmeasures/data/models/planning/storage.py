@@ -94,13 +94,88 @@ class MetaStorageScheduler(Scheduler):
         resolution = self.resolution
         belief_time = self.belief_time
 
+        # For backwards compatibility with the single asset scheduler
+        flex_model = self.flex_model.copy()
+        if not isinstance(flex_model, list):
+            flex_model = [flex_model]
+
+        # Identify stock models: entries not defining a power sensor, but only a (state-of-charge) sensor
+        self.stock_models = {}
+
+        device_models = []  # everything except stock models
+        stock_models = {}  # stock models only
+
+        missing_soc_sensor_i = -len(flex_model)
+        for fm in flex_model:
+
+            # stock model: entry in the flex-model list where the sensor key is the state-of-charge sensor of the device (e.g. a stock)
+            if fm.get("sensor") is None and (soc_sensor := fm.get("state_of_charge")):
+                stock_models[
+                    soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
+                ] = fm
+                continue
+
+            """
+            [
+              {
+                "sensor": 1,
+                "charging-efficiency": 0.9,
+                "state-of-charge": {"sensor": 2},
+              },
+              {
+                "sensor": 3,
+                "charging-efficiency": 0.9,
+                "state-of-charge": {"sensor": 2},
+              },
+              {
+                "state-of-charge": {"sensor": 2},
+                "storage-efficiency": 0.99,
+              },
+            ]
+            """
+
+            # Check if this is a stock-only model (no power sensor)
+            # Stock-only entries have SOC parameters but no power sensor
+            soc_sensor = fm.get("state_of_charge")
+            if fm.get("sensor") is None and soc_sensor is not None:
+                # This is a stock-only entry, add to stock_models only
+                soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
+                stock_models[soc_id] = fm
+                continue
+
+            # device model: entry in the flex-model list where the sensor key is the power sensor of the device (e.g. a feeder)
+            device_models.append(fm)
+
+            # If this device has state-of-charge parameters (soc-at-start, soc-min, etc.),
+            # also create a stock model entry so those parameters are properly captured
+            if soc_sensor is not None:
+                soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
+                # Check if there are SOC parameters in this device entry
+                has_soc_params = any(
+                    param in fm
+                    for param in ["soc_at_start", "soc_min", "soc_max", "soc_targets"]
+                )
+                if has_soc_params:
+                    stock_models[soc_id] = fm
+            elif fm.get("state_of_charge") is None:
+                stock_models[missing_soc_sensor_i] = fm
+                missing_soc_sensor_i += 1
+
+        flex_model = device_models
+        self.stock_models = stock_models
+        self._device_models = (
+            device_models  # Store filtered model for later use in _build_soc_schedule
+        )
+
+        # Rebuild stock_groups using only device_models (which have sensors)
+        # This ensures the mapping aligns with the device indices
+        self.stock_groups = self._build_stock_groups(device_models)
+
         # List the asset(s) and sensor(s) being scheduled
         if self.asset is not None:
             if not isinstance(self.flex_model, list):
                 self.flex_model = [self.flex_model]
-            sensors: list[Sensor | None] = [
-                flex_model_d.get("sensor") for flex_model_d in self.flex_model
-            ]
+            sensors: list[Sensor | None] = [fm.get("sensor") for fm in device_models]
             assets: list[Asset | None] = [  # noqa: F841
                 s.asset if s is not None else flex_model_d.get("asset")
                 for s, flex_model_d in zip(sensors, self.flex_model)
@@ -118,31 +193,44 @@ class MetaStorageScheduler(Scheduler):
             asset = self.sensor.generic_asset
             assets = [asset]  # noqa: F841
 
-        # For backwards compatibility with the single asset scheduler
-        flex_model = self.flex_model.copy()
-        if not isinstance(flex_model, list):
-            flex_model = [flex_model]
+        num_flexible_devices = len(device_models)
 
-        # total number of flexible devices D described in the flex-model
-        num_flexible_devices = len(flex_model)
+        soc_at_start = [None] * num_flexible_devices
+        soc_targets = [None] * num_flexible_devices
+        soc_min = [None] * num_flexible_devices
+        soc_max = [None] * num_flexible_devices
+        soc_minima = [None] * num_flexible_devices
+        soc_maxima = [None] * num_flexible_devices
+        soc_gain = [None] * num_flexible_devices
+        soc_usage = [None] * num_flexible_devices
+        prefer_charging_sooner = [None] * num_flexible_devices
+        prefer_curtailing_later = [None] * num_flexible_devices
 
-        soc_at_start = [flex_model_d.get("soc_at_start") for flex_model_d in flex_model]
-        soc_targets = [flex_model_d.get("soc_targets") for flex_model_d in flex_model]
-        soc_min = [flex_model_d.get("soc_min") for flex_model_d in flex_model]
-        soc_max = [flex_model_d.get("soc_max") for flex_model_d in flex_model]
-        soc_minima = [flex_model_d.get("soc_minima") for flex_model_d in flex_model]
-        soc_maxima = [flex_model_d.get("soc_maxima") for flex_model_d in flex_model]
+        # Assign SOC constraints from stock model to the first device in each group
+        for stock_id, devices in self.stock_groups.items():
+
+            stock_model = self.stock_models.get(stock_id)
+
+            if stock_model is None:
+                continue
+
+            d0 = devices[0]
+
+            soc_at_start[d0] = stock_model.get("soc_at_start")
+            soc_targets[d0] = stock_model.get("soc_targets")
+            soc_min[d0] = stock_model.get("soc_min")
+            soc_max[d0] = stock_model.get("soc_max")
+            soc_minima[d0] = stock_model.get("soc_minima")
+            soc_maxima[d0] = stock_model.get("soc_maxima")
+            soc_gain[d0] = stock_model.get("soc_gain")
+            soc_usage[d0] = stock_model.get("soc_usage")
+            prefer_charging_sooner[d0] = stock_model.get("prefer_charging_sooner")
+            prefer_curtailing_later[d0] = stock_model.get("prefer_curtailing_later")
+
+        # todo: move storage-efficiency into a shared parameter for the first device belonging to a shared storage
         storage_efficiency = [
             flex_model_d.get("storage_efficiency") for flex_model_d in flex_model
         ]
-        prefer_charging_sooner = [
-            flex_model_d.get("prefer_charging_sooner") for flex_model_d in flex_model
-        ]
-        prefer_curtailing_later = [
-            flex_model_d.get("prefer_curtailing_later") for flex_model_d in flex_model
-        ]
-        soc_gain = [flex_model_d.get("soc_gain") for flex_model_d in flex_model]
-        soc_usage = [flex_model_d.get("soc_usage") for flex_model_d in flex_model]
         consumption_capacity = [
             flex_model_d.get("consumption_capacity") for flex_model_d in flex_model
         ]
@@ -269,6 +357,10 @@ class MetaStorageScheduler(Scheduler):
             / pd.Timedelta("1h")
         )
 
+        ems_constraints = initialize_df(
+            StorageScheduler.COLUMNS, start, end, resolution
+        )
+
         # Set up commitments DataFrame
         for d, flex_model_d in enumerate(flex_model):
             commodity = flex_model_d.get("commodity", "electricity")
@@ -383,9 +475,6 @@ class MetaStorageScheduler(Scheduler):
                 "ems_production_breach_price"
             )
 
-            ems_constraints = initialize_df(
-                StorageScheduler.COLUMNS, start, end, resolution
-            )
             if ems_consumption_breach_price is not None:
 
                 # Convert to Series
@@ -505,6 +594,11 @@ class MetaStorageScheduler(Scheduler):
         for d, (prefer_charging_sooner_d, prefer_curtailing_later_d) in enumerate(
             zip(prefer_charging_sooner, prefer_curtailing_later)
         ):
+            soc_max_d = soc_max[d]
+            soc_at_start_d = soc_at_start[d]
+
+            if soc_max_d is None or soc_at_start_d is None:
+                continue
             if prefer_charging_sooner_d:
                 tiny_price_slope = (
                     add_tiny_price_slope(
@@ -543,6 +637,21 @@ class MetaStorageScheduler(Scheduler):
                     sensor=inflexible_sensor,
                 )
             )
+
+        # # --- apply shared stock groups
+        # if hasattr(self, "stock_groups") and self.stock_groups:
+        #     for stock_id, devices in self.stock_groups.items():
+        #
+        #         if len(devices) <= 1:
+        #             continue
+        #
+        #         # combine stock delta
+        #         combined_delta = sum(
+        #             device_constraints[d]["stock delta"] for d in devices
+        #         )
+        #
+        #         for d in devices:
+        #             device_constraints[d]["stock delta"] = combined_delta
 
         # Create the device constraints for all the flexible devices
         for d in range(num_flexible_devices):
@@ -709,7 +818,15 @@ class MetaStorageScheduler(Scheduler):
                 # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
                 soc_maxima[d] = None
 
-            if soc_at_start[d] is not None:
+            # only apply SOC constraints to the first device of a shared stock
+            apply_soc_constraints = True
+
+            for stock_id, devices in self.stock_groups.items():
+                if d in devices and d != devices[0]:
+                    apply_soc_constraints = False
+                    break
+
+            if soc_at_start[d] is not None and apply_soc_constraints:
                 device_constraints[d] = add_storage_constraints(
                     start,
                     end,
@@ -992,6 +1109,40 @@ class MetaStorageScheduler(Scheduler):
                         + message
                     )
 
+        # --- apply shared stock groups
+        # Store original stock_delta values for use in _build_soc_schedule
+        original_stock_deltas = [
+            device_constraints[d]["stock delta"].copy()
+            for d in range(len(device_constraints))
+        ]
+
+        if hasattr(self, "stock_groups") and self.stock_groups:
+            for stock_id, devices in self.stock_groups.items():
+
+                if len(devices) <= 1:
+                    continue
+
+                d0 = devices[0]
+
+                # Combine all stock_deltas on the primary device
+                # This ensures the optimizer sees a single shared stock
+                combined_delta = sum(
+                    device_constraints[d]["stock delta"] for d in devices
+                )
+                device_constraints[d0]["stock delta"] = combined_delta
+
+                # Secondary devices: zero out stock_delta (it's now in primary) but keep power contribution
+                for d in devices[1:]:
+                    # Zero out stock_delta since it's now in primary device's combined_delta
+                    device_constraints[d]["stock delta"] = 0
+
+                    # disable stock bounds for secondary devices
+                    device_constraints[d]["equals"] = np.nan
+                    device_constraints[d]["min"] = np.nan
+                    device_constraints[d]["max"] = np.nan
+
+        # Store original stock_deltas for use in _build_soc_schedule
+        self.original_stock_deltas = original_stock_deltas
         return (
             sensors,
             start,
@@ -1109,9 +1260,21 @@ class MetaStorageScheduler(Scheduler):
                 self.flex_model
             )
             for d, sensor_flex_model in enumerate(self.flex_model):
+                soc_sensor_id = (
+                    sensor_flex_model["sensor_flex_model"]
+                    .get("state-of-charge", {})
+                    .get("sensor", None)
+                )
+                soc_sensor = None
+                if soc_sensor_id is not None:
+                    soc_sensor = Sensor.query.filter_by(id=soc_sensor_id).first()
                 self.flex_model[d] = StorageFlexModelSchema(
                     start=self.start,
-                    sensor=sensor_flex_model.get("sensor"),
+                    sensor=(
+                        sensor_flex_model.get("sensor")
+                        if sensor_flex_model.get("sensor") is not None
+                        else soc_sensor
+                    ),
                     default_soc_unit=sensor_flex_model["sensor_flex_model"].get(
                         "soc-unit"
                     ),
@@ -1124,6 +1287,7 @@ class MetaStorageScheduler(Scheduler):
                     soc_targets=self.flex_model[d].get("soc_targets"),
                     sensor=self.flex_model[d]["sensor"],
                 )
+            self.stock_groups = self._build_stock_groups(self.flex_model)
 
         else:
             raise TypeError(
@@ -1374,62 +1538,117 @@ class StorageScheduler(MetaStorageScheduler):
     @staticmethod
     def _build_soc_schedule(
         flex_model: list[dict],
-        ems_schedule: pd.DataFrame,
+        ems_schedule: list[pd.Series],
         soc_at_start: list[float],
         device_constraints: list,
         resolution: timedelta,
+        stock_groups: dict[int, list[int]],
     ) -> dict:
-        """Build the state-of-charge schedule for each device that has a state-of-charge sensor.
+        """Build the state-of-charge schedule for each stock group.
 
-        Converts the integrated power schedule from MWh to the sensor's unit.
-        For sensors with a '%' unit, the soc-max flex-model field is used as capacity.
-        If soc-max is missing or zero for a '%' sensor, the schedule is skipped with a warning.
+        Supports both:
+        - original logic: one device per stock group
+        - local/shared-stock logic: multiple devices contribute to one shared stock
 
-        Note: soc-max is a QuantityField (not a VariableQuantityField), so it is always a float
-        after deserialization and cannot be a sensor reference. The isinstance guard below is
-        therefore a defensive check for forward-compatibility.
+        For shared stock groups, each device contribution is integrated separately with
+        its own efficiencies and stock delta, then summed on top of the shared initial stock.
+
+        Converts the integrated stock schedule from MWh to the state-of-charge sensor unit.
+        For '%' sensors, the soc-max flex-model field is used as capacity.
         """
         soc_schedule = {}
-        for d, flex_model_d in enumerate(flex_model):
-            state_of_charge_sensor = flex_model_d.get("state_of_charge", None)
+
+        for stock_id, devices in stock_groups.items():
+            if not devices:
+                continue
+
+            d0 = devices[0]
+            flex_model_d0 = flex_model[d0]
+
+            state_of_charge_sensor = flex_model_d0.get("state_of_charge")
             if not isinstance(state_of_charge_sensor, Sensor):
                 continue
+
+            # Build the SoC series for this stock group
+            if len(devices) > 1:
+                soc_contributions = []
+                reference_index = None
+
+                for d in devices:
+                    contribution = integrate_time_series(
+                        series=ems_schedule[d],
+                        initial_stock=0,
+                        stock_delta=device_constraints[d]["stock delta"]
+                        * resolution
+                        / timedelta(hours=1),
+                        up_efficiency=device_constraints[d]["derivative up efficiency"],
+                        down_efficiency=device_constraints[d][
+                            "derivative down efficiency"
+                        ],
+                        storage_efficiency=device_constraints[d]["efficiency"]
+                        .astype(float)
+                        .fillna(1),
+                    )
+                    soc_contributions.append(contribution)
+
+                    if reference_index is None:
+                        reference_index = contribution.index
+
+                initial_stock = soc_at_start[d0] if soc_at_start[d0] is not None else 0
+                soc = pd.Series(
+                    [
+                        initial_stock
+                        + sum(contrib.iloc[i] for contrib in soc_contributions)
+                        for i in range(len(soc_contributions[0]))
+                    ],
+                    index=reference_index,
+                )
+            else:
+                soc = integrate_time_series(
+                    series=ems_schedule[d0],
+                    initial_stock=soc_at_start[d0],
+                    stock_delta=device_constraints[d0]["stock delta"]
+                    * resolution
+                    / timedelta(hours=1),
+                    up_efficiency=device_constraints[d0]["derivative up efficiency"],
+                    down_efficiency=device_constraints[d0][
+                        "derivative down efficiency"
+                    ],
+                    storage_efficiency=device_constraints[d0]["efficiency"]
+                    .astype(float)
+                    .fillna(1),
+                )
+
+            # Convert to sensor unit
             soc_unit = state_of_charge_sensor.unit
             capacity = None
             if soc_unit == "%":
-                soc_max = flex_model_d.get("soc_max")
+                soc_max = flex_model_d0.get("soc_max")
                 if isinstance(soc_max, Sensor):
                     raise ValueError(
-                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
-                        "soc-max as a sensor reference is not supported for '%' unit conversion. "
-                        "Skipping state-of-charge schedule."
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor "
+                        f"{state_of_charge_sensor.id}: soc-max as a sensor reference is "
+                        "not supported for '%' unit conversion."
                     )
                 if not soc_max:
                     raise ValueError(
-                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
-                        "soc-max is missing or zero. Skipping state-of-charge schedule."
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor "
+                        f"{state_of_charge_sensor.id}: soc-max is missing or zero."
                     )
-                capacity = f"{soc_max} MWh"  # all flex model fields are in MWh by now
+                capacity = f"{soc_max} MWh"
+
             soc_schedule[state_of_charge_sensor] = convert_units(
-                integrate_time_series(
-                    series=ems_schedule[d],
-                    initial_stock=soc_at_start[d],
-                    stock_delta=device_constraints[d]["stock delta"]
-                    * resolution
-                    / timedelta(hours=1),
-                    up_efficiency=device_constraints[d]["derivative up efficiency"],
-                    down_efficiency=device_constraints[d]["derivative down efficiency"],
-                    storage_efficiency=device_constraints[d]["efficiency"]
-                    .astype(float)
-                    .fillna(1),
-                ),
+                soc,
                 from_unit="MWh",
                 to_unit=soc_unit,
                 capacity=capacity,
             )
+
         return soc_schedule
 
-    def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
+    def compute(  # noqa: C901
+        self, skip_validation: bool = False
+    ) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
 
@@ -1448,18 +1667,23 @@ class StorageScheduler(MetaStorageScheduler):
             commitments,
         ) = self._prepare(skip_validation=skip_validation)
 
+        initial_stock = [0] * len(soc_at_start)
+
+        for stock_id, devices in self.stock_groups.items():
+            d0 = devices[0]
+            s = soc_at_start[d0]
+
+            value = s * (timedelta(hours=1) / resolution) if s is not None else 0
+
+            for d in devices:
+                initial_stock[d] = value
+
         ems_schedule, expected_costs, scheduler_results, model = device_scheduler(
             device_constraints=device_constraints,
             ems_constraints=ems_constraints,
             commitments=commitments,
-            initial_stock=[
-                (
-                    soc_at_start_d * (timedelta(hours=1) / resolution)
-                    if soc_at_start_d is not None
-                    else 0
-                )
-                for soc_at_start_d in soc_at_start
-            ],
+            initial_stock=initial_stock,
+            stock_groups=self.stock_groups,
         )
         if "infeasible" in (tc := scheduler_results.solver.termination_condition):
             raise InfeasibleProblemException(tc)
@@ -1492,14 +1716,27 @@ class StorageScheduler(MetaStorageScheduler):
             if sensor is not None
         }
 
-        flex_model = self.flex_model.copy()
+        # Use the filtered device_models (stored during _prepare) not self.flex_model
+        # because stock_groups was rebuilt with device indices, not original indices
+        flex_model_for_soc = getattr(self, "_device_models", None)
+        if flex_model_for_soc is None:
+            # Fallback: reconstruct if not available (shouldn't happen in normal flow)
+            flex_model_for_soc = (
+                self.flex_model.copy()
+                if isinstance(self.flex_model, dict)
+                else [fm for fm in self.flex_model if fm.get("sensor") is not None]
+            )
 
-        if not isinstance(self.flex_model, list):
-            flex_model["sensor"] = sensors[0]
-            flex_model = [flex_model]
+        if not isinstance(flex_model_for_soc, list):
+            flex_model_for_soc = [flex_model_for_soc]
 
         soc_schedule = self._build_soc_schedule(
-            flex_model, ems_schedule, soc_at_start, device_constraints, resolution
+            flex_model=flex_model_for_soc,
+            ems_schedule=ems_schedule,
+            soc_at_start=soc_at_start,
+            device_constraints=device_constraints,
+            stock_groups=self.stock_groups,
+            resolution=resolution,
         )
 
         # Resample each device schedule to the resolution of the device's power sensor

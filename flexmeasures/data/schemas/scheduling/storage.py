@@ -226,7 +226,6 @@ class StorageFlexModelSchema(Schema):
         metadata=metadata.SOC_USAGE.to_dict(),
     )
     commodity = fields.Str(
-        required=False,
         data_key="commodity",
         load_default="electricity",
         validate=OneOf(["electricity", "gas"]),
