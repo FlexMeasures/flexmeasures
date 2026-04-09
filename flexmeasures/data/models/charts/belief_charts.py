@@ -855,12 +855,7 @@ def _build_layers(
         return layers
 
     if all_row_sensors:
-        layers.append(
-            create_hover_ruler_layer(
-                all_row_sensors,
-                event_start_field_definition,
-            )
-        )
+        layers.append(create_hover_ruler_layer(event_start_field_definition))
 
     # Invisible full-height rect at every data point: acts as the hover hit-area
     # so that the tooltip appears whenever the cursor is anywhere in the chart
@@ -1075,13 +1070,8 @@ def create_circle_layer(
     return circle_layer
 
 
-def create_hover_ruler_layer(
-    sensors: list["Sensor"],  # noqa F821
-    event_start_field_definition: dict,
-) -> dict:
+def create_hover_ruler_layer(event_start_field_definition: dict) -> dict:
     """Create a vertical ruler that appears when hovering a chart row."""
-    or_conditions = [{"param": "hover_x_brush", "empty": False}]
-
     return {
         "mark": {
             "type": "rule",
@@ -1091,7 +1081,7 @@ def create_hover_ruler_layer(
         "encoding": {
             "x": event_start_field_definition,
             "opacity": {
-                "condition": {"test": {"or": or_conditions}, "value": 1},
+                "condition": {"test": {"param": "hover_x_brush", "empty": False}},
                 "value": 0,
             },
         },
