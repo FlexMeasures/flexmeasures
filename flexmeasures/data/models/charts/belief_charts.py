@@ -1081,8 +1081,6 @@ def create_hover_ruler_layer(
 ) -> dict:
     """Create a vertical ruler that appears when hovering a chart row."""
     or_conditions = [{"param": "hover_x_brush", "empty": False}]
-    if len(sensors) > 1:
-        or_conditions.append({"param": "hover_nearest_brush", "empty": False})
 
     return {
         "mark": {
