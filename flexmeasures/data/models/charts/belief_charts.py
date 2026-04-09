@@ -574,27 +574,6 @@ def _create_temp_sensor_layers(
         "data": {"values": combined_manual_data},
         "mark": {"type": "rect", "opacity": 0, "clip": True},
         "encoding": {"x": x_encoding},
-        "params": [
-            {
-                "name": "temp_hover_x_brush",
-                "select": {
-                    "type": "point",
-                    "encodings": ["x"],
-                    "on": "mouseover",
-                    "nearest": False,
-                    "clear": "mouseout",
-                },
-            },
-            {
-                "name": "temp_hover_nearest_brush",
-                "select": {
-                    "type": "point",
-                    "on": "mouseover",
-                    "nearest": True,
-                    "clear": "mouseout",
-                },
-            },
-        ],
     }
 
     manual_ruler_layer = {
@@ -612,8 +591,6 @@ def _create_temp_sensor_layers(
                         "or": [
                             {"param": "hover_x_brush", "empty": False},
                             {"param": "hover_nearest_brush", "empty": False},
-                            {"param": "temp_hover_x_brush", "empty": False},
-                            {"param": "temp_hover_nearest_brush", "empty": False},
                         ]
                     },
                     "value": 1,
@@ -648,8 +625,6 @@ def _create_temp_sensor_layers(
                         "or": [
                             {"param": "hover_x_brush", "empty": False},
                             {"param": "hover_nearest_brush", "empty": False},
-                            {"param": "temp_hover_x_brush", "empty": False},
-                            {"param": "temp_hover_nearest_brush", "empty": False},
                         ]
                     },
                     "value": 100,
