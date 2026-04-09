@@ -3,17 +3,17 @@
 
 <div class="container-fluid">
   <div class="row">
-    <div class="col-md-2 on-top-md">
+    <div class="col-md-2 on-top-md ps-0">
       
       {% if user_can_update_account %}  
-      <div class="sidepanel-container">
+      <div class="sidepanel">
+      <div class="sidepanel-container" style="--sidepanel-width: 450px">
         <div
-          class="left-sidepanel-label"
-          style="transform: translateX(-30%) !important"
+          class="sidepanel-label"
         >
           Edit Account
         </div>
-        <div class="sidepanel left-sidepanel">
+        <div class="sidepanel-content">
           <form class="form-horizontal" id="editaccount">
             <fieldset>
               <div class="asset-form">
@@ -157,6 +157,7 @@
             </fieldset>
           </form>
         </div>
+      </div>
       </div>
       {% endif %}
     </div>
