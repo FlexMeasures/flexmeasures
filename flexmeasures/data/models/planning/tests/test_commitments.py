@@ -1134,3 +1134,221 @@ def test_simulation_copy(app, db):
 
     # ---- verify outputs
     print(schedules)
+
+
+def test_simulation_copy_new(app, db):
+    # ---- asset types and assets
+    gas_boiler_type = get_or_create_model(GenericAssetType, name="gas-boiler")
+    buffer_type = get_or_create_model(GenericAssetType, name="heat-buffer")
+    site_type = get_or_create_model(GenericAssetType, name="site")
+
+    site = GenericAsset(
+        name="Test Site",
+        generic_asset_type=site_type,
+    )
+    building = GenericAsset(
+        name="Building", generic_asset_type=site_type, parent_asset_id=site.id
+    )
+
+    gas_boiler = GenericAsset(
+        name="Gas Boiler", generic_asset_type=gas_boiler_type, parent_asset_id=site.id
+    )
+    heat_buffer = GenericAsset(
+        name="Heat Buffer", generic_asset_type=buffer_type, parent_asset_id=site.id
+    )
+    electric_heater = GenericAsset(
+        name="Electric Heater",
+        generic_asset_type=get_or_create_model(
+            GenericAssetType, name="electric-heater"
+        ),
+        parent_asset_id=site.id,
+    )
+
+    db.session.add_all([gas_boiler, heat_buffer, building, electric_heater, site])
+    db.session.commit()
+
+    # ---- sensors
+    start = pd.Timestamp("2026-04-07T00:00:00+01:00")
+    end = pd.Timestamp(
+        "2026-04-09T06:00:00+01:00"
+    )  # Extended to allow discharge target on April 8
+    belief_time = pd.Timestamp(
+        "2026-04-05T00:00:00+01:00"
+    )  # 2 days before start for generous planning horizon
+    power_resolution = pd.Timedelta("15m")
+    energy_resolution = pd.Timedelta(0)
+
+    building_raw_power = Sensor(
+        name="building raw power",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=building,
+    )
+
+    boiler_power = Sensor(
+        name="boiler power",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=gas_boiler,
+    )
+
+    tank_power = Sensor(
+        name="heat buffer power",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=heat_buffer,
+    )
+
+    buffer_soc = Sensor(
+        name="buffer state of charge",
+        unit="kWh",
+        event_resolution=energy_resolution,  # instantaneous
+        generic_asset=heat_buffer,
+    )
+
+    buffer_soc_usage = Sensor(
+        name="buffer soc usage",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=heat_buffer,
+    )
+
+    heater_power = Sensor(
+        name="heater power",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=electric_heater,
+    )
+    soc_targets = Sensor(
+        name="buffer soc targets",
+        unit="kWh",
+        event_resolution=energy_resolution,  # instantaneous
+        generic_asset=heat_buffer,
+    )
+
+    db.session.add_all(
+        [
+            boiler_power,
+            buffer_soc,
+            tank_power,
+            buffer_soc_usage,
+            building_raw_power,
+            heater_power,
+            soc_targets,
+        ]
+    )
+    db.session.commit()
+    import timely_beliefs as tb
+    from flexmeasures import Source
+
+    # add dummy data to building raw power to ensure site-level constraints are respected
+    building_data = pd.Series(
+        100.0,
+        index=pd.date_range(start, end, freq=power_resolution, name="event_start"),
+        name="event_value",
+    ).reset_index()
+
+    soc_usage = building_data.copy()
+    # soc_usage.loc[soc_usage['event_start'] > "2026-04-07T20:00:00+01:00", "event_value"] = 50
+    # soc_usage.loc[soc_usage['event_start'] < "2026-04-07T20:00:00+01:00", "event_value"] = 0.0
+    # soc_usage.set_index("event_start", inplace=True)
+    # soc_usage = soc_usage["event_value"]
+    bdf = tb.BeliefsDataFrame(
+        building_data,
+        belief_horizon=-pd.Timedelta(seconds=1) * np.array(range(len(building_data))),
+        sensor=building_raw_power,
+        source=get_or_create_model(Source, name="Simulation"),
+    )
+    save_to_db(bdf, bulk_save_objects=False, save_changed_beliefs_only=False)
+
+    bdf = tb.BeliefsDataFrame(
+        soc_usage,
+        belief_horizon=-pd.Timedelta(seconds=1) * np.array(range(len(building_data))),
+        sensor=buffer_soc_usage,
+        source=get_or_create_model(Source, name="Simulation"),
+    )
+
+    save_to_db(bdf, bulk_save_objects=False, save_changed_beliefs_only=False)
+
+    flex_model = [
+        # {
+        #     "sensor": pv_power.id,
+        #     "consumption-capacity": "0 kW",
+        #     "production-capacity": {"sensor": pv_raw_power.id},
+        #     "power-capacity": "1 GW",
+        # },
+        # {
+        #     "sensor": battery_power.id,
+        #     "soc-min": 0.0,
+        #     "soc-max": 100.0,
+        #     "soc-at-start": 20.0,
+        #     "power-capacity": "20 kW",
+        #     "roundtrip-efficiency": 0.9,
+        #     "soc-targets": [{"datetime": "2026-04-07T20:00:00+01:00", "value": 80.0}],
+        #     "state-of-charge": {"sensor": battery_soc.id},
+        #     "commodity": "electricity",
+        #
+        # },
+        {
+            "sensor": heater_power.id,
+            "state-of-charge": {"sensor": buffer_soc.id},
+            "power-capacity": "100 kW",
+            "charging-efficiency": 0.9,
+            "commodity": "electricity",
+            "production-capacity": "0 kW",
+        },
+        {
+            "sensor": boiler_power.id,
+            "state-of-charge": {"sensor": buffer_soc.id},
+            "power-capacity": "100 kW",
+            "charging-efficiency": 0.9,
+            "commodity": "gas",
+            "production-capacity": "0 kW",
+        },
+        {
+            # "sensor": tank_power.id,
+            # "power-capacity": "0 kW",
+            # "production-capacity": "0 kW",
+            "soc-min": 200.0,
+            "soc-max": 1000.0,
+            "soc-at-start": 200.0,
+            "soc-targets": [
+                {"datetime": "2026-04-07T20:00:00+01:00", "value": 700.0},
+            ],
+            "state-of-charge": {"sensor": buffer_soc.id},
+            "soc-usage": [{"sensor": buffer_soc_usage.id}],
+            "storage-efficiency": 0.9,
+            "discharging-efficiency": 0.9,
+            "soc-unit": "kWh",
+        },
+    ]
+
+    flex_context = {
+        "consumption-price": "100 EUR/MWh",
+        "production-price": "100 EUR/MWh",
+        "gas-price": "100 EUR/MWh",
+        "site-power-capacity": "4700 kW",
+        "site-consumption-capacity": "4000 kW",
+        "site-production-capacity": "0 kW",
+        "site-consumption-breach-price": "100000 EUR/kW",
+        "site-production-breach-price": "100000 EUR/kW",
+        "relax-constraints": True,
+        # "inflexible-device-sensors": [building_raw_power.id],
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=power_resolution,
+        belief_time=belief_time,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    pd.set_option("display.max_rows", None)
+    schedules = scheduler.compute(skip_validation=True)
+
+    # ---- verify outputs
+    print(schedules)

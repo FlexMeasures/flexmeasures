@@ -199,6 +199,8 @@ class MetaStorageScheduler(Scheduler):
         soc_targets = [None] * num_flexible_devices
         soc_min = [None] * num_flexible_devices
         soc_max = [None] * num_flexible_devices
+        storage_efficiency = []
+        storage_efficiency = [None] * num_flexible_devices
 
         # Assign SOC constraints from stock model to the first device in each group
         for stock_id, devices in self.stock_groups.items():
@@ -209,17 +211,22 @@ class MetaStorageScheduler(Scheduler):
                 continue
 
             d0 = devices[0]
-
-            soc_at_start[d0] = stock_model.get("soc_at_start")
-            soc_targets[d0] = stock_model.get("soc_targets")
-            soc_min[d0] = stock_model.get("soc_min")
-            soc_max[d0] = stock_model.get("soc_max")
+            for d, v in enumerate(devices):
+                soc_at_start[d] = stock_model.get("soc_at_start")
+                soc_targets[d] = stock_model.get("soc_targets")
+                soc_min[d] = stock_model.get("soc_min")
+                soc_max[d] = stock_model.get("soc_max")
+                storage_efficiency[d] = (
+                    stock_model.get("storage_efficiency").magnitude / 100
+                )
+            # for d, v in enumerate(devices):
+            #     storage_efficiency.append(stock_model.get("storage_efficiency").magnitude/100)
 
         soc_minima = [flex_model_d.get("soc_minima") for flex_model_d in flex_model]
         soc_maxima = [flex_model_d.get("soc_maxima") for flex_model_d in flex_model]
-        storage_efficiency = [
-            flex_model_d.get("storage_efficiency") for flex_model_d in flex_model
-        ]
+        # storage_efficiency = [
+        #     flex_model_d.get("storage_efficiency") for flex_model_d in flex_model
+        # ]
         prefer_charging_sooner = [
             flex_model_d.get("prefer_charging_sooner") for flex_model_d in flex_model
         ]
@@ -835,6 +842,7 @@ class MetaStorageScheduler(Scheduler):
                     soc_max[d],
                     soc_min[d],
                 )
+                breakpoint()
             else:
                 # No need to validate non-existing storage constraints
                 skip_validation = True
