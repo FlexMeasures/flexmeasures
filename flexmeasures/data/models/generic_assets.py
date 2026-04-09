@@ -46,7 +46,7 @@ def _fixed_value_source_dict(flex_source: str) -> dict:
         name=flex_source,
         model="",
         type="other",
-        description=flex_source,
+        description=f"Configured in the asset's {flex_source}",
     )
 
 
