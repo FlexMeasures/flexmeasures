@@ -203,6 +203,8 @@ class MetaStorageScheduler(Scheduler):
         soc_maxima = [None] * num_flexible_devices
         soc_gain = [None] * num_flexible_devices
         soc_usage = [None] * num_flexible_devices
+        prefer_charging_sooner = [None] * num_flexible_devices
+        prefer_curtailing_later = [None] * num_flexible_devices
 
         # Assign SOC constraints from stock model to the first device in each group
         for stock_id, devices in self.stock_groups.items():
@@ -222,15 +224,11 @@ class MetaStorageScheduler(Scheduler):
             soc_maxima[d0] = stock_model.get("soc_maxima")
             soc_gain[d0] = stock_model.get("soc_gain")
             soc_usage[d0] = stock_model.get("soc_usage")
+            prefer_charging_sooner[d0] = stock_model.get("prefer_charging_sooner")
+            prefer_curtailing_later[d0] = stock_model.get("prefer_curtailing_later")
 
         storage_efficiency = [
             flex_model_d.get("storage_efficiency") for flex_model_d in flex_model
-        ]
-        prefer_charging_sooner = [
-            flex_model_d.get("prefer_charging_sooner") for flex_model_d in flex_model
-        ]
-        prefer_curtailing_later = [
-            flex_model_d.get("prefer_curtailing_later") for flex_model_d in flex_model
         ]
         consumption_capacity = [
             flex_model_d.get("consumption_capacity") for flex_model_d in flex_model
