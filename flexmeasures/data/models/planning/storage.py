@@ -227,6 +227,7 @@ class MetaStorageScheduler(Scheduler):
             prefer_charging_sooner[d0] = stock_model.get("prefer_charging_sooner")
             prefer_curtailing_later[d0] = stock_model.get("prefer_curtailing_later")
 
+        # todo: move storage-efficiency into a shared parameter for the first device belonging to a shared storage
         storage_efficiency = [
             flex_model_d.get("storage_efficiency") for flex_model_d in flex_model
         ]
