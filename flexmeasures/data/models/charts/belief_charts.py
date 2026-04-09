@@ -1013,26 +1013,66 @@ def create_circle_layer(
         shared_tooltip
     )  # deepcopy so the next line doesn't update the dicts
     scaled_shared_tooltip[1]["field"] = "scaled_event_value"
+
+    params = [
+        {
+            "name": "hover_x_brush",
+            "select": {
+                "type": "point",
+                "encodings": ["x"],
+                "on": "mouseover",
+                "nearest": False,
+                "clear": "mouseout",
+            },
+        }
+    ]
+    if len(sensors) > 1:
+        # extra brush for showing the tooltip of the closest sensor
+        params.append(
+            {
+                "name": "hover_nearest_brush",
+                "select": {
+                    "type": "point",
+                    "on": "mouseover",
+                    "nearest": True,
+                    "clear": "mouseout",
+                },
+            }
+        )
     or_conditions = [{"param": "hover_x_brush", "empty": False}]
     if len(sensors) > 1:
         or_conditions.append({"param": "hover_nearest_brush", "empty": False})
 
-    stroke_encoding = {
-        # The stroke (black outline) follows the same visibility condition as the
-        # circle size: present whenever a circle is shown, absent otherwise.
-        # Using the same `or_conditions` avoids the previous bug where the `and`
-        # condition required `hover_nearest_brush` (only defined for multi-sensor
-        # rows), so the outline never appeared on single-sensor charts and
-        # disappeared as soon as the cursor landed exactly on a circle.
-        "stroke": {
-            "condition": {"value": "black", "test": {"or": or_conditions}},
-            "value": None,
-        },
-        "strokeWidth": {
-            "condition": {"value": STROKE_WIDTH, "test": {"or": or_conditions}},
-            "value": 0,
-        },
-    }
+    # Draw a circle around the data point for which the tooltip is shown
+    if len(sensors) > 1:
+        stroke_encoding = {
+            "stroke": {
+                "condition": {
+                    "test": {
+                        "and": [
+                            {"param": "hover_nearest_brush", "empty": False},
+                            {"param": "hover_x_brush", "empty": False},
+                        ]
+                    },
+                    "value": "black",
+                },
+                "value": None,
+            },
+            "strokeWidth": {
+                "condition": {
+                    "test": {
+                        "and": [
+                            {"param": "hover_nearest_brush", "empty": False},
+                            {"param": "hover_x_brush", "empty": False},
+                        ]
+                    },
+                    "value": STROKE_WIDTH,
+                },
+                "value": 0,
+            },
+        }
+    else:
+        stroke_encoding = {}
 
     circle_layer = {
         "mark": {
@@ -1051,6 +1091,7 @@ def create_circle_layer(
             "tooltip": scaled_shared_tooltip,
             **stroke_encoding,
         },
+        "params": params,
         "transform": [
             {
                 "calculate": (
@@ -1070,31 +1111,6 @@ def create_hover_ruler_layer(
     event_start_field_definition: dict,
 ) -> dict:
     """Create a vertical ruler that appears when hovering a chart row."""
-    params = [
-        {
-            "name": "hover_x_brush",
-            "select": {
-                "type": "point",
-                "encodings": ["x"],
-                "on": "mouseover",
-                "nearest": False,
-                "clear": "mouseout",
-            },
-        }
-    ]
-    if len(sensors) > 1:
-        params.append(
-            {
-                "name": "hover_nearest_brush",
-                "select": {
-                    "type": "point",
-                    "on": "mouseover",
-                    "nearest": True,
-                    "clear": "mouseout",
-                },
-            }
-        )
-
     or_conditions = [{"param": "hover_x_brush", "empty": False}]
     if len(sensors) > 1:
         or_conditions.append({"param": "hover_nearest_brush", "empty": False})
@@ -1112,7 +1128,6 @@ def create_hover_ruler_layer(
                 "value": 0,
             },
         },
-        "params": params,
     }
 
 
