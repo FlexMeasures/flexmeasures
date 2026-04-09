@@ -854,7 +854,11 @@ def _build_layers(
     if not layers:
         return layers
 
-    if len(all_row_sensors) == 1 and real_sensors:
+    # Invisible full-height rect at every data point: acts as the hover hit-area
+    # so that the tooltip appears whenever the cursor is anywhere in the chart
+    # column above a data point, not only when hovering exactly on a circle mark.
+    # Added unconditionally (single- and multi-sensor rows alike).
+    if all_row_sensors:
         layers.append(
             create_rect_layer(
                 event_start_field_definition,
@@ -1013,28 +1017,18 @@ def create_circle_layer(
         or_conditions.append({"param": "hover_nearest_brush", "empty": False})
 
     stroke_encoding = {
+        # The stroke (black outline) follows the same visibility condition as the
+        # circle size: present whenever a circle is shown, absent otherwise.
+        # Using the same `or_conditions` avoids the previous bug where the `and`
+        # condition required `hover_nearest_brush` (only defined for multi-sensor
+        # rows), so the outline never appeared on single-sensor charts and
+        # disappeared as soon as the cursor landed exactly on a circle.
         "stroke": {
-            "condition": {
-                "test": {
-                    "and": [
-                        {"param": "hover_nearest_brush", "empty": False},
-                        {"param": "hover_x_brush", "empty": False},
-                    ]
-                },
-                "value": "black",
-            },
+            "condition": {"value": "black", "test": {"or": or_conditions}},
             "value": None,
         },
         "strokeWidth": {
-            "condition": {
-                "test": {
-                    "and": [
-                        {"param": "hover_nearest_brush", "empty": False},
-                        {"param": "hover_x_brush", "empty": False},
-                    ]
-                },
-                "value": STROKE_WIDTH,
-            },
+            "condition": {"value": STROKE_WIDTH, "test": {"or": or_conditions}},
             "value": 0,
         },
     }
