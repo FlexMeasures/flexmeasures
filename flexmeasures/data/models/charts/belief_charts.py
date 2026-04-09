@@ -1041,38 +1041,8 @@ def create_circle_layer(
         )
     or_conditions = [{"param": "hover_x_brush", "empty": False}]
     if len(sensors) > 1:
-        or_conditions.append({"param": "hover_nearest_brush", "empty": False})
-
-    # Draw a circle around the data point for which the tooltip is shown
-    if len(sensors) > 1:
-        stroke_encoding = {
-            "stroke": {
-                "condition": {
-                    "test": {
-                        "and": [
-                            {"param": "hover_nearest_brush", "empty": False},
-                            {"param": "hover_x_brush", "empty": False},
-                        ]
-                    },
-                    "value": "black",
-                },
-                "value": None,
-            },
-            "strokeWidth": {
-                "condition": {
-                    "test": {
-                        "and": [
-                            {"param": "hover_nearest_brush", "empty": False},
-                            {"param": "hover_x_brush", "empty": False},
-                        ]
-                    },
-                    "value": STROKE_WIDTH,
-                },
-                "value": 0,
-            },
-        }
-    else:
-        stroke_encoding = {}
+        # Create a circle marker for the data point for which the tooltip is shown
+        or_conditions = [{"param": "hover_nearest_brush", "empty": False}]
 
     circle_layer = {
         "mark": {
@@ -1089,7 +1059,6 @@ def create_circle_layer(
                 "value": "0",
             },
             "tooltip": scaled_shared_tooltip,
-            **stroke_encoding,
         },
         "params": params,
         "transform": [
