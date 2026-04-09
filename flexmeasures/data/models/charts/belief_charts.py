@@ -854,24 +854,25 @@ def _build_layers(
     if not layers:
         return layers
 
+    if all_row_sensors:
+        layers.append(
+            create_hover_ruler_layer(
+                all_row_sensors,
+                event_start_field_definition,
+            )
+        )
+
     # Invisible full-height rect at every data point: acts as the hover hit-area
     # so that the tooltip appears whenever the cursor is anywhere in the chart
     # column above a data point, not only when hovering exactly on a circle mark.
     # Added unconditionally (single- and multi-sensor rows alike).
+    # Must be before the circle layer and after the hover ruler layer
     if all_row_sensors:
         layers.append(
             create_rect_layer(
                 event_start_field_definition,
                 event_value_field_definition,
                 shared_tooltip,
-            )
-        )
-
-    if all_row_sensors:
-        layers.append(
-            create_hover_ruler_layer(
-                all_row_sensors,
-                event_start_field_definition,
             )
         )
 
