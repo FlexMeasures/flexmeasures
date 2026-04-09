@@ -8,6 +8,7 @@ API change log
 v3.0-30 | 2026-XX-XX
 """"""""""""""""""""
 - Added ``unit`` field to the `/sensors/<id>/schedules/<uuid>` (GET) endpoint for fetching a schedule, to get the schedule in a different unit still compatible to the sensor unit.
+- Added ``prior`` field to the `/sensors/<id>/forecasts/trigger` (POST) endpoint, to forecast from a given time in the past.
 - Added ``FlexMeasures-Version`` response header to all API responses, containing the current server version (e.g. ``FlexMeasures-Version: 0.32.0``).
 - Added ``API-Version`` response header to all API responses under ``/api/v3_0``, containing the API version (e.g. ``API-Version: v3_0``).
 

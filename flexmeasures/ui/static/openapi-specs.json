@@ -4361,6 +4361,12 @@
             "example": "PT24H",
             "format": "duration"
           },
+          "prior": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The forecaster is only allowed to take into account sensor data that has been recorded prior to this [belief time](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs). By default, the most recent sensor data is used. This field is especially useful for running simulations.",
+            "example": "2026-01-15T10:00+01:00"
+          },
           "forecast-frequency": {
             "type": [
               "string",
