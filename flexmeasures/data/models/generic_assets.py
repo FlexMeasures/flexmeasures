@@ -43,7 +43,7 @@ def _fixed_value_source_dict(flex_source: str) -> dict:
     """
     return dict(
         id=-1,
-        name=f"Reference ({flex_source})",
+        name=flex_source,
         model="",
         type="other",
         description=flex_source,
