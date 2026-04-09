@@ -621,27 +621,6 @@ def _create_temp_sensor_layers(
                 "value": 0,
             },
         },
-        "params": [
-            {
-                "name": "hover_x_brush",
-                "select": {
-                    "type": "point",
-                    "encodings": ["x"],
-                    "on": "mouseover",
-                    "nearest": False,
-                    "clear": "mouseout",
-                },
-            },
-            {
-                "name": "hover_nearest_brush",
-                "select": {
-                    "type": "point",
-                    "on": "mouseover",
-                    "nearest": True,
-                    "clear": "mouseout",
-                },
-            },
-        ],
     }
 
     manual_circle_layer = {
