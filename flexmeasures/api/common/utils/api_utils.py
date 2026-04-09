@@ -396,6 +396,7 @@ def _copy_asset_subtree(
     destination_account_id: int,
     destination_parent_asset_id: int | None,
     asset_schema: AssetSchema,
+    add_copy_suffix: bool,
 ) -> tuple[GenericAsset, dict[int, int]]:
     """Recursively copy one asset and all descendants.
 
@@ -407,7 +408,8 @@ def _copy_asset_subtree(
     for key in ["id", "owner", "generic_asset_type", "child_assets", "sensors"]:
         asset_kwargs.pop(key, None)
 
-    asset_kwargs["name"] = f"{asset_kwargs['name']} (Copy)"
+    if add_copy_suffix:
+        asset_kwargs["name"] = f"{asset_kwargs['name']} (Copy)"
     asset_kwargs["account_id"] = destination_account_id
     asset_kwargs["parent_asset_id"] = destination_parent_asset_id
     asset_kwargs = convert_asset_json_fields(asset_kwargs)
@@ -429,6 +431,7 @@ def _copy_asset_subtree(
             destination_account_id=destination_account_id,
             destination_parent_asset_id=copied_asset.id,
             asset_schema=asset_schema,
+            add_copy_suffix=False,
         )
         sensor_id_map.update(child_sensor_map)
 
@@ -481,6 +484,7 @@ def copy_asset(
             destination_account_id=target_account_id,
             destination_parent_asset_id=target_parent_asset_id,
             asset_schema=asset_schema,
+            add_copy_suffix=True,
         )
         if sensor_id_map:
             _update_sensor_refs_in_subtree(copied_root, sensor_id_map)

@@ -943,6 +943,10 @@ def test_copy_asset_to_another_account_preserves_config(
         select(GenericAsset).filter_by(parent_asset_id=house_copy.id)
     ).all()
     assert len(children_of_copy) == 2
+    assert sorted(child.name for child in children_of_copy) == [
+        "EV charger 1",
+        "EV charger 2",
+    ]
 
     # 6. Sensors on copied child assets are also duplicated.
     copied_child_ids = [child.id for child in children_of_copy]
