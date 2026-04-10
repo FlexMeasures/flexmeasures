@@ -10,7 +10,7 @@ from sqlalchemy import select
 from flexmeasures import Asset
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.user import Account
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 from flexmeasures.cli.tests.utils import check_command_ran_without_error
 from flexmeasures.utils.time_utils import server_now
@@ -463,3 +463,53 @@ def test_add_storage_schedule(
 
     check_command_ran_without_error(result)
     assert len(power_sensor.search_beliefs()) == 48
+
+
+def test_add_storage_schedule_uses_state_of_charge_sensor_for_soc_at_start(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_charging_station_assets_fresh_db,
+    setup_sources_fresh_db,
+):
+    from flexmeasures.cli.data_add import add_schedule
+
+    charging_station = add_charging_station_assets_fresh_db["Test charging station"]
+    power_sensor = next(s for s in charging_station.sensors if s.name == "power")
+    soc_sensor = add_charging_station_assets_fresh_db["uni-soc"]
+    start = "2015-01-01T00:00:00+01:00"
+
+    fresh_db.session.add(
+        TimedBelief(
+            sensor=soc_sensor,
+            source=setup_sources_fresh_db["Seita"],
+            event_start=datetime.fromisoformat(start),
+            event_value=2.5,
+            belief_time=datetime.fromisoformat(start),
+        )
+    )
+    fresh_db.session.commit()
+
+    cli_input_params = {
+        "sensor": power_sensor.id,
+        "start": start,
+        "duration": "PT12H",
+        "scheduler": "StorageScheduler",
+        "flex-context": json.dumps(
+            {"consumption-price": {"sensor": add_market_prices_fresh_db["epex_da"].id}}
+        ),
+        "flex-model": json.dumps(
+            {
+                "state-of-charge": {"sensor": soc_sensor.id},
+                "soc-min": "0 MWh",
+                "soc-max": "5 MWh",
+                "power-capacity": "2 MW",
+            }
+        ),
+    }
+
+    result = app.test_cli_runner().invoke(add_schedule, to_flags(cli_input_params))
+
+    check_command_ran_without_error(result)
+    assert len(power_sensor.search_beliefs()) == 48
+    assert power_sensor.generic_asset.get_attribute("soc_in_mwh") == 2.5

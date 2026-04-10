@@ -11,6 +11,7 @@ v0.32.0 | April XX, 2026
 
 New features
 -------------
+* Support inferring ``soc-at-start`` from configured ``state-of-charge`` sources and fail early when those values are stale or missing near schedule start [see `PR #2026 <https://www.github.com/FlexMeasures/flexmeasures/pull/2026>`_]
 * Support fetching a schedule in a different unit still compatible to the sensor unit [see `PR #1993 <https://www.github.com/FlexMeasures/flexmeasures/pull/1993>`_]
 * Support saving state-of-charge schedules to sensors with ``"%"`` unit, using the ``soc-max`` flex-model field as the capacity for unit conversion [see `PR #1996 <https://www.github.com/FlexMeasures/flexmeasures/pull/1996>`_]
 * Version headers (for server and API) in API responses [see `PR #2021 <https://www.github.com/FlexMeasures/flexmeasures/pull/2021>`_]
@@ -1565,4 +1566,3 @@ Infrastructure / Support
 * Start using marshmallow for input validation, also introducing ``HTTP status 422 (Unprocessable Entity)`` in the API [see `PR #25 <https://www.github.com/FlexMeasures/flexmeasures/pull/25>`_]
 * Replace ``solarpy`` with ``pvlib`` (due to license conflict) [see `PR #16 <https://www.github.com/FlexMeasures/flexmeasures/pull/16>`_]
 * Stop supporting the creation of new users on asset creation (to reduce complexity) [see `PR #36 <https://www.github.com/FlexMeasures/flexmeasures/pull/36>`_]
-

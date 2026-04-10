@@ -1308,15 +1308,6 @@ def add_schedule(  # noqa C901
         scheduler_module = "flexmeasures.data.models.planning.process"
     elif scheduler_class == "StorageScheduler":
         scheduler_module = "flexmeasures.data.models.planning.storage"
-        if soc_at_start is None and (
-            "soc-min" in flex_model or "soc-max" in flex_model
-        ):
-            # for asset scheduling, soc at start should be part of the flex model
-            click.secho(
-                "For a storage device with SoC constraints, --soc-at-start is required.",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
         if soc_at_start:
             flex_model["soc-at-start"] = soc_at_start.to("%")
 
