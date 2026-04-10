@@ -633,14 +633,14 @@ For the data, note the following:
     {% endif %}
 
     {% if user_can_delete_sensor %}
+    const button = document.getElementById('deleteDataButton');
+    const spinner = document.getElementById('spinner-delete-data');
+
+    const sourceSelect = document.getElementById('deleteDataSource');
+    const startInput = document.getElementById('deleteDataStart').value;
+    const untilInput = document.getElementById('deleteDataUntil').value;
+
     async function deleteData() {
-        const button = document.getElementById('deleteDataButton');
-        const spinner = document.getElementById('spinner-delete-data');
-
-        const sourceSelect = document.getElementById('deleteDataSource');
-        const startInput = document.getElementById('deleteDataStart').value;
-        const untilInput = document.getElementById('deleteDataUntil').value;
-
         const params = {};
         if (sourceSelect.value) {
             params.source = parseInt(sourceSelect.value);
@@ -682,10 +682,7 @@ For the data, note the following:
     }
 
     document.getElementById('deleteDataButton').addEventListener('click', function () {
-        const sourceSelect = document.getElementById('deleteDataSource');
         const sourceLabel = sourceSelect.options[sourceSelect.selectedIndex].text;
-        const startInput = document.getElementById('deleteDataStart').value;
-        const untilInput = document.getElementById('deleteDataUntil').value;
 
         let confirmMessage = "Are you sure you want to delete sensor data";
         if (sourceSelect.value) {
