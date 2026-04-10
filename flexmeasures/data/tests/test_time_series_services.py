@@ -1,10 +1,14 @@
 import pandas as pd
-from timely_beliefs import utils as tb_utils
+from timely_beliefs import BeliefsDataFrame, utils as tb_utils
 import pytest
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.services.time_series import (
+    _drop_unchanged_beliefs_compared_to_db,
+)
 from flexmeasures.tests.utils import get_test_sensor
 
 
@@ -241,7 +245,7 @@ def test_drop_unchanged_compares_against_latest_prior_belief(setup_beliefs, db):
     belief_time_2 = pd.Timestamp("2021-03-27 09:00:00+00:00")
     belief_time_3 = pd.Timestamp("2021-03-27 10:00:00+00:00")
 
-    initial_beliefs = tb.BeliefsDataFrame(
+    initial_beliefs = BeliefsDataFrame(
         [
             TimedBelief(
                 sensor=sensor,
@@ -262,7 +266,7 @@ def test_drop_unchanged_compares_against_latest_prior_belief(setup_beliefs, db):
     save_to_db(initial_beliefs, save_changed_beliefs_only=False)
     db.session.commit()
 
-    candidate_belief = tb.BeliefsDataFrame(
+    candidate_belief = BeliefsDataFrame(
         [
             TimedBelief(
                 sensor=sensor,
@@ -307,7 +311,7 @@ def test_drop_unchanged_helper_uses_wrong_prior_when_belief_times_descending(
     belief_time_2 = pd.Timestamp("2021-03-27 09:00:00+00:00")  # latest prior
     belief_time_3 = pd.Timestamp("2021-03-27 10:00:00+00:00")  # candidate
 
-    bdf_db = tb.BeliefsDataFrame(
+    bdf_db = BeliefsDataFrame(
         [
             TimedBelief(
                 sensor=sensor,
@@ -328,7 +332,7 @@ def test_drop_unchanged_helper_uses_wrong_prior_when_belief_times_descending(
     bdf_db = bdf_db.sort_index(ascending=False)
     assert list(bdf_db.belief_times) == [belief_time_2, belief_time_1]
 
-    candidate = tb.BeliefsDataFrame(
+    candidate = BeliefsDataFrame(
         [
             TimedBelief(
                 sensor=sensor,
