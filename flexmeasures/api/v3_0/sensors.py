@@ -1642,8 +1642,7 @@ class SensorAPI(FlaskView):
         )
         for regressor_id in regressor_ids:
             regressor = db.session.get(Sensor, regressor_id)
-            if regressor is not None:
-                check_access(regressor, "read")
+            check_access(regressor, "read")
 
         # Set forecaster model
         model = parameters.pop("model", "TrainPredictPipeline")
