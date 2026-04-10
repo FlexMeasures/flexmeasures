@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import json
 from datetime import datetime, timedelta
 from http import HTTPStatus
@@ -11,7 +12,7 @@ from flask_security import auth_required
 from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
 
-from marshmallow import fields, ValidationError, Schema, validate
+from marshmallow import fields, post_load, ValidationError, Schema, validate
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, func, or_
@@ -59,7 +60,10 @@ from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
     create_simultaneous_scheduling_job,
 )
-from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
+from flexmeasures.api.common.utils.api_utils import (
+    get_accessible_accounts,
+    copy_asset,
+)
 from flexmeasures.api.common.responses import (
     unprocessable_entity,
     request_processed,
@@ -158,6 +162,48 @@ class DefaultAssetViewJSONSchema(Schema):
 class KPIKwargsSchema(Schema):
     event_starts_after = AwareDateTimeField(format="iso", required=False)
     event_ends_before = AwareDateTimeField(format="iso", required=False)
+
+
+class CopyAssetSchema(Schema):
+    account = AccountIdField(
+        data_key="account",
+        required=False,
+        metadata=dict(
+            description="Target account to copy the asset to.",
+            example=67,
+        ),
+    )
+    parent_asset = AssetIdField(
+        data_key="parent",
+        required=False,
+        metadata=dict(
+            description="Target parent asset to copy the asset under.",
+            example=482,
+        ),
+    )
+
+    @post_load
+    def resolve_account_and_parent(self, data, **kwargs):
+        """
+        Resolve the account/parent relationship after loading:
+
+        - If ``account`` is explicitly given but ``parent_asset`` is not, the copy
+          becomes a top-level asset (no parent) in the given account.
+        - If ``parent_asset`` is explicitly given but ``account`` is not, the copy
+          inherits the account of the parent asset.
+        - If both are explicitly given, the copy can belong to a different account
+          than its parent, which is a valid cross-account parent relationship.
+        - If neither is given, the original asset's account and parent are preserved.
+        """
+        account_given = "account" in data
+        parent_given = "parent_asset" in data
+
+        if account_given and not parent_given:
+            data["parent_asset"] = None
+        elif parent_given and not account_given:
+            data["account"] = data["parent_asset"].owner
+
+        return data
 
 
 class AssetTypesAPI(FlaskView):
@@ -302,13 +348,14 @@ class AssetAPI(FlaskView):
             check_access(account, "read")
             account_ids = [account.id]
         else:
-            use_all_accounts = all_accessible or root_asset
-            include_public = all_accessible or include_public or root_asset
-            account_ids = (
-                [a.id for a in get_accessible_accounts()]
-                if use_all_accounts
-                else [current_user.account.id]
+            use_all_accounts = all_accessible or (root_asset is not None)
+            include_public = (
+                all_accessible or include_public or (root_asset is not None)
             )
+            if use_all_accounts:
+                account_ids = [a.id for a in get_accessible_accounts()]
+            else:
+                account_ids = [current_user.account.id]
         filter_statement = GenericAsset.account_id.in_(account_ids)
         if include_public:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
@@ -442,6 +489,9 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        if asset is None:
+            return unprocessable_entity("No asset found for the given id.")
+
         query_statement = Sensor.generic_asset_id == asset.id
 
         query = select(Sensor).filter(query_statement)
@@ -1600,3 +1650,133 @@ class AssetAPI(FlaskView):
         # Return appropriate status code
         status_code = 201 if is_new else 200
         return annotation_schema.dump(annotation), status_code
+
+    @route("/<id>/copy", methods=["POST"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
+    @use_kwargs(CopyAssetSchema, location="query")
+    @as_json
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    def copy_assets(
+        self,
+        id,
+        asset: GenericAsset,
+        account: Account | None = None,
+        parent_asset: GenericAsset | None = None,
+    ):
+        """
+        .. :quickref: Assets; Copy an asset to a target account and/or parent.
+        ---
+        post:
+          summary: Copy an asset to a target account and/or parent.
+          description: |
+            This endpoint creates a copy of an existing asset and optionally places it
+            under a target account and/or parent asset.
+
+            Parameters are passed as query parameters:
+
+            - `account`: target account id
+            - `parent`: target parent asset id
+
+            Resolution rules:
+
+            - If both are omitted, the copy remains in the same account and keeps the same parent.
+            - If `account` is provided and `parent` is omitted, parent defaults to `null`.
+            - If `parent` is provided and `account` is omitted, account is derived from that parent.
+            - If both are provided, it is possible to assign the copied asset to a different account than the parent.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              description: ID of the asset to copy.
+              required: true
+              schema:
+                type: integer
+                format: int32
+            - in: query
+              name: account
+              description: Target account id.
+              required: false
+              schema:
+                type: integer
+                format: int32
+            - in: query
+              name: parent
+              description: Target parent asset id.
+              required: false
+              schema:
+                type: integer
+                format: int32
+          responses:
+            201:
+              description: CREATED
+              content:
+                application/json:
+                  example:
+                    message: Successfully copied asset 10 to account 2.
+                    asset: 99
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        # Resolve effective targets for permission checks and fallback behavior.
+        # If neither target is given, use the source asset's account/parent.
+        resolved_account = account or asset.owner
+        resolved_parent = (
+            parent_asset
+            if account is not None
+            else (parent_asset or asset.parent_asset)
+        )
+
+        # Check create-children permission on the target account.
+        check_access(resolved_account, "create-children")
+
+        # Also check create-children permission on the target parent (if any).
+        if resolved_parent is not None:
+            check_access(resolved_parent, "create-children")
+
+        new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)
+
+        account_given = "account" in request.args
+        parent_given = "parent" in request.args
+
+        if not parent_given and not account_given:
+            message = f"Successfully copied asset {asset.id}."
+        elif parent_given and not account_given:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to parent asset {new_asset.parent_asset_id}."
+            )
+        elif not parent_given and account_given:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to account {new_asset.account_id}."
+            )
+        else:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to account {new_asset.account_id} "
+                f"under parent {new_asset.parent_asset_id}."
+            )
+
+        return {
+            "message": message,
+            "asset": new_asset.id,
+        }, 201
