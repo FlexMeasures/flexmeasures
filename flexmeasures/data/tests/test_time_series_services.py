@@ -241,9 +241,9 @@ def test_drop_unchanged_compares_against_latest_prior_belief(setup_beliefs, db):
     db.session.commit()
 
     event_start = pd.Timestamp("2021-03-28 16:00:00+00:00")
-    belief_time_1 = pd.Timestamp("2021-03-27 08:00:00+00:00")
-    belief_time_2 = pd.Timestamp("2021-03-27 09:00:00+00:00")
-    belief_time_3 = pd.Timestamp("2021-03-27 10:00:00+00:00")
+    belief_time_1 = pd.Timestamp("2021-03-27 08:00:00+00:00")  # older value: 2
+    belief_time_2 = pd.Timestamp("2021-03-27 09:00:00+00:00")  # latest prior value: 1
+    belief_time_3 = pd.Timestamp("2021-03-27 10:00:00+00:00")  # candidate value: 2
 
     initial_beliefs = BeliefsDataFrame(
         [
@@ -307,9 +307,9 @@ def test_drop_unchanged_helper_uses_wrong_prior_when_belief_times_descending(
     db.session.commit()
 
     event_start = pd.Timestamp("2021-03-28 16:00:00+00:00")
-    belief_time_1 = pd.Timestamp("2021-03-27 08:00:00+00:00")  # older
-    belief_time_2 = pd.Timestamp("2021-03-27 09:00:00+00:00")  # latest prior
-    belief_time_3 = pd.Timestamp("2021-03-27 10:00:00+00:00")  # candidate
+    belief_time_1 = pd.Timestamp("2021-03-27 08:00:00+00:00")  # older value: 2
+    belief_time_2 = pd.Timestamp("2021-03-27 09:00:00+00:00")  # latest prior value: 1
+    belief_time_3 = pd.Timestamp("2021-03-27 10:00:00+00:00")  # candidate value: 2
 
     bdf_db = BeliefsDataFrame(
         [
