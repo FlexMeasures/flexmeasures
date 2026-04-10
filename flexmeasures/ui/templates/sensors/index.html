@@ -633,30 +633,6 @@ For the data, note the following:
     {% endif %}
 
     {% if user_can_delete_sensor %}
-    // Populate the source dropdown for the "Delete data" panel
-    async function loadDeleteDataSources() {
-        try {
-            const response = await fetch(apiBasePath + "/api/v3_0/sensors/{{ sensor.id }}/stats");
-            if (!response.ok) { return; }
-            const data = await response.json();
-            const select = document.getElementById('deleteDataSource');
-            Object.keys(data).forEach(function(sourceKey) {
-                if (sourceKey === 'status') { return; }
-                // Key format: "description (ID: N)"
-                const idMatch = sourceKey.match(/\(ID:\s*(\d+)\)$/);
-                if (!idMatch) { return; }
-                const sourceId = idMatch[1];
-                const option = document.createElement('option');
-                option.value = sourceId;
-                option.textContent = sourceKey;
-                select.appendChild(option);
-            });
-        } catch (e) {
-            // silently ignore if stats can't be loaded
-        }
-    }
-    loadDeleteDataSources();
-
     async function deleteData() {
         const button = document.getElementById('deleteDataButton');
         const spinner = document.getElementById('spinner-delete-data');
