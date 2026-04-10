@@ -209,22 +209,16 @@ Available values:
 
    * - Value
      - Appearance
-   * - ``"bootstrap5"``
-     - Bootstrap 5 styling (default; matches the rest of the FlexMeasures UI).
-   * - ``"bootstrap4"``
-     - Bootstrap 4 styling.
-   * - ``"bootstrap3"``
-     - Bootstrap 3 styling.
-   * - ``"tailwind"``
-     - Tailwind CSS styling.
    * - ``"spectre"``
      - Spectre CSS styling.
+   * - ``"bootstrap5"``
+     - Bootstrap 5 styling.
    * - ``"barebones"``
      - Minimal unstyled HTML.
    * - ``"html"``
      - Plain HTML elements only, no extra classes.
 
-Default: ``"bootstrap5"``
+Default: ``"spectre"``
 
 
 FLEXMEASURES_ROOT_VIEW
