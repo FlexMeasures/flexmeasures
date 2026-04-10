@@ -1594,6 +1594,63 @@ class AssetAPI(FlaskView):
             kpis.append(kpi_dict)
         return dict(data=kpis), 200
 
+    @route("/<id>/annotations", methods=["POST"])
+    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @use_args(annotation_schema)
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    def post_annotation(self, annotation: Annotation, id: int, asset: GenericAsset):
+        """.. :quickref: Assets; Add an annotation to an asset.
+        ---
+        post:
+          summary: Creates a new asset annotation.
+          description: |
+            This endpoint creates a new :ref:`annotation <annotations>` on an asset.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: The ID of the asset to register the annotation on.
+              required: true
+              schema:
+                type: integer
+                format: int32
+          requestBody:
+            content:
+              application/json:
+                schema: AnnotationSchema
+          responses:
+            200:
+              description: OK
+            201:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+            - Annotations
+        """
+
+        # Use get_or_create to handle duplicates gracefully
+        annotation, is_new = get_or_create_annotation(annotation)
+
+        # Link annotation to asset
+        if annotation not in asset.annotations:
+            asset.annotations.append(annotation)
+
+        db.session.commit()
+
+        # Return appropriate status code
+        status_code = 201 if is_new else 200
+        return annotation_schema.dump(annotation), status_code
+
     @route("/<id>/copy", methods=["POST"])
     @use_kwargs(
         {
