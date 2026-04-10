@@ -1632,6 +1632,19 @@ class SensorAPI(FlaskView):
         # Put the sensor to save in the parameters
         parameters["sensor"] = params["sensor_to_save"].id
 
+        # Check read permissions for regressor sensors specified in the config.
+        # The schema has already validated that these sensor IDs exist.
+        config = parameters.get("config", {})
+        regressor_ids = set(
+            config.get("future-regressors", [])
+            + config.get("past-regressors", [])
+            + config.get("regressors", [])
+        )
+        for regressor_id in regressor_ids:
+            regressor = db.session.get(Sensor, regressor_id)
+            if regressor is not None:
+                check_access(regressor, "read")
+
         # Set forecaster model
         model = parameters.pop("model", "TrainPredictPipeline")
 
