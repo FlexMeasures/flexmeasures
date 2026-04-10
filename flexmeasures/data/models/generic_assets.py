@@ -109,9 +109,8 @@ def _generate_fixed_value_records(
     :param resolution:         Timestamp spacing; two-point fallback when zero or None.
     """
     # graph_value is always stored as a float by _create_fixed_value_sensors;
-    # the 0.0 default here is a safety fallback for unexpected None values.
-    raw_value = (sensor.attributes or {}).get("graph_value", 0.0)
-    constant_value = float(raw_value) if raw_value is not None else 0.0
+    # the 0.0 default here is a safety fallback for unexpected missing attributes.
+    constant_value = float((sensor.attributes or {}).get("graph_value", 0.0))
     flex_source = (sensor.attributes or {}).get("flex_source", "flex-config")
 
     timestamps_ms = _fixed_value_timestamps_ms(
@@ -155,9 +154,8 @@ def _generate_fixed_value_records_compressed(
     :param source_id:          Source ID to embed in each record.
     """
     # graph_value is always stored as a float by _create_fixed_value_sensors;
-    # the 0.0 default here is a safety fallback for unexpected None values.
-    raw_value = (sensor.attributes or {}).get("graph_value", 0.0)
-    constant_value = float(raw_value) if raw_value is not None else 0.0
+    # the 0.0 default here is a safety fallback for unexpected missing attributes.
+    constant_value = float((sensor.attributes or {}).get("graph_value", 0.0))
 
     timestamps_ms = _fixed_value_timestamps_ms(
         event_starts_after, event_ends_before, resolution
