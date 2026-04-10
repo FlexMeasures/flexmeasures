@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 import json
 
 from flask import current_app
@@ -34,15 +34,29 @@ from flexmeasures.utils.time_utils import determine_minimum_resampling_resolutio
 from flexmeasures.utils.unit_utils import find_smallest_common_unit
 
 
-def _fixed_value_source_dict(flex_source: str) -> dict:
+# Each fixed-value origin gets its own unique negative source ID so that
+# chart specs that key on source ID can distinguish between them.
+# Negative IDs are chosen so they never clash with real DataSource IDs (always > 0).
+_FLEX_SOURCE_IDS: dict[str, int] = {
+    "flex-model": -1,
+    "flex-context": -2,
+    "flex-config": -3,  # fallback when origin is unspecified
+}
+
+
+def _fixed_value_source_dict(
+    flex_source: Literal["flex-model", "flex-context", "flex-config"],
+) -> dict:
     """Build the source metadata dict for a fixed-value sensor record.
 
-    :param flex_source: Either ``"flex-model"`` or ``"flex-context"``
-                        (stored in ``sensor.attributes["flex_source"]``).
+    :param flex_source: The config origin: ``"flex-model"``, ``"flex-context"``,
+                        or ``"flex-config"`` (unknown/fallback).  The value is
+                        stored as ``sensor.attributes["flex_source"]`` when the
+                        synthetic sensor is created.
     :returns: A dict compatible with the ``source`` field of chart data records.
     """
     return dict(
-        id=-1,
+        id=_FLEX_SOURCE_IDS[flex_source],
         name=flex_source,
         model="",
         type="other",
@@ -53,18 +67,19 @@ def _fixed_value_source_dict(flex_source: str) -> dict:
 def _fixed_value_timestamps_ms(
     event_starts_after: datetime,
     event_ends_before: datetime,
-    resolution: timedelta,
+    resolution: timedelta | None,
 ) -> list[int]:
     """Return a list of epoch-millisecond timestamps for fixed-value records.
 
     When *resolution* is positive the timestamps are evenly spaced; when it is
-    zero (instantaneous sensor) only the boundary points are returned so that
-    the chart can draw a horizontal line without unnecessary repetition.
+    zero or None (instantaneous sensor / no real sensors in window) only the
+    boundary points are returned so that the chart can draw a horizontal line
+    without unnecessary repetition.
     """
     start_ms = int(event_starts_after.timestamp() * 1000)
     end_ms = int(event_ends_before.timestamp() * 1000)
 
-    if resolution > timedelta(0):
+    if resolution is not None and resolution > timedelta(0):
         step_ms = int(resolution.total_seconds() * 1000)
         timestamps_ms = list(range(start_ms, end_ms + 1, step_ms))
         if not timestamps_ms or timestamps_ms[-1] != end_ms:
@@ -79,7 +94,7 @@ def _generate_fixed_value_records(
     sensor: "Sensor",  # noqa F821
     event_starts_after: datetime,
     event_ends_before: datetime,
-    resolution: timedelta,
+    resolution: timedelta | None,
 ) -> list[dict]:
     """Build chart data records for a fixed-value sensor.
 
@@ -91,9 +106,11 @@ def _generate_fixed_value_records(
     :param sensor:             A fixed-value sensor (id < 0).
     :param event_starts_after: Start of the chart window.
     :param event_ends_before:  End of the chart window.
-    :param resolution:         Timestamp spacing; two-point fallback when zero.
+    :param resolution:         Timestamp spacing; two-point fallback when zero or None.
     """
-    raw_value = (sensor.attributes or {}).get("graph_value", 0)
+    # graph_value is always stored as a float by _create_fixed_value_sensors;
+    # the 0.0 default here is a safety fallback for unexpected None values.
+    raw_value = (sensor.attributes or {}).get("graph_value", 0.0)
     constant_value = float(raw_value) if raw_value is not None else 0.0
     flex_source = (sensor.attributes or {}).get("flex_source", "flex-config")
 
@@ -121,7 +138,7 @@ def _generate_fixed_value_records_compressed(
     sensor: "Sensor",  # noqa F821
     event_starts_after: datetime,
     event_ends_before: datetime,
-    resolution: timedelta,
+    resolution: timedelta | None,
     source_id: int = -1,
 ) -> list[dict]:
     """Build compressed chart data records for a fixed-value sensor.
@@ -134,10 +151,12 @@ def _generate_fixed_value_records_compressed(
     :param sensor:             A fixed-value sensor (id < 0).
     :param event_starts_after: Start of the chart window.
     :param event_ends_before:  End of the chart window.
-    :param resolution:         Timestamp spacing; two-point fallback when zero.
-    :param source_id:          Source ID to embed in each record (default -1).
+    :param resolution:         Timestamp spacing; two-point fallback when zero or None.
+    :param source_id:          Source ID to embed in each record.
     """
-    raw_value = (sensor.attributes or {}).get("graph_value", 0)
+    # graph_value is always stored as a float by _create_fixed_value_sensors;
+    # the 0.0 default here is a safety fallback for unexpected None values.
+    raw_value = (sensor.attributes or {}).get("graph_value", 0.0)
     constant_value = float(raw_value) if raw_value is not None else 0.0
 
     timestamps_ms = _fixed_value_timestamps_ms(
@@ -425,6 +444,8 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         # Sequential counter for fixed-value sensor IDs (-1, -2, -3, …)
         # Negative IDs are guaranteed not to clash with real DB sensor IDs.
+        # A list is used (rather than a plain int) so that _create_fixed_value_sensors
+        # can increment it in-place across iterations without needing a return value.
         fixed_value_id_counter = [0]
 
         for entry in standardized_sensors_to_show:
@@ -527,7 +548,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         """Create fixed-value sensor objects for flex-context / flex-model references.
 
         Each reference to a fixed quantity (e.g. ``"soc-min": "20 kWh"`` in
-        ``flex_model``) becomes a synthetic Sensor-like object.  These objects
+        ``flex_model``) becomes a synthetic Sensor-like object. These objects
         receive sequential negative IDs (``-1``, ``-2``, …) in the order they
         appear in ``sensors_to_show``, so they never clash with real sensor IDs
         (which are always positive) and are deterministic across requests.
@@ -537,8 +558,9 @@ class GenericAsset(db.Model, AuthModelMixin):
             parent_asset = db.session.get(GenericAsset, ref["id"])
             sensor_name = f"{ref['field']} ({parent_asset.name})"
 
-            # Convert the magnitude to a float (split_into_magnitude_and_unit
-            # returns a string for magnitudes ≠ 1, and None for magnitude = 1).
+            # Convert the magnitude to a float. split_into_magnitude_and_unit
+            # returns None for a dimensionless magnitude of 1, so map None → 1.0
+            # (not 0.0, because the unit-stripped value really is 1 in that case).
             raw_value = ref["value"]
             graph_value = float(raw_value) if raw_value is not None else 1.0
 
@@ -904,6 +926,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         )
 
         if include_data:
+            # Get data
             data = self.chart_data_json(
                 sensors=sensors,
                 event_starts_after=event_starts_after,
@@ -913,6 +936,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 source=source,
                 resolution=resolution,
             )
+            # Combine chart specs and data
             chart_specs["datasets"] = {
                 dataset_name: json.loads(data),
             }
@@ -965,7 +989,10 @@ class GenericAsset(db.Model, AuthModelMixin):
         )
 
         if fixed_value_sensors and event_starts_after and event_ends_before:
-            resolution = determine_minimum_resampling_resolution(
+            # Derive the finest resolution from real sensors. Returns timedelta(0)
+            # when there are no real sensors with a positive resolution, which
+            # _fixed_value_timestamps_ms treats as "two boundary points only".
+            resolution: timedelta | None = determine_minimum_resampling_resolution(
                 [
                     s.event_resolution
                     for s in real_sensors
@@ -981,17 +1008,21 @@ class GenericAsset(db.Model, AuthModelMixin):
                 records_list = parsed.get("data", [])
                 sensors_meta = parsed.get("sensors", {})
                 sources_meta = parsed.get("sources", {})
-                # Negative IDs never clash with real DataSource IDs (positive ints).
-                fixed_source_id = -1
 
                 for sensor in fixed_value_sensors:
+                    # Each flex_source (flex-model, flex-context, flex-config) has
+                    # its own unique negative ID so chart specs can distinguish them.
+                    flex_source = (sensor.attributes or {}).get(
+                        "flex_source", "flex-config"
+                    )
+                    source_id = _FLEX_SOURCE_IDS.get(flex_source, -3)
                     records_list.extend(
                         _generate_fixed_value_records_compressed(
                             sensor,
                             event_starts_after,
                             event_ends_before,
                             resolution,
-                            source_id=fixed_source_id,
+                            source_id=source_id,
                         )
                     )
                     # Add sensor metadata keyed by sensor id (as string, matching
@@ -1004,18 +1035,11 @@ class GenericAsset(db.Model, AuthModelMixin):
                         "asset_id": as_dict.get("asset_id"),
                         "asset_description": as_dict.get("asset_description", ""),
                     }
-
-                # Add source metadata for the fixed-value source if not already
-                # present.  Use the flex_source of the first fixed-value sensor;
-                # in practice all sensors in a single chart row come from the same
-                # config (flex-model or flex-context).
-                if str(fixed_source_id) not in sources_meta:
-                    flex_source = (fixed_value_sensors[0].attributes or {}).get(
-                        "flex_source", "flex-config"
-                    )
-                    sources_meta[str(fixed_source_id)] = _fixed_value_source_dict(
-                        flex_source
-                    )
+                    # Register source metadata once per unique flex_source.
+                    if str(source_id) not in sources_meta:
+                        sources_meta[str(source_id)] = _fixed_value_source_dict(
+                            flex_source
+                        )
 
                 parsed["data"] = records_list
                 parsed["sensors"] = sensors_meta
