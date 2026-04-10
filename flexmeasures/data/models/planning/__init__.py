@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from tabulate import tabulate
 from typing import Any, Type
 
 import pandas as pd
@@ -279,6 +281,7 @@ class Commitment:
 
     name: str
     device: pd.Series = None
+    device_group: pd.Series = None
     index: pd.DatetimeIndex = field(repr=False, default=None)
     _type: str = field(repr=False, default="each")
     group: pd.Series = field(init=False)
@@ -361,10 +364,67 @@ class Commitment:
             "downwards deviation price"
         )
         self.group = self.group.rename("group")
+        self._init_device_group()
+
+    def _init_device_group(self):
+        # EMS-level commitment
+        if self.device is None:
+            self.device_group = pd.Series({"EMS": 0}, name="device_group")
+            return
+
+        # Extract device universe
+        if isinstance(self.device, pd.Series):
+            devices = extract_devices(self.device)
+        else:
+            devices = [self.device]
+
+        devices = list(devices)
+
+        # Default: one group per device (backwards compatible)
+        if self.device_group is None:
+            self.device_group = pd.Series(
+                range(len(devices)), index=devices, name="device_group"
+            )
+        else:
+            # Validate custom grouping
+            missing = set(devices) - set(self.device_group.index)
+            if missing:
+                raise ValueError(
+                    f"device_group missing assignments for devices: {missing}"
+                )
+            self.device_group = self.device_group.loc[devices]
+            self.device_group.name = "device_group"
+
+    def pretty_print(self):
+        """
+        Pretty-print a list of FlowCommitment objects as tabulated pandas DataFrames.
+
+        For each FlowCommitment, a DataFrame indexed by time is created containing
+        the commitment name, device values, group index, quantity, and any available
+        upward or downward deviation prices. Each commitment is printed separately
+        in a readable table format, making this function suitable for debugging,
+        logging, and interactive inspection.
+        """
+        df = self.to_frame()
+        df = pd.DataFrame(index=df.device.index)
+
+        df["commitment"] = self.name
+        df["device"] = self.device
+        df["group"] = self.group
+        df["quantity"] = self.quantity
+
+        if hasattr(self, "upwards_deviation_price"):
+            df["up_price"] = self.upwards_deviation_price
+
+        if hasattr(self, "downwards_deviation_price"):
+            df["down_price"] = self.downwards_deviation_price
+
+        if not df.empty:
+            print(tabulate(df, headers=df.columns, tablefmt="fancy_grid"))
 
     def to_frame(self) -> pd.DataFrame:
         """Contains all info apart from the name."""
-        return pd.concat(
+        df = pd.concat(
             [
                 self.device,
                 self.quantity,
@@ -375,6 +435,13 @@ class Commitment:
             ],
             axis=1,
         )
+        # map device → device_group
+        if self.device is not None:
+            df["device_group"] = map_device_to_group(self.device, self.device_group)
+        else:
+            df["device_group"] = 0
+
+        return df
 
 
 class FlowCommitment(Commitment):
@@ -396,3 +463,48 @@ Deprecations
 Scheduler.compute_schedule = deprecated(Scheduler.compute, "0.14")(
     Scheduler.compute_schedule
 )
+
+
+def extract_devices(device):
+    """
+    Return a flat list of unique device identifiers from:
+    - scalar device
+    - Series of scalars
+    - Series of iterables (e.g. [0, 1])
+    """
+    if device is None:
+        return []
+
+    if isinstance(device, pd.Series):
+        values = device.dropna().values
+    else:
+        values = [device]
+
+    devices = set()
+    for v in values:
+        if isinstance(v, Iterable) and not isinstance(v, (str, bytes)):
+            devices.update(v)
+        else:
+            devices.add(v)
+
+    return list(devices)
+
+
+def map_device_to_group(device_series, device_group_map):
+    """
+    Map device identifiers to device_group.
+
+    - scalar device → group label
+    - iterable of devices → group label (must be identical)
+    """
+
+    def resolve(v):
+        if isinstance(v, (list, tuple, set)):
+            groups = {device_group_map[d] for d in v}
+            if len(groups) != 1:
+                raise ValueError(f"Devices {v} map to multiple device groups: {groups}")
+            return groups.pop()
+        else:
+            return device_group_map[v]
+
+    return device_series.apply(resolve)
