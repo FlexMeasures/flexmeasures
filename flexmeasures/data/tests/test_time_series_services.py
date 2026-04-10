@@ -231,78 +231,28 @@ def test_save_probabilistic_belief_with_different_event_value_raises_error(
     db.session.rollback()
 
 
-def test_drop_unchanged_compares_against_latest_prior_belief(setup_beliefs, db):
-    """Repro: candidate equal to an older belief should still compare to latest prior."""
-
-    sensor = get_test_sensor(db)
-    assert sensor is not None
-    source = DataSource(name="Drop unchanged repro source", type="demo script")
-    db.session.add(source)
-    db.session.commit()
-
-    event_start = pd.Timestamp("2021-03-28 16:00:00+00:00")
-    belief_time_1 = pd.Timestamp("2021-03-27 08:00:00+00:00")  # older value: 2
-    belief_time_2 = pd.Timestamp("2021-03-27 09:00:00+00:00")  # latest prior value: 1
-    belief_time_3 = pd.Timestamp("2021-03-27 10:00:00+00:00")  # candidate value: 2
-
-    initial_beliefs = BeliefsDataFrame(
-        [
-            TimedBelief(
-                sensor=sensor,
-                source=source,
-                event_start=event_start,
-                belief_time=belief_time_1,
-                event_value=2.0,
-            ),
-            TimedBelief(
-                sensor=sensor,
-                source=source,
-                event_start=event_start,
-                belief_time=belief_time_2,
-                event_value=1.0,
-            ),
-        ]
-    )
-    save_to_db(initial_beliefs, save_changed_beliefs_only=False)
-    db.session.commit()
-
-    candidate_belief = BeliefsDataFrame(
-        [
-            TimedBelief(
-                sensor=sensor,
-                source=source,
-                event_start=event_start,
-                belief_time=belief_time_3,
-                event_value=2.0,
-            )
-        ]
-    )
-    save_to_db(candidate_belief, save_changed_beliefs_only=True)
-    db.session.commit()
-
-    beliefs = sensor.search_beliefs(
-        source=source,
-        most_recent_beliefs_only=False,
-        event_starts_after=event_start - pd.Timedelta(minutes=1),
-        event_ends_before=event_start + sensor.event_resolution,
-    )
-    beliefs = beliefs[beliefs.event_starts == event_start]
-    belief_values_by_time = {
-        bt.isoformat(): value
-        for bt, value in zip(beliefs.belief_times, beliefs.event_value)
-    }
-    assert len(belief_values_by_time) == 3
-    assert belief_values_by_time[belief_time_3.isoformat()] == 2.0
-
-
-def test_drop_unchanged_helper_uses_wrong_prior_when_belief_times_descending(
-    setup_beliefs, db
+@pytest.mark.parametrize(
+    "sort_descending",
+    [
+        pytest.param(False, id="ascending_belief_times"),
+        pytest.param(True, id="descending_belief_times"),
+    ],
+)
+def test_drop_unchanged_compares_against_latest_prior_belief(
+    setup_beliefs, db, sort_descending
 ):
-    """Regression: candidate should compare against latest prior, not older prior."""
+    """Candidate equal to an older belief should still compare to latest prior,
+    regardless of whether the existing DB beliefs are sorted ascending or descending.
+
+    Scenario:
+      belief_time_1 (oldest)  → value 2.0
+      belief_time_2 (latest prior) → value 1.0
+      belief_time_3 (candidate)    → value 2.0  ← must NOT be dropped
+    """
 
     sensor = get_test_sensor(db)
-    assert sensor is not None
-    source = DataSource(name="Drop unchanged direct helper repro", type="demo script")
+    assert sensor is not None, "Expected a test sensor to exist in the test database"
+    source = DataSource(name="Drop unchanged repro source", type="demo script")
     db.session.add(source)
     db.session.commit()
 
@@ -317,20 +267,25 @@ def test_drop_unchanged_helper_uses_wrong_prior_when_belief_times_descending(
                 sensor=sensor,
                 source=source,
                 event_start=event_start,
-                belief_time=belief_time_2,
-                event_value=1.0,
+                belief_time=belief_time_1,
+                event_value=2.0,
             ),
             TimedBelief(
                 sensor=sensor,
                 source=source,
                 event_start=event_start,
-                belief_time=belief_time_1,
-                event_value=2.0,
+                belief_time=belief_time_2,
+                event_value=1.0,
             ),
         ]
     )
-    bdf_db = bdf_db.sort_index(ascending=False)
-    assert list(bdf_db.belief_times) == [belief_time_2, belief_time_1]
+
+    if sort_descending:
+        bdf_db = bdf_db.sort_index(ascending=False)
+        assert list(bdf_db.belief_times) == [
+            belief_time_2,
+            belief_time_1,
+        ], "Pre-condition failed: expected bdf_db to be sorted with newest belief first"
 
     candidate = BeliefsDataFrame(
         [
@@ -345,4 +300,8 @@ def test_drop_unchanged_helper_uses_wrong_prior_when_belief_times_descending(
     )
 
     filtered = _drop_unchanged_beliefs_compared_to_db(candidate, bdf_db=bdf_db)
-    assert len(filtered) == 1
+    assert len(filtered) == 1, (
+        "Candidate belief (value=2.0) should not be dropped: it differs from the latest "
+        "prior belief (value=1.0 at belief_time_2), even though it equals an older belief "
+        "(value=2.0 at belief_time_1)"
+    )
