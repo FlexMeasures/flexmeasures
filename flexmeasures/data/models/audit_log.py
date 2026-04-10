@@ -28,7 +28,7 @@ class AuditLog(db.Model, AuthModelMixin):
     __tablename__ = "audit_log"
     id = Column(Integer, primary_key=True)
     event_datetime = Column(DateTime())
-    event = Column(String(255))
+    event = Column(String(500))
     active_user_name = Column(String(255))
     active_user_id = Column(
         "active_user_id", Integer(), ForeignKey("fm_user.id", ondelete="SET NULL")
@@ -115,7 +115,7 @@ class AssetAuditLog(db.Model, AuthModelMixin):
     __tablename__ = "asset_audit_log"
     id = Column(Integer, primary_key=True)
     event_datetime = Column(DateTime())
-    event = Column(String(255))
+    event = Column(String(500))
     active_user_name = Column(String(255))
     active_user_id = Column(
         "active_user_id", Integer(), ForeignKey("fm_user.id", ondelete="SET NULL")
@@ -155,8 +155,8 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         audit_log = cls(
             event_datetime=server_now(),
             event=truncate_string(
-                event, 255
-            ),  # we truncate the event string if it 255 characters by adding ellipses in the middle
+                event, 500
+            ),  # we truncate the event string if it exceeds 500 characters by adding ellipses in the middle
             active_user_id=current_user_id,
             active_user_name=current_user_name,
             affected_asset_id=affected_asset_id,
@@ -179,8 +179,8 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         audit_log = AssetAuditLog(
             event_datetime=server_now(),
             event=truncate_string(
-                event, 255
-            ),  # we truncate the event string if it exceeds 255 characters by adding ellipses in the middle
+                event, 500
+            ),  # we truncate the event string if it exceeds 500 characters by adding ellipses in the middle
             active_user_id=current_user_id,
             active_user_name=current_user_name,
             affected_asset_id=asset.id,

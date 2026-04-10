@@ -40,6 +40,7 @@ This agent owns the integrity of models (e.g. assets, sensors, data sources, sch
 - [ ] **Account ownership**: Check that all assets have `account_id` set correctly
 - [ ] **Sensor-Asset binding**: Validate sensors are properly linked to assets
 - [ ] **TimedBelief structure**: Ensure (event_start, belief_time, source, cumulative_probability) integrity
+- [ ] **Annotation relationships**: Verify many-to-many associations use relationship append pattern
 
 ### Flex-context & flex-model
 
@@ -47,6 +48,58 @@ This agent owns the integrity of models (e.g. assets, sensors, data sources, sch
 - [ ] **Non-null flex-context**: Check that required flex-context fields are populated
 - [ ] **Flex-model validation**: Ensure flex-model conforms to `FlexModelSchema`
 - [ ] **Scheduler contracts**: Validate scheduler inputs (start, end, resolution, belief_time)
+- [ ] **VariableQuantityField guards**: When a flex-model field can be either a raw value or a `Sensor` object, add `isinstance(value, Sensor)` guards (see pattern below)
+
+#### Pattern: Defensive isinstance() Guards for flex-model Fields
+
+Some flex-model fields use `VariableQuantityField`, which can deserialize to either a plain
+value (e.g. `float`) or a `Sensor` object. Whenever production code branches on such a field,
+it must guard with `isinstance(field_value, Sensor)`:
+
+```python
+# ❌ Wrong: assumes soc_max is always a number
+if soc_max > 0:
+    ...
+
+# ✅ Correct: handles both Sensor and numeric cases
+if isinstance(soc_max, Sensor):
+    # sensor-referenced max — handle sensor lookup
+    ...
+elif soc_max > 0:
+    # plain numeric max
+    ...
+```
+
+**Why it matters**: Missing guards will raise `TypeError` when plugins or future PRs start
+passing `Sensor` objects for fields that currently only see plain values (e.g. `soc-max`
+in `StorageScheduler`). Adding the guard now is cheap; fixing crashes in production is not.
+
+**Discovered in**: PR #1996 (`e03e91a`) — `_build_soc_schedule` received `soc_max` that could
+eventually be a `Sensor` when `VariableQuantityField` is used for `soc-max`.
+
+#### Pattern: @staticmethod for Methods Without Instance State
+
+When a scheduler or data-generator method does not access `self` or `cls`, it should be
+decorated with `@staticmethod`:
+
+```python
+# ❌ Before: unused self
+def _build_soc_schedule(self, soc_schedule, sensor, ...):
+    ...
+
+# ✅ After: explicit no-self contract
+@staticmethod
+def _build_soc_schedule(soc_schedule, sensor, ...):
+    ...
+```
+
+Benefits:
+- Signals intent: this is a pure function, not dependent on object state
+- Prevents accidental use of `self` (e.g. accessing stale cached state)
+- Easier to unit-test in isolation
+
+**Review trigger**: Any private method in a Scheduler or DataGenerator subclass that does not
+reference `self` or `cls` — propose `@staticmethod`.
 
 ### Domain Boundaries
 
@@ -63,6 +116,7 @@ This agent owns the integrity of models (e.g. assets, sensors, data sources, sch
 - [ ] **No quick hacks**: Push back on changes that erode model clarity for short-term gains
 - [ ] **Separation of concerns**: Validate, process, and persist should be distinct steps
 - [ ] **Multi-tenancy**: Ensure account-level access control is maintained
+- [ ] **Idempotency**: API endpoints should use get-or-create patterns with proper tuple returns for status detection
 
 ### Schema-Code Consistency
 
@@ -233,6 +287,28 @@ fields_to_remove = ["as_job"]  # ❌ Wrong format
 - **Location**: `/flexmeasures/data/models/data_sources.py`
 - **Purpose**: Forecasters and reporters subclass `DataGenerator` to couple configured instances to unique data sources (schedulers are not yet subclassing `DataGenerator`)
 
+#### Annotation
+- **Location**: `flexmeasures/data/models/annotations.py`
+- **Purpose**: Independent entities for metadata about other domain objects (assets, sensors, accounts)
+- **Relationships**: Many-to-many with GenericAsset, Sensor, Account (via association tables)
+- **Key fields**: `id`, `content`, `type`, `start`, `end`, `source_id`
+- **Pattern**: Use `get_or_create_annotation()` for idempotency
+  - Returns `(annotation, is_new)` tuple
+  - `is_new=True` for created, `is_new=False` for existing
+  - Enables proper HTTP status codes (201 vs 200)
+- **Association pattern**: Use SQLAlchemy relationship append
+  ```python
+  # ✅ Correct: Use relationship append
+  entity.annotations.append(annotation)
+  
+  # ❌ Wrong: Manual join table manipulation
+  # Don't create association table entries directly
+  ```
+- **Permission model**: Annotations are independent entities
+  - Adding annotation to entity requires "update" permission on entity
+  - Not "create-children" (that's for owned hierarchies like asset→sensor)
+  - Rationale: Many-to-many relationship, annotation exists independently
+
 ### Critical Invariants
 
 1. **Acyclic Asset Trees**
@@ -296,6 +372,83 @@ fields_to_remove = ["as_job"]  # ❌ Wrong format
 - **Tight coupling**: API/CLI should not import from each other
 - **Bypassing services**: Direct model access from API/CLI
 - **Quick hacks**: Temporary solutions that become permanent
+- **Manual join table manipulation**: Use SQLAlchemy relationship methods, not direct association table inserts
+- **Wrong permission model**: Use "update" for annotations, not "create-children" (which is for owned hierarchies)
+- **Idempotency without detection**: get-or-create functions should return `(entity, is_new)` tuple
+
+### Annotation API Pattern (Session 2026-02-10)
+
+When implementing POST endpoints for adding annotations to domain entities:
+
+#### 1. Idempotency Pattern
+```python
+# ✅ Correct: get_or_create returns tuple
+annotation, is_new = get_or_create_annotation(
+    content=...,
+    type=...,
+    source_id=...,
+    # ... other fields
+)
+
+# Return appropriate HTTP status
+if is_new:
+    return make_response({...}, 201)  # Created
+else:
+    return make_response({...}, 200)  # OK (already exists)
+```
+
+#### 2. Relationship Management Pattern
+```python
+# ✅ Correct: Use SQLAlchemy relationship append
+entity.annotations.append(annotation)
+db.session.commit()
+
+# ❌ Wrong: Manual join table manipulation
+# Don't create rows in association tables directly
+```
+
+#### 3. Permission Pattern
+For many-to-many relationships like annotations:
+- **Use "update" permission** to add annotation to entity
+- **Not "create-children"** (that's for owned hierarchies like GenericAsset→Sensor)
+- **Rationale**: Annotation is independent entity, can be associated with multiple entities
+
+#### 4. API Endpoint Structure
+```python
+class AnnotationAPI(FlaskView):
+    @route("/<resource_id>/annotations", methods=["POST"])
+    @permission_required_for_context("update", ctx_arg_name="entity")
+    def post(self, resource_id: int):
+        # 1. Load and validate entity
+        entity = get_entity_or_abort(resource_id)
+        
+        # 2. Validate annotation data (Marshmallow schema)
+        annotation_data = AnnotationSchema().load(request.json)
+        
+        # 3. Get or create annotation (idempotency)
+        annotation, is_new = get_or_create_annotation(**annotation_data)
+        
+        # 4. Associate with entity (relationship append)
+        entity.annotations.append(annotation)
+        db.session.commit()
+        
+        # 5. Return appropriate status
+        status_code = 201 if is_new else 200
+        return make_response(AnnotationSchema().dump(annotation), status_code)
+```
+
+#### 5. Review Checklist for Annotation Endpoints
+- [ ] Does `get_or_create_annotation()` return `(annotation, is_new)` tuple?
+- [ ] Does endpoint return 201 for new, 200 for existing?
+- [ ] Does code use `entity.annotations.append()` not manual join table?
+- [ ] Does endpoint require "update" permission not "create-children"?
+- [ ] Is annotation data validated with Marshmallow schema?
+- [ ] Is the association committed to database?
+
+**Related Files**:
+- Model: `flexmeasures/data/models/annotations.py`
+- API: `flexmeasures/api/v3_0/assets.py`, `flexmeasures/api/v3_0/sensors.py`
+- Schema: `flexmeasures/data/schemas/annotations.py`
 
 ### Related Files
 
@@ -370,11 +523,11 @@ When reviewing or implementing domain model fixes:
 2. **Test the fix end-to-end**:
    ```bash
    # Example: Test a CLI fix
-   make install-for-dev
+   uv sync --group dev --group test
    flexmeasures <command> <args>  # The exact command from bug report
    ```
 3. **Verify domain invariants still hold**:
-   - Run relevant test suite: `make test` or `pytest path/to/tests`
+   - Run relevant test suite: `uv run poe test`
    - Check database constraints are satisfied
    - Verify no regressions in related functionality
 4. **Document verification in commit**:

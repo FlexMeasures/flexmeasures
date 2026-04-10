@@ -83,9 +83,16 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
     - |
-      pip install --break-system-packages -r /usr/var/flexmeasures-instance/requirements.txt
+      if [ -f /usr/var/flexmeasures-instance/requirements.txt ]; then
+        pip install --no-cache-dir -r /usr/var/flexmeasures-instance/requirements.txt
+      fi
       flexmeasures db upgrade
-      flexmeasures add toy-account --name 'Docker Toy Account'
+      if [ ! -f /usr/var/flexmeasures-instance/.toy-account-created ]; then
+        flexmeasures add toy-account --name 'Docker Toy Account'
+        touch /usr/var/flexmeasures-instance/.toy-account-created
+      else
+        echo "Not creating toy account (already happened once). You can run 'flexmeasures add toy-account' any time."
+      fi
       gunicorn --bind 0.0.0.0:5000 --worker-tmp-dir /dev/shm --workers 2 --threads 4 wsgi:application
   worker:
     build:
@@ -112,7 +119,9 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: 
     - |
-      pip install --break-system-packages -r /usr/var/flexmeasures-instance/requirements.txt
+      if [ -f /usr/var/flexmeasures-instance/requirements.txt ]; then
+        pip install --no-cache-dir -r /usr/var/flexmeasures-instance/requirements.txt
+      fi
       flexmeasures jobs run-worker --name flexmeasures-worker --queue forecasting\|scheduling
   test-db:
     image: postgres

@@ -1,9 +1,11 @@
 # Composite action: installs system dependencies, checks out code,
-# upgrades pip, loads psql extensions and installs FlexMeasures for testing.
+# loads psql extensions and installs FlexMeasures for testing.
 #
 # The caller is responsible for declaring the postgres (and, for the Copilot
-# agent, redis) service container(s) and exporting the PG* / FLEXMEASURES_*
-# environment variables before calling this action.
+# agent, redis) service container(s) before calling this action.
+# PG* connection variables default to the standard test configuration
+# (127.0.0.1:5432, user/db/password = flexmeasures_test) but can be
+# overridden via the calling job's env: block.
 
 name: "Setup FlexMeasures test environment"
 description: >
@@ -12,37 +14,35 @@ description: >
 
 inputs:
   python-version:
-    description: "Python version to set up (e.g. '3.11')"
+    description: "Python version to set up (e.g. '3.12')"
     required: true
-  install-mode:
-    description: "'pinned' (default) uses pip-sync on locked .txt files; 'latest' upgrades to newest compatible packages"
-    required: false
-    default: "pinned"
 
 runs:
   using: "composite"
   steps:
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ inputs.python-version }}
 
-    - name: Get history and tags for SCM versioning to work
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+        python-version: ${{ inputs.python-version }}
+        version: "0.10.9"
+
+    - name: Get history and tags for hatch-vcs versioning to work
       shell: bash
       run: |
         git fetch --prune --unshallow || true
-        git fetch --depth=1 origin +refs/tags/*:refs/tags/*
-
-    - name: Upgrade pip
-      # Pin due to https://github.com/pypa/pip/issues/13636
-      shell: bash
-      run: python -m pip install --upgrade "pip==25.2"
+        git fetch --depth=1 origin +refs/tags/*:refs/tags/* || true
 
     - name: Install system dependencies
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get -y install libpq-dev coinor-cbc postgresql-client
+        sudo apt-get -y --no-install-recommends install libpq-dev coinor-cbc postgresql-client
 
     - name: Load PostgreSQL extensions
       shell: bash
@@ -50,13 +50,12 @@ runs:
         psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDB" \
              -f ci/load-psql-extensions.sql
       env:
-        PGPASSWORD: ${{ env.PGPASSWORD }}
+        PGHOST: ${{ env.PGHOST || '127.0.0.1' }}
+        PGPORT: ${{ env.PGPORT || '5432' }}
+        PGUSER: ${{ env.PGUSER || 'flexmeasures_test' }}
+        PGDB: ${{ env.PGDB || 'flexmeasures_test' }}
+        PGPASSWORD: ${{ env.PGPASSWORD || 'flexmeasures_test' }}
 
     - name: Install FlexMeasures & dependencies
       shell: bash
-      run: |
-        if [[ "${{ inputs.install-mode }}" == "latest" ]]; then
-          make install-for-test pinned=no
-        else
-          make install-for-test
-        fi
+      run: uv sync --locked --group test --group dev

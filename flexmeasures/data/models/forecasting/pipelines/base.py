@@ -65,6 +65,7 @@ class BasePipeline:
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
         save_belief_time: datetime | None = None,
+        beliefs_before: datetime | None = None,
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
         missing_threshold: float = 1.0,
@@ -81,6 +82,9 @@ class BasePipeline:
         self.event_ends_before = event_ends_before
         self.save_belief_time = (
             save_belief_time  # non floored belief time to save forecasts with
+        )
+        self.beliefs_before = (
+            beliefs_before  # restrict input data to beliefs recorded before this time
         )
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
@@ -141,6 +145,7 @@ class BasePipeline:
                 event_starts_after=sensor_event_starts_after,
                 event_ends_before=sensor_event_ends_before,
                 most_recent_beliefs_only=most_recent_beliefs_only,
+                beliefs_before=self.beliefs_before,
                 exclude_source_types=(
                     ["forecaster"] if name == self.target else []
                 ),  # we exclude forecasters for target dataframe as to not use forecasts in target.
@@ -605,8 +610,8 @@ class BasePipeline:
 
                 if missing_fraction > self.missing_threshold:
                     raise NotEnoughDataException(
-                        f"Sensor {sensor_name} has {missing_fraction*100:.1f}% missing values "
-                        f"which exceeds the allowed threshold of {self.missing_threshold*100:.1f}%"
+                        f"Sensor {sensor_name} has {missing_fraction * 100:.1f}% missing values "
+                        f"which exceeds the allowed threshold of {self.missing_threshold * 100:.1f}%"
                     )
 
             if df.empty:
@@ -690,8 +695,8 @@ class BasePipeline:
 
             if missing_rows_fraction > self.missing_threshold:
                 raise NotEnoughDataException(
-                    f"Sensor {sensor_name} has {missing_rows_fraction*100:.1f}% missing values "
-                    f"which exceeds the allowed threshold of {self.missing_threshold*100:.1f}%"
+                    f"Sensor {sensor_name} has {missing_rows_fraction * 100:.1f}% missing values "
+                    f"which exceeds the allowed threshold of {self.missing_threshold * 100:.1f}%"
                 )
             if not data_darts_gaps.empty:
                 data_darts = transformer.transform(

@@ -198,8 +198,8 @@
             }
 
             // Set up swiping and clicking for the left sidepanel
-            var leftSidepanels = document.getElementsByClassName('left-sidepanel');
-            var leftSidepanelLabels = document.getElementsByClassName('left-sidepanel-label');
+            var leftSidepanels = document.getElementsByClassName('sidepanel-content');
+            var leftSidepanelLabels = document.getElementsByClassName('sidepanel-label');
             async function openSidepanel(e) {
                 if ( (e.target.classList.contains('sidepanel-container')) | (e.type == 'click') ) {
                 for (var i = leftSidepanels.length - 1; i >= 0; i--) {

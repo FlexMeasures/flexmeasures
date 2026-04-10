@@ -11,6 +11,7 @@ from flask import current_app
 
 
 from flexmeasures import Asset, Sensor
+from flexmeasures.data import db
 from flexmeasures.data.models.planning import (
     FlowCommitment,
     Scheduler,
@@ -203,17 +204,6 @@ class MetaStorageScheduler(Scheduler):
 
         start = pd.Timestamp(start).tz_convert("UTC")
         end = pd.Timestamp(end).tz_convert("UTC")
-
-        # Add tiny price slope to prefer charging now rather than later, and discharging later rather than now.
-        # We penalise future consumption and reward future production with at most 1 per thousand times the energy price spread.
-        # todo: move to flow or stock commitment per device
-        if any(prefer_charging_sooner):
-            up_deviation_prices = add_tiny_price_slope(
-                up_deviation_prices, "event_value"
-            )
-            down_deviation_prices = add_tiny_price_slope(
-                down_deviation_prices, "event_value"
-            )
 
         # Create Series with EMS capacities
         ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
@@ -447,23 +437,32 @@ class MetaStorageScheduler(Scheduler):
             # Take the contracted capacity as a hard constraint
             ems_constraints["derivative min"] = ems_production_capacity
 
-        # Flow commitments per device
+        # Commitments per device
 
-        # Add tiny price slope to prefer curtailing later rather than now.
-        # The price slope is half of the slope to prefer charging sooner
-        for d, prefer_curtailing_later_d in enumerate(prefer_curtailing_later):
-            if prefer_curtailing_later_d:
+        # StockCommitment per device to prefer a full storage by penalizing not being full
+        # This corresponds to a preference for charging now rather than later, and discharging later rather than now.
+        for d, (prefer_charging_sooner_d, prefer_curtailing_later_d) in enumerate(
+            zip(prefer_charging_sooner, prefer_curtailing_later)
+        ):
+            if prefer_charging_sooner_d:
                 tiny_price_slope = (
-                    add_tiny_price_slope(up_deviation_prices, "event_value")
+                    add_tiny_price_slope(
+                        up_deviation_prices, "event_value", order="desc"
+                    )
                     - up_deviation_prices
                 )
-                tiny_price_slope *= 0.5
-                commitment = FlowCommitment(
-                    name=f"prefer curtailing device {d} later",
-                    # Prefer curtailing consumption later by penalizing later consumption
-                    upwards_deviation_price=tiny_price_slope,
-                    # Prefer curtailing production later by penalizing later production
-                    downwards_deviation_price=-tiny_price_slope,
+                if prefer_curtailing_later_d:
+                    # Use a tiny price slope to prefer a fuller SoC sooner rather than later, by lowering penalties later
+                    penalty = tiny_price_slope
+                else:
+                    # Constant penalty
+                    penalty = tiny_price_slope.iloc[0][0]
+                commitment = StockCommitment(
+                    name=f"prefer a full storage {d} sooner",
+                    quantity=(soc_max[d] - soc_at_start[d])
+                    * (timedelta(hours=1) / resolution),
+                    upwards_deviation_price=0,
+                    downwards_deviation_price=-penalty,
                     index=index,
                     device=d,
                 )
@@ -947,7 +946,7 @@ class MetaStorageScheduler(Scheduler):
     def convert_to_commitments(
         self,
         **timing_kwargs,
-    ) -> list[FlowCommitment]:
+    ) -> list[FlowCommitment | StockCommitment]:
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
         commitment_specs = self.flex_context.get("commitments", [])
         if len(commitment_specs) == 0:
@@ -1043,6 +1042,10 @@ class MetaStorageScheduler(Scheduler):
                 self.flex_model
             )
             for d, sensor_flex_model in enumerate(self.flex_model):
+                sensor_flex_model["sensor_flex_model"] = self.ensure_soc_at_start(
+                    flex_model=sensor_flex_model["sensor_flex_model"],
+                    sensor=sensor_flex_model.get("sensor"),
+                )
                 self.flex_model[d] = StorageFlexModelSchema(
                     start=self.start,
                     sensor=sensor_flex_model.get("sensor"),
@@ -1072,6 +1075,194 @@ class MetaStorageScheduler(Scheduler):
             and self.flex_model["soc-at-start"] is not None
         )
 
+    @staticmethod
+    def has_soc_at_start_in(flex_model: dict) -> bool:
+        return "soc-at-start" in flex_model and flex_model["soc-at-start"] is not None
+
+    def _get_soc_lookup_radius(
+        self, sensor: Sensor | None = None, slack_steps: int = 4
+    ) -> timedelta:
+        """Return the half-width of the SoC lookup interval.
+
+        We search for a nearby SoC value in the interval
+        ``[self.start - slack_steps * resolution, self.start + slack_steps * resolution]``.
+        Using four resolution steps by default keeps the lookup tolerant to small timing
+        offsets while still rejecting stale values. For example, a 15-minute
+        resolution yields a 1-hour lookup radius.
+
+        :param sensor:      Optional sensor whose resolution should be used.
+        :param slack_steps: Number of resolution steps accepted on either side of
+                            the schedule start.
+        :returns:           Half-width of the SoC lookup interval.
+        """
+        resolution = self.resolution
+        if resolution is None and sensor is not None:
+            resolution = sensor.event_resolution
+        if resolution is None:
+            resolution = self.default_resolution
+        return slack_steps * resolution
+
+    def _get_soc_capacity_for_percent_conversion(
+        self, flex_model: dict, sensor: Sensor | None = None
+    ) -> str:
+        """Return the capacity used to convert percentage-based SoC values.
+
+        :param flex_model: Flex model containing the SoC configuration.
+        :param sensor:     Optional scheduled power sensor whose asset can provide fallback capacity.
+        :returns:          Capacity expressed in MWh.
+        """
+        soc_max = flex_model.get("soc-max")
+        soc_unit = flex_model.get("soc-unit")
+        capacity_sensor = sensor or self.sensor
+        if soc_max is None and capacity_sensor is not None:
+            soc_max = capacity_sensor.generic_asset.flex_model.get("soc-max")
+        if soc_max is None and capacity_sensor is not None:
+            soc_max = capacity_sensor.generic_asset.get_attribute("max_soc_in_mwh")
+        if soc_max is None:
+            raise ValueError(
+                "Cannot derive state of charge from a `state-of-charge` sensor with '%' unit without `soc-max`."
+            )
+        if isinstance(soc_max, Sensor):
+            raise ValueError(
+                "Cannot derive state of charge from a `state-of-charge` sensor with '%' unit when `soc-max` is a sensor reference."
+            )
+        if isinstance(soc_max, (int, float)):
+            return str(ur.Quantity(soc_max, soc_unit).to("MWh"))
+        return str(ur.Quantity(soc_max).to("MWh"))
+
+    def _convert_soc_value_to_mwh(
+        self,
+        value: float,
+        from_unit: str,
+        flex_model: dict,
+        sensor: Sensor | None = None,
+    ) -> float:
+        capacity = (
+            self._get_soc_capacity_for_percent_conversion(flex_model, sensor)
+            if from_unit == "%"
+            else None
+        )
+        return convert_units(
+            data=value,
+            from_unit=from_unit,
+            to_unit="MWh",
+            capacity=capacity,
+        )
+
+    def _resolve_soc_at_start_from_sensor(
+        self,
+        state_of_charge_sensor: Sensor,
+        flex_model: dict,
+        sensor: Sensor | None = None,
+    ) -> float:
+        """Resolve ``soc-at-start`` from a ``state-of-charge`` sensor.
+
+        :param state_of_charge_sensor: Instantaneous SoC sensor.
+        :param flex_model:             Flex model containing the SoC configuration.
+        :param sensor:                 Optional scheduled power sensor.
+        :returns:                      Starting SoC in MWh.
+        """
+        lookup_radius = self._get_soc_lookup_radius(sensor)
+        beliefs = state_of_charge_sensor.search_beliefs(
+            event_starts_after=self.start - lookup_radius,
+            event_ends_before=self.start + lookup_radius,
+            one_deterministic_belief_per_event=True,
+        )
+        if beliefs.empty:
+            raise ValueError(
+                f"No recent state-of-charge value found for sensor {state_of_charge_sensor.id} "
+                f"within {lookup_radius} of schedule start {self.start.isoformat()}."
+            )
+
+        beliefs_df = beliefs.reset_index()
+        beliefs_df["time_distance"] = (
+            beliefs_df["event_start"] - pd.Timestamp(self.start)
+        ).abs()
+        nearest_beliefs = beliefs_df[
+            beliefs_df["time_distance"] == beliefs_df["time_distance"].min()
+        ]
+        nearest_belief = nearest_beliefs.loc[nearest_beliefs["event_start"].idxmax()]
+
+        return self._convert_soc_value_to_mwh(
+            value=nearest_belief["event_value"],
+            from_unit=state_of_charge_sensor.unit,
+            flex_model=flex_model,
+            sensor=sensor,
+        )
+
+    def _resolve_soc_at_start_from_time_series(
+        self, soc_time_series: list[dict], sensor: Sensor | None = None
+    ) -> float:
+        """Resolve ``soc-at-start`` from a ``state-of-charge`` time series.
+
+        :param soc_time_series: SoC time series specification.
+        :param sensor:          Optional scheduled power sensor.
+        :returns:               Starting SoC in MWh.
+        """
+        lookup_radius = self._get_soc_lookup_radius(sensor)
+        normalized_segments = [
+            {
+                "start": pd.Timestamp(segment["start"]),
+                "end": pd.Timestamp(segment["end"]),
+                "value": ur.Quantity(segment["value"]).to("MWh"),
+            }
+            for segment in soc_time_series
+        ]
+        matching_segments = [
+            segment
+            for segment in normalized_segments
+            if segment["start"] <= self.start < segment["end"]
+        ]
+        if matching_segments:
+            latest_matching_segment = max(
+                matching_segments, key=lambda segment: segment["start"]
+            )
+            return (latest_matching_segment["value"] / ur.Quantity("MWh")).magnitude
+
+        candidate_segments = []
+        for segment in normalized_segments:
+            start_distance = abs(segment["start"] - self.start)
+            end_distance = abs(segment["end"] - self.start)
+            distance = min(start_distance, end_distance)
+            if distance <= lookup_radius:
+                candidate_segments.append((distance, segment))
+
+        if not candidate_segments:
+            raise ValueError(
+                f"No recent state-of-charge value found in the provided `state-of-charge` time series "
+                f"within {lookup_radius} of schedule start {self.start.isoformat()}."
+            )
+
+        _, nearest_segment = min(candidate_segments, key=lambda item: item[0])
+        return (nearest_segment["value"] / ur.Quantity("MWh")).magnitude
+
+    def _resolve_soc_at_start_from_state_of_charge(
+        self, flex_model: dict, sensor: Sensor | None = None
+    ) -> float | None:
+        """Resolve ``soc-at-start`` from the ``state-of-charge`` field.
+
+        :param flex_model: Flex model containing the SoC configuration.
+        :param sensor:     Optional scheduled power sensor.
+        :returns:          Starting SoC in MWh if it can be inferred.
+        """
+        state_of_charge = flex_model.get("state-of-charge")
+        if isinstance(state_of_charge, Sensor):
+            return self._resolve_soc_at_start_from_sensor(
+                state_of_charge, flex_model, sensor
+            )
+        if isinstance(state_of_charge, list):
+            return self._resolve_soc_at_start_from_time_series(state_of_charge, sensor)
+        if isinstance(state_of_charge, dict) and "sensor" in state_of_charge:
+            state_of_charge_sensor = db.session.get(Sensor, state_of_charge["sensor"])
+            if state_of_charge_sensor is None:
+                raise ValueError(
+                    f"State-of-charge sensor with id {state_of_charge['sensor']} was not found."
+                )
+            return self._resolve_soc_at_start_from_sensor(
+                state_of_charge_sensor, flex_model, sensor
+            )
+        return None
+
     def possibly_extend_end(self, soc_targets, sensor: Sensor = None):
         """Extend schedule period in case a target exceeds its end.
 
@@ -1093,27 +1284,41 @@ class MetaStorageScheduler(Scheduler):
                 else:
                     self.end = max_target_datetime
 
-    def ensure_soc_at_start(self):
+    def ensure_soc_at_start(
+        self, flex_model: dict | None = None, sensor: Sensor | None = None
+    ) -> dict:
         """
         Ensure we have a starting state of charge - if needed.
         Preferably, a starting soc is given.
-        Otherwise, we try to retrieve the current state of charge from the (old-style) attribute (if that is the valid one at the start).
-        If that doesn't work, we default the starting soc to be 0 (only if there are soc limits, though, as some assets don't use the concept of a state of charge,
-        and without soc targets and limits the starting soc doesn't matter).
+        Otherwise, we try to retrieve the current state of charge from the configured ``state-of-charge`` field.
+        If that doesn't work, we try the (old-style) asset attribute.
+        Finally, we default the starting soc to 0 (only if there are soc limits, though, as some assets don't use
+        the concept of a state of charge, and without soc targets and limits the starting soc doesn't matter).
         """
-        if not self.has_soc_at_start() and self.sensor is not None:
+        if flex_model is None:
+            flex_model = self.flex_model
+        if sensor is None:
+            sensor = self.sensor
+
+        if not self.has_soc_at_start_in(flex_model) and "state-of-charge" in flex_model:
+            flex_model["soc-at-start"] = (
+                str(self._resolve_soc_at_start_from_state_of_charge(flex_model, sensor))
+                + "MWh"
+            )
+
+        if not self.has_soc_at_start_in(flex_model) and sensor is not None:
             # TODO: remove this check when moving to v1.0 (requiring to also remove attributes from test data assets)
             if (
-                self.start == self.sensor.get_attribute("soc_datetime")
-                and self.sensor.get_attribute("soc_in_mwh") is not None
+                self.start == sensor.get_attribute("soc_datetime")
+                and sensor.get_attribute("soc_in_mwh") is not None
             ):
-                self.flex_model["soc-at-start"] = self.sensor.get_attribute(
-                    "soc_in_mwh"
-                )
-        if not self.has_soc_at_start() and (
-            "soc-min" in self.flex_model or "soc-max" in self.flex_model
+                flex_model["soc-at-start"] = sensor.get_attribute("soc_in_mwh")
+        if not self.has_soc_at_start_in(flex_model) and (
+            "soc-min" in flex_model or "soc-max" in flex_model
         ):
-            self.flex_model["soc-at-start"] = 0
+            flex_model["soc-at-start"] = 0
+
+        return flex_model
 
     def get_min_max_targets(self) -> tuple[float | None, float | None]:
         """This happens before deserializing the flex-model."""
@@ -1301,10 +1506,68 @@ class StorageFallbackScheduler(MetaStorageScheduler):
 
 
 class StorageScheduler(MetaStorageScheduler):
-    __version__ = "7"
+    __version__ = "8"
     __author__ = "Seita"
 
     fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
+
+    @staticmethod
+    def _build_soc_schedule(
+        flex_model: list[dict],
+        ems_schedule: pd.DataFrame,
+        soc_at_start: list[float],
+        device_constraints: list,
+        resolution: timedelta,
+    ) -> dict:
+        """Build the state-of-charge schedule for each device that has a state-of-charge sensor.
+
+        Converts the integrated power schedule from MWh to the sensor's unit.
+        For sensors with a '%' unit, the soc-max flex-model field is used as capacity.
+        If soc-max is missing or zero for a '%' sensor, the schedule is skipped with a warning.
+
+        Note: soc-max is a QuantityField (not a VariableQuantityField), so it is always a float
+        after deserialization and cannot be a sensor reference. The isinstance guard below is
+        therefore a defensive check for forward-compatibility.
+        """
+        soc_schedule = {}
+        for d, flex_model_d in enumerate(flex_model):
+            state_of_charge_sensor = flex_model_d.get("state_of_charge", None)
+            if not isinstance(state_of_charge_sensor, Sensor):
+                continue
+            soc_unit = state_of_charge_sensor.unit
+            capacity = None
+            if soc_unit == "%":
+                soc_max = flex_model_d.get("soc_max")
+                if isinstance(soc_max, Sensor):
+                    raise ValueError(
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
+                        "soc-max as a sensor reference is not supported for '%' unit conversion. "
+                        "Skipping state-of-charge schedule."
+                    )
+                if not soc_max:
+                    raise ValueError(
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
+                        "soc-max is missing or zero. Skipping state-of-charge schedule."
+                    )
+                capacity = f"{soc_max} MWh"  # all flex model fields are in MWh by now
+            soc_schedule[state_of_charge_sensor] = convert_units(
+                integrate_time_series(
+                    series=ems_schedule[d],
+                    initial_stock=soc_at_start[d],
+                    stock_delta=device_constraints[d]["stock delta"]
+                    * resolution
+                    / timedelta(hours=1),
+                    up_efficiency=device_constraints[d]["derivative up efficiency"],
+                    down_efficiency=device_constraints[d]["derivative down efficiency"],
+                    storage_efficiency=device_constraints[d]["efficiency"]
+                    .astype(float)
+                    .fillna(1),
+                ),
+                from_unit="MWh",
+                to_unit=soc_unit,
+                capacity=capacity,
+            )
+        return soc_schedule
 
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
@@ -1398,26 +1661,9 @@ class StorageScheduler(MetaStorageScheduler):
             flex_model["sensor"] = sensors[0]
             flex_model = [flex_model]
 
-        soc_schedule = {
-            flex_model_d["state_of_charge"]: convert_units(
-                integrate_time_series(
-                    series=ems_schedule[d],
-                    initial_stock=soc_at_start[d],
-                    stock_delta=device_constraints[d]["stock delta"]
-                    * resolution
-                    / timedelta(hours=1),
-                    up_efficiency=device_constraints[d]["derivative up efficiency"],
-                    down_efficiency=device_constraints[d]["derivative down efficiency"],
-                    storage_efficiency=device_constraints[d]["efficiency"]
-                    .astype(float)
-                    .fillna(1),
-                ),
-                from_unit="MWh",
-                to_unit=flex_model_d["state_of_charge"].unit,
-            )
-            for d, flex_model_d in enumerate(flex_model)
-            if isinstance(flex_model_d.get("state_of_charge", None), Sensor)
-        }
+        soc_schedule = self._build_soc_schedule(
+            flex_model, ems_schedule, soc_at_start, device_constraints, resolution
+        )
 
         # Resample each device schedule to the resolution of the device's power sensor
         if self.resolution is None:

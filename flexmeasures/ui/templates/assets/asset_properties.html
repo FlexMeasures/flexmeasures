@@ -13,12 +13,13 @@
 <div class="container-fluid">
     <div class="row">
 
-        <div class="col-md-2 on-top-md">
+        <div class="col-md-2 on-top-md ps-0">
 
             {% if user_can_update_asset %}
-            <div class="sidepanel-container">
-                <div class="left-sidepanel-label">Edit asset</div>
-                <div class="sidepanel left-sidepanel">
+            <div class="sidepanel">
+            <div class="sidepanel-container" style="--sidepanel-width: 450px">
+                <div class="sidepanel-label">Edit asset</div>
+                <div class="sidepanel-content">
                     <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}">
                         {{ asset_form.csrf_token }}
                         {{ asset_form.hidden_tag() }}
@@ -135,6 +136,7 @@
                         </fieldset>
                     </form>
                 </div>
+            </div>
             </div>
             {% endif %}
 
@@ -500,8 +502,6 @@
             }
 
             function reRenderForm() {
-                // Skip on first init. This code prevents the access to teh variable 'getFlexmodel'
-                // on initial run of the script as its not available at that point
                 if (!hasInitialized) {
                     hasInitialized = true;
                 } else {
