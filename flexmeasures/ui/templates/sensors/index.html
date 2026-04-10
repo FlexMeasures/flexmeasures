@@ -637,19 +637,19 @@ For the data, note the following:
     const spinner = document.getElementById('spinner-delete-data');
 
     const sourceSelect = document.getElementById('deleteDataSource');
-    const startInput = document.getElementById('deleteDataStart').value;
-    const untilInput = document.getElementById('deleteDataUntil').value;
+    const startInputEl = document.getElementById('deleteDataStart');
+    const untilInputEl = document.getElementById('deleteDataUntil');
 
-    async function deleteData() {
+    async function deleteData(sourceValue, startValue, untilValue) {
         const params = {};
-        if (sourceSelect.value) {
-            params.source = parseInt(sourceSelect.value);
+        if (sourceValue) {
+            params.source = parseInt(sourceValue);
         }
-        if (startInput) {
-            params.start = new Date(startInput).toISOString();
+        if (startValue) {
+            params.start = new Date(startValue).toISOString();
         }
-        if (untilInput) {
-            params.until = new Date(untilInput).toISOString();
+        if (untilValue) {
+            params.until = new Date(untilValue).toISOString();
         }
 
         button.disabled = true;
@@ -682,24 +682,27 @@ For the data, note the following:
     }
 
     document.getElementById('deleteDataButton').addEventListener('click', function () {
+        const sourceValue = sourceSelect.value;
         const sourceLabel = sourceSelect.options[sourceSelect.selectedIndex].text;
+        const startValue = startInputEl.value;
+        const untilValue = untilInputEl.value;
 
         let confirmMessage = "Are you sure you want to delete sensor data";
-        if (sourceSelect.value) {
+        if (sourceValue) {
             confirmMessage += " from source \"" + sourceLabel + "\"";
         } else {
             confirmMessage += " from all sources";
         }
-        if (startInput) {
-            confirmMessage += " starting from " + startInput;
+        if (startValue) {
+            confirmMessage += " starting from " + startValue;
         }
-        if (untilInput) {
-            confirmMessage += " until " + untilInput;
+        if (untilValue) {
+            confirmMessage += " until " + untilValue;
         }
         confirmMessage += "?";
 
         if (confirm(confirmMessage)) {
-            deleteData();
+            deleteData(sourceValue, startValue, untilValue);
         }
     });
     {% endif %}
