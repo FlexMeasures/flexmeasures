@@ -138,16 +138,17 @@ def _drop_unchanged_beliefs_compared_to_db(
     bdf_db_from_source = bdf_db[bdf_db.sources == source]
     if bdf_db_from_source.empty:
         return bdf
-    cutoff_idx = bdf_db_from_source.belief_times.searchsorted(belief_time, side="right")
-    if cutoff_idx == 0:
+    # Use .max() rather than searchsorted: the result is correct regardless of
+    # whether bdf_db happens to be sorted ascending or descending by belief_time.
+    most_recent_bt = bdf_db_from_source.belief_times[
+        bdf_db_from_source.belief_times < belief_time
+    ].max()
+    if pd.isna(most_recent_bt):
         # No earlier belief time in db
         return bdf
-    most_recent_bt = bdf_db_from_source.belief_times[cutoff_idx - 1]
     previous_most_recent_beliefs = bdf_db_from_source[
         bdf_db_from_source.belief_times == most_recent_bt
     ]
-    if previous_most_recent_beliefs.empty:
-        return bdf
     compare_fields = ["event_start", "source", "cumulative_probability", "event_value"]
     a = bdf.reset_index().set_index(compare_fields)
     b = previous_most_recent_beliefs.reset_index().set_index(compare_fields)
