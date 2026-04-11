@@ -36,6 +36,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix a bug where ``save_to_db`` could silently drop a changed belief when the prior beliefs in the database happened to be ordered by descending belief time [see `PR #2086 <https://www.github.com/FlexMeasures/flexmeasures/pull/2086>`_]
 
 
 v0.31.2 | March 18, 2026
