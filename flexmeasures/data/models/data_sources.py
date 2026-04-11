@@ -322,9 +322,7 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
         if attributes is not None:
             self.attributes = attributes
-            self.attributes_hash = hashlib.sha256(
-                json.dumps(attributes).encode("utf-8")
-            ).digest()
+            self.attributes_hash = DataSource.hash_attributes(attributes)
         else:
             # Otherwise, the attributes only default to {} when flushing/committing to the db
             kwargs["attributes"] = {}
@@ -450,7 +448,20 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     @staticmethod
     def hash_attributes(attributes: dict) -> str:
-        return hashlib.sha256(json.dumps(attributes).encode("utf-8")).digest()
+        """Hash a dict of attributes to a fixed-length byte string.
+
+        Keys are sorted before hashing so that the result is stable regardless of
+        Python insertion order.  This matters because PostgreSQL JSONB serialises
+        JSON object keys in **alphabetical** order, so a round-trip through the
+        database changes the key order of the Python dict.  Without ``sort_keys``
+        the hash computed from the freshly-loaded dict would differ from the hash
+        that was stored when the :class:`DataSource` was first created, causing
+        :func:`~flexmeasures.data.services.data_sources.get_or_create_source` to
+        silently create a duplicate row.
+        """
+        return hashlib.sha256(
+            json.dumps(attributes, sort_keys=True).encode("utf-8")
+        ).digest()
 
     def get_attribute(self, attribute: str, default: Any = None) -> Any:
         """Looks for the attribute in the DataSource's attributes column."""
