@@ -115,6 +115,40 @@ def test_get_instantaneous_sensor_data(
 
 
 @pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_sensor_data_filtered_by_source_account(
+    client,
+    setup_api_test_data: dict[str, Sensor],
+    setup_roles_users: dict[str, User],
+    requesting_user,
+    db,
+):
+    """Check that GET /sensors/<id>/data can filter by the account linked to a source."""
+    sensor = setup_api_test_data["some gas sensor"]
+    source_user = db.session.get(User, setup_roles_users["Test Supplier User"])
+    assert source_user.account_id is not None
+    message = {
+        "start": "2021-05-02T00:00:00+02:00",
+        "duration": "PT1H20M",
+        "horizon": "PT0H",
+        "unit": "m³/h",
+        "account": source_user.account_id,
+        "resolution": "PT20M",
+    }
+    response = client.get(
+        url_for("SensorAPI:get_data", id=sensor.id),
+        query_string=message,
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    values = response.json["values"]
+    # The fixture also stores data from an accountless "Other source".
+    # Filtering by the user account should exclude those points.
+    assert all(a == b for a, b in zip(values, [91.5, 92.1, None, None]))
+
+
+@pytest.mark.parametrize(
     "requesting_user, status_code",
     [
         (None, 401),  # the case without auth: authentication will fail

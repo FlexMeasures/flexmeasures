@@ -1,5 +1,6 @@
 from marshmallow import Schema, fields, validate
 
+from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
@@ -55,6 +56,7 @@ class BeliefsSearchConfigSchema(Schema):
     horizons_at_most = DurationField()
 
     source = DataSourceIdField()
+    source_account_ids = fields.List(AccountIdField())
 
     source_types = fields.List(fields.Str())
     exclude_source_types = fields.List(fields.Str())
