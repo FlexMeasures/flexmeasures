@@ -91,12 +91,6 @@
                                 </div>
 
                                 <div class="form-group">
-                                    <div class="col-md-3">
-                                        {{ json_attributes_editor_button(label="Open editor", field_label=attributes_label, field_description=attributes_description) }}
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
                                     {{ asset_form.sensors_to_show_as_kpis.label(class="col-sm-3 control-label") }}
                                     <div class="col-md-3">
                                         <small>{{ asset_form.sensors_to_show_as_kpis.description }}</small>
@@ -131,6 +125,11 @@
                             </div>
                         </fieldset>
                     </form>
+                    <div class="form-group pt-3">
+                        <div class="col-md-3">
+                            {{ json_attributes_editor_button(label="Open editor", field_label=attributes_label, field_description=attributes_description) }}
+                        </div>
+                    </div>
                 </div>
             </div>
             </div>
