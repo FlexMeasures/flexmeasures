@@ -300,7 +300,7 @@
     "/api/v3_0/sensors/{id}/data": {
       "delete": {
         "summary": "Delete sensor data",
-        "description": "This endpoint deletes all data for a sensor.",
+        "description": "This endpoint deletes data for a sensor. Optionally, filter by source, start time and/or until time. A missing source means all sources are deleted.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -316,6 +316,32 @@
             "required": true
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "integer",
+                    "description": "ID of the data source to delete data for. If not provided, data from all sources is deleted."
+                  },
+                  "start": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Only delete data with event start at or after this datetime (ISO 8601)."
+                  },
+                  "until": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Only delete data with event start before this datetime (ISO 8601)."
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
             "description": "SENSOR_DATA_DELETED"

@@ -708,6 +708,22 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
             const firstSourceKey = getLatestBeliefName(data);
             dropdownButton.textContent = firstSourceKey;
             updateStatsTable(data[firstSourceKey], tableBody);
+
+            // Populate the "Delete data" source dropdown if it exists on the page,
+            // re-using the stats data already fetched to avoid a duplicate API call.
+            const deleteSourceSelect = document.getElementById('deleteDataSource');
+            if (deleteSourceSelect) {
+                // Keep only the "All sources" placeholder option, then add sources from stats
+                deleteSourceSelect.innerHTML = '<option value="">All sources</option>';
+                Object.keys(data).forEach(sourceKey => {
+                    const idMatch = sourceKey.match(/\(ID:\s*(\d+)\)$/);
+                    if (!idMatch) { return; }
+                    const option = document.createElement('option');
+                    option.value = idMatch[1];
+                    option.textContent = sourceKey;
+                    deleteSourceSelect.appendChild(option);
+                });
+            }
         } else {
             // If the stats table is empty, make the properties table full width
             noDataWarning.classList.remove('d-none');

@@ -196,6 +196,40 @@ For the data, note the following:
                           </div>
                       </div>
                   {% endif %}
+
+                  {% if user_can_delete_sensor %}
+                  <div class="sidepanel-container">
+                      <div class="sidepanel-label">Delete data</div>
+                      <div class="sidepanel-content" style="text-align: left;">
+                          <fieldset>
+                              <div class="mb-3">
+                                  <label for="deleteDataSource" class="form-label fw-bold">Source</label>
+                                  <select class="form-select" id="deleteDataSource">
+                                      <option value="">All sources</option>
+                                  </select>
+                              </div>
+                              <div class="mb-3">
+                                  <label for="deleteDataStart" class="form-label fw-bold">From</label>
+                                  <input type="datetime-local" class="form-control" id="deleteDataStart" />
+                              </div>
+                              <div class="mb-3">
+                                  <label for="deleteDataUntil" class="form-label fw-bold">Until</label>
+                                  <input type="datetime-local" class="form-control" id="deleteDataUntil" />
+                              </div>
+                              <div style="display: flex; align-items: center; justify-content: flex-end;">
+                                  <span id="spinner-delete-data" class="spinner-border spinner-border-sm d-none me-2" role="status"></span>
+                                  <button
+                                      id="deleteDataButton"
+                                      class="btn btn-sm btn-responsive btn-danger"
+                                      type="button"
+                                      style="border: 1px solid var(--light-gray);">
+                                      Delete
+                                  </button>
+                              </div>
+                          </fieldset>
+                      </div>
+                  </div>
+                  {% endif %}
                   </div><!-- end .sidepanel -->
 
                   <div id="chart-type-picker" class="leftside-dropdown dropdown mt-3">
@@ -596,6 +630,81 @@ For the data, note the following:
     }
 
     document.getElementById('triggerForecastButton').addEventListener('click', triggerForecast);
+    {% endif %}
+
+    {% if user_can_delete_sensor %}
+    const button = document.getElementById('deleteDataButton');
+    const spinner = document.getElementById('spinner-delete-data');
+
+    const sourceSelect = document.getElementById('deleteDataSource');
+    const startInputEl = document.getElementById('deleteDataStart');
+    const untilInputEl = document.getElementById('deleteDataUntil');
+
+    async function deleteData(sourceValue, startValue, untilValue) {
+        const params = {};
+        if (sourceValue) {
+            params.source = parseInt(sourceValue);
+        }
+        if (startValue) {
+            params.start = new Date(startValue).toISOString();
+        }
+        if (untilValue) {
+            params.until = new Date(untilValue).toISOString();
+        }
+
+        button.disabled = true;
+        spinner.classList.remove('d-none');
+        showToast("Data deletion in progress ...", "info");
+
+        try {
+            const response = await fetch(apiBasePath + "/api/v3_0/sensors/{{ sensor.id }}/data", {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(params),
+            });
+
+            if (response.status === 204) {
+                showToast("Data deleted successfully.", "success");
+                document.dispatchEvent(new CustomEvent('dataDeleted'));
+            } else {
+                const errorData = await response.json();
+                const errorMessage = errorData?.message || errorData?.error || response.statusText;
+                showToast("Error deleting data: " + errorMessage, "error");
+            }
+        } catch (error) {
+            showToast("Error: " + error.message, "error");
+        } finally {
+            button.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    }
+
+    document.getElementById('deleteDataButton').addEventListener('click', function () {
+        const sourceValue = sourceSelect.value;
+        const sourceLabel = sourceSelect.options[sourceSelect.selectedIndex].text;
+        const startValue = startInputEl.value;
+        const untilValue = untilInputEl.value;
+
+        let confirmMessage = "Are you sure you want to delete sensor data";
+        if (sourceValue) {
+            confirmMessage += " from source \"" + sourceLabel + "\"";
+        } else {
+            confirmMessage += " from all sources";
+        }
+        if (startValue) {
+            confirmMessage += " starting from " + startValue;
+        }
+        if (untilValue) {
+            confirmMessage += " until " + untilValue;
+        }
+        confirmMessage += "?";
+
+        if (confirm(confirmMessage)) {
+            deleteData(sourceValue, startValue, untilValue);
+        }
+    });
     {% endif %}
 </script>
 
