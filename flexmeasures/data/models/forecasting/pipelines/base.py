@@ -707,16 +707,8 @@ class BasePipeline:
         if len(dfs) == 1:
             data_darts = dfs[0]
         else:
-            # When using future_covariate, the last day in its sensor_df extends beyond
-            # the target and past regressors by "max_forecast_horizon."
-            # To ensure we retain these additional future regressor records,
-            # we use an outer join to merge all sensor_dfs DataFrames on the "event_start" and "belief_time" columns.
-
             data_darts = reduce(
-                lambda left, right: left.concatenate(right),
+                lambda left, right: left.stack(right),
                 dfs,
-            )
-            data_darts = data_darts.sort_values(by=["event_start"]).reset_index(
-                drop=True
             )
         return data_darts
