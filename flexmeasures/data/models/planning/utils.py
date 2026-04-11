@@ -416,8 +416,8 @@ def process_time_series_segments(
         # If start and end have different UTC offsets (like crossing DST),
         # normalize them by converting to UTC.
         if not same_offset:
-            start = start.tz_convert("UTC")
-            end = end.tz_convert("UTC")
+            start = pd.Timestamp(start).tz_convert("UTC")
+            end = pd.Timestamp(end).tz_convert("UTC")
         # Assign the value to the corresponding segment in the DataFrame
         time_series_segments.loc[start : end - resolution, segment] = value
 
