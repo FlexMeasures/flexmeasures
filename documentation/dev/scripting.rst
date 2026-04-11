@@ -60,7 +60,7 @@ To illustrate how far scripting with the client can go, we made an example where
     :target: https://raw.githubusercontent.com/FlexMeasures/screenshots/main/HEMS-tutorial-dashboard.png
     :align: center
 
-    The resulting dashboard of a cimpletely scripted HEMS system
+    The resulting dashboard of a completely scripted HEMS system
 
 
 This example ...
