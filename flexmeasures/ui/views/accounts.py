@@ -13,6 +13,10 @@ from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.data import db
+from flexmeasures.ui.views.assets.forms import (
+    ATTRIBUTES_FIELD_LABEL,
+    ATTRIBUTES_FIELD_DESCRIPTION,
+)
 
 
 class AccountCrudUI(FlaskView):
@@ -68,6 +72,8 @@ class AccountCrudUI(FlaskView):
             user_can_create_children=user_can_create_children,
             can_view_account_auditlog=user_can_view_account_auditlog,
             asset_icon_map=ICON_MAPPING,
+            attributes_label=ATTRIBUTES_FIELD_LABEL,
+            attributes_description=ATTRIBUTES_FIELD_DESCRIPTION,
         )
 
     @login_required

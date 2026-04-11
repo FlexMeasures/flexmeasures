@@ -324,6 +324,7 @@ class AccountAPI(FlaskView):
             "secondary_color",
             "logo_url",
             "consultancy_account_id",
+            "attributes",
         ]
         modified_fields = {
             field: getattr(account, field)
