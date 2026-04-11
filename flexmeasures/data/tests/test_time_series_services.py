@@ -106,6 +106,82 @@ def test_do_not_drop_changed_probabilistic_belief(setup_beliefs, db):
     assert num_beliefs_after == num_beliefs_before + len(new_belief)
 
 
+@pytest.mark.parametrize(
+    "sort_descending",
+    [
+        pytest.param(False, id="ascending_belief_times"),
+        pytest.param(True, id="descending_belief_times"),
+    ],
+)
+def test_drop_unchanged_compares_against_latest_prior_belief(
+    setup_beliefs, db, sort_descending
+):
+    """Candidate equal to an older belief should still compare to latest prior,
+    regardless of whether the existing DB beliefs are sorted ascending or descending.
+
+    Scenario:
+      belief_time_1 (oldest)  → value 2.0
+      belief_time_2 (latest prior) → value 1.0
+      belief_time_3 (candidate)    → value 2.0  ← must NOT be dropped
+    """
+
+    sensor = get_test_sensor(db)
+    assert sensor is not None, "Expected a test sensor to exist in the test database"
+    source = DataSource(name="Drop unchanged repro source", type="demo script")
+    db.session.add(source)
+    db.session.commit()
+
+    event_start = pd.Timestamp("2021-03-28 16:00:00+00:00")
+    belief_time_1 = pd.Timestamp("2021-03-27 08:00:00+00:00")  # older value: 2
+    belief_time_2 = pd.Timestamp("2021-03-27 09:00:00+00:00")  # latest prior value: 1
+    belief_time_3 = pd.Timestamp("2021-03-27 10:00:00+00:00")  # candidate value: 2
+
+    bdf_db = BeliefsDataFrame(
+        [
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start,
+                belief_time=belief_time_1,
+                event_value=2.0,
+            ),
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start,
+                belief_time=belief_time_2,
+                event_value=1.0,
+            ),
+        ]
+    )
+
+    if sort_descending:
+        bdf_db = bdf_db.sort_index(ascending=False)
+        assert list(bdf_db.belief_times) == [
+            belief_time_2,
+            belief_time_1,
+        ], "Pre-condition failed: expected bdf_db to be sorted with newest belief first"
+
+    candidate = BeliefsDataFrame(
+        [
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start,
+                belief_time=belief_time_3,
+                event_value=2.0,
+            )
+        ]
+    )
+
+    filtered = _drop_unchanged_beliefs_compared_to_db(candidate, bdf_db=bdf_db)
+    assert len(filtered) == 1, (
+        "Candidate belief (value=2.0) should not be dropped: it differs from the latest "
+        "prior belief (value=1.0 at belief_time_2), even though it equals an older belief "
+        "(value=2.0 at belief_time_1)"
+    )
+
+
 def test_save_exact_duplicate_deterministic_belief(setup_beliefs, db):
     """Saving an exact duplicate deterministic belief should succeed without errors."""
 
@@ -231,77 +307,10 @@ def test_save_probabilistic_belief_with_different_event_value_raises_error(
     db.session.rollback()
 
 
-@pytest.mark.parametrize(
-    "sort_descending",
-    [
-        pytest.param(False, id="ascending_belief_times"),
-        pytest.param(True, id="descending_belief_times"),
-    ],
-)
-def test_drop_unchanged_compares_against_latest_prior_belief(
-    setup_beliefs, db, sort_descending
-):
-    """Candidate equal to an older belief should still compare to latest prior,
-    regardless of whether the existing DB beliefs are sorted ascending or descending.
-
-    Scenario:
-      belief_time_1 (oldest)  → value 2.0
-      belief_time_2 (latest prior) → value 1.0
-      belief_time_3 (candidate)    → value 2.0  ← must NOT be dropped
-    """
-
-    sensor = get_test_sensor(db)
-    assert sensor is not None, "Expected a test sensor to exist in the test database"
-    source = DataSource(name="Drop unchanged repro source", type="demo script")
-    db.session.add(source)
-    db.session.commit()
-
-    event_start = pd.Timestamp("2021-03-28 16:00:00+00:00")
-    belief_time_1 = pd.Timestamp("2021-03-27 08:00:00+00:00")  # older value: 2
-    belief_time_2 = pd.Timestamp("2021-03-27 09:00:00+00:00")  # latest prior value: 1
-    belief_time_3 = pd.Timestamp("2021-03-27 10:00:00+00:00")  # candidate value: 2
-
-    bdf_db = BeliefsDataFrame(
-        [
-            TimedBelief(
-                sensor=sensor,
-                source=source,
-                event_start=event_start,
-                belief_time=belief_time_1,
-                event_value=2.0,
-            ),
-            TimedBelief(
-                sensor=sensor,
-                source=source,
-                event_start=event_start,
-                belief_time=belief_time_2,
-                event_value=1.0,
-            ),
-        ]
-    )
-
-    if sort_descending:
-        bdf_db = bdf_db.sort_index(ascending=False)
-        assert list(bdf_db.belief_times) == [
-            belief_time_2,
-            belief_time_1,
-        ], "Pre-condition failed: expected bdf_db to be sorted with newest belief first"
-
-    candidate = BeliefsDataFrame(
-        [
-            TimedBelief(
-                sensor=sensor,
-                source=source,
-                event_start=event_start,
-                belief_time=belief_time_3,
-                event_value=2.0,
-            )
-        ]
-    )
-
-    filtered = _drop_unchanged_beliefs_compared_to_db(candidate, bdf_db=bdf_db)
-    assert len(filtered) == 1, (
-        "Candidate belief (value=2.0) should not be dropped: it differs from the latest "
-        "prior belief (value=1.0 at belief_time_2), even though it equals an older belief "
-        "(value=2.0 at belief_time_1)"
-    )
+"""
+The last tests intentionally trigger database errors and call db.session.rollback() to recover.
+These rollbacks here corrupt the sensor / belief state that subsequent tests in this module may rely on.
+The tests themselves seem to rely on earlier tests in this module.
+Add new tests in this module above the tests that roll back the session.
+If added below, they may pass in isolation, but fail if the whole module is ran.
+"""
