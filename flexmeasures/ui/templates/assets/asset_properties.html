@@ -16,7 +16,7 @@
         <div class="col-md-2 on-top-md ps-0">
 
             {% if user_can_update_asset %}
-{% from "_macros.html" import json_attributes_editor_button %}
+            {% from "_macros.html" import json_attributes_editor_button %}
             <div class="sidepanel">
             <div class="sidepanel-container" style="--sidepanel-width: 450px">
                 <div class="sidepanel-label">Edit asset</div>
@@ -126,7 +126,7 @@
                         </fieldset>
                     </form>
                     <div class="form-group pt-3">
-                        <div class="col-md-3">
+                        <div class="col-md-12">
                             {{ json_attributes_editor_button(label="Open editor", field_label=attributes_label, field_description=attributes_description) }}
                         </div>
                     </div>
