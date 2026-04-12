@@ -1094,7 +1094,6 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "tabulate" },
     { name = "timely-beliefs", extra = ["forecast"] },
-    { name = "timetomodel" },
     { name = "tldextract" },
     { name = "u8darts" },
     { name = "uniplot" },
@@ -1215,7 +1214,6 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "timely-beliefs", extras = ["forecast"], specifier = ">=3.5.4" },
-    { name = "timetomodel", specifier = ">=0.7.3" },
     { name = "tldextract", specifier = ">=5.3.1" },
     { name = "u8darts", specifier = ">=0.29.0" },
     { name = "uniplot", specifier = ">=0.12.1" },
@@ -3727,27 +3725,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/41/be/ec94886bf2540dca5c120950b290f6b4aa42c35476d4a82aefb19de0ebe9/times-0.7.tar.gz", hash = "sha256:ed9da7bd0384ff4e1b3fc84114c27c2e3987072dbaf24425340bfedd405bc4b5", size = 4228, upload-time = "2014-08-24T06:13:25.293Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5d/2f/811d8183abae998effbbb1a191af2469a6c18bfcb4d3edfd4fe9c096c5f8/times-0.7-py2.py3-none-any.whl", hash = "sha256:71a47e488fb727fecbd2bc6b4e3559fd4425eb6e20c68b1418069325a4c58a37", size = 3826, upload-time = "2014-08-24T06:13:21.84Z" },
-]
-
-[[package]]
-name = "timetomodel"
-version = "0.7.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "python-dateutil" },
-    { name = "pytz" },
-    { name = "scikit-learn" },
-    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "sqlalchemy" },
-    { name = "statsmodels" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/9e/51/948aa9b4e8498924181eb3d17533eff0b43483d46ca9201b6c96d24b410c/timetomodel-0.7.3.tar.gz", hash = "sha256:dd57e20f1fea58240d8a93f38d0d9f598fc0600e88eeac5dceecbf34a750e08c", size = 141996, upload-time = "2023-06-07T13:37:05.398Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/65/2d/379105ee6650157b650c5a0da42ccab698fae50687d3ee481a2532bb1ba6/timetomodel-0.7.3-py2.py3-none-any.whl", hash = "sha256:031f0d2cd8d6320c9a8dfd35cf3d976bdc4f0d74f9322690d6ad74d05445ff05", size = 29820, upload-time = "2023-06-07T13:37:03.356Z" },
 ]
 
 [[package]]
