@@ -16,6 +16,7 @@ New features
 * Support saving state-of-charge schedules to sensors with ``"%"`` unit, using the ``soc-max`` flex-model field as the capacity for unit conversion [see `PR #1996 <https://www.github.com/FlexMeasures/flexmeasures/pull/1996>`_]
 * Version headers (for server and API) in API responses [see `PR #2021 <https://www.github.com/FlexMeasures/flexmeasures/pull/2021>`_]
 * Support forecasting from a given time in the past, by allowing to specify a ``prior`` belief time in the forecasting API endpoint (as already possible with CLI command) [see `PR #1978 <https://www.github.com/FlexMeasures/flexmeasures/pull/1978>`_]
+* UI support for editing JSON attributes on sensors, assets and accounts [see `PR #2093 <https://www.github.com/FlexMeasures/flexmeasures/pull/2093>`_]
 * Show sensor attributes on sensor page, if not empty [see `PR #2015 <https://www.github.com/FlexMeasures/flexmeasures/pull/2015>`_]
 * Separate the ``StorageScheduler``'s tie-breaking preference for a full :abbr:`SoC (state of charge)` from its reported energy costs [see `PR #2023 <https://www.github.com/FlexMeasures/flexmeasures/pull/2023>`_]
 * Improve asset audit log messages for JSON field edits (especially ``sensors_to_show`` and nested flex-config values) [see `PR #2055 <https://www.github.com/FlexMeasures/flexmeasures/pull/2055>`_]
