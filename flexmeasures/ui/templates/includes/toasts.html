@@ -31,12 +31,9 @@
             });
         }
 
-        function showAllToasts() {
-            const toastElements = document.querySelectorAll(".toast");
-            toastElements.forEach((toast) => {
-                const toastInstance = new bootstrap.Toast(toast);
-                toastInstance.show();
-            });
+        function showNewToast(toastElement) {
+            const toastInstance = new bootstrap.Toast(toastElement);
+            toastInstance.show();
         }
 
         function maybeHideCloseToastBtn() {
@@ -125,7 +122,7 @@
 
             toastStack.insertAdjacentElement("afterbegin", toast);
             closeToastBtn.style.display = "block";
-            showAllToasts();
+            showNewToast(toast);
 
             // Cleanup listeners
             const handleClose = () => {
