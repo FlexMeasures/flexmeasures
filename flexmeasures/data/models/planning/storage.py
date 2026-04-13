@@ -11,6 +11,7 @@ from flask import current_app
 
 
 from flexmeasures import Asset, Sensor
+from flexmeasures.data import db
 from flexmeasures.data.models.planning import (
     FlowCommitment,
     Scheduler,
@@ -1034,6 +1035,10 @@ class MetaStorageScheduler(Scheduler):
                 self.flex_model
             )
             for d, sensor_flex_model in enumerate(self.flex_model):
+                sensor_flex_model["sensor_flex_model"] = self.ensure_soc_at_start(
+                    flex_model=sensor_flex_model["sensor_flex_model"],
+                    sensor=sensor_flex_model.get("sensor"),
+                )
                 self.flex_model[d] = StorageFlexModelSchema(
                     start=self.start,
                     sensor=sensor_flex_model.get("sensor"),
@@ -1063,6 +1068,194 @@ class MetaStorageScheduler(Scheduler):
             and self.flex_model["soc-at-start"] is not None
         )
 
+    @staticmethod
+    def has_soc_at_start_in(flex_model: dict) -> bool:
+        return "soc-at-start" in flex_model and flex_model["soc-at-start"] is not None
+
+    def _get_soc_lookup_radius(
+        self, sensor: Sensor | None = None, slack_steps: int = 4
+    ) -> timedelta:
+        """Return the half-width of the SoC lookup interval.
+
+        We search for a nearby SoC value in the interval
+        ``[self.start - slack_steps * resolution, self.start + slack_steps * resolution]``.
+        Using four resolution steps by default keeps the lookup tolerant to small timing
+        offsets while still rejecting stale values. For example, a 15-minute
+        resolution yields a 1-hour lookup radius.
+
+        :param sensor:      Optional sensor whose resolution should be used.
+        :param slack_steps: Number of resolution steps accepted on either side of
+                            the schedule start.
+        :returns:           Half-width of the SoC lookup interval.
+        """
+        resolution = self.resolution
+        if resolution is None and sensor is not None:
+            resolution = sensor.event_resolution
+        if resolution is None:
+            resolution = self.default_resolution
+        return slack_steps * resolution
+
+    def _get_soc_capacity_for_percent_conversion(
+        self, flex_model: dict, sensor: Sensor | None = None
+    ) -> str:
+        """Return the capacity used to convert percentage-based SoC values.
+
+        :param flex_model: Flex model containing the SoC configuration.
+        :param sensor:     Optional scheduled power sensor whose asset can provide fallback capacity.
+        :returns:          Capacity expressed in MWh.
+        """
+        soc_max = flex_model.get("soc-max")
+        soc_unit = flex_model.get("soc-unit")
+        capacity_sensor = sensor or self.sensor
+        if soc_max is None and capacity_sensor is not None:
+            soc_max = capacity_sensor.generic_asset.flex_model.get("soc-max")
+        if soc_max is None and capacity_sensor is not None:
+            soc_max = capacity_sensor.generic_asset.get_attribute("max_soc_in_mwh")
+        if soc_max is None:
+            raise ValueError(
+                "Cannot derive state of charge from a `state-of-charge` sensor with '%' unit without `soc-max`."
+            )
+        if isinstance(soc_max, Sensor):
+            raise ValueError(
+                "Cannot derive state of charge from a `state-of-charge` sensor with '%' unit when `soc-max` is a sensor reference."
+            )
+        if isinstance(soc_max, (int, float)):
+            return str(ur.Quantity(soc_max, soc_unit).to("MWh"))
+        return str(ur.Quantity(soc_max).to("MWh"))
+
+    def _convert_soc_value_to_mwh(
+        self,
+        value: float,
+        from_unit: str,
+        flex_model: dict,
+        sensor: Sensor | None = None,
+    ) -> float:
+        capacity = (
+            self._get_soc_capacity_for_percent_conversion(flex_model, sensor)
+            if from_unit == "%"
+            else None
+        )
+        return convert_units(
+            data=value,
+            from_unit=from_unit,
+            to_unit="MWh",
+            capacity=capacity,
+        )
+
+    def _resolve_soc_at_start_from_sensor(
+        self,
+        state_of_charge_sensor: Sensor,
+        flex_model: dict,
+        sensor: Sensor | None = None,
+    ) -> float:
+        """Resolve ``soc-at-start`` from a ``state-of-charge`` sensor.
+
+        :param state_of_charge_sensor: Instantaneous SoC sensor.
+        :param flex_model:             Flex model containing the SoC configuration.
+        :param sensor:                 Optional scheduled power sensor.
+        :returns:                      Starting SoC in MWh.
+        """
+        lookup_radius = self._get_soc_lookup_radius(sensor)
+        beliefs = state_of_charge_sensor.search_beliefs(
+            event_starts_after=self.start - lookup_radius,
+            event_ends_before=self.start + lookup_radius,
+            one_deterministic_belief_per_event=True,
+        )
+        if beliefs.empty:
+            raise ValueError(
+                f"No recent state-of-charge value found for sensor {state_of_charge_sensor.id} "
+                f"within {lookup_radius} of schedule start {self.start.isoformat()}."
+            )
+
+        beliefs_df = beliefs.reset_index()
+        beliefs_df["time_distance"] = (
+            beliefs_df["event_start"] - pd.Timestamp(self.start)
+        ).abs()
+        nearest_beliefs = beliefs_df[
+            beliefs_df["time_distance"] == beliefs_df["time_distance"].min()
+        ]
+        nearest_belief = nearest_beliefs.loc[nearest_beliefs["event_start"].idxmax()]
+
+        return self._convert_soc_value_to_mwh(
+            value=nearest_belief["event_value"],
+            from_unit=state_of_charge_sensor.unit,
+            flex_model=flex_model,
+            sensor=sensor,
+        )
+
+    def _resolve_soc_at_start_from_time_series(
+        self, soc_time_series: list[dict], sensor: Sensor | None = None
+    ) -> float:
+        """Resolve ``soc-at-start`` from a ``state-of-charge`` time series.
+
+        :param soc_time_series: SoC time series specification.
+        :param sensor:          Optional scheduled power sensor.
+        :returns:               Starting SoC in MWh.
+        """
+        lookup_radius = self._get_soc_lookup_radius(sensor)
+        normalized_segments = [
+            {
+                "start": pd.Timestamp(segment["start"]),
+                "end": pd.Timestamp(segment["end"]),
+                "value": ur.Quantity(segment["value"]).to("MWh"),
+            }
+            for segment in soc_time_series
+        ]
+        matching_segments = [
+            segment
+            for segment in normalized_segments
+            if segment["start"] <= self.start < segment["end"]
+        ]
+        if matching_segments:
+            latest_matching_segment = max(
+                matching_segments, key=lambda segment: segment["start"]
+            )
+            return (latest_matching_segment["value"] / ur.Quantity("MWh")).magnitude
+
+        candidate_segments = []
+        for segment in normalized_segments:
+            start_distance = abs(segment["start"] - self.start)
+            end_distance = abs(segment["end"] - self.start)
+            distance = min(start_distance, end_distance)
+            if distance <= lookup_radius:
+                candidate_segments.append((distance, segment))
+
+        if not candidate_segments:
+            raise ValueError(
+                f"No recent state-of-charge value found in the provided `state-of-charge` time series "
+                f"within {lookup_radius} of schedule start {self.start.isoformat()}."
+            )
+
+        _, nearest_segment = min(candidate_segments, key=lambda item: item[0])
+        return (nearest_segment["value"] / ur.Quantity("MWh")).magnitude
+
+    def _resolve_soc_at_start_from_state_of_charge(
+        self, flex_model: dict, sensor: Sensor | None = None
+    ) -> float | None:
+        """Resolve ``soc-at-start`` from the ``state-of-charge`` field.
+
+        :param flex_model: Flex model containing the SoC configuration.
+        :param sensor:     Optional scheduled power sensor.
+        :returns:          Starting SoC in MWh if it can be inferred.
+        """
+        state_of_charge = flex_model.get("state-of-charge")
+        if isinstance(state_of_charge, Sensor):
+            return self._resolve_soc_at_start_from_sensor(
+                state_of_charge, flex_model, sensor
+            )
+        if isinstance(state_of_charge, list):
+            return self._resolve_soc_at_start_from_time_series(state_of_charge, sensor)
+        if isinstance(state_of_charge, dict) and "sensor" in state_of_charge:
+            state_of_charge_sensor = db.session.get(Sensor, state_of_charge["sensor"])
+            if state_of_charge_sensor is None:
+                raise ValueError(
+                    f"State-of-charge sensor with id {state_of_charge['sensor']} was not found."
+                )
+            return self._resolve_soc_at_start_from_sensor(
+                state_of_charge_sensor, flex_model, sensor
+            )
+        return None
+
     def possibly_extend_end(self, soc_targets, sensor: Sensor = None):
         """Extend schedule period in case a target exceeds its end.
 
@@ -1084,27 +1277,41 @@ class MetaStorageScheduler(Scheduler):
                 else:
                     self.end = max_target_datetime
 
-    def ensure_soc_at_start(self):
+    def ensure_soc_at_start(
+        self, flex_model: dict | None = None, sensor: Sensor | None = None
+    ) -> dict:
         """
         Ensure we have a starting state of charge - if needed.
         Preferably, a starting soc is given.
-        Otherwise, we try to retrieve the current state of charge from the (old-style) attribute (if that is the valid one at the start).
-        If that doesn't work, we default the starting soc to be 0 (only if there are soc limits, though, as some assets don't use the concept of a state of charge,
-        and without soc targets and limits the starting soc doesn't matter).
+        Otherwise, we try to retrieve the current state of charge from the configured ``state-of-charge`` field.
+        If that doesn't work, we try the (old-style) asset attribute.
+        Finally, we default the starting soc to 0 (only if there are soc limits, though, as some assets don't use
+        the concept of a state of charge, and without soc targets and limits the starting soc doesn't matter).
         """
-        if not self.has_soc_at_start() and self.sensor is not None:
+        if flex_model is None:
+            flex_model = self.flex_model
+        if sensor is None:
+            sensor = self.sensor
+
+        if not self.has_soc_at_start_in(flex_model) and "state-of-charge" in flex_model:
+            flex_model["soc-at-start"] = (
+                str(self._resolve_soc_at_start_from_state_of_charge(flex_model, sensor))
+                + "MWh"
+            )
+
+        if not self.has_soc_at_start_in(flex_model) and sensor is not None:
             # TODO: remove this check when moving to v1.0 (requiring to also remove attributes from test data assets)
             if (
-                self.start == self.sensor.get_attribute("soc_datetime")
-                and self.sensor.get_attribute("soc_in_mwh") is not None
+                self.start == sensor.get_attribute("soc_datetime")
+                and sensor.get_attribute("soc_in_mwh") is not None
             ):
-                self.flex_model["soc-at-start"] = self.sensor.get_attribute(
-                    "soc_in_mwh"
-                )
-        if not self.has_soc_at_start() and (
-            "soc-min" in self.flex_model or "soc-max" in self.flex_model
+                flex_model["soc-at-start"] = sensor.get_attribute("soc_in_mwh")
+        if not self.has_soc_at_start_in(flex_model) and (
+            "soc-min" in flex_model or "soc-max" in flex_model
         ):
-            self.flex_model["soc-at-start"] = 0
+            flex_model["soc-at-start"] = 0
+
+        return flex_model
 
     def get_min_max_targets(self) -> tuple[float | None, float | None]:
         """This happens before deserializing the flex-model."""

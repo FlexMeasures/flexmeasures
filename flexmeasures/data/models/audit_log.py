@@ -28,17 +28,17 @@ class AuditLog(db.Model, AuthModelMixin):
     __tablename__ = "audit_log"
     id = Column(Integer, primary_key=True)
     event_datetime = Column(DateTime())
-    event = Column(String(255))
+    event = Column(String(500))
     active_user_name = Column(String(255))
-    # No DB-level FK with cascade for active_user_id so that deleting a user preserves the lineage reference in this column.
+    # No DB-level FK with cascade for any user_id or account_id so that deleting a user preserves the lineage reference in this column.
     active_user_id = Column("active_user_id", Integer(), nullable=True)
-    # No DB-level FK with cascade for affected_user_id so that deleting a user preserves the lineage reference in this column.
     affected_user_id = Column("affected_user_id", Integer(), nullable=True)
-    # No DB-level FK with cascade for affected_account_id so that deleting an account preserves the lineage reference in this column.
     affected_account_id = Column("affected_account_id", Integer(), nullable=True)
 
     # Relationships to navigate to User and Account without database-level FK constraints
     # This allows audit logs to maintain references to deleted users/accounts for lineage purposes
+    # The foreign_keys= parameter inside db.relationship(...) is a SQLAlchemy ORM hint only — it has zero effect on the database schema.
+    # It's needed here because SQLAlchemy can't automatically infer which column is the "FK side" of the join when there's no actual ForeignKey() in the column definition
     active_user = db.relationship(
         "User",
         primaryjoin="AuditLog.active_user_id == User.id",
@@ -136,7 +136,7 @@ class AssetAuditLog(db.Model, AuthModelMixin):
     __tablename__ = "asset_audit_log"
     id = Column(Integer, primary_key=True)
     event_datetime = Column(DateTime())
-    event = Column(String(255))
+    event = Column(String(500))
     active_user_name = Column(String(255))
     active_user_id = Column(
         "active_user_id", Integer(), ForeignKey("fm_user.id", ondelete="SET NULL")
@@ -176,8 +176,8 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         audit_log = cls(
             event_datetime=server_now(),
             event=truncate_string(
-                event, 255
-            ),  # we truncate the event string if it 255 characters by adding ellipses in the middle
+                event, 500
+            ),  # we truncate the event string if it exceeds 500 characters by adding ellipses in the middle
             active_user_id=current_user_id,
             active_user_name=current_user_name,
             affected_asset_id=affected_asset_id,
@@ -200,8 +200,8 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         audit_log = AssetAuditLog(
             event_datetime=server_now(),
             event=truncate_string(
-                event, 255
-            ),  # we truncate the event string if it exceeds 255 characters by adding ellipses in the middle
+                event, 500
+            ),  # we truncate the event string if it exceeds 500 characters by adding ellipses in the middle
             active_user_id=current_user_id,
             active_user_name=current_user_name,
             affected_asset_id=asset.id,

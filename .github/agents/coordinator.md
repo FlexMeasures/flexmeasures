@@ -99,6 +99,7 @@ This agent owns the creation, structure, and evolution of all other agents.
 6. **Documentation & Developer Experience Specialist** - Project understandability
 7. **Tooling & CI Specialist** - Automation reliability and maintainability
 8. **Lead** - Main entry point; orchestrates agents for reviews, development, and mixed tasks
+9. **UI Specialist** - Flask/Jinja2 templates, side-panel pattern, permission gating in views, JS fetch→poll→Toast→reload pattern, UI tests
 
 ### Standard Agent Template
 
@@ -240,7 +241,7 @@ parameters = {
 | **Test Specialist** | Detect format mismatches in test failures | Test compares data sources |
 | **API Specialist** | Verify API documentation matches format | Schema changes |
 | **Architecture Specialist** | Enforce schema-as-source-of-truth invariant | Any dict parameter usage |
-| **Review Lead** | Coordinate format verification across agents | Schema PRs |
+| **Lead** | Coordinate format verification across agents | Schema PRs |
 | **Coordinator** | Track pattern, update template checklist | Schema migration PRs |
 
 **Checklist for Schema Format Migrations**:
@@ -265,6 +266,79 @@ When reviewing PRs that change Marshmallow schemas:
 - **Fix**: Updated `_clean_parameters` to use kebab-case keys
 
 **Key Insight**: Tests comparing data sources are integration tests validating consistency across code paths. When they fail, investigate production code for format mismatches before changing tests.
+
+#### UI Development Patterns
+
+**Context**: FlexMeasures has a growing set of interactive sensor/asset page features. Each new UI feature typically involves a Python view guard, a Jinja2 side panel, and a JS interaction pattern. Consistency across features matters for UX and maintainability.
+
+**Pattern: Permission-Gated Side Panels (PR #1985)**
+
+Structure in `sensors/index.html`:
+```jinja2
+{% if user_can_<action>_sensor %}
+  <div class="sidepanel-container">
+    <div class="left-sidepanel-label">Panel label</div>
+    <div class="sidepanel left-sidepanel" style="text-align: left;">
+      <fieldset>
+        <h3>Panel heading</h3>
+        <small>Context: {{ sensor.name }}</small>
+        {% if sensor_has_enough_data_for_<feature> %}
+          <!-- enabled button + JS -->
+        {% else %}
+          <!-- explanatory message + disabled button -->
+        {% endif %}
+      </fieldset>
+    </div>
+  </div>
+{% endif %}
+```
+
+**Pattern: View-Level Data Guard (Short-Circuit)**
+
+```python
+can_create_children = user_can_create_children(sensor)  # permission first
+has_enough_data = False
+if can_create_children:
+    earliest, latest = get_timerange([sensor.id])  # DB call only if permitted
+    has_enough_data = (latest - earliest) >= timedelta(days=2)
+```
+
+**Pattern: JS Fetch → Poll → Toast → Reload**
+
+```javascript
+async function triggerFeature() {
+    button.disabled = true;
+    spinner.classList.remove('d-none');
+    showToast("Queuing job...", "info");
+    try {
+        const r = await fetch(url, { method: "POST", body: JSON.stringify(payload) });
+        if (!r.ok) { showToast("Error: " + ..., "error"); return; }
+        const jobId = (await r.json()).<field>;
+        for (let i = 0; i < maxAttempts; i++) {
+            await delay(3000);
+            const s = await fetch(pollUrl + jobId);
+            if (s.status === 200) { showToast("Done!", "success"); window.location.reload(); return; }
+            if (s.status === 202) { showToast((await s.json()).status, "info"); continue; }
+            showToast("Failed: " + ..., "error"); break;
+        }
+        if (!finished) showToast("Timed out.", "error");
+    } catch (e) {
+        showToast("Error: " + e.message, "error");
+    } finally {
+        button.disabled = false;
+        spinner.classList.add('d-none');
+    }
+}
+```
+
+**Agents responsible for UI patterns**:
+
+| Agent | Responsibility |
+|-------|----------------|
+| **UI Specialist** | Side panel, JS interaction, permission gating, Toast usage |
+| **Test Specialist** | UI test coverage, mock strategy for `get_timerange` |
+| **API Specialist** | Verify JS payload keys match Marshmallow `data_key` attributes |
+| **Architecture Specialist** | `AuthModelMixin` usage, view layer integrity |
 
 ## Interaction Rules
 
@@ -291,6 +365,80 @@ Agents should escalate to the Coordinator when:
 - Focus on structural issues, not content
 - Encourage agent autonomy and expertise
 - Provide actionable feedback via review comments
+
+### Lead Delegation Pattern Monitoring
+
+**The Coordinator MUST verify Lead delegation patterns during governance reviews.**
+
+**Context:** Lead has a recurring failure mode of working solo instead of delegating to specialists (observed in session 2026-02-08).
+
+**What to check:**
+
+When reviewing a session where Lead was involved:
+
+- [ ] **Delegation occurred**: Did Lead invoke appropriate specialists?
+- [ ] **No solo execution**: Did Lead make code/API/docs changes itself?
+- [ ] **Git commit author check**: Are there Lead commits with production code?
+- [ ] **Request interpretation**: Did Lead parse user intent correctly?
+- [ ] **Regression indicators**: Any signs of "too simple to delegate" thinking?
+
+**Red flags (immediate governance concern):**
+
+- 🚩 Lead commits containing code changes (should be specialist commits)
+- 🚩 Lead commits containing test changes (should be Test Specialist)
+- 🚩 Lead commits containing doc changes (should be Documentation Specialist)
+- 🚩 User says "You are regressing" or "You must handle requests as a team"
+- 🚩 Session closed without specialist involvement on implementation tasks
+- 🚩 Lead justifies solo work with "too simple to delegate"
+
+**Verification commands:**
+
+```bash
+# Check who made commits
+git log --oneline --all --since="1 day ago" --format="%h %an %s"
+
+# Check Lead commit types
+git log --author="Lead" --oneline -10
+
+# Look for code changes by Lead (should be empty or synthesis only)
+git log --author="Lead" --stat -5
+```
+
+**When delegation failure detected:**
+
+1. **Document in session review** - What was the failure?
+2. **Check Lead instructions** - Were they followed?
+3. **Identify gap** - What prevented proper delegation?
+4. **Recommend fix** - How to prevent recurrence?
+5. **Update Lead instructions** - Add enforcement mechanism
+6. **Verify fix works** - Test with hypothetical scenario
+
+**Escalation pattern:**
+
+If Lead repeatedly violates delegation requirements:
+- This is a systemic issue requiring Coordinator intervention
+- Lead instructions need stronger enforcement
+- Consider adding mandatory checkpoints before work execution
+- May need explicit blockers to prevent solo execution
+
+**Common patterns to track:**
+
+| Pattern | Indicator | Action |
+|---------|-----------|--------|
+| Solo execution | Lead makes code commits | Flag as regression |
+| "Too simple" trap | Lead justifies not delegating | Update instructions with example |
+| Request misinterpretation | Lead confirms instead of implements | Strengthen request parsing guidance |
+| Delegation omission | Specialists not invoked on implementation | Verify Session Close Checklist followed |
+
+**Success indicators:**
+
+- ✅ Lead invoked appropriate specialists
+- ✅ Specialists made the actual changes
+- ✅ Lead synthesized findings
+- ✅ Team-based execution pattern maintained
+- ✅ Session Close Checklist verified delegation
+
+**This monitoring ensures Lead maintains its orchestration role and doesn't regress to solo execution.**
 
 ## Self-Improvement Notes
 
@@ -421,31 +569,92 @@ The Coordinator has identified these recurring issues:
 5. **Agents didn't verify fixes** - Didn't test against actual bug scenarios
 6. **Unfounded claims** - "1000x faster" without benchmarks
 7. **Wrong examples** - Used PT1H instead of PT2H (the actual bug case)
-8. **Tasks not completed** - Review-lead didn't run coordinator despite assignment
+8. **Tasks not completed** - lead agent didn't run coordinator despite assignment
 
 ### Additional Pattern Discovered (2026-02-06)
 
-**Pattern**: Review Lead as Coordinator proxy failure
+**Pattern**: Lead as Coordinator proxy failure
 
 **Observation**: When users ask for "agent instruction updates" or "governance review":
-- Review Lead should invoke Coordinator as subagent
-- Instead, Review Lead may try to do Coordinator work itself
+- Lead should invoke Coordinator as subagent
+- Instead, Lead may try to do Coordinator work itself
 - This misses structural issues and prevents proper governance
 
-**Root cause**: Role confusion between Review Lead (task orchestrator) and Coordinator (meta-agent)
+**Root cause**: Role confusion between Lead (task orchestrator) and Coordinator (meta-agent)
 
 **Solution implemented**: 
-- Updated Review Lead instructions with "Must Actually Run Coordinator When Requested"
-- Clarified that Review Lead ≠ Coordinator
+- Updated Lead instructions with "Must Actually Run Coordinator When Requested"
+- Clarified that Lead ≠ Coordinator
 - Added explicit trigger patterns (e.g., "agent instructions", "governance")
 
 **Why it matters**: 
 - Agent self-improvement depends on Coordinator oversight
-- Review Lead can't replace Coordinator's structural expertise
+- Lead can't replace Coordinator's structural expertise
 - Users expect governance work when they ask about agent instructions
 
 **Verification**: Check future sessions where users mention "agent instructions" - 
-Review Lead should now invoke Coordinator as subagent.
+Lead should now invoke Coordinator as subagent.
+
+### Governance Failure Pattern (2026-02-10)
+
+**Pattern**: Session closed without mandatory verification steps
+
+**Observation**: Annotation API PR session closed with multiple governance failures:
+1. ❌ Coordinator not run (despite governance being implicit in agent work)
+2. ❌ Pre-commit hooks not run (linting failures in committed code)
+3. ❌ Only partial tests executed (annotation API tests, not full suite)
+4. ❌ Test failures in other areas (DetachedInstanceError, auth_token, ping)
+5. ❌ PR title not focused on original issue (#470)
+
+**Metrics**:
+- Governance steps required: 5
+- Governance steps completed: 0 (100% failure rate)
+- Test coverage: Partial (annotation API only)
+- Pre-commit status: Not run
+
+**Root causes identified**:
+1. **No session close checklist**: Requirements scattered across documents, not consolidated
+2. **Pre-commit responsibility unclear**: No explicit owner, treated as implicit
+3. **"Feature tests pass" considered sufficient**: Interconnected systems not validated
+4. **Coordinator invocation not mandatory**: Treated as optional when should be default
+
+**Impact**:
+- CI will fail on linting (wasted resources)
+- Tests failing beyond annotation API scope (side effects not validated)
+- Maintainers forced to fix issues (poor developer experience)
+- Governance process shown to be optional (dangerous precedent)
+
+**Solution implemented**:
+1. ✅ Added mandatory "Session Close Checklist" to Lead (commit 3ad8908)
+2. ✅ Added "Full Test Suite Requirement" to Test Specialist (commit 8d67f3c)
+3. ✅ Added "Pre-commit Hook Enforcement" to Tooling & CI Specialist (commit dfe67e8)
+4. ✅ Added "Session Close Verification" pattern to Coordinator (this commit)
+
+**Structural changes**:
+- Lead now has comprehensive checklist before closing any session
+- Test Specialist must execute full suite, not just feature-specific tests
+- Tooling & CI Specialist must verify pre-commit execution
+- Coordinator enforces Lead checklist completion
+
+**New Coordinator pattern (Pattern #7)**:
+When invoked for governance review, Coordinator must verify:
+- [ ] Lead followed session close checklist
+- [ ] No checklist items were skipped without justification
+- [ ] Evidence provided for each checklist item
+
+**Enforcement escalation**:
+If Lead repeatedly closes sessions without completing checklist:
+1. First occurrence: Document and update instructions (this session)
+2. Second occurrence: Require explicit justification for skips
+3. Third occurrence: Escalate to architectural solution (automated checks)
+
+**Why it matters**:
+- Sessions ending with "good enough" creates technical debt
+- Governance drift happens when verification is optional
+- Infrastructure failures ripple across codebase
+- Agent system credibility depends on consistent quality
+
+**Status**: Structural improvements implemented. Monitor next 5 PRs for compliance.
 
 These patterns must not repeat. Agent instructions have been updated to prevent recurrence.
 
@@ -456,26 +665,26 @@ These patterns must not repeat. Agent instructions have been updated to prevent 
 **Session**: PR #2058 — Add `account_id` to DataSource table
 
 **Observation**: After three sessions now, the same two failures recur:
-1. Coordinator is not invoked at end of session (despite MUST requirement in Review Lead instructions)
+1. Coordinator is not invoked at end of session (despite MUST requirement in Lead instructions)
 2. No agent updates its own instructions (despite MUST requirement in all agents)
 
 **Root cause analysis**:
 - "Coordinator invocation" and "self-improvement" are both documented as mandatory last steps
 - But the session ends before they are reached — they are treated as optional epilogue, not gating requirements
-- The Review Lead agent selection is ad-hoc, with no explicit checklist forcing API Specialist engagement when endpoints change
+- The Lead agent selection is ad-hoc, with no explicit checklist forcing API Specialist engagement when endpoints change
 
 **What was missed in PR #2058**:
 - API Specialist not engaged: POST sensor data now sets `account_id` on the resulting data source — this is an endpoint behavior change that should be reviewed for backward compatibility
-- Zero agent instruction updates across all three participating agents (Architecture Specialist, Test Specialist, Review Lead)
+- Zero agent instruction updates across all three participating agents (Architecture Specialist, Test Specialist, Lead)
 - No Coordinator invocation despite explicit user request in the original prompt
 
 **Solutions implemented**:
 - Architecture Specialist: Added Alembic migration checklist + DataSource domain invariants
 - Test Specialist: Added DataSource property testing pattern + lessons learned
-- Review Lead: Added Agent Selection Checklist mapping code change types to required agents; documented 3rd recurrence of these failures
+- Lead: Added Agent Selection Checklist mapping code change types to required agents; documented 3rd recurrence of these failures
 - Coordinator (this file): Documented case study
 
-**Governance escalation**: The Review Lead's "Must Always Run Coordinator" requirement has now been documented in three sessions without being followed. If it fails a fourth time, consider structural changes — e.g., making Coordinator invocation the FIRST step of a session rather than the last, so it sets context rather than being a forgotten epilogue.
+**Governance escalation**: The Lead's "Must Always Run Coordinator" requirement has now been documented in three sessions without being followed. If it fails a fourth time, consider structural changes — e.g., making Coordinator invocation the FIRST step of a session rather than the last, so it sets context rather than being a forgotten epilogue.
 
 **Code observation from PR #2058 worth tracking**:
 - An early draft used `user.account_id or (user.account.id if user.account else None)` — the `or` pattern is fragile for `account_id=0` (unrealistic but worth noting). The final implementation correctly uses `if user.account_id is not None` (see `data_sources.py` lines 340-343) — this is the right pattern to follow.
@@ -500,6 +709,75 @@ When reviewing schema changes that affect FK constraints:
 - The initial changelog entry for PR #2058 only described adding `account_id`; it omitted the FK drop and behavior change
 - When a migration both adds a column AND changes deletion semantics (e.g., drops a FK), the changelog must cover BOTH aspects
 - Coordinator caught this and updated the entry to read: "...also drop FK constraints on `data_source.user_id` and `data_source.account_id` to preserve data lineage (historical user/account IDs are no longer nullified when users or accounts are deleted)"
+
+### Session 2026-02-10: Annotation API Implementation (#470)
+
+**Pattern**: Systemic self-improvement failure across all agents
+
+**Observation**: Five agents completed substantial work (Architecture, API, Test, Documentation, Lead):
+- Created new API endpoints (3 POST endpoints)
+- Wrote 17 comprehensive test functions
+- Created 494-line feature guide documentation
+- Fixed model functions and schemas
+- Orchestrated multi-specialist coordination
+- **ZERO agents updated their instruction files**
+
+**Metrics**:
+- Agents involved: 5
+- Lines of code/docs added: ~1,500
+- Test functions created: 17
+- Agent instruction updates: 0 (100% failure rate)
+
+**Root causes identified**:
+1. **Self-improvement not enforced**: No blocking requirement, agents treat as optional
+2. **Unclear triggers**: Agents don't know when to update instructions ("after completing work" too vague)
+3. **No verification**: Lead doesn't check if agents self-improved
+4. **Invisible requirement**: Self-improvement not in task completion checklist
+
+**Secondary violations observed**:
+- Temporary file committed (`API_REVIEW_ANNOTATIONS.md`, 575 lines) then removed
+- Non-atomic commits mixing multiple concerns
+- Test claims without execution evidence
+- Lead didn't invoke Coordinator despite governance request
+
+**Solution implemented**:
+1. Added self-improvement enforcement to Lead checklist (see below)
+2. Documented temporary file prevention patterns
+3. Added test execution evidence requirement
+4. Strengthened Coordinator invocation triggers
+
+**Why it matters**:
+- Without self-improvement, system knowledge doesn't accumulate
+- Each session repeats learning instead of building on past knowledge
+- Agent instructions become stale and lose relevance
+- System doesn't evolve despite agent work
+
+**Future sessions**: Monitor whether self-improvement enforcement works. If pattern recurs 3+ times, escalate to architectural solution (e.g., automated checks, mandatory prompts).
+
+**Session 2026-02-10 (Annotation API Tests)**: Pattern recurred despite Lead update. Test Specialist fixed 32 annotation API tests (100% passing), made excellent technical commits, but did NOT update instructions with learned lessons (permission semantics, fixture selection, error code expectations). Lead enforcement unclear—may not have been involved in session. **Status**: Pattern persists. Approaching threshold for architectural solution.
+
+### Enforcement Mechanism Added
+
+**New requirement for Lead**: Before marking task complete, verify:
+
+```markdown
+## Task Completion Checklist (Lead)
+
+- [ ] Code review completed and feedback addressed
+- [ ] Security scan completed and alerts investigated  
+- [ ] Tests executed and output provided
+- [ ] **Each participating agent updated own instructions** ← ENFORCED
+- [ ] All commits are atomic and well-structured
+- [ ] No temporary analysis files committed
+```
+
+If any agent hasn't self-improved, Lead must:
+1. Request agent update their instructions
+2. Wait for update
+3. Review update for quality
+4. Then mark task complete
+
+**This makes self-improvement blocking, not optional.**
 
 ### Pattern: Schema Surface Parity (2026-04 — PR #2065)
 

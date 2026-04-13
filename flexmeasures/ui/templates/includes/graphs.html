@@ -180,6 +180,8 @@
                     );
                     uploadSpinner.classList.add('d-none');
                     upload.classList.remove('d-none');
+                    // Reload the chart so newly-uploaded data is immediately visible
+                    document.dispatchEvent(new CustomEvent('newDataAvailable'));
                 } else {
                     const data = await response.json();
                     const messageKeys = Object.keys(data.message);
@@ -255,10 +257,31 @@
         }
     }, false);
 
-    // Sensors To Show Updated Listener
-    document.addEventListener('sensorsToShowUpdated', async function () {
-        await embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate);
-    });
+    // Sensors To Show Updated / New Data Available Listener
+    async function reloadChartData() {
+        if (!storeStartDate || !storeEndDate) { return; }
+        $("#spinner").show();
+        let newData = fetch(dataPath + '/chart_data?event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&compress_json=true', {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+            signal: signal,
+        })
+            .then(function (response) { return response.json(); })
+            .then(data => decompressChartData(data));
+        newData = await Promise.all([
+            newData,
+            embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate),
+        ]).then(function (result) { return result[0] }).catch(console.error);
+        $("#spinner").hide();
+        vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(newData)).resize().run();
+        previousResult = {
+            start: storeStartDate,
+            end: storeEndDate,
+            data: fetchedInitialData
+        };
+    }
+    document.addEventListener('sensorsToShowUpdated', reloadChartData);
+    document.addEventListener('newDataAvailable', reloadChartData);
 
     {% if event_starts_after and event_ends_before %}
     $("#spinner").show();

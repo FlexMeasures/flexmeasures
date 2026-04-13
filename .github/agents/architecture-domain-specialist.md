@@ -38,44 +38,9 @@ This agent owns the integrity of models (e.g. assets, sensors, data sources, sch
 - [ ] **Acyclic asset trees**: Verify no changes break the `parent_asset_id != id` constraint
 - [ ] **Asset hierarchy**: Ensure parent-child relationships maintain referential integrity
 - [ ] **Account ownership**: Check that all assets have `account_id` set correctly
-- [ ] **DataSource account_id**: Verify user-type DataSources have `account_id` populated from `user.account_id` (see invariant below)
 - [ ] **Sensor-Asset binding**: Validate sensors are properly linked to assets
 - [ ] **TimedBelief structure**: Ensure (event_start, belief_time, source, cumulative_probability) integrity
-
-### Alembic Migration Changes
-
-When reviewing or writing Alembic migrations, check:
-
-- [ ] **down_revision correct**: Verify `down_revision` matches the actual current head (run `flask db heads` to check)
-- [ ] **FK naming convention**: FK constraints follow the pattern `<table>_<col>_<ref_table>_fkey`
-- [ ] **Data backfill**: Bulk UPDATE used (correlated subquery or UPDATE...FROM), not N+1 Python loop
-- [ ] **Downgrade path**: `downgrade()` fully reverses `upgrade()` including constraint drops/recreates
-- [ ] **No ORM in migrations**: Use `sa.Table` + `sa.MetaData()` with SQLAlchemy Core only; never import ORM models
-- [ ] **Nullable new columns**: New FK columns should be `nullable=True` to avoid breaking existing rows
-- [ ] **batch_alter_table**: Use `op.batch_alter_table()` for all ALTER TABLE operations (required for SQLite compat in test environments)
-- [ ] **UniqueConstraint names**: Verify constraint name matches the existing DB constraint name exactly (check with `\d <table>` in psql)
-- [ ] **Create Date**: Verify the current datetime is correct (e.g. a `Create Date: 2025-01-15 00:00:00.000000` is highly unlikely to be true)
-- [ ] **Changelog**: Add a db upgrade warning in the changelog under the relevant release section (see previous sections for styling)
-
-**Pattern: Safe data migration in Alembic**
-
-```python
-# ✅ Correct: SQLAlchemy Core table stubs, bulk correlated subquery update
-t_data_source = sa.Table("data_source", sa.MetaData(), sa.Column("id", sa.Integer), ...)
-t_fm_user = sa.Table("fm_user", sa.MetaData(), sa.Column("id", sa.Integer), ...)
-
-connection.execute(
-    sa.update(t_data_source)
-    .values(account_id=sa.select(t_fm_user.c.account_id)
-        .where(t_fm_user.c.id == t_data_source.c.user_id)
-        .scalar_subquery())
-    .where(t_data_source.c.user_id.isnot(None))
-)
-
-# ❌ Wrong: N+1 Python loop over ORM objects
-for source in DataSource.query.filter_by(...):  # Don't import ORM!
-    source.account_id = source.user.account_id  # Triggers N queries
-```
+- [ ] **Annotation relationships**: Verify many-to-many associations use relationship append pattern
 
 ### Flex-context & flex-model
 
@@ -151,6 +116,7 @@ reference `self` or `cls` — propose `@staticmethod`.
 - [ ] **No quick hacks**: Push back on changes that erode model clarity for short-term gains
 - [ ] **Separation of concerns**: Validate, process, and persist should be distinct steps
 - [ ] **Multi-tenancy**: Ensure account-level access control is maintained
+- [ ] **Idempotency**: API endpoints should use get-or-create patterns with proper tuple returns for status detection
 
 ### Schema-Code Consistency
 
@@ -322,15 +288,27 @@ fields_to_remove = ["as_job"]  # ❌ Wrong format
 - **Location**: `/flexmeasures/data/models/data_sources.py`
 - **Purpose**: Forecasters and reporters subclass `DataGenerator` to couple configured instances to unique data sources (schedulers are not yet subclassing `DataGenerator`)
 
-#### DataSource
-- **Location**: `flexmeasures/data/models/data_sources.py`
-- **Key fields**: `id`, `name`, `type`, `user_id`, `account_id`, `model`, `version`, `attributes`, `attributes_hash`
-- **Relationships**:
-  - `user` → User (via `user_id`, nullable — only for `type="user"` sources)
-  - `account` → Account (via `account_id`, nullable — populated from user's account for user-type sources)
-  - `sensors` ↔ Sensor (via `timed_belief` join table, viewonly)
-- **`account_id` invariant**: For user-type DataSources, `account_id` is always set from the creating user's account (see invariant #6 below). For non-user sources (forecasters, schedulers, reporters), `account_id` remains `None`.
-- **UniqueConstraint**: `(name, user_id, account_id, model, version, attributes_hash)` — added `account_id` in migration `9877450113f6`
+#### Annotation
+- **Location**: `flexmeasures/data/models/annotations.py`
+- **Purpose**: Independent entities for metadata about other domain objects (assets, sensors, accounts)
+- **Relationships**: Many-to-many with GenericAsset, Sensor, Account (via association tables)
+- **Key fields**: `id`, `content`, `type`, `start`, `end`, `source_id`
+- **Pattern**: Use `get_or_create_annotation()` for idempotency
+  - Returns `(annotation, is_new)` tuple
+  - `is_new=True` for created, `is_new=False` for existing
+  - Enables proper HTTP status codes (201 vs 200)
+- **Association pattern**: Use SQLAlchemy relationship append
+  ```python
+  # ✅ Correct: Use relationship append
+  entity.annotations.append(annotation)
+  
+  # ❌ Wrong: Manual join table manipulation
+  # Don't create association table entries directly
+  ```
+- **Permission model**: Annotations are independent entities
+  - Adding annotation to entity requires "update" permission on entity
+  - Not "create-children" (that's for owned hierarchies like asset→sensor)
+  - Rationale: Many-to-many relationship, annotation exists independently
 
 ### Critical Invariants
 
@@ -355,18 +333,7 @@ fields_to_remove = ["as_job"]  # ❌ Wrong format
    - Role-based permissions (ACCOUNT_ADMIN, CONSULTANT)
    - Audit logging for all mutations
 
-5. **DataSource UniqueConstraint includes `account_id`**
-   - Since migration `9877450113f6` (PR #2058), `account_id` is part of the unique constraint
-   - Code that creates or deduplicates DataSources must include `account_id` in lookup logic
-   - See `get_or_create_source()` in `flexmeasures/data/services/data_sources.py`
-
-6. **User-type DataSources always have `account_id` populated**
-   - Invariant added in PR #2058: when a `DataSource` is created with `user=<User>`, `account_id` is set from `user.account_id`
-   - Fallback for unflushed users: `user.account.id` is used if `user.account_id` is not yet set
-   - Non-user DataSources (forecasters, schedulers, reporters created without a user) have `account_id=None`
-   - Implication: filtering DataSources by `account_id` only works for user-type sources
-
-7. **Timezone Awareness**
+5. **Timezone Awareness**
    - All datetime objects MUST be timezone-aware
    - Sensors have explicit `timezone` field
 
@@ -406,6 +373,83 @@ fields_to_remove = ["as_job"]  # ❌ Wrong format
 - **Tight coupling**: API/CLI should not import from each other
 - **Bypassing services**: Direct model access from API/CLI
 - **Quick hacks**: Temporary solutions that become permanent
+- **Manual join table manipulation**: Use SQLAlchemy relationship methods, not direct association table inserts
+- **Wrong permission model**: Use "update" for annotations, not "create-children" (which is for owned hierarchies)
+- **Idempotency without detection**: get-or-create functions should return `(entity, is_new)` tuple
+
+### Annotation API Pattern (Session 2026-02-10)
+
+When implementing POST endpoints for adding annotations to domain entities:
+
+#### 1. Idempotency Pattern
+```python
+# ✅ Correct: get_or_create returns tuple
+annotation, is_new = get_or_create_annotation(
+    content=...,
+    type=...,
+    source_id=...,
+    # ... other fields
+)
+
+# Return appropriate HTTP status
+if is_new:
+    return make_response({...}, 201)  # Created
+else:
+    return make_response({...}, 200)  # OK (already exists)
+```
+
+#### 2. Relationship Management Pattern
+```python
+# ✅ Correct: Use SQLAlchemy relationship append
+entity.annotations.append(annotation)
+db.session.commit()
+
+# ❌ Wrong: Manual join table manipulation
+# Don't create rows in association tables directly
+```
+
+#### 3. Permission Pattern
+For many-to-many relationships like annotations:
+- **Use "update" permission** to add annotation to entity
+- **Not "create-children"** (that's for owned hierarchies like GenericAsset→Sensor)
+- **Rationale**: Annotation is independent entity, can be associated with multiple entities
+
+#### 4. API Endpoint Structure
+```python
+class AnnotationAPI(FlaskView):
+    @route("/<resource_id>/annotations", methods=["POST"])
+    @permission_required_for_context("update", ctx_arg_name="entity")
+    def post(self, resource_id: int):
+        # 1. Load and validate entity
+        entity = get_entity_or_abort(resource_id)
+        
+        # 2. Validate annotation data (Marshmallow schema)
+        annotation_data = AnnotationSchema().load(request.json)
+        
+        # 3. Get or create annotation (idempotency)
+        annotation, is_new = get_or_create_annotation(**annotation_data)
+        
+        # 4. Associate with entity (relationship append)
+        entity.annotations.append(annotation)
+        db.session.commit()
+        
+        # 5. Return appropriate status
+        status_code = 201 if is_new else 200
+        return make_response(AnnotationSchema().dump(annotation), status_code)
+```
+
+#### 5. Review Checklist for Annotation Endpoints
+- [ ] Does `get_or_create_annotation()` return `(annotation, is_new)` tuple?
+- [ ] Does endpoint return 201 for new, 200 for existing?
+- [ ] Does code use `entity.annotations.append()` not manual join table?
+- [ ] Does endpoint require "update" permission not "create-children"?
+- [ ] Is annotation data validated with Marshmallow schema?
+- [ ] Is the association committed to database?
+
+**Related Files**:
+- Model: `flexmeasures/data/models/annotations.py`
+- API: `flexmeasures/api/v3_0/assets.py`, `flexmeasures/api/v3_0/sensors.py`
+- Schema: `flexmeasures/data/schemas/annotations.py`
 
 ### Related Files
 

@@ -58,6 +58,8 @@
             cursor: default; 
         }
     </style>
+    <!-- json-editor (https://github.com/json-editor/json-editor) -->
+    <script src="https://cdn.jsdelivr.net/npm/@json-editor/json-editor@{{ config.FLEXMEASURES_JS_VERSIONS.jsoneditor }}/dist/jsoneditor.min.js"></script>
     <!-- Leaflet -->
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" rel="stylesheet" />
@@ -198,8 +200,8 @@
             }
 
             // Set up swiping and clicking for the left sidepanel
-            var leftSidepanels = document.getElementsByClassName('left-sidepanel');
-            var leftSidepanelLabels = document.getElementsByClassName('left-sidepanel-label');
+            var leftSidepanels = document.getElementsByClassName('sidepanel-content');
+            var leftSidepanelLabels = document.getElementsByClassName('sidepanel-label');
             async function openSidepanel(e) {
                 if ( (e.target.classList.contains('sidepanel-container')) | (e.type == 'click') ) {
                 for (var i = leftSidepanels.length - 1; i >= 0; i--) {

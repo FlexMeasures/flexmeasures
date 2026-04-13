@@ -5,6 +5,7 @@ from marshmallow import fields, validates
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole
+from flexmeasures.data.schemas.attributes import JSON
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
@@ -35,6 +36,7 @@ class AccountSchema(ma.SQLAlchemySchema):
     primary_color = ma.auto_field(required=False)
     secondary_color = ma.auto_field(required=False)
     logo_url = ma.auto_field(required=False)
+    attributes = JSON(required=False, load_default={})
     account_roles = fields.Nested("AccountRoleSchema", exclude=("accounts",), many=True)
     consultancy_account_id = ma.auto_field()
 

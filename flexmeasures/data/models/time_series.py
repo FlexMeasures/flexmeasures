@@ -686,6 +686,10 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
 
     @cached_property
     def as_dict(self) -> dict:
+        # Fixed-value sensors (negative IDs) carry a pre-built dict so we
+        # never attempt a DB look-up for a row that does not exist.
+        if hasattr(self, "_as_dict_override") and self._as_dict_override:
+            return self._as_dict_override
         parent_asset = db.session.execute(
             select(GenericAsset).filter_by(id=self.generic_asset.parent_asset_id)
         ).scalar_one_or_none()

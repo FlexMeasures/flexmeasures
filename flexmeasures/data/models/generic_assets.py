@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any
-import math
-import random
+from typing import Any, Literal
 import json
 
 from flask import current_app
@@ -34,6 +32,146 @@ from flexmeasures.auth.policy import (
 from flexmeasures.utils import geo_utils
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.utils.unit_utils import find_smallest_common_unit
+
+
+# Each fixed-value origin gets its own unique negative source ID so that
+# chart specs that key on source ID can distinguish between them.
+# Negative IDs are chosen so they never clash with real DataSource IDs (always > 0).
+_FLEX_SOURCE_IDS: dict[str, int] = {
+    "flex-model": -1,
+    "flex-context": -2,
+    "flex-config": -3,  # fallback when origin is unspecified
+}
+
+
+def _fixed_value_source_dict(
+    flex_source: Literal["flex-model", "flex-context", "flex-config"],
+) -> dict:
+    """Build the source metadata dict for a fixed-value sensor record.
+
+    :param flex_source: The config origin: ``"flex-model"``, ``"flex-context"``,
+                        or ``"flex-config"`` (unknown/fallback).  The value is
+                        stored as ``sensor.attributes["flex_source"]`` when the
+                        synthetic sensor is created.
+    :returns: A dict compatible with the ``source`` field of chart data records.
+    """
+    return dict(
+        id=_FLEX_SOURCE_IDS[flex_source],
+        name=flex_source,
+        model="",
+        type="other",
+        description=f"Configured in the asset's {flex_source}",
+    )
+
+
+def _fixed_value_timestamps_ms(
+    event_starts_after: datetime,
+    event_ends_before: datetime,
+    resolution: timedelta | None,
+) -> list[int]:
+    """Return a list of epoch-millisecond timestamps for fixed-value records.
+
+    When *resolution* is positive the timestamps are evenly spaced; when it is
+    zero or None (instantaneous sensor / no real sensors in window) only the
+    boundary points are returned so that the chart can draw a horizontal line
+    without unnecessary repetition.
+    """
+    start_ms = int(event_starts_after.timestamp() * 1000)
+    end_ms = int(event_ends_before.timestamp() * 1000)
+
+    if resolution is not None and resolution > timedelta(0):
+        step_ms = int(resolution.total_seconds() * 1000)
+        timestamps_ms = list(range(start_ms, end_ms + 1, step_ms))
+        if not timestamps_ms or timestamps_ms[-1] != end_ms:
+            timestamps_ms.append(end_ms)
+    else:
+        timestamps_ms = [start_ms, end_ms]
+
+    return timestamps_ms
+
+
+def _generate_fixed_value_records(
+    sensor: "Sensor",  # noqa F821
+    event_starts_after: datetime,
+    event_ends_before: datetime,
+    resolution: timedelta | None,
+) -> list[dict]:
+    """Build chart data records for a fixed-value sensor.
+
+    Returns a list of records in the same format as
+    ``GenericAsset.search_beliefs(as_json=True, compress_json=False)``, so they
+    can be merged directly into the chart dataset without a separate Vega-Lite
+    layer.
+
+    :param sensor:             A fixed-value sensor (id < 0).
+    :param event_starts_after: Start of the chart window.
+    :param event_ends_before:  End of the chart window.
+    :param resolution:         Timestamp spacing; two-point fallback when zero or None.
+    """
+    # graph_value is always stored as a float by _create_fixed_value_sensors;
+    # the 0.0 default here is a safety fallback for unexpected missing attributes.
+    constant_value = float((sensor.attributes or {}).get("graph_value", 0.0))
+    flex_source = (sensor.attributes or {}).get("flex_source", "flex-config")
+
+    timestamps_ms = _fixed_value_timestamps_ms(
+        event_starts_after, event_ends_before, resolution
+    )
+    sensor_meta = sensor.as_dict  # uses _as_dict_override for fixed-value sensors
+    source_dict = _fixed_value_source_dict(flex_source)
+
+    return [
+        {
+            "event_start": ts_ms,
+            "event_value": constant_value,
+            "sensor": sensor_meta,
+            "source": source_dict,
+            "sensor_unit": sensor.unit,
+            "scale_factor": 1.0,
+            "belief_horizon": 0,
+        }
+        for ts_ms in timestamps_ms
+    ]
+
+
+def _generate_fixed_value_records_compressed(
+    sensor: "Sensor",  # noqa F821
+    event_starts_after: datetime,
+    event_ends_before: datetime,
+    resolution: timedelta | None,
+    source_id: int = -1,
+) -> list[dict]:
+    """Build compressed chart data records for a fixed-value sensor.
+
+    Uses the compact key names (``ts``, ``sid``, ``val``, ``sf``, ``src``,
+    ``bh``) that match the ``compress_json=True`` output of
+    ``search_beliefs``.  This is the format the UI always requests via
+    ``GET …/chart_data?compress_json=true``.
+
+    :param sensor:             A fixed-value sensor (id < 0).
+    :param event_starts_after: Start of the chart window.
+    :param event_ends_before:  End of the chart window.
+    :param resolution:         Timestamp spacing; two-point fallback when zero or None.
+    :param source_id:          Source ID to embed in each record.
+    """
+    # graph_value is always stored as a float by _create_fixed_value_sensors;
+    # the 0.0 default here is a safety fallback for unexpected missing attributes.
+    constant_value = float((sensor.attributes or {}).get("graph_value", 0.0))
+
+    timestamps_ms = _fixed_value_timestamps_ms(
+        event_starts_after, event_ends_before, resolution
+    )
+
+    return [
+        {
+            "ts": ts_ms,
+            "sid": sensor.id,
+            "val": constant_value,
+            "sf": 1.0,
+            "src": source_id,
+            "bh": 0,
+        }
+        for ts_ms in timestamps_ms
+    ]
 
 
 class GenericAssetType(db.Model):
@@ -302,6 +440,12 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         from flexmeasures.data.models.time_series import Sensor
 
+        # Sequential counter for fixed-value sensor IDs (-1, -2, -3, …)
+        # Negative IDs are guaranteed not to clash with real DB sensor IDs.
+        # A list is used (rather than a plain int) so that _create_fixed_value_sensors
+        # can increment it in-place across iterations without needing a return value.
+        fixed_value_id_counter = [0]
+
         for entry in standardized_sensors_to_show:
             title = entry.get("title")
             sensors_for_entry: list[int] = []
@@ -320,8 +464,8 @@ class GenericAsset(db.Model, AuthModelMixin):
             accessible_sensors: list[Sensor] = []
 
             if asset_refs:
-                self._add_temporary_asset_sensors(
-                    asset_refs, accessible_sensors, Sensor
+                self._create_fixed_value_sensors(
+                    asset_refs, accessible_sensors, Sensor, fixed_value_id_counter
                 )
 
             for sid in sensors_for_entry:
@@ -392,44 +536,62 @@ class GenericAsset(db.Model, AuthModelMixin):
             for sensor_id in extracted_sensors:
                 sensor = db.session.get(SensorClass, sensor_id)
                 flex_config_key = plot.get("flex-context") or plot.get("flex-model")
-
-                # temporarily update sensor name for display context
-                sensor_name = f"{sensor.name} ({flex_config_key})"
-                sensor.name = sensor_name
-
+                sensor.name = f"{sensor.name} ({flex_config_key})"
             sensors_list.extend(extracted_sensors)
             asset_refs_list.extend(refs)
 
-    def _add_temporary_asset_sensors(self, asset_refs, accessible_sensors, SensorClass):
-        """Helper to create temporary sensor objects for asset references."""
+    def _create_fixed_value_sensors(
+        self, asset_refs, accessible_sensors, SensorClass, id_counter: list[int]
+    ):
+        """Create fixed-value sensor objects for flex-context / flex-model references.
+
+        Each reference to a fixed quantity (e.g. ``"soc-min": "20 kWh"`` in
+        ``flex_model``) becomes a synthetic Sensor-like object. These objects
+        receive sequential negative IDs (``-1``, ``-2``, …) in the order they
+        appear in ``sensors_to_show``, so they never clash with real sensor IDs
+        (which are always positive) and are deterministic across requests.
+        """
         for ref in asset_refs:
-            temp_sensors = []
+            id_counter[0] += 1
             parent_asset = db.session.get(GenericAsset, ref["id"])
-            sensor_name = f"{ref['field']} for ({parent_asset.name})"
-            # create temporary sensor with negative ID
-            temporary = SensorClass(
+            sensor_name = f"{ref['field']} ({parent_asset.name})"
+
+            # Convert the magnitude to a float. split_into_magnitude_and_unit
+            # returns None for a dimensionless magnitude of 1, so map None → 1.0
+            # (not 0.0, because the unit-stripped value really is 1 in that case).
+            raw_value = ref["value"]
+            graph_value = float(raw_value) if raw_value is not None else 1.0
+
+            # Record whether the value originated from flex-model or flex-context
+            # so it can be surfaced in chart source metadata.
+            plot = ref.get("plot", {})
+            if "flex-model" in plot:
+                flex_source = "flex-model"
+            elif "flex-context" in plot:
+                flex_source = "flex-context"
+            else:
+                flex_source = "flex-config"
+
+            fixed_value_sensor = SensorClass(
                 name=sensor_name,
                 unit=ref["unit"],
                 generic_asset=parent_asset,
-                attributes={"graph_value": ref["value"]},
+                attributes={"graph_value": graph_value, "flex_source": flex_source},
             )
-            # random negative number between -1 and -10000 to avoid conflicts with real sensor ids
-            temporary.id = -1 * math.ceil(random.random() * 10000)
+            fixed_value_sensor.id = -id_counter[0]
 
-            # Add as_dict property for chart compatibility
-            # This mimics what real sensors return from their as_dict property
-            temporary._as_dict_override = {
-                "id": temporary.id,
-                "name": sensor_name,
-                "description": sensor_name,  # This is what the chart uses for color encoding
-                "unit": ref["unit"],
-                "asset_id": parent_asset.id,
-                "asset_description": parent_asset.name,
-            }
-            temp_sensors.append(temporary)
+            # Build the as_dict payload up front so as_dict never hits the DB
+            # for a sensor that has no backing row.
+            fixed_value_sensor._as_dict_override = dict(
+                id=fixed_value_sensor.id,
+                name=sensor_name,
+                sensor_unit=ref["unit"],
+                description=sensor_name,
+                asset_id=parent_asset.id,
+                asset_description=parent_asset.name,
+            )
 
-            if len(temp_sensors) >= 1:
-                accessible_sensors.extend(temp_sensors)
+            accessible_sensors.append(fixed_value_sensor)
 
     @property
     def asset_type(self) -> GenericAssetType:
@@ -726,7 +888,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     ) -> dict:
         """Create a vega-lite chart showing sensor data.
 
-        :param chart_type: currently only "bar_chart" # todo: where can we properly list the available chart types?
+        :param chart_type: currently only "chart_for_multiple_sensors" # todo: where can we properly list the available chart types?
         :param event_starts_after: only return beliefs about events that start after this datetime (inclusive)
         :param event_ends_before: only return beliefs about events that end before this datetime (inclusive)
         :param beliefs_after: only return beliefs formed after this datetime (inclusive)
@@ -763,9 +925,8 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         if include_data:
             # Get data
-            data = self.search_beliefs(
+            data = self.chart_data_json(
                 sensors=sensors,
-                as_json=True,
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
                 beliefs_after=beliefs_after,
@@ -773,13 +934,126 @@ class GenericAsset(db.Model, AuthModelMixin):
                 source=source,
                 resolution=resolution,
             )
-
             # Combine chart specs and data
             chart_specs["datasets"] = {
                 dataset_name: json.loads(data),
             }
 
         return chart_specs
+
+    def chart_data_json(
+        self,
+        sensors: list["Sensor"] | None = None,  # noqa F821
+        event_starts_after: datetime | None = None,
+        event_ends_before: datetime | None = None,
+        **kwargs,
+    ) -> str:
+        """Return chart data as a JSON string, including synthetic records for fixed-value sensors.
+
+        Fixed-value sensors (negative IDs, derived from flex_model / flex_context
+        scalar fields) are not stored in the database. Their constant values are
+        instead generated here and merged into the same dataset so the chart can
+        render them in the same layer as real sensor data, without any special
+        Vega-Lite layer gymnastics.
+
+        This method is the single place where both the ``chart()`` method (when
+        ``include_data=True``) and the ``GET …/chart_data`` API endpoint should
+        obtain chart data.
+
+        :param sensors:            Sensors to include; defaults to ``validate_sensors_to_show()``.
+        :param event_starts_after: Start of the chart window.
+        :param event_ends_before:  End of the chart window.
+        :param kwargs:             Passed through to ``search_beliefs``.
+        :returns:                  JSON string of chart data records.
+        """
+        from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+
+        if sensors is None:
+            sensors = SensorsToShowSchema.flatten(self.validate_sensors_to_show())
+
+        real_sensors = [
+            s for s in sensors if getattr(s, "id", None) is None or s.id >= 0
+        ]
+        fixed_value_sensors = [
+            s for s in sensors if getattr(s, "id", None) is not None and s.id < 0
+        ]
+
+        data = self.search_beliefs(
+            sensors=real_sensors,
+            as_json=True,
+            event_starts_after=event_starts_after,
+            event_ends_before=event_ends_before,
+            **kwargs,
+        )
+
+        if fixed_value_sensors and event_starts_after and event_ends_before:
+            # Derive the finest resolution from real sensors. Returns timedelta(0)
+            # when there are no real sensors with a positive resolution, which
+            # _fixed_value_timestamps_ms treats as "two boundary points only".
+            resolution: timedelta | None = determine_minimum_resampling_resolution(
+                [
+                    s.event_resolution
+                    for s in real_sensors
+                    if hasattr(s, "event_resolution")
+                    and s.event_resolution > timedelta(0)
+                ]
+            )
+            parsed = json.loads(data)
+
+            if isinstance(parsed, dict):
+                # compress_json=True path: {"data": [...], "sensors": {...}, "sources": {...}}
+                # The UI always uses this path (compress_json=true in the fetch URL).
+                records_list = parsed.get("data", [])
+                sensors_meta = parsed.get("sensors", {})
+                sources_meta = parsed.get("sources", {})
+
+                for sensor in fixed_value_sensors:
+                    # Each flex_source (flex-model, flex-context, flex-config) has
+                    # its own unique negative ID so chart specs can distinguish them.
+                    flex_source = (sensor.attributes or {}).get(
+                        "flex_source", "flex-config"
+                    )
+                    source_id = _FLEX_SOURCE_IDS.get(flex_source, -3)
+                    records_list.extend(
+                        _generate_fixed_value_records_compressed(
+                            sensor,
+                            event_starts_after,
+                            event_ends_before,
+                            resolution,
+                            source_id=source_id,
+                        )
+                    )
+                    # Add sensor metadata keyed by sensor id (as string, matching
+                    # the compress_json format used for real sensors).
+                    as_dict = getattr(sensor, "_as_dict_override", {}) or {}
+                    sensors_meta[str(sensor.id)] = {
+                        "name": as_dict.get("name", sensor.name),
+                        "unit": as_dict.get("sensor_unit", sensor.unit),
+                        "description": as_dict.get("description", sensor.name),
+                        "asset_id": as_dict.get("asset_id"),
+                        "asset_description": as_dict.get("asset_description", ""),
+                    }
+                    # Register source metadata once per unique flex_source.
+                    if str(source_id) not in sources_meta:
+                        sources_meta[str(source_id)] = _fixed_value_source_dict(
+                            flex_source
+                        )
+
+                parsed["data"] = records_list
+                parsed["sensors"] = sensors_meta
+                parsed["sources"] = sources_meta
+                return json.dumps(parsed)
+            else:
+                # compress_json=False path: plain list of records
+                for sensor in fixed_value_sensors:
+                    parsed.extend(
+                        _generate_fixed_value_records(
+                            sensor, event_starts_after, event_ends_before, resolution
+                        )
+                    )
+                return json.dumps(parsed)
+
+        return data
 
     def search_beliefs(  # noqa C901
         self,

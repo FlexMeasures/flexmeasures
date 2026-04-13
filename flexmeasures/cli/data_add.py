@@ -892,7 +892,7 @@ def add_annotation(
     _source = get_or_create_source(user)
 
     # Create annotation
-    annotation = get_or_create_annotation(
+    annotation, _ = get_or_create_annotation(
         Annotation(
             content=content,
             start=start,
@@ -984,17 +984,16 @@ def add_holidays(
         for holiday in holidays:
             start = pd.Timestamp(holiday[0])
             end = start + pd.offsets.DateOffset(days=1)
-            annotations.append(
-                get_or_create_annotation(
-                    Annotation(
-                        content=holiday[1],
-                        start=start,
-                        end=end,
-                        source=_source,
-                        type="holiday",
-                    )
+            annotation, _ = get_or_create_annotation(
+                Annotation(
+                    content=holiday[1],
+                    start=start,
+                    end=end,
+                    source=_source,
+                    type="holiday",
                 )
             )
+            annotations.append(annotation)
         num_holidays[country] = len(holidays)
     db.session.add_all(annotations)
     for account in accounts:
@@ -1319,15 +1318,6 @@ def add_schedule(  # noqa C901
         scheduler_module = "flexmeasures.data.models.planning.process"
     elif scheduler_class == "StorageScheduler":
         scheduler_module = "flexmeasures.data.models.planning.storage"
-        if soc_at_start is None and (
-            "soc-min" in flex_model or "soc-max" in flex_model
-        ):
-            # for asset scheduling, soc at start should be part of the flex model
-            click.secho(
-                "For a storage device with SoC constraints, --soc-at-start is required.",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
         if soc_at_start:
             flex_model["soc-at-start"] = soc_at_start.to("%")
 
