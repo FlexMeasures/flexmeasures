@@ -38,7 +38,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* Fix a cascading ``InFailedSqlTransaction`` error when a database programming error (e.g. a missing migration such as the one adding ``account.attributes``) leaves the PostgreSQL transaction in an aborted state, which prevented the error page from rendering properly [see `PR #2100 <https://www.github.com/FlexMeasures/flexmeasures/pull/2100>`_]
+* Fix error page rendering when a database error leaves the transaction in a failed state (e.g. when a missing migration such as the one adding ``account.attributes`` causes an ``InFailedSqlTransaction`` error) [see `PR #2100 <https://www.github.com/FlexMeasures/flexmeasures/pull/2100>`_]
 
 
 v0.31.3 | April 11, 2026

@@ -100,8 +100,10 @@ def error_handling_router(error: HTTPException):
         from flexmeasures.data import db
 
         db.session.rollback()
-    except Exception:
-        pass
+    except Exception as rollback_exc:
+        current_app.logger.warning(
+            "Could not roll back DB session in error handler: %s", rollback_exc
+        )
 
     error_text = getattr(
         error, "description", f"Something went wrong: {error.__class__.__name__}"
