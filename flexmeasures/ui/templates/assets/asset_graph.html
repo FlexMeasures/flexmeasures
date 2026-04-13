@@ -562,6 +562,8 @@
                     graph !== null &&
                     !Array.isArray(graph) && // Exclude arrays
                     Object.keys(graph).length > 0;
+                const isNumber = typeof graph === "number";
+
 
                 if (isKeyValueObject) {
                     if ("sensors" in graph) {
@@ -594,6 +596,11 @@
                     } else {
                         item['plots'] = [{ "sensors": graph }];
                     }
+                    newShape.push(item);
+                } else if (isNumber) {
+                    const item = {};
+                    item['title'] = "No Title";
+                    item['plots'] = [{ "sensor": graph }];
                     newShape.push(item);
                 } else {
                     // raise toast error of "unknown format"
