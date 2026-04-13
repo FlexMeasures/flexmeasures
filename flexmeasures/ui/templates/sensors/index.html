@@ -673,12 +673,14 @@ For the data, note the following:
 
     // "Select all data" link: filled from the overall first/last event times across all sources.
     // The link is revealed when the stats are available (sensorDataRangeAvailable event).
+    // "Last event end" in the stats is the start of the last event; add sensor resolution to get actual end.
     const selectAllDataLink = document.getElementById('selectAllDataLink');
+    const sensorResolutionMs = {{ sensor.event_resolution.total_seconds() | int }} * 1000;
     let allDataStart = null;
     let allDataEnd   = null;
     document.addEventListener('sensorDataRangeAvailable', function(e) {
         allDataStart = e.detail.firstEventStart;
-        allDataEnd   = e.detail.lastEventEnd;
+        allDataEnd   = new Date(e.detail.lastEventEnd.getTime() + sensorResolutionMs);
         selectAllDataLink.classList.remove('d-none');
     });
     if (selectAllDataLink) {

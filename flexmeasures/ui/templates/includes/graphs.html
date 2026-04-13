@@ -283,6 +283,18 @@
     document.addEventListener('sensorsToShowUpdated', reloadChartData);
     document.addEventListener('newDataAvailable', reloadChartData);
     document.addEventListener('dataDeleted', reloadChartData);
+    {% if active_page == "sensors" %}
+    document.addEventListener('dataDeleted', function() {
+        const toggleStats = document.getElementById('toggleStatsCheckbox');
+        if (toggleStats) {
+            if (toggleStats.checked) {
+                loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
+            } else {
+                loadSensorStats({{ sensor.id }});
+            }
+        }
+    });
+    {% endif %}
 
     {% if event_starts_after and event_ends_before %}
     $("#spinner").show();
