@@ -23,7 +23,10 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
         job.meta["failures"] = job.meta["failures"] + 1
     job.save_meta()
 
-    job.meta["exception"] = exc_value
+    job.meta["exception"] = {
+        "type": exc_type.__name__ if exc_type is not None else None,
+        "message": str(exc_value),
+    }
     if isinstance(job.meta.get("start"), datetime):
         job.meta["start"] = job.meta["start"].isoformat()
     if isinstance(job.meta.get("end"), datetime):
