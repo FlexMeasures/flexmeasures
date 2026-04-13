@@ -8,12 +8,14 @@ from flask import current_app
 from werkzeug.exceptions import Forbidden, Unauthorized
 from numpy import array
 from psycopg2.errors import UniqueViolation
+from rq import Worker
 from rq.job import Job, JobStatus, NoSuchJobError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
+from flexmeasures.data.services.data_ingestion import add_beliefs_to_database
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.auth.policy import check_access
 from flexmeasures.api.common.responses import (
@@ -138,10 +140,6 @@ def save_and_enqueue(
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:
-    from rq import Worker
-
-    from flexmeasures.data.services.data_ingestion import add_beliefs_to_database
-
     ingestion_queue = current_app.queues.get("ingestion")
     if ingestion_queue is not None:
         workers = Worker.all(queue=ingestion_queue)

@@ -36,9 +36,7 @@ def add_beliefs_to_database(
     # Only enqueue forecasting jobs upon successfully saving new data
     if status[:7] == "success" and status != "success_but_nothing_new":
         if forecasting_jobs is not None:
-            [
+            for job in forecasting_jobs:
                 current_app.queues["forecasting"].enqueue_job(job)
-                for job in forecasting_jobs
-            ]
 
     return status
