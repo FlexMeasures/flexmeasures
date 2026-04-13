@@ -14,7 +14,7 @@ Scripting via the FlexMeasures-Client
 The most universal way to script FlexMeasures is via `the FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client/>`_.
 Actually, this is scripting via the API, as the client is not much more than a wrapper around the FlexMeasures server API.
 
-Let's look at two examples, to give an impression. The first one creates an asset:
+Let's look at two examples, to give an impression. The first one creates a sensor:
 
 .. code-block:: python
 
@@ -72,19 +72,19 @@ This example ...
 You can dive into the code `here <https://github.com/FlexMeasures/flexmeasures-client/blob/main/examples/HEMS/HEMS_setup.py>`_.
 
 
-We believe the client code is also a very good way to create small, reproducible examples. That can be quote productive to share small setups between teams or on Github for troubleshooting.
+We believe the client code is also a very good way to create small, reproducible examples. That can be quote productive to share small setups between teams or on GitHub for troubleshooting.
 
 
 Scripting via the CLI
 ---------------------
 
-Scripting via the CLI is not vor everyone - only if you are hosting FlexMeasures, can you run such scripts.
+Scripting via the CLI is not for everyone - only if you are hosting FlexMeasures, can you run such scripts.
 It is also just Python code, but you need to be on the server to use them.
 
 A good example might be that the construction of the toy account (for use in the toy tutorials) is scripted via the CLI, see the command ``flexmeasures add toy-account``.
 
-We wrote a reasonably large library of :ref:`cli`. You can use them easily in Bash scripting. They do, however, take a bit of time to execute, as they first load the Flask app context. The client is faster.
+We wrote a reasonably large library of :ref:`cli`. You can use them easily in Bash scripting. They do, however, take a bit of time to execute, as they first load the Flask app context. The client is faster, as the server does not need to restart anything.
 
 Some features that are not on the API (like, at the time of writing, account creation) would only work via the CLI.
 
-If you are developing your own plugin, you can freely write your own CLI commands.
+If you are developing your own plugin, you can freely write your own CLI commands. Read more on :ref:`plugin_showcase`.
