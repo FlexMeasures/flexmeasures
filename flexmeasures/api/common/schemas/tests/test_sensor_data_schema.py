@@ -395,7 +395,7 @@ def test_asset_sensors_metadata(
     db, mock_get_statuses, add_weather_sensors, add_battery_assets
 ):
     """
-    Test the function to build status meta data structure, using a weather station asset.
+    Test the function to build status metadata structure, using a weather station asset.
     We include the sensor of a different asset (a battery) via the flex context
     (as production price, does not make too much sense actually).
     One sensor which the asset already includes is also set in the context as inflexible device,
