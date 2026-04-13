@@ -84,10 +84,10 @@ def potentially_limit_assets_query_to_accounts(
 
 def get_source_criteria(
     cls: "Type[ts.TimedValue] | Type[ts.TimedBelief]",
-    user_source_ids: int | list[int],
-    source_account_ids: int | list[int],
-    source_types: list[str],
-    exclude_source_types: list[str],
+    user_source_ids: int | list[int] | None = None,
+    source_account_ids: int | list[int] | None = None,
+    source_types: list[str] | None = None,
+    exclude_source_types: list[str] | None = None,
 ) -> list[BinaryExpression]:
     source_criteria: list[BinaryExpression] = []
     if user_source_ids is not None:
