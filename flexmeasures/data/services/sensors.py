@@ -293,14 +293,12 @@ def get_asset_sensors_metadata(
 
     # Get sensors to show using the validate_sensors_to_show method
     sensors_to_show = []
+    from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
+
     validated_asset_sensors = asset.validate_sensors_to_show(
         suggest_default_sensors=False
     )
-    sensor_groups = [
-        sensor["sensors"] for sensor in validated_asset_sensors if sensor is not None
-    ]
-    merged_sensor_groups = sum(sensor_groups, [])
-    sensors_to_show.extend(merged_sensor_groups)
+    sensors_to_show.extend(SensorsToShowSchema.flatten(validated_asset_sensors))
 
     sensors_list = [
         *inflexible_device_sensors,
