@@ -22,6 +22,7 @@ from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
 
@@ -293,8 +294,6 @@ def get_asset_sensors_metadata(
 
     # Get sensors to show using the validate_sensors_to_show method
     sensors_to_show = []
-    from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
-
     validated_asset_sensors = asset.validate_sensors_to_show(
         suggest_default_sensors=False
     )
