@@ -367,10 +367,11 @@ def test_asset_sensors_metadata_old_sensors_to_show_format(db, add_weather_senso
     contained the old format with a singular 'sensor' key, e.g. {"title": "Prices", "sensor": 42}.
     """
     asset = add_weather_sensors["asset"]
-    wind_sensor, temperature_sensor = (
-        add_weather_sensors["wind"],
-        add_weather_sensors["temperature"],
-    )
+    wind_sensor = add_weather_sensors["wind"]
+    temperature_sensor = add_weather_sensors["temperature"]
+
+    # Flush so sensor IDs are assigned before we embed them in sensors_to_show
+    db.session.flush()
 
     # Use the old format: one entry with plural "sensors" and one with singular "sensor"
     asset.sensors_to_show = [
@@ -380,12 +381,17 @@ def test_asset_sensors_metadata_old_sensors_to_show_format(db, add_weather_senso
     db.session.add(asset)
     db.session.flush()
 
-    # Should not raise a KeyError
-    status_data = get_asset_sensors_metadata(asset=asset)
+    try:
+        # Should not raise a KeyError
+        status_data = get_asset_sensors_metadata(asset=asset)
 
-    sensor_ids = [s["id"] for s in status_data]
-    assert wind_sensor.id in sensor_ids
-    assert temperature_sensor.id in sensor_ids
+        sensor_ids = [s["id"] for s in status_data]
+        assert wind_sensor.id in sensor_ids
+        assert temperature_sensor.id in sensor_ids
+    finally:
+        # Reset to avoid polluting shared module-scoped fixture state
+        asset.sensors_to_show = []
+        db.session.flush()
 
 
 def test_asset_sensors_metadata(
