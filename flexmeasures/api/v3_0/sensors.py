@@ -1542,6 +1542,7 @@ class SensorAPI(FlaskView):
         return (
             get_sensor_stats(sensor, event_start_time, event_end_time, sort_keys),
             200,
+            {"Cache-Control": "no-store"},
         )
 
     @route("/<id>/status", methods=["GET"])
