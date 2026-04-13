@@ -1,7 +1,6 @@
 from marshmallow import fields, Schema, post_load, post_dump
 
 from flexmeasures.data.schemas.sensors import SensorIdField
-from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flask import current_app
@@ -36,7 +35,7 @@ class Input(Schema):
     horizons_at_most = DurationField()
 
     user_source_ids = fields.List(DataSourceIdField())
-    source_account_ids = fields.List(AccountIdField())
+    source_account_ids = fields.List(fields.Int())
     source_types = fields.List(fields.Str())
     exclude_source_types = fields.List(fields.Str())
     most_recent_beliefs_only = fields.Boolean()
