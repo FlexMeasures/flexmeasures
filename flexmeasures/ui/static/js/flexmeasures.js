@@ -671,7 +671,7 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
     fetchError.classList.add('d-none');
     tableBody.innerHTML = '';
     
-    fetch('/api/v3_0/sensors/' + sensor_id + '/stats' + queryParams)
+    fetch('/api/v3_0/sensors/' + sensor_id + '/stats' + queryParams, { cache: 'no-cache' })
     .then(response => response.json())
     .then(data => {
         // Remove 'status' sourceKey

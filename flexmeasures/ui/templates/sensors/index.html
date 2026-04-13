@@ -649,7 +649,7 @@ For the data, note the following:
         return `${date.getFullYear()}-${_pad(date.getMonth()+1)}-${_pad(date.getDate())}T${_pad(date.getHours())}:${_pad(date.getMinutes())}`;
     }
 
-    function syncDeleteInputsWithGraphRange(start, end) {
+    function syncDeleteInputsWithRange(start, end) {
         if (start) { startInputEl.value = toDatetimeLocalString(start); }
         if (end)   { untilInputEl.value  = toDatetimeLocalString(end); }
     }
@@ -661,32 +661,32 @@ For the data, note the following:
         try {
             var _start = new Date('{{ event_starts_after }}');
             var _end   = {% if event_ends_before %}new Date('{{ event_ends_before }}'){% else %}null{% endif %};
-            syncDeleteInputsWithGraphRange(_start, _end);
+            syncDeleteInputsWithRange(_start, _end);
         } catch (e) { /* ignore invalid date strings */ }
     })();
     {% endif %}
 
     // Keep delete data inputs in sync when the user changes the graph date picker
     document.addEventListener('graphDateRangeChanged', function(e) {
-        syncDeleteInputsWithGraphRange(e.detail.startDate, e.detail.endDate);
+        syncDeleteInputsWithRange(e.detail.startDate, e.detail.endDate);
     });
 
     // "Select all data" link: filled from the overall first/last event times across all sources.
     // The link is revealed when the stats are available (sensorDataRangeAvailable event).
-    // "Last event end" in the stats is the start of the last event; add sensor resolution to get actual end.
+    // "Last event end" from the stats API already equals max_event_start + sensor.event_resolution,
+    // so it is the actual end of the last event and can be used directly.
     const selectAllDataLink = document.getElementById('selectAllDataLink');
-    const sensorResolutionMs = {{ sensor.event_resolution.total_seconds() | int }} * 1000;
     let allDataStart = null;
     let allDataEnd   = null;
     document.addEventListener('sensorDataRangeAvailable', function(e) {
         allDataStart = e.detail.firstEventStart;
-        allDataEnd   = new Date(e.detail.lastEventEnd.getTime() + sensorResolutionMs);
+        allDataEnd   = e.detail.lastEventEnd;
         selectAllDataLink.classList.remove('d-none');
     });
     if (selectAllDataLink) {
         selectAllDataLink.addEventListener('click', function(e) {
             e.preventDefault();
-            syncDeleteInputsWithGraphRange(allDataStart, allDataEnd);
+            syncDeleteInputsWithRange(allDataStart, allDataEnd);
         });
     }
 
