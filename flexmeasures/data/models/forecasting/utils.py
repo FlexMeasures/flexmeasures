@@ -7,11 +7,8 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 
 from datetime import datetime, timedelta
-from sqlalchemy import select
 
 from flexmeasures.data import db
-from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
-from flexmeasures.utils.time_utils import as_server_time
 
 
 def negative_to_zero(x: np.ndarray) -> np.ndarray:
