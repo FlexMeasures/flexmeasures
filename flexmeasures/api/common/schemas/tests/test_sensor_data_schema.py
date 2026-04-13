@@ -390,6 +390,10 @@ def test_asset_sensors_metadata_old_sensors_to_show_format(db, add_weather_senso
     assert wind_sensor.id in sensor_ids
     assert temperature_sensor.id in sensor_ids
 
+    # Reset module-scoped fixture state so later tests are not affected.
+    asset.sensors_to_show = []
+    db.session.flush()
+
 
 def test_asset_sensors_metadata(
     db, mock_get_statuses, add_weather_sensors, add_battery_assets
