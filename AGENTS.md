@@ -863,6 +863,26 @@ These should either:
 - Be written to `/tmp/` if needed
 - Be cleaned up before final commits
 
+### Must Preserve Existing Inline Comments
+
+**Never remove inline comments from code you are modifying.**
+
+Inline comments exist for a reason — they explain non-obvious decisions, context,
+or constraints that are not apparent from the code alone. When refactoring:
+
+- Keep existing inline comments, even if you rename the surrounding code
+- Update comments if they reference old names or are no longer accurate
+- If a comment becomes redundant only because you added a clearer docstring,
+  keep the comment unless it is genuinely contradictory
+
+### Must Avoid Double Spaces After Punctuation
+
+**Use exactly one space after periods, commas, colons, and other punctuation in
+docstrings, inline comments, and documentation.**
+
+Double spaces (two spaces after a period) are a holdover from typewriter
+conventions and should not appear in Python source code or docs.
+
 ### Must Actually Run Coordinator When Requested
 
 **The Coordinator is a subagent that the Lead can invoke.**
