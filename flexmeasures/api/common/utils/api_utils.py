@@ -138,7 +138,27 @@ def save_and_enqueue(
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:
-    # Attempt to save
+    from rq import Worker
+
+    from flexmeasures.data.services.data_ingestion import add_beliefs_to_database
+
+    ingestion_queue = current_app.queues.get("ingestion")
+    if ingestion_queue is not None:
+        workers = Worker.all(queue=ingestion_queue)
+        if workers:
+            ingestion_queue.enqueue(
+                add_beliefs_to_database,
+                data,
+                forecasting_jobs=forecasting_jobs,
+                save_changed_beliefs_only=save_changed_beliefs_only,
+            )
+            return request_processed()
+        else:
+            current_app.logger.warning(
+                "No workers connected to the ingestion queue. Processing sensor data directly."
+            )
+
+    # Attempt to save directly (fallback when no ingestion workers are available)
     status = save_to_db(data, save_changed_beliefs_only=save_changed_beliefs_only)
     db.session.commit()
 

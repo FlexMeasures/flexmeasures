@@ -292,7 +292,7 @@ def run_job(job_id: str):
     "--queue",
     default=None,
     required=True,
-    help="State which queue(s) to work on (using '|' as separator), e.g. 'forecasting', 'scheduling' or 'forecasting|scheduling'.",
+    help="State which queue(s) to work on (using '|' as separator), e.g. 'forecasting', 'scheduling', 'ingestion' or 'forecasting|scheduling'.",
 )
 @click.option(
     "--name",
@@ -302,7 +302,7 @@ def run_job(job_id: str):
 )
 def run_worker(queue: str, name: str | None):
     """
-    Start a worker process for forecasting and/or scheduling jobs.
+    Start a worker process for forecasting, scheduling and/or ingestion jobs.
 
     We use the app context to find out which redis queues to use.
     """
