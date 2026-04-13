@@ -640,6 +640,34 @@ For the data, note the following:
     const startInputEl = document.getElementById('deleteDataStart');
     const untilInputEl = document.getElementById('deleteDataUntil');
 
+    const _pad = n => String(n).padStart(2, '0');
+    function toDatetimeLocalString(date) {
+        if (!date || isNaN(date.getTime())) { return ''; }
+        return `${date.getFullYear()}-${_pad(date.getMonth()+1)}-${_pad(date.getDate())}T${_pad(date.getHours())}:${_pad(date.getMinutes())}`;
+    }
+
+    function syncDeleteInputsWithGraphRange(start, end) {
+        if (start) { startInputEl.value = toDatetimeLocalString(start); }
+        if (end)   { untilInputEl.value  = toDatetimeLocalString(end); }
+    }
+
+    // Initialize delete data inputs with the time range currently shown in the graph.
+    // event_starts_after/event_ends_before are set when URL params (start_time/end_time) are present.
+    {% if event_starts_after %}
+    (function () {
+        try {
+            var _start = new Date('{{ event_starts_after }}');
+            var _end   = {% if event_ends_before %}new Date('{{ event_ends_before }}'){% else %}null{% endif %};
+            syncDeleteInputsWithGraphRange(_start, _end);
+        } catch (e) { /* ignore invalid date strings */ }
+    })();
+    {% endif %}
+
+    // Keep delete data inputs in sync when the user changes the graph date picker
+    document.addEventListener('graphDateRangeChanged', function(e) {
+        syncDeleteInputsWithGraphRange(e.detail.startDate, e.detail.endDate);
+    });
+
     async function deleteData(sourceValue, startValue, untilValue) {
         const params = {};
         if (sourceValue) {

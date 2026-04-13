@@ -446,6 +446,12 @@
             var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
             var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
 
+            // Notify the "Delete data" panel of the new graph date range so its inputs stay in sync.
+            // detail: { startDate: Date, endDate: Date } – endDate has +1 day applied (exclusive end).
+            document.dispatchEvent(new CustomEvent('graphDateRangeChanged', {
+                detail: { startDate: startDate, endDate: endDate }
+            }));
+
             {% if active_page == "sensors" %}
             const toggleStats = document.getElementById('toggleStatsCheckbox');
             if (toggleStats.checked) {
