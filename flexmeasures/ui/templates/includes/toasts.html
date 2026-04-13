@@ -136,12 +136,6 @@
             };
 
             toast.addEventListener("hidden.bs.toast", handleClose);
-            toast.querySelector(".btn-close").addEventListener("click", function() {
-                const instance = new bootstrap.Toast(toast);
-                instance.dispose(); // Close immediately on click
-                toast.remove();
-                maybeHideCloseToastBtn();
-            });
         };
 
     })();
