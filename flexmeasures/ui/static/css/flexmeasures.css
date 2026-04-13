@@ -62,10 +62,10 @@ h1, h2, h3 {
     font-weight: 600;
     color: var(--primary-color);
 }
-.sidepanel h1,
-.sidepanel h2,
-.sidepanel h3,
-.sidepanel label {
+.sidepanel-content h1,
+.sidepanel-content h2,
+.sidepanel-content h3,
+.sidepanel-content label {
     color: var(--white) !important;
 }
 
@@ -967,7 +967,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     vertical-align: top;
     border-top: 1px solid var(--light-gray) ;
 }
-.left-sidepanel-label{
+.sidepanel-label {
     margin-left: 20px !important;
 }
 
@@ -991,77 +991,85 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 /* ---- Side panel ---- */
 
+:root {
+    --z-index-sidepanel: 20;
+    --z-index-sidepanel-label: 21;
+    --z-index-sidepanel-content: 100;
+}
+
 @media (max-width: 767px) {
-        .left-sidepanel-label {
-            visibility: collapse;
-        }
+    .sidepanel-label {
+        visibility: collapse;
     }
+}
+
 @media (min-width: 768px) {
-    .sidepanel h1,
-    .sidepanel h2,
-    .sidepanel h3,
-    .sidepanel label {
-        color: var(--nav-default-color) !important;
-    }
-    .leftside-dropdown {
-        margin-left: -95px !important;
-        color: var(--nav-default-color);
-        background: var(--nav-default-background-color);
-        width: calc(var(--litepicker-day-width) * 6);
-        padding: 13px 10px;
-        min-height: 35px;  // line-height + padding-top + padding-bottom
-        border-top-left-radius: 0px;
-        border-bottom-left-radius: 0px;
-        border-top-right-radius: 15px;
-        border-bottom-right-radius: 15px;
-        text-align: right;
+    .sidepanel {
+        position: relative;
+        z-index: var(--z-index-sidepanel); /* single shared stacking context for all contained panels */
+        margin: 15px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
     }
     .sidepanel-container {
-        z-index: 20;
-        position: relative;
+        position: relative; /* positions label/content relative to this container */
+        height: 60px; /* space for the label tab */
+        width: calc(var(--sidepanel-width, calc(var(--litepicker-day-width) * 9)) * 0.3); /* match visible tab width (30% of full panel) */
+        /* no z-index here — avoids creating a separate stacking context per container */
     }
-    .sidepanel,
-    .left-sidepanel-label {
+    .sidepanel-label {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: var(--z-index-sidepanel-label);
+        transform: translateX(-70%);
+        text-align: right;
+    }
+    .sidepanel-content {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: var(--z-index-sidepanel-content);
+        visibility: hidden;
+        transform: translateX(-106%);
+        /* closing: slide off-screen first, then hide from accessibility tree */
+        transition: transform 0.3s, visibility 0s 0.3s;
+    }
+    .sidepanel-content,
+    .sidepanel-label {
         color: var(--nav-default-color);
         background: var(--nav-default-background-color);
-        width: calc(var(--litepicker-day-width) * 9);
-        margin: 15px;
+        width: var(--sidepanel-width, calc(var(--litepicker-day-width) * 9));
         padding: 20px 15px;
-        min-height: 60px; /* line-height + padding-top + padding-bottom */
-        transition: .3s;
-        -webkit-transition: .3s;
-        -moz-transition: .3s;
-        -ms-transition: .3s;
-        -o-transition: .3s;
-    }
-    .left-sidepanel,
-    .left-sidepanel-label {
         border-top-left-radius: 0px;
         border-bottom-left-radius: 0px;
         border-top-right-radius: 15px;
         border-bottom-right-radius: 15px;
     }
-    .sidepanel-container > .left-sidepanel:not(.sidepanel-show) {
-        transform: translateX(-106%);
-    }
-    .left-sidepanel-label {
-        margin: 0px;
-        transform: translateX(-70%);
-        text-align: right;
-        position: absolute;
+    .sidepanel-label {
+        min-height: 60px; /* line-height + padding-top + padding-bottom */
     }
     @media (hover: hover) {
-        .sidepanel-container:hover > .left-sidepanel,
-        .sidepanel-container:focus-within > .left-sidepanel {
-            transform: translateX(-30px);
+        .sidepanel-container:hover > .sidepanel-content,
+        .sidepanel-container:focus-within > .sidepanel-content {
+            transform: translateX(0);
+            visibility: visible;
+            /* opening: reveal immediately, then slide in */
+            transition: transform 0.3s, visibility 0s;
         }
     }
     @media (hover: none) {
-        .sidepanel-container > .left-sidepanel.sidepanel-show {
-            transform: translateX(-30px);
+        .sidepanel-container > .sidepanel-content.sidepanel-show {
+            transform: translateX(0);
+            visibility: visible;
+            /* opening: reveal immediately, then slide in */
+            transition: transform 0.3s, visibility 0s;
         }
     }
 }
+
+/* ---- End Side panel ---- */
 
 
 /* ---- Date picker ---- */
@@ -1312,9 +1320,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     fill: var(--primary-color);
 }
 
-.sensor-data .row {
-    margin: 0 !important;
-}
 
 #vg-tooltip-element {
     font-size: 16px;
@@ -1330,6 +1335,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 .header-action-button {
     padding-top: 5px;
+    margin-left: 1em;
     display: flex;
     justify-content: space-around;
 
@@ -1497,7 +1503,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     margin-bottom: 0;
 }
 .form-horizontal {
-    margin-top: 30px;
+    margin-top: 15px;
 }
 
 .asset-form .form-group-bordered {
@@ -2065,4 +2071,93 @@ body.touched [title]:hover:after {
 .flex-nav.nav-link.active {
   border-bottom-color: #fff;
   background-color: #fff;
+}
+
+
+/* ---- JSON attributes editor (@json-editor/json-editor + Bootstrap 5) ---- */
+
+/* Plain-text JSON textarea (JSON tab) */
+.fm-json-textarea {
+  min-height: 420px;
+  height: 420px;     /* explicit height so Bootstrap's form-control baseline
+                        doesn't shrink it to a single row on some browsers   */
+  font-size: 0.85rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* Keep the form editor from collapsing to zero height */
+.fm-je-container {
+  min-height: 200px;
+}
+
+/* Remove Bootstrap validation decorations inside the form editor.
+ * @json-editor/json-editor marks all fields .is-valid because our open schema
+ * ({}) validates everything.  Bootstrap then adds a green border + checkmark
+ * background-image to <select> elements, which overlaps the selected text. */
+.fm-je-container .form-select.is-valid,
+.fm-je-container .was-validated .form-select:valid {
+  border-color: var(--bs-border-color);
+  padding-right: 2.25rem;   /* back to normal — only the dropdown arrow       */
+  /* Restore the plain dropdown-arrow background image (no checkmark overlay) */
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-size: 16px 12px;
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+}
+
+/* Type-switcher dropdown: give enough right-padding so the selected text
+ * does not slide under the native dropdown arrow (which sits at ~40 px). */
+.fm-je-container .je-switcher {
+  padding: 0px 50px 0px 3px;
+}
+
+.fm-je-container .form-control.is-valid,
+.fm-je-container .was-validated .form-control:valid {
+  border-color: var(--bs-border-color);
+  padding-right: 0.75rem;
+  background-image: none;
+}
+
+/* ---- Fix: .je-modal divs must not affect .btn-group border-radius ---- *
+ * @json-editor/json-editor places a div.je-modal inside .btn-group as a   *
+ * panel container (not a button).  Bootstrap's sibling selectors treat it *
+ * as a positional marker and strip radius from the adjacent buttons:       *
+ *   • ":not(:last-child)" → strips right-radius from last .btn when       *
+ *     .je-modal trails the group                                            *
+ *   • ":not(.btn-check)+.btn" → strips left-radius from a .btn that       *
+ *     directly follows .je-modal                                            *
+ * Restore the expected radii with explicit overrides.                       */
+
+/* Last button in a group that contains a .je-modal sibling: restore right radius */
+.fm-je-container .btn-group:has(> div.je-modal) > button:last-of-type {
+  border-top-right-radius: 6px !important;
+  border-bottom-right-radius: 6px !important;
+}
+
+/* Button immediately following a .je-modal div: restore left radius */
+.fm-je-container .btn-group > div.je-modal + button {
+  border-top-left-radius: 6px !important;
+  border-bottom-left-radius: 6px !important;
+}
+
+/* ---- Edit Attributes modal: ensure generous initial height ---- */
+.fm-json-modal .modal-content {
+  min-height: 70vh;
+}
+
+/* ---- Inline JSON panel (.je-modal) inside json-editor ---- *
+ * Clicking the 'Edit JSON' button opens a div.je-modal that contains       *
+ * a textarea and Save / Copy / Cancel buttons.  By default the panel       *
+ * is width-constrained which wraps the footer buttons onto a second row.   *
+ * Stretch it to the full container width; the textarea inherits that.      */
+.fm-je-container .je-modal {
+  width: 150% !important;
+  max-width: 150% !important;
+  box-sizing: border-box;
+}
+
+.fm-je-container .je-modal textarea {
+  width: 100% !important;
+  box-sizing: border-box;
 }

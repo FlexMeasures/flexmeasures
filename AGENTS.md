@@ -48,6 +48,35 @@ Those remain Coordinator responsibilities.
 
 * * *
 
+## Available Agents
+
+The following specialist agents are available as subagents. Use the `task` tool with the `agent_type` value shown below.
+
+| Agent Type | Description |
+|---|---|
+| `api-backward-compatibility-specialist` | Protects users and integrators by ensuring API changes are backwards compatible, properly versioned, and well-documented |
+| `architecture-domain-specialist` | Guards domain model, invariants, and architecture to maintain model clarity and prevent erosion of core principles |
+| `coordinator` | Meta-agent that manages agent lifecycle, enforces structural standards, and maintains coherence across the agent system |
+| `data-time-semantics-specialist` | Prevents subtle bugs in time handling, units, and data semantics with focus on timezone-aware operations and unit conversions |
+| `documentation-developer-experience-specialist` | Ensures excellent documentation, clear error messages, and smooth developer workflows to keep FlexMeasures accessible |
+| `performance-scalability-specialist` | Identifies performance bottlenecks, inefficient algorithms, and scalability issues to keep FlexMeasures fast under load |
+| `test-specialist` | Focuses on test coverage, quality, and testing best practices without modifying production code |
+| `tooling-ci-specialist` | Reviews GitHub Actions workflows, pre-commit hooks, and CI/CD pipelines to ensure automation reliability |
+
+Agent instruction files live in `.github/agents/<agent-type>.md`.
+
+**Example invocation:**
+
+```python
+task(
+    agent_type="test-specialist",
+    description="Verify tests for new feature",
+    prompt="Run and review the tests for the change described in..."
+)
+```
+
+* * *
+
 ## Interaction model (important)
 
 -   The Lead **invokes other agents as subagents**
@@ -833,6 +862,26 @@ These should either:
 - Stay in working memory only
 - Be written to `/tmp/` if needed
 - Be cleaned up before final commits
+
+### Must Preserve Existing Inline Comments
+
+**Never remove inline comments from code you are modifying.**
+
+Inline comments exist for a reason — they explain non-obvious decisions, context,
+or constraints that are not apparent from the code alone. When refactoring:
+
+- Keep existing inline comments, even if you rename the surrounding code
+- Update comments if they reference old names or are no longer accurate
+- If a comment becomes redundant only because you added a clearer docstring,
+  keep the comment unless it is genuinely contradictory
+
+### Must Avoid Double Spaces After Punctuation
+
+**Use exactly one space after periods, commas, colons, and other punctuation in
+docstrings, inline comments, and documentation.**
+
+Double spaces (two spaces after a period) are a holdover from typewriter
+conventions and should not appear in Python source code or docs.
 
 ### Must Actually Run Coordinator When Requested
 
