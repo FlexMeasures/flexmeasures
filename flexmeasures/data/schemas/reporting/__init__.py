@@ -1,6 +1,7 @@
 from marshmallow import Schema, fields, validate
 
 from flexmeasures.data.schemas.sources import DataSourceIdField
+from flexmeasures.data.schemas.account import AccountIdOrListField
 
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField
 from flexmeasures.data.schemas.io import Input, Output
@@ -58,6 +59,7 @@ class BeliefsSearchConfigSchema(Schema):
 
     source_types = fields.List(fields.Str())
     exclude_source_types = fields.List(fields.Str())
+    account_id = AccountIdOrListField()
     most_recent_beliefs_only = fields.Boolean()
     most_recent_events_only = fields.Boolean()
 

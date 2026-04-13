@@ -24,7 +24,7 @@ New features
 
 Infrastructure / Support
 ----------------------
-* Support coupling data sources to accounts, and preserve user ID and account ID references in audit logs and data sources for traceability and compliance [see `PR #2058 <https://www.github.com/FlexMeasures/flexmeasures/pull/2058>`_]
+* Support data source assignment/filtering by account, and preserve user ID and account ID references in audit logs and data sources for traceability and compliance [see `PR #2058 <https://www.github.com/FlexMeasures/flexmeasures/pull/2058>`_ and `PR #2065 <https://www.github.com/FlexMeasures/flexmeasures/pull/2065>`_]
 * Stop creating new toy assets when restarting the docker-compose stack [see `PR #2018 <https://www.github.com/FlexMeasures/flexmeasures/pull/2018>`_]
 * Migrate from ``pip`` to ``uv`` for dependency management, and from ``make`` to ``poe`` [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
 * Improve contact information to get in touch with the FlexMeasures community [see `PR #2022 <https://www.github.com/FlexMeasures/flexmeasures/pull/2022>`_]

@@ -397,6 +397,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         user_source_ids: int | list[int] | None = None,
         source_types: list[str] | None = None,
         exclude_source_types: list[str] | None = None,
+        account_id: int | list[int] | None = None,
         use_latest_version_per_event: bool = True,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
@@ -421,6 +422,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         :param user_source_ids: Optional list of user source ids to query only specific user sources
         :param source_types: Optional list of source type names to query only specific source types *
         :param exclude_source_types: Optional list of source type names to exclude specific source types *
+        :param account_id: Optional account id (or list thereof) to filter sources by their owning account
         :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon). Defaults to True.
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start). Defaults to False.
@@ -444,6 +446,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             user_source_ids=user_source_ids,
             source_types=source_types,
             exclude_source_types=exclude_source_types,
+            account_id=account_id,
             use_latest_version_per_event=use_latest_version_per_event,
             most_recent_beliefs_only=most_recent_beliefs_only,
             most_recent_events_only=most_recent_events_only,
@@ -857,6 +860,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         user_source_ids: int | list[int] | None = None,
         source_types: list[str] | None = None,
         exclude_source_types: list[str] | None = None,
+        account_id: int | list[int] | None = None,
         use_latest_version_per_event: bool = True,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
@@ -881,6 +885,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param user_source_ids: Optional list of user source ids to query only specific user sources
         :param source_types: Optional list of source type names to query only specific source types *
         :param exclude_source_types: Optional list of source type names to exclude specific source types *
+        :param account_id: Optional account id (or list thereof) to filter sources by their owning account
         :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
         :param most_recent_beliefs_only: only return the most recent beliefs for each event from each source (minimum belief horizon). Defaults to True.
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
@@ -919,7 +924,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
 
         parsed_sources = parse_source_arg(source)
         source_criteria = get_source_criteria(
-            cls, user_source_ids, source_types, exclude_source_types
+            cls, user_source_ids, source_types, exclude_source_types, account_id
         )
         custom_join_targets = [] if parsed_sources else [DataSource]
 
