@@ -367,10 +367,8 @@ def test_asset_sensors_metadata_old_sensors_to_show_format(db, add_weather_senso
     contained the old format with a singular 'sensor' key, e.g. {"title": "Prices", "sensor": 42}.
     """
     asset = add_weather_sensors["asset"]
-    wind_sensor, temperature_sensor = (
-        add_weather_sensors["wind"],
-        add_weather_sensors["temperature"],
-    )
+    wind_sensor = add_weather_sensors["wind"]
+    temperature_sensor = add_weather_sensors["temperature"]
 
     # Flush to ensure sensors have database IDs before using them.
     db.session.flush()
