@@ -95,6 +95,9 @@ def test_failed_forecasting_job_does_not_enqueue_fallback(
             failed_job_id, connection=app.queues["forecasting"].connection
         )
         assert failed_job.meta["failures"] == 1
+        assert failed_job.meta["exception"]["type"] == "NotEnoughDataException"
+        assert isinstance(failed_job.meta["exception"]["message"], str)
+        assert failed_job.meta["exception"]["message"] != ""
         assert failed_job.meta.get("fallback_job_id") is None
     assert app.queues["forecasting"].count == 0
 
