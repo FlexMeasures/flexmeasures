@@ -4,7 +4,7 @@ import json
 import hashlib
 from datetime import datetime, timedelta
 from flask import current_app
-from functools import lru_cache
+
 from isodate import duration_isoformat
 import time
 from timely_beliefs import BeliefsDataFrame
@@ -447,13 +447,11 @@ def build_asset_jobs_data(
     return jobs_data
 
 
-@lru_cache()
 def _get_sensor_stats(
     sensor: Sensor,
     event_end_time: str,
     event_start_time: str,
     sort_keys: bool,
-    ttl_hash=None,
 ) -> dict:
     # parse incoming datetimes (or leave None)
     start_dt = pd.to_datetime(event_start_time) if event_start_time else None
@@ -561,19 +559,48 @@ def _get_sensor_stats(
     return stats
 
 
-def _get_ttl_hash(seconds=120) -> int:
-    """Returns the same value within "seconds" time period
-    Is needed to make LRU cache a TTL one
-    (lru_cache is used when call arguments are the same,
-    here we ensure that call arguments are the same in "seconds" period of time).
-    """
-    return round(time.time() / seconds)
+# Per-key TTL cache for sensor stats.
+#
+# Design:
+# - The key includes a 120-second time bucket (round(time.time() / TTL)) so
+#   at most ONE DB hit per sensor per 120-second window is possible, even
+#   under repeated requests.  This limits the attack surface for cache
+#   exhaustion: a caller can generate at most one new key per sensor per
+#   bucket period.
+# - Empty results are never stored, so freshly-uploaded data is always
+#   visible on the next call (at the cost of one DB hit per empty request).
+# - The dict is capped at _SENSOR_STATS_MAX_SIZE entries; when full, the
+#   oldest entry (FIFO insertion order, Python 3.7+) is evicted first.
+#
+# key:   (sensor_id, event_end_time, event_start_time, sort_keys, time_bucket)
+# value: result dict (non-empty only)
+_sensor_stats_cache: dict = {}
+_SENSOR_STATS_TTL = 120  # seconds
+_SENSOR_STATS_MAX_SIZE = 1000
 
 
 def get_sensor_stats(
     sensor: Sensor, event_start_time: str, event_end_time: str, sort_keys: bool = True
 ) -> dict:
-    """Get stats for a sensor"""
-    return _get_sensor_stats(
-        sensor, event_end_time, event_start_time, sort_keys, ttl_hash=_get_ttl_hash()
-    )
+    """Get stats for a sensor.
+
+    Non-empty results are cached per sensor for up to 120 seconds (one DB hit
+    per 120-second time bucket).  Empty results are never cached so that data
+    uploaded to a previously-empty sensor is visible immediately.
+    """
+    bucket = round(time.time() / _SENSOR_STATS_TTL)
+    key = (sensor.id, event_end_time, event_start_time, sort_keys, bucket)
+
+    if key in _sensor_stats_cache:
+        return _sensor_stats_cache[key]
+
+    result = _get_sensor_stats(sensor, event_end_time, event_start_time, sort_keys)
+
+    # Only cache non-empty results to keep empty sensors always fresh.
+    if result:
+        if len(_sensor_stats_cache) >= _SENSOR_STATS_MAX_SIZE:
+            # Evict the oldest entry (FIFO; dict preserves insertion order).
+            _sensor_stats_cache.pop(next(iter(_sensor_stats_cache)))
+        _sensor_stats_cache[key] = result
+
+    return result
