@@ -372,6 +372,9 @@ def test_asset_sensors_metadata_old_sensors_to_show_format(db, add_weather_senso
         add_weather_sensors["temperature"],
     )
 
+    # Flush to ensure sensors have database IDs before using them.
+    db.session.flush()
+
     # Use the old format: one entry with plural "sensors" and one with singular "sensor"
     asset.sensors_to_show = [
         {"title": "Group", "sensors": [wind_sensor.id, temperature_sensor.id]},
