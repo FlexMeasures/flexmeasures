@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+import re
 from timely_beliefs.beliefs.classes import BeliefsDataFrame
 from timely_beliefs.sensors.func_store import knowledge_horizons
 from typing import Sequence
@@ -409,7 +410,11 @@ def _copy_asset_subtree(
         asset_kwargs.pop(key, None)
 
     if add_copy_suffix:
-        asset_kwargs["name"] = f"{asset_kwargs['name']} (Copy)"
+        asset_kwargs["name"] = _determine_copy_name(
+            source_name=asset_kwargs["name"],
+            destination_account_id=destination_account_id,
+            destination_parent_asset_id=destination_parent_asset_id,
+        )
     asset_kwargs["account_id"] = destination_account_id
     asset_kwargs["parent_asset_id"] = destination_parent_asset_id
     asset_kwargs = convert_asset_json_fields(asset_kwargs)
@@ -436,6 +441,53 @@ def _copy_asset_subtree(
         sensor_id_map.update(child_sensor_map)
 
     return copied_asset, sensor_id_map
+
+
+def _determine_copy_name(
+    source_name: str,
+    destination_account_id: int,
+    destination_parent_asset_id: int | None,
+) -> str:
+    """Return the next available copy name for the destination context.
+
+    Examples: ``Home (Copy)``, ``Home (Copy 2)``, ``Home (Copy 3)``.
+    """
+    if destination_parent_asset_id is None:
+        existing_names = set(
+            db.session.scalars(
+                select(GenericAsset.name).filter(
+                    GenericAsset.parent_asset_id.is_(None),
+                    GenericAsset.account_id == destination_account_id,
+                )
+            ).all()
+        )
+    else:
+        existing_names = set(
+            db.session.scalars(
+                select(GenericAsset.name).filter(
+                    GenericAsset.parent_asset_id == destination_parent_asset_id,
+                )
+            ).all()
+        )
+
+    first_copy_name = f"{source_name} (Copy)"
+    if first_copy_name not in existing_names:
+        return first_copy_name
+
+    copy_name_pattern = re.compile(
+        rf"^{re.escape(source_name)} \(Copy(?: (?P<index>\d+))?\)$"
+    )
+    max_index = 1
+    for existing_name in existing_names:
+        match = copy_name_pattern.match(existing_name)
+        if not match:
+            continue
+        index = match.group("index")
+        copy_index = int(index) if index is not None else 1
+        if copy_index > max_index:
+            max_index = copy_index
+
+    return f"{source_name} (Copy {max_index + 1})"
 
 
 def copy_asset(

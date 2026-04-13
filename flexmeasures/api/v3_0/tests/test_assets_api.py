@@ -772,19 +772,17 @@ def test_copy_asset(setup_api_test_data, setup_accounts, db):
     assert copy4.parent_asset_id == parent.id
 
 
-def test_copy_asset_fails_on_duplicate_name_under_same_parent(
+def test_copy_asset_increments_name_under_same_parent(
     setup_api_test_data, setup_accounts, db
 ):
     """
-    Copying the same asset twice under the same parent raises an IntegrityError.
+    Copying the same asset repeatedly under the same parent increments copy names.
 
-    The DB enforces UNIQUE(name, parent_asset_id). The first copy succeeds
-    producing e.g. 'Battery (Copy)' under the given parent. The second copy
-    tries to insert another row with the exact same (name, parent_asset_id)
-    pair, which violates the constraint.
+    Expected pattern:
+    - first copy  -> ``<name> (Copy)``
+    - second copy -> ``<name> (Copy 2)``
+    - third copy  -> ``<name> (Copy 3)``
     """
-    from sqlalchemy.exc import IntegrityError
-
     prosumer_account = setup_accounts["Prosumer"]
     battery = db.session.scalars(
         select(GenericAsset).filter_by(
@@ -803,14 +801,19 @@ def test_copy_asset_fails_on_duplicate_name_under_same_parent(
     db.session.add(parent)
     db.session.flush()
 
-    # First copy under the parent succeeds.
+    # First copy under the parent.
     first_copy = copy_asset(battery, parent_asset=parent)
     assert first_copy.parent_asset_id == parent.id
+    assert first_copy.name == f"{battery.name} (Copy)"
 
-    # Second copy under the same parent fails: UNIQUE(name, parent_asset_id) is violated
-    # because parent_asset_id is non-NULL (PostgreSQL only treats NULLs as distinct).
-    with pytest.raises(IntegrityError):
-        copy_asset(battery, parent_asset=parent)
+    # Second and third copies increment the suffix.
+    second_copy = copy_asset(battery, parent_asset=parent)
+    assert second_copy.parent_asset_id == parent.id
+    assert second_copy.name == f"{battery.name} (Copy 2)"
+
+    third_copy = copy_asset(battery, parent_asset=parent)
+    assert third_copy.parent_asset_id == parent.id
+    assert third_copy.name == f"{battery.name} (Copy 3)"
 
 
 def test_copy_asset_to_another_account_preserves_config(
