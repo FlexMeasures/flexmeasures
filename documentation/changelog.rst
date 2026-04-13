@@ -12,7 +12,7 @@ Bugfixes
 * Fix regression in upsampling speed [see `PR #2060 <https://www.github.com/FlexMeasures/flexmeasures/pull/2060>`_]
 * Fix forecasting with multiple regressors in ``flexmeasures add forecasts`` by combining regressor time series as parallel components [see `PR #2088 <https://www.github.com/FlexMeasures/flexmeasures/pull/2088>`_]
 * Fix a bug where ``save_to_db`` could silently drop a changed belief when the prior beliefs in the database happened to be ordered by descending belief time [see `PR #2086 <https://www.github.com/FlexMeasures/flexmeasures/pull/2086>`_]
-* Prevent ``save_to_db`` from failing on saving duplicate beliefs in case ``FLEXMEASURES_ALLOW_DATA_OVERWRITE = False`` [see `PR #2059 <https://www.github.com/FlexMeasures/flexmeasures/pull/2059>`_]
+* Prevent ``save_to_db`` from failing on saving duplicate beliefs in case ``FLEXMEASURES_ALLOW_DATA_OVERWRITE = False`` [see `PR #2059 <https://www.github.com/FlexMeasures/flexmeasures/pull/2059>`_ and `PR #2098 <https://www.github.com/FlexMeasures/flexmeasures/pull/2098>`_]
 * Fix :abbr:`DST (Daylight Saving Time)` bug in processing time series segments [see `PR #2069 <https://www.github.com/FlexMeasures/flexmeasures/pull/2069>`_]
 
 

@@ -55,11 +55,13 @@ def aggregate_values(bdf_dict: dict[Any, tb.BeliefsDataFrame]) -> tb.BeliefsData
 
 
 def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
-    """Drop beliefs that are already stored in the database with an earlier belief time.
+    """Drop beliefs that are already stored in the database with an earlier or equal belief time.
 
     Also drop beliefs that are already in the data with an earlier belief time.
 
-    Quite useful function to prevent cluttering up your database with beliefs that remain unchanged over time.
+    Quite useful function to prevent cluttering up your database with beliefs that remain
+    unchanged over time, and to prevent duplicate key violations when re-running forecasters
+    or reporters with identical data.
     """
     if bdf.empty:
         return bdf
@@ -112,13 +114,6 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     if bdf_db.empty:
         return bdf
 
-    # Remove beliefs that already exist in the database to prevent duplicate key violations
-    bdf = bdf.groupby(level="source", group_keys=False).apply(
-        remove_existing_beliefs, bdf_db=bdf_db
-    )
-    if bdf.empty:
-        return bdf
-
     return (
         bdf.convert_index_from_belief_horizon_to_time()
         .groupby(
@@ -134,10 +129,19 @@ def _drop_unchanged_beliefs_compared_to_db(
     bdf: tb.BeliefsDataFrame,
     bdf_db: tb.BeliefsDataFrame,
 ) -> tb.BeliefsDataFrame:
-    """Drop beliefs that are already stored in the database with an earlier belief time.
+    """Drop beliefs that are already stored in the database with an earlier or equal belief time.
 
     Assumes a BeliefsDataFrame with a unique belief time and unique source,
     and either all ex-ante beliefs or all ex-post beliefs.
+
+    Handles two cases:
+
+    1. **Unchanged belief** — the candidate value matches the most recent prior belief in the DB
+       (belief_time strictly earlier than the candidate): the candidate is dropped to avoid
+       cluttering the database with redundant history.
+    2. **Exact duplicate** — a belief with the exact same belief_time already exists in the DB
+       with the same value: the candidate is dropped to prevent duplicate key violations, which
+       is particularly useful when re-running forecasters or reporters with identical data.
 
     It is preferable to call the public function drop_unchanged_beliefs instead.
     """
@@ -149,7 +153,7 @@ def _drop_unchanged_beliefs_compared_to_db(
     # Use .max() rather than searchsorted: the result is correct regardless of
     # whether bdf_db happens to be sorted ascending or descending by belief_time.
     most_recent_bt = bdf_db_from_source.belief_times[
-        bdf_db_from_source.belief_times < belief_time
+        bdf_db_from_source.belief_times <= belief_time
     ].max()
     if pd.isna(most_recent_bt):
         # No earlier belief time in db
@@ -175,62 +179,3 @@ def _drop_unchanged_beliefs_compared_to_db(
         ["event_start", "belief_time", "source", "cumulative_probability"]
     )
     return bdf
-
-
-def remove_existing_beliefs(
-    bdf: tb.BeliefsDataFrame, bdf_db: tb.BeliefsDataFrame
-) -> tb.BeliefsDataFrame:
-    """Remove beliefs that already exist in the database from the given BeliefsDataFrame.
-
-    This function filters out beliefs that are already stored in the database,
-    proactively preventing unique constraint violations,
-    for example, when re-running forecasters or reporters.
-
-    The function assumes the input BeliefsDataFrame has a unique source.
-    It compares beliefs based on their event start time, belief horizon, and value,
-    and removes any beliefs found in the database.
-
-    :param bdf:     BeliefsDataFrame to filter. Must contain beliefs with a single unique source.
-    :param bdf_db:  BeliefsDataFrame containing beliefs from the database.
-
-    :returns:       Filtered BeliefsDataFrame with existing beliefs removed.
-                    Returns an empty BeliefsDataFrame if all beliefs already exist in the database.
-    """
-
-    # Filter bdf_db by the unique source in bdf
-    source = bdf.lineage.sources[0]
-    bdf_db_from_source = bdf_db[bdf_db.sources == source]
-
-    if bdf.empty or bdf_db_from_source.empty:
-        return bdf
-
-    # Create a set of (event_start, belief_horizon, value) tuples for existing beliefs
-    existing_keys = set()
-    for idx, event_value in bdf_db_from_source.iterrows():
-        event_start = idx[0]  # event_start is first level of MultiIndex
-        belief_time = idx[1]  # belief_time is second level of MultiIndex
-        # Compute belief_horizon from belief_time and event_start
-        belief_horizon = event_start - belief_time
-        existing_keys.add((event_start, belief_horizon, float(event_value)))
-
-    # Create a set of indices to keep (rows that DON'T exist in database)
-    indices_to_keep = []
-
-    for idx, event_value in bdf.iterrows():
-        event_start = idx[0]  # event_start is first level of MultiIndex
-        belief_time = idx[1]  # belief_time is second level of MultiIndex
-        # Compute belief_horizon from belief_time and event_start
-        belief_horizon = event_start - belief_time
-        key = (event_start, belief_horizon, float(event_value))
-
-        if key not in existing_keys:
-            indices_to_keep.append(idx)
-
-    if not indices_to_keep:
-        # All beliefs exist, return empty with proper structure
-        return bdf.iloc[0:0]
-
-    # Filter BeliefsDataFrame to keep only new beliefs
-    bdf_filtered = bdf.loc[indices_to_keep]
-
-    return bdf_filtered
