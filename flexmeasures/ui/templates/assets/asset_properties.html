@@ -13,12 +13,14 @@
 <div class="container-fluid">
     <div class="row">
 
-        <div class="col-md-2 on-top-md">
+        <div class="col-md-2 on-top-md ps-0">
 
             {% if user_can_update_asset %}
-            <div class="sidepanel-container">
-                <div class="left-sidepanel-label">Edit asset</div>
-                <div class="sidepanel left-sidepanel">
+            {% from "_macros.html" import json_attributes_editor_button %}
+            <div class="sidepanel">
+            <div class="sidepanel-container" style="--sidepanel-width: 450px">
+                <div class="sidepanel-label">Edit asset</div>
+                <div class="sidepanel-content">
                     <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}">
                         {{ asset_form.csrf_token }}
                         {{ asset_form.hidden_tag() }}
@@ -89,17 +91,6 @@
                                 </div>
 
                                 <div class="form-group">
-                                    {{ asset_form.attributes.label(class="col-sm-3 control-label") }}
-                                    <div class="col-md-3">
-                                        <small>{{ asset_form.attributes.description }}</small>
-                                        {{ asset_form.attributes(class_="form-control") }}
-                                        {% for error in asset_form.errors.attributes %}
-                                        <span style="color: red;">[{{error}}]</span>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
                                     {{ asset_form.sensors_to_show_as_kpis.label(class="col-sm-3 control-label") }}
                                     <div class="col-md-3">
                                         <small>{{ asset_form.sensors_to_show_as_kpis.description }}</small>
@@ -134,7 +125,13 @@
                             </div>
                         </fieldset>
                     </form>
+                    <div class="form-group pt-3">
+                        <div class="col-md-12">
+                            {{ json_attributes_editor_button(label="Open editor", field_label=attributes_label, field_description=attributes_description) }}
+                        </div>
+                    </div>
                 </div>
+            </div>
             </div>
             {% endif %}
 
@@ -1315,4 +1312,13 @@
     </script>
 
     {% block paginate_tables_script %} {{ super() }} {% endblock %}
+
+    {% if user_can_update_asset %}
+    {% from "_macros.html" import json_attributes_editor_modal %}
+    {{ json_attributes_editor_modal(
+         api_url="/api/v3_0/assets/" ~ asset.id,
+         initial_attributes=asset.attributes,
+         entity_name=asset.name
+    ) }}
+    {% endif %}
     {% endblock %}

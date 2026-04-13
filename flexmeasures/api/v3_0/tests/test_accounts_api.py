@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from flask import url_for
 import pytest
 
@@ -198,3 +200,58 @@ def test_consultant_cannot_update_account_consultant(
     print("Server responded with:\n%s" % patch_account_response.data)
     print("Status code: %s" % patch_account_response.status_code)
     assert patch_account_response.status_code == expected_status_code
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_patch_account_attributes(client, setup_api_test_data, requesting_user, db):
+    """Check whether updating an account's attributes with valid JSON succeeds."""
+    account_id = requesting_user.account_id
+    new_attrs = {"integration_key": "abc123", "max_power_kw": 50}
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=account_id),
+        json={"attributes": json.dumps(new_attrs)},
+    )
+    print(f"Response: {response.json}")
+    assert response.status_code == 200
+    assert response.json["id"] == account_id
+    # attributes are returned as a JSON string in the schema
+    stored = json.loads(response.json["attributes"])
+    assert stored["integration_key"] == "abc123"
+    assert stored["max_power_kw"] == 50
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_patch_account_attributes_bad_json(
+    client, setup_api_test_data, requesting_user
+):
+    """Check whether updating an account's attributes with invalid JSON fails with 422."""
+    account_id = requesting_user.account_id
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=account_id),
+        json={"attributes": "not valid json {{{"},
+    )
+    print(f"Response: {response.json}")
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_patch_account_attributes_empty_dict(
+    client, setup_api_test_data, requesting_user, db
+):
+    """Check that an empty attributes dict can be stored."""
+    account_id = requesting_user.account_id
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=account_id),
+        json={"attributes": json.dumps({})},
+    )
+    assert response.status_code == 200
+    assert json.loads(response.json["attributes"]) == {}

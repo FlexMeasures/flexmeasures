@@ -127,6 +127,7 @@ class Config(object):
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
     FLEXMEASURES_MENU_LOGO_PATH: str = ""
     FLEXMEASURES_EXTRA_CSS_PATH: str = ""
+    FLEXMEASURES_JSONEDITOR_THEME: str = "spectre"
     FLEXMEASURES_ROOT_VIEW: str | list[str | tuple[str, list[str]]] = []
     FLEXMEASURES_MENU_LISTED_VIEWS: list[str | tuple[str, list[str]]] = [
         "dashboard",
@@ -161,6 +162,7 @@ class Config(object):
         vegaembed="6.21.0",
         vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
         currencysymbolmap="5.1.0",
+        jsoneditor="2.15.2",
         leaflet="1.9.4",
         leafletmarkercluster="1.5.3",
         leafletmarkerclusterlayersupport="2.0.1",
