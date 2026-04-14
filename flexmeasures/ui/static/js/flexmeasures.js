@@ -649,7 +649,7 @@ function updateStatsTable(stats, tableBody) {
     });
 }
 
-function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
+function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fresh=false) {
     const spinner = document.getElementById('spinner-run-simulation');
     const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
     const tableBody = document.getElementById('statsTableBody');
@@ -664,14 +664,18 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
     if (toggleStatsCheckbox.checked) {
         queryParams = `?sort=false&event_start_time=${event_start_time}&event_end_time=${event_end_time}`
     }
-    
+    //add a cache buster to ensure we get the latest data after an upload
+    if (fresh === true) {
+        queryParams += `&fresh=true`;
+    }
+
     // Enable all the default behaviors on every API call.
     dropdownMenu.innerHTML = '';
     noDataWarning.classList.add('d-none');
     fetchError.classList.add('d-none');
     tableBody.innerHTML = '';
     
-    fetch('/api/v3_0/sensors/' + sensor_id + '/stats' + queryParams, { cache: 'no-cache' })
+    fetch('/api/v3_0/sensors/' + sensor_id + '/stats' + queryParams)
     .then(response => response.json())
     .then(data => {
         // Remove 'status' sourceKey

@@ -234,11 +234,11 @@
     document.getElementById('toggleStatsCheckbox').addEventListener('change', function () {
         if (this.checked) {
             loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
-                }
-                else {
-        loadSensorStats({{ sensor.id }});
-                }
-            });
+        }
+        else {
+            loadSensorStats({{ sensor.id }}, "", "", true);
+        }
+    });
     {% endif %}
 
     // Keypress Listener
@@ -280,19 +280,25 @@
             data: fetchedInitialData
         };
     }
-    document.addEventListener('sensorsToShowUpdated', reloadChartData);
-    document.addEventListener('newDataAvailable', reloadChartData);
-    document.addEventListener('dataDeleted', reloadChartData);
-    {% if active_page == "sensors" %}
-    document.addEventListener('dataDeleted', function() {
+    async function reloadSensorStats() {
         const toggleStats = document.getElementById('toggleStatsCheckbox');
         if (toggleStats) {
             if (toggleStats.checked) {
-                loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
+                loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString(), true);
             } else {
-                loadSensorStats({{ sensor.id }});
+                loadSensorStats({{ sensor.id }}, "", "", true);
             }
         }
+    }
+    document.addEventListener('sensorsToShowUpdated', reloadChartData);
+    {% if active_page == "sensors" %}
+    document.addEventListener('newDataAvailable', function() {
+        reloadChartData();
+        reloadSensorStats();
+    });
+    document.addEventListener('dataDeleted', function() {
+        reloadChartData();
+        reloadSensorStats();
     });
     {% endif %}
 
@@ -468,10 +474,10 @@
             const toggleStats = document.getElementById('toggleStatsCheckbox');
             if (toggleStats.checked) {
                 loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
-    }
-                else {
-        loadSensorStats({{ sensor.id }});
-                }
+            }
+            else {
+                loadSensorStats({{ sensor.id }}, "", "");
+            }
     {% endif %}
 
     stopReplay()

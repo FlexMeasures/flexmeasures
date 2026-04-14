@@ -1465,6 +1465,7 @@ class SensorAPI(FlaskView):
             "sort_keys": fields.Boolean(data_key="sort", load_default=True),
             "event_start_time": fields.Str(load_default=None),
             "event_end_time": fields.Str(load_default=None),
+            "fresh": fields.Boolean(load_default=False),
         },
         location="query",
     )
@@ -1477,6 +1478,7 @@ class SensorAPI(FlaskView):
         event_start_time: str,
         event_end_time: str,
         sort_keys: bool,
+        fresh: bool,
     ):
         """
         .. :quickref: Sensors; Get sensor stats
@@ -1506,6 +1508,11 @@ class SensorAPI(FlaskView):
             - in: query
               name: sort_keys
               description: Whether to sort the stats by keys.
+              schema:
+                type: boolean
+            - in: query
+              name: fresh
+              description: Whether to compute fresh data, bypassing any cached results.
               schema:
                 type: boolean
           responses:
@@ -1538,11 +1545,9 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
-
         return (
-            get_sensor_stats(sensor, event_start_time, event_end_time, sort_keys),
+            get_sensor_stats(sensor, event_start_time, event_end_time, sort_keys, from_cache=not fresh),
             200,
-            {"Cache-Control": "no-store"},
         )
 
     @route("/<id>/status", methods=["GET"])
