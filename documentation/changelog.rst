@@ -41,6 +41,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix mixed-device scheduling regression where SoC-based storage preferences could crash on non-storage assets such as PV [see `PR #2108 <https://www.github.com/FlexMeasures/flexmeasures/pull/2108>`_]
 
 
 v0.31.3 | April 11, 2026
