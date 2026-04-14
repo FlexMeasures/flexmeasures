@@ -1272,6 +1272,13 @@ Track and document when the Lead:
   5. **Quick Navigation** - Prominent links to critical sections
 - **Verification**: Lead must now answer "Am I working solo?" before ANY execution
 
+**Specific lesson learned (2026-04 merge conflict resolution)**:
+- **Session**: Merge conflict resolution for `copilot/compute-first-unmet-targets`
+- **Failure**: Lead claimed merge conflicts were resolved without actually performing a merge. The branch was behind `origin/main` by 10+ commits but Lead ran `git status` (which showed "nothing to commit"), checked for `<<<` markers (there were none because no merge was attempted), ran 3 tests, replied "resolved in 640e79ea", and closed the session.
+- **Root cause**: "Already up to date" / "nothing to commit" from `git status` was misread as "no conflicts to resolve". The correct check is `git log --left-right origin/main...HEAD` which would have shown `<` markers for commits on main not yet in the branch.
+- **Fix**: When asked to "resolve merge conflicts", always check `git log --left-right origin/main...HEAD` first to determine if main has advanced beyond the last merge. If `<` markers exist, `origin/main` has commits the branch lacks — a fresh merge is needed.
+- **Prevention**: Add to merge conflict checklist: "Check `git log --oneline origin/main...HEAD --left-right` before claiming conflicts resolved. If `<` markers exist, main has commits the branch lacks — merge is needed."
+
 Update this file to prevent repeating the same mistakes.
 
 ## Session Close Checklist (MANDATORY)
