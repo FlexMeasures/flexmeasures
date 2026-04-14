@@ -769,6 +769,20 @@ Allow to override the default sunset link for your clients.
 
 Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/v0.13.0/api/v2_0.html"`` for v2.0)
 
+.. _fallback-redirect-config:
+
+FLEXMEASURES_FALLBACK_REDIRECT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Control how the API handles a failed scheduling job when a fallback schedule has been computed.
+
+If ``True``, the API returns ``HTTP status 303 (See Other)`` with a ``Location`` header pointing to the fallback schedule endpoint.
+Clients must follow this redirect themselves to obtain the fallback schedule (see :ref:`api_see_other`).
+
+If ``False``, the API transparently follows the fallback job and returns the fallback schedule directly in the response.
+
+Default: ``False``
+
 .. _reporters-config:
 
 Reporters

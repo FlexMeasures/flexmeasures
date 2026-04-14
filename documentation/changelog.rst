@@ -36,7 +36,7 @@ Infrastructure / Support
 * Update agent instructions and workflows to customize the primary entry point and to make the test environment used by agents and by the test workflow identical [see `PR #2066 <https://www.github.com/FlexMeasures/flexmeasures/pull/2066>`_, `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_ and `PR #2068 <https://www.github.com/FlexMeasures/flexmeasures/pull/2068>`_]
 * Filter out 404 (Not Found) errors from Sentry reports by default, configurable via ``FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY`` [see `PR #2071 <https://www.github.com/FlexMeasures/flexmeasures/pull/2071>`_]
 * Document scripting with the client and in the CLI [see `PR #2097 <https://www.github.com/FlexMeasures/flexmeasures/pull/2097>`_]
-* Document fallback schedule mechanism: explain how 303 (See Other) redirects work for infeasible schedules, with a client-side code example [see `PR #2100 <https://www.github.com/FlexMeasures/flexmeasures/pull/2100>`_]
+* Document fallback schedule mechanism: explain how 303 (See Other) redirects work for infeasible schedules, with a client-side code example [see `PR #2107 <https://www.github.com/FlexMeasures/flexmeasures/pull/2107>`_]
 
 Bugfixes
 -----------
