@@ -124,6 +124,66 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
         (
             {
                 # "model": "CustomLGBM",
+                "future-regressors": ["irradiance-sensor", "solar-sensor-1"],
+                "train-start": "2025-01-01T00:00+02:00",
+            },
+            {
+                "sensor": "solar-sensor",
+                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output-path": None,
+                "start": "2025-01-08T00:00+02:00",
+                "end": "2025-01-09T00:00+02:00",
+                "sensor-to-save": None,
+                "max-forecast-horizon": "PT1H",
+                "forecast-frequency": "PT24H",
+                "probabilistic": False,
+            },
+            False,
+            None,
+        ),
+        (
+            {
+                # "model": "CustomLGBM",
+                "past-regressors": ["irradiance-sensor", "solar-sensor-1"],
+                "train-start": "2025-01-01T00:00+02:00",
+            },
+            {
+                "sensor": "solar-sensor",
+                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output-path": None,
+                "start": "2025-01-08T00:00+02:00",
+                "end": "2025-01-09T00:00+02:00",
+                "sensor-to-save": None,
+                "max-forecast-horizon": "PT1H",
+                "forecast-frequency": "PT24H",
+                "probabilistic": False,
+            },
+            False,
+            None,
+        ),
+        (
+            {
+                # "model": "CustomLGBM",
+                "regressors": ["irradiance-sensor", "solar-sensor-1"],
+                "train-start": "2025-01-01T00:00+02:00",
+            },
+            {
+                "sensor": "solar-sensor",
+                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output-path": None,
+                "start": "2025-01-08T00:00+02:00",
+                "end": "2025-01-09T00:00+02:00",
+                "sensor-to-save": None,
+                "max-forecast-horizon": "PT1H",
+                "forecast-frequency": "PT24H",
+                "probabilistic": False,
+            },
+            False,
+            None,
+        ),
+        (
+            {
+                # "model": "CustomLGBM",
                 "future-regressors": ["irradiance-sensor"],
                 "retrain-frequency": "P1D",
                 "train-start": "2025-01-01T00:00+02:00",
@@ -164,6 +224,10 @@ def test_train_predict_pipeline(  # noqa: C901
         setup_fresh_test_forecast_data[regressor_name]
         for regressor_name in config.get("future-regressors", [])
     ]
+    config_regressors = [
+        setup_fresh_test_forecast_data[regressor_name]
+        for regressor_name in config.get("regressors", [])
+    ]
     regressors = [
         setup_fresh_test_forecast_data[regressor_name]
         for regressor_name in params.get("regressors", [])
@@ -174,6 +238,9 @@ def test_train_predict_pipeline(  # noqa: C901
 
     if config.get("future-regressors"):
         config["future-regressors"] = [regressor.id for regressor in future_regressors]
+
+    if config.get("regressors"):
+        config["regressors"] = [regressor.id for regressor in config_regressors]
 
     if params.get("regressors"):
         params["regressors"] = [regressor.id for regressor in regressors]

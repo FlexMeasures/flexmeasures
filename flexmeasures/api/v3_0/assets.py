@@ -915,7 +915,7 @@ class AssetAPI(FlaskView):
             - Assets
         """
         sensors = SensorsToShowSchema.flatten(asset.validate_sensors_to_show())
-        return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
+        return asset.chart_data_json(sensors=sensors, **kwargs)
 
     @route("/<id>/auditlog")
     @use_kwargs(

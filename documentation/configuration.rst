@@ -195,6 +195,32 @@ The path can be a complete URL or a relative from the app root.
 Default: ``""``
 
 
+FLEXMEASURES_JSONEDITOR_THEME
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Visual theme for the in-app JSON attributes editor (used on the sensor, asset and account pages).
+The editor is rendered by `@json-editor/json-editor <https://github.com/json-editor/json-editor>`_
+and the theme value is passed directly to that library.
+
+Available values:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Value
+     - Appearance
+   * - ``"spectre"``
+     - Spectre CSS styling.
+   * - ``"bootstrap5"``
+     - Bootstrap 5 styling.
+   * - ``"barebones"``
+     - Minimal unstyled HTML.
+   * - ``"html"``
+     - Plain HTML elements only, no extra classes.
+
+Default: ``"spectre"``
+
+
 FLEXMEASURES_ROOT_VIEW
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 

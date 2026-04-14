@@ -2072,3 +2072,92 @@ body.touched [title]:hover:after {
   border-bottom-color: #fff;
   background-color: #fff;
 }
+
+
+/* ---- JSON attributes editor (@json-editor/json-editor + Bootstrap 5) ---- */
+
+/* Plain-text JSON textarea (JSON tab) */
+.fm-json-textarea {
+  min-height: 420px;
+  height: 420px;     /* explicit height so Bootstrap's form-control baseline
+                        doesn't shrink it to a single row on some browsers   */
+  font-size: 0.85rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* Keep the form editor from collapsing to zero height */
+.fm-je-container {
+  min-height: 200px;
+}
+
+/* Remove Bootstrap validation decorations inside the form editor.
+ * @json-editor/json-editor marks all fields .is-valid because our open schema
+ * ({}) validates everything.  Bootstrap then adds a green border + checkmark
+ * background-image to <select> elements, which overlaps the selected text. */
+.fm-je-container .form-select.is-valid,
+.fm-je-container .was-validated .form-select:valid {
+  border-color: var(--bs-border-color);
+  padding-right: 2.25rem;   /* back to normal — only the dropdown arrow       */
+  /* Restore the plain dropdown-arrow background image (no checkmark overlay) */
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-size: 16px 12px;
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+}
+
+/* Type-switcher dropdown: give enough right-padding so the selected text
+ * does not slide under the native dropdown arrow (which sits at ~40 px). */
+.fm-je-container .je-switcher {
+  padding: 0px 50px 0px 3px;
+}
+
+.fm-je-container .form-control.is-valid,
+.fm-je-container .was-validated .form-control:valid {
+  border-color: var(--bs-border-color);
+  padding-right: 0.75rem;
+  background-image: none;
+}
+
+/* ---- Fix: .je-modal divs must not affect .btn-group border-radius ---- *
+ * @json-editor/json-editor places a div.je-modal inside .btn-group as a   *
+ * panel container (not a button).  Bootstrap's sibling selectors treat it *
+ * as a positional marker and strip radius from the adjacent buttons:       *
+ *   • ":not(:last-child)" → strips right-radius from last .btn when       *
+ *     .je-modal trails the group                                            *
+ *   • ":not(.btn-check)+.btn" → strips left-radius from a .btn that       *
+ *     directly follows .je-modal                                            *
+ * Restore the expected radii with explicit overrides.                       */
+
+/* Last button in a group that contains a .je-modal sibling: restore right radius */
+.fm-je-container .btn-group:has(> div.je-modal) > button:last-of-type {
+  border-top-right-radius: 6px !important;
+  border-bottom-right-radius: 6px !important;
+}
+
+/* Button immediately following a .je-modal div: restore left radius */
+.fm-je-container .btn-group > div.je-modal + button {
+  border-top-left-radius: 6px !important;
+  border-bottom-left-radius: 6px !important;
+}
+
+/* ---- Edit Attributes modal: ensure generous initial height ---- */
+.fm-json-modal .modal-content {
+  min-height: 70vh;
+}
+
+/* ---- Inline JSON panel (.je-modal) inside json-editor ---- *
+ * Clicking the 'Edit JSON' button opens a div.je-modal that contains       *
+ * a textarea and Save / Copy / Cancel buttons.  By default the panel       *
+ * is width-constrained which wraps the footer buttons onto a second row.   *
+ * Stretch it to the full container width; the textarea inherits that.      */
+.fm-je-container .je-modal {
+  width: 150% !important;
+  max-width: 150% !important;
+  box-sizing: border-box;
+}
+
+.fm-je-container .je-modal textarea {
+  width: 100% !important;
+  box-sizing: border-box;
+}

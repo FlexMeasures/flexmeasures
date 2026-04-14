@@ -6,7 +6,7 @@ from flask import current_app
 from sqlalchemy import select
 from typing import Type, TypeVar
 
-from flexmeasures import User, Source
+from flexmeasures import Account, Source, User
 from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource, DataGenerator
 from flexmeasures.data.models.user import is_user
@@ -22,6 +22,7 @@ def get_or_create_source(
     model: str | None = None,
     version: str | None = None,
     attributes: dict | None = None,
+    account: Account | None = None,
     flush: bool = True,
 ) -> DataSource:
     if is_user(source):
@@ -35,6 +36,8 @@ def get_or_create_source(
         query = query.filter(
             DataSource.attributes_hash == DataSource.hash_attributes(attributes)
         )
+    if account is not None:
+        query = query.filter(DataSource.account == account)
     if is_user(source):
         query = query.filter(DataSource.user == source)
     elif isinstance(source, str):
@@ -54,6 +57,7 @@ def get_or_create_source(
                 version=version,
                 type=source_type,
                 attributes=attributes,
+                account=account,
             )
         current_app.logger.info(f"Setting up {_source} as new data source...")
         db.session.add(_source)

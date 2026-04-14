@@ -26,6 +26,10 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.views.assets.forms import NewAssetForm, AssetForm
+from flexmeasures.ui.views.assets.forms import (
+    ATTRIBUTES_FIELD_LABEL,
+    ATTRIBUTES_FIELD_DESCRIPTION,
+)
 from flexmeasures.ui.views.assets.utils import (
     get_asset_by_id_or_raise_notfound,
     user_can_create_assets,
@@ -432,4 +436,6 @@ class AssetCrudUI(FlaskView):
             user_can_delete_asset=user_can_delete(asset),
             user_can_update_asset=user_can_update(asset),
             current_page="Properties",
+            attributes_label=ATTRIBUTES_FIELD_LABEL,
+            attributes_description=ATTRIBUTES_FIELD_DESCRIPTION,
         )

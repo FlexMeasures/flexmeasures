@@ -482,7 +482,7 @@
                 configTypeSelect.innerHTML = '<option value="null" selected>Select Config Type</option>';
                 flexConfigField.innerHTML = '<option value="null" selected>Select Field</option>';
                 flexConfigFieldDetail.value = "";
-                const selectedAsset = await getAsset(selectedValue);
+                const selectedAsset = await getAsset(selectedValue, false);
 
                 if (selectedAsset.flex_context !== "{}" && selectedAsset.flex_context !== '"{\"inflexible-device-sensors\": []}"') { // Some flex-context have this value set with an empty array
                     const flexContextOption = document.createElement("option");
@@ -1193,7 +1193,7 @@
         }
 
         async function showAssetChartSelection() {
-            let asset = await getAsset("{{ asset.id }}")
+            let asset = await getAsset("{{ asset.id }}", false)
             for (let child of asset.child_assets) {
                 if (child['generic_asset_type']['name'] == 'smartbuilding.chargepoint') {
                     return true;
