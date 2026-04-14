@@ -13,7 +13,9 @@ import click
 from tabulate import tabulate
 import pytz
 from click_default_group import DefaultGroup
+from marshmallow import fields
 
+from flexmeasures.data.schemas.utils import MarshmallowClickMixin
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 from flexmeasures import Sensor
@@ -247,19 +249,19 @@ def reduce_entity_paths(asset_paths: list[list[str]]) -> list[list[str]]:
 
     Examples:
     >>> reduce_entity_paths([["Account1", "Asset1"], ["Account2", "Asset2"]])
-    [["Account1", "Asset1"], ["Account2", "Asset2"]]
+    [['Account1', 'Asset1'], ['Account2', 'Asset2']]
 
     >>> reduce_entity_paths([["Asset1"], ["Asset2"]])
-    [["Asset1"], ["Asset2"]]
+    [['Asset1'], ['Asset2']]
 
     >>> reduce_entity_paths([["Account1", "Asset1"], ["Account1", "Asset2"]])
-    [["Asset1"], ["Asset2"]]
+    [['Asset1'], ['Asset2']]
 
     >>> reduce_entity_paths([["Asset1", "Asset2"], ["Asset1"]])
-    [["Asset1"], ["Asset1", "Asset2"]]
+    [['Asset1', 'Asset2'], ['Asset1']]
 
     >>> reduce_entity_paths([["Account1", "Asset", "Asset1"], ["Account1", "Asset", "Asset2"]])
-    [["Asset1"], ["Asset2"]]
+    [['Asset1'], ['Asset2']]
     """
     reduced_entities = 0
 
@@ -419,3 +421,66 @@ class JSONOrFile(click.ParamType):
                 param,
                 ctx,
             )
+
+
+def floor_to_resolution(dt: datetime, resolution: timedelta) -> datetime:
+    delta_seconds = resolution.total_seconds()
+    floored = dt.timestamp() - (dt.timestamp() % delta_seconds)
+    return datetime.fromtimestamp(floored, tz=dt.tzinfo)
+
+
+def split_commas(ctx, param, value):
+    """Converge comma-separated lists of items with a list of unique items."""
+    if not value:
+        return []
+    result = []
+    for v in value:
+        result.extend(v.split(","))
+    return list(set([x.strip() for x in result if x.strip()]))
+
+
+def add_cli_options_from_schema(schema):
+    """Decorator to add CLI options based on a Marshmallow schema's fields."""
+
+    def decorator(command):
+        for field_name, field in reversed(schema.fields.items()):
+            cli = field.metadata.get("cli")
+            if not cli:
+                continue
+
+            option_names = cli["option"]
+            option_aliases = cli.get("aliases", [])
+            options = [option_names] + option_aliases
+
+            # build help text from field description and example, and optionally extra help provided in the cli metadata
+            help_text = field.metadata.get("description", "")
+
+            extra_help = cli.get("extra_help")
+            if extra_help:
+                help_text += f"\n{extra_help}"
+
+            example = field.metadata.get("example")
+            if example is not None:
+                help_text += f"\nExample: {example}"
+
+            kwargs = {
+                "help": help_text,
+                "required": field.required,
+                # "default": field.load_default,
+            }
+
+            if cli.get("is_flag"):
+                kwargs["is_flag"] = True
+
+            # Transfer the original field type
+            if isinstance(field, MarshmallowClickMixin):
+                kwargs["type"] = str
+            elif isinstance(field, fields.List):
+                kwargs["multiple"] = True
+                kwargs["type"] = str
+
+            command = click.option(*options, **kwargs)(command)
+
+        return command
+
+    return decorator

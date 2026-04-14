@@ -101,10 +101,14 @@ class Config(object):
     # traces_sample_rate is for performance monitoring across all transactions,
     # you probably want to adjust this.
     FLEXMEASURES_SENTRY_CONFIG: dict = dict(traces_sample_rate=0.33)
+    FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY: bool = True
     FLEXMEASURES_MONITORING_MAIL_RECIPIENTS: list[str] = []
 
     FLEXMEASURES_PLATFORM_NAME: str | list[str | tuple[str, list[str]]] = "FlexMeasures"
     FLEXMEASURES_MODE: str = ""
+    FLEXMEASURES_SUPPORT_PAGE: str | None = None
+    FLEXMEASURES_SIGNUP_PAGE: str | None = None
+    FLEXMEASURES_TOS_PAGE: str | None = None
     FLEXMEASURES_ALLOW_DATA_OVERWRITE: bool = False
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
@@ -115,9 +119,15 @@ class Config(object):
     FLEXMEASURES_HOSTS_AND_AUTH_START: dict[str, str] = {"flexmeasures.io": "2021-01"}
     FLEXMEASURES_PLUGINS: list[str] | str = []  # str will be checked for commas
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
+    FLEXMEASURES_PROFILER_CONFIG: dict = dict(
+        async_mode="disabled",
+        interval=0.01,  # 10 ms sampling interval, enables coarse timer
+        use_timing_thread=True,
+    )
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
     FLEXMEASURES_MENU_LOGO_PATH: str = ""
     FLEXMEASURES_EXTRA_CSS_PATH: str = ""
+    FLEXMEASURES_JSONEDITOR_THEME: str = "spectre"
     FLEXMEASURES_ROOT_VIEW: str | list[str | tuple[str, list[str]]] = []
     FLEXMEASURES_MENU_LISTED_VIEWS: list[str | tuple[str, list[str]]] = [
         "dashboard",
@@ -138,6 +148,7 @@ class Config(object):
         days=7
     )  # Time to live for UDI event ids of successful scheduling jobs. Set a negative timedelta to persist forever.
     FLEXMEASURES_DEFAULT_DATASOURCE: str = "FlexMeasures"
+    FLEXMEASURES_DEFAULT_BOUNDING_BOX: tuple[tuple, tuple] = (54, 2), (50.732, 7.808)
     FLEXMEASURES_JOB_CACHE_TTL: int = (
         3600  # Time to live for the job caching keys in seconds. Set a negative timedelta to persist forever.
     )
@@ -151,12 +162,14 @@ class Config(object):
         vegaembed="6.21.0",
         vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
         currencysymbolmap="5.1.0",
+        jsoneditor="2.15.2",
         leaflet="1.9.4",
         leafletmarkercluster="1.5.3",
         leafletmarkerclusterlayersupport="2.0.1",
         # todo: expand with other js versions used in FlexMeasures
     )
     FLEXMEASURES_JSON_COMPACT = False
+    OPENAPI_VERSION = "3.1.2"
     JSON_SORT_KEYS = False
 
     FLEXMEASURES_FALLBACK_REDIRECT: bool = False
@@ -174,6 +187,11 @@ class Config(object):
     FLEXMEASURES_FORCE_HTTPS: bool = False
     # if True, the content could be accessed via HTTPS.
     FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY: bool = False
+
+    SECURITY_PASSWORD_CHECK_BREACHED = (
+        "best-effort"  # will try to check https://api.pwnedpasswords.com
+    )
+    SECURITY_PASSWORD_BREACHED_COUNT = 3
 
 
 #  names of settings which cannot be None
@@ -243,6 +261,7 @@ class TestingConfig(Config):
 
     SECURITY_TWO_FACTOR = False  # disable 2FA
     SECURITY_TOTP_SECRETS = {"1": "00000000000000000000000000000000"}
+    SECURITY_PASSWORD_CHECK_BREACHED = None  # disable breached password checking
 
 
 class DocumentationConfig(Config):

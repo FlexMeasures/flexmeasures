@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 import pandas as pd
 from flexmeasures.data.services.scheduling import create_simultaneous_scheduling_job
-from flexmeasures.data.tests.utils import work_on_rq
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.models.time_series import Sensor
 
 

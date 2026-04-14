@@ -18,13 +18,18 @@ from flexmeasures.data.services.generic_assets import (
 )
 from flexmeasures.data.models.generic_assets import (
     GenericAsset,
-    get_center_location_of_assets,
+    get_bounding_box_of_assets,
 )
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.ui.utils.view_utils import ICON_MAPPING
 from flexmeasures.data.models.user import Account
+from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.views.assets.forms import NewAssetForm, AssetForm
+from flexmeasures.ui.views.assets.forms import (
+    ATTRIBUTES_FIELD_LABEL,
+    ATTRIBUTES_FIELD_DESCRIPTION,
+)
 from flexmeasures.ui.views.assets.utils import (
     get_asset_by_id_or_raise_notfound,
     user_can_create_assets,
@@ -86,6 +91,7 @@ class AssetCrudUI(FlaskView):
             assets = account.generic_assets
         return render_flexmeasures_template(
             "assets/assets.html",
+            asset_icon_map=ICON_MAPPING,
             account=account,
             assets=assets,
             msg=msg,
@@ -104,7 +110,12 @@ class AssetCrudUI(FlaskView):
 
             asset_form = NewAssetForm()
             asset_form.with_options()
-            map_center = get_center_location_of_assets(user=current_user)
+            bounding_box = get_bounding_box_of_assets(user=current_user)
+
+            # If the bounding box is the server default, prompt the user to share their location
+            prompt_user_for_location = False
+            if bounding_box == current_app.config["FLEXMEASURES_DEFAULT_BOUNDING_BOX"]:
+                prompt_user_for_location = True
 
             parent_asset_name = ""
             account = None
@@ -126,7 +137,6 @@ class AssetCrudUI(FlaskView):
                 if parent_asset.latitude and parent_asset.longitude:
                     asset_form.latitude.data = parent_asset.latitude
                     asset_form.longitude.data = parent_asset.longitude
-                    map_center = parent_asset.latitude, parent_asset.longitude
 
             if account and not user_can_create_assets(account=account):
                 return unauthorized_handler(None, [])
@@ -138,7 +148,8 @@ class AssetCrudUI(FlaskView):
                 "assets/asset_new.html",
                 asset_form=asset_form,
                 msg="",
-                map_center=map_center,
+                bounding_box=bounding_box,
+                prompt_user_for_location=prompt_user_for_location,
                 mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 parent_asset_name=parent_asset_name,
                 parent_asset_id=parent_asset_id,
@@ -166,7 +177,8 @@ class AssetCrudUI(FlaskView):
         current_asset_sensors = [
             {
                 "name": sensor.name,
-                "unit": sensor.unit,
+                "resolution": duration_isoformat(sensor.event_resolution),
+                "unit": sensor._ui_unit,
                 "link": url_for("SensorUI:get", id=sensor.id),
             }
             for sensor in asset.sensors
@@ -266,16 +278,14 @@ class AssetCrudUI(FlaskView):
                     db.session.commit()
                     session["msg"] = "Creation was successful."
             if asset is None:
-                if asset_form.latitude.data and asset_form.longitude.data:
-                    map_center = asset_form.latitude.data, asset_form.longitude.data
-                else:
-                    map_center = get_center_location_of_assets(user=current_user)
+                # Display the errors
+                bounding_box = get_bounding_box_of_assets(user=current_user)
                 return render_flexmeasures_template(
                     "assets/asset_new.html",
                     asset_form=asset_form,
                     msg="Cannot create asset.",
                     parent_asset_id=asset_form.parent_asset_id.data or "",
-                    map_center=map_center,
+                    bounding_box=bounding_box,
                     mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
                 )
 
@@ -288,14 +298,17 @@ class AssetCrudUI(FlaskView):
                 session["msg"] = f"Cannot edit asset: {asset_form.errors}"
                 return redirect(url_for("AssetCrudUI:properties", id=id))
             try:
+                patch_asset_schema.context = {"asset_id": asset.id}
                 loaded_asset_data = patch_asset_schema.load(asset_form.to_json())
                 patch_asset(asset, loaded_asset_data)
                 db.session.commit()
                 session["msg"] = "Editing was successful."
             except ValidationError as ve:
+                db.session.rollback()
                 # we are redirecting to the properties page, there we cannot show errors in form
                 session["msg"] = f"Cannot edit asset: {ve.messages}"
             except Exception as exc:
+                db.session.rollback()
                 session["msg"] = "Cannot edit asset: An error occurred."
                 current_app.logger.error(exc)
 
@@ -329,6 +342,7 @@ class AssetCrudUI(FlaskView):
     @route("/<id>/graphs")
     def graphs(self, id: str, start_time=None, end_time=None):
         """/assets/<id>/graphs"""
+
         asset = get_asset_by_id_or_raise_notfound(id)
         check_access(asset, "read")
         asset_kpis = asset.sensors_to_show_as_kpis
@@ -341,11 +355,15 @@ class AssetCrudUI(FlaskView):
         asset_form.with_options()
         asset_form.process(obj=asset)
 
+        site_asset = asset.find_site_asset()
+
         return render_flexmeasures_template(
             "assets/asset_graph.html",
             asset=asset,
+            site_asset=site_asset,
             has_kpis=has_kpis,
             asset_kpis=asset_kpis,
+            available_units=available_units(),
             current_page="Graphs",
         )
 
@@ -375,6 +393,7 @@ class AssetCrudUI(FlaskView):
 
         asset_summary = {
             "Name": asset.name,
+            "Type": asset.generic_asset_type.name,
             "Latitude": asset.latitude,
             "Longitude": asset.longitude,
             "Parent Asset": (
@@ -383,15 +402,29 @@ class AssetCrudUI(FlaskView):
                 else "No Parent"
             ),
         }
+        if asset.external_id:
+            asset_summary["External ID"] = asset.external_id
 
         site_asset = asset
         while site_asset.parent_asset_id:
             site_asset = site_asset.parent_asset
 
+        from flexmeasures.data.schemas.scheduling import UI_FLEX_MODEL_SCHEMA
+
+        # suggestions for the parent asset selection
+        account_assets = (
+            db.session.query(GenericAsset)
+            .filter_by(account_id=asset.account_id)
+            .order_by(GenericAsset.id.asc())
+            .all()
+        )
+
         return render_flexmeasures_template(
             "assets/asset_properties.html",
             asset=asset,
+            account_assets=account_assets,
             site_asset=site_asset,
+            flex_model_schema=UI_FLEX_MODEL_SCHEMA,
             asset_flexmodel=json.dumps(asset.flex_model),
             available_units=available_units(),
             asset_summary=asset_summary,
@@ -403,4 +436,6 @@ class AssetCrudUI(FlaskView):
             user_can_delete_asset=user_can_delete(asset),
             user_can_update_asset=user_can_update(asset),
             current_page="Properties",
+            attributes_label=ATTRIBUTES_FIELD_LABEL,
+            attributes_description=ATTRIBUTES_FIELD_DESCRIPTION,
         )

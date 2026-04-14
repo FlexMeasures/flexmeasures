@@ -3,12 +3,16 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime, timedelta
 
-from flexmeasures.data.models.charts.defaults import FIELD_DEFINITIONS, REPLAY_RULER
+from flexmeasures.data.models.charts.defaults import (
+    FIELD_DEFINITIONS,
+    REPLAY_RULER,
+    STROKE_WIDTH,
+)
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
 )
-from flexmeasures.utils.coding_utils import flatten_unique
 from flexmeasures.utils.unit_utils import find_smallest_common_unit, get_unit_dimension
+from flexmeasures.utils.coding_utils import flatten_unique
 
 
 def create_bar_chart_or_histogram_specs(
@@ -96,6 +100,20 @@ def create_bar_chart_or_histogram_specs(
                 "encoding": {
                     "x": x,
                     "y": y,
+                    "stroke": {
+                        "condition": {
+                            "test": "datum.event_value === 0",
+                            "field": FIELD_DEFINITIONS["source_name"]["field"],
+                        },
+                        "value": None,
+                    },
+                    "strokeWidth": {
+                        "condition": {
+                            "test": "datum.event_value === 0",
+                            "value": 2,
+                        },
+                        "value": 0,
+                    },
                     "color": FIELD_DEFINITIONS["source_name"],
                     "detail": FIELD_DEFINITIONS["source"],
                     "opacity": {"value": 0.7},
@@ -115,7 +133,7 @@ def create_bar_chart_or_histogram_specs(
                 },
                 "transform": [
                     {
-                        "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
+                        "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
                         "as": "source_name_and_id",
                     },
                 ],
@@ -332,7 +350,7 @@ def heatmap(
                         "filter": "timezoneoffset(datum.event_start) >= timezoneoffset(datum.event_start + 60 * 60 * 1000) && timezoneoffset(datum.event_start) <= timezoneoffset(datum.event_start - 60 * 60 * 1000)"
                     },
                     {
-                        "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
+                        "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
                         "as": "source_name_and_id",
                     },
                     # In case of multiple sources, show the one with the most visible data
@@ -467,36 +485,42 @@ def create_fall_dst_transition_layer(
                 "as": "dst_transition_event_start_next",
             },
             {
-                "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
+                "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
                 "as": "source_name_and_id",
             },
         ],
     }
 
 
-def chart_for_multiple_sensors(
-    sensors_to_show: list["Sensor" | list["Sensor"] | dict[str, "Sensor"]],  # noqa F821
-    event_starts_after: datetime | None = None,
-    event_ends_before: datetime | None = None,
-    combine_legend: bool = True,
-    **override_chart_specs: dict,
-):
-    # Determine the shared data resolution
-    all_shown_sensors = flatten_unique(sensors_to_show)
-    condition = list(
-        sensor.event_resolution
-        for sensor in all_shown_sensors
-        if sensor.event_resolution > timedelta(0)
-    )
-    minimum_non_zero_resolution = min(condition) if any(condition) else timedelta(0)
+def _get_sensor_description(sensor: "Sensor") -> str:  # noqa F821
+    """Get description for a sensor, handling both real and fixed-value sensors."""
+    if hasattr(sensor, "_as_dict_override") and sensor._as_dict_override:
+        return sensor._as_dict_override.get("description", sensor.name)
+    elif hasattr(sensor, "as_dict") and sensor.as_dict:
+        return sensor.as_dict.get("description", sensor.name)
+    return sensor.name
 
-    # Set up field definition for event starts
+
+def _setup_event_start_field(
+    minimum_non_zero_resolution: timedelta,
+    event_starts_after: datetime | None,
+    event_ends_before: datetime | None,
+) -> dict:
+    """Set up the event start field definition.
+
+    Args:
+        minimum_non_zero_resolution: Minimum resolution among sensors
+        event_starts_after: Start of time window
+        event_ends_before: End of time window
+
+    Returns:
+        Field definition dictionary
+    """
     event_start_field_definition = FIELD_DEFINITIONS["event_start"].copy()
     event_start_field_definition["timeUnit"] = {
         "unit": "yearmonthdatehoursminutesseconds",
         "step": minimum_non_zero_resolution.total_seconds(),
     }
-    # If a time window was set explicitly, adjust the domain to show the full window regardless of available data
     if event_starts_after and event_ends_before:
         event_start_field_definition["scale"] = {
             "domain": [
@@ -504,125 +528,119 @@ def chart_for_multiple_sensors(
                 event_ends_before.timestamp() * 10**3,
             ]
         }
+    return event_start_field_definition
 
-    sensors_specs = []
-    for entry in sensors_to_show:
-        title = entry.get("title")
-        if title == "Charge Point sessions":
-            continue
-        sensors = entry.get("sensors")
-        # List the sensors that go into one row
-        row_sensors: list["Sensor"] = sensors  # noqa F821
 
-        # Set up field definition for sensor descriptions
-        sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
-        sensor_field_definition["scale"] = dict(
-            domain=[sensor.as_dict["description"] for sensor in row_sensors]
+def _setup_event_value_field(sensor_type: str, unit: str) -> dict:
+    """Set up the event value field definition.
+
+    Args:
+        sensor_type: Type of sensor
+        unit: Unit for display
+
+    Returns:
+        Field definition dictionary
+    """
+    event_value_field_definition = dict(
+        title=f"{capitalize(sensor_type)} ({unit})",
+        format=[".3~r", unit],
+        formatType="quantityWithUnitFormat",
+        stack=None,
+        **FIELD_DEFINITIONS["event_value"],
+    )
+    if unit == "%":
+        event_value_field_definition["scale"] = dict(
+            domain={"unionWith": [0, 105]}, nice=False
         )
+    return event_value_field_definition
 
-        # Derive the unit that should be shown
-        unit = determine_shared_unit(row_sensors)
-        sensor_type = determine_shared_sensor_type(row_sensors)
 
-        # Set up field definition for event values
-        event_value_field_definition = dict(
-            title=f"{capitalize(sensor_type)} ({unit})",
-            format=[".3~r", unit],
-            formatType="quantityWithUnitFormat",
-            stack=None,
-            **FIELD_DEFINITIONS["event_value"],
-        )
-        if unit == "%":
-            event_value_field_definition["scale"] = dict(
-                domain={"unionWith": [0, 105]}, nice=False
-            )
+def _setup_shared_tooltip(
+    event_value_field_definition: dict, sensor_type: str, sensor_title: str = "Sensor"
+) -> list[dict]:
+    """Set up the shared tooltip configuration.
 
-        # Set up shared tooltip
-        shared_tooltip = [
-            dict(
-                field="sensor.description",
-                type="nominal",
-                title="Sensor",
-            ),
+    Args:
+        event_value_field_definition: Field definition for event values
+        sensor_type: Type of sensor
+        sensor_title: Display title for the sensor field
+
+    Returns:
+        List of tooltip field definitions
+    """
+    return [
+        dict(field="sensor.description", type="nominal", title=sensor_title),
+        {**event_value_field_definition, **dict(title=f"{capitalize(sensor_type)}")},
+        FIELD_DEFINITIONS["full_date"],
+        dict(
+            field="belief_horizon",
+            type="quantitative",
+            title="Horizon",
+            format=["d", 4],
+            formatType="timedeltaFormat",
+        ),
+        {**event_value_field_definition, **dict(title=f"{capitalize(sensor_type)}")},
+        FIELD_DEFINITIONS["source_name_and_id"],
+        FIELD_DEFINITIONS["source_type"],
+        FIELD_DEFINITIONS["source_model"],
+    ]
+
+
+def _build_sensor_spec(
+    title: str | None,
+    layers: list[dict],
+    real_sensors: list["Sensor"],  # noqa F821
+) -> dict:
+    """Build the specification for a single sensor row.
+
+    Args:
+        title: Title for the chart row
+        layers: List of Vega-Lite layers
+        real_sensors: List of real sensors (for filter transform)
+
+    Returns:
+        Sensor specification dictionary
+    """
+    sensor_specs = {
+        "title": f"{capitalize(title)}" if title else None,
+        "layer": layers,
+        "width": "container",
+    }
+
+    if real_sensors:
+        sensor_specs["transform"] = [
             {
-                **event_value_field_definition,
-                **dict(title=f"{capitalize(sensor_type)}"),
-            },
-            FIELD_DEFINITIONS["full_date"],
-            dict(
-                field="belief_horizon",
-                type="quantitative",
-                title="Horizon",
-                format=["d", 4],
-                formatType="timedeltaFormat",
-            ),
-            {
-                **event_value_field_definition,
-                **dict(title=f"{capitalize(sensor_type)}"),
-            },
-            FIELD_DEFINITIONS["source_name_and_id"],
-            FIELD_DEFINITIONS["source_type"],
-            FIELD_DEFINITIONS["source_model"],
-        ]
-
-        # Draw a line for each sensor (and each source)
-        layers = [
-            create_line_layer(
-                row_sensors,
-                event_start_field_definition,
-                event_value_field_definition,
-                sensor_field_definition,
-                combine_legend=combine_legend,
-            )
-        ]
-
-        # Optionally, draw transparent full-height rectangles that activate the tooltip anywhere in the graph
-        # (to be precise, only at points on the x-axis where there is data)
-        if len(row_sensors) == 1:
-            # With multiple sensors, we cannot do this, because it is ambiguous which tooltip to activate (instead, we use a different brush in the circle layer)
-            layers.append(
-                create_rect_layer(
-                    event_start_field_definition,
-                    event_value_field_definition,
-                    shared_tooltip,
-                )
-            )
-
-        # Draw circle markers that are shown on hover
-        layers.append(
-            create_circle_layer(
-                row_sensors,
-                event_start_field_definition,
-                event_value_field_definition,
-                sensor_field_definition,
-                shared_tooltip,
-            )
-        )
-        layers.append(REPLAY_RULER)
-
-        # Layer the lines, rectangles and circles within one row, and filter by which sensors are represented in the row
-        sensor_specs = {
-            "title": f"{capitalize(title)}" if title else None,
-            "transform": [
-                {
-                    "filter": {
-                        "field": "sensor.id",
-                        "oneOf": [sensor.id for sensor in row_sensors],
-                    }
+                "filter": {
+                    "field": "sensor.id",
+                    "oneOf": [sensor.id for sensor in real_sensors],
                 }
-            ],
-            "layer": layers,
-            "width": "container",
-        }
-        sensors_specs.append(sensor_specs)
+            }
+        ]
 
-    # Vertically concatenate the rows
+    return sensor_specs
+
+
+def _build_chart_specs(
+    sensors_specs: list[dict],
+    combine_legend: bool,
+    override_chart_specs: dict,
+) -> dict:
+    """Build the final chart specifications.
+
+    Args:
+        sensors_specs: List of sensor row specifications
+        combine_legend: Whether to combine legends
+        override_chart_specs: Additional chart spec overrides
+
+    Returns:
+        Complete chart specification dictionary
+    """
     chart_specs = dict(
         description="A vertically concatenated chart showing sensor data.",
         vconcat=[*sensors_specs],
         transform=[
             {
-                "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
+                "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
                 "as": "source_name_and_id",
             },
         ],
@@ -638,6 +656,235 @@ def chart_for_multiple_sensors(
     for k, v in override_chart_specs.items():
         chart_specs[k] = v
     return chart_specs
+
+
+def chart_for_multiple_sensors(
+    sensors_to_show: list["Sensor" | list["Sensor"] | dict[str, "Sensor"]],  # noqa F821
+    event_starts_after: datetime | None = None,
+    event_ends_before: datetime | None = None,
+    combine_legend: bool = True,
+    **override_chart_specs: dict,
+):
+    """Create a chart for multiple sensors.
+
+    Args:
+        sensors_to_show: List of sensor entries to display
+        event_starts_after: Start of time window
+        event_ends_before: End of time window
+        combine_legend: Whether to combine legends
+        **override_chart_specs: Additional chart spec overrides
+
+    Returns:
+        Vega-Lite chart specification dictionary
+    """
+    all_shown_sensors = flatten_unique(sensors_to_show)
+    real_sensors = [
+        sensor
+        for sensor in all_shown_sensors
+        if (getattr(sensor, "id", None) is None or sensor.id >= 0)
+    ]
+    condition = list(
+        sensor.event_resolution
+        for sensor in real_sensors
+        if sensor.event_resolution > timedelta(0)
+    )
+    minimum_non_zero_resolution = min(condition) if any(condition) else timedelta(0)
+
+    has_fixed_values = any(
+        getattr(s, "id", None) is not None and s.id < 0 for s in all_shown_sensors
+    )
+    sensor_title = "Sensor/Value" if has_fixed_values else "Sensor"
+
+    event_start_field_definition = _setup_event_start_field(
+        minimum_non_zero_resolution, event_starts_after, event_ends_before
+    )
+
+    sensors_specs = []
+    for entry in sensors_to_show:
+        sensor_spec = _process_sensor_entry(
+            entry,
+            event_start_field_definition,
+            event_starts_after,
+            event_ends_before,
+            combine_legend,
+            sensor_title,
+            minimum_non_zero_resolution=minimum_non_zero_resolution,
+        )
+        if sensor_spec:
+            sensors_specs.append(sensor_spec)
+
+    return _build_chart_specs(sensors_specs, combine_legend, override_chart_specs)
+
+
+def _process_sensor_entry(
+    entry: dict,
+    event_start_field_definition: dict,
+    event_starts_after: datetime | None,
+    event_ends_before: datetime | None,
+    combine_legend: bool,
+    sensor_title: str = "Sensor",
+    minimum_non_zero_resolution: timedelta | None = None,
+) -> dict | None:
+    """Process a single sensor entry from sensors_to_show.
+
+    Args:
+        entry: A sensor entry dictionary
+        event_start_field_definition: Field definition for x-axis
+        event_starts_after: Start of time window
+        event_ends_before: End of time window
+        combine_legend: Whether to combine legends
+        sensor_title: Title for the sensor field
+        minimum_non_zero_resolution: Minimum non-zero resolution derived from real sensors
+
+    Returns:
+        Sensor specification dictionary or None if entry should be skipped
+    """
+    title = entry.get("title")
+    if title == "Charge Point sessions":
+        return None
+
+    sensors = _extract_sensors_from_entry(entry)
+    if not sensors:
+        return None
+
+    row_sensors = sensors
+    real_sensors = [
+        s for s in row_sensors if getattr(s, "id", None) is None or s.id >= 0
+    ]
+    fixed_value_sensors = [
+        s for s in row_sensors if getattr(s, "id", None) is not None and s.id < 0
+    ]
+
+    sensor_field_definition = FIELD_DEFINITIONS["sensor_description"].copy()
+    sensor_field_definition["title"] = sensor_title
+    sensor_descriptions = [_get_sensor_description(s) for s in row_sensors]
+    sensor_field_definition["scale"] = dict(domain=sensor_descriptions)
+
+    unit = determine_shared_unit(row_sensors)
+    sensor_type = determine_shared_sensor_type(row_sensors)
+
+    event_value_field_definition = _setup_event_value_field(sensor_type, unit)
+    shared_tooltip = _setup_shared_tooltip(
+        event_value_field_definition, sensor_type, sensor_title
+    )
+
+    layers = _build_layers(
+        real_sensors,
+        fixed_value_sensors,
+        event_start_field_definition,
+        event_value_field_definition,
+        sensor_field_definition,
+        sensor_descriptions,
+        sensor_type,
+        unit,
+        event_starts_after,
+        event_ends_before,
+        shared_tooltip,
+        combine_legend,
+        sensor_title,
+        minimum_non_zero_resolution=minimum_non_zero_resolution,
+    )
+
+    if not layers:
+        return None
+
+    # Pass all sensors (real + fixed-value) so the filter transform includes
+    # both positive and negative IDs, and all data rows reach this chart row.
+    return _build_sensor_spec(title, layers, real_sensors + fixed_value_sensors)
+
+
+def _extract_sensors_from_entry(entry: dict) -> list["Sensor"]:  # noqa F821
+    """Extract sensors from a sensor entry.
+
+    Args:
+        entry: A sensor entry dictionary
+
+    Returns:
+        List of sensors
+    """
+    plots = entry.get("plots", [])
+    sensors = []
+    for plot in plots:
+        if "sensors" in plot:
+            sensors.extend(plot.get("sensors"))
+        elif "sensor" in plot:
+            sensors.extend([plot.get("sensor")])
+    return sensors
+
+
+def _build_layers(
+    real_sensors: list["Sensor"],  # noqa F821
+    fixed_value_sensors: list["Sensor"],  # noqa F821
+    event_start_field_definition: dict,
+    event_value_field_definition: dict,
+    sensor_field_definition: dict,
+    sensor_descriptions: list[str],
+    sensor_type: str,
+    unit: str,
+    event_starts_after: datetime | None,
+    event_ends_before: datetime | None,
+    shared_tooltip: list,
+    combine_legend: bool,
+    sensor_title: str = "Sensor",
+    minimum_non_zero_resolution: timedelta | None = None,
+) -> list[dict]:
+    """Build all layers for a sensor row.
+
+    Fixed-value sensors (negative IDs) are merged into the same line layer as
+    real sensors.  Their data arrives via the main chart dataset (generated by
+    ``GenericAsset.chart_data_json``), so no separate inline-data layer is needed.
+    """
+    layers = []
+
+    # Treat fixed-value sensors the same as real sensors for rendering purposes.
+    # Their data is already in the shared dataset; only the IDs differ.
+    all_row_sensors = real_sensors + fixed_value_sensors
+
+    if all_row_sensors:
+        layers.append(
+            create_line_layer(
+                all_row_sensors,
+                event_start_field_definition,
+                event_value_field_definition,
+                sensor_field_definition,
+                combine_legend=combine_legend,
+            )
+        )
+
+    if not layers:
+        return layers
+
+    if all_row_sensors:
+        layers.append(create_hover_ruler_layer(event_start_field_definition))
+
+    # Invisible full-height rect at every data point: acts as the hover hit-area
+    # so that the tooltip appears whenever the cursor is anywhere in the chart
+    # column above a data point, not only when hovering exactly on a circle mark.
+    # Added unconditionally (single- and multi-sensor rows alike).
+    # Must be before the circle layer and after the hover ruler layer
+    if all_row_sensors:
+        layers.append(
+            create_rect_layer(
+                event_start_field_definition,
+                event_value_field_definition,
+                shared_tooltip,
+            )
+        )
+
+    if all_row_sensors:
+        layers.append(
+            create_circle_layer(
+                all_row_sensors,
+                event_start_field_definition,
+                event_value_field_definition,
+                sensor_field_definition,
+                shared_tooltip,
+            )
+        )
+
+    layers.append(REPLAY_RULER)
+
+    return layers
 
 
 def determine_shared_unit(sensors: list["Sensor"]) -> str:  # noqa F821
@@ -687,6 +934,7 @@ def create_line_layer(
             "type": "line",
             "interpolate": interpolate,
             "clip": True,
+            "strokeWidth": STROKE_WIDTH,
         },
         "encoding": {
             "x": event_start_field_definition,
@@ -708,11 +956,18 @@ def create_line_layer(
                     # Distinguish forecasters and schedulers by line stroke
                     "domain": ["forecaster", "scheduler", "other"],
                     # Schedulers get a dashed line, forecasters get a dotted line, the rest gets a solid line
-                    "range": [[2, 2], [4, 4], [1, 0]],
+                    "range": [
+                        [STROKE_WIDTH, STROKE_WIDTH],
+                        [2 * STROKE_WIDTH, 2 * STROKE_WIDTH],
+                        [1, 0],
+                    ],
                 },
                 "field": "source.type",
                 "legend": {
                     "title": "Source",
+                    "symbolSize": (
+                        100 if STROKE_WIDTH <= 2 else 100 + 800 / 3 * (STROKE_WIDTH - 2)
+                    ),
                 },
             },
             "detail": [FIELD_DEFINITIONS["source"]],
@@ -753,6 +1008,7 @@ def create_circle_layer(
         shared_tooltip
     )  # deepcopy so the next line doesn't update the dicts
     scaled_shared_tooltip[1]["field"] = "scaled_event_value"
+
     params = [
         {
             "name": "hover_x_brush",
@@ -780,7 +1036,9 @@ def create_circle_layer(
         )
     or_conditions = [{"param": "hover_x_brush", "empty": False}]
     if len(sensors) > 1:
-        or_conditions.append({"param": "hover_nearest_brush", "empty": False})
+        # Create a circle marker for the data point for which the tooltip is shown
+        or_conditions = [{"param": "hover_nearest_brush", "empty": False}]
+
     circle_layer = {
         "mark": {
             "type": "circle",
@@ -810,6 +1068,24 @@ def create_circle_layer(
         ],
     }
     return circle_layer
+
+
+def create_hover_ruler_layer(event_start_field_definition: dict) -> dict:
+    """Create a vertical ruler that appears when hovering a chart row."""
+    return {
+        "mark": {
+            "type": "rule",
+            "color": "#6b7280",
+            "strokeWidth": 1,
+        },
+        "encoding": {
+            "x": event_start_field_definition,
+            "opacity": {
+                "condition": {"test": {"param": "hover_x_brush", "empty": False}},
+                "value": 0,
+            },
+        },
+    }
 
 
 def create_rect_layer(

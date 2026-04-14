@@ -18,7 +18,7 @@ Assets
 ---------
 
 Assets can represent physical objects (e.g. a car battery or an industrial machine) or "virtual" objects (e.g. a market).
-In essence, an asset is anything on which you collect data.
+In essence, an asset is anything on which you collect data, and therefore many assets have one or more sensors assigned.
 
 Assets can also have a parent-child relationship with other assets.
 So, you could model a building that contains assets like solar panels, a heat pump and EV chargers.
@@ -38,6 +38,13 @@ Here is an example of an asset with sub-assets:
         D <--> G[PV]
         D <--> H[Battery]
         D <--> I["Charge<br>Point"]
+
+Asset belong to accounts (read more on accounts below).
+
+Assets are often represented in other systems (e.g. IoT gateways / local EMS) with another ID. To link FlexMeasures' representation of assets with such external representations, you can store those IDs as `external_id`. 
+
+About asset types
+^^^^^^^^^^^^^^^^^
 
 We model asset types explicitly. None are required for running FlexMeasures.
 Some asset types have support in the UI (for icons, like a sun for ``"solar"``), and in the toy tutorial and test.
@@ -90,6 +97,83 @@ Each belief links to a sensor and a data source. Here are two examples:
 - The power sensor of a battery, where we store the schedules, can have two sources: (1) the schedule itself (a data source of type "scheduler", representing how FlexMeasures created this data) and (2) the realized schedule, i.e. the measurements of how the battery responded (or not) to the schedule. The latter might have a data source of type "user" (who sent the measurements to FlexMeasures).
 - A thermal demand sensor containing forecasts (data source of type "forecast", e.g. heating usage forecast sent to FlexMeasures or made by FlexMeasures) and measurements (sent into FlexMeasures, data source type "user").
 
+
+Annotations
+-----------
+
+Annotations allow you to attach metadata and contextual information to accounts, assets, or sensors over specific time periods.
+They are useful for marking important events, holidays, alerts, or any other information that helps understand your data.
+
+Each annotation has:
+
+- **Content**: Text describing the annotation (max 1024 characters)
+- **Time range**: A start and end time for when the annotation applies
+- **Type**: The category of annotation (see types below)
+- **Belief time**: When the annotation was created or became known
+- **Source**: Who or what created the annotation (e.g., a user or automated system)
+
+**Annotation Types**
+
+FlexMeasures supports several annotation types:
+
+- **label**: General-purpose annotations, useful for marking specific periods with custom notes
+- **holiday**: Public or organizational holidays that may affect energy usage patterns
+- **alert**: Active warnings that require attention
+- **warning**: Informational warnings about potential issues
+- **error**: Markers for periods with data quality issues or system errors
+- **feedback**: User feedback or notes about system behavior
+
+**Use Cases**
+
+Annotations are particularly useful for:
+
+- Marking holidays that affect energy consumption patterns (used by forecasting algorithms)
+- Documenting known data quality issues or sensor outages
+- Recording maintenance windows or system changes
+- Adding context to unusual patterns in your data
+- Tracking alerts and their resolution status
+
+**Creating Annotations**
+
+Annotations can be created via:
+
+- The :ref:`API <v3_0>` (see POST endpoints for accounts, assets, and sensors)
+- The CLI command ``flexmeasures add annotation``
+- The CLI command ``flexmeasures add holidays`` for automatic holiday import
+
+**Viewing Annotations**
+
+Annotations appear in:
+
+- Individual sensor charts in the FlexMeasures UI
+- API responses when querying chart data with annotation flags
+
+More information, including code examples, is available in :ref:`annotations`.
+
+
+.. _signs_of_power_beliefs:
+
+About signs of power & energy values
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+In short: You can use any sign you want for power data.
+But the scheduler in FlexMeasures needs to know how to apply the signs. Positive (+) means consumption, negative (-) means production.
+Let us explain.
+
+When beliefs are about power or energy, the sign of the value is important. It indicates whether the asset is consuming or producing.
+However, there is no universal standard for this. Some systems use positive values for production and negative values for consumption, while others do the opposite.
+
+FlexMeasures doesn't enforce any perspective (we have a design philosophy of letting users model the system in their own way). 
+
+For example, users can create PV power data with positive values indicating production, and they can also create building power data with positive values indicating consumption.
+We allow this because we want the UI to match what is in the database, and users often desire both of these datasets to be shown as positive values.
+We assume that this is what users send in.
+
+Note that, if forecasts are created, they will have the same sign as original data.
+
+For schedules, the sign of resulting power data (beliefs) is being switched when data is stored (assuming consumption , and you can prevent that by setting ``sensor.attributes["consumption_is_positive"] = True``.
+
+
+.. note:: We will soon document better what the scheduler does in detail, and how the attribute works.
 
 
 Accounts & Users

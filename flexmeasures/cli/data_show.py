@@ -15,7 +15,6 @@ import pandas as pd
 import uniplot
 import vl_convert as vlc
 from string import Template
-import pytz
 import json
 from sqlalchemy import select, func
 
@@ -33,7 +32,10 @@ from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.times import AwareDateTimeField, DurationField
 from flexmeasures.data.services.time_series import simplify_index
-from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
+from flexmeasures.utils.time_utils import (
+    determine_minimum_resampling_resolution,
+    server_now,
+)
 from flexmeasures.cli.utils import (
     MsgStyle,
     validate_unique,
@@ -244,7 +246,6 @@ def show_generic_asset(asset):
         (
             asset.generic_asset_type.name,
             asset.location,
-            "".join([f"{k}: {v}\n" for k, v in asset.flex_context.items()]),
             "".join(
                 [
                     f"{graph['title']}: {graph['sensors']} \n"
@@ -252,6 +253,7 @@ def show_generic_asset(asset):
                 ]
             ),
             "".join([f"{k}: {v}\n" for k, v in asset.attributes.items()]),
+            asset.external_id,
         )
     ]
     click.echo(
@@ -260,9 +262,25 @@ def show_generic_asset(asset):
             headers=[
                 "Type",
                 "Location",
-                "Flex-Context",
                 "Sensors to show",
                 "Attributes",
+                "External ID",
+            ],
+        )
+    )
+
+    flex_config = [
+        (
+            "".join([f"{k}: {v}\n" for k, v in asset.flex_context.items()]),
+            "".join([f"{k}: {v}\n" for k, v in asset.flex_model.items()]),
+        )
+    ]
+    click.echo(
+        tabulate(
+            flex_config,
+            headers=[
+                "Flex-Context",
+                "Flex-Model",
             ],
         )
     )
@@ -497,9 +515,6 @@ def chart(
         if isinstance(entity, GenericAsset):
             entity_type = "asset"
 
-        timezone = app.config["FLEXMEASURES_TIMEZONE"]
-        now = pytz.timezone(zone=timezone).localize(datetime.now())
-
         belief_time_str = ""
 
         if belief_time is not None:
@@ -509,7 +524,7 @@ def chart(
         filename = template.safe_substitute(
             id=entity.id,
             entity_type=entity_type,
-            now=now.strftime(datetime_format),
+            now=server_now().strftime(datetime_format),
             start=start.strftime(datetime_format),
             end=end.strftime(datetime_format),
             belief_time=belief_time_str,
@@ -788,6 +803,17 @@ def list_data_generators(generator_type: str):
             headers=["name", "version", "author", "module"],
         )
     )
+
+
+@fm_show_data.command("forecasters")
+@with_appcontext
+def list_forecasters():
+    """
+    Show available forecasters.
+    """
+
+    with app.app_context():
+        list_data_generators("forecaster")
 
 
 @fm_show_data.command("reporters")

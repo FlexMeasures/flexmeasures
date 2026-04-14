@@ -18,12 +18,17 @@
         <div class="col-sm-12">
 
             <div id="mapid"></div>
+            {% if num_assets_without_location > 0 %}
+            <div>
+                Assets with no location: {{ num_assets_without_location }}
+            </div>
+            {% endif %}
 
             <table class="table" style="font-size: 100%;">
                 <thead>
                     <tr>
                         <th></th>
-                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        {% for asset_group_name in asset_groups if (asset_groups[asset_group_name].count > 0 or group_by_accounts) %}
                         {# On demo, show all non-empty groups, otherwise show all groups that are non-empty for the current user #}
                         <th {% if asset_groups[asset_group_name].hover_label %}
                             title="{{ asset_groups[asset_group_name].hover_label | capitalize }}" {% endif %}
@@ -52,18 +57,18 @@
                             {% if user_has_admin_reader_rights %}
                                 {{ FLEXMEASURES_PLATFORM_NAME }} total:
                             {% else %}
-                                My assets:
+                                My accessible assets:
                             {% endif %}
                         </td>
 
-                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 %}
+                        {% for asset_group_name in asset_groups if asset_groups[asset_group_name].count > 0 or group_by_accounts %}
                         <td class="text-center{% if asset_group_name in aggregate_type_groups %} agg-group{% endif %}">
                             {{ asset_groups[asset_group_name].count }}</td>
                         {% endfor %}
                     </tr>
                 </tbody>
             </table>
-            {% if user_has_admin_reader_rights %}
+            {% if user_has_admin_reader_rights or user_is_consultant %}
             <div class="row">
                 <form class="col-sm-12 text-right form-inline" role="form" target="" method="get" id="dashboard-grouping-options">
                     Group by account:
@@ -208,7 +213,7 @@
 
     // create Map with tiles
     var assetMap = L
-        .map('mapid', { center: {{ map_center | tojson }}, zoom: 6 })
+        .map('mapid')
         .on('popupopen', function () {
             $(function () {
                 $('[data-toggle="tooltip"]').tooltip();
@@ -232,6 +237,25 @@
     {% endfor %}
     mcgLayerSupportGroup.addTo(assetMap);
     control.addTo(assetMap);
+
+    // compute bounds, center and zoom for covering pre-existing asset portfolio
+    bounds = L.latLngBounds({{ bounding_box | tojson }});
+    center = bounds.getCenter();
+    zoom = assetMap.getBoundsZoom(bounds);
+    // in case of a very small bounding box (e.g. representing a single point),
+    // zoom out slightly, just as far as you can while still making out the local buildings
+    zoom === 18 ? zoom = 17 : null
+
+    // start slightly zoomed out, then zoom in on pre-existing asset portfolio
+    assetMap.setView(center, Math.max(zoom - 1, 1));
+    assetMap.flyTo(center, zoom, { duration: 1.0 });
+
+    {% if prompt_user_for_location %}
+        const flyToPosition = (position) => {
+            assetMap.flyTo([position.coords.latitude, position.coords.longitude], 9);
+        }
+        navigator.geolocation.getCurrentPosition(flyToPosition);
+    {% endif %}
 
 </script>
 

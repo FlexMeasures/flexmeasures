@@ -109,6 +109,24 @@ Interesting for developers.
 Default: ``False``
 
 
+FLEXMEASURES_PROFILER_CONFIG
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Keyword arguments passed to the profiler, such as the sampling interval (in seconds) for profiling the processing time of requests.
+
+Interesting for developers.
+
+Default:
+
+.. code-block:: python
+
+   dict(
+       async_mode="disabled",
+       interval=0.01,  # 10 ms sampling interval, enables coarse timer
+       use_timing_thread=True,
+   )
+
+
 UI
 --
 
@@ -135,6 +153,35 @@ The path can be a complete URL or a relative from the app root.
 Default: ``""``
 
 
+FLEXMEASURES_SUPPORT_PAGE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL where users can ask the FlexMeasures host for technical support.
+Will be displayed in the UI footer and on top of the OpenAPI docs page.
+
+Default: ``None``
+
+
+FLEXMEASURES_SIGNUP_PAGE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL where users can create an account (or ask the FlexMeasures host for one).
+Will be displayed in the UI footer and on top of the OpenAPI docs page.
+
+Default: ``None``
+
+
+FLEXMEASURES_TOS_PAGE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL where users can see the terms of service (TOS) under which FlexMeasures is being hosted.
+Will be displayed in the UI footer and on top of the OpenAPI docs page.
+
+Default: ``None``
+
+
+
+
 .. _extra-css-config:
 
 FLEXMEASURES_EXTRA_CSS_PATH
@@ -146,6 +193,32 @@ The path can be a complete URL or a relative from the app root.
 .. note:: You can also add extra styles for plugins with the usual Blueprint method. That is more elegant but only applies to the Blueprint's views.
 
 Default: ``""``
+
+
+FLEXMEASURES_JSONEDITOR_THEME
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Visual theme for the in-app JSON attributes editor (used on the sensor, asset and account pages).
+The editor is rendered by `@json-editor/json-editor <https://github.com/json-editor/json-editor>`_
+and the theme value is passed directly to that library.
+
+Available values:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Value
+     - Appearance
+   * - ``"spectre"``
+     - Spectre CSS styling.
+   * - ``"bootstrap5"``
+     - Bootstrap 5 styling.
+   * - ``"barebones"``
+     - Minimal unstyled HTML.
+   * - ``"html"``
+     - Plain HTML elements only, no extra classes.
+
+Default: ``"spectre"``
 
 
 FLEXMEASURES_ROOT_VIEW
@@ -284,6 +357,16 @@ The default DataSource of the resulting data from `DataGeneration` classes.
 Default: ``"FlexMeasures"``
 
 
+.. _bounding_box_config:
+
+FLEXMEASURES_DEFAULT_BOUNDING_BOX
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The default bounding box of maps if the user has no geolocated assets yet.
+
+Default: ``(54, 2), (50.732, 7.808)`` (`The Netherlands after the oceans drop 50 meters <https://what-if.xkcd.com/53/>`_)
+
+
 .. _planning_horizon_config:
 
 FLEXMEASURES_PLANNING_HORIZON
@@ -354,21 +437,21 @@ SQLALCHEMY_ENGINE_OPTIONS
 
 Configuration of the SQLAlchemy engine.
 
-Default: 
+Default:
 
 .. code-block:: python
 
-       {
-           "pool_recycle": 299,
-           "pool_pre_ping": True,
-           "connect_args": {"options": "-c timezone=utc"},
-       }
+   {
+       "pool_recycle": 299,
+       "pool_pre_ping": True,
+       "connect_args": {"options": "-c timezone=utc"},
+   }
 
 
 SQLALCHEMY_TEST_DATABASE_URI
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When running tests (``make test``, which runs ``pytest``), the default database URI is set in ``utils.config_defaults.TestingConfig``.
+When running tests (``uv run poe test``), the default database URI is set in ``utils.config_defaults.TestingConfig``.
 You can use this setting to overwrite that URI and point the tests to an (empty) database of your choice. 
 
 .. note:: This setting is only supported as an environment variable, not in a config file, and only during testing.
@@ -422,6 +505,8 @@ SECURITY_TOKEN_AUTHENTICATION_HEADER
 
 Name of the header which carries the auth bearer token in API requests.
 
+.. warning:: If you change this, make sure your API clients know about this! For instance, `FlexMeasures Client <https://github.com/FlexMeasures/flexmeasures-client>`_. expects the default.
+
 Default: ``Authorization``
 
 SECURITY_TOKEN_MAX_AGE
@@ -429,13 +514,15 @@ SECURITY_TOKEN_MAX_AGE
 
 Maximal age of security tokens in seconds.
 
+.. note:: Token expiration time can be user-specific, see `SECURITY_TOKEN_EXPIRE_TIMESTAMP <https://flask-security-too.readthedocs.io/en/stable/configuration.html#SECURITY_TOKEN_EXPIRE_TIMESTAMP>`_.
+
 Default: ``60 * 60 * 6``  (six hours)
 
 SECURITY_TRACKABLE
 ^^^^^^^^^^^^^^^^^^
 
 Whether to track user statistics. Turning this on requires certain user fields.
-We do not use this feature, but we do track number of logins.
+FlexMeasures does not use this feature, but does track when a user was last seen and their number of logins.
 
 Default: ``False``
 
@@ -577,6 +664,15 @@ See `here <https://docs.sentry.io/platforms/python/configuration/options/>_` for
 Default: ``{}``
 
 
+FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If ``True``, 404 (Not Found) errors will not be forwarded to Sentry. Online platforms see many automated scans for known vulnerable paths,
+so without this filter, 404 errors can inflate Sentry error budgets unnecessarily.
+
+Default: ``True``
+
+
 FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -672,3 +768,35 @@ FLEXMEASURES_API_SUNSET_LINK
 Allow to override the default sunset link for your clients.
 
 Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/v0.13.0/api/v2_0.html"`` for v2.0)
+
+.. _fallback-redirect-config:
+
+FLEXMEASURES_FALLBACK_REDIRECT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Control how the API handles a failed scheduling job when a fallback schedule has been computed.
+
+If ``True``, the API returns ``HTTP status 303 (See Other)`` with a ``Location`` header pointing to the fallback schedule endpoint.
+Clients must follow this redirect themselves to obtain the fallback schedule (see :ref:`api_see_other`).
+
+If ``False``, the API transparently follows the fallback job and returns the fallback schedule directly in the response.
+
+Default: ``False``
+
+.. _reporters-config:
+
+Reporters
+---------
+
+FLEXMEASURES_REPORTER_VALIDATION_SKIP_METHODS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Type: list of strings or comma-separated string
+
+Defines the set of transformation methods in Pandas Reporters that should **skip signature validation**. These are typically “pseudo-methods” that are not native methods of Pandas or BeliefsDataFrame, but are still allowed in reporter transformations. Arguments for these methods are validated with custom rules rather than against Python method signatures.
+
+Extend this list if you want to permit additional pseudo-methods in reporter pipelines.
+
+.. note::  Only add trusted pseudo-methods here. Since these methods bypass Python signature validation, loosening this list unnecessarily can reduce safety guarantees in your data processing pipeline.
+
+Default: ``["get_attribute"]``

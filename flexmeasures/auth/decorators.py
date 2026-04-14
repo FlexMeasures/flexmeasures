@@ -177,7 +177,12 @@ def permission_required_for_context(
             elif ctx_arg_pos is not None:
                 context_from_args = args[ctx_arg_pos]
             elif ctx_arg_name is not None:
-                context_from_args = kwargs[ctx_arg_name]
+                try:
+                    context_from_args = kwargs[ctx_arg_name]
+                except KeyError as exc:
+                    raise KeyError(
+                        f"The '{ctx_arg_name}' kwarg seems to be missing from the schema after loading."
+                    ) from exc
             elif len(args) > 0:
                 context_from_args = args[0]
 

@@ -8,8 +8,22 @@ class PaginationSchema(Schema):
     per_page = fields.Int(
         required=False, validate=validate.Range(min=1), load_default=10
     )
-    filter = SearchFilterField(required=False)
+    filter = SearchFilterField(
+        required=False,
+        metadata=dict(
+            description="Filter results by this keyword.",
+        ),
+    )
     sort_by = fields.Str(
         required=False,
+        metadata=dict(
+            description="Sort results by this field.",
+        ),
     )
-    sort_dir = fields.Str(required=False, validate=validate.OneOf(["asc", "desc"]))
+    sort_dir = fields.Str(
+        required=False,
+        validate=validate.OneOf(["asc", "desc"]),
+        metadata=dict(
+            description="Sort direction for the results. Ascending ('asc') or descending ('desc').",
+        ),
+    )

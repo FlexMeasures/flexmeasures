@@ -10,6 +10,8 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 from sqlalchemy import select
 
+from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
@@ -36,6 +38,7 @@ from flexmeasures.utils.calculations import (
     integrate_time_series,
 )
 from flexmeasures.tests.utils import get_test_sensor
+from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.utils.unit_utils import convert_units, ur
 
 from pyomo.environ import value
@@ -261,7 +264,7 @@ def run_test_charge_discharge_sign(
         commitments,
     ) = scheduler._prepare(skip_validation=True)
 
-    _, _, results, model = device_scheduler(
+    planned_power_per_device, planned_costs, results, model = device_scheduler(
         device_constraints=device_constraints,
         ems_constraints=ems_constraints,
         commitments=commitments,
@@ -270,6 +273,7 @@ def run_test_charge_discharge_sign(
             for soc_at_start_d in soc_at_start
         ],
     )
+    assert results.solver.termination_condition == "optimal"
 
     device_power_sign = pd.Series(model.device_power_sign.extract_values())[0]
     device_power_up = pd.Series(model.device_power_up.extract_values())[0]
@@ -816,8 +820,8 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
 
     # soc maxima and soc minima
     soc_maxima = [
-        {"datetime": "2015-01-02T15:00:00+01:00", "value": 1.0},
-        {"datetime": "2015-01-02T16:00:00+01:00", "value": 1.0},
+        {"datetime": "2015-01-02T12:00:00+01:00", "value": 1.0},
+        {"datetime": "2015-01-02T13:00:00+01:00", "value": 1.0},
     ]
 
     soc_minima = [{"datetime": "2015-01-02T08:00:00+01:00", "value": 3.5}]
@@ -853,7 +857,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
 
     # test for soc_maxima
     # check that the local maximum constraint is respected
-    assert soc_schedule_2.loc["2015-01-02T15:00:00+01:00"] <= 1.0
+    assert soc_schedule_2.loc["2015-01-02T13:00:00+01:00"] <= 1.0
 
     # test for soc_targets
     # check that the SOC target (at 19 pm, local time) is met
@@ -1787,10 +1791,10 @@ def test_battery_stock_delta_sensor(
         - Battery of size 2 MWh.
         - Consumption capacity of the battery is 2 MW.
         - The battery cannot discharge.
-    With these settings, the battery needs to charge at a power or greater than the usage forecast
+    With these settings, the battery needs to charge at a power equal or greater than the usage forecast
     to keep the SOC within bounds ([0, 2 MWh]).
     """
-    _, battery = get_sensors_from_db(db, add_battery_assets)
+    epex_da, battery = get_sensors_from_db(db, add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -1835,9 +1839,20 @@ def test_battery_stock_delta_sensor(
         with pytest.raises(InfeasibleProblemException):
             scheduler.compute()
     elif stock_delta_sensor is None:
-        # No usage -> the battery does not charge
+        # No usage -> the battery only charges when energy is free
+        free_hour = "2015-01-01 17:00:00+00:00"
+        prices = epex_da.search_beliefs(start, end, resolution=resolution)
+        zero_prices = prices[prices.event_value == 0]
+        assert all(
+            zero_prices.event_starts.hour == pd.Timestamp(free_hour).hour
+        ), "this test assumes a single hour of free energy from 5 to 6 PM UTC"
         schedule = scheduler.compute()
-        assert all(schedule == 0)
+        assert all(
+            schedule[~schedule.index.isin(zero_prices.event_starts)] == 0
+        ), "no charging expected when energy is not free, given no soc-usage"
+        assert all(
+            schedule[schedule.index.isin(zero_prices.event_starts)] == capacity
+        ), "max charging expected when energy is free, because of preference to have a full SoC"
     else:
         # Some usage -> the battery needs to charge
         schedule = scheduler.compute()
@@ -2235,11 +2250,14 @@ def test_battery_storage_different_units(
         battery_name="Test battery",
         power_sensor_name=power_sensor_name,
     )
-    tz = pytz.timezone("Europe/Amsterdam")
+    tz = pytz.timezone(epex_da.timezone)
 
     # transition from cheap to expensive (90 -> 100)
     start = tz.localize(datetime(2015, 1, 2, 14, 0, 0))
     end = tz.localize(datetime(2015, 1, 2, 16, 0, 0))
+    assert len(epex_da.search_beliefs(start, end)) == 2
+    assert epex_da.search_beliefs(start, end).values[0][0] == 90
+    assert epex_da.search_beliefs(start, end).values[1][0] == 100
     resolution = timedelta(minutes=15)
 
     flex_model = {
@@ -2848,19 +2866,18 @@ def test_multiple_devices_simultaneous_scheduler():
         for d, schedule in enumerate(schedules)
     ]
 
-    # Expected results with unfair unmet demand and unfair costs
+    # Expected results with unfair unmet demand and not entirely unfair costs
     expected_schedules = [
-        [0, 0.25, 0, 0, 0.25, 0.25, 0.25]
-        + [0] * 17,  # the first EV leaves later, and takes the four cheapest slots
-        [0, 0, 0.25, 0.25]
-        + [0]
-        * 20,  # the second EV leaves earlier, and takes the remaining (expensive) slots
+        # the first EV leaves later, and takes three of the cheapest slots, and one expensive slot
+        [0, 0, 0, 0.25, 0.25, 0.25, 0.25] + [0] * 17,
+        # the second EV leaves earlier, and takes one cheap slot and the remaining (expensive) slot
+        [0, 0.25, 0.25] + [0] * 21,
     ]
     total_expected_demand_unmet = (
         total_expected_demand - np.array(expected_schedules).sum()
     )
     assert total_expected_demand_unmet > 0
-    expected_individual_costs = [(0, 139.83), (1, 1357.64)]
+    expected_individual_costs = [(0, 889.51), (1, 607.96)]
 
     # Assertions
     assert all(
@@ -3064,3 +3081,90 @@ def test_multiple_devices_sequential_scheduler():
     assert total_cost_all_devices == sum(
         expected_cost[1] for expected_cost in expected_costs
     ), "Total cost mismatch."
+
+
+def test_resolve_soc_at_start_from_sensor_prefers_newest_equally_distant_belief(
+    db, add_battery_assets
+):
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+    state_of_charge_sensor = next(
+        sensor
+        for sensor in battery.generic_asset.sensors
+        if sensor.name == "state of charge"
+    )
+    source = DataSource("state-of-charge-test-source")
+    db.session.add(source)
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+
+    db.session.add_all(
+        [
+            TimedBelief(
+                sensor=state_of_charge_sensor,
+                event_start=as_server_time(start - timedelta(minutes=15)),
+                event_value=1000,
+                belief_horizon=timedelta(0),
+                source=source,
+            ),
+            TimedBelief(
+                sensor=state_of_charge_sensor,
+                event_start=as_server_time(start + timedelta(minutes=15)),
+                event_value=2000,
+                belief_horizon=timedelta(0),
+                source=source,
+            ),
+        ]
+    )
+    db.session.commit()
+
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        start + timedelta(hours=1),
+        timedelta(minutes=15),
+        flex_model={},
+    )
+
+    assert (
+        scheduler._resolve_soc_at_start_from_sensor(
+            state_of_charge_sensor,
+            {"soc-max": "5 MWh"},
+            battery,
+        )
+        == 2
+    )
+
+
+def test_resolve_soc_at_start_from_time_series_prefers_newest_boundary_value(
+    db, add_battery_assets
+):
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        start + timedelta(hours=1),
+        timedelta(minutes=15),
+        flex_model={},
+    )
+
+    assert (
+        scheduler._resolve_soc_at_start_from_time_series(
+            [
+                {
+                    "start": (start - timedelta(minutes=15)).isoformat(),
+                    "end": start.isoformat(),
+                    "value": "1 MWh",
+                },
+                {
+                    "start": start.isoformat(),
+                    "end": (start + timedelta(minutes=15)).isoformat(),
+                    "value": "2 MWh",
+                },
+            ],
+            battery,
+        )
+        == 2
+    )

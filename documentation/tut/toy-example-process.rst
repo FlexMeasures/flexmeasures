@@ -1,6 +1,6 @@
 .. _tut_toy_schedule_process:
 
-Toy example III: Computing schedules for processes
+Toy example IV: Computing schedules for processes
 ====================================================
 
 Until this point we've been using a static battery, one of the most flexible energy assets, to reduce electricity bills. A battery can modulate rather freely, and both charge and discharge.

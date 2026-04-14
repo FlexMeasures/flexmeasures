@@ -307,6 +307,177 @@ def test_efficiency_pair(
             },
             False,
         ),
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kWh",
+                        "up-price": "100 EUR/MWh",
+                        "down-price": "120 EUR/MWh",
+                    }
+                ]
+            },
+            {"commitments.0.baseline": "Cannot convert value `10 kWh` to 'MW'"},
+        ),
+        # Energy price units with a power baseline
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MWh",
+                        "down-price": "120 EUR/MWh",
+                    }
+                ]
+            },
+            False,
+        ),
+        # Power price units with a power baseline
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MW",
+                        "down-price": "120 EUR/MW",
+                    }
+                ]
+            },
+            False,
+        ),
+        # Mixed (power and energy) price units with a power baseline
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MW",
+                        "down-price": "120 EUR/MWh",
+                    }
+                ]
+            },
+            False,
+        ),
+        # One-day commitment
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": [
+                            {
+                                "value": "10 kW",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                        "up-price": [
+                            {
+                                "value": "100 EUR/MWh",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                        "down-price": [
+                            {
+                                "value": "120 EUR/MWh",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                    }
+                ]
+            },
+            False,
+        ),
+        # One-day commitment with wrong baseline unit
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": [
+                            {
+                                "value": "10 kW/h",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                        "up-price": [
+                            {
+                                "value": "100 EUR/MWh",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                        "down-price": [
+                            {
+                                "value": "120 EUR/MWh",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                    }
+                ]
+            },
+            {
+                "commitments.0.baseline.0.value": "Cannot convert value `10 kW/h` to 'MW'"
+            },
+        ),
+        # One-day commitment with wrong price unit
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": [
+                            {
+                                "value": "10 kW",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                        "up-price": [
+                            {
+                                "value": "100 EUR/MWh/h",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                        "down-price": [
+                            {
+                                "value": "120 EUR/MWh",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                    }
+                ]
+            },
+            {
+                "commitments.0.up-price": "Commitment up-price must have a power or energy unit in its denominator."
+            },
+        ),
+        # Ramp price units with a power baseline
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MW/h",
+                        "down-price": "120 EUR/MW/h",
+                    }
+                ]
+            },
+            {
+                "commitments.0.up-price": "Commitment up-price must have a power or energy unit in its denominator."
+            },
+        ),
     ],
 )
 def test_flex_context_schema(
@@ -322,21 +493,28 @@ def test_flex_context_schema(
                 field_value["sensor"]
             ].id
 
+    check_schema_loads_data(schema=schema, data=flex_context, fails=fails)
+
+
+def check_schema_loads_data(schema, data, fails):
     if fails:
         with pytest.raises(ValidationError) as e_info:
-            schema.load(flex_context)
-        print(e_info.value.messages)
+            schema.load(data)
+        print(f"Returned error message: {e_info.value.messages}")
         for field_name, expected_message in fails.items():
+            field_name, *nested_field_names = field_name.split(".")
             assert field_name in e_info.value.messages
-            # Check all messages for the given field for the expected message
-            assert any(
-                [
-                    expected_message in message
-                    for message in e_info.value.messages[field_name]
-                ]
-            )
+            # Check whether the expected messages is one of the message for the given field
+            messages = e_info.value.messages[field_name]
+
+            # Look for message in nested field name, such as commitments.0.baseline
+            for nested_field_name in nested_field_names:
+                if nested_field_name.isdigit():
+                    nested_field_name = int(nested_field_name)
+                messages = messages[nested_field_name]
+            assert any(expected_message in message for message in messages)
     else:
-        schema.load(flex_context)
+        schema.load(data)
 
 
 # test DBFlexContextSchema
@@ -471,6 +649,54 @@ def test_flex_context_schema(
             {"site-peak-consumption-price": "700 EUR/MW"},
             False,
         ),
+        # Energy price units with a power baseline, also works in DBFlexContext
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MWh",
+                        "down-price": "120 EUR/MWh",
+                    }
+                ]
+            },
+            False,
+        ),
+        # One-day commitment not allowed in DBFlexContext
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": [
+                            {
+                                "value": "10 kW",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                        "up-price": [
+                            {
+                                "value": "100 EUR/MWh",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                        "down-price": [
+                            {
+                                "value": "120 EUR/MWh",
+                                "start": "2025-03-18T00:00+01:00",
+                                "duration": "P1D",
+                            }
+                        ],
+                    }
+                ]
+            },
+            {
+                "commitments.0.baseline": "A time series specification (listing segments) is not supported when storing flex-context fields. Use a fixed quantity or a sensor reference instead."
+            },
+        ),
     ],
 )
 def test_db_flex_context_schema(
@@ -489,21 +715,7 @@ def test_db_flex_context_schema(
             elif field_value["sensor"] == "placeholder for price sensor":
                 flex_context[field_name]["sensor"] = price_sensor.id
 
-    if fails:
-        with pytest.raises(ValidationError) as e_info:
-            schema.load(flex_context)
-        print(e_info.value.messages)
-        for field_name, expected_message in fails.items():
-            assert field_name in e_info.value.messages
-            # Check all messages for the given field for the expected message
-            assert any(
-                [
-                    expected_message in message
-                    for message in e_info.value.messages[field_name]
-                ]
-            )
-    else:
-        schema.load(flex_context)
+    check_schema_loads_data(schema=schema, data=flex_context, fails=fails)
 
 
 @pytest.mark.parametrize(

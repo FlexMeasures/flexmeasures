@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from datetime import timedelta, datetime
+
 from sqlalchemy import select
 
 from flexmeasures import Asset, User
@@ -59,15 +63,18 @@ def message_for_trigger_schedule(
     too_far_into_the_future_targets: bool = False,
     use_time_window: bool = False,
     use_perfect_efficiencies: bool = False,
+    resolution: str | None = None,
 ) -> dict:
     message = {
         "start": "2015-01-01T00:00:00+01:00",
         "duration": "PT24H",  # Will be extended in case of targets that would otherwise lie beyond the schedule's end
     }
+    if resolution:
+        # The sensor resolution is 15 minutes, but we can override the scheduling resolution here
+        message["resolution"] = resolution
     if unknown_prices:
-        message["start"] = (
-            "2040-01-01T00:00:00+01:00"  # We have no beliefs in our test database about 2040 prices
-        )
+        # We have no beliefs in our test database about 2040 prices
+        message["start"] = "2040-01-01T00:00:00+01:00"
 
     message["flex-model"] = {
         "soc-at-start": 12.1,  # in kWh, according to soc-unit
@@ -126,3 +133,62 @@ def check_audit_log_event(
         )
     ).scalar()
     assert logs, f"expected audit log event: {event}"
+
+
+def parse_resolution(resolution_str):
+    """
+    Parses a resolution string (e.g., '10m', '30min', '1h') into a timedelta object.
+    """
+    import re
+
+    # Regular expression to capture the number and the unit (m/min/h)
+    match = re.match(r"(\d+)\s*(m|min|h)", resolution_str, re.I)
+    if not match:
+        raise ValueError(
+            f"Invalid resolution format: {resolution_str}. Use formats like '10m', '30min', '1h'."
+        )
+
+    value = int(match.group(1))
+    unit = match.group(2).lower()
+
+    if unit in ("m", "min"):
+        return timedelta(minutes=value)
+    elif unit == "h":
+        return timedelta(hours=value)
+    else:
+        # This would probably not be reached due to the regex, but just in case
+        raise ValueError(f"Unsupported time unit: {unit}")
+
+
+def generate_csv_content(
+    start_time_str: str, interval: timedelta, values: list[float]
+) -> str:
+    """
+    Generates a CSV-formatted string with a specified time resolution.
+
+    Args:
+        start_time_str (str): The starting timestamp (e.g., '2021-01-01T00:10:00+00:00').
+        resolution_str (str): The interval length (e.g., '10m', '30min', '1h').
+        values (list of floats): The values to use.
+
+    Returns:
+        str: The generated CSV content.
+    """
+    # Convert the starting time string to a datetime object
+    current_time = datetime.fromisoformat(start_time_str)
+
+    # Build the CSV content
+    csv_rows = ["Hour,price"]  # Header row
+
+    for value in values:
+        # Format the timestamp back into the required string format
+        timestamp_str = current_time.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+        # Add new row to CSV content
+        csv_rows.append(f"{timestamp_str},{value}")
+
+        # Increment the time for the next interval
+        current_time += interval
+
+    # Join all rows
+    return "\n".join(csv_rows)

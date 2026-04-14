@@ -7,11 +7,6 @@ To install FlexMeasures, plus the libraries and databases it depends on, on your
 
 For this, we assume you are in the directory (in the `FlexMeasures git repository <https://github.com/FlexMeasures/flexmeasures>`_) housing ``docker-compose.yml``.
 
-
-.. note:: The minimum Docker version is 17.09 and for docker-compose we tested successfully at version 1.25. You can check your versions with ``docker[-compose] --version``.
-
-.. note:: The command might also be ``docker compose`` (no dash), for instance if you are using `Docker Desktop <https://docs.docker.com/desktop>`_.
-
 Build the compose stack
 ------------------------
 
@@ -19,7 +14,7 @@ Run this:
 
 .. code-block:: bash
 
-    $ docker-compose build
+    $ docker compose build
 
 This pulls the images you need, and re-builds the FlexMeasures ones from code. If you change code, re-running this will re-build that image.
 
@@ -36,11 +31,11 @@ Start the stack like this:
 
 .. code-block:: bash
 
-    $ docker-compose up
+    $ docker compose up
 
 .. warning:: This might fail if ports 5000 (Flask) or 6379 (Redis) are in use on your system. Stop these processes before you continue.
 
-Check ``docker ps`` or ``docker-compose ps`` to see if your containers are running:
+Check ``docker ps`` or ``docker compose ps`` to see if your containers are running:
 
 
 .. code-block:: bash
@@ -57,7 +52,7 @@ Check ``docker ps`` or ``docker-compose ps`` to see if your containers are runni
 
 The FlexMeasures server container has a health check implemented, which is reflected in this output and you can see which ports are available on your machine to interact.
 
-You can use the terminal or ``docker-compose logs`` to look at output. ``docker inspect <container>`` and ``docker exec -it <container> bash`` can be quite useful to dive into details. 
+You can use the terminal or ``docker compose logs`` to look at output. ``docker inspect <container>`` and ``docker exec -it <container> bash`` can be quite useful to dive into details. 
 We'll see the latter more in this tutorial.
 
 
@@ -72,13 +67,15 @@ In case your configuration loads FlexMeasures plugins that have additional depen
 Data
 -------
 
-The postgres database is a test database with toy data filled in when the flexmeasures container starts.
-You could also connect it to some other database (on your PC, in the cloud), by setting a different ``SQLALCHEMY_DATABASE_URI`` in the config. 
-The database within the ``dev-db`` postgres container resides in ``/var/lib/postgresql/data``, which we map the local path ``./docker-compose-data/dev-db`` for persistence.
-A manual backup of the database can be made by copying this directory.
+The postgres database is a test database with toy data filled in when the flexmeasures container starts for the first time.
+You could also connect it to some other database (on your PC, in the cloud), by setting a different ``SQLALCHEMY_DATABASE_URI`` in the config.
 
-.. note:: For a fresh start, you can delete this directory: ``rm -rf ./docker-compose-data/dev-db`` (``sudo`` might be required, if this directory was created by ``docker``). The database will be re-initialized when you restart the stack.
+The database within the ``dev-db`` Postgres container resides in ``/var/lib/postgresql/data``, which we map the local path ``./docker-compose-data/dev-db`` so as developer you can have persistence for your data across re-building the compose stack.
 
+* A manual backup of the database can be made by copying this directory.
+* For a fresh start, you can delete this directory: ``rm -rf ./docker-compose-data/dev-db`` (``sudo`` might be required, if this directory was created by ``docker``). The database will be re-initialized when you restart the stack.
+
+.. warning:: We fix the Postgres version in ``docker-compose.yml``. Postgres sometimes requires structural changes between version upgrades. Deleting your dev db and re-creating it is one option. Another is `this upgrade procedure <https://helgeklein.com/blog/upgrading-postgresql-in-docker-container/>`_ if you want to continue with your dev data.
 
 
 .. _docker-compose-tutorial:
@@ -88,7 +85,7 @@ Seeing it work: Running the toy tutorial
 
 A good way to see if these containers work well together, and maybe to inspire how to use them for your own purposes, is the :ref:`tut_toy_schedule`.
 
-The `flexmeasures-server` container already creates the toy account when it starts (see its initial command). We'll now walk through the rest of the toy tutorial, with one twist at the end, when we create the battery schedule.
+The `flexmeasures-server` container creates the toy account only the first time it starts (signalled by the ``flexmeasures-instance/.toy-account-created`` file, which is created after the first run). We'll now walk through the rest of the toy tutorial, with one twist at the end, when we create the battery schedule.
 
 Let's go into the `flexmeasures-worker` container:
 
@@ -104,7 +101,7 @@ Next, we put a scheduling job in the worker's queue. This only works because we 
 
     $ flexmeasures add schedule --sensor 2 \
         --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
-        --flex-model '{"roundtrip-efficiency": "90%"}' --as-job
+        --flex-model '{"soc-min": "50 kWh"}' --as-job
 
 We should now see in the output of ``docker logs flexmeasures-worker-1`` something like the following:
 
@@ -151,6 +148,18 @@ Like in the original toy tutorial, we can also check in the server container's `
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
+|
+
+.. note::
+    Actually, we keep scripts for the first 5 tutorial steps. You can run them easily (just do it in order):
+    
+    .. code-block:: bash
+
+        $ ./documentation/tut/scripts/run-tutorial-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial2-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial3-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial4-in-docker.sh
+        $ ./documentation/tut/scripts/run-tutorial5-in-docker.sh
 
 
 Email Testing
@@ -179,7 +188,7 @@ Running tests
 
 You can run tests in the flexmeasures docker container, using the database service ``test-db`` in the compose file (per default, we are using the ``dev-db`` database service).
 
-After you've started the compose stack with ``docker-compose up``, run:
+After you've started the compose stack with ``docker compose up``, run:
 
 .. code-block:: bash
 

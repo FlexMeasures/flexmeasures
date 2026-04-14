@@ -51,19 +51,21 @@ class AuthRequestSchema(Schema):
     )
 
 
-class UserPaginationSchema(PaginationSchema):
+class UserAuditlogSchema(PaginationSchema):
+    sort_by = fields.Str(
+        required=False,
+        validate=validate.OneOf(
+            ["username", "email", "event_datetime", "lastLogin", "lastSeen"]
+        ),
+    )
+
+
+class UserAPIQuerySchema(PaginationSchema):
     sort_by = fields.Str(
         required=False,
         validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
     )
-
-
-class UserAPIQuerySchema(UserPaginationSchema):
-    sort_by = fields.Str(
-        required=False,
-        validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
-    )
-    account = AccountIdField(data_key="account_id", load_default=None)
+    account = AccountIdField(data_key="account_id", required=False)
     include_inactive = fields.Bool(load_default=False)
 
 
@@ -81,7 +83,7 @@ class UserAPI(FlaskView):
     @as_json
     def index(
         self,
-        account: Account,
+        account: Account = None,
         include_inactive: bool = False,
         page: int | None = None,
         per_page: int | None = None,
@@ -532,7 +534,7 @@ class UserAPI(FlaskView):
         pass_ctx_to_loader=True,
         ctx_loader=AuditLog.user_table_acl,
     )
-    @use_kwargs(UserPaginationSchema, location="query")
+    @use_kwargs(UserAuditlogSchema, location="query")
     @as_json
     def auditlog(
         self,
@@ -564,7 +566,7 @@ class UserAPI(FlaskView):
               description: ID of the user to get the audit log for.
             - in: query
               name: kwargs
-              schema: UserPaginationSchema
+              schema: UserAuditlogSchema
           security:
             - ApiKeyAuth: []
           responses:

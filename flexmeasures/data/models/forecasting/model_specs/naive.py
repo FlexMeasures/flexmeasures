@@ -1,4 +1,3 @@
-from typing import Optional
 from datetime import timedelta
 
 from statsmodels.api import OLS
@@ -19,7 +18,7 @@ a prediction from there with this horizon?
 # update this version if small things like parametrisation change
 version: int = 1
 # if a forecasting job using this model fails, fall back on this one
-fallback_model_search_term: Optional[str] = None
+fallback_model_search_term: str | None = None
 
 
 class Naive(OLS):

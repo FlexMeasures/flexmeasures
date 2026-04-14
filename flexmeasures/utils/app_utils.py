@@ -15,8 +15,9 @@ from flask_security import current_user
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.integrations.rq import RqIntegration
-from pkg_resources import get_distribution
+from werkzeug.exceptions import NotFound
 
+from flexmeasures import __version__ as fm_version
 from flexmeasures.app import create as create_app
 
 
@@ -29,6 +30,15 @@ def flexmeasures_cli():
     # We use @app_context above, so things from the app setup are initialised
     # only once! This is crucial for Sentry, for example.
     pass
+
+
+def _sentry_filter_notfound(event, hint):
+    """Filter out 404 Not Found errors to avoid inflating Sentry error budgets."""
+    if "exc_info" in hint:
+        exc_type, exc_value, _tb = hint["exc_info"]
+        if isinstance(exc_value, NotFound):
+            return None
+    return event
 
 
 def init_sentry(app: Flask):
@@ -44,13 +54,21 @@ def init_sentry(app: Flask):
         )
         return
     app.logger.info("[FLEXMEASURES] Initialising Sentry ...")
+
+    before_send = (
+        _sentry_filter_notfound
+        if app.config.get("FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY")
+        else None
+    )
+
     sentry_sdk.init(
         dsn=sentry_dsn,
         integrations=[FlaskIntegration(), RqIntegration()],
         debug=app.debug,
-        release=f"flexmeasures@{get_distribution('flexmeasures').version}",
+        release=f"flexmeasures@{fm_version}",
         send_default_pii=True,  # user data (current user id, email address, username) is attached to the event.
         environment=app.config.get("FLEXMEASURES_ENV"),
+        before_send=before_send,
         **app.config["FLEXMEASURES_SENTRY_CONFIG"],
     )
     sentry_sdk.set_tag("mode", app.config.get("FLEXMEASURES_MODE"))

@@ -1,0 +1,273 @@
+<footer class="page-footer font-small pt-4 mt-auto">
+  <div class="footer text-center">
+    <div class="container-fluid">
+      {% block copyright_notice %} FlexMeasures technology is created by
+      <a href="https://seita.nl/">Seita Energy Flexibility</a>, in cooperation
+      with <a href="https://aoneeng.com/">A1 Engineering</a>
+      &copy
+      <script>
+        var CurrentYear = new Date().getFullYear();
+        document.write(CurrentYear);
+      </script>
+      . {% endblock copyright_notice %} {% block about %}
+      <a href="#" data-bs-toggle="modal" data-bs-target="#About"
+        >About FlexMeasures</a
+      >.
+      <!-- The modal -->
+      <div
+        class="modal fade"
+        id="About"
+        tabindex="-1"
+        role="dialog"
+        aria-labelledby="modalLabelLarge"
+        aria-hidden="true"
+      >
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h4 class="modal-title" id="modalLabelLarge">
+                About FlexMeasures
+              </h4>
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+              ></button>
+            </div>
+
+            <div class="modal-body">
+              <div class="justify">
+                <p>
+                  In a world with renewable energy, flexibility is crucial for
+                  cost and CO₂ reduction. Planning ahead allows flexible devices
+                  to profit from scheduling the best flexible actions (such as
+                  shifting or curtailing energy use).
+                </p>
+                <p>
+                  The {{ FLEXMEASURES_PLATFORM_NAME }} Platform is a tool for
+                  businesses operating energy devices. Its purpose is to realise
+                  the best value for device owners by scheduling balancing
+                  actions. For instance, if the devices draw from or supply to
+                  the power grid, {{ FLEXMEASURES_PLATFORM_NAME }} can assist in
+                  selling balancing services to energy markets. It fulfills this
+                  purpose with three services: Monitoring, forecasting and
+                  scheduling. {{ FLEXMEASURES_PLATFORM_NAME }} is designed as
+                  open-source software to empower energy service companies while
+                  they maintain autonomy over their operations and their
+                  technology roadmap. Read more
+                  <a href="https://flexmeasures.readthedocs.io">here</a>.
+                </p>
+                <p>
+                  {{ FLEXMEASURES_PLATFORM_NAME }} is compliant with the
+                  Universal Smart Energy Framework (<a
+                    href="https://www.usef.energy/download-the-framework/a-flexibility-market-design/"
+                    >USEF</a
+                  >), a “flexibility market design for the trading and
+                  commoditisation of energy flexibility and the architecture,
+                  tools and rules to make it work effectively. USEF fits on top
+                  of most market models and is already being adopted across
+                  Europe to accelerate and future-proof smart energy projects.”
+                </p>
+                {% if current_user.has_role('anonymous') and
+                current_user.has_role('CPO') %}
+                <p>
+                  This demo is tuned to operators of charge points for electric
+                  vehicles (EVs). The terminology used follows the Open Charge
+                  Point Interface (<a href="https://ocpi-protocol.org/">OCPI</a
+                  >). This dashboard shows you the locations of all charge
+                  points connected to the platform and how they are doing. Each
+                  charge point contains multiple chargers&mdash;called Electric
+                  Vehicle Supply Equipment (EVSE) in OCPI&mdash;which are
+                  monitored individually (click on a charge point location to
+                  reveal its EVSE).
+                </p>
+                <p>
+                  {{ FLEXMEASURES_PLATFORM_NAME }} supports automated scheduling
+                  of charging profiles through its API. Charging profiles are
+                  optimised against applicable market conditions like wholesale
+                  prices and contracted (time-of-use) tariffs. Charging
+                  preferences can be set to reflect whether EV owners are in a
+                  hurry or parking for some time.
+                </p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {% endblock about %} {% block credits %}
+      <a href="#" data-bs-toggle="modal" data-bs-target="#Credits">Credits</a>.
+
+      <!-- The modal -->
+      <div
+        class="modal fade"
+        id="Credits"
+        tabindex="-1"
+        role="dialog"
+        aria-labelledby="modalLabelLarge"
+        aria-hidden="true"
+      >
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h4 class="modal-title" id="modalLabelLarge">Credits</h4>
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+              ></button>
+            </div>
+
+            <div class="modal-body">
+              <div class="row">
+                <div class="col-md-6">
+                  <h3>Images from <a href="https://seita.nl">Seita</a></h3>
+                  <div>
+                    FlexMeasures on laptop - image by
+                    <a href="https://drakemultimedia.nl/" title="Bobby Drake"
+                      >Bobby Drake</a
+                    >
+                  </div>
+                  <h3>
+                    Images from
+                    <a href="https://unsplash.com/" title="Unsplash"
+                      >Unsplash</a
+                    >
+                  </h3>
+                  <div>
+                    Tesla charging station - image by
+                    <a href="https://www.chasealewis.com/" title="Chase Lewis"
+                      >Chase Lewis</a
+                    >
+                  </div>
+                  <div>
+                    Wind turbines on top of mountain - image by
+                    <a href="https://www.tbk-f.com/" title="TJ K.">TJ K.</a>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <h3>
+                    Icons from
+                    <a href="https://www.flaticon.com/" title="Flaticon"
+                      >Flaticon</a
+                    >
+                  </h3>
+                  <div>
+                    <a
+                      href="https://www.flaticon.com/free-icon/wind-power_1085695"
+                      >Wind turbine</a
+                    >
+                    - icon by
+                    <a
+                      href="https://www.flaticon.com/authors/good-ware"
+                      title="Good Ware"
+                      >Good Ware</a
+                    >
+                    (made to spin by Seita)
+                  </div>
+                  <div>
+                    <a
+                      href="https://www.flaticon.com/search?word=currency&author_id=258"
+                      >Coins</a
+                    >
+                    - icons by
+                    <a
+                      href="https://www.flaticon.com/authors/pixelmeetup"
+                      title="Pixelmeetup"
+                      >Pixelmeetup</a
+                    >
+                  </div>
+                  <div>
+                    Other icons by
+                    <a href="https://www.freepik.com" title="Freepik"
+                      >Freepik</a
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-header">
+              We did our best to give credit to the original photographers and
+              illustrators for the images included on this website. If we have
+              not properly credited an original photographer or illustrator,
+              please notifiy us and we will make the appropriate changes
+              necessary.
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endblock credits %}
+
+      <br />
+
+      {% block support %}
+      {% if FLEXMEASURES_SUPPORT_PAGE %}
+      <a
+        href="{{ FLEXMEASURES_SUPPORT_PAGE }}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+          Get Support
+      </a>.
+      {% endif %}
+      {% endblock support %}
+      
+      {% block signup %}
+      {% if FLEXMEASURES_SIGNUP_PAGE %}
+      <a
+        href="{{ FLEXMEASURES_SIGNUP_PAGE }}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+          Sign up
+      </a>.
+      {% endif %}
+      {% endblock signup %}
+
+      {% block termsofservice %}
+      {% if FLEXMEASURES_TOS_PAGE %}
+      <a
+        href="{{ FLEXMEASURES_TOS_PAGE }}"
+        target="_blank"
+        rel="noopener noreferrer"
+        >Terms of Service</a
+      >.
+      {% endif %}
+      {% endblock termsofservice %}
+      
+      {% block technical_info %} 
+      {# We might render templates from plugins, where this meta info is not available #}
+      {% if app_running_since %}
+      This app is running since {{ app_running_since }}
+      {% endif %}
+      {% if (flexmeasures_version or git_version) and not current_user.has_role('anonymous') %}
+        {% if flexmeasures_version %}
+          on version {{ flexmeasures_version }}.
+        {% else %}
+          {% if git_version != "Unknown" %}
+          on version {{ git_version }}+{{ git_commits_since }}.
+          {% else %}
+          on revision {{ git_hash }}.
+          {% endif %}
+        {% endif %}
+      {% endif %}
+      {% if loaded_plugins %}
+      Loaded plugins: {{ loaded_plugins }}.
+      {% endif %}
+      {% endblock technical_info %}
+    </div>
+    {% block logo %}
+    <div>
+      <a href="https://flexmeasures.io/"
+        ><img
+          src="https://artwork.lfenergy.org/projects/flexmeasures/icon/white/flexmeasures-icon-white.svg"
+          alt="FlexMeasures"
+          class="footer-logo"
+      /></a>
+    </div>
+    {% endblock logo %}
+  </div>
+</footer>

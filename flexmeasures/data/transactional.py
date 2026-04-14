@@ -43,7 +43,7 @@ def as_transaction(db_function):
                 "[%s] Encountered Problem: %s" % (db_function.__name__, str(e))
             )
             the_db.session.rollback()
-            raise
+            raise  # re-raise the last exception that was caught
         finally:
             if close_session:
                 the_db.session.close()

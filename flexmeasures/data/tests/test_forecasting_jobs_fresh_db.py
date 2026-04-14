@@ -14,7 +14,7 @@ from flexmeasures.data.tests.test_forecasting_jobs import (
     check_failures,
     get_data_source,
 )
-from flexmeasures.data.tests.utils import work_on_rq
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.utils.time_utils import as_server_time
 
 

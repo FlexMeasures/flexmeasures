@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from functools import wraps
+from numpy import pi
 from typing import Callable
 
 import altair as alt
 
 
 FONT_SIZE = 16
+STROKE_WIDTH = 2
 ANNOTATION_MARGIN = 16
 HEIGHT = 300
 WIDTH = "container"
@@ -88,8 +90,6 @@ REPLAY_RULER = {
 SHADE_LAYER = {
     "mark": {
         "type": "bar",
-        "color": "#bbbbbb",
-        "opacity": 0.3,
         "size": HEIGHT,
     },
     "encoding": {
@@ -103,6 +103,36 @@ SHADE_LAYER = {
             type="temporal",
             title=None,
         ),
+        "color": {
+            "condition": [
+                {
+                    "param": "select",
+                    "empty": False,
+                    "value": "var(--secondary-color)",  # highlight color on select
+                },
+                {
+                    "param": "highlight",
+                    "empty": False,
+                    "value": "var(--secondary-hover-color)",  # highlight color on hover
+                },
+            ],
+            "value": "var(--gray)",  # default color
+        },
+        "opacity": {
+            "condition": [
+                {
+                    "param": "select",
+                    "empty": False,
+                    "value": 0.8,
+                },
+                {
+                    "param": "highlight",
+                    "empty": False,
+                    "value": 0.7,
+                },
+            ],
+            "value": 0.3,
+        },
     },
     "params": [
         {
@@ -115,6 +145,7 @@ SHADE_LAYER = {
 TEXT_LAYER = {
     "mark": {
         "type": "text",
+        "clip": False,
         "y": HEIGHT,
         "dy": FONT_SIZE + ANNOTATION_MARGIN,
         "baseline": "top",
@@ -154,7 +185,7 @@ LEGIBILITY_DEFAULTS = dict(
         ),
         axisY={"titleAngle": 0, "titleAlign": "left", "titleY": -15, "titleX": -40},
         title=dict(
-            fontSize=FONT_SIZE,
+            fontSize=FONT_SIZE * 1.25,
         ),
         legend=dict(
             titleFontSize=FONT_SIZE,
@@ -163,6 +194,11 @@ LEGIBILITY_DEFAULTS = dict(
             orient="bottom",
             columns=1,
             direction="vertical",
+            symbolSize=(
+                100 if STROKE_WIDTH <= 2 else 100 + 800 / 3 / pi * (STROKE_WIDTH - 2)
+            ),
+            symbolStrokeWidth=STROKE_WIDTH,
+            labelOffset=2 * STROKE_WIDTH,
         ),
     ),
 )
