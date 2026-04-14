@@ -182,51 +182,48 @@ def cleanup_sensor_references_in_assets(sensor_id: int) -> int:
     Returns the number of updated assets.
     """
 
-    if db.engine.dialect.name == "postgresql":
-        vars_json = sa.func.jsonb_build_object("sid", sensor_id)
-        candidates = db.session.scalars(
-            sa.select(GenericAsset).where(
-                sa.or_(
-                    sa.func.jsonb_path_exists(
-                        GenericAsset.flex_model,
-                        "$.**.sensor ? (@ == $sid)",
-                        vars_json,
-                    ),
-                    sa.func.jsonb_path_exists(
-                        GenericAsset.flex_context,
-                        "$.**.sensor ? (@ == $sid)",
-                        vars_json,
-                    ),
-                    sa.func.jsonb_path_exists(
-                        GenericAsset.flex_context,
-                        '$."inflexible-device-sensors"[*] ? (@ == $sid)',
-                        vars_json,
-                    ),
-                    sa.func.jsonb_path_exists(
-                        GenericAsset.sensors_to_show,
-                        "$.**.sensor ? (@ == $sid)",
-                        vars_json,
-                    ),
-                    sa.func.jsonb_path_exists(
-                        GenericAsset.sensors_to_show,
-                        "$.**.sensors[*] ? (@ == $sid)",
-                        vars_json,
-                    ),
-                    sa.func.jsonb_path_exists(
-                        GenericAsset.sensors_to_show,
-                        "$[*] ? (@ == $sid)",
-                        vars_json,
-                    ),
-                    sa.func.jsonb_path_exists(
-                        GenericAsset.sensors_to_show_as_kpis,
-                        "$.**.sensor ? (@ == $sid)",
-                        vars_json,
-                    ),
-                )
+    vars_json = sa.func.jsonb_build_object("sid", sensor_id)
+    candidates = db.session.scalars(
+        sa.select(GenericAsset).where(
+            sa.or_(
+                sa.func.jsonb_path_exists(
+                    GenericAsset.flex_model,
+                    "$.**.sensor ? (@ == $sid)",
+                    vars_json,
+                ),
+                sa.func.jsonb_path_exists(
+                    GenericAsset.flex_context,
+                    "$.**.sensor ? (@ == $sid)",
+                    vars_json,
+                ),
+                sa.func.jsonb_path_exists(
+                    GenericAsset.flex_context,
+                    '$."inflexible-device-sensors"[*] ? (@ == $sid)',
+                    vars_json,
+                ),
+                sa.func.jsonb_path_exists(
+                    GenericAsset.sensors_to_show,
+                    "$.**.sensor ? (@ == $sid)",
+                    vars_json,
+                ),
+                sa.func.jsonb_path_exists(
+                    GenericAsset.sensors_to_show,
+                    "$.**.sensors[*] ? (@ == $sid)",
+                    vars_json,
+                ),
+                sa.func.jsonb_path_exists(
+                    GenericAsset.sensors_to_show,
+                    "$[*] ? (@ == $sid)",
+                    vars_json,
+                ),
+                sa.func.jsonb_path_exists(
+                    GenericAsset.sensors_to_show_as_kpis,
+                    "$.**.sensor ? (@ == $sid)",
+                    vars_json,
+                ),
             )
-        ).all()
-    else:
-        candidates = db.session.scalars(sa.select(GenericAsset)).all()
+        )
+    ).all()
 
     changed_assets = 0
     for asset in candidates:
