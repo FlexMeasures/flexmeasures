@@ -1507,12 +1507,12 @@ class SensorAPI(FlaskView):
                 format: date-time
             - in: query
               name: sort_keys
-              description: Whether to sort the stats by keys.
+              description: Whether to sort the stats by keys (defaults to true).
               schema:
                 type: boolean
             - in: query
               name: fresh
-              description: Whether to compute fresh data, bypassing any cached results.
+              description: Whether to compute fresh data, bypassing any cached results (defaults to false).
               schema:
                 type: boolean
           responses:
