@@ -900,7 +900,7 @@ class MetaStorageScheduler(Scheduler):
                 device_constraints[d]["efficiency"] = storage_efficiency[d]
 
             # Convert efficiency from sensor resolution to scheduling resolution
-            if sensor_d.event_resolution != timedelta(0):
+            if sensor_d is not None and sensor_d.event_resolution != timedelta(0):
                 device_constraints[d]["efficiency"] **= (
                     resolution / sensor_d.event_resolution
                 )
