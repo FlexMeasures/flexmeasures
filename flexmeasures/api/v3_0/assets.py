@@ -1752,7 +1752,10 @@ class AssetAPI(FlaskView):
         if resolved_parent is not None:
             check_access(resolved_parent, "create-children")
 
-        new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)
+        try:
+            new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)
+        except ValueError as err:
+            return unprocessable_entity(str(err))
 
         account_given = "account" in request.args
         parent_given = "parent" in request.args

@@ -490,6 +490,23 @@ def _determine_copy_name(
     return f"{source_name} (Copy {max_index + 1})"
 
 
+def _asset_is_in_subtree(root_asset_id: int, candidate_asset_id: int) -> bool:
+    """Return True if candidate_asset_id is root or a descendant of root_asset_id."""
+    current_asset_id = candidate_asset_id
+    visited: set[int] = set()
+
+    while current_asset_id is not None and current_asset_id not in visited:
+        if current_asset_id == root_asset_id:
+            return True
+        visited.add(current_asset_id)
+        current_asset = db.session.get(GenericAsset, current_asset_id)
+        if current_asset is None:
+            return False
+        current_asset_id = current_asset.parent_asset_id
+
+    return False
+
+
 def copy_asset(
     asset: GenericAsset,
     account=None,
@@ -530,6 +547,14 @@ def copy_asset(
         else:
             target_account_id = int(account.id)
             target_parent_asset_id = int(parent_asset.id)
+
+        if target_parent_asset_id is not None and _asset_is_in_subtree(
+            root_asset_id=asset.id,
+            candidate_asset_id=target_parent_asset_id,
+        ):
+            raise ValueError(
+                "Invalid copy target parent: cannot copy an asset to itself or any of its descendants."
+            )
 
         copied_root, sensor_id_map = _copy_asset_subtree(
             source_asset=asset,

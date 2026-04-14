@@ -1150,3 +1150,66 @@ def test_copy_asset_api_copies_direct_sensors(
         user=requesting_user,
         asset=copied_asset,
     )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_copy_asset_api_rejects_copy_to_self(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """Copying an asset into itself should be rejected with 422."""
+    prosumer_account = setup_accounts["Prosumer"]
+    source_asset = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    assert source_asset is not None
+
+    response = client.post(
+        url_for("AssetAPI:copy_assets", id=source_asset.id, parent=source_asset.id)
+    )
+
+    assert response.status_code == 422
+    assert (
+        "cannot copy an asset to itself or any of its descendants"
+        in response.json["message"]
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_copy_asset_api_rejects_copy_to_descendant(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """Copying an asset into one of its descendants should be rejected with 422."""
+    prosumer_account = setup_accounts["Prosumer"]
+    source_asset = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    assert source_asset is not None
+
+    child_asset = GenericAsset(
+        name="copy-descendant-target",
+        generic_asset_type_id=source_asset.generic_asset_type_id,
+        account_id=source_asset.account_id,
+        parent_asset_id=source_asset.id,
+    )
+    db.session.add(child_asset)
+    db.session.flush()
+
+    response = client.post(
+        url_for("AssetAPI:copy_assets", id=source_asset.id, parent=child_asset.id)
+    )
+
+    assert response.status_code == 422
+    assert (
+        "cannot copy an asset to itself or any of its descendants"
+        in response.json["message"]
+    )
