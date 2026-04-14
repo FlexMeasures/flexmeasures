@@ -1175,7 +1175,7 @@ def test_copy_asset_api_rejects_copy_to_self(
     assert response.status_code == 422
     assert (
         "cannot copy an asset to itself or any of its descendants"
-        in response.json["message"]
+        in response.json["message"]["json"]
     )
 
 
@@ -1211,5 +1211,5 @@ def test_copy_asset_api_rejects_copy_to_descendant(
     assert response.status_code == 422
     assert (
         "cannot copy an asset to itself or any of its descendants"
-        in response.json["message"]
+        in response.json["message"]["json"]
     )
