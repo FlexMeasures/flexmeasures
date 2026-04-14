@@ -89,6 +89,22 @@ def error_handling_router(error: HTTPException):
     else:
         log_error(error, getattr(error, "description", str(error)))
 
+    # Roll back any failed DB transaction so subsequent queries (e.g. in
+    # the error-page template) can run in a clean state.  This is needed
+    # when a database error (e.g. UndefinedColumn due to a missing
+    # migration) leaves the PostgreSQL transaction in an aborted state;
+    # without the rollback every following query in the same request would
+    # fail with "InFailedSqlTransaction" and the error page itself could
+    # not be rendered properly.
+    try:
+        from flexmeasures.data import db
+
+        db.session.rollback()
+    except Exception as rollback_exc:
+        current_app.logger.warning(
+            "Could not roll back DB session in error handler: %s", rollback_exc
+        )
+
     error_text = getattr(
         error, "description", f"Something went wrong: {error.__class__.__name__}"
     )

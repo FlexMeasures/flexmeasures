@@ -41,6 +41,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix error page rendering when a database error leaves the transaction in a failed state (e.g. when a missing migration such as the one adding ``account.attributes`` causes an ``InFailedSqlTransaction`` error) [see `PR #2100 <https://www.github.com/FlexMeasures/flexmeasures/pull/2100>`_]
 
 
 v0.31.3 | April 11, 2026
