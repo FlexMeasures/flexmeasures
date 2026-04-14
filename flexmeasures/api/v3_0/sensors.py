@@ -1546,7 +1546,13 @@ class SensorAPI(FlaskView):
             - Sensors
         """
         return (
-            get_sensor_stats(sensor, event_start_time, event_end_time, sort_keys, from_cache=not fresh),
+            get_sensor_stats(
+                sensor,
+                event_start_time,
+                event_end_time,
+                sort_keys,
+                from_cache=not fresh,
+            ),
             200,
         )
 
