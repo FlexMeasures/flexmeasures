@@ -280,6 +280,8 @@
             data: fetchedInitialData
         };
     }
+    document.addEventListener('sensorsToShowUpdated', reloadChartData);
+    {% if active_page == "sensors" %}
     async function reloadSensorStats() {
         const toggleStats = document.getElementById('toggleStatsCheckbox');
         if (toggleStats) {
@@ -290,8 +292,6 @@
             }
         }
     }
-    document.addEventListener('sensorsToShowUpdated', reloadChartData);
-    {% if active_page == "sensors" %}
     document.addEventListener('newDataAvailable', function() {
         reloadChartData();
         reloadSensorStats();
