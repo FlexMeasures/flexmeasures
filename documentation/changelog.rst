@@ -22,6 +22,7 @@ New features
 * The schedule API endpoint now returns a ``scheduling_result`` field alongside ``scheduler_info``, reporting unresolved and resolved soft SoC constraints (keyed by state-of-charge sensor ID).  Unresolved targets include the violation datetime and an always-positive ``unmet`` value in kWh (shortage for ``soc-minima``; excess for ``soc-maxima``).  Resolved targets report the ``margin`` (smallest positive headroom in kWh).  Note that ``soc-targets`` are hard constraints and are never reported here [see `PR #2072 <https://www.github.com/FlexMeasures/flexmeasures/pull/2072>`_]
 * Improve asset graph hover interaction with a vertical ruler across subcharts, while keeping hover dots for easier visual tracking [see `PR #2079 <https://www.github.com/FlexMeasures/flexmeasures/pull/2079>`_]
 * Improve asset audit log messages for JSON field edits (especially ``sensors_to_show`` and nested flex-config values) [see `PR #2055 <https://www.github.com/FlexMeasures/flexmeasures/pull/2055>`_]
+* Added a form on the UI for deleting sensor data sources [see `PR #2095 <https://www.github.com/FlexMeasures/flexmeasures/pull/2095>`_]
 
 Infrastructure / Support
 ----------------------
@@ -37,6 +38,7 @@ Infrastructure / Support
 * Update agent instructions and workflows to customize the primary entry point and to make the test environment used by agents and by the test workflow identical [see `PR #2066 <https://www.github.com/FlexMeasures/flexmeasures/pull/2066>`_, `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_ and `PR #2068 <https://www.github.com/FlexMeasures/flexmeasures/pull/2068>`_]
 * Filter out 404 (Not Found) errors from Sentry reports by default, configurable via ``FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY`` [see `PR #2071 <https://www.github.com/FlexMeasures/flexmeasures/pull/2071>`_]
 * Document scripting with the client and in the CLI [see `PR #2097 <https://www.github.com/FlexMeasures/flexmeasures/pull/2097>`_]
+* Document fallback schedule mechanism: explain how 303 (See Other) redirects work for infeasible schedules, with a client-side code example [see `PR #2107 <https://www.github.com/FlexMeasures/flexmeasures/pull/2107>`_]
 
 Bugfixes
 -----------

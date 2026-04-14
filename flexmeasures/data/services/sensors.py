@@ -577,7 +577,11 @@ _SENSOR_STATS_MAX_SIZE = 1000
 
 
 def get_sensor_stats(
-    sensor: Sensor, event_start_time: str, event_end_time: str, sort_keys: bool = True
+    sensor: Sensor,
+    event_start_time: str,
+    event_end_time: str,
+    sort_keys: bool = True,
+    from_cache: bool = True,
 ) -> dict:
     """Get stats for a sensor.
 
@@ -588,7 +592,7 @@ def get_sensor_stats(
     bucket = round(time.time() / _SENSOR_STATS_TTL)
     key = (sensor.id, event_end_time, event_start_time, sort_keys, bucket)
 
-    if key in _sensor_stats_cache:
+    if from_cache and key in _sensor_stats_cache:
         return _sensor_stats_cache[key]
 
     result = _get_sensor_stats(sensor, event_end_time, event_start_time, sort_keys)
