@@ -379,15 +379,17 @@ A quick way to run redis locally (if you are testing your setup) is via Docker:
 
 .. code-block:: bash
 
-   $ docker run -d --rm --name fm-redis -p 6379:6379 redis
-
+   $ docker run -d --rm --name fm-redis -p 6379:6379 redis redis-server --requirepass fm-redis-pass
 
 Then, start workers in a console (or some other method to keep a long-running process going):
 
 .. code-block:: bash
 
-   $ flexmeasures jobs run-worker --queue forecasting
-   $ flexmeasures jobs run-worker --queue scheduling
+   $ flexmeasures jobs run-worker --queue "scheduling|forecasting"
+
+
+You can go to `http://localhost:5000/tasks/` and see the state of job queues and find individual jobs (and investigate why they failed, for instance).
+You need to set ``FLEXMEASURES_REDIS_PASSWORD="fm-redis-pass"`` in your `~/.flexmeasures.cfg` config file for this to work. 
 
 
 Two-factor authentication
