@@ -41,6 +41,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix the Swagger endpoint for fetching a schedule [see `PR #2109 <https://www.github.com/FlexMeasures/flexmeasures/pull/2109>`_]
 
 
 v0.31.3 | April 11, 2026
