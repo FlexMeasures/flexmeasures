@@ -27,6 +27,7 @@ from flexmeasures.data.schemas import (
     SourceIdField,
 )
 from flexmeasures.data.services.users import find_user_by_email, delete_user
+from flexmeasures.data.services.sensors import cleanup_sensor_references_in_assets
 from flexmeasures.cli.utils import (
     abort,
     done,
@@ -549,6 +550,8 @@ def delete_sensor(
         f"Delete {', '.join(sensor.__repr__() for sensor in sensors)}, along with {n} beliefs?",
         abort=True,
     )
+    for sensor in sensors:
+        cleanup_sensor_references_in_assets(sensor.id)
     for statement in statements:
         db.session.execute(statement)
     db.session.commit()

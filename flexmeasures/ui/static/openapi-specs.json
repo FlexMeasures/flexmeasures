@@ -4795,6 +4795,9 @@
             ],
             "maxLength": 255
           },
+          "attributes": {
+            "default": "{}"
+          },
           "account_roles": {
             "type": "array",
             "items": {
@@ -5523,6 +5526,9 @@
               "null"
             ],
             "maxLength": 255
+          },
+          "attributes": {
+            "default": "{}"
           },
           "account_roles": {
             "type": "array",

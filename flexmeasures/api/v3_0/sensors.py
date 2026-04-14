@@ -64,6 +64,7 @@ from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.data.schemas.scheduling import GetScheduleSchema
 from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.data.services.sensors import get_sensor_stats
+from flexmeasures.data.services.sensors import cleanup_sensor_references_in_assets
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
@@ -1356,6 +1357,7 @@ class SensorAPI(FlaskView):
         )
 
         sensor_name = sensor.name
+        cleanup_sensor_references_in_assets(sensor.id)
         AssetAuditLog.add_record(
             sensor.generic_asset,
             f"Deleted sensor '{sensor_name}': {id}",
