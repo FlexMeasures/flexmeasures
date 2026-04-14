@@ -133,7 +133,9 @@ Here is a client-side code example in Python for handling 303 redirects (this me
 
 .. code-block:: python
 
-    def get_schedule(self, url, params):
+    import requests
+
+    def get_schedule(url, params):
         """Request a schedule, following any 303 redirect to a fallback schedule.
 
         Reference
@@ -149,6 +151,8 @@ Here is a client-side code example in Python for handling 303 redirects (this me
                 f" Fetching fallback schedule from {fallback_url} ..."
             )
             response = requests.get(fallback_url, params=params)
+            if not response.ok:
+                print(f"Failed to fetch fallback schedule: {response.status_code} {response.text}")
         return response
 
 .. _api_deprecation:
