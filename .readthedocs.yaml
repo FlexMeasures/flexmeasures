@@ -35,7 +35,10 @@ build:
             output = Path(os.environ["READTHEDOCS_OUTPUT"]) / "html" / "api"
             candidates = [output / "v3_0.html", output / "v3_0" / "index.html"]
             targets = [path for path in candidates if path.exists()]
-            assert targets, f"RTD build failed: No Sphinx API documentation found. Expected one of: {candidates}"
+            if not targets:
+                raise RuntimeError(
+                    f"RTD build failed: No Sphinx API documentation found. Expected one of: {candidates}"
+                )
 
             for path in targets:
                 path.write_text(
