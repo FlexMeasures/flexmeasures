@@ -580,7 +580,11 @@ _SENSOR_STATS_MAX_SIZE = 1000
 
 
 def get_sensor_stats(
-    sensor: Sensor, event_start_time: str, event_end_time: str, sort_keys: bool = True, from_cache: bool = True
+    sensor: Sensor,
+    event_start_time: str,
+    event_end_time: str,
+    sort_keys: bool = True,
+    from_cache: bool = True,
 ) -> dict:
     """Get stats for a sensor.
 
