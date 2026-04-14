@@ -27,5 +27,19 @@ build:
       install:
          - UV_PROJECT_ENVIRONMENT="${READTHEDOCS_VIRTUALENV_PATH}" uv sync --frozen --group docs
       post_build:
-         - sed -i 's/(id)/id/g' $READTHEDOCS_OUTPUT/html/api/v3_0.html # make sphinxcontrib-httpdomain links point to openapi-sphinx links
+         - |
+            python - <<'PY'
+            from pathlib import Path
+            import os
 
+            output = Path(os.environ["READTHEDOCS_OUTPUT"]) / "html" / "api"
+            candidates = [output / "v3_0.html", output / "v3_0" / "index.html"]
+            targets = [path for path in candidates if path.exists()]
+            assert targets, f"RTD build failed: No Sphinx API documentation found. Expected one of: {candidates}"
+
+            for path in targets:
+                path.write_text(
+                    path.read_text(encoding="utf-8").replace("(id)", "id"),
+                    encoding="utf-8",
+                )
+            PY
