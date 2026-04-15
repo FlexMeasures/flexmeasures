@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+import time
 import hashlib
 from datetime import datetime, timedelta
 from typing import Any
 from flask import current_app
+from sqlalchemy import delete
 
 from isodate import duration_isoformat
-import time
 from timely_beliefs import BeliefsDataFrame
 import pandas as pd
 
@@ -21,6 +22,7 @@ import sqlalchemy as sa
 
 from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.reporting import StatusSchema
@@ -841,3 +843,20 @@ def get_sensor_stats(
         _sensor_stats_cache[key] = result
 
     return result
+
+
+def delete_sensor(sensor: Sensor):
+    """Delete a sensor and all its time series data.
+
+    Does not commit the session.
+    Cleans up sensor references in asset JSONB fields.
+    Creates an audit log.
+    """
+    sensor_name = sensor.name
+    cleanup_sensor_references_in_assets(sensor.id)
+    db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
+    AssetAuditLog.add_record(
+        sensor.generic_asset, f"Deleted sensor '{sensor_name}': {sensor.id}"
+    )
+    db.session.execute(delete(Sensor).filter_by(id=sensor.id))
+    current_app.logger.info("Deleted sensor '%s'." % sensor_name)
