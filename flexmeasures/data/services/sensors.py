@@ -22,6 +22,7 @@ from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
 
@@ -296,11 +297,7 @@ def get_asset_sensors_metadata(
     validated_asset_sensors = asset.validate_sensors_to_show(
         suggest_default_sensors=False
     )
-    sensor_groups = [
-        sensor["sensors"] for sensor in validated_asset_sensors if sensor is not None
-    ]
-    merged_sensor_groups = sum(sensor_groups, [])
-    sensors_to_show.extend(merged_sensor_groups)
+    sensors_to_show.extend(SensorsToShowSchema.flatten(validated_asset_sensors))
 
     sensors_list = [
         *inflexible_device_sensors,
@@ -580,7 +577,11 @@ _SENSOR_STATS_MAX_SIZE = 1000
 
 
 def get_sensor_stats(
-    sensor: Sensor, event_start_time: str, event_end_time: str, sort_keys: bool = True
+    sensor: Sensor,
+    event_start_time: str,
+    event_end_time: str,
+    sort_keys: bool = True,
+    from_cache: bool = True,
 ) -> dict:
     """Get stats for a sensor.
 
@@ -591,7 +592,7 @@ def get_sensor_stats(
     bucket = round(time.time() / _SENSOR_STATS_TTL)
     key = (sensor.id, event_end_time, event_start_time, sort_keys, bucket)
 
-    if key in _sensor_stats_cache:
+    if from_cache and key in _sensor_stats_cache:
         return _sensor_stats_cache[key]
 
     result = _get_sensor_stats(sensor, event_end_time, event_start_time, sort_keys)

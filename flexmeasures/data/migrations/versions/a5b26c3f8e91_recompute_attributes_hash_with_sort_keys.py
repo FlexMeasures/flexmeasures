@@ -2,22 +2,22 @@
 
 Previously the hash was computed without sorting JSON object keys, so a
 PostgreSQL JSONB round-trip (which always returns keys in alphabetical order)
-produced a different hash than the one stored in the database.  This caused
+produced a different hash than the one stored in the database. This caused
 get_or_create_source() to silently create duplicate DataSource rows when it
 was called with attributes that had been loaded back from the database.
 
 The upgrade also handles the case where the bug already produced duplicate rows
 (same logical content, but saved with different key-insertion-order hashes).
-For each group of duplicates the newest row (highest ID) is kept as-is.  Older
+For each group of duplicates the newest row (highest ID) is kept as-is. Older
 duplicates receive a synthetic ``{"flexmeasures-hash-conflict": N}`` attribute
 so that their hashes remain unique without touching the timed_belief table.
 
 Downgrade note: since PostgreSQL JSONB already serialises all object keys in
 alphabetical order when storing, ``json.dumps(attrs)`` and
 ``json.dumps(attrs, sort_keys=True)`` produce identical strings for any data
-that has gone through JSONB.  Therefore recomputing the hash without
+that has gone through JSONB. Therefore, recomputing the hash without
 ``sort_keys`` would yield the same bytes as the upgrade, making a downgrade
-data-migration a no-op.  The downgrade function is intentionally left empty.
+data-migration a no-op. The downgrade function is intentionally left empty.
 
 Revision ID: a5b26c3f8e91
 Revises: 8b62f8129f34
@@ -51,7 +51,7 @@ def upgrade():
 
     Duplicate rows (same logical content, different key-order hashes) are
     resolved by tagging older rows with a synthetic conflict-marker attribute so
-    that each row still gets a unique hash.  The newest row (highest id) is
+    that each row still gets a unique hash. The newest row (highest id) is
     always kept clean.
     """
     bind = op.get_bind()
@@ -64,7 +64,7 @@ def upgrade():
     ).fetchall()
 
     # Group rows by their normalised unique key (name, user_id, model, version,
-    # sorted-attributes hash).  Any group with >1 member means the bug created
+    # sorted-attributes hash). Any group with >1 member means the bug created
     # duplicate rows.
     groups: dict = defaultdict(list)
     attrs_by_id: dict = {}
@@ -112,7 +112,7 @@ def downgrade():
     """No data migration needed on downgrade.
 
     PostgreSQL JSONB always serialises object keys in alphabetical order when
-    storing.  This means ``json.dumps(attrs)`` and
+    storing. This means ``json.dumps(attrs)`` and
     ``json.dumps(attrs, sort_keys=True)`` produce identical strings for any
     attributes that have been round-tripped through the database, so
     recomputing hashes without ``sort_keys`` would yield the same bytes.
@@ -120,7 +120,7 @@ def downgrade():
     Note: rows that were tagged with ``flexmeasures-hash-conflict`` during
     upgrade are NOT cleaned up here, because doing so would require knowing
     which rows were duplicates and which one was the "canonical" row -- that
-    information is not reliably recoverable.  After a downgrade, those rows
+    information is not reliably recoverable. After a downgrade, those rows
     will have a slightly different ``attributes`` dict than before the upgrade,
     but ``get_or_create_source`` will still find them correctly via their hash.
     """

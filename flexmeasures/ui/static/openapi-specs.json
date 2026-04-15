@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.31.0"
+    "version": "0.31.1"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -300,7 +300,7 @@
     "/api/v3_0/sensors/{id}/data": {
       "delete": {
         "summary": "Delete sensor data",
-        "description": "This endpoint deletes all data for a sensor.",
+        "description": "This endpoint deletes data for a sensor. Optionally, filter by source, start time and/or until time. A missing source means all sources are deleted.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -316,6 +316,32 @@
             "required": true
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "integer",
+                    "description": "ID of the data source to delete data for. If not provided, data from all sources is deleted."
+                  },
+                  "start": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Only delete data with event start at or after this datetime (ISO 8601)."
+                  },
+                  "until": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Only delete data with event start before this datetime (ISO 8601)."
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
             "description": "SENSOR_DATA_DELETED"
@@ -646,7 +672,7 @@
             "description": "ID of the sensor for which to retrieve the schedule.",
             "example": 5,
             "schema": {
-              "type": "int"
+              "type": "integer"
             }
           },
           {
@@ -805,7 +831,15 @@
           {
             "in": "query",
             "name": "sort_keys",
-            "description": "Whether to sort the stats by keys.",
+            "description": "Whether to sort the stats by keys (defaults to true).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fresh",
+            "description": "Whether to compute fresh data, bypassing any cached results (defaults to false).",
             "schema": {
               "type": "boolean"
             }

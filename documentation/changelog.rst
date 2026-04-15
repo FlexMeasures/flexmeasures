@@ -22,9 +22,11 @@ New features
 * Added API support for copying assets and their subtrees [see `PR #2017 <https://www.github.com/FlexMeasures/flexmeasures/pull/2017>`_]
 * Improve asset graph hover interaction with a vertical ruler across subcharts, while keeping hover dots for easier visual tracking [see `PR #2079 <https://www.github.com/FlexMeasures/flexmeasures/pull/2079>`_]
 * Improve asset audit log messages for JSON field edits (especially ``sensors_to_show`` and nested flex-config values) [see `PR #2055 <https://www.github.com/FlexMeasures/flexmeasures/pull/2055>`_]
+* Added a form on the UI for deleting sensor data sources [see `PR #2095 <https://www.github.com/FlexMeasures/flexmeasures/pull/2095>`_]
 
 Infrastructure / Support
 ----------------------
+* Support coupling data sources to accounts, and preserve user ID and account ID references in audit logs and data sources for traceability and compliance [see `PR #2058 <https://www.github.com/FlexMeasures/flexmeasures/pull/2058>`_]
 * Stop creating new toy assets when restarting the docker-compose stack [see `PR #2018 <https://www.github.com/FlexMeasures/flexmeasures/pull/2018>`_]
 * Migrate from ``pip`` to ``uv`` for dependency management, and from ``make`` to ``poe`` [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
 * Improve contact information to get in touch with the FlexMeasures community [see `PR #2022 <https://www.github.com/FlexMeasures/flexmeasures/pull/2022>`_]
@@ -35,9 +37,12 @@ Infrastructure / Support
 * Improve error logging for various exceptions [see `PR #2045 <https://www.github.com/FlexMeasures/flexmeasures/pull/2045>`_]
 * Update agent instructions and workflows to customize the primary entry point and to make the test environment used by agents and by the test workflow identical [see `PR #2066 <https://www.github.com/FlexMeasures/flexmeasures/pull/2066>`_, `PR #1998 <https://www.github.com/FlexMeasures/flexmeasures/pull/1998>`_ and `PR #2068 <https://www.github.com/FlexMeasures/flexmeasures/pull/2068>`_]
 * Filter out 404 (Not Found) errors from Sentry reports by default, configurable via ``FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY`` [see `PR #2071 <https://www.github.com/FlexMeasures/flexmeasures/pull/2071>`_]
+* Document scripting with the client and in the CLI [see `PR #2097 <https://www.github.com/FlexMeasures/flexmeasures/pull/2097>`_]
+* Document fallback schedule mechanism: explain how 303 (See Other) redirects work for infeasible schedules, with a client-side code example [see `PR #2107 <https://www.github.com/FlexMeasures/flexmeasures/pull/2107>`_]
 
 Bugfixes
 -----------
+* Fix the Swagger endpoint for fetching a schedule [see `PR #2109 <https://www.github.com/FlexMeasures/flexmeasures/pull/2109>`_]
 
 
 v0.31.3 | April 11, 2026
