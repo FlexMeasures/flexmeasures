@@ -200,10 +200,17 @@ def permission_required_for_context(
             else:
                 context = context_from_args
 
-            check_access(context, permission)
+            _check_access_for_context(context, permission)
 
             return fn(*args, **kwargs)
 
         return decorated_view
 
     return wrapper
+
+
+def _check_access_for_context(context, permission: str):
+    """Check access for a single context or for each context in a list."""
+    contexts = context if isinstance(context, list) else [context]
+    for c in contexts:
+        check_access(c, permission)

@@ -83,6 +83,29 @@ sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 annotation_schema = AnnotationSchema()
 
+
+def regressors_loader(config: dict | None) -> list[Sensor]:
+    """Extract regressor sensors from the forecasting config for permission checking.
+
+    :param config:  Deserialized forecasting config (output of TrainPredictPipelineConfigSchema),
+                    which already contains resolved Sensor objects for regressor fields.
+    :returns:       Deduplicated list of regressor Sensor objects, or an empty list if no
+                    config or no regressors are specified.
+    """
+    if not config:
+        return []
+    return list(
+        {
+            sensor
+            for regressor_list in [
+                config.get("future_regressors", []),
+                config.get("past_regressors", []),
+            ]
+            for sensor in regressor_list
+        }
+    )
+
+
 # Create ForecasterParametersSchema OpenAPI compatible schema
 EXCLUDED_FORECASTING_FIELDS = [
     # todo: hide these in the config schema instead
@@ -1561,6 +1584,12 @@ class SensorAPI(FlaskView):
         as_kwargs=True,
     )
     @permission_required_for_context("create-children", ctx_arg_name="sensor_to_save")
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="config",
+        ctx_loader=regressors_loader,
+        pass_ctx_to_loader=True,
+    )
     def trigger_forecast(self, id: int, **params):
         """
         .. :quickref: Forecasts; Trigger forecasting job for one sensor
@@ -1631,18 +1660,6 @@ class SensorAPI(FlaskView):
 
         # Put the sensor to save in the parameters
         parameters["sensor"] = params["sensor_to_save"].id
-
-        # Check read permissions for regressor sensors specified in the config.
-        # The schema has already validated that these sensor IDs exist.
-        config = parameters.get("config", {})
-        regressor_ids = set(
-            config.get("future-regressors", [])
-            + config.get("past-regressors", [])
-            + config.get("regressors", [])
-        )
-        for regressor_id in regressor_ids:
-            regressor = db.session.get(Sensor, regressor_id)
-            check_access(regressor, "read")
 
         # Set forecaster model
         model = parameters.pop("model", "TrainPredictPipeline")
