@@ -178,7 +178,9 @@ def _prune_sensors_to_show_as_kpis_refs(value, sensor_id: int):
     return cleaned, changed
 
 
-def cleanup_sensor_references_in_assets(sensor_id: int) -> int:
+def cleanup_sensor_references_in_assets(
+    sensor_id: int, sensor_name: str | None = None
+) -> int:
     """Remove references to a sensor in JSONB config fields across assets.
 
     Returns the number of updated assets.
@@ -254,6 +256,23 @@ def cleanup_sensor_references_in_assets(sensor_id: int) -> int:
         )
         if not changed:
             continue
+
+        changed_field_events = (
+            (changed_flex_model, "flex-model"),
+            (changed_flex_context, "flex-context"),
+            (changed_sensors_to_show, "sensors-to-show"),
+            (changed_sensors_to_show_as_kpis, "sensors-to-show-as-kpis"),
+        )
+        for field_changed, field_name in changed_field_events:
+            if not field_changed:
+                continue
+            sensor_label = (
+                f"'{sensor_name}': {sensor_id}" if sensor_name else str(sensor_id)
+            )
+            AssetAuditLog.add_record(
+                asset,
+                f"Removed deleted sensor reference {sensor_label} from {field_name}.",
+            )
 
         asset.flex_model = flex_model
         asset.flex_context = flex_context
@@ -853,7 +872,7 @@ def delete_sensor(sensor: Sensor):
     Creates an audit log.
     """
     sensor_name = sensor.name
-    cleanup_sensor_references_in_assets(sensor.id)
+    cleanup_sensor_references_in_assets(sensor.id, sensor.name)
     db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
     AssetAuditLog.add_record(
         sensor.generic_asset, f"Deleted sensor '{sensor_name}': {sensor.id}"

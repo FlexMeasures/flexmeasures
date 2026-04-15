@@ -592,6 +592,30 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
         user=requesting_user,
         asset=existing_sensor.generic_asset,
     )
+    check_audit_log_event(
+        db=db,
+        event=f"Removed deleted sensor reference '{existing_sensor.name}': {existing_sensor.id} from flex-model.",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
+    check_audit_log_event(
+        db=db,
+        event=f"Removed deleted sensor reference '{existing_sensor.name}': {existing_sensor.id} from flex-context.",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
+    check_audit_log_event(
+        db=db,
+        event=f"Removed deleted sensor reference '{existing_sensor.name}': {existing_sensor.id} from sensors-to-show.",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
+    check_audit_log_event(
+        db=db,
+        event=f"Removed deleted sensor reference '{existing_sensor.name}': {existing_sensor.id} from sensors-to-show-as-kpis.",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
 
 
 @pytest.mark.parametrize(
