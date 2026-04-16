@@ -358,9 +358,10 @@ def run_worker(queue: str, name: str | None):
     )
     for q in q_list:
         click.echo("Running against %s on %s" % (q, q.connection))
+    click.echo("RQ embedded scheduler: on (enqueue_in jobs)")
     click.echo("=========================================================\n")
 
-    worker.work()
+    worker.work(with_scheduler=True)
 
 
 @fm_jobs.command("show-queues")
