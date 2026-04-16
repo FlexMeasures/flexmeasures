@@ -9,6 +9,8 @@ v0.32.0 | April XX, 2026
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
+.. note:: It is recommended to add a worker to the ``ingestion`` queue (or configure existing workers to handle it, as well), so that sensor data posted via the API is processed asynchronously. Without this, data is processed synchronously in the web process, with a warning logged [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_].
+
 New features
 -------------
 * Support inferring ``soc-at-start`` from configured ``state-of-charge`` sources and fail early when those values are stale or missing near schedule start [see `PR #2026 <https://www.github.com/FlexMeasures/flexmeasures/pull/2026>`_]
@@ -24,6 +26,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Log a warning when posting sensor data without an ingestion queue configured, or without workers connected to that queue [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_]
 * Support coupling data sources to accounts, and preserve user ID and account ID references in audit logs and data sources for traceability and compliance [see `PR #2058 <https://www.github.com/FlexMeasures/flexmeasures/pull/2058>`_]
 * Stop creating new toy assets when restarting the docker-compose stack [see `PR #2018 <https://www.github.com/FlexMeasures/flexmeasures/pull/2018>`_]
 * Migrate from ``pip`` to ``uv`` for dependency management, and from ``make`` to ``poe`` [see `PR #1973 <https://github.com/FlexMeasures/flexmeasures/pull/1973>`_]
