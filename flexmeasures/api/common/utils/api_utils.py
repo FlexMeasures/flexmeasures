@@ -141,7 +141,11 @@ def save_and_enqueue(
     save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:
     ingestion_queue = current_app.queues.get("ingestion")
-    if ingestion_queue is not None:
+    if ingestion_queue is None:
+        current_app.logger.warning(
+            "No ingestion queue configured. Processing sensor data directly."
+        )
+    else:
         workers = Worker.all(queue=ingestion_queue)
         if workers:
             ingestion_queue.enqueue(
@@ -156,7 +160,7 @@ def save_and_enqueue(
                 "No workers connected to the ingestion queue. Processing sensor data directly."
             )
 
-    # Attempt to save directly (fallback when no ingestion workers are available)
+    # Attempt to save directly (fallback when no ingestion queue or workers are available)
     status = save_to_db(data, save_changed_beliefs_only=save_changed_beliefs_only)
     db.session.commit()
 

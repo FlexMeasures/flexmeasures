@@ -46,7 +46,7 @@ You can also clear the job queues:
 When the main FlexMeasures process runs (e.g. by ``flexmeasures run``\ ), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``\ , respectively (by admins).
 
 .. note::
-   The ``ingestion`` queue is used for sensor data posted via the API. If no worker is connected to this queue, data is processed synchronously (in the web process) with a warning logged. Running a dedicated ingestion worker is recommended in production to keep API responses fast when large amounts of data are posted.
+   The ``ingestion`` queue is used for sensor data posted via the API. If the queue is not configured, or if no worker is connected to it, data is processed synchronously (in the web process) with a warning logged. Running a dedicated ingestion worker is recommended in production to keep API responses fast when large amounts of data are posted.
 
 
 
