@@ -361,11 +361,41 @@ def test_get_status_no_status_specs(
             assert expected_stale_reason in sensor_status["reason"]
 
 
+def test_asset_sensors_metadata_old_sensors_to_show_format(db, add_weather_sensors):
+    """
+    Regression test: asset status page crashed with KeyError 'sensors' when sensors_to_show
+    contained the old format with a singular 'sensor' key, e.g. {"title": "Prices", "sensor": 42}.
+    """
+    asset = add_weather_sensors["asset"]
+    wind_sensor = add_weather_sensors["wind"]
+    temperature_sensor = add_weather_sensors["temperature"]
+
+    # Flush to ensure sensors have database IDs before using them.
+    db.session.flush()
+
+    # Use the old format: one entry with plural "sensors" and one with singular "sensor"
+    asset.sensors_to_show = [
+        {"title": "Group", "sensors": [wind_sensor.id, temperature_sensor.id]},
+        {"title": "Solo", "sensor": wind_sensor.id},
+    ]
+    db.session.add(asset)
+
+    # Should not raise a KeyError
+    status_data = get_asset_sensors_metadata(asset=asset)
+
+    sensor_ids = [s["id"] for s in status_data]
+    assert wind_sensor.id in sensor_ids
+    assert temperature_sensor.id in sensor_ids
+
+    # Reset module-scoped fixture state so later tests are not affected.
+    asset.sensors_to_show = []
+
+
 def test_asset_sensors_metadata(
     db, mock_get_statuses, add_weather_sensors, add_battery_assets
 ):
     """
-    Test the function to build status meta data structure, using a weather station asset.
+    Test the function to build status metadata structure, using a weather station asset.
     We include the sensor of a different asset (a battery) via the flex context
     (as production price, does not make too much sense actually).
     One sensor which the asset already includes is also set in the context as inflexible device,

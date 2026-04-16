@@ -234,11 +234,11 @@
     document.getElementById('toggleStatsCheckbox').addEventListener('change', function () {
         if (this.checked) {
             loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
-                }
-                else {
-        loadSensorStats({{ sensor.id }});
-                }
-            });
+        }
+        else {
+            loadSensorStats({{ sensor.id }}, "", "", true);
+        }
+    });
     {% endif %}
 
     // Keypress Listener
@@ -281,7 +281,26 @@
         };
     }
     document.addEventListener('sensorsToShowUpdated', reloadChartData);
-    document.addEventListener('newDataAvailable', reloadChartData);
+    {% if active_page == "sensors" %}
+    async function reloadSensorStats() {
+        const toggleStats = document.getElementById('toggleStatsCheckbox');
+        if (toggleStats) {
+            if (toggleStats.checked) {
+                loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString(), true);
+            } else {
+                loadSensorStats({{ sensor.id }}, "", "", true);
+            }
+        }
+    }
+    document.addEventListener('newDataAvailable', function() {
+        reloadChartData();
+        reloadSensorStats();
+    });
+    document.addEventListener('dataDeleted', function() {
+        reloadChartData();
+        reloadSensorStats();
+    });
+    {% endif %}
 
     {% if event_starts_after and event_ends_before %}
     $("#spinner").show();
@@ -445,14 +464,20 @@
             var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
             var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
 
+            // Notify the "Delete data" panel of the new graph date range so its inputs stay in sync.
+            // detail: { startDate: Date, endDate: Date } – endDate has +1 day applied (exclusive end).
+            document.dispatchEvent(new CustomEvent('graphDateRangeChanged', {
+                detail: { startDate: startDate, endDate: endDate }
+            }));
+
             {% if active_page == "sensors" %}
             const toggleStats = document.getElementById('toggleStatsCheckbox');
             if (toggleStats.checked) {
                 loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
-    }
-                else {
-        loadSensorStats({{ sensor.id }});
-                }
+            }
+            else {
+                loadSensorStats({{ sensor.id }}, "", "");
+            }
     {% endif %}
 
     stopReplay()

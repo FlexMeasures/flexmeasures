@@ -2891,6 +2891,74 @@ def test_multiple_devices_simultaneous_scheduler():
     ), "Individual costs mismatch: Costs for one or more devices are not calculated as expected."
 
 
+def test_prefer_full_storage_skips_non_storage_devices(db, building):
+    """Do not apply SoC-based storage preferences to non-storage devices such as PV."""
+
+    battery = Sensor(
+        name="mixed battery power sensor",
+        generic_asset=building,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+    )
+    pv = Sensor(
+        name="mixed pv power sensor",
+        generic_asset=building,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+        attributes={"is_strictly_non_positive": True},
+    )
+    db.session.add_all([battery, pv])
+    db.session.commit()
+
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + timedelta(hours=4)
+    resolution = timedelta(hours=1)
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=building,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=[
+            {
+                "sensor": battery,
+                "soc_at_start": 1.0,
+                "soc_min": 0.0,
+                "soc_max": 2.0,
+                "power_capacity_in_mw": ur.Quantity("1 MW"),
+                "consumption_capacity": ur.Quantity("1 MW"),
+                "production_capacity": ur.Quantity("1 MW"),
+                "prefer_charging_sooner": True,
+                "prefer_curtailing_later": True,
+            },
+            {
+                "sensor": pv,
+                "power_capacity_in_mw": ur.Quantity("1 MW"),
+                "consumption_capacity": ur.Quantity("0 MW"),
+                "production_capacity": ur.Quantity("1 MW"),
+                "prefer_charging_sooner": True,
+                "prefer_curtailing_later": True,
+            },
+        ],
+        flex_context={
+            "consumption_price": ur.Quantity("100 EUR/MWh"),
+            "production_price": ur.Quantity("100 EUR/MWh"),
+            "shared_currency_unit": "EUR",
+            "ems_power_capacity_in_mw": ur.Quantity("2 MW"),
+        },
+        return_multiple=True,
+    )
+    scheduler.config_deserialized = True
+
+    schedule = scheduler.compute()
+
+    assert isinstance(schedule, list)
+    assert any(
+        result.get("name") == "storage_schedule" and result.get("sensor") == battery
+        for result in schedule
+    )
+
+
 def test_multiple_devices_sequential_scheduler():
     start = pd.Timestamp("2023-01-01T00:00:00")
     end = pd.Timestamp("2023-01-02T00:00:00")

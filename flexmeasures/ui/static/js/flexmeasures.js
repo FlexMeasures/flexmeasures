@@ -649,7 +649,7 @@ function updateStatsTable(stats, tableBody) {
     });
 }
 
-function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
+function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fresh=false) {
     const spinner = document.getElementById('spinner-run-simulation');
     const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
     const tableBody = document.getElementById('statsTableBody');
@@ -664,7 +664,11 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
     if (toggleStatsCheckbox.checked) {
         queryParams = `?sort=false&event_start_time=${event_start_time}&event_end_time=${event_end_time}`
     }
-    
+    //add a cache buster to ensure we get the latest data after an upload
+    if (fresh === true) {
+        queryParams += `&fresh=true`;
+    }
+
     // Enable all the default behaviors on every API call.
     dropdownMenu.innerHTML = '';
     noDataWarning.classList.add('d-none');
@@ -708,6 +712,39 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
             const firstSourceKey = getLatestBeliefName(data);
             dropdownButton.textContent = firstSourceKey;
             updateStatsTable(data[firstSourceKey], tableBody);
+
+            // Populate the "Delete data" source dropdown if it exists on the page,
+            // re-using the stats data already fetched to avoid a duplicate API call.
+            const deleteSourceSelect = document.getElementById('deleteDataSource');
+            if (deleteSourceSelect) {
+                // Keep only the "All sources" placeholder option, then add sources from stats
+                deleteSourceSelect.innerHTML = '<option value="">All sources</option>';
+                Object.keys(data).forEach(sourceKey => {
+                    const idMatch = sourceKey.match(/\(ID:\s*(\d+)\)$/);
+                    if (!idMatch) { return; }
+                    const option = document.createElement('option');
+                    option.value = idMatch[1];
+                    option.textContent = sourceKey;
+                    deleteSourceSelect.appendChild(option);
+                });
+            }
+
+            // Notify the "Delete data" panel of the overall first/last event times
+            // across all sources so the "Select all data" link can populate the inputs.
+            const firstEventDates = Object.values(data)
+                .map(d => new Date(d["First event start"]))
+                .filter(d => !isNaN(d.getTime()));
+            const lastEventDates = Object.values(data)
+                .map(d => new Date(d["Last event end"]))
+                .filter(d => !isNaN(d.getTime()));
+            if (firstEventDates.length > 0 && lastEventDates.length > 0) {
+                document.dispatchEvent(new CustomEvent('sensorDataRangeAvailable', {
+                    detail: {
+                        firstEventStart: new Date(Math.min(...firstEventDates)),
+                        lastEventEnd: new Date(Math.max(...lastEventDates))
+                    }
+                }));
+            }
         } else {
             // If the stats table is empty, make the properties table full width
             noDataWarning.classList.remove('d-none');
