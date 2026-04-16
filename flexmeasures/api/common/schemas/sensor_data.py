@@ -329,11 +329,14 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         # The event frequency is inferred by assuming sequential, equidistant values within a time interval.
         # The event resolution is assumed to be equal to the event frequency.
         inferred_resolution = data["duration"] / len(data["values"])
-        error_message = f"Resolution of {inferred_resolution} is incompatible with the sensor's required resolution of {required_resolution}."
         if len(data["values"]) == 1 and inferred_resolution == timedelta(hours=0):
-            raise ValidationError(error_message)
+            raise ValidationError(
+                f"Cannot infer a non-zero resolution from one value over zero duration. This sensor requires a resolution of {required_resolution}."
+            )
         if inferred_resolution % required_resolution != timedelta(hours=0):
-            raise ValidationError(error_message)
+            raise ValidationError(
+                f"Resolution of {inferred_resolution} is incompatible with the sensor's required resolution of {required_resolution}."
+            )
 
     @validates_schema
     def check_multiple_instantaneous_values(self, data, **kwargs):

@@ -207,7 +207,7 @@ def test_post_non_instantaneous_sensor_data_with_zero_duration_single_value(
 
     assert response.status_code == 422
     assert (
-        "Resolution of 0:00:00 is incompatible"
+        "Cannot infer a non-zero resolution from one value over zero duration"
         in response.json["message"]["combined_sensor_data_description"]["_schema"][0]
     )
 
