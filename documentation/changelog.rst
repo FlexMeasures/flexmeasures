@@ -14,6 +14,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Return a clear validation error (instead of a server ZeroDivisionError) when posting instantaneous (0-minute) data to non-instantaneous sensors via ``[POST] /sensors/(id)/data`` [see `PR #2116 <https://www.github.com/FlexMeasures/flexmeasures/pull/2116>`_]
 
 
 v0.32.0 | April 15, 2026
