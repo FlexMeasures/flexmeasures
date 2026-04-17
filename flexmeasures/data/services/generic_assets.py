@@ -455,6 +455,7 @@ def _copy_direct_sensors(
 
 
 _REMOVED = object()
+"""Sentinel returned by _resolve_sensor_id when a sensor reference should be dropped."""
 
 
 def _is_sensor_on_public_asset(sensor_id: int) -> bool:
@@ -468,7 +469,12 @@ def _is_sensor_on_public_asset(sensor_id: int) -> bool:
     return asset is not None and asset.account_id is None
 
 
-def _resolve_sensor_id(sensor_id: int, sensor_id_map: dict[int, int]) -> "int | object":
+def _resolve_sensor_id(sensor_id: int, sensor_id_map: dict[int, int]) -> object:
+    """Resolve a sensor ID to its copy counterpart.
+
+    Returns a new int sensor ID, the original sensor ID (when on a public asset),
+    or the ``_REMOVED`` sentinel when the reference should be dropped.
+    """
     if sensor_id in sensor_id_map:
         return sensor_id_map[sensor_id]
     if _is_sensor_on_public_asset(sensor_id):
@@ -476,40 +482,51 @@ def _resolve_sensor_id(sensor_id: int, sensor_id_map: dict[int, int]) -> "int | 
     return _REMOVED
 
 
-def _replace_sensor_refs(data, sensor_id_map: dict[int, int]):
+def _replace_sensor_refs_in_dict(data: dict, sensor_id_map: dict[int, int]) -> object:
+    """Replace sensor IDs inside a dict node of a nested JSON structure."""
+    result: dict = {}
+    for key, value in data.items():
+        if key == "sensor" and isinstance(value, int):
+            resolved = _resolve_sensor_id(value, sensor_id_map)
+            if resolved is _REMOVED:
+                return _REMOVED
+            result[key] = resolved
+        elif key == "sensors" and isinstance(value, list):
+            result[key] = [
+                resolved
+                for v in value
+                for resolved in [
+                    (
+                        v
+                        if not isinstance(v, int)
+                        else _resolve_sensor_id(v, sensor_id_map)
+                    )
+                ]
+                if resolved is not _REMOVED
+            ]
+        else:
+            processed = _replace_sensor_refs(value, sensor_id_map)
+            if processed is not _REMOVED:
+                result[key] = processed
+    return result
+
+
+def _replace_sensor_refs(data, sensor_id_map: dict[int, int]) -> object:
     """Recursively replace sensor IDs inside a nested JSON structure."""
     if isinstance(data, dict):
-        result: dict = {}
-        for key, value in data.items():
-            if key == "sensor" and isinstance(value, int):
-                resolved = _resolve_sensor_id(value, sensor_id_map)
-                if resolved is _REMOVED:
-                    return _REMOVED
-                result[key] = resolved
-            elif key == "sensors" and isinstance(value, list):
-                new_list = []
-                for v in value:
-                    if not isinstance(v, int):
-                        new_list.append(v)
-                        continue
-                    resolved = _resolve_sensor_id(v, sensor_id_map)
-                    if resolved is not _REMOVED:
-                        new_list.append(resolved)
-                result[key] = new_list
-            else:
-                processed = _replace_sensor_refs(value, sensor_id_map)
-                if processed is not _REMOVED:
-                    result[key] = processed
-        return result
+        return _replace_sensor_refs_in_dict(data, sensor_id_map)
     if isinstance(data, list):
-        return [
-            (
-                _resolve_sensor_id(item, sensor_id_map)
-                if isinstance(item, int)
-                else _replace_sensor_refs(item, sensor_id_map)
-            )
-            for item in data
-        ]
+        result_list = []
+        for item in data:
+            if isinstance(item, int):
+                resolved = _resolve_sensor_id(item, sensor_id_map)
+                if resolved is not _REMOVED:
+                    result_list.append(resolved)
+            else:
+                processed = _replace_sensor_refs(item, sensor_id_map)
+                if processed is not _REMOVED:
+                    result_list.append(processed)
+        return result_list
     return data
 
 
