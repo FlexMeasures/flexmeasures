@@ -6,11 +6,14 @@ FlexMeasures Changelog
 v0.33.0 | May XX, 2026
 ============================
 
+.. note:: It is recommended to add a worker to the ``ingestion`` queue (or configure existing workers to handle it, as well), so that sensor data posted via the API is processed asynchronously [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_].
+
 New features
 -------------
 
 Infrastructure / Support
 ----------------------
+* Move sensor data ingestion to a job queue for improved performance when POSTing large amounts of data to the sensor data API [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_]
 
 Bugfixes
 -----------
@@ -22,8 +25,6 @@ v0.32.0 | April 15, 2026
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v032-flex-config-on-graphs/>`_.
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
-
-.. note:: It is recommended to add a worker to the ``ingestion`` queue (or configure existing workers to handle it, as well), so that sensor data posted via the API is processed asynchronously. Without this, data is processed synchronously in the web process, with a warning logged [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_].
 
 New features
 -------------
