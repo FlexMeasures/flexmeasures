@@ -31,10 +31,6 @@
                     <p>Type: {{ asset.generic_asset_type.name.split('.')[-1] | title }}</p>
                 </div>
                 <div class="col-sm-3">
-                    {% if can_delete %}
-                    <button type="button" class="btn delete-button"
-                        onClick="delete_asset(event, {{ asset.id }}, '{{ asset.name }}')">Delete Scenario</button>
-                    {% endif %}
                     <!-- Tabs for toggling content -->
                     <div class="tabs-container">
                         <ul class="nav nav-tabs">
