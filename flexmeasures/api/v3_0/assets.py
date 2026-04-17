@@ -489,9 +489,6 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        if asset is None:
-            return unprocessable_entity("No asset found for the given id.")
-
         query_statement = Sensor.generic_asset_id == asset.id
 
         query = select(Sensor).filter(query_statement)
