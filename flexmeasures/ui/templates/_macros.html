@@ -8,7 +8,7 @@
   window.onload = function(){
 
   let assets = {{ assets | safe }};
-  let currentAssetName = '{{ current_asset_name | safe}}';
+  let currentAssetName = {{ current_asset_name | tojson }};
 
   {# Vega Spec adapted from https://stackoverflow.com/a/76300309 #}
 
