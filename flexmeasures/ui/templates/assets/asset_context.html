@@ -2,7 +2,7 @@
 
 {% set active_page = "assets" %}
 
-{% block title %} {{ asset.name }} - Scenario {% endblock %}
+{% block title %} {{ asset.name }} {% endblock %}
 
 {% block divs %}
 
@@ -31,10 +31,6 @@
                     <p>Type: {{ asset.generic_asset_type.name.split('.')[-1] | title }}</p>
                 </div>
                 <div class="col-sm-3">
-                    {% if can_delete %}
-                    <button type="button" class="btn delete-button"
-                        onClick="delete_asset(event, {{ asset.id }}, '{{ asset.name }}')">Delete Scenario</button>
-                    {% endif %}
                     <!-- Tabs for toggling content -->
                     <div class="tabs-container">
                         <ul class="nav nav-tabs">
@@ -212,7 +208,7 @@
 <script>
     function openSensorsModal() {
         const sensors = {{ current_asset_sensors | safe }};
-        document.getElementById("modalTitle").innerText = "Sensors for " + '{{ asset.name }}';
+        document.getElementById("modalTitle").innerText = "Sensors for " + {{ asset.name | tojson }};
         let tableHead = document.getElementById("modalTableHead");
         let tableBody = document.getElementById("modalTableBody");
 
