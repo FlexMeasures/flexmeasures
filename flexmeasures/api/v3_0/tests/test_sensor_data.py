@@ -224,6 +224,31 @@ def test_post_invalid_sensor_data(
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
+def test_post_non_instantaneous_sensor_data_with_zero_duration_single_value(
+    client, setup_api_test_data, requesting_user
+):
+    post_data = make_sensor_data_request_for_gas_sensor(
+        num_values=1,
+        duration="PT0M",
+        unit="m³/h",
+    )
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        json=post_data,
+    )
+
+    assert response.status_code == 422
+    assert (
+        "Cannot infer a non-zero resolution from one value over zero duration"
+        in response.json["message"]["combined_sensor_data_description"]["_schema"][0]
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
 def test_post_sensor_data_twice(client, setup_api_test_data, requesting_user, db):
     sensor = setup_api_test_data["some gas sensor"]
     post_data = make_sensor_data_request_for_gas_sensor()
