@@ -8,6 +8,7 @@ v0.33.0 | May XX, 2026
 
 New features
 -------------
+* After deleting a child asset via the UI, navigate to the parent asset's context page; for top-level assets, navigate to the asset index. The deletion confirmation is now shown as a toast notification instead of an alert banner [see `PR #2123 <https://www.github.com/FlexMeasures/flexmeasures/pull/2123>`_]
 
 Infrastructure / Support
 ----------------------
