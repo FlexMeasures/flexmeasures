@@ -110,7 +110,7 @@ dependencies = [
     "cryptography>=46.0.7",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/598
     "pyopenssl>=26.0.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/590
     "werkzeug>=3.1.6",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/587
-    "pillow>=12.1.1",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/586
+    "pillow>=12.2.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/599
 ]
 
 [project.urls]
