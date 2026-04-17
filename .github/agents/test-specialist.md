@@ -545,238 +545,15 @@ If setup steps fail or are unclear, escalate to the Tooling & CI Specialist.
 
 ## Test Execution Workflow (CRITICAL)
 
-**This section documents the MANDATORY workflow for running tests in FlexMeasures.**
+Follow `.github/workflows/copilot-setup-steps.yml` for the authoritative environment setup. In summary:
 
-### The Problem (Session 2026-02-10)
+1. **PostgreSQL** must be running with user/db `flexmeasures_test` and password `flexmeasures_test`.
+2. **Redis** must be running on `localhost:6379`.
+3. **Install dependencies**: `uv sync --locked --group test`
+4. **Set env vars**: `FLEXMEASURES_ENV=testing`, `SQLALCHEMY_DATABASE_URI=postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test`, `FLEXMEASURES_REDIS_URL=redis://127.0.0.1:6379/0`
+5. **Run tests**: `uv run poe test` or `pytest`
 
-During the annotation API implementation session, tests were written but NOT executed. The agent attempted to run tests but failed with PostgreSQL connection errors. Root cause: skipped the proper environment setup steps from `.github/workflows/copilot-setup-steps.yml`.
-
-**Anti-pattern**: Assuming the test environment is ready without verification.
-
-### The Solution: Follow the Setup Workflow
-
-Before running any tests, ALWAYS execute this complete setup sequence:
-
-#### Step 1: Setup PostgreSQL Database
-
-```bash
-# Install PostgreSQL (if not already installed)
-sudo apt-get update
-sudo apt-get install -y postgresql postgresql-contrib libpq-dev
-
-# Start PostgreSQL service
-sudo service postgresql start
-
-# Drop existing test database/user for clean setup
-sudo -u postgres psql -c "DROP DATABASE IF EXISTS flexmeasures_test;"
-sudo -u postgres psql -c "DROP USER IF EXISTS flexmeasures_test;"
-
-# Create test user with password
-sudo -u postgres psql -c "CREATE USER flexmeasures_test WITH PASSWORD 'flexmeasures_test';"
-
-# Create test database owned by test user
-sudo -u postgres psql -c "CREATE DATABASE flexmeasures_test OWNER flexmeasures_test;"
-
-# Grant CREATEDB privilege (needed for test isolation)
-sudo -u postgres psql -c "ALTER USER flexmeasures_test CREATEDB;"
-
-# Load PostgreSQL extensions (optional, for full feature support)
-sudo -u postgres psql -U flexmeasures_test -d flexmeasures_test -f ci/load-psql-extensions.sql || echo "Extensions loaded or not available"
-```
-
-#### Step 2: Setup Redis (for job queuing)
-
-```bash
-# Install and start Redis
-sudo apt-get install -y redis-server
-sudo service redis-server start
-```
-
-#### Step 3: Install Python Dependencies
-
-```bash
-# Install pip-tools
-pip3 install -q "pip-tools>=7.2"
-
-# Get Python version (major.minor format)
-PYV=$(python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
-
-# Install pinned dependencies for testing
-pip-sync requirements/${PYV}/app.txt requirements/${PYV}/test.txt
-
-# Install FlexMeasures in editable mode
-pip install -e .
-```
-
-#### Step 4: Set Environment Variables
-
-```bash
-# Set testing environment
-export FLEXMEASURES_ENV=testing
-
-# Set database URL for PostgreSQL
-export SQLALCHEMY_DATABASE_URI=postgresql://flexmeasures_test:flexmeasures_test@localhost/flexmeasures_test
-
-# Set Redis URL for job queuing
-export FLEXMEASURES_REDIS_URL=redis://localhost:6379/0
-```
-
-#### Step 5: Verify Setup
-
-```bash
-# Check PostgreSQL connection
-psql -U flexmeasures_test -d flexmeasures_test -c "SELECT version();"
-
-# Check Redis connection
-redis-cli ping
-
-# Verify FlexMeasures can be imported
-python -c "import flexmeasures; print('FlexMeasures installed successfully')"
-```
-
-#### Step 6: Run Tests
-
-```bash
-# Run all tests
-pytest
-
-# Run specific test file with verbose output
-pytest path/to/test_file.py -v
-
-# Run specific test function
-pytest path/to/test_file.py::test_function_name -v
-
-# Run tests matching a pattern
-pytest -k "annotation" -v
-```
-
-### Verification Checklist
-
-Before claiming tests pass, verify:
-
-- ✅ PostgreSQL service is running (`sudo service postgresql status`)
-- ✅ Test database exists (`psql -U flexmeasures_test -l`)
-- ✅ Redis is running (`redis-cli ping` returns "PONG")
-- ✅ Environment variables are set (`echo $FLEXMEASURES_ENV`)
-- ✅ Tests execute (not skipped due to missing dependencies)
-- ✅ Test output shows actual pass/fail status
-- ✅ No unexpected warnings or connection errors
-
-### Common Failure Modes
-
-| Error | Root Cause | Solution |
-|-------|------------|----------|
-| `FATAL: role "flexmeasures_test" does not exist` | PostgreSQL user not created | Run Step 1 (PostgreSQL setup) |
-| `FATAL: database "flexmeasures_test" does not exist` | Test database not created | Run Step 1 (PostgreSQL setup) |
-| `could not connect to server: Connection refused` | PostgreSQL not running | `sudo service postgresql start` |
-| `No module named 'flexmeasures'` | Package not installed | Run Step 3 (install dependencies) |
-| `ImportError: No module named 'pytest'` | Test dependencies not installed | Run Step 3 (install dependencies) |
-| `redis.exceptions.ConnectionError` | Redis not running | `sudo service redis-server start` |
-
-### API Test Patterns Learned (Session 2026-02-10)
-
-When writing API tests for FlexMeasures:
-
-#### 1. Using `setup_api_fresh_test_data` Fixture
-
-For tests that need fresh API test data (accounts, users, assets, sensors):
-
-```python
-def test_create_annotation(
-    client,
-    setup_api_fresh_test_data,
-    requesting_user
-):
-    """Test creating an annotation via API."""
-    # setup_api_fresh_test_data provides:
-    # - test_prosumer_user_2 (account-admin with write access)
-    # - test_battery (asset with sensors)
-    # - Fresh database state for each test
-```
-
-#### 2. Parametrized Permission Tests
-
-Test different user roles with parametrized fixtures:
-
-```python
-@pytest.mark.parametrize(
-    "requesting_user",
-    [
-        pytest.param("test_prosumer_user_2", id="account-admin"),
-        pytest.param("test_supplier_user_4", id="consultant"),
-    ],
-    indirect=True,
-)
-def test_annotation_permissions(client, setup_api_fresh_test_data, requesting_user):
-    """Test annotation access for different user roles."""
-    # Test passes for users with appropriate permissions
-```
-
-#### 3. Idempotency Testing Pattern
-
-Test that repeated identical requests behave correctly:
-
-```python
-def test_create_annotation_idempotency(client, setup_api_fresh_test_data, requesting_user):
-    """Test that creating the same annotation twice is handled correctly."""
-    annotation_data = {...}
-    
-    # First POST - should create (201 Created)
-    response1 = client.post(url, json=annotation_data)
-    assert response1.status_code == 201
-    
-    # Second POST - should detect duplicate (200 OK or 409 Conflict)
-    response2 = client.post(url, json=annotation_data)
-    assert response2.status_code in (200, 409)
-```
-
-#### 4. Testing Multiple Entity Types
-
-When an API endpoint applies to multiple entity types (accounts, assets, sensors):
-
-```python
-@pytest.mark.parametrize(
-    "entity_type,entity_fixture",
-    [
-        ("accounts", "prosumer_account"),
-        ("assets", "test_battery"),
-        ("sensors", "power_sensor"),
-    ],
-)
-def test_annotations_for_entity(
-    client,
-    setup_api_fresh_test_data,
-    requesting_user,
-    entity_type,
-    entity_fixture,
-    request
-):
-    """Test annotations work for all entity types."""
-    entity = request.getfixturevalue(entity_fixture)
-    url = f"/api/dev/{entity_type}/{entity.id}/annotations"
-    # ... test logic
-```
-
-#### 5. Validation Error Testing
-
-Test that API validates input correctly:
-
-```python
-def test_create_annotation_invalid_data(client, setup_api_fresh_test_data, requesting_user):
-    """Test validation of annotation data."""
-    invalid_data = {
-        "content": "",  # Empty content should fail
-        "source": "test-source"
-    }
-    response = client.post(url, json=invalid_data)
-    assert response.status_code == 422  # Unprocessable Entity
-    assert "content" in response.json["message"]
-```
-
-### Test Execution Anti-Patterns
-
-❌ **Don't**: Run syntax checks only (`python -m py_compile test_file.py`)
-✅ **Do**: Run actual pytest execution (`pytest test_file.py -v`)
+If setup fails, escalate to the Tooling & CI Specialist.
 
 ❌ **Don't**: Assume PostgreSQL is running
 ✅ **Do**: Check service status before running tests
@@ -792,93 +569,18 @@ def test_create_annotation_invalid_data(client, setup_api_fresh_test_data, reque
 
 ## Running Tests in FlexMeasures Dev Environment
 
-### Critical Requirement: Actually Run Tests
-
-**This agent MUST actually run tests, not just suggest them.**
-When reviewing or writing tests:
-1. **Set up the test environment** if not already done:
-   ```bash
-   # Install test dependencies
-   uv sync --locked --group test
-   ```
-2. **Run the tests you write or review**:
-   ```bash
-   # Run all tests
-   pytest
-   
-   # Run specific test file
-   pytest path/to/test_file.py
-   
-   # Run specific test function
-   pytest path/to/test_file.py::test_function_name
-   
-   # Run tests matching pattern
-   pytest -k "pattern"
-   ```
-3. **Verify test output** - check that:
-   - Tests actually execute (not skipped)
-   - Tests pass with expected behavior
-   - Test coverage includes the scenarios being tested
-   - No unexpected warnings or errors
-4. **Check pre-commit hooks** before committing:
-   ```bash
-   pre-commit run --all-files
-   ```
-
-### Testing Actual Bug Scenarios
-
-When fixing bugs:
-1. **Reproduce the bug first** - Run the exact scenario reported:
-   - Use the same CLI commands as in the bug report
-   - Use the same data/parameters mentioned
-   - Verify you can see the failure
-2. **Write a test that reproduces the bug** - Capture the failing case
-3. **Fix the bug** - Make the minimal change needed
-4. **Run the test again** - Verify it now passes
-5. **Run the original scenario** - Verify the fix works end-to-end
-
-### Using Make Targets
-
-FlexMeasures provides convenient make targets:
-
 ```bash
-# Install dependencies
-uv sync --group dev --group test
-# Run all test
+# Install test dependencies
+uv sync --locked --group test
+# Run all tests (canonical command)
 uv run poe test
-# Update documentation (includes generating OpenAPI specs)
-uv run poe update-docs
+# Run specific file or function
+uv run pytest path/to/test_file.py::test_function_name -v
+# Check pre-commit before committing
+pre-commit run --all-files
 ```
 
-### FlexMeasures CLI Testing
-
-To test CLI commands in the dev environment:
-
-```bash
-# Activate your virtual environment first
-# Then run flexmeasures commands
-# Example: test add duration command
-flexmeasures add duration --help
-flexmeasures add duration --start "2024-01-01T00:00:00+01:00" --duration PT2H
-# Check database state if needed
-flask db current
-```
-
-### Common Pitfalls
-
-- **Don't just suggest tests** - Actually run them and show output
-- **Don't assume tests pass** - Verify with actual execution
-- **Don't skip the bug reproduction step** - Always test the exact scenario reported
-- **Don't commit without running pre-commit** - Hooks catch many issues
-- **Don't forget to test in the actual environment** - Unit tests alone may miss integration issues
-
-### Common Testing Patterns
-
-- **Parametrized tests**: Use `@pytest.mark.parametrize` for testing multiple scenarios
-- **Fixtures**: Define reusable test fixtures in `conftest.py` files
-- **Test organization**: Group related tests in classes when appropriate
-- **Assertions**: Use descriptive assertion messages for failures
-- **Mocking**: Use pytest fixtures and mocking when testing external dependencies
+**Key pitfalls**: Don't just suggest tests — run them and show output. Don't assume the environment is ready without checking. Don't commit without running pre-commit.
 
 ### Testing DataSource Properties After API Calls
 
