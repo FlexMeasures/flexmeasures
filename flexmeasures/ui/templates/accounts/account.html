@@ -12,7 +12,7 @@
         <div
           class="sidepanel-label"
         >
-          Edit Account
+          Edit account
         </div>
         <div class="sidepanel-content">
           <form class="form-horizontal" id="editaccount">
@@ -236,9 +236,9 @@
          <div class="d-flex justify-content-between align-items-center">
           <h3 id="usersTableTitle">All users</h3>
           {% if user_can_create_children %}
-          <a class="btn bg-primary-custom text-decoration-none text-light" data-bs-toggle="modal"
+          <a class="btn bg-primary-custom text-decoration-none text-light create-button" data-bs-toggle="modal"
             data-bs-target="#createUserModal">
-            Create User
+            Create user
           </a>
           {% endif %}
         </div>
@@ -264,9 +264,7 @@
       <div class="card">
         <h3>Assets
         {% if user_can_create_children %}
-            <button class="btn btn-sm btn-success mb-2 create-button" type="submit" style="float:right;">
-              <a href="/assets/new?account_id={{ account.id }}">Create asset</a>
-            </button>
+            <a href="/assets/new?account_id={{ account.id }}" class="btn btn-sm btn-success mb-2 create-button" style="float:right;">Create asset</a>
         {% endif %}
         </h3>
         <div class="form-check form-check-inline">
@@ -306,7 +304,7 @@
   <div class="modal-dialog modal-xl">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title pe-2">Create User</h5>
+        <h5 class="modal-title pe-2">Create user</h5>
         <div class="dropdown" data-bs-auto-close="outside">
           <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown" aria-expanded="false"
             rel="tooltip" aria-hidden="true" tabindex="0" data-bs-placement="right"></span>

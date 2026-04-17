@@ -136,9 +136,9 @@
             {% endif %}
 
             <div class="header-action-button">
-                <div class="btn-group">
-                    {% if user_can_create_assets %}
-                    <button id="copy-asset-button" class="btn btn-sm btn-responsive btn-success create-button" type="button">
+                {% if user_can_create_assets %}
+                <div>
+                    <button id="copy-asset-button" class="btn btn-sm btn-responsive create-button" type="button">
                         Copy this asset
                     </button>
                     <script>
@@ -151,14 +151,18 @@
                                 })
                                 .then(response => {
                                     if (response.ok) return response.json();
-                                    return response.json().then(err => {
-                                        throw new Error(err.message || response.statusText || "Copy failed");
-                                    });
+                                    const contentType = response.headers.get("content-type");
+                                    if (contentType && contentType.includes("application/json")) {
+                                        return response.json().then(err => {
+                                            throw new Error(err.message || response.statusText || "Copy failed");
+                                        });
+                                    }
+                                    throw new Error(response.statusText || "Copy failed");
                                 })
                                 .then(data => {
                                     showToast("Asset copied successfully.", "success");
                                     setTimeout(() => {
-                                        window.location.href = "/assets/" + data.id + "/properties";
+                                        window.location.href = "/assets/" + data.asset + "/properties";
                                     }, 1500);
                                 })
                                 .catch(err => {
@@ -167,10 +171,12 @@
                             }
                         });
                     </script>
-                    {% endif %}
-                    {% if user_can_delete_asset %}
+                </div>
+                {% endif %}
+                {% if user_can_delete_asset %}
+                <div>
                     <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
-                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger delete-button"
+                        <button id="delete-asset-button" class="btn btn-sm btn-responsive delete-button"
                             type="submit">Delete this asset
                         </button>
                     </form>
@@ -184,8 +190,8 @@
                             }
                         });
                     </script>
-                    {% endif %}
                 </div>
+                {% endif %}
             </div>
         </div>
 
