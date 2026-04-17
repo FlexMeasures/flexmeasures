@@ -136,12 +136,40 @@
             {% endif %}
 
             <div class="header-action-button">
-                {% if user_can_delete_asset %}
-                <div>
+                <div class="btn-group">
+                    {% if user_can_create_assets %}
+                    <button id="copy-asset-button" class="btn btn-sm btn-responsive btn-success create-button" type="button">
+                        Copy this asset
+                    </button>
+                    <script>
+                        $("#copy-asset-button").click(function () {
+                            if (confirm("Are you sure you want to copy this asset and all its children?")) {
+                                fetch("/api/v3_0/assets/{{ asset.id }}/copy", {
+                                    method: "POST",
+                                    headers: {"Content-Type": "application/json"},
+                                    credentials: "same-origin"
+                                })
+                                .then(response => {
+                                    if (response.ok) return response.json();
+                                    throw new Error("Copy failed");
+                                })
+                                .then(data => {
+                                    showToast("Asset copied successfully.", "success");
+                                    setTimeout(() => {
+                                        window.location.href = "/assets/" + data.id + "/properties";
+                                    }, 1500);
+                                })
+                                .catch(err => {
+                                    showToast("Failed to copy asset: " + err.message, "error");
+                                });
+                            }
+                        });
+                    </script>
+                    {% endif %}
+                    {% if user_can_delete_asset %}
                     <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
-                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
-                            type="submit">Delete this
-                            asset
+                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger delete-button"
+                            type="submit">Delete this asset
                         </button>
                     </form>
                     <script>
@@ -154,8 +182,8 @@
                             }
                         });
                     </script>
+                    {% endif %}
                 </div>
-                {% endif %}
             </div>
         </div>
 
@@ -207,7 +235,7 @@
 
                     {% if user_can_create_children %}
                     <a href="/assets/{{asset.id}}/sensors/new"
-                        class="btn bg-primary-custom text-decoration-none text-light">
+                        class="btn bg-primary-custom text-decoration-none text-light create-button">
                         Create sensor
                     </a>
                     {% endif %}
