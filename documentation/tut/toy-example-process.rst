@@ -52,7 +52,7 @@ Trigger an updated schedule
 
 In this example, we are planning to consume at a 200kW constant power for a period of 4h. 
 
-This load is to be schedule for tomorrow, except from the period from 3pm to 4pm (imposed using the ``time-restrictions`` parameter).
+This load is to be scheduled for tomorrow, except from the period from 3pm to 4pm (imposed using the ``time-restrictions`` parameter).
 
 
 Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, the simplest.
@@ -77,7 +77,7 @@ Following the INFLEXIBLE policy, we'll schedule the same 4h consumption requirem
  
 The BREAKABLE policy splits or breaks the process into blocks that can be scheduled discontinuously. The smallest possible unit is (currently) determined by the sensor's resolution. 
 
-Finally, we'll schedule the process using the SHIFTABLE policy. The 4h block can't be interrupted, but can be anytime that works best.
+Finally, we'll schedule the process using the SHIFTABLE policy. The 4h block can't be interrupted, but can be moved anytime that works best.
 
 .. code-block:: bash
 
