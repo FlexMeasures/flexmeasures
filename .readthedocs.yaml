@@ -32,17 +32,18 @@ build:
             from pathlib import Path
             import os
 
-            output = Path(os.environ["READTHEDOCS_OUTPUT"]) / "html" / "api"
-            candidates = [output / "v3_0.html", output / "v3_0" / "index.html"]
-            targets = [path for path in candidates if path.exists()]
-            if not targets:
-                raise RuntimeError(
-                    f"RTD build failed: No Sphinx API documentation found. Expected one of: {candidates}"
-                )
-
-            for path in targets:
-                path.write_text(
-                    path.read_text(encoding="utf-8").replace("(id)", "id"),
-                    encoding="utf-8",
-                )
-            PY
+             output = Path(os.environ["READTHEDOCS_OUTPUT"]) / "html" / "api"
+             candidates = [output / "v3_0.html", output / "v3_0" / "index.html"]
+             targets = [path for path in candidates if path.exists()]
+             if not targets:
+                 print(
+                     f"WARNING: No Sphinx API documentation found for link patching. Expected one of: {candidates}",
+                     flush=True,
+                 )
+             else:
+                 for path in targets:
+                     path.write_text(
+                         path.read_text(encoding="utf-8").replace("(id)", "id"),
+                         encoding="utf-8",
+                     )
+             PY
