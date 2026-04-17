@@ -5,6 +5,7 @@ import json
 import copy
 
 from flexmeasures.data.services.users import find_user_by_email
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.ui.tests.utils import (
     mock_asset_data,
     mock_asset_data_with_kpis,
@@ -175,11 +176,50 @@ def test_sensors_to_show_as_kpis_json(db, client, setup_assets, as_admin):
     assert b"Must be one of: sum, min, max, mean." in response.data
 
 
-def test_delete_asset(client, db, as_admin):
-    """Delete an asset"""
+def test_delete_asset(client, db, as_admin, setup_assets):
+    """Deleting a top-level asset redirects to the asset index and shows a toast."""
+    assets = list(setup_assets.values())
+    top_level = next(
+        (a for a in assets if a.parent_asset_id is None),
+        None,
+    )
+    assert top_level is not None, "No top-level asset found in fixtures"
     response = client.get(
-        url_for("AssetCrudUI:delete_with_data", id=1),
+        url_for("AssetCrudUI:delete_with_data", id=top_level.id),
         follow_redirects=True,
     )
     assert response.status_code == 200
     assert b"have been deleted" in response.data
+
+
+def test_delete_child_asset_redirects_to_parent(
+    client, db, as_admin, setup_accounts, setup_generic_asset_types
+):
+    """Deleting a child asset should redirect to the parent asset's context page."""
+    parent = GenericAsset(
+        name="parent-for-deletion-test",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        latitude=10,
+        longitude=100,
+    )
+    db.session.add(parent)
+    db.session.flush()
+
+    child = GenericAsset(
+        name="child-for-deletion-test",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        latitude=10,
+        longitude=100,
+        parent_asset_id=parent.id,
+    )
+    db.session.add(child)
+    db.session.commit()
+
+    response = client.get(
+        url_for("AssetCrudUI:delete_with_data", id=child.id),
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert url_for("AssetCrudUI:context", id=parent.id) in response.location
