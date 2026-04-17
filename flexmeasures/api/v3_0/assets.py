@@ -20,7 +20,7 @@ from flexmeasures.data.services.generic_assets import (
     create_asset,
     patch_asset,
     delete_asset,
-    copy_asset,
+    copy_asset as copy_asset_service,
 )
 from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
@@ -830,7 +830,7 @@ class AssetAPI(FlaskView):
         destination_parent_asset_id = request.args.get("parent_asset_id", type=int)
 
         try:
-            copied_asset = copy_asset(
+            copied_asset = copy_asset_service(
                 asset,
                 destination_account_id=destination_account_id,
                 destination_parent_asset_id=destination_parent_asset_id,

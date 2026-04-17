@@ -454,8 +454,19 @@ def _copy_direct_sensors(
     return sensor_id_map
 
 
-_REMOVED = object()
-"""Sentinel returned by _resolve_sensor_id when a sensor reference should be dropped."""
+class _RemovedType:
+    """Sentinel type used to signal that a sensor reference should be dropped.
+
+    A single module-level instance ``_REMOVED`` is used for identity checks
+    (``is _REMOVED``).  Using a dedicated class makes the pattern clear and
+    allows more precise return-type annotations.
+    """
+
+    __slots__ = ()
+
+
+_REMOVED = _RemovedType()
+"""Sentinel instance: returned by _resolve_sensor_id when a sensor ref should be dropped."""
 
 
 def _is_sensor_on_public_asset(sensor_id: int) -> bool:
@@ -469,7 +480,9 @@ def _is_sensor_on_public_asset(sensor_id: int) -> bool:
     return asset is not None and asset.account_id is None
 
 
-def _resolve_sensor_id(sensor_id: int, sensor_id_map: dict[int, int]) -> object:
+def _resolve_sensor_id(
+    sensor_id: int, sensor_id_map: dict[int, int]
+) -> "int | _RemovedType":
     """Resolve a sensor ID to its copy counterpart.
 
     Returns a new int sensor ID, the original sensor ID (when on a public asset),
@@ -482,36 +495,40 @@ def _resolve_sensor_id(sensor_id: int, sensor_id_map: dict[int, int]) -> object:
     return _REMOVED
 
 
-def _replace_sensor_refs_in_dict(data: dict, sensor_id_map: dict[int, int]) -> object:
+def _resolve_sensor_list(values: list, sensor_id_map: dict[int, int]) -> list:
+    """Resolve a list of sensor IDs, dropping any that resolve to _REMOVED."""
+    result = []
+    for v in values:
+        if not isinstance(v, int):
+            result.append(v)
+        else:
+            resolved = _resolve_sensor_id(v, sensor_id_map)
+            if not isinstance(resolved, _RemovedType):
+                result.append(resolved)
+    return result
+
+
+def _replace_sensor_refs_in_dict(
+    data: dict, sensor_id_map: dict[int, int]
+) -> "dict | _RemovedType":
     """Replace sensor IDs inside a dict node of a nested JSON structure."""
     result: dict = {}
     for key, value in data.items():
         if key == "sensor" and isinstance(value, int):
             resolved = _resolve_sensor_id(value, sensor_id_map)
-            if resolved is _REMOVED:
+            if isinstance(resolved, _RemovedType):
                 return _REMOVED
             result[key] = resolved
         elif key == "sensors" and isinstance(value, list):
-            result[key] = [
-                resolved
-                for v in value
-                for resolved in [
-                    (
-                        v
-                        if not isinstance(v, int)
-                        else _resolve_sensor_id(v, sensor_id_map)
-                    )
-                ]
-                if resolved is not _REMOVED
-            ]
+            result[key] = _resolve_sensor_list(value, sensor_id_map)
         else:
             processed = _replace_sensor_refs(value, sensor_id_map)
-            if processed is not _REMOVED:
+            if not isinstance(processed, _RemovedType):
                 result[key] = processed
     return result
 
 
-def _replace_sensor_refs(data, sensor_id_map: dict[int, int]) -> object:
+def _replace_sensor_refs(data: "Any", sensor_id_map: dict[int, int]) -> object:
     """Recursively replace sensor IDs inside a nested JSON structure."""
     if isinstance(data, dict):
         return _replace_sensor_refs_in_dict(data, sensor_id_map)
@@ -520,11 +537,11 @@ def _replace_sensor_refs(data, sensor_id_map: dict[int, int]) -> object:
         for item in data:
             if isinstance(item, int):
                 resolved = _resolve_sensor_id(item, sensor_id_map)
-                if resolved is not _REMOVED:
+                if not isinstance(resolved, _RemovedType):
                     result_list.append(resolved)
             else:
                 processed = _replace_sensor_refs(item, sensor_id_map)
-                if processed is not _REMOVED:
+                if not isinstance(processed, _RemovedType):
                     result_list.append(processed)
         return result_list
     return data
@@ -536,18 +553,20 @@ def _update_sensor_refs_in_subtree(
     """Update sensor refs in flex_context, flex_model, sensors_to_show fields."""
     if asset.flex_context:
         result = _replace_sensor_refs(deepcopy(asset.flex_context), sensor_id_map)
-        asset.flex_context = result if result is not _REMOVED else {}
+        asset.flex_context = result if not isinstance(result, _RemovedType) else {}
     if asset.flex_model:
         result = _replace_sensor_refs(deepcopy(asset.flex_model), sensor_id_map)
-        asset.flex_model = result if result is not _REMOVED else {}
+        asset.flex_model = result if not isinstance(result, _RemovedType) else {}
     if asset.sensors_to_show:
         result = _replace_sensor_refs(deepcopy(asset.sensors_to_show), sensor_id_map)
-        asset.sensors_to_show = result if result is not _REMOVED else []
+        asset.sensors_to_show = result if not isinstance(result, _RemovedType) else []
     if asset.sensors_to_show_as_kpis:
         result = _replace_sensor_refs(
             deepcopy(asset.sensors_to_show_as_kpis), sensor_id_map
         )
-        asset.sensors_to_show_as_kpis = result if result is not _REMOVED else []
+        asset.sensors_to_show_as_kpis = (
+            result if not isinstance(result, _RemovedType) else []
+        )
     children = db.session.scalars(
         select(GenericAsset).filter(GenericAsset.parent_asset_id == asset.id)
     ).all()
