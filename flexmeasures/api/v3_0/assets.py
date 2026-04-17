@@ -769,7 +769,7 @@ class AssetAPI(FlaskView):
     )
     @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
-    def copy_asset(self, id: int, asset: GenericAsset):
+    def copy_assets(self, id: int, asset: GenericAsset):
         """
         .. :quickref: Assets; Copy an asset and its subtree.
         ---
