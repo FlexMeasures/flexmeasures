@@ -20,6 +20,7 @@ from flexmeasures.data.services.generic_assets import (
     create_asset,
     patch_asset,
     delete_asset,
+    copy_asset,
 )
 from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
@@ -756,6 +757,89 @@ class AssetAPI(FlaskView):
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200
+
+    @route("/<id>/copy", methods=["POST"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    @as_json
+    def copy_assets(self, id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Copy an asset and its subtree.
+        ---
+        post:
+          summary: Copy an asset and its subtree.
+          description: |
+            Creates a deep copy of the asset and all its descendants (child assets and sensors).
+            Sensor references in flex_context, flex_model, and sensors_to_show are updated
+            to point to the new sensor IDs. The copy is placed in the same account and
+            under the same parent asset as the source by default.
+            An optional destination account ID and/or parent asset ID can be supplied as
+            query parameters.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              description: ID of the asset to copy.
+              schema:
+                type: integer
+            - in: query
+              name: account_id
+              description: Target account to copy the asset to.
+              schema:
+                type: integer
+            - in: query
+              name: parent_asset_id
+              description: Target parent asset to copy the asset under.
+              schema:
+                type: integer
+          responses:
+            201:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    copied_asset:
+                      summary: The copied asset
+                      value:
+                        id: 2
+                        name: Test battery (Copy)
+                        generic_asset_type_id: 2
+                        account_id: 1
+                        latitude: 10
+                        longitude: 100
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        destination_account_id = request.args.get("account_id", type=int)
+        destination_parent_asset_id = request.args.get("parent_asset_id", type=int)
+
+        try:
+            copied_asset = copy_asset(
+                asset,
+                destination_account_id=destination_account_id,
+                destination_parent_asset_id=destination_parent_asset_id,
+            )
+        except ValueError as e:
+            return unprocessable_entity(str(e))
+
+        db.session.commit()
+        return asset_schema.dump(copied_asset), 201
 
     @route("/<id>", methods=["DELETE"])
     @use_kwargs(
