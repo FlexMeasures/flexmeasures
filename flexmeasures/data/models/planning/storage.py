@@ -1756,6 +1756,8 @@ def build_device_soc_values(
         disregarded_periods: list[tuple[datetime, datetime]] = []
         for soc_value in soc_values:
             soc = soc_value["value"]
+            if isinstance(soc, ur.Quantity):
+                soc = soc.magnitude
             # convert timezone, otherwise DST would be problematic
             soc_constraint_start = soc_value["start"].astimezone(
                 device_values.index.tzinfo
