@@ -151,7 +151,9 @@
                                 })
                                 .then(response => {
                                     if (response.ok) return response.json();
-                                    throw new Error("Copy failed");
+                                    return response.json().then(err => {
+                                        throw new Error(err.message || response.statusText || "Copy failed");
+                                    });
                                 })
                                 .then(data => {
                                     showToast("Asset copied successfully.", "success");
