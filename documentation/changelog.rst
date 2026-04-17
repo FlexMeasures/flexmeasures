@@ -16,6 +16,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Improve source filtering in the sensor data GET endpoint by exposing the documented query parameters in Swagger and allowing filtering by the account linked to data sources [see `PR #2083 <https://www.github.com/FlexMeasures/flexmeasures/pull/2083>`_]
 * Return a clear validation error (instead of a server ZeroDivisionError) when posting instantaneous (0-minute) data to non-instantaneous sensors via ``[POST] /sensors/(id)/data`` [see `PR #2116 <https://www.github.com/FlexMeasures/flexmeasures/pull/2116>`_]
 * Fix asset context page for asset names containing apostrophes [see `PR #2117 <https://www.github.com/FlexMeasures/flexmeasures/pull/2117>`_]
 
@@ -63,7 +64,6 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* Improve source filtering in the sensor data GET endpoint by exposing the documented query parameters in Swagger and allowing filtering by the account linked to data sources [see `PR #2083 <https://www.github.com/FlexMeasures/flexmeasures/pull/2083>`_]
 * Fix the Swagger endpoint for fetching a schedule [see `PR #2109 <https://www.github.com/FlexMeasures/flexmeasures/pull/2109>`_]
 
 
