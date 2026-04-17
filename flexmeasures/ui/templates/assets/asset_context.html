@@ -208,7 +208,7 @@
 <script>
     function openSensorsModal() {
         const sensors = {{ current_asset_sensors | safe }};
-        document.getElementById("modalTitle").innerText = "Sensors for " + '{{ asset.name }}';
+        document.getElementById("modalTitle").innerText = "Sensors for " + {{ asset.name | tojson }};
         let tableHead = document.getElementById("modalTableHead");
         let tableBody = document.getElementById("modalTableBody");
 
