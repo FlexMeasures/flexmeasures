@@ -104,7 +104,6 @@ def stats(window: int):
     L_i = []
     rows = []
     for queue_name, rq_queue in app.queues.items():
-
         # Lq = current queue length
         Lq = rq_queue.count
 
@@ -162,7 +161,9 @@ def stats(window: int):
         **(
             MsgStyle.SUCCESS
             if rho_system < 0.68
-            else MsgStyle.WARN if rho_system < 0.95 else MsgStyle.ERROR
+            else MsgStyle.WARN
+            if rho_system < 0.95
+            else MsgStyle.ERROR
         ),
     )
     click.echo(tabulate(rows, headers=headers, tablefmt="simple"))
@@ -300,7 +301,16 @@ def run_job(job_id: str):
     required=False,
     help="Give your worker a recognizable name. Defaults to random string. Defaults to fm-worker-<randomstring>",
 )
-def run_worker(queue: str, name: str | None):
+@click.option(
+    "--with-scheduler/--without-scheduler",
+    "with_scheduler",
+    default=True,
+    help=(
+        "Enable RQ's embedded scheduler so jobs queued with enqueue_in run when due. "
+        "Default: enabled. Use --without-scheduler to disable."
+    ),
+)
+def run_worker(queue: str, name: str | None, with_scheduler: bool):
     """
     Start a worker process for forecasting and/or scheduling jobs.
 
@@ -358,10 +368,13 @@ def run_worker(queue: str, name: str | None):
     )
     for q in q_list:
         click.echo("Running against %s on %s" % (q, q.connection))
-    click.echo("RQ embedded scheduler: on (enqueue_in jobs)")
+    click.echo(
+        "RQ embedded scheduler: %s (enqueue_in jobs)"
+        % ("on" if with_scheduler else "off")
+    )
     click.echo("=========================================================\n")
 
-    worker.work(with_scheduler=True)
+    worker.work(with_scheduler=with_scheduler)
 
 
 @fm_jobs.command("show-queues")
