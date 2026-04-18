@@ -90,7 +90,10 @@
                     </div>
                     <div class="modal-body">
                         {% if user_can_create_children %}
-                        <a href="/assets/{{asset.id}}/sensors/new" class="btn btn-sm btn-success mb-2 create-button">Create sensor</a>
+                        <a href="/assets/{{asset.id}}/sensors/new"
+                            class="btn bg-primary-custom text-decoration-none text-light create-button">
+                            Create sensor
+                        </a>
                         {% endif %}
                         <table id="modalTable" class="table table-bordered">
                             <thead id="modalTableHead"></thead>

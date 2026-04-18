@@ -264,7 +264,10 @@
       <div class="card">
         <h3>Assets
         {% if user_can_create_children %}
-            <a href="/assets/new?account_id={{ account.id }}" class="btn btn-sm btn-success mb-2 create-button" style="float:right;">Create asset</a>
+            <a href="/assets/new?account_id={{ account.id }}" style="float: right;"
+                class="btn bg-primary-custom text-decoration-none text-light create-button">
+                Create asset
+            </a>
         {% endif %}
         </h3>
         <div class="form-check form-check-inline">
