@@ -13,6 +13,7 @@ New features
 Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #2114 <https://www.github.com/FlexMeasures/flexmeasures/pull/2114>`_]
+* Run ``flexmeasures jobs run-worker`` with RQ's embedded scheduler on by default so jobs created with ``enqueue_in`` are promoted from the scheduled registry when due; pass ``--without-scheduler`` to disable [see `PR #2112 <https://www.github.com/FlexMeasures/flexmeasures/pull/2112>`_]
 
 Bugfixes
 -----------
@@ -62,7 +63,6 @@ Infrastructure / Support
 Bugfixes
 -----------
 * Fix the Swagger endpoint for fetching a schedule [see `PR #2109 <https://www.github.com/FlexMeasures/flexmeasures/pull/2109>`_]
-* Run ``flexmeasures jobs run-worker`` with RQ's embedded scheduler always on so jobs created with ``enqueue_in`` are promoted from the scheduled registry when due [see `issue #2105 <https://github.com/FlexMeasures/flexmeasures/issues/2105>`_]
 
 
 v0.31.3 | April 11, 2026
