@@ -1395,21 +1395,21 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     background: var(--primary-hover-color) !important;
 }
 
-.header-action-button>div:first-child button,
-.header-action-button>div:first-child a,
-.header-action-button>div:first-child label {
+.header-action-button>div:first-of-type button,
+.header-action-button>div:first-of-type a,
+.header-action-button>div:first-of-type label {
     border-top-left-radius: 15px !important;
     border-bottom-left-radius: 15px !important;
 }
 
-.header-action-button>div:last-child button,
-.header-action-button>div:last-child a,
-.header-action-button>div:last-child label {
+.header-action-button>div:last-of-type button,
+.header-action-button>div:last-of-type a,
+.header-action-button>div:last-of-type label {
     border-top-right-radius: 15px !important;
     border-bottom-right-radius: 15px !important;
 }
-.header-action-button>div:last-child button,
-.header-action-button>div:last-child a {
+.header-action-button>div:last-of-type button,
+.header-action-button>div:last-of-type a {
     border-right: none;
 }
 
