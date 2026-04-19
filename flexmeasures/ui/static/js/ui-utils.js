@@ -325,38 +325,55 @@ export function moveArrayItem(array, index, direction) {
   return newArray;
 }
 
+/**
+ * Show a confirmation dialog and, if accepted, perform a fetch request.
+ *
+ * Error responses are normalised: a JSON body's `message` field is used
+ * when available, otherwise the HTTP status text is used. Network errors
+ * bubble up unchanged. The raw Response is passed to onSuccess so each
+ * caller can decide how to consume it (e.g. parse JSON or read response.url).
+ *
+ * @param {string}   confirmMessage - Text shown in the confirm dialog.
+ * @param {string}   url            - URL to fetch.
+ * @param {object}   options        - fetch() options (method, headers, …).
+ * @param {function} onSuccess      - Called with the Response on success.
+ * @param {string}   errorPrefix    - Prefix for the showToast error message.
+ */
+function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
+    if (!confirm(confirmMessage)) return;
+    fetch(url, options)
+        .then(response => {
+            if (response.ok) return response;
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                return response.json().then(err => {
+                    throw new Error(err.message || response.statusText || "Request failed");
+                });
+            }
+            throw new Error(response.statusText || "Request failed");
+        })
+        .then(onSuccess)
+        .catch(err => showToast(errorPrefix + ": " + err.message, "error"));
+}
+
 export function initCopyAssetButton() {
     const btn = document.getElementById("copy-asset-button");
     if (!btn) return;
     const assetId = btn.dataset.assetId;
 
     btn.addEventListener("click", function () {
-        if (confirm("Are you sure you want to copy this asset and all its children?")) {
-            fetch("/api/v3_0/assets/" + assetId + "/copy", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                credentials: "same-origin"
-            })
-            .then(response => {
-                if (response.ok) return response.json();
-                const contentType = response.headers.get("content-type");
-                if (contentType && contentType.includes("application/json")) {
-                    return response.json().then(err => {
-                        throw new Error(err.message || response.statusText || "Copy failed");
-                    });
-                }
-                throw new Error(response.statusText || "Copy failed");
-            })
-            .then(data => {
+        confirmAndFetch(
+            "Are you sure you want to copy this asset and all its children?",
+            "/api/v3_0/assets/" + assetId + "/copy",
+            {method: "POST", headers: {"Content-Type": "application/json"}, credentials: "same-origin"},
+            response => response.json().then(data => {
                 showToast("Asset copied successfully.", "success");
                 setTimeout(() => {
                     window.location.href = "/assets/" + data.asset + "/properties";
                 }, 1500);
-            })
-            .catch(err => {
-                showToast("Failed to copy asset: " + err.message, "error");
-            });
-        }
+            }),
+            "Failed to copy asset"
+        );
     });
 }
 
@@ -366,30 +383,17 @@ export function initDeleteAssetButton() {
     const assetId = btn.dataset.assetId;
 
     btn.addEventListener("click", function () {
-        if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
-            fetch("/assets/delete_with_data/" + assetId, {
-                method: "GET",
-                credentials: "same-origin"
-            })
-            .then(response => {
-                if (response.ok) return response;
-                const contentType = response.headers.get("content-type");
-                if (contentType && contentType.includes("application/json")) {
-                    return response.json().then(err => {
-                        throw new Error(err.message || response.statusText || "Delete failed");
-                    });
-                }
-                throw new Error(response.statusText || "Delete failed");
-            })
-            .then(response => {
+        confirmAndFetch(
+            "Are you sure you want to delete this asset and all time series data associated with it?",
+            "/assets/delete_with_data/" + assetId,
+            {method: "GET", credentials: "same-origin"},
+            response => {
                 showToast("Asset deleted successfully.", "success");
                 setTimeout(() => {
                     window.location.href = response.url;
                 }, 1500);
-            })
-            .catch(err => {
-                showToast("Failed to delete asset: " + err.message, "error");
-            });
-        }
+            },
+            "Failed to delete asset"
+        );
     });
 }
