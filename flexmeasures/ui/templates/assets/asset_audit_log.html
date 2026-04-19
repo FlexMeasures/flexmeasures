@@ -8,12 +8,14 @@
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
 <div class="container-fluid">
-    <div class="row">
-        <div class="asset auditlog card">
+    <div class="row gx-0">
+        <div class="col-sm-2"></div>
+        <div class="col-sm-8 asset auditlog card">
             <h3>History of actions for asset <a href="/assets/{{ asset.id }}">{{ asset.name }}</a></h3>
             <table id="assetAuditLog" class="table table-striped paginate">
             </table>
         </div>
+        <div class="col-sm-2"></div>
     </div>
 </div>
 
