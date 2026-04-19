@@ -73,9 +73,19 @@ def test_get_sensor_data(
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
     values = response.json["values"]
-    # We expect two data points (from conftest) followed by 2 null values (which are converted to None by .json)
-    # The first data point averages [91.3, 91.7], and the second data point averages [92.1, None].
-    assert all(a == b for a, b in zip(values, [91.5, 92.1, None, None]))
+    # The conftest stores 10-minute values [91.3, 91.7, 92.1] for this source.
+    # Resampled to 20-minute resolution:
+    #   - 1st interval: average of [91.3, 91.7] = 91.5
+    #   - 2nd interval: average of [92.1, None] = 92.1 (only one value present)
+    #   - 3rd and 4th intervals: no data → None
+    conftest_10min_values = [91.3, 91.7, 92.1]
+    expected = [
+        sum(conftest_10min_values[0:2]) / 2,  # 91.5
+        conftest_10min_values[2],  # 92.1
+        None,
+        None,
+    ]
+    assert all(a == b for a, b in zip(values, expected))
 
 
 @pytest.mark.parametrize(
@@ -145,7 +155,17 @@ def test_get_sensor_data_filtered_by_source_account(
     values = response.json["values"]
     # The fixture also stores data from an accountless "Other source".
     # Filtering by the user account should exclude those points.
-    assert all(a == b for a, b in zip(values, [91.5, 92.1, None, None]))
+    # The conftest stores 10-minute values [91.3, 91.7, 92.1]; resampled to 20-minute resolution:
+    #   - 1st interval: average of [91.3, 91.7] = 91.5
+    #   - 2nd interval: average of [92.1, None] = 92.1 (only one value present)
+    conftest_10min_values = [91.3, 91.7, 92.1]
+    expected = [
+        sum(conftest_10min_values[0:2]) / 2,  # 91.5
+        conftest_10min_values[2],  # 92.1
+        None,
+        None,
+    ]
+    assert all(a == b for a, b in zip(values, expected))
 
 
 @pytest.mark.parametrize(
