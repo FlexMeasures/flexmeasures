@@ -4,13 +4,13 @@
 {% block divs %}
 
 <div class="container-fluid">
-  <div class="row">
-    <div class="col-md-2 on-top-md">
+  <div class="row gx-0">
+    <div class="col-md-2 mt-4">
       <div class="header-action-button mt-3">
-        <div class="user-action-button">
+        <div>
           <a href="/logout" class="btn btn-sm btn-responsive btn-info nav-button">Log out</a>
         </div>
-        <div class="user-action-button">
+        <div>
           <a href="/users/reset_password_for/{{ logged_in_user.id }}"
              class="btn btn-sm btn-info delete-button"
              title="Reset the password and send instructions how to choose a new one.">Reset password</a>
@@ -73,17 +73,23 @@
       </div>
       </div>
     </div>
-    <div class="col-md-2">
-      {% if can_view_account_auditlog %}
-      <a href="/accounts/auditlog/{{ logged_in_user.account.id }}"
-         class="btn btn-sm btn-responsive btn-info bt-md-0 mb-3 mt-3 d-inline-block"
-         title="View history of account actions.">Account audit log</a>
-      {% endif %}
-      {% if can_view_user_auditlog %}
-      <a href="/users/auditlog/{{ logged_in_user.id }}"
-         class="btn btn-sm btn-responsive btn-info mb-md-0 mb-3 mt-3 d-inline-block"
-         title="View history of user actions.">User audit log</a>
-      {% endif %}
+    <div class="col-md-2 mt-4">
+      <div class="header-action-button mt-3">
+        {% if can_view_account_auditlog %}
+        <div>
+          <a href="/accounts/auditlog/{{ logged_in_user.account.id }}"
+             class="btn btn-sm btn-responsive btn-info bt-md-0 mb-3 d-inline-block nav-button"
+             title="View history of account actions.">Account audit log</a>
+        </div>
+        {% endif %}
+        {% if can_view_user_auditlog %}
+        <div>
+          <a href="/users/auditlog/{{ logged_in_user.id }}"
+             class="btn btn-sm btn-responsive btn-info mb-md-0 mb-3 d-inline-block nav-button"
+             title="View history of user actions.">User audit log</a>
+        </div>
+        {% endif %}
+      </div>
     </div>
     
   </div>

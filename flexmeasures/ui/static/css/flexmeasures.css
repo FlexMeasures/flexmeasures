@@ -1334,11 +1334,8 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 /* ---- Header action button ---- */
 
 .header-action-button {
-    padding-top: 5px;
-    margin-left: 1em;
     display: flex;
     justify-content: space-around;
-
     width: 100% !important;
 }
 
@@ -1671,33 +1668,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     margin-top: 0px;
     margin-bottom: 0px;
 }
-
-.user-action-button button {
-    border-radius: 50px;
-    transition: .4s;
-    -webkit-border-radius: 50px;
-    -moz-border-radius: 50px;
-    -ms-border-radius: 50px;
-    -o-border-radius: 50px;
-    -webkit-transition: .4s;
-    -moz-transition: .4s;
-    -ms-transition: .4s;
-    -o-transition: .4s;
-}
-
-@media screen and (max-width: 575.98px) {
-
-    .user-action-button {
-        padding-right: 15px;
-    }
-    
-    .user-action-button button {
-        width: 100%;
-    }
-}
-
-/* ---- End User Action Button ---- */
-
 
 /* ---- Login / Reset PWD forms ---- */
 
