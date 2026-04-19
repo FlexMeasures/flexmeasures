@@ -206,3 +206,6 @@ def test_trigger_forecast_with_unreadable_regressor_returns_403(
         trigger_url, json=payload, headers={"Authorization": token}
     )
     assert trigger_res.status_code == 403
+    assert trigger_res.json["status"] == "INVALID_SENDER"
+    assert regressor_field in trigger_res.json["message"]
+    assert private_regressor.name in trigger_res.json["message"]
