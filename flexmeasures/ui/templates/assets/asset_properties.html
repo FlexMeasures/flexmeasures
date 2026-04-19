@@ -138,55 +138,21 @@
             <div class="header-action-button">
                 {% if user_can_create_assets %}
                 <div>
-                    <button id="copy-asset-button" class="btn btn-sm btn-responsive create-button" type="button">
+                    <button id="copy-asset-button" class="btn btn-sm btn-responsive create-button" type="button"
+                        data-asset-id="{{ asset.id }}">
                         Copy this asset
                     </button>
-                    <script>
-                        $("#copy-asset-button").click(function () {
-                            if (confirm("Are you sure you want to copy this asset and all its children?")) {
-                                fetch("/api/v3_0/assets/{{ asset.id }}/copy", {
-                                    method: "POST",
-                                    headers: {"Content-Type": "application/json"},
-                                    credentials: "same-origin"
-                                })
-                                .then(response => {
-                                    if (response.ok) return response.json();
-                                    const contentType = response.headers.get("content-type");
-                                    if (contentType && contentType.includes("application/json")) {
-                                        return response.json().then(err => {
-                                            throw new Error(err.message || response.statusText || "Copy failed");
-                                        });
-                                    }
-                                    throw new Error(response.statusText || "Copy failed");
-                                })
-                                .then(data => {
-                                    showToast("Asset copied successfully.", "success");
-                                    setTimeout(() => {
-                                        window.location.href = "/assets/" + data.asset + "/properties";
-                                    }, 1500);
-                                })
-                                .catch(err => {
-                                    showToast("Failed to copy asset: " + err.message, "error");
-                                });
-                            }
-                        });
-                    </script>
                 </div>
                 {% endif %}
                 {% if user_can_delete_asset %}
                 <div>
                     <button id="delete-asset-button" class="btn btn-sm btn-responsive delete-button"
-                        type="button">Delete this asset
+                        type="button" data-asset-id="{{ asset.id }}">Delete this asset
                     </button>
-                    <script>
-                        $("#delete-asset-button").click(function () {
-                            if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
-                                window.location.href = "/assets/delete_with_data/{{ asset.id }}";
-                            }
-                        });
-                    </script>
                 </div>
                 {% endif %}
+                <script src="{{ url_for('flexmeasures_ui.static', filename='js/asset-copy.js') }}"></script>
+                <script src="{{ url_for('flexmeasures_ui.static', filename='js/asset-delete.js') }}"></script>
             </div>
         </div>
 
