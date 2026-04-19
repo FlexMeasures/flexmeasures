@@ -84,26 +84,48 @@ partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 annotation_schema = AnnotationSchema()
 
 
-def regressors_loader(config: dict | None) -> list[Sensor]:
+REGRESSOR_CONFIG_FIELDS = {
+    "future-regressors": "future_regressors",
+    "past-regressors": "past_regressors",
+    "regressors": "regressors",
+}
+
+
+def regressors_loader(config: dict | None) -> dict[str, list[Sensor]]:
     """Extract regressor sensors from the forecasting config for permission checking.
 
     :param config:  Deserialized forecasting config (output of TrainPredictPipelineConfigSchema),
                     which already contains resolved Sensor objects for regressor fields.
-    :returns:       Deduplicated list of regressor Sensor objects, or an empty list if no
-                    config or no regressors are specified.
+    :returns:       Mapping of request field name to referenced Sensor objects, or an empty
+                    dict if no config or no regressors are specified.
     """
     if not config:
-        return []
-    return list(
-        {
-            sensor
-            for regressor_list in [
-                config.get("future_regressors", []),
-                config.get("past_regressors", []),
+        return {}
+
+    sensors_by_id = {
+        sensor.id: sensor
+        for regressor_list in [
+            config.get("future_regressors", []),
+            config.get("past_regressors", []),
+        ]
+        for sensor in regressor_list
+    }
+    request_config = (request.get_json(silent=True) or {}).get("config", {})
+
+    regressors_by_field = {}
+    for field_name, schema_field_name in REGRESSOR_CONFIG_FIELDS.items():
+        field_sensor_ids = request_config.get(field_name)
+        if field_sensor_ids is None:
+            field_sensors = config.get(schema_field_name, [])
+        else:
+            field_sensors = [
+                sensors_by_id[sensor_id]
+                for sensor_id in field_sensor_ids
+                if sensor_id in sensors_by_id
             ]
-            for sensor in regressor_list
-        }
-    )
+        if field_sensors:
+            regressors_by_field[field_name] = field_sensors
+    return regressors_by_field
 
 
 # Create ForecasterParametersSchema OpenAPI compatible schema
