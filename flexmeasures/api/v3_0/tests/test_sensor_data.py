@@ -7,6 +7,7 @@ from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 from flexmeasures import Sensor, Source, User
+from flexmeasures.api.v3_0.tests.conftest import GAS_MEASUREMENTS_10MIN
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
 
 
@@ -73,9 +74,17 @@ def test_get_sensor_data(
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
     values = response.json["values"]
-    # We expect two data points (from conftest) followed by 2 null values (which are converted to None by .json)
-    # The first data point averages [91.3, 91.7], and the second data point averages [92.1, None].
-    assert all(a == b for a, b in zip(values, [91.5, 92.1, None, None]))
+    # GAS_MEASUREMENTS_10MIN stores 10-minute values; resampled to 20-minute resolution:
+    #   - 1st interval: average of [91.3, 91.7] = 91.5
+    #   - 2nd interval: average of [92.1, None] = 92.1 (only one value present)
+    #   - 3rd and 4th intervals: no data → None
+    expected = [
+        sum(GAS_MEASUREMENTS_10MIN[0:2]) / 2,  # 91.5
+        GAS_MEASUREMENTS_10MIN[2],  # 92.1
+        None,
+        None,
+    ]
+    assert all(a == b for a, b in zip(values, expected))
 
 
 @pytest.mark.parametrize(
@@ -112,6 +121,49 @@ def test_get_instantaneous_sensor_data(
     # We expect two data point (from conftest) followed by 2 null values (which are converted to None by .json)
     # The first data point is the first of [815, 817], and the second data point is the first of [818, None].
     assert all(a == b for a, b in zip(values, [815, 818, None, None]))
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_sensor_data_filtered_by_source_account(
+    client,
+    setup_api_test_data: dict[str, Sensor],
+    setup_roles_users: dict[str, User],
+    requesting_user,
+    db,
+):
+    """Check that GET /sensors/<id>/data can filter by the account linked to a source."""
+    sensor = setup_api_test_data["some gas sensor"]
+    source_user = db.session.get(User, setup_roles_users["Test Supplier User"])
+    assert source_user.account_id is not None
+    message = {
+        "start": "2021-05-02T00:00:00+02:00",
+        "duration": "PT1H20M",
+        "horizon": "PT0H",
+        "unit": "m³/h",
+        "account": source_user.account_id,
+        "resolution": "PT20M",
+    }
+    response = client.get(
+        url_for("SensorAPI:get_data", id=sensor.id),
+        query_string=message,
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    values = response.json["values"]
+    # The fixture also stores data from an accountless "Other source".
+    # Filtering by the user account should exclude those points.
+    # GAS_MEASUREMENTS_10MIN stores 10-minute values; resampled to 20-minute resolution:
+    #   - 1st interval: average of [91.3, 91.7] = 91.5
+    #   - 2nd interval: average of [92.1, None] = 92.1 (only one value present)
+    expected = [
+        sum(GAS_MEASUREMENTS_10MIN[0:2]) / 2,  # 91.5
+        GAS_MEASUREMENTS_10MIN[2],  # 92.1
+        None,
+        None,
+    ]
+    assert all(a == b for a, b in zip(values, expected))
 
 
 @pytest.mark.parametrize(
