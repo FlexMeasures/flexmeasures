@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from flask import request
 from flask_classful import FlaskView
-from flask_security.core import current_user
 from flask_security import login_required
 from werkzeug.exceptions import Forbidden, Unauthorized
 from sqlalchemy import select
@@ -26,7 +25,7 @@ def render_user(user: User | None, msg: str | None = None):
     """Renders the user details page."""
     user_view_user_auditlog = True
     try:
-        check_access(AuditLog.user_table_acl(current_user), "read")
+        check_access(AuditLog.user_table_acl(user), "read")
     except (Forbidden, Unauthorized):
         user_view_user_auditlog = False
 
