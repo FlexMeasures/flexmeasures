@@ -151,8 +151,13 @@
                     </button>
                 </div>
                 {% endif %}
-                <script src="{{ url_for('flexmeasures_ui.static', filename='js/asset-copy.js') }}"></script>
-                <script src="{{ url_for('flexmeasures_ui.static', filename='js/asset-delete.js') }}"></script>
+                <script type="module">
+                    import { initCopyAssetButton, initDeleteAssetButton } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+                    document.addEventListener("DOMContentLoaded", function () {
+                        initCopyAssetButton();
+                        initDeleteAssetButton();
+                    });
+                </script>
             </div>
         </div>
 
