@@ -236,7 +236,7 @@
          <div class="d-flex justify-content-between align-items-center">
           <h3 id="usersTableTitle">All users</h3>
           {% if user_can_create_children %}
-          <a class="btn bg-primary-custom text-decoration-none text-light create-button" data-bs-toggle="modal"
+          <a class="btn bg-primary-custom text-decoration-none text-light nav-button" data-bs-toggle="modal"
             data-bs-target="#createUserModal">
             Create user
           </a>
@@ -265,7 +265,7 @@
         <h3>Assets
         {% if user_can_create_children %}
             <a href="/assets/new?account_id={{ account.id }}" style="float: right;"
-                class="btn bg-primary-custom text-decoration-none text-light create-button">
+                class="btn bg-primary-custom text-decoration-none text-light nav-button">
                 Create asset
             </a>
         {% endif %}

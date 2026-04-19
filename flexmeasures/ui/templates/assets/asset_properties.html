@@ -201,7 +201,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <h3>Asset Properties - {{ asset.name }}</h3>
 
-                    <a class="btn bg-primary-custom text-decoration-none text-light" data-bs-toggle="modal"
+                    <a class="btn bg-primary-custom text-decoration-none text-light nav-button" data-bs-toggle="modal"
                         data-bs-target="#flexModelModal">
                         Edit flex-model
                     </a>
@@ -243,7 +243,7 @@
 
                     {% if user_can_create_children %}
                     <a href="/assets/{{asset.id}}/sensors/new"
-                        class="btn bg-primary-custom text-decoration-none text-light create-button">
+                        class="btn bg-primary-custom text-decoration-none text-light nav-button">
                         Create sensor
                     </a>
                     {% endif %}
@@ -259,7 +259,7 @@
                     <h3>All child assets for {{ asset.name }} </h3>
                     {% if user_can_create_assets %}
                     <a href="/assets/new?parent_asset_id={{asset.id}}"
-                        class="btn bg-primary-custom text-decoration-none text-light" style="float:right;">
+                        class="btn bg-primary-custom text-decoration-none text-light nav-button" style="float:right;">
                         Create asset
                     </a>
                     {% endif %}

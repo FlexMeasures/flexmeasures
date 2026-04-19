@@ -1419,6 +1419,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 .delete-button:hover {
     color: var(--delete-color) !important;
 }
+.nav-button:hover {
+    color: var(--nav-hover-color) !important;
+}
 
 @media screen and (max-width: 767px) {
     .header-action-button {
