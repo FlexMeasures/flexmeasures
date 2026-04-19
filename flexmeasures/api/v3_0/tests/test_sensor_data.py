@@ -7,6 +7,7 @@ from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 from flexmeasures import Sensor, Source, User
+from flexmeasures.api.v3_0.tests.conftest import GAS_MEASUREMENTS_10MIN
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
 
 
@@ -73,15 +74,13 @@ def test_get_sensor_data(
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
     values = response.json["values"]
-    # The conftest stores 10-minute values [91.3, 91.7, 92.1] for this source.
-    # Resampled to 20-minute resolution:
+    # GAS_MEASUREMENTS_10MIN stores 10-minute values; resampled to 20-minute resolution:
     #   - 1st interval: average of [91.3, 91.7] = 91.5
     #   - 2nd interval: average of [92.1, None] = 92.1 (only one value present)
     #   - 3rd and 4th intervals: no data → None
-    conftest_10min_values = [91.3, 91.7, 92.1]
     expected = [
-        sum(conftest_10min_values[0:2]) / 2,  # 91.5
-        conftest_10min_values[2],  # 92.1
+        sum(GAS_MEASUREMENTS_10MIN[0:2]) / 2,  # 91.5
+        GAS_MEASUREMENTS_10MIN[2],  # 92.1
         None,
         None,
     ]
@@ -155,13 +154,12 @@ def test_get_sensor_data_filtered_by_source_account(
     values = response.json["values"]
     # The fixture also stores data from an accountless "Other source".
     # Filtering by the user account should exclude those points.
-    # The conftest stores 10-minute values [91.3, 91.7, 92.1]; resampled to 20-minute resolution:
+    # GAS_MEASUREMENTS_10MIN stores 10-minute values; resampled to 20-minute resolution:
     #   - 1st interval: average of [91.3, 91.7] = 91.5
     #   - 2nd interval: average of [92.1, None] = 92.1 (only one value present)
-    conftest_10min_values = [91.3, 91.7, 92.1]
     expected = [
-        sum(conftest_10min_values[0:2]) / 2,  # 91.5
-        conftest_10min_values[2],  # 92.1
+        sum(GAS_MEASUREMENTS_10MIN[0:2]) / 2,  # 91.5
+        GAS_MEASUREMENTS_10MIN[2],  # 92.1
         None,
         None,
     ]
