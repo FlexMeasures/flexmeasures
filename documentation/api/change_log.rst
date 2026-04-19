@@ -5,7 +5,7 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-30 | 2026-XX-XX
+v3.0-30 | 2026-04-15
 """"""""""""""""""""
 - Added ``unit`` field to the `/sensors/<id>/schedules/<uuid>` (GET) endpoint for fetching a schedule, to get the schedule in a different unit still compatible to the sensor unit.
 - Added ``prior`` field to the `/sensors/<id>/forecasts/trigger` (POST) endpoint, to forecast from a given time in the past.

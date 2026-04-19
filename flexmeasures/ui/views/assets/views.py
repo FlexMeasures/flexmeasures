@@ -26,6 +26,10 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.views.assets.forms import NewAssetForm, AssetForm
+from flexmeasures.ui.views.assets.forms import (
+    ATTRIBUTES_FIELD_LABEL,
+    ATTRIBUTES_FIELD_DESCRIPTION,
+)
 from flexmeasures.ui.views.assets.utils import (
     get_asset_by_id_or_raise_notfound,
     user_can_create_assets,
@@ -71,6 +75,7 @@ class AssetCrudUI(FlaskView):
             message=msg,
             account=None,
             user_can_create_assets=user_can_create_assets(),
+            toast_msg=session.pop("toast_msg", None),
         )
 
     @login_required
@@ -197,6 +202,7 @@ class AssetCrudUI(FlaskView):
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             current_page="Context",
             available_units=available_units(),
+            toast_msg=session.pop("toast_msg", None),
         )
 
     @login_required
@@ -314,11 +320,15 @@ class AssetCrudUI(FlaskView):
     def delete_with_data(self, id: str):
         """Delete via /assets/delete_with_data/<id>"""
         asset = get_asset_by_id_or_raise_notfound(id)
+        parent_asset_id = asset.parent_asset_id
         delete_asset(asset)
         db.session.commit()
-        return self.index(
-            msg=f"Asset {id} and assorted meter readings / forecasts have been deleted."
+        session["toast_msg"] = (
+            f"Asset {id} and assorted meter readings / forecasts have been deleted."
         )
+        if parent_asset_id:
+            return redirect(url_for("AssetCrudUI:context", id=parent_asset_id))
+        return redirect(url_for("AssetCrudUI:index"))
 
     @login_required
     @route("/<id>/auditlog")
@@ -432,4 +442,6 @@ class AssetCrudUI(FlaskView):
             user_can_delete_asset=user_can_delete(asset),
             user_can_update_asset=user_can_update(asset),
             current_page="Properties",
+            attributes_label=ATTRIBUTES_FIELD_LABEL,
+            attributes_description=ATTRIBUTES_FIELD_DESCRIPTION,
         )

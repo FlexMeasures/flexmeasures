@@ -1006,7 +1006,11 @@ class GetScheduleSchema(Schema):
 
         if unit is None:
             data["unit"] = sensor.unit
-        elif unit != sensor.unit and not units_are_convertible(sensor.unit, unit):
+        elif unit != sensor.unit and not units_are_convertible(
+            sensor.unit,
+            unit,
+            duration_known=True if sensor.event_resolution != timedelta(0) else False,
+        ):
             raise ValidationError(
                 f"Incompatible units: {sensor.unit} cannot be converted to {unit}.",
                 field_name="unit",

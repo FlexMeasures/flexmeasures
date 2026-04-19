@@ -8,7 +8,7 @@
   window.onload = function(){
 
   let assets = {{ assets | safe }};
-  let currentAssetName = '{{ current_asset_name | safe}}';
+  let currentAssetName = {{ current_asset_name | tojson }};
 
   {# Vega Spec adapted from https://stackoverflow.com/a/76300309 #}
 
@@ -203,3 +203,316 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
   </tbody>
 </table>    
 {% endmacro %}
+
+{#
+  Render a button that opens the JSON attributes editor modal.
+  Call json_attributes_editor_modal() once on the same page to include the modal + JS.
+  Parameters:
+    modal_id:          unique HTML id for the modal (default "jsonAttributesModal")
+    label:             button label text
+    field_label:       optional form-field label rendered above the button
+    field_description: optional small description rendered below the label
+#}
+{% macro json_attributes_editor_button(modal_id="jsonAttributesModal", label="Custom attributes", field_label=None, field_description=None) %}
+{% if field_label %}
+<label class="form-label">{{ field_label }}</label>
+{% endif %}
+{% if field_description %}
+<small class="d-block mb-1" style="color: var(--gray);">{{ field_description }}</small>
+{% endif %}
+<button type="button"
+        class="btn btn-sm btn-secondary mt-2 w-100"
+        data-bs-toggle="modal"
+        data-bs-target="#{{ modal_id }}">
+  <i class="fa fa-pencil me-1"></i> {{ label }}
+</button>
+{% endmacro %}
+
+{#
+  Render the JSON attributes editor modal and its JavaScript.
+  Uses @json-editor/json-editor (https://github.com/json-editor/json-editor).
+  Parameters:
+    api_url:             full API PATCH URL for this entity
+    initial_attributes:  the current attributes dict (Jinja variable, will be tojson'd)
+    entity_name:         displayed in the modal title
+    modal_id:            must match the id passed to json_attributes_editor_button()
+
+  The modal has two tabs:
+    Form — schema-driven Bootstrap form (good for simple flat attributes)
+    JSON — raw editable textarea (type-accurate; authoritative on Save)
+
+  Active theme is read from FLEXMEASURES_JSONEDITOR_THEME config.
+  Available themes: "bootstrap5" (default), "bootstrap4", "bootstrap3",
+                    "tailwind", "spectre", "barebones", "html"
+#}
+{% macro json_attributes_editor_modal(api_url, initial_attributes, entity_name="", modal_id="jsonAttributesModal") %}
+{% set _theme = config.get("FLEXMEASURES_JSONEDITOR_THEME", "bootstrap5") %}
+<div class="modal fade fm-json-modal" id="{{ modal_id }}" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          Edit Attributes{% if entity_name %} — {{ entity_name }}{% endif %}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <ul class="nav nav-tabs mb-3" id="{{ modal_id }}Tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" data-bs-toggle="tab"
+                    data-bs-target="#{{ modal_id }}FormTab" role="tab">Form</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab"
+                    data-bs-target="#{{ modal_id }}JsonTab" role="tab">JSON</button>
+          </li>
+        </ul>
+
+        <div class="tab-content">
+          {# Form tab — rendered by @json-editor/json-editor with selected theme #}
+          <div class="tab-pane fade show active" id="{{ modal_id }}FormTab" role="tabpanel">
+            <div id="{{ modal_id }}EditorContainer" class="fm-je-container"></div>
+          </div>
+
+          {# JSON tab — plain Bootstrap textarea; always type-accurate #}
+          <div class="tab-pane fade" id="{{ modal_id }}JsonTab" role="tabpanel">
+            <textarea id="{{ modal_id }}JsonTextarea"
+                      class="form-control font-monospace fm-json-textarea"
+                      rows="20"
+                      spellcheck="false"
+                      autocomplete="off"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <small class="text-muted me-auto">
+          Save always uses the currently active tab.
+        </small>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success" id="{{ modal_id }}SaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var _modalId   = {{ modal_id | tojson }};
+  var _apiUrl    = {{ api_url  | tojson }};
+  var _theme     = {{ _theme   | tojson }};
+  var _startval  = {{ initial_attributes | tojson | safe }};
+  var _jeInstance = null;   /* @json-editor/json-editor instance        */
+  var _activeTab  = "form"; /* "form" | "json"                          */
+
+
+  /* ------------------------------------------------------------------ */
+  /* Initialise on first modal open                                       */
+  /* ------------------------------------------------------------------ */
+  document.getElementById(_modalId).addEventListener("shown.bs.modal", function () {
+    /* Always start on the Form tab */
+    var formTabEl = document.querySelector(
+      "#" + _modalId + "Tabs [data-bs-target='#" + _modalId + "FormTab']"
+    );
+    if (formTabEl) { bootstrap.Tab.getOrCreateInstance(formTabEl).show(); }
+    _activeTab = "form";
+    _initForm();
+    document.getElementById(_modalId + "JsonTextarea").value =
+      JSON.stringify(_startval, null, 2);
+  });
+
+  function _initForm() {
+    if (_jeInstance) {
+      _jeInstance.setValue(_startval);
+      return;
+    }
+    _jeInstance = new JSONEditor(
+      document.getElementById(_modalId + "EditorContainer"),
+      {
+        theme:    _theme,
+        iconlib:  "fontawesome4",        /* FA 4.7 is loaded in base.html    */
+        schema: {
+          type:  "object",
+          title: "\u200b",              /* zero-width space: truthy → avoids
+                                           the "root" label fallback          */
+          /*
+           * additionalProperties: {} lets @json-editor/json-editor render
+           * each existing key as a text input and provides a "+" button
+           * to add new keys.  All values are treated as strings in the
+           * form view; for non-string types use the JSON tab.
+           */
+          additionalProperties: {}
+        },
+        startval:                _startval,
+        disable_edit_json:       false,   /* also handled by the JSON tab          */
+        disable_collapse:        false,
+        no_additional_properties: false,
+        prompt_before_delete:    false,
+        enable_array_copy:       true     /* adds a Copy button per array item     */
+      }
+    );
+
+    /* Fix border-radius for lone buttons in .btn-group.
+     * @json-editor/json-editor places action buttons in a .btn-group but may
+     * leave hidden sibling elements in the DOM (e.g. collapse / edit-JSON
+     * buttons that are disabled via options).  Bootstrap's :not(:last-child)
+     * rule then flattens the wrong corners of the one visible button. */
+    var _editorEl = document.getElementById(_modalId + "EditorContainer");
+    _editorEl.querySelectorAll(".btn-group").forEach(function (grp) {
+      var visible = Array.from(grp.children).filter(function (el) {
+        return el.classList.contains("btn") &&
+               window.getComputedStyle(el).display !== "none";
+      });
+      if (visible.length === 1) {
+        visible[0].style.setProperty(
+          "border-radius", "var(--bs-btn-border-radius, 0.375rem)", "important"
+        );
+      }
+    });
+
+    /* Fix array copy: insert clone at index+1 instead of appending at end.
+     *
+     * The library's _createCopyButton handler has two bugs:
+     *   1. It appends the copy at the END of the array (e.push) instead of
+     *      inserting it after the source row.
+     *   2. It accesses schema.items.type without a null-guard, crashing when
+     *      items is undefined (arrays from additionalProperties: {}).
+     *
+     * Fix: register a capture-phase listener on the editor container.
+     * Capture fires BEFORE the button's own listener (bubble phase), so
+     * stopPropagation() here prevents the broken handler from running at all.
+     * Each editor container has data-schemapath set by json-editor; we use
+     * getEditor(path) to retrieve the array editor instance and splice. */
+    _editorEl.addEventListener("click", function (evt) {
+      var btn = evt.target.closest(".json-editor-btntype-copy");
+      if (!btn) { return; }
+      evt.preventDefault();
+      evt.stopPropagation();   /* block the library's own broken handler   */
+
+      var idx = parseInt(btn.getAttribute("data-i"), 10);
+
+      /* Walk up the DOM from the button to find the nearest ancestor whose
+       * editor returns an Array value — that is the array editor we need.
+       * btn.closest("[data-schemapath]") alone is not sufficient because the
+       * first match is the *item* editor container (e.g. root.tags.0), not
+       * the array editor container (e.g. root.tags). */
+      var arrayEditor = null;
+      var el = btn;
+      while (el && el !== _editorEl) {
+        el = el.parentElement;
+        if (!el || !el.getAttribute) { continue; }
+        var sp = el.getAttribute("data-schemapath");
+        if (!sp) { continue; }
+        var ed = _jeInstance.getEditor(sp);
+        if (ed && Array.isArray(ed.getValue())) {
+          arrayEditor = ed;
+          break;
+        }
+      }
+      if (!arrayEditor) { return; }
+
+      var vals = arrayEditor.getValue();
+
+      var copy = JSON.parse(JSON.stringify(vals[idx]));
+      vals.splice(idx + 1, 0, copy);
+      arrayEditor.setValue(vals);
+      if (arrayEditor.refreshValue) { arrayEditor.refreshValue(true); }
+      if (arrayEditor.onChange)     { arrayEditor.onChange(true); }
+    }, true /* capture phase */);
+  }  /* end _initForm */
+
+  /* ------------------------------------------------------------------ */
+  /* Tab-switch sync                                                      */
+  /* ------------------------------------------------------------------ */
+
+  /* show.bs.tab fires BEFORE Bootstrap moves focus.  Calling preventDefault()
+   * here cancels the switch entirely, keeping the user on the current tab. */
+  document.querySelectorAll(
+    "#" + _modalId + "Tabs [data-bs-toggle='tab']"
+  ).forEach(function (tab) {
+    tab.addEventListener("show.bs.tab", function (event) {
+      var target = event.target.getAttribute("data-bs-target");
+      /* Switching JSON → Form: textarea must contain valid JSON */
+      if (target === "#" + _modalId + "FormTab") {
+        try {
+          JSON.parse(document.getElementById(_modalId + "JsonTextarea").value);
+        } catch (e) {
+          event.preventDefault();
+          showToast("Invalid JSON — please fix errors before switching tabs.", "error");
+        }
+      }
+    });
+  });
+
+  /* shown.bs.tab fires AFTER Bootstrap completes the switch (only reached
+   * when show.bs.tab was not cancelled). */
+  document.querySelectorAll(
+    "#" + _modalId + "Tabs [data-bs-toggle='tab']"
+  ).forEach(function (tab) {
+    tab.addEventListener("shown.bs.tab", function (event) {
+      var target = event.target.getAttribute("data-bs-target");
+      if (target === "#" + _modalId + "JsonTab") {
+        /* Form → JSON: stringify current form values */
+        _activeTab = "json";
+        try {
+          var val = _jeInstance ? _jeInstance.getValue() : _startval;
+          document.getElementById(_modalId + "JsonTextarea").value =
+            JSON.stringify(val, null, 2);
+        } catch (e) {}
+      } else {
+        /* JSON → Form: parse textarea and push into form editor */
+        _activeTab = "form";
+        var parsed = JSON.parse(
+          document.getElementById(_modalId + "JsonTextarea").value
+        );
+        if (_jeInstance) { _jeInstance.setValue(parsed); }
+        _startval = parsed;
+      }
+    });
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* Save                                                                 */
+  /* ------------------------------------------------------------------ */
+  document.getElementById(_modalId + "SaveBtn").addEventListener("click", function () {
+    var data;
+    try {
+      if (_activeTab === "json") {
+        data = JSON.parse(
+          document.getElementById(_modalId + "JsonTextarea").value
+        );
+      } else {
+        data = _jeInstance ? _jeInstance.getValue() : _startval;
+      }
+    } catch (e) {
+      showToast("Invalid JSON — please fix errors before saving.", "error");
+      return;
+    }
+
+    fetch(_apiUrl, {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ attributes: JSON.stringify(data) })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (resp) {
+      if (resp.id !== undefined) {
+        showToast("Attributes saved successfully!", "success");
+        bootstrap.Modal.getInstance(document.getElementById(_modalId)).hide();
+        _startval = data;
+      } else {
+        var msg =
+          (resp.message && resp.message.json &&
+           resp.message.json.attributes &&
+           resp.message.json.attributes[0])
+          || resp.message || "Save failed";
+        showToast("Error: " + msg, "error");
+      }
+    })
+    .catch(function (err) { showToast("Error: " + err, "error"); });
+  });
+}());
+</script>
+{% endmacro %}
+
