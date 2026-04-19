@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.31.1"
+    "version": "0.32.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -672,7 +672,7 @@
             "description": "ID of the sensor for which to retrieve the schedule.",
             "example": 5,
             "schema": {
-              "type": "int"
+              "type": "integer"
             }
           },
           {
@@ -4829,6 +4829,9 @@
             ],
             "maxLength": 255
           },
+          "attributes": {
+            "default": "{}"
+          },
           "account_roles": {
             "type": "array",
             "items": {
@@ -5557,6 +5560,9 @@
               "null"
             ],
             "maxLength": 255
+          },
+          "attributes": {
+            "default": "{}"
           },
           "account_roles": {
             "type": "array",

@@ -889,7 +889,7 @@ class SensorAPI(FlaskView):
               description: ID of the sensor for which to retrieve the schedule.
               example: 5
               schema:
-                type: int
+                type: integer
             - in: path
               name: uuid
               required: true
