@@ -367,7 +367,29 @@ export function initDeleteAssetButton() {
 
     btn.addEventListener("click", function () {
         if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
-            window.location.href = "/assets/delete_with_data/" + assetId;
+            fetch("/assets/delete_with_data/" + assetId, {
+                method: "GET",
+                credentials: "same-origin"
+            })
+            .then(response => {
+                if (response.ok) return response;
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    return response.json().then(err => {
+                        throw new Error(err.message || response.statusText || "Delete failed");
+                    });
+                }
+                throw new Error(response.statusText || "Delete failed");
+            })
+            .then(response => {
+                showToast("Asset deleted successfully.", "success");
+                setTimeout(() => {
+                    window.location.href = response.url;
+                }, 1500);
+            })
+            .catch(err => {
+                showToast("Failed to delete asset: " + err.message, "error");
+            });
         }
     });
 }
