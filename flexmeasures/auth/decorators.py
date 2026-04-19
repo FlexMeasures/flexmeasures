@@ -210,7 +210,34 @@ def permission_required_for_context(
 
 
 def _check_access_for_context(context, permission: str):
-    """Check access for a single context or for each context in a list."""
+    """Check access for a single context, a list of contexts, or labeled context groups."""
+    if isinstance(context, dict):
+        for label, labeled_contexts in context.items():
+            contexts = (
+                labeled_contexts
+                if isinstance(labeled_contexts, list)
+                else [labeled_contexts]
+            )
+            for c in contexts:
+                try:
+                    check_access(c, permission)
+                except Forbidden as exc:
+                    context_name = getattr(c, "name", str(c))
+                    context_id = getattr(c, "id", None)
+                    context_suffix = (
+                        f" '{context_name}' (id {context_id})"
+                        if context_id is not None
+                        else f" '{context_name}'"
+                    )
+                    setattr(
+                        exc,
+                        "api_message",
+                        f"You cannot be authorized for forecasting config field '{label}' "
+                        f"because it references sensor{context_suffix}.",
+                    )
+                    raise
+        return
+
     contexts = context if isinstance(context, list) else [context]
     for c in contexts:
         check_access(c, permission)
