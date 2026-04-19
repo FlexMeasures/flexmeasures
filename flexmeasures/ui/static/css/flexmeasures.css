@@ -1957,8 +1957,6 @@ div.heading-group {
 
 /* Show tooltip titles on touch screens */
 [title] {
-	border-bottom: 1px dashed rgba(0, 0, 0, 0.2);
-	border-radius:2px;
 	position: relative;
 }
 body.touched [title]:hover > * {
