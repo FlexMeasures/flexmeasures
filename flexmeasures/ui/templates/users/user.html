@@ -111,11 +111,22 @@
       </div>
     </div>
     <div class="col-md-2 mt-3">
-      {% if can_view_user_auditlog %}
-      <button class="btn p-3 btn-info border-0 mb-3 mt-3" type="button"
-        onclick="window.location.href='/users/auditlog/{{ user.id }}'" title="View history of user actions.">User audit
-        log</button>
-      {% endif %}
+      <div class="header-action-button mt-3">
+        {% if can_view_account_auditlog %}
+        <div>
+          <a href="/accounts/auditlog/{{ user.account.id }}"
+             class="btn btn-sm btn-responsive btn-info bt-md-0 mb-3 d-inline-block nav-button"
+             title="View history of account actions.">Account audit log</a>
+        </div>
+        {% endif %}
+        {% if can_view_user_auditlog %}
+        <div>
+          <a href="/users/auditlog/{{ user.id }}"
+             class="btn btn-sm btn-responsive btn-info mb-md-0 mb-3 d-inline-block nav-button"
+             title="View history of user actions.">User audit log</a>
+        </div>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>

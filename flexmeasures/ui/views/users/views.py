@@ -23,6 +23,11 @@ User Crud views for admins and consultants.
 
 def render_user(user: User | None, msg: str | None = None):
     """Renders the user details page."""
+    user_can_view_account_auditlog = True
+    try:
+        check_access(AuditLog.account_table_acl(user.account), "read")
+    except (Forbidden, Unauthorized):
+        user_can_view_account_auditlog = False
     user_view_user_auditlog = True
     try:
         check_access(AuditLog.user_table_acl(user), "read")
@@ -45,6 +50,7 @@ def render_user(user: User | None, msg: str | None = None):
 
     return render_flexmeasures_template(
         "users/user.html",
+        can_view_account_auditlog=user_can_view_account_auditlog,
         can_view_user_auditlog=user_view_user_auditlog,
         can_edit_user_details=can_edit_user_details,
         user=user,
