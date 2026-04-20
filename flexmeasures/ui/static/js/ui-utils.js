@@ -326,21 +326,22 @@ export function moveArrayItem(array, index, direction) {
 }
 
 /**
- * Show a confirmation dialog and, if accepted, perform a fetch request.
+ * Optionally show a confirmation dialog, then perform a fetch request.
  *
  * Error responses are normalised: a JSON body's `message` field is used
  * when available, otherwise the HTTP status text is used. Network errors
  * bubble up unchanged. The raw Response is passed to onSuccess so each
  * caller can decide how to consume it (e.g. parse JSON or read response.url).
  *
- * @param {string}   confirmMessage - Text shown in the confirm dialog.
+ * @param {string|null} confirmMessage - Text shown in the confirm dialog, or
+ *                                       null/undefined to skip confirmation.
  * @param {string}   url            - URL to fetch.
  * @param {object}   options        - fetch() options (method, headers, …).
  * @param {function} onSuccess      - Called with the Response on success.
  * @param {string}   errorPrefix    - Prefix for the showToast error message.
  */
 function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
-    if (!confirm(confirmMessage)) return;
+    if (confirmMessage && !confirm(confirmMessage)) return;
     fetch(url, options)
         .then(response => {
             if (response.ok) return response;
@@ -364,7 +365,7 @@ export function initCopyAssetButton() {
     btn.addEventListener("click", function (event) {
         const openInNewTab = event.ctrlKey || event.metaKey;
         confirmAndFetch(
-            "Are you sure you want to copy this asset and all its children?",
+            null,
             "/api/v3_0/assets/" + assetId + "/copy",
             {method: "POST", headers: {"Content-Type": "application/json"}, credentials: "same-origin"},
             response => response.json().then(data => {
