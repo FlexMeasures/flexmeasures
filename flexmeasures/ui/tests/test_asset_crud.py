@@ -245,9 +245,10 @@ def test_delete_child_asset_redirects_to_parent(
 @pytest.mark.parametrize(
     "login_fixture, expect_copy_sibling, expect_copy_to_own",
     [
-        # Site admin can create any asset → sibling copy
+        # Site admin can create any asset → sibling copy;
+        # asset is in their own account so "copy to own" is suppressed.
         ("as_admin", True, False),
-        # Account-admin of same account → sibling copy
+        # Account-admin of same account → sibling copy; same suppression.
         ("as_prosumer_account_admin", True, False),
         # Plain account member: cannot create a top-level sibling,
         # and asset is already in their own account so "copy to own" is also False.
@@ -265,11 +266,16 @@ def test_copy_button_visibility_own_account_asset(
 ):
     """
     The copy-asset buttons on the properties page respect account-level
-    'create-children' permissions.
+    'create-children' permissions.  The two buttons are independent:
 
-    Only account-admins (and site admins) can create top-level assets, so
-    only they should see the copy button for an asset that already belongs
-    to their account.  Plain users see neither button.
+    - "Copy this asset" (sibling copy) requires create-children on the owning
+      account (account-admin or consultant).
+    - "Copy to my account" requires create-children on the *current user's*
+      account and is suppressed when the asset already belongs to that account.
+
+    Both can be visible simultaneously (e.g. a site admin viewing an asset in
+    another account), but for these test cases the asset lives in the logged-in
+    user's own account so the own-account button is always suppressed.
     """
     from flexmeasures.data.services.users import find_user_by_email
 
@@ -287,12 +293,12 @@ def test_copy_button_visibility_own_account_asset(
 
     if expect_copy_sibling:
         assert b"Copy this asset" in page.data
-        assert b"Copy to my account" not in page.data
-    elif expect_copy_to_own:
-        assert b"Copy to my account" in page.data
-        assert b"Copy this asset" not in page.data
     else:
         assert b"Copy this asset" not in page.data
+
+    if expect_copy_to_own:
+        assert b"Copy to my account" in page.data
+    else:
         assert b"Copy to my account" not in page.data
 
 
@@ -301,8 +307,8 @@ def test_copy_to_own_account_button_for_cross_account_admin(
 ):
     """
     An account-admin of a *different* account viewing a public asset should see
-    'Copy to my account' (they cannot create a public sibling, but they can
-    create an asset in their own account).
+    'Copy to my account' but not 'Copy this asset' (creating a public sibling
+    requires site-admin privileges, which an account-admin does not have).
     """
     page = client.get(
         url_for("AssetCrudUI:properties", id=public_asset.id),

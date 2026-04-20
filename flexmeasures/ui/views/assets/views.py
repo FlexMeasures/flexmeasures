@@ -436,10 +436,16 @@ class AssetCrudUI(FlaskView):
         else:
             _can_copy_as_sibling = current_user.has_role("admin")
 
-        # Can the user copy the asset to their own account instead?
-        # True when they cannot create a sibling but can create assets in their own account.
+        # Can the user copy the asset to their own account?
+        # Independent of sibling-copy: e.g. a site admin viewing an asset in another
+        # account can both create a sibling and copy it to their own account.
+        # We only suppress the own-account button when the asset already belongs to
+        # the current user's account (a sibling copy would land there anyway).
         _own_account = current_user.account
-        _can_copy_to_own_account = not _can_copy_as_sibling and user_can_create_assets()
+        _asset_in_own_account = (
+            asset.account_id is not None and asset.account_id == _own_account.id
+        )
+        _can_copy_to_own_account = not _asset_in_own_account and user_can_create_assets()
 
         return render_flexmeasures_template(
             "assets/asset_properties.html",

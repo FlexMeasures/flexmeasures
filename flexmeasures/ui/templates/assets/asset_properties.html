@@ -136,13 +136,22 @@
             {% endif %}
 
             <div class="header-action-button">
-                {% if user_can_copy_as_sibling or user_can_copy_to_own_account %}
+                {% if user_can_copy_as_sibling %}
                 <div>
-                    <button id="copy-asset-button" class="btn btn-sm btn-responsive create-button" type="button"
+                    <button class="js-copy-asset-btn btn btn-sm btn-responsive create-button" type="button"
                         data-asset-id="{{ asset.id }}"
-                        {% if user_can_copy_to_own_account %}data-target-account-id="{{ copy_target_account_id }}"{% endif %}
-                        title="{% if user_can_copy_to_own_account %}Copy asset and all its children to your own account{% else %}Copy asset and all its children as a sibling{% endif %}. Ctrl-click to open the copy in a new tab.">
-                        {% if user_can_copy_to_own_account %}Copy to my account{% else %}Copy this asset{% endif %}
+                        title="Copy asset and all its children as a sibling. Ctrl-click to open the copy in a new tab.">
+                        Copy this asset
+                    </button>
+                </div>
+                {% endif %}
+                {% if user_can_copy_to_own_account %}
+                <div>
+                    <button class="js-copy-asset-btn btn btn-sm btn-responsive create-button" type="button"
+                        data-asset-id="{{ asset.id }}"
+                        data-target-account-id="{{ copy_target_account_id }}"
+                        title="Copy asset and all its children to your own account. You can copy but cannot delete assets without the account-admin role — contact your account admin to remove unwanted copies. Ctrl-click to open the copy in a new tab.">
+                        Copy to my account
                     </button>
                 </div>
                 {% endif %}
@@ -154,9 +163,9 @@
                 </div>
                 {% endif %}
                 <script type="module">
-                    import { initCopyAssetButton, initDeleteAssetButton } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+                    import { initCopyAssetButtons, initDeleteAssetButton } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
                     document.addEventListener("DOMContentLoaded", function () {
-                        initCopyAssetButton();
+                        initCopyAssetButtons();
                         initDeleteAssetButton();
                     });
                 </script>
