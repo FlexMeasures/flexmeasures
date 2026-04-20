@@ -357,35 +357,47 @@ function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
         .catch(err => showToast(errorPrefix + ": " + err.message, "error"));
 }
 
-export function initCopyAssetButton() {
-    const btn = document.getElementById("copy-asset-button");
-    if (!btn) return;
-    const assetId = btn.dataset.assetId;
-    // Present when the user cannot create a sibling and will copy to their own account instead.
-    const targetAccountId = btn.dataset.targetAccountId || null;
+/**
+ * Attach click handlers to all elements with the "js-copy-asset-btn" class.
+ * Each button must carry a data-asset-id attribute.
+ * An optional data-target-account-id attribute causes the copy to land in that
+ * account instead of creating a sibling under the same parent/account.
+ * Ctrl/Cmd-click opens the resulting asset page in a new tab.
+ *
+ * Note: plain account members can create copies indefinitely (GenericAsset
+ * create-children is open to all account members) but cannot delete the
+ * resulting assets (deletion requires account-admin). Account admins are
+ * responsible for pruning unwanted copies.
+ */
+export function initCopyAssetButtons() {
+    document.querySelectorAll(".js-copy-asset-btn").forEach(btn => {
+        const assetId = btn.dataset.assetId;
+        // Present on the "copy to my account" button; absent on the sibling-copy button.
+        const targetAccountId = btn.dataset.targetAccountId || null;
 
-    btn.addEventListener("click", function (event) {
-        const openInNewTab = event.ctrlKey || event.metaKey;
-        const url = targetAccountId
-            ? "/api/v3_0/assets/" + assetId + "/copy?account=" + targetAccountId
-            : "/api/v3_0/assets/" + assetId + "/copy";
-        confirmAndFetch(
-            null,
-            url,
-            {method: "POST", headers: {"Content-Type": "application/json"}, credentials: "same-origin"},
-            response => response.json().then(data => {
-                showToast("Asset copied successfully.", "success");
-                setTimeout(() => {
-                    const url = "/assets/" + data.asset + "/properties";
-                    if (openInNewTab) {
-                        window.open(url, "_blank");
-                    } else {
-                        window.location.href = url;
-                    }
-                }, 1500);
-            }),
-            "Failed to copy asset"
-        );
+        btn.addEventListener("click", function (event) {
+            const openInNewTab = event.ctrlKey || event.metaKey;
+            const url = targetAccountId
+                ? "/api/v3_0/assets/" + assetId + "/copy?account=" + targetAccountId
+                : "/api/v3_0/assets/" + assetId + "/copy";
+            confirmAndFetch(
+                null,
+                url,
+                {method: "POST", headers: {"Content-Type": "application/json"}, credentials: "same-origin"},
+                response => response.json().then(data => {
+                    showToast("Asset copied successfully.", "success");
+                    setTimeout(() => {
+                        const dest = "/assets/" + data.asset + "/properties";
+                        if (openInNewTab) {
+                            window.open(dest, "_blank");
+                        } else {
+                            window.location.href = dest;
+                        }
+                    }, 1500);
+                }),
+                "Failed to copy asset"
+            );
+        });
     });
 }
 
