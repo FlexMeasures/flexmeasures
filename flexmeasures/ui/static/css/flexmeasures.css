@@ -1336,10 +1336,19 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 .header-action-button {
     display: flex;
     justify-content: space-around;
+    align-items: stretch;
     width: 100% !important;
 }
 
+.header-action-button .btn {
+    padding-left: 15px;
+    padding-right: 15px;
+    height: 100%;
+    align-items: center;
+}
 .header-action-button>div {
+    height: auto;
+    align-items: center;
     flex: 1 1 auto;
     width: auto !important;
     padding: 0;
