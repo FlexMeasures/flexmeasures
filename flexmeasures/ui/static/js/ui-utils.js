@@ -361,12 +361,17 @@ export function initCopyAssetButton() {
     const btn = document.getElementById("copy-asset-button");
     if (!btn) return;
     const assetId = btn.dataset.assetId;
+    // Present when the user cannot create a sibling and will copy to their own account instead.
+    const targetAccountId = btn.dataset.targetAccountId || null;
 
     btn.addEventListener("click", function (event) {
         const openInNewTab = event.ctrlKey || event.metaKey;
+        const url = targetAccountId
+            ? "/api/v3_0/assets/" + assetId + "/copy?account=" + targetAccountId
+            : "/api/v3_0/assets/" + assetId + "/copy";
         confirmAndFetch(
             null,
-            "/api/v3_0/assets/" + assetId + "/copy",
+            url,
             {method: "POST", headers: {"Content-Type": "application/json"}, credentials: "same-origin"},
             response => response.json().then(data => {
                 showToast("Asset copied successfully.", "success");
