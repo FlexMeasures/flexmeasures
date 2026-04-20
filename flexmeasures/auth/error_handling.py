@@ -42,8 +42,11 @@ FORBIDDEN_MSG = "You cannot be authorized for this content or functionality."
 
 def unauthorized_handler_e(e):
     """Swallow error. Useful for classical Flask error handler registration."""
-    log_error(e, str(e), verbose=False)
-    return unauthorized_handler(message=getattr(e, "api_message", None))
+    message = getattr(e, "api_message", None)
+    log_error(
+        e, str(e) + " " + message if message is not None else str(e), verbose=False
+    )
+    return unauthorized_handler(message=message)
 
 
 def unauthorized_handler(
