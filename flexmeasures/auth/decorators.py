@@ -225,7 +225,7 @@ def _check_access_for_context(context, permission: str):
                     context_name = getattr(c, "name", str(c))
                     context_id = getattr(c, "id", None)
                     context_suffix = (
-                        f" '{context_name}' (id {context_id})"
+                        f" '{context_name}' (ID {context_id})"
                         if context_id is not None
                         else f" '{context_name}'"
                     )
