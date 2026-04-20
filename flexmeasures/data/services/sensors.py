@@ -32,8 +32,36 @@ from flexmeasures.utils.time_utils import server_now
 _REMOVE = object()
 
 
-def _prune_flex_config_sensor_refs(value, sensor_id: int):
-    """Remove references to a sensor from flex_model/flex_context JSON values."""
+def _prune_flex_config_sensor_refs(
+    value: dict[str, Any] | list[Any] | int | str | None, sensor_id: int
+) -> tuple[dict[str, Any] | list[Any] | int | str | None | object, bool]:
+    """Recursively remove sensor references from nested flex_model/flex_context JSON structures.
+
+    This function handles deeply nested JSON objects and lists from flex_model and flex_context
+    JSONB columns. It scans for sensor references in two forms:
+    - Direct objects: {"sensor": sensor_id_to_remove}
+    - Lists: [sensor_id_to_remove, ...] in "inflexible-device-sensors" keys
+
+    Args:
+        value: A JSON-like value (dict, list, int, str, None) from flex_model/flex_context.
+               Can be arbitrarily nested.
+        sensor_id: The ID of the sensor to remove references to.
+
+    Returns:
+        A tuple (pruned_value, changed):
+        - pruned_value: The value with sensor references removed. Can be:
+            - `_REMOVE` (sentinel object): Remove this entire entry from parent
+            - A pruned dict/list/scalar: The value with refs removed
+        - changed (bool): True if any references were actually removed.
+
+    Example:
+        >>> value = {"soc-max": {"sensor": 42}, "limit": "10 kW"}
+        >>> pruned, did_change = _prune_flex_config_sensor_refs(value, sensor_id=42)
+        >>> pruned
+        {"limit": "10 kW"}  # soc-max removed entirely
+        >>> did_change
+        True
+    """
     if isinstance(value, dict):
         # Direct sensor reference object (for example {"sensor": 12})
         if set(value.keys()) == {"sensor"} and value.get("sensor") == sensor_id:
@@ -72,8 +100,34 @@ def _prune_flex_config_sensor_refs(value, sensor_id: int):
     return value, False
 
 
-def _prune_sensors_to_show_refs(value, sensor_id: int):
-    """Remove references to a sensor from sensors_to_show JSON values."""
+def _prune_sensors_to_show_refs(
+    value: list[Any] | None, sensor_id: int
+) -> tuple[list[Any] | None, bool]:
+    """Remove sensor references from sensors_to_show JSON list.
+
+    This function handles sensors_to_show lists which support multiple entry formats:
+    - Bare sensor IDs: [42, 43, ...]
+    - Grouped sensor IDs: [42, [43, 44], ...] (nested lists)
+    - Dict entries: [{"sensor": 42, ...}, ...] (delegated to _prune_sensors_to_show_entry)
+
+    Args:
+        value: The sensors_to_show JSON list (or None). Each entry can be an int, list of ints, or dict.
+        sensor_id: The ID of the sensor to remove references to.
+
+    Returns:
+        A tuple (pruned_list, changed):
+        - pruned_list: The list with sensor references removed (or empty lists filtered out).
+                       Returns None/value unchanged if input is not a list.
+        - changed (bool): True if any references were actually removed.
+
+    Example:
+        >>> value = [42, [43, 42], {"sensor": 42}]
+        >>> pruned, did_change = _prune_sensors_to_show_refs(value, sensor_id=42)
+        >>> pruned
+        [[43]]  # bare 42 removed, 42 from group removed (empty group filtered), dict removed
+        >>> did_change
+        True
+    """
     if not isinstance(value, list):
         return value, False
 
@@ -111,8 +165,33 @@ def _prune_sensors_to_show_refs(value, sensor_id: int):
     return cleaned, changed
 
 
-def _prune_sensors_to_show_entry(entry: dict[str, Any], sensor_id: int):
-    """Prune one dict entry from sensors_to_show and report if it changed."""
+def _prune_sensors_to_show_entry(
+    entry: dict[str, Any], sensor_id: int
+) -> tuple[dict[str, Any] | object, bool]:
+    """Remove sensor references from a single sensors_to_show dict entry.
+
+    Handles three field types within a dict entry:
+    - "sensor": Direct sensor ID reference → remove if matches
+    - "sensors": List of sensor IDs → filter out matching IDs
+    - "plots": List of plot dicts, each may contain "sensor" or "sensors" → recurse
+
+    Args:
+        entry: A dict from the sensors_to_show list (e.g., {"sensor": 42, "title": "..."}).
+        sensor_id: The ID of the sensor to remove references to.
+
+    Returns:
+        A tuple (pruned_entry, changed):
+        - pruned_entry: Can be:
+            - `_REMOVE`: Remove this entire entry from parent list
+            - Modified entry dict: The entry with refs removed
+        - changed (bool): True if any references were removed.
+
+    Example:
+        >>> entry = {"sensor": 42, "title": "Power"}
+        >>> pruned, did_change = _prune_sensors_to_show_entry(entry, sensor_id=42)
+        >>> pruned
+        _REMOVE  # entire entry removed
+    """
     if "sensor" in entry:
         if entry.get("sensor") == sensor_id:
             return _REMOVE, True
@@ -159,8 +238,33 @@ def _prune_sensors_to_show_entry(entry: dict[str, Any], sensor_id: int):
     return entry, False
 
 
-def _prune_sensors_to_show_as_kpis_refs(value, sensor_id: int):
-    """Remove references to a sensor from sensors_to_show_as_kpis JSON values."""
+def _prune_sensors_to_show_as_kpis_refs(
+    value: list[Any] | None, sensor_id: int
+) -> tuple[list[Any] | None, bool]:
+    """Remove sensor references from sensors_to_show_as_kpis JSON list.
+
+    This function handles sensors_to_show_as_kpis lists which support:
+    - Bare sensor IDs: [42, 43, ...]
+    - Dict entries: [{"sensor": 42, "title": "...", "function": "sum"}, ...]
+
+    Args:
+        value: The sensors_to_show_as_kpis JSON list (or None). Each entry is an int or dict.
+        sensor_id: The ID of the sensor to remove references to.
+
+    Returns:
+        A tuple (pruned_list, changed):
+        - pruned_list: The list with sensor references removed.
+                       Returns None/value unchanged if input is not a list.
+        - changed (bool): True if any references were actually removed.
+
+    Example:
+        >>> value = [42, {"sensor": 42, "title": "Temp KPI", "function": "sum"}]
+        >>> pruned, did_change = _prune_sensors_to_show_as_kpis_refs(value, sensor_id=42)
+        >>> pruned
+        []  # all entries removed
+        >>> did_change
+        True
+    """
     if not isinstance(value, list):
         return value, False
 
