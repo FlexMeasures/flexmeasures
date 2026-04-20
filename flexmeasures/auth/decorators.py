@@ -232,7 +232,7 @@ def _check_access_for_context(context, permission: str):
                     setattr(
                         exc,
                         "api_message",
-                        f"You cannot be authorized for forecasting config field '{label}' "
+                        f"You cannot be authorized for the '{label}' field "
                         f"because it references sensor {context_suffix}.",
                     )
                     raise
