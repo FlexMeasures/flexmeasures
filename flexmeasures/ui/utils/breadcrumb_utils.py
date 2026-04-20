@@ -4,6 +4,7 @@ from sqlalchemy import select
 from flexmeasures import Sensor, Asset, Account
 from flexmeasures.utils.flexmeasures_inflection import human_sorted
 from flask import url_for, current_app
+from flask_security.core import current_user
 
 
 def get_breadcrumb_info(
@@ -128,6 +129,28 @@ def get_siblings(entity: Sensor | Asset | Account | None) -> list[dict]:
     if custom_siblings is not None and isinstance(custom_siblings, list):
         return custom_siblings
     siblings = []
+    if isinstance(entity, Account):
+        from flexmeasures.auth.policy import user_has_admin_access
+
+        session = current_app.db.session
+        if user_has_admin_access(current_user, "read"):
+            sibling_accounts = session.scalars(select(Account)).all()
+        else:
+            sibling_accounts = [current_user.account] + (
+                current_user.account.consultancy_client_accounts
+                if "consultant" in current_user.roles
+                else []
+            )
+        # Only show siblings (dropdown) when there is more than one accessible account
+        if len(sibling_accounts) > 1:
+            siblings = [
+                {
+                    "url": url_for("AccountCrudUI:get", account_id=account.id),
+                    "name": account.name,
+                    "type": "Account",
+                }
+                for account in sibling_accounts
+            ]
     if isinstance(entity, Sensor):
         siblings = [
             {
