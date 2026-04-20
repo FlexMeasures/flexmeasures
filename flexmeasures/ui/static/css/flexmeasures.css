@@ -1333,6 +1333,20 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 /* ---- Header action button ---- */
 
+/* Left/right action columns: match the card's 15px margin so pillboxes center correctly */
+.col-action-left {
+    padding-left: 15px;
+}
+
+.col-action-right {
+    padding-right: 15px;
+}
+
+/* Sidepanels inside a padded action column must be pulled back to the screen edge */
+.col-action-left .sidepanel {
+    margin-left: -15px;
+}
+
 .header-action-button {
     display: flex;
     justify-content: space-around;
