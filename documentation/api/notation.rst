@@ -274,6 +274,13 @@ For example, to obtain data originating from data source 42, include the followi
 
 Data source IDs can be found by hovering over data in charts.
 
+For the ``GET /api/v3_0/sensors/<id>/data`` endpoint specifically, source filtering supports:
+
+- ``source``: filter by data source ID
+- ``account``: filter by the account ID linked to data sources
+
+Filtering that endpoint by source type is currently not supported.
+
 .. _units:
 
 Units

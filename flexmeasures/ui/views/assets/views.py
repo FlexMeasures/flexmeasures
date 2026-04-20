@@ -75,6 +75,7 @@ class AssetCrudUI(FlaskView):
             message=msg,
             account=None,
             user_can_create_assets=user_can_create_assets(),
+            toast_msg=session.pop("toast_msg", None),
         )
 
     @login_required
@@ -201,6 +202,7 @@ class AssetCrudUI(FlaskView):
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             current_page="Context",
             available_units=available_units(),
+            toast_msg=session.pop("toast_msg", None),
         )
 
     @login_required
@@ -318,11 +320,15 @@ class AssetCrudUI(FlaskView):
     def delete_with_data(self, id: str):
         """Delete via /assets/delete_with_data/<id>"""
         asset = get_asset_by_id_or_raise_notfound(id)
+        parent_asset_id = asset.parent_asset_id
         delete_asset(asset)
         db.session.commit()
-        return self.index(
-            msg=f"Asset {id} and assorted meter readings / forecasts have been deleted."
+        session["toast_msg"] = (
+            f"Asset {id} and assorted meter readings / forecasts have been deleted."
         )
+        if parent_asset_id:
+            return redirect(url_for("AssetCrudUI:context", id=parent_asset_id))
+        return redirect(url_for("AssetCrudUI:index"))
 
     @login_required
     @route("/<id>/auditlog")
