@@ -161,9 +161,7 @@ def stats(window: int):
         **(
             MsgStyle.SUCCESS
             if rho_system < 0.68
-            else MsgStyle.WARN
-            if rho_system < 0.95
-            else MsgStyle.ERROR
+            else MsgStyle.WARN if rho_system < 0.95 else MsgStyle.ERROR
         ),
     )
     click.echo(tabulate(rows, headers=headers, tablefmt="simple"))
