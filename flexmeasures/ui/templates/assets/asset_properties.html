@@ -139,7 +139,8 @@
                 {% if user_can_create_assets %}
                 <div>
                     <button id="copy-asset-button" class="btn btn-sm btn-responsive create-button" type="button"
-                        data-asset-id="{{ asset.id }}">
+                        data-asset-id="{{ asset.id }}"
+                        title="Copy this asset and all its children. Ctrl-click to open the copy in a new tab.">
                         Copy this asset
                     </button>
                 </div>

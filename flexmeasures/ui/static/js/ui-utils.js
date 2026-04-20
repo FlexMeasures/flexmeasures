@@ -361,7 +361,8 @@ export function initCopyAssetButton() {
     if (!btn) return;
     const assetId = btn.dataset.assetId;
 
-    btn.addEventListener("click", function () {
+    btn.addEventListener("click", function (event) {
+        const openInNewTab = event.ctrlKey || event.metaKey;
         confirmAndFetch(
             "Are you sure you want to copy this asset and all its children?",
             "/api/v3_0/assets/" + assetId + "/copy",
@@ -369,7 +370,12 @@ export function initCopyAssetButton() {
             response => response.json().then(data => {
                 showToast("Asset copied successfully.", "success");
                 setTimeout(() => {
-                    window.location.href = "/assets/" + data.asset + "/properties";
+                    const url = "/assets/" + data.asset + "/properties";
+                    if (openInNewTab) {
+                        window.open(url, "_blank");
+                    } else {
+                        window.location.href = url;
+                    }
                 }, 1500);
             }),
             "Failed to copy asset"
