@@ -1337,7 +1337,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     display: flex;
     justify-content: space-around;
     align-items: stretch;
-    width: 100% !important;
+    width: fit-content;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .header-action-button .btn {
