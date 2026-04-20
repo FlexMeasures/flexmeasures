@@ -600,19 +600,19 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     )
     check_audit_log_event(
         db=db,
-        event=f"Removed deleted sensor reference '{existing_sensor.name}': {existing_sensor.id} from flex-context.",
+        event=f"Removed sensor reference '{existing_sensor.name}': {existing_sensor.id} from flex-context (because sensor has been deleted).",
         user=requesting_user,
         asset=existing_sensor.generic_asset,
     )
     check_audit_log_event(
         db=db,
-        event=f"Removed deleted sensor reference '{existing_sensor.name}': {existing_sensor.id} from sensors-to-show.",
+        event=f"Removed sensor reference '{existing_sensor.name}': {existing_sensor.id} from sensors-to-show (because sensor has been deleted).",
         user=requesting_user,
         asset=existing_sensor.generic_asset,
     )
     check_audit_log_event(
         db=db,
-        event=f"Removed deleted sensor reference '{existing_sensor.name}': {existing_sensor.id} from sensors-to-show-as-kpis.",
+        event=f"Removed sensor reference '{existing_sensor.name}': {existing_sensor.id} from sensors-to-show-as-kpis (because sensor has been deleted).",
         user=requesting_user,
         asset=existing_sensor.generic_asset,
     )
