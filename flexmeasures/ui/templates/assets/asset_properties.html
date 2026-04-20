@@ -140,7 +140,7 @@
                 <div>
                     <button class="js-copy-asset-btn btn btn-sm btn-responsive create-button" type="button"
                         data-asset-id="{{ asset.id }}"
-                        title="Copy asset and all its children as a sibling. Ctrl-click to open the copy in a new tab.">
+                        title="Copy asset and all its children{% if user_can_copy_to_own_account %} as a sibling{% endif %}{% if not user_can_delete_asset %} — note: you can copy but not delete; contact your organisation admin to remove unwanted copies{% endif %}. Ctrl-click to open the copy in a new tab.">
                         Copy this asset
                     </button>
                 </div>
@@ -150,8 +150,8 @@
                     <button class="js-copy-asset-btn btn btn-sm btn-responsive create-button" type="button"
                         data-asset-id="{{ asset.id }}"
                         data-target-account-id="{{ copy_target_account_id }}"
-                        title="Copy asset and all its children to your own account. You can copy but cannot delete assets without the account-admin role — contact your account admin to remove unwanted copies. Ctrl-click to open the copy in a new tab.">
-                        Copy to my account
+                        title="Copy asset and all its children to {{ own_organisation_name }}{% if not user_can_delete_asset %} — note: you can copy but not delete; contact your organisation admin to remove unwanted copies{% endif %}. Ctrl-click to open the copy in a new tab.">
+                        Copy to {{ own_organisation_name }}
                     </button>
                 </div>
                 {% endif %}

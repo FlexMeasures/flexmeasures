@@ -466,6 +466,7 @@ class AssetCrudUI(FlaskView):
             copy_target_account_id=(
                 _own_account.id if _can_copy_to_own_account else None
             ),
+            own_organisation_name=_own_account.name,
             user_can_create_assets=user_can_create_assets(),
             user_can_create_children=user_can_create_children(asset),
             user_can_delete_asset=user_can_delete(asset),
