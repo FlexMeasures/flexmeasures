@@ -32,7 +32,7 @@
                                     }})</small>
 
                                 <div class="form-group">
-                                    {{ asset_form.name.label(class="col-sm-3 control-label") }}
+                                    {{ asset_form.name.label(class="control-label") }}
                                     <div class="col-md-3">
                                         {{ asset_form.name(class_="form-control") }}
                                         {% for error in asset_form.errors.name %}
@@ -41,7 +41,7 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    {{ asset_form.latitude.label(class="col-sm-6 control-label") }}
+                                    {{ asset_form.latitude.label(class="control-label") }}
                                     <div class="col-md-6">
                                         {{ asset_form.latitude(class_="form-control") }}
                                         {% for error in asset_form.errors.latitude %}
@@ -50,7 +50,7 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    {{ asset_form.longitude.label(class="col-sm-6 control-label") }}
+                                    {{ asset_form.longitude.label(class="control-label") }}
                                     <div class="col-md-6">
                                         {{ asset_form.longitude(class_="form-control") }}
                                         {% for error in asset_form.errors.longitude %}
@@ -59,7 +59,7 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    {{ asset_form.parent_asset_id.label(class="col-sm-6 control-label") }}
+                                    {{ asset_form.parent_asset_id.label(class="control-label") }}
                                     <div class="col-md-6">
                                         <select name="parent_asset_id" id="parent_asset_id" class="form-control">
                                             <option value="" {% if asset.parent_asset_id is none %} selected {% endif
@@ -76,14 +76,14 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label for="assset-type" class="col-sm-6 control-label">Asset Type</label>
+                                    <label for="assset-type" class="control-label">Asset Type</label>
                                     <div class="col-md-6">
                                         <input class="form-control" id="asset-type-id" name="asset-type" type="text"
                                             value="{{ asset.generic_asset_type.name }}" disabled></input>
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label for="asset-id" class="col-sm-6 control-label">Asset id</label>
+                                    <label for="asset-id" class="control-label">Asset id</label>
                                     <div class="col-md-6">
                                         <input class="form-control" id="asset-id" name="asset-id" type="text"
                                             value="{{ asset.id }}" disabled></input>
@@ -91,7 +91,7 @@
                                 </div>
 
                                 <div class="form-group">
-                                    {{ asset_form.sensors_to_show_as_kpis.label(class="col-sm-3 control-label") }}
+                                    {{ asset_form.sensors_to_show_as_kpis.label(class="control-label") }}
                                     <div class="col-md-3">
                                         <small>{{ asset_form.sensors_to_show_as_kpis.description }}</small>
                                         {{ asset_form.sensors_to_show_as_kpis(class_="form-control") }}
@@ -102,7 +102,7 @@
                                 </div>
 
                                 <div class="form-group">
-                                    {{ asset_form.external_id.label(class="col-sm-3 control-label") }}
+                                    {{ asset_form.external_id.label(class="control-label") }}
                                     <div class="col-md-3">
                                         <small>{{ asset_form.external_id.description }}</small>
                                         {{ asset_form.external_id(class_="form-control") }}
