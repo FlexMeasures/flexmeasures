@@ -136,12 +136,13 @@
             {% endif %}
 
             <div class="header-action-button">
-                {% if user_can_create_assets %}
+                {% if user_can_copy_as_sibling or user_can_copy_to_own_account %}
                 <div>
                     <button id="copy-asset-button" class="btn btn-sm btn-responsive create-button" type="button"
                         data-asset-id="{{ asset.id }}"
-                        title="Copy this asset and all its children. Ctrl-click to open the copy in a new tab.">
-                        Copy this asset
+                        {% if user_can_copy_to_own_account %}data-target-account-id="{{ copy_target_account_id }}"{% endif %}
+                        title="{% if user_can_copy_to_own_account %}Copy this asset and all its children to your own account{% else %}Copy this asset and all its children{% endif %}. Ctrl-click to open the copy in a new tab.">
+                        {% if user_can_copy_to_own_account %}Copy to my account{% else %}Copy this asset{% endif %}
                     </button>
                 </div>
                 {% endif %}
