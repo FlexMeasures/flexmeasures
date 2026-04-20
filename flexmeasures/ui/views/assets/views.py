@@ -426,24 +426,22 @@ class AssetCrudUI(FlaskView):
         )
 
         # Can the user create a sibling of this asset?
-        # - Has a parent  → check create-children on that parent asset.
+        # - Has a parent → check create-children on that parent asset.
         # - No parent, owned account → check create-children on that account.
-        # - Public asset (no owner) → cannot create public siblings; False.
+        # - Public asset (no owner) → only site admins can create public siblings.
         if asset.parent_asset:
             _can_copy_as_sibling = user_can_create_children(asset.parent_asset)
         elif asset.owner is not None:
             _can_copy_as_sibling = user_can_create_assets(account=asset.owner)
         else:
-            _can_copy_as_sibling = False
+            _can_copy_as_sibling = current_user.has_role("admin")
 
         # Can the user copy the asset to their own account instead?
-        # True only when they cannot create a sibling but can create assets in
-        # their own account, and the asset does not already belong to that account.
+        # True when they cannot create a sibling but can create assets in their own account.
         _own_account = current_user.account
         _can_copy_to_own_account = (
             not _can_copy_as_sibling
             and user_can_create_assets()
-            and _own_account.id != asset.account_id
         )
 
         return render_flexmeasures_template(
