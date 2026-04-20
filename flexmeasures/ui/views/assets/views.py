@@ -445,7 +445,9 @@ class AssetCrudUI(FlaskView):
         _asset_in_own_account = (
             asset.account_id is not None and asset.account_id == _own_account.id
         )
-        _can_copy_to_own_account = not _asset_in_own_account and user_can_create_assets()
+        _can_copy_to_own_account = (
+            not _asset_in_own_account and user_can_create_assets()
+        )
 
         return render_flexmeasures_template(
             "assets/asset_properties.html",
