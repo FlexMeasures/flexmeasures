@@ -425,6 +425,27 @@ class AssetCrudUI(FlaskView):
             .all()
         )
 
+        # Can the user create a sibling of this asset?
+        # - Has a parent  → check create-children on that parent asset.
+        # - No parent, owned account → check create-children on that account.
+        # - Public asset (no owner) → cannot create public siblings; False.
+        if asset.parent_asset:
+            _can_copy_as_sibling = user_can_create_children(asset.parent_asset)
+        elif asset.owner is not None:
+            _can_copy_as_sibling = user_can_create_assets(account=asset.owner)
+        else:
+            _can_copy_as_sibling = False
+
+        # Can the user copy the asset to their own account instead?
+        # True only when they cannot create a sibling but can create assets in
+        # their own account, and the asset does not already belong to that account.
+        _own_account = current_user.account
+        _can_copy_to_own_account = (
+            not _can_copy_as_sibling
+            and user_can_create_assets()
+            and _own_account.id != asset.account_id
+        )
+
         return render_flexmeasures_template(
             "assets/asset_properties.html",
             asset=asset,
@@ -437,7 +458,9 @@ class AssetCrudUI(FlaskView):
             asset_form=asset_form,
             msg=msg,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
-            user_can_create_assets=user_can_create_assets(),
+            user_can_copy_as_sibling=_can_copy_as_sibling,
+            user_can_copy_to_own_account=_can_copy_to_own_account,
+            copy_target_account_id=_own_account.id if _can_copy_to_own_account else None,
             user_can_create_children=user_can_create_children(asset),
             user_can_delete_asset=user_can_delete(asset),
             user_can_update_asset=user_can_update(asset),
