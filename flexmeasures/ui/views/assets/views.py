@@ -439,10 +439,7 @@ class AssetCrudUI(FlaskView):
         # Can the user copy the asset to their own account instead?
         # True when they cannot create a sibling but can create assets in their own account.
         _own_account = current_user.account
-        _can_copy_to_own_account = (
-            not _can_copy_as_sibling
-            and user_can_create_assets()
-        )
+        _can_copy_to_own_account = not _can_copy_as_sibling and user_can_create_assets()
 
         return render_flexmeasures_template(
             "assets/asset_properties.html",
@@ -458,7 +455,10 @@ class AssetCrudUI(FlaskView):
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
             user_can_copy_as_sibling=_can_copy_as_sibling,
             user_can_copy_to_own_account=_can_copy_to_own_account,
-            copy_target_account_id=_own_account.id if _can_copy_to_own_account else None,
+            copy_target_account_id=(
+                _own_account.id if _can_copy_to_own_account else None
+            ),
+            user_can_create_assets=user_can_create_assets(),
             user_can_create_children=user_can_create_children(asset),
             user_can_delete_asset=user_can_delete(asset),
             user_can_update_asset=user_can_update(asset),
