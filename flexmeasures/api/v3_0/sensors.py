@@ -86,9 +86,18 @@ annotation_schema = AnnotationSchema()
 
 
 REGRESSOR_CONFIG_FIELDS = {
-    "future-regressors": "future_regressors",
-    "past-regressors": "past_regressors",
-    "regressors": "regressors",
+    "future-regressors": {
+        "schema_field_name": "future_regressors",
+        "label": "{'json': {'config': 'future-regressors'}}",
+    },
+    "past-regressors": {
+        "schema_field_name": "past_regressors",
+        "label": "{'json': {'config': 'past-regressors'}}",
+    },
+    "regressors": {
+        "schema_field_name": "regressors",
+        "label": "{'json': {'config': 'regressors'}}",
+    },
 }
 
 
@@ -114,18 +123,18 @@ def regressors_loader(config: dict | None) -> dict[str, list[Sensor]]:
     request_config = (request.get_json(silent=True) or {}).get("config", {})
 
     regressors_by_field = {}
-    for field_name, schema_field_name in REGRESSOR_CONFIG_FIELDS.items():
-        field_sensor_ids = request_config.get(field_name)
-        if field_sensor_ids is None:
-            field_sensors = config.get(schema_field_name, [])
-        else:
+    for request_field_name, field_info in REGRESSOR_CONFIG_FIELDS.items():
+        if request_config:
+            field_sensor_ids = request_config.get(request_field_name, [])
             field_sensors = [
                 sensors_by_id[sensor_id]
                 for sensor_id in field_sensor_ids
                 if sensor_id in sensors_by_id
             ]
+        else:
+            field_sensors = config.get(field_info["schema_field_name"], [])
         if field_sensors:
-            regressors_by_field[field_name] = field_sensors
+            regressors_by_field[field_info["label"]] = field_sensors
     return regressors_by_field
 
 
