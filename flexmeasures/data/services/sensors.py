@@ -375,7 +375,7 @@ def cleanup_sensor_references_in_assets(
             )
             AssetAuditLog.add_record(
                 asset,
-                f"Removed deleted sensor reference {sensor_label} from {field_name}.",
+                f"Removed sensor reference {sensor_label} from {field_name} (because sensor has been deleted).",
             )
 
         asset.flex_model = flex_model
