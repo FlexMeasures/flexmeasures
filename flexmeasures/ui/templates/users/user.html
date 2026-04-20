@@ -12,7 +12,7 @@
 
 <div class="container-fluid px-0">
   <div class="row gx-0">
-    <div class="col-md-2 mt-3 col-action-left">
+    <div class="col-md-2 col-action-left">
 
       <div class="header-action-button mt-3">
         {% if can_edit_user_details %}
@@ -34,7 +34,7 @@
       </div>
 
     </div>
-    <div class="col-md-8 mt-3">
+    <div class="col-md-8">
       <div class="user-data-table card">
         <h2>User overview</h2>
         <small>User: {{ user.username }}</small>
@@ -112,7 +112,7 @@
         </div>
       </div>
     </div>
-        <div class="col-md-2 mt-3 col-action-right">
+        <div class="col-md-2 col-action-right">
       <div class="header-action-button mt-3">
         {% if can_view_account_auditlog %}
         <div>
