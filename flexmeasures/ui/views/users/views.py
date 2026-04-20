@@ -15,6 +15,7 @@ from flexmeasures.data.services.users import (
     reset_password,
 )
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
+from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 
 """
 User Crud views for admins and consultants.
@@ -58,6 +59,7 @@ def render_user(user: User | None, msg: str | None = None):
         roles=roles,
         asset_count=user.account.number_of_assets,
         msg=msg,
+        breadcrumb_info=get_breadcrumb_info(user),
     )
 
 
