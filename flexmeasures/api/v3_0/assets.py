@@ -1699,19 +1699,7 @@ class AssetAPI(FlaskView):
                 type: integer
                 format: int32
             - in: query
-              name: account
-              description: Target account id.
-              required: false
-              schema:
-                type: integer
-                format: int32
-            - in: query
-              name: parent
-              description: Target parent asset id.
-              required: false
-              schema:
-                type: integer
-                format: int32
+              schema: CopyAssetSchema
           responses:
             201:
               description: CREATED

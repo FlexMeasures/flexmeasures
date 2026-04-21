@@ -2817,22 +2817,22 @@
           {
             "in": "query",
             "name": "account",
-            "description": "Target account id.",
-            "required": false,
+            "description": "Target account to copy the asset to.",
             "schema": {
               "type": "integer",
-              "format": "int32"
-            }
+              "example": 67
+            },
+            "required": false
           },
           {
             "in": "query",
             "name": "parent",
-            "description": "Target parent asset id.",
-            "required": false,
+            "description": "Target parent asset to copy the asset under.",
             "schema": {
               "type": "integer",
-              "format": "int32"
-            }
+              "example": 482
+            },
+            "required": false
           }
         ],
         "responses": {
@@ -4824,6 +4824,22 @@
           "end",
           "start"
         ],
+        "additionalProperties": false
+      },
+      "CopyAssetSchema": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "integer",
+            "description": "Target account to copy the asset to.",
+            "example": 67
+          },
+          "parent": {
+            "type": "integer",
+            "description": "Target parent asset to copy the asset under.",
+            "example": 482
+          }
+        },
         "additionalProperties": false
       },
       "DefaultAssetViewJSONSchema": {
