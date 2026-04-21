@@ -1225,8 +1225,7 @@
             "description": "The ID of the sensor to register the annotation on.",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -1623,8 +1622,7 @@
             "description": "The ID of the account whose history is being requested.",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -1708,8 +1706,7 @@
             "description": "The ID of the account to retrieve.",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -1762,8 +1759,7 @@
             "description": "The ID of the account to update.",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -1971,8 +1967,7 @@
             "description": "The ID of the account to register the annotation on.",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -2810,8 +2805,7 @@
             "description": "ID of the asset to copy.",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           },
           {
@@ -3726,8 +3720,7 @@
             "description": "The ID of the asset to register the annotation on.",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],

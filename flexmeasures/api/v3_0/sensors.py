@@ -1927,7 +1927,6 @@ class SensorAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           requestBody:
             content:
               application/json:

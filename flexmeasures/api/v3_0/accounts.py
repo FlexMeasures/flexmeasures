@@ -201,7 +201,6 @@ class AccountAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           responses:
             200:
               description: PROCESSED
@@ -255,7 +254,6 @@ class AccountAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           requestBody:
             description: Account data to be updated.
             required: true
@@ -380,7 +378,6 @@ class AccountAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           responses:
             200:
               description: PROCESSED
@@ -451,7 +448,6 @@ class AccountAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           requestBody:
             content:
               application/json:
