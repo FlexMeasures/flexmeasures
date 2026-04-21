@@ -335,16 +335,16 @@ def cleanup_sensor_references_in_assets(
 
     changed_assets = 0
     for asset in candidates:
-        flex_model, changed_flex_model = _prune_flex_config_sensor_refs(
+        flex_model, flex_model_was_updated = _prune_flex_config_sensor_refs(
             asset.flex_model, sensor_id
         )
-        flex_context, changed_flex_context = _prune_flex_config_sensor_refs(
+        flex_context, flex_context_was_updated = _prune_flex_config_sensor_refs(
             asset.flex_context, sensor_id
         )
-        sensors_to_show, changed_sensors_to_show = _prune_sensors_to_show_refs(
+        sensors_to_show, sensors_to_show_was_updated = _prune_sensors_to_show_refs(
             asset.sensors_to_show, sensor_id
         )
-        sensors_to_show_as_kpis, changed_sensors_to_show_as_kpis = (
+        sensors_to_show_as_kpis, sensors_to_show_as_kpis_was_updated = (
             _prune_sensors_to_show_as_kpis_refs(
                 asset.sensors_to_show_as_kpis, sensor_id
             )
@@ -352,20 +352,20 @@ def cleanup_sensor_references_in_assets(
 
         changed = any(
             (
-                changed_flex_model,
-                changed_flex_context,
-                changed_sensors_to_show,
-                changed_sensors_to_show_as_kpis,
+                flex_model_was_updated,
+                flex_context_was_updated,
+                sensors_to_show_was_updated,
+                sensors_to_show_as_kpis_was_updated,
             )
         )
         if not changed:
             continue
 
         changed_field_events = (
-            (changed_flex_model, "flex-model"),
-            (changed_flex_context, "flex-context"),
-            (changed_sensors_to_show, "sensors-to-show"),
-            (changed_sensors_to_show_as_kpis, "sensors-to-show-as-kpis"),
+            (flex_model_was_updated, "flex-model"),
+            (flex_context_was_updated, "flex-context"),
+            (sensors_to_show_was_updated, "sensors-to-show"),
+            (sensors_to_show_as_kpis_was_updated, "sensors-to-show-as-kpis"),
         )
         for field_changed, field_name in changed_field_events:
             if not field_changed:
