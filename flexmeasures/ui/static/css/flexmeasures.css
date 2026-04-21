@@ -1352,8 +1352,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     justify-content: space-around;
     align-items: stretch;
     width: fit-content;
-    margin-left: 15px;
-    margin-right: 15px;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .header-action-button .btn {
@@ -1365,7 +1366,8 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 .header-action-button>div {
     height: auto;
     align-items: center;
-    flex: 1 1 auto;
+    flex: 1 1 0;
+    min-width: 0;
     width: auto !important;
     padding: 0;
 }
@@ -1382,7 +1384,7 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     align-items: center;
     justify-content: center;
     height: 100% !important;
-    padding: 15px 30px !important;
+    padding: 15px !important;
     line-height: normal;
     border-radius: 0px !important;
     text-align: center;
