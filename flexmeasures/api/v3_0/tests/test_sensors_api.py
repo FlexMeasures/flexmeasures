@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 import math
 import io
+import json
 
 from flask import url_for
 from sqlalchemy import select, func
@@ -536,6 +537,29 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     existing_sensor_id = existing_sensor.id
     sensor_count = db.session.scalar(select(func.count()).select_from(Sensor))
 
+    asset = existing_sensor.generic_asset
+    asset.flex_model = {
+        "soc-max": {"sensor": existing_sensor_id},
+        "static-limit": "10 kW",
+    }
+    asset.flex_context = {
+        "consumption-price": {"sensor": existing_sensor_id},
+        "inflexible-device-sensors": [existing_sensor_id],
+    }
+    asset.sensors_to_show = [
+        {"title": "Power", "plots": [{"sensor": existing_sensor_id}]},
+        existing_sensor_id,
+    ]
+    asset.sensors_to_show_as_kpis = [
+        {
+            "sensor": existing_sensor_id,
+            "title": "Temperature KPI",
+            "function": "sum",
+        }
+    ]
+    db.session.add(asset)
+    db.session.commit()
+
     delete_sensor_response = client.delete(
         url_for("SensorAPI:delete", id=existing_sensor_id),
     )
@@ -552,9 +576,43 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
         db.session.scalar(select(func.count()).select_from(Sensor)) == sensor_count - 1
     )
 
+    asset_after = db.session.get(GenericAsset, asset.id)
+    assert asset_after.flex_model.get("soc-max") is None
+    assert asset_after.flex_model.get("static-limit") == "10 kW"
+    assert asset_after.flex_context.get("consumption-price") is None
+    assert asset_after.flex_context.get("inflexible-device-sensors") == []
+    assert str(existing_sensor_id) not in json.dumps(asset_after.sensors_to_show)
+    assert str(existing_sensor_id) not in json.dumps(
+        asset_after.sensors_to_show_as_kpis
+    )
+
     check_audit_log_event(
         db=db,
         event=f"Deleted sensor '{existing_sensor.name}': {existing_sensor.id}",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
+    check_audit_log_event(
+        db=db,
+        event=f"Removed sensor reference '{existing_sensor.name}': {existing_sensor.id} from flex-model (because sensor has been deleted).",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
+    check_audit_log_event(
+        db=db,
+        event=f"Removed sensor reference '{existing_sensor.name}': {existing_sensor.id} from flex-context (because sensor has been deleted).",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
+    check_audit_log_event(
+        db=db,
+        event=f"Removed sensor reference '{existing_sensor.name}': {existing_sensor.id} from sensors-to-show (because sensor has been deleted).",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
+    check_audit_log_event(
+        db=db,
+        event=f"Removed sensor reference '{existing_sensor.name}': {existing_sensor.id} from sensors-to-show-as-kpis (because sensor has been deleted).",
         user=requesting_user,
         asset=existing_sensor.generic_asset,
     )
