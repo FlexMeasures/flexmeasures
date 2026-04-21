@@ -1674,12 +1674,7 @@ class AssetAPI(FlaskView):
           summary: Copy an asset to a target account and/or parent.
           description: |
             This endpoint creates a copy of an existing asset and optionally places it
-            under a target account and/or parent asset.
-
-            Parameters are passed as query parameters:
-
-            - `account`: target account id
-            - `parent`: target parent asset id
+            under a `target` account and/or `parent` asset.
 
             Resolution rules:
 

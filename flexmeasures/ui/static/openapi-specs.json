@@ -2797,7 +2797,7 @@
     "/api/v3_0/assets/{id}/copy": {
       "post": {
         "summary": "Copy an asset to a target account and/or parent.",
-        "description": "This endpoint creates a copy of an existing asset and optionally places it\nunder a target account and/or parent asset.\n\nParameters are passed as query parameters:\n\n- `account`: target account id\n- `parent`: target parent asset id\n\nResolution rules:\n\n- If both are omitted, the copy remains in the same account and keeps the same parent.\n- If `account` is provided and `parent` is omitted, parent defaults to `null`.\n- If `parent` is provided and `account` is omitted, account is derived from that parent.\n- If both are provided, it is possible to assign the copied asset to a different account than the parent.\n",
+        "description": "This endpoint creates a copy of an existing asset and optionally places it\nunder a `target` account and/or `parent` asset.\n\nResolution rules:\n\n- If both are omitted, the copy remains in the same account and keeps the same parent.\n- If `account` is provided and `parent` is omitted, parent defaults to `null`.\n- If `parent` is provided and `account` is omitted, account is derived from that parent.\n- If both are provided, it is possible to assign the copied asset to a different account than the parent.\n",
         "security": [
           {
             "ApiKeyAuth": []
