@@ -628,7 +628,7 @@
                     }
 
                     if (typeof payload === "string" || typeof payload === "number" || typeof payload === "boolean") {
-                        return [parentKey ? `\n ${parentKey}: ${String(payload)}` : String(payload)];
+                        return [parentKey ? `\n <b>${parentKey}</b>: ${String(payload)}` : String(payload)];
                     }
 
                     if (Array.isArray(payload)) {
@@ -701,7 +701,7 @@
                     }
 
                     const errorMessage = extractApiErrorMessage(errorData, response.statusText);
-                    showToast(`Failed to update the flex model: ${errorMessage}`, "error");
+                    showToast(`Failed to update the flex model <div>${errorMessage}</div>`, "error");
                     reRenderForm();
                 } else {
                     renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
