@@ -324,3 +324,61 @@ export function moveArrayItem(array, index, direction) {
 
   return newArray;
 }
+
+/**
+ * Recursively flattens nested error payloads into readable strings.
+ * Handles objects, arrays, and primitive values, building dot-notation paths.
+ * @param {any} payload - The error data to flatten (object, array, string, etc.)
+ * @param {string|null} parentKey - The parent key for building dot-notation paths.
+ * @returns {Array<string>} Array of flattened error strings.
+ */
+export function flattenErrorPayload(payload, parentKey = null) {
+  if (payload === null || payload === undefined) return [];
+  if (
+    typeof payload === "string" ||
+    typeof payload === "number" ||
+    typeof payload === "boolean"
+  ) {
+    return [
+      parentKey
+        ? `\n <b>${parentKey}</b>: ${String(payload)}`
+        : String(payload),
+    ];
+  }
+  if (Array.isArray(payload)) {
+    return payload.flatMap((item) => flattenErrorPayload(item, parentKey));
+  }
+  if (typeof payload === "object") {
+    return Object.entries(payload).flatMap(([key, value]) => {
+      const nextParentKey = parentKey ? `${parentKey}.${key}` : key;
+      return flattenErrorPayload(value, nextParentKey);
+    });
+  }
+  return [parentKey ? `${parentKey}: ${String(payload)}` : String(payload)];
+}
+
+/**
+ * Safely extracts error messages from API error payloads.
+ * Tries multiple candidates in order: message.json → message → error → full payload.
+ * Returns a semicolon-joined readable string with fallback to status text.
+ * @param {any} errorData - The error response data object.
+ * @param {string} fallbackMessage - Message to return if no error found (e.g., response.statusText).
+ * @returns {string} Readable error message.
+ */
+export function extractApiErrorMessage(errorData, fallbackMessage) {
+  if (!errorData || typeof errorData !== "object")
+    return fallbackMessage || "Unknown error";
+  const candidates = [
+    errorData?.message?.json,
+    errorData?.message,
+    errorData?.error,
+    errorData,
+  ];
+  for (const candidate of candidates) {
+    const lines = flattenErrorPayload(candidate)
+      .map((line) => String(line).trim())
+      .filter((line) => line.length > 0);
+    if (lines.length > 0) return lines.join("; ");
+  }
+  return fallbackMessage || "Unknown error";
+}

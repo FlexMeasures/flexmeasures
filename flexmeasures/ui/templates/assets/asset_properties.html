@@ -405,7 +405,8 @@
         import {
             getFlexFieldTitle, renderFlexFieldOptions, renderSensor,
             createReactiveState, processResourceRawJSON, getAsset,
-            getAccount, getSensor, apiBasePath, renderSensorSearchResults
+            getAccount, getSensor, apiBasePath, renderSensorSearchResults,
+            flattenErrorPayload, extractApiErrorMessage
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
@@ -621,53 +622,6 @@
             async function updateFlexModel() {
                 const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
                 let data = getFlexModel();
-
-                function flattenErrorPayload(payload, parentKey = null) {
-                    if (payload === null || payload === undefined) {
-                        return [];
-                    }
-
-                    if (typeof payload === "string" || typeof payload === "number" || typeof payload === "boolean") {
-                        return [parentKey ? `\n <b>${parentKey}</b>: ${String(payload)}` : String(payload)];
-                    }
-
-                    if (Array.isArray(payload)) {
-                        return payload.flatMap(item => flattenErrorPayload(item, parentKey));
-                    }
-
-                    if (typeof payload === "object") {
-                        return Object.entries(payload).flatMap(([key, value]) => {
-                            const nextParentKey = parentKey ? `${parentKey}.${key}` : key;
-                            return flattenErrorPayload(value, nextParentKey);
-                        });
-                    }
-
-                    return [parentKey ? `${parentKey}: ${String(payload)}` : String(payload)];
-                }
-
-                function extractApiErrorMessage(errorData, fallbackMessage) {
-                    if (!errorData || typeof errorData !== "object") {
-                        return fallbackMessage || "Unknown error";
-                    }
-
-                    const candidates = [
-                        errorData?.message?.json,
-                        errorData?.message,
-                        errorData?.error,
-                        errorData,
-                    ];
-
-                    for (const candidate of candidates) {
-                        const lines = flattenErrorPayload(candidate)
-                            .map(line => String(line).trim())
-                            .filter(line => line.length > 0);
-                        if (lines.length > 0) {
-                            return lines.join("; ");
-                        }
-                    }
-
-                    return fallbackMessage || "Unknown error";
-                }
 
                 // Clean null values
                 for (const [key, value] of Object.entries(data)) {
