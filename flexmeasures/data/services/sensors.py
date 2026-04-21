@@ -58,7 +58,7 @@ def _prune_flex_config_sensor_refs(
         >>> value = {"soc-max": {"sensor": 42}, "limit": "10 kW"}
         >>> pruned, did_change = _prune_flex_config_sensor_refs(value, sensor_id=42)
         >>> pruned
-        {"limit": "10 kW"}  # soc-max removed entirely
+        {'limit': '10 kW'}
         >>> did_change
         True
     """
@@ -124,7 +124,7 @@ def _prune_sensors_to_show_refs(
         >>> value = [42, [43, 42], {"sensor": 42}]
         >>> pruned, did_change = _prune_sensors_to_show_refs(value, sensor_id=42)
         >>> pruned
-        [[43]]  # bare 42 removed, 42 from group removed (empty group filtered), dict removed
+        [[43]]
         >>> did_change
         True
     """
@@ -189,8 +189,8 @@ def _prune_sensors_to_show_entry(
     Example:
         >>> entry = {"sensor": 42, "title": "Power"}
         >>> pruned, did_change = _prune_sensors_to_show_entry(entry, sensor_id=42)
-        >>> pruned
-        _REMOVE  # entire entry removed
+        >>> pruned is _REMOVE
+        True
     """
     if "sensor" in entry:
         if entry.get("sensor") == sensor_id:
@@ -261,7 +261,7 @@ def _prune_sensors_to_show_as_kpis_refs(
         >>> value = [42, {"sensor": 42, "title": "Temp KPI", "function": "sum"}]
         >>> pruned, did_change = _prune_sensors_to_show_as_kpis_refs(value, sensor_id=42)
         >>> pruned
-        []  # all entries removed
+        []
         >>> did_change
         True
     """
