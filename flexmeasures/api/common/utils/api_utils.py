@@ -15,7 +15,9 @@ from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account
-from flexmeasures.data.services.data_ingestion import add_beliefs_to_database
+from flexmeasures.data.services.data_ingestion import (
+    add_beliefs_to_db_and_enqueue_forecasting_jobs,
+)
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.auth.policy import check_access
 from flexmeasures.api.common.responses import (
@@ -149,7 +151,7 @@ def save_and_enqueue(
         workers = Worker.all(queue=ingestion_queue)
         if workers:
             ingestion_queue.enqueue(
-                add_beliefs_to_database,
+                add_beliefs_to_db_and_enqueue_forecasting_jobs,
                 data,
                 forecasting_jobs=forecasting_jobs,
                 save_changed_beliefs_only=save_changed_beliefs_only,

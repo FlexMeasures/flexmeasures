@@ -12,7 +12,7 @@ from flexmeasures.data import db
 from flexmeasures.data.utils import save_to_db
 
 
-def add_beliefs_to_database(
+def add_beliefs_to_db_and_enqueue_forecasting_jobs(
     data: tb.BeliefsDataFrame | list[tb.BeliefsDataFrame],
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
