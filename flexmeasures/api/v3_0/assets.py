@@ -1612,7 +1612,6 @@ class AssetAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           requestBody:
             content:
               application/json:
@@ -1692,7 +1691,6 @@ class AssetAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
             - in: query
               schema: CopyAssetSchema
           responses:
