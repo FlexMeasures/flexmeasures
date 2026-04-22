@@ -86,7 +86,7 @@ def test_create_simultaneous_jobs(
         np.testing.assert_approx_equal(
             # head(-1) because ev_power is indexed by event start and target datetime corresponds to event end
             # minus ev_power because ev_power uses negative values for consumption
-            -ev_power[: non_zero_target["datetime"]].head(-1).sum()[0] / 4,
+            -ev_power[: non_zero_target["datetime"]].head(-1).sum().item() / 4,
             non_zero_target["value"],
         )
 

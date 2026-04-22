@@ -22,7 +22,12 @@ from flexmeasures.api.v3_0.sensors import (
 )
 from flexmeasures.api.v3_0.accounts import AccountAPI
 from flexmeasures.api.v3_0.users import UserAPI
-from flexmeasures.api.v3_0.assets import AssetAPI, AssetTriggerSchema, AssetTypesAPI
+from flexmeasures.api.v3_0.assets import (
+    AssetAPI,
+    AssetTriggerSchema,
+    AssetTypesAPI,
+    CopyAssetSchema,
+)
 from flexmeasures.api.v3_0.health import HealthAPI
 from flexmeasures.api.v3_0.public import ServicesAPI
 from flexmeasures.api.v3_0.deprecated import SensorEntityAddressAPI
@@ -148,6 +153,7 @@ def create_openapi_specs(app: Flask):
         ("AssetAPIQuerySchema", AssetAPIQuerySchema),
         ("AssetSchema", AssetSchema),
         ("AnnotationSchema", AnnotationSchema),
+        ("CopyAssetSchema", CopyAssetSchema),
         ("DefaultAssetViewJSONSchema", DefaultAssetViewJSONSchema),
         ("AccountSchema", AccountSchema(partial=True)),
         ("AccountAPIQuerySchema", AccountAPIQuerySchema),
