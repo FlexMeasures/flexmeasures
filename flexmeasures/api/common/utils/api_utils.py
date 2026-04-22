@@ -25,7 +25,6 @@ from flexmeasures.data.services.data_ingestion import (
 )
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.utils import save_to_db
 from flexmeasures.auth.policy import check_access
 from flexmeasures.api.common.responses import (
     invalid_replacement,
@@ -171,12 +170,11 @@ def save_and_enqueue(
             )
 
     # Attempt to save directly (fallback when no ingestion queue or workers are available)
-    status = save_to_db(data, save_changed_beliefs_only=save_changed_beliefs_only)
-    db.session.commit()
-
-    # Only enqueue forecasting jobs upon successfully saving new data
-    if status[:7] == "success" and status != "success_but_nothing_new":
-        enqueue_forecasting_jobs(forecasting_jobs)
+    status = add_beliefs_to_db_and_enqueue_forecasting_jobs(
+        data,
+        forecasting_jobs=forecasting_jobs,
+        save_changed_beliefs_only=save_changed_beliefs_only,
+    )
 
     # Pick a response
     if status == "success":
