@@ -5221,29 +5221,17 @@
         "type": "object",
         "properties": {
           "source": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "default": null,
+            "type": "integer",
             "description": "ID of the data source to delete data for. If not provided, data from all sources is deleted."
           },
           "start": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": "string",
             "format": "date-time",
-            "default": null,
             "description": "Only delete data with event start at or after this datetime (ISO 8601)."
           },
           "until": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "default": null,
+            "type": "string",
+            "format": "date-time"
             "description": "Only delete data with event start before this datetime (ISO 8601)."
           }
         },

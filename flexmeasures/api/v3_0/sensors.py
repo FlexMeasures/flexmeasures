@@ -163,19 +163,19 @@ class DeleteSensorDataSchema(Schema):
     """
 
     source = SourceIdField(
-        load_default=None,
+        required=False,
         metadata=dict(
             description="ID of the data source to delete data for. If not provided, data from all sources is deleted.",
         ),
     )
     start = AwareDateTimeField(
-        load_default=None,
+        required=False,
         metadata=dict(
             description="Only delete data with event start at or after this datetime (ISO 8601).",
         ),
     )
     until = AwareDateTimeField(
-        load_default=None,
+        required=False,
         metadata=dict(
             description="Only delete data with event start before this datetime (ISO 8601).",
         ),
