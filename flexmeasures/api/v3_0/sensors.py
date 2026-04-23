@@ -154,6 +154,33 @@ forecasting_trigger_schema_openAPI = make_openapi_compatible(ForecastingTriggerS
 )
 
 
+class DeleteSensorDataSchema(Schema):
+    """Schema for the request body of the DELETE /sensors/<id>/data endpoint.
+
+    Validates that ``until`` is not before ``start``, and for non-instantaneous sensors,
+    that ``until`` is at least one sensor resolution later than ``start``.
+    The sensor must be provided via schema context (``context["sensor"]``).
+    """
+
+    source = SourceIdField(
+        load_default=None,
+        metadata=dict(
+            description="ID of the data source to delete data for. If not provided, data from all sources is deleted.",
+        ),
+    )
+    start = AwareDateTimeField(
+        load_default=None,
+        metadata=dict(
+            description="Only delete data with event start at or after this datetime (ISO 8601).",
+        ),
+    )
+    until = AwareDateTimeField(
+        load_default=None,
+        metadata=dict(
+            description="Only delete data with event start before this datetime (ISO 8601).",
+        ),
+    )
+
 class SensorKwargsSchema(Schema):
     account = AccountIdField(data_key="account_id", required=False)
     asset = AssetIdField(data_key="asset_id", required=False)
@@ -1429,23 +1456,12 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/data", methods=["DELETE"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @use_kwargs(
-        {
-            "source": SourceIdField(load_default=None),
-            "start": AwareDateTimeField(load_default=None),
-            "until": AwareDateTimeField(load_default=None),
-        },
-        location="json",
-    )
     @permission_required_for_context("delete", ctx_arg_name="sensor")
     @as_json
     def delete_data(
         self,
         id: int,
         sensor: Sensor,
-        source=None,
-        start=None,
-        until=None,
     ):
         """
         .. :quickref: Sensors; Delete sensor data
@@ -1468,20 +1484,7 @@ class SensorAPI(FlaskView):
             required: false
             content:
               application/json:
-                schema:
-                  type: object
-                  properties:
-                    source:
-                      type: integer
-                      description: ID of the data source to delete data for. If not provided, data from all sources is deleted.
-                    start:
-                      type: string
-                      format: date-time
-                      description: Only delete data with event start at or after this datetime (ISO 8601).
-                    until:
-                      type: string
-                      format: date-time
-                      description: Only delete data with event start before this datetime (ISO 8601).
+                schema: DeleteSensorDataSchema
           responses:
             204:
               description: SENSOR_DATA_DELETED
@@ -1496,6 +1499,17 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
+        schema = DeleteSensorDataSchema()
+        schema.context = {"sensor": sensor}
+        try:
+            body = schema.load(request.get_json(silent=True) or {})
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+
+        source = body.get("source")
+        start = body.get("start")
+        until = body.get("until")
+
         query = delete(TimedBelief).where(TimedBelief.sensor_id == sensor.id)
         if source is not None:
             query = query.where(TimedBelief.source_id == source.id)
