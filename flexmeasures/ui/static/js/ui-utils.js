@@ -376,7 +376,6 @@ export function initCopyAssetButtons() {
         const targetAccountId = btn.dataset.targetAccountId || null;
 
         btn.addEventListener("click", function (event) {
-            const openInNewTab = event.ctrlKey || event.metaKey;
             const url = targetAccountId
                 ? "/api/v3_0/assets/" + assetId + "/copy?account=" + targetAccountId
                 : "/api/v3_0/assets/" + assetId + "/copy";
@@ -388,11 +387,7 @@ export function initCopyAssetButtons() {
                     showToast("Asset copied successfully.", "success");
                     setTimeout(() => {
                         const dest = "/assets/" + data.asset + "/properties";
-                        if (openInNewTab) {
-                            window.open(dest, "_blank");
-                        } else {
-                            window.location.href = dest;
-                        }
+                        window.open(dest, "_blank");
                     }, 1500);
                 }),
                 "Failed to copy asset"
