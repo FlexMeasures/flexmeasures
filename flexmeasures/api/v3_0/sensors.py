@@ -1539,7 +1539,13 @@ class SensorAPI(FlaskView):
         if start is not None:
             query = query.where(TimedBelief.event_start >= start)
         if until is not None:
-            query = query.where(TimedBelief.event_start < until)
+            # "until" means the event must end at or before this datetime.
+            # Event end = event_start + sensor.event_resolution, so the condition is:
+            #   event_start + resolution <= until  ⟺  event_start <= until - resolution
+            # For instantaneous sensors (resolution = 0) this becomes event_start <= until.
+            query = query.where(
+                TimedBelief.event_start <= until - sensor.event_resolution
+            )
         db.session.execute(query)
 
         audit_message = f"Deleted data for sensor '{sensor.name}': {sensor.id}"
