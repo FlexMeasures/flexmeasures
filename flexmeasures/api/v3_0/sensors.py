@@ -12,7 +12,7 @@ from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required, current_user
-from marshmallow import fields, Schema, ValidationError
+from marshmallow import fields, Schema, ValidationError, validates_schema
 import marshmallow.validate as validate
 from rq.job import Job, JobStatus, NoSuchJobError
 import timely_beliefs as tb
@@ -180,6 +180,29 @@ class DeleteSensorDataSchema(Schema):
             description="Only delete data with event start before this datetime (ISO 8601).",
         ),
     )
+
+    @validates_schema
+    def validate_time_window(self, data, **kwargs):
+        """Validate start/until consistency against each other and the sensor resolution."""
+        start = data.get("start")
+        until = data.get("until")
+        if start is None or until is None:
+            return
+        if until < start:
+            raise ValidationError({"until": ["'until' must not be before 'start'."]})
+        sensor = self.context.get("sensor")
+        if sensor is not None:
+            resolution = sensor.event_resolution
+            if resolution > timedelta(0) and until < start + resolution:
+                raise ValidationError(
+                    {
+                        "until": [
+                            f"For a sensor with resolution {resolution}, 'until' must be"
+                            f" at least one resolution step ({resolution}) after 'start'."
+                        ]
+                    }
+                )
+
 
 class SensorKwargsSchema(Schema):
     account = AccountIdField(data_key="account_id", required=False)
