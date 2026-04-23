@@ -1723,12 +1723,14 @@ class AssetAPI(FlaskView):
             else (parent_asset or asset.parent_asset)
         )
 
-        # Check create-children permission on the target account.
-        check_access(resolved_account, "create-children")
-
-        # Also check create-children permission on the target parent (if any).
+        # When placing the copy under a parent asset, the parent's create-children
+        # permission is sufficient (any account member may add children to an asset).
+        # When creating a top-level asset (no parent), we fall back to the account-level
+        # create-children check, which requires account-admin or consultant.
         if resolved_parent is not None:
             check_access(resolved_parent, "create-children")
+        else:
+            check_access(resolved_account, "create-children")
 
         try:
             new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)

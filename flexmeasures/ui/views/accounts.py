@@ -9,6 +9,7 @@ from flask_security.core import current_user
 from flexmeasures.auth.policy import user_has_admin_access, check_access
 
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, ICON_MAPPING
+from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
@@ -74,6 +75,7 @@ class AccountCrudUI(FlaskView):
             asset_icon_map=ICON_MAPPING,
             attributes_label=ATTRIBUTES_FIELD_LABEL,
             attributes_description=ATTRIBUTES_FIELD_DESCRIPTION,
+            breadcrumb_info=get_breadcrumb_info(account),
         )
 
     @login_required

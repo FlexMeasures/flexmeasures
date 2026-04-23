@@ -8,9 +8,9 @@
 
     {% block breadcrumbs %} {{ super() }} {% endblock %}
     
-      <div class="sensor-data charts text-center container-fluid">
-          <div class="row on-top-md">
-              <div class="col-md-2 ps-0">
+      <div class="sensor-data charts text-center container-fluid px-0">
+          <div class="row on-top-md gx-0">
+              <div class="col-md-2 col-action-left">
                   <div class="sidepanel">
                       <div class="sidepanel-container">
                           <div class="sidepanel-label">Select dates</div>
@@ -226,7 +226,7 @@ For the data, note the following:
                                       <span id="spinner-delete-data" class="spinner-border spinner-border-sm d-none me-2" role="status"></span>
                                       <button
                                           id="deleteDataButton"
-                                          class="btn btn-sm btn-responsive btn-danger"
+                                          class="btn btn-sm btn-responsive btn-danger delete-button"
                                           type="button"
                                           style="border: 1px solid var(--light-gray);">
                                           Delete
@@ -251,10 +251,10 @@ For the data, note the following:
                       </ul>
                   </div>
 
-                  <div class="header-action-button">
+                  <div class="header-action-button mt-3">
                       {% if user_can_delete_sensor %}
                       <div>
-                          <button id="delete-sensor-button" class="btn btn-sm btn-responsive btn-danger">
+                          <button id="delete-sensor-button" class="btn btn-sm btn-responsive btn-danger delete-button">
                               Delete this sensor
                           </button>
                       </div>
@@ -268,7 +268,7 @@ For the data, note the following:
                       <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                       <span class="sr-only">Loading...</span>
                   </div>
-                  <div class="row">
+                  <div class="row gx-0">
                       <div class="card col-lg-5">
 
                           <h5>Properties</h5>

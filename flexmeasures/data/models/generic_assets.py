@@ -310,6 +310,13 @@ class GenericAsset(db.Model, AuthModelMixin):
         Both creation of children (beliefs, child assets) as well as editing
         is allowed for every user in the account or consultants.
         Deletion is only allowed for account admins, as well as for consultants.
+
+        Asymmetry note: because create-children is open to all account members, a
+        plain (no-role) user can copy an asset indefinitely but cannot delete the
+        resulting copies — deletion requires account-admin. Account admins are
+        responsible for pruning unwanted copies. This is intentional: the design
+        allows members to contribute data freely while admins retain control over
+        structural cleanup.
         """
         return {
             "create-children": [

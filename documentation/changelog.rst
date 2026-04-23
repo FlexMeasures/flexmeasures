@@ -8,7 +8,7 @@ v0.33.0 | May XX, 2026
 
 New features
 -------------
-* Added API support for copying assets and their subtrees [see `PR #2017 <https://www.github.com/FlexMeasures/flexmeasures/pull/2017>`_]
+* Added API and UI support for copying assets and their subtrees [see `PR #2017 <https://www.github.com/FlexMeasures/flexmeasures/pull/2017>`_ and `PR #2120 <https://www.github.com/FlexMeasures/flexmeasures/pull/2120>`_]
 * Improve UX after deleting a child asset through the UI [see `PR #2119 <https://www.github.com/FlexMeasures/flexmeasures/pull/2119>`_]
 * Improve source filtering in the sensor data GET endpoint by exposing the documented query parameters in Swagger and allowing filtering by the account linked to data sources [see `PR #2083 <https://www.github.com/FlexMeasures/flexmeasures/pull/2083>`_]
 
