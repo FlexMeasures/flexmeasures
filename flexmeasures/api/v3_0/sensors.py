@@ -177,7 +177,7 @@ class DeleteSensorDataSchema(Schema):
     until = AwareDateTimeField(
         required=False,
         metadata=dict(
-            description="Only delete data with event start before this datetime (ISO 8601).",
+            description="Only delete data with event end at or before this datetime (ISO 8601).",
         ),
     )
 

@@ -5231,8 +5231,8 @@
           },
           "until": {
             "type": "string",
-            "format": "date-time"
-            "description": "Only delete data with event start before this datetime (ISO 8601)."
+            "format": "date-time",
+            "description": "Only delete data with event end at or before this datetime (ISO 8601)."
           }
         },
         "additionalProperties": false
