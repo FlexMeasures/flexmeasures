@@ -9,6 +9,7 @@ v0.32.1 | May XX, 2026
 
 Bugfixes
 -----------
+* Make the sensor page load much faster for sensors with lots of data, by avoiding to load statistics over all of its history by default [see `PR #2129 <https://www.github.com/FlexMeasures/flexmeasures/pull/2129>`_]
 * Fix asset form overwriting attributes [see `PR #2138 <https://www.github.com/FlexMeasures/flexmeasures/pull/2138>`_]
 * Fix a bug where toast messages in flex-config modal are broken due to unexpected JSON structure  [see `PR #2124 <https://www.github.com/FlexMeasures/flexmeasures/pull/2124>`_]
 
