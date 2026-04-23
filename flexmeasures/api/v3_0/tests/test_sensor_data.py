@@ -167,6 +167,59 @@ def test_get_sensor_data_filtered_by_source_account(
 
 
 @pytest.mark.parametrize(
+    "source_type, expected",
+    [
+        (
+            "user",
+            [
+                sum(GAS_MEASUREMENTS_10MIN[0:2]) / 2,  # 91.5
+                GAS_MEASUREMENTS_10MIN[2],  # 92.1
+                None,
+                None,
+            ],
+        ),
+        (
+            "demo script",
+            [
+                GAS_MEASUREMENTS_10MIN[0],  # 91.3
+                GAS_MEASUREMENTS_10MIN[2],  # 92.1
+                None,
+                None,
+            ],
+        ),
+        ("scheduler", [None, None, None, None]),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_sensor_data_filtered_by_source_type(
+    client,
+    setup_api_test_data: dict[str, Sensor],
+    requesting_user,
+    source_type,
+    expected,
+):
+    """Check that GET /sensors/<id>/data can filter by source type."""
+    sensor = setup_api_test_data["some gas sensor"]
+    message = {
+        "start": "2021-05-02T00:00:00+02:00",
+        "duration": "PT1H20M",
+        "horizon": "PT0H",
+        "unit": "m³/h",
+        "source_type": source_type,
+        "resolution": "PT20M",
+    }
+    response = client.get(
+        url_for("SensorAPI:get_data", id=sensor.id),
+        query_string=message,
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    assert all(a == b for a, b in zip(response.json["values"], expected))
+
+
+@pytest.mark.parametrize(
     "requesting_user, status_code",
     [
         (None, 401),  # the case without auth: authentication will fail
