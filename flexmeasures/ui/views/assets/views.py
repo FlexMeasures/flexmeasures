@@ -425,6 +425,30 @@ class AssetCrudUI(FlaskView):
             .all()
         )
 
+        # Can the user create a sibling of this asset?
+        # - Has a parent → check create-children on that parent asset.
+        # - No parent, owned account → check create-children on that account.
+        # - Public asset (no owner) → only site admins can create public siblings.
+        if asset.parent_asset:
+            _can_copy_as_sibling = user_can_create_children(asset.parent_asset)
+        elif asset.owner is not None:
+            _can_copy_as_sibling = user_can_create_assets(account=asset.owner)
+        else:
+            _can_copy_as_sibling = current_user.has_role("admin")
+
+        # Can the user copy the asset to their own account?
+        # Independent of sibling-copy: e.g. a site admin viewing an asset in another
+        # account can both create a sibling and copy it to their own account.
+        # We only suppress the own-account button when the asset already belongs to
+        # the current user's account (a sibling copy would land there anyway).
+        _own_account = current_user.account
+        _asset_in_own_account = (
+            asset.account_id is not None and asset.account_id == _own_account.id
+        )
+        _can_copy_to_own_account = (
+            not _asset_in_own_account and user_can_create_assets()
+        )
+
         return render_flexmeasures_template(
             "assets/asset_properties.html",
             asset=asset,
@@ -437,6 +461,12 @@ class AssetCrudUI(FlaskView):
             asset_form=asset_form,
             msg=msg,
             mapboxAccessToken=current_app.config.get("MAPBOX_ACCESS_TOKEN", ""),
+            user_can_copy_as_sibling=_can_copy_as_sibling,
+            user_can_copy_to_own_account=_can_copy_to_own_account,
+            copy_target_account_id=(
+                _own_account.id if _can_copy_to_own_account else None
+            ),
+            own_organisation_name=_own_account.name,
             user_can_create_assets=user_can_create_assets(),
             user_can_create_children=user_can_create_children(asset),
             user_can_delete_asset=user_can_delete(asset),

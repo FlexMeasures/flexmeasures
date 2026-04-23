@@ -19,10 +19,10 @@
                             Asset: {{ asset.name }}
                         </h1>
                         <div class="d-flex">
-                            <button class="btn btn-sm btn-primary me-2" onclick='openSensorsModal()'>
+                            <button class="btn btn-sm btn-primary me-2 nav-button" onclick='openSensorsModal()'>
                                 Show sensors
                             </button>
-                            <button class="btn btn-sm btn-primary me-2" data-bs-toggle="modal"
+                            <button class="btn btn-sm btn-primary me-2 nav-button" data-bs-toggle="modal"
                                 data-bs-target="#flexContextModal">
                                 Edit flex-context
                             </button>
@@ -90,9 +90,10 @@
                     </div>
                     <div class="modal-body">
                         {% if user_can_create_children %}
-                        <button class="btn btn-sm btn-success mb-2 create-button" type="submit">
-                            <a href="/assets/{{asset.id}}/sensors/new">Create sensor</a>
-                        </button>
+                        <a href="/assets/{{asset.id}}/sensors/new"
+                            class="btn bg-primary-custom text-decoration-none text-light create-button">
+                            Create sensor
+                        </a>
                         {% endif %}
                         <table id="modalTable" class="table table-bordered">
                             <thead id="modalTableHead"></thead>
@@ -149,7 +150,7 @@
                     </div>
 
                    <div class="d-flex ms-auto align-items-center gap-2">
-                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
+                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto create-button">Save</button>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                 </div>

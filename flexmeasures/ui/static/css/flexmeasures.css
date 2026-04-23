@@ -1333,17 +1333,41 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 
 /* ---- Header action button ---- */
 
-.header-action-button {
-    padding-top: 5px;
-    margin-left: 1em;
-    display: flex;
-    justify-content: space-around;
-
-    width: 100% !important;
+/* Left/right action columns: match the card's 15px margin so pillboxes center correctly */
+.col-action-left {
+    padding-left: 15px;
 }
 
+.col-action-right {
+    padding-right: 15px;
+}
+
+/* Sidepanels inside a padded action column must be pulled back to the screen edge */
+.col-action-left .sidepanel {
+    margin-left: -15px;
+}
+
+.header-action-button {
+    display: flex;
+    justify-content: space-around;
+    align-items: stretch;
+    width: fit-content;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.header-action-button .btn {
+    padding-left: 15px;
+    padding-right: 15px;
+    height: 100%;
+    align-items: center;
+}
 .header-action-button>div {
-    flex: 1 1 auto;
+    height: auto;
+    align-items: center;
+    flex: 1 1 0;
+    min-width: 0;
     width: auto !important;
     padding: 0;
 }
@@ -1353,10 +1377,15 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 }
 
 .header-action-button>div button,
+.header-action-button>div a,
 .header-action-button>div label {
     font-size: 15px;
-    padding: 15px 30px;
-    line-height: 16px;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    height: 100% !important;
+    padding: 15px !important;
+    line-height: normal;
     border-radius: 0px !important;
     text-align: center;
     width: 100%;
@@ -1374,34 +1403,41 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     -ms-transition: .4s;
     -o-transition: .4s;
 }
-.header-action-button>div button {
+.header-action-button>div button,
+.header-action-button>div a {
     border: none;
     outline: none !important;
     box-shadow: none;
     background: var(--primary-color);
+    color: var(--white);
     border-right: 1px solid var(--primary-border-color) !important;
+    text-decoration: none;
 }
 .rq-style.header-action-button>div button,
 .rq-style.header-action-button>div label {
     padding: 15px 25px;
 }
 
-.header-action-button>div button:hover, .header-action-button>div button:focus {
+.header-action-button>div button:hover, .header-action-button>div button:focus,
+.header-action-button>div a:hover, .header-action-button>div a:focus {
     background: var(--primary-hover-color) !important;
 }
 
-.header-action-button>div:first-child button,
-.header-action-button>div:first-child label {
+.header-action-button>div:first-of-type button,
+.header-action-button>div:first-of-type a,
+.header-action-button>div:first-of-type label {
     border-top-left-radius: 15px !important;
     border-bottom-left-radius: 15px !important;
 }
 
-.header-action-button>div:last-child button,
-.header-action-button>div:last-child label {
+.header-action-button>div:last-of-type button,
+.header-action-button>div:last-of-type a,
+.header-action-button>div:last-of-type label {
     border-top-right-radius: 15px !important;
     border-bottom-right-radius: 15px !important;
 }
-.header-action-button>div:last-child button {
+.header-action-button>div:last-of-type button,
+.header-action-button>div:last-of-type a {
     border-right: none;
 }
 
@@ -1410,6 +1446,9 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
 }
 .delete-button:hover {
     color: var(--delete-color) !important;
+}
+.nav-button:hover {
+    color: var(--nav-hover-color) !important;
 }
 
 @media screen and (max-width: 767px) {
@@ -1660,33 +1699,6 @@ body .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
     margin-top: 0px;
     margin-bottom: 0px;
 }
-
-.user-action-button button {
-    border-radius: 50px;
-    transition: .4s;
-    -webkit-border-radius: 50px;
-    -moz-border-radius: 50px;
-    -ms-border-radius: 50px;
-    -o-border-radius: 50px;
-    -webkit-transition: .4s;
-    -moz-transition: .4s;
-    -ms-transition: .4s;
-    -o-transition: .4s;
-}
-
-@media screen and (max-width: 575.98px) {
-
-    .user-action-button {
-        padding-right: 15px;
-    }
-    
-    .user-action-button button {
-        width: 100%;
-    }
-}
-
-/* ---- End User Action Button ---- */
-
 
 /* ---- Login / Reset PWD forms ---- */
 
@@ -1946,8 +1958,6 @@ div.heading-group {
 
 /* Show tooltip titles on touch screens */
 [title] {
-	border-bottom: 1px dashed rgba(0, 0, 0, 0.2);
-	border-radius:2px;
 	position: relative;
 }
 body.touched [title]:hover > * {
