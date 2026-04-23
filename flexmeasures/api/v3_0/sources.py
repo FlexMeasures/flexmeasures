@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import current_user, auth_required
@@ -56,9 +58,14 @@ def _filter_sources_to_latest(sources: list[DataSource]) -> list[DataSource]:
         try:
             return Version(source.version or "0.0.0")
         except InvalidVersion:
+            logging.getLogger(__name__).warning(
+                "DataSource %d has an invalid version string %r; treating as 0.0.0",
+                source.id,
+                source.version,
+            )
             return Version("0.0.0")
 
-    best: dict[tuple, DataSource] = {}
+    best: dict[tuple[str, str, str | None], DataSource] = {}
     for source in sources:
         key = (source.name, source.type, source.model)
         if key not in best:
