@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from tabulate import tabulate
 from typing import Any, Type
 
+import numpy as np
 import pandas as pd
 from flask import current_app
 
@@ -369,18 +370,18 @@ class Commitment:
         self._init_device_group()
 
     def _init_device_group(self):
-        # EMS-level commitment
-        if self.device is None:
-            self.device_group = pd.Series({"EMS": 0}, name="device_group")
-            return
-
-        # Extract device universe
+        # Extract device universe (empty for EMS-level commitments where device was None)
         if isinstance(self.device, pd.Series):
             devices = extract_devices(self.device)
         else:
             devices = [self.device]
 
         devices = list(devices)
+
+        # EMS-level commitment: no device assignments, leave device_group empty.
+        if not devices:
+            self.device_group = pd.Series(dtype=object, name="device_group")
+            return
 
         # Default: one group per device (backwards compatible)
         if self.device_group is None:
@@ -437,11 +438,17 @@ class Commitment:
             ],
             axis=1,
         )
-        # map device → device_group
-        if self.device is not None:
+        # Map device → device_group.
+        # For EMS-level commitments (device was None, now a NaN series) there are
+        # no device assignments, so device_group is an empty Series and we must not
+        # call map_device_to_group (it would KeyError on the NaN values).
+        devices = extract_devices(self.device)
+        if devices:
             df["device_group"] = map_device_to_group(self.device, self.device_group)
         else:
-            df["device_group"] = 0
+            df["device_group"] = (
+                np.nan
+            )  # EMS-level: handled by ems_flow_commitment_equalities
 
         return df
 
