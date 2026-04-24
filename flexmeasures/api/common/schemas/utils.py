@@ -15,10 +15,13 @@ from flexmeasures.data.schemas.sensors import (
 )
 
 
-def make_openapi_compatible(schema_cls: Type[Schema]) -> Type[Schema]:  # noqa: C901
+def make_openapi_compatible(  # noqa: C901
+    schema_cls: Type[Schema], include: list | None = None
+) -> Type[Schema]:
     """
     Create an OpenAPI-compatible version of a Marshmallow schema.
 
+    - allows to include additional fields (e.g. {"new_field": fields.String()})
     - Drops custom __init__ args from the original schema
     - Replaces custom fields (like VariableQuantityField) with String
     """
@@ -29,7 +32,11 @@ def make_openapi_compatible(schema_cls: Type[Schema]) -> Type[Schema]:  # noqa: 
             sensor_only_validators.append(validator[-1])
 
     new_fields = {}
-    for name, field in schema_cls._declared_fields.items():
+    tobeadded_fields = schema_cls._declared_fields
+    if include:
+        for item in include:
+            tobeadded_fields.update(item)
+    for name, field in tobeadded_fields.items():
 
         if schema_cls in (ForecastingTriggerSchema, TrainPredictPipelineConfigSchema):
             if "cli" in field.metadata and field.metadata["cli"].get(
