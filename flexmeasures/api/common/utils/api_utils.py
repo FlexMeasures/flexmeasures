@@ -22,6 +22,7 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.data_ingestion import (
     add_beliefs_to_db_and_enqueue_forecasting_jobs,
+    serialize_ingestion_data,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
@@ -157,10 +158,16 @@ def save_and_enqueue(
     else:
         workers = Worker.all(queue=ingestion_queue)
         if workers:
+            serialized_data = serialize_ingestion_data(data)
+            forecasting_job_ids = (
+                [job.id for job in forecasting_jobs]
+                if forecasting_jobs is not None
+                else None
+            )
             ingestion_queue.enqueue(
                 add_beliefs_to_db_and_enqueue_forecasting_jobs,
-                data,
-                forecasting_jobs=forecasting_jobs,
+                serialized_data=serialized_data,
+                forecasting_job_ids=forecasting_job_ids,
                 save_changed_beliefs_only=save_changed_beliefs_only,
             )
             return request_processed()
