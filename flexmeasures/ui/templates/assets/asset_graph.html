@@ -24,9 +24,9 @@
 
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-md-2 on-top-md">
+<div class="container-fluid px-0">
+    <div class="row gx-0">
+        <div class="col-md-2 on-top-md col-action-left">
             <div class="header-action-button">
                 <div>
                     <button class="btn btn-primary" type="button" data-bs-toggle="modal"
@@ -35,10 +35,12 @@
                     </button>
                 </div>
             </div>
-            <div class="sidepanel-container ">
-                <div class="left-sidepanel-label">Select dates</div>
-                <div class="sidepanel left-sidepanel">
-                    <div id="datepicker"></div>
+            <div class="sidepanel">
+                <div class="sidepanel-container">
+                    <div class="sidepanel-label">Select dates</div>
+                    <div class="sidepanel-content">
+                        <div id="datepicker"></div>
+                    </div>
                 </div>
             </div>
             <div id="chart-type-picker" class="leftside-dropdown dropdown mt-3" style="display: none">
@@ -480,7 +482,7 @@
                 configTypeSelect.innerHTML = '<option value="null" selected>Select Config Type</option>';
                 flexConfigField.innerHTML = '<option value="null" selected>Select Field</option>';
                 flexConfigFieldDetail.value = "";
-                const selectedAsset = await getAsset(selectedValue);
+                const selectedAsset = await getAsset(selectedValue, false);
 
                 if (selectedAsset.flex_context !== "{}" && selectedAsset.flex_context !== '"{\"inflexible-device-sensors\": []}"') { // Some flex-context have this value set with an empty array
                     const flexContextOption = document.createElement("option");
@@ -553,9 +555,17 @@
         // This function is for backward compatibility with the previous format of sensors_to_show
         function sensorsToShowFormatter(graphs) {
             const newShape = [];
-
             for (const graph of graphs) {
-                if (typeof graph === "object") {
+                // isKeyValueObject
+                const isArray = Array.isArray(graph)
+                const isKeyValueObject = typeof graph === "object" &&
+                    graph !== null &&
+                    !Array.isArray(graph) && // Exclude arrays
+                    Object.keys(graph).length > 0;
+                const isNumber = typeof graph === "number";
+
+
+                if (isKeyValueObject) {
                     if ("sensors" in graph) {
                         const item = {};
                         item['title'] = graph['title'] || "No Title";
@@ -577,7 +587,17 @@
                         // raise toast error of "unknown format"
                         showToast(`Unknown graph format: ${JSON.stringify(graph)}`, "danger");
                     }
-                } else if (typeof graph === "number") {
+                } else if (isArray) {
+                    const item = {};
+                    item['title'] = "No Title";
+                    // Check if more than 1 sensor is present in the array, if yes, then we can assume it's a plot with multiple sensors, if not, then it's a single sensor plot
+                    if (graph.length === 1) {
+                        item['plots'] = [{ "sensor": graph[0] }];
+                    } else {
+                        item['plots'] = [{ "sensors": graph }];
+                    }
+                    newShape.push(item);
+                } else if (isNumber) {
                     const item = {};
                     item['title'] = "No Title";
                     item['plots'] = [{ "sensor": graph }];
@@ -1191,7 +1211,7 @@
         }
 
         async function showAssetChartSelection() {
-            let asset = await getAsset("{{ asset.id }}")
+            let asset = await getAsset("{{ asset.id }}", false)
             for (let child of asset.child_assets) {
                 if (child['generic_asset_type']['name'] == 'smartbuilding.chargepoint') {
                     return true;

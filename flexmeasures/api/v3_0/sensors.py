@@ -31,6 +31,7 @@ from flexmeasures.api.common.schemas.utils import make_openapi_compatible
 from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
     SensorDataDescriptionSchema,
     GetSensorDataSchema,
+    GetSensorDataQuerySchema,
     PostSensorDataSchema,
 )
 from flexmeasures.api.common.schemas.sensors import SensorId  # noqa F401
@@ -42,11 +43,13 @@ from flexmeasures.api.common.utils.api_utils import (
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
+from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
+from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorSchema,
     SensorIdField,
@@ -57,11 +60,12 @@ from flexmeasures.data.schemas.times import (
     DurationField,
     PlanningDurationField,
 )
-from flexmeasures.data.schemas import AssetIdField
+from flexmeasures.data.schemas import AssetIdField, SourceIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.data.schemas.scheduling import GetScheduleSchema
 from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.data.services.sensors import get_sensor_stats
+from flexmeasures.data.services.sensors import delete_sensor as delete_sensor_and_data
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
@@ -79,6 +83,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
 sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
+annotation_schema = AnnotationSchema()
 
 # Create ForecasterParametersSchema OpenAPI compatible schema
 EXCLUDED_FORECASTING_FIELDS = [
@@ -585,7 +590,8 @@ class SensorAPI(FlaskView):
             - "resolution" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))
             - "horizon" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))
             - "prior" (the belief timing docs also apply here)
-            - "source" (read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))
+            - "source" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))
+            - "account" (filter by the account ID linked to data sources)
 
             An example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m³/h:
 
@@ -602,7 +608,7 @@ class SensorAPI(FlaskView):
               required: true
               schema: SensorId
             - in: query
-              schema: SensorDataTimingDescriptionSchema
+              schema: GetSensorDataQuerySchema
 
           responses:
             200:
@@ -886,7 +892,7 @@ class SensorAPI(FlaskView):
               description: ID of the sensor for which to retrieve the schedule.
               example: 5
               schema:
-                type: int
+                type: integer
             - in: path
               name: uuid
               required: true
@@ -1345,34 +1351,41 @@ class SensorAPI(FlaskView):
             - Sensors
         """
 
-        """Delete time series data."""
-        db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
-
-        AssetAuditLog.add_record(
-            sensor.generic_asset, f"Deleted sensor '{sensor.name}': {sensor.id}"
-        )
-
         sensor_name = sensor.name
-        AssetAuditLog.add_record(
-            sensor.generic_asset,
-            f"Deleted sensor '{sensor_name}': {id}",
-        )
-        db.session.execute(delete(Sensor).filter_by(id=sensor.id))
+        delete_sensor_and_data(sensor)
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
         return {}, 204
 
     @route("/<id>/data", methods=["DELETE"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_kwargs(
+        {
+            "source": SourceIdField(load_default=None),
+            "start": AwareDateTimeField(load_default=None),
+            "until": AwareDateTimeField(load_default=None),
+        },
+        location="json",
+    )
     @permission_required_for_context("delete", ctx_arg_name="sensor")
     @as_json
-    def delete_data(self, id: int, sensor: Sensor):
+    def delete_data(
+        self,
+        id: int,
+        sensor: Sensor,
+        source=None,
+        start=None,
+        until=None,
+    ):
         """
         .. :quickref: Sensors; Delete sensor data
         ---
         delete:
           summary: Delete sensor data
-          description: This endpoint deletes all data for a sensor.
+          description: >
+            This endpoint deletes data for a sensor.
+            Optionally, filter by source, start time and/or until time.
+            A missing source means all sources are deleted.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1381,6 +1394,24 @@ class SensorAPI(FlaskView):
               description: ID of the sensor to delete data for.
               required: true
               schema: SensorId
+          requestBody:
+            required: false
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    source:
+                      type: integer
+                      description: ID of the data source to delete data for. If not provided, data from all sources is deleted.
+                    start:
+                      type: string
+                      format: date-time
+                      description: Only delete data with event start at or after this datetime (ISO 8601).
+                    until:
+                      type: string
+                      format: date-time
+                      description: Only delete data with event start before this datetime (ISO 8601).
           responses:
             204:
               description: SENSOR_DATA_DELETED
@@ -1395,10 +1426,25 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
-        db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
+        query = delete(TimedBelief).where(TimedBelief.sensor_id == sensor.id)
+        if source is not None:
+            query = query.where(TimedBelief.source_id == source.id)
+        if start is not None:
+            query = query.where(TimedBelief.event_start >= start)
+        if until is not None:
+            query = query.where(TimedBelief.event_start < until)
+        db.session.execute(query)
+
+        audit_message = f"Deleted data for sensor '{sensor.name}': {sensor.id}"
+        if source is not None:
+            audit_message += f", source: {source.id}"
+        if start is not None:
+            audit_message += f", from: {start}"
+        if until is not None:
+            audit_message += f", until: {until}"
         AssetAuditLog.add_record(
             sensor.generic_asset,
-            f"Deleted data for sensor '{sensor.name}': {sensor.id}",
+            audit_message,
         )
         db.session.commit()
 
@@ -1411,6 +1457,7 @@ class SensorAPI(FlaskView):
             "sort_keys": fields.Boolean(data_key="sort", load_default=True),
             "event_start_time": fields.Str(load_default=None),
             "event_end_time": fields.Str(load_default=None),
+            "fresh": fields.Boolean(load_default=False),
         },
         location="query",
     )
@@ -1423,6 +1470,7 @@ class SensorAPI(FlaskView):
         event_start_time: str,
         event_end_time: str,
         sort_keys: bool,
+        fresh: bool,
     ):
         """
         .. :quickref: Sensors; Get sensor stats
@@ -1451,7 +1499,12 @@ class SensorAPI(FlaskView):
                 format: date-time
             - in: query
               name: sort_keys
-              description: Whether to sort the stats by keys.
+              description: Whether to sort the stats by keys (defaults to true).
+              schema:
+                type: boolean
+            - in: query
+              name: fresh
+              description: Whether to compute fresh data, bypassing any cached results (defaults to false).
               schema:
                 type: boolean
           responses:
@@ -1484,9 +1537,14 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
-
         return (
-            get_sensor_stats(sensor, event_start_time, event_end_time, sort_keys),
+            get_sensor_stats(
+                sensor,
+                event_start_time,
+                event_end_time,
+                sort_keys,
+                from_cache=not fresh,
+            ),
             200,
         )
 
@@ -1776,7 +1834,8 @@ class SensorAPI(FlaskView):
             )
         if job.dependency_ids:
             forecast_job_ids = [
-                dep.decode("utf-8").replace("rq:job:", "") for dep in job.dependency_ids
+                dep.decode("utf-8") if isinstance(dep, bytes) else dep
+                for dep in job.dependency_ids
             ]
             response = dict(
                 message="The forecasting job led to forecasts over different periods. Please query an individual period by calling this endpoint with one of the listed job IDs",
@@ -1838,3 +1897,59 @@ class SensorAPI(FlaskView):
 
         d, s = request_processed()
         return dict(**response), s
+
+    @route("/<id>/annotations", methods=["POST"])
+    @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
+    @use_args(annotation_schema)
+    @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    def post_annotation(self, annotation: Annotation, id: int, sensor: Sensor):
+        """.. :quickref: Sensors; Add an annotation to a sensor.
+        ---
+        post:
+          summary: Creates a new sensor annotation.
+          description: |
+            This endpoint creates a new :ref:`annotation <annotations>` on a sensor.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: The ID of the sensor to register the annotation on.
+              required: true
+              schema:
+                type: integer
+          requestBody:
+            content:
+              application/json:
+                schema: AnnotationSchema
+          responses:
+            200:
+              description: OK
+            201:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Sensors
+            - Annotations
+        """
+
+        # Use get_or_create to handle duplicates gracefully
+        annotation, is_new = get_or_create_annotation(annotation)
+
+        # Link annotation to sensor
+        if annotation not in sensor.annotations:
+            sensor.annotations.append(annotation)
+
+        db.session.commit()
+
+        # Return appropriate status code
+        status_code = 201 if is_new else 200
+        return annotation_schema.dump(annotation), status_code

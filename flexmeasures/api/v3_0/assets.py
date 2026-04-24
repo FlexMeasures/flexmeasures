@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import json
 from datetime import datetime, timedelta
 from http import HTTPStatus
@@ -11,7 +12,7 @@ from flask_security import auth_required
 from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
 
-from marshmallow import fields, ValidationError, Schema, validate
+from marshmallow import fields, post_load, ValidationError, Schema, validate
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, func, or_
@@ -38,6 +39,7 @@ from flexmeasures.api.common.schemas.assets import (
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
+from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -46,6 +48,7 @@ from flexmeasures.data.queries.generic_assets import (
     query_assets_by_search_terms,
 )
 from flexmeasures.data.schemas import AwareDateTimeField
+from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
@@ -57,7 +60,10 @@ from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
     create_simultaneous_scheduling_job,
 )
-from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
+from flexmeasures.api.common.utils.api_utils import (
+    get_accessible_accounts,
+    copy_asset,
+)
 from flexmeasures.api.common.responses import (
     unprocessable_entity,
     request_processed,
@@ -74,6 +80,7 @@ from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
+annotation_schema = AnnotationSchema()
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
@@ -155,6 +162,48 @@ class DefaultAssetViewJSONSchema(Schema):
 class KPIKwargsSchema(Schema):
     event_starts_after = AwareDateTimeField(format="iso", required=False)
     event_ends_before = AwareDateTimeField(format="iso", required=False)
+
+
+class CopyAssetSchema(Schema):
+    account = AccountIdField(
+        data_key="account",
+        required=False,
+        metadata=dict(
+            description="Target account to copy the asset to.",
+            example=67,
+        ),
+    )
+    parent_asset = AssetIdField(
+        data_key="parent",
+        required=False,
+        metadata=dict(
+            description="Target parent asset to copy the asset under.",
+            example=482,
+        ),
+    )
+
+    @post_load
+    def resolve_account_and_parent(self, data, **kwargs):
+        """
+        Resolve the account/parent relationship after loading:
+
+        - If ``account`` is explicitly given but ``parent_asset`` is not, the copy
+          becomes a top-level asset (no parent) in the given account.
+        - If ``parent_asset`` is explicitly given but ``account`` is not, the copy
+          inherits the account of the parent asset.
+        - If both are explicitly given, the copy can belong to a different account
+          than its parent, which is a valid cross-account parent relationship.
+        - If neither is given, the original asset's account and parent are preserved.
+        """
+        account_given = "account" in data
+        parent_given = "parent_asset" in data
+
+        if account_given and not parent_given:
+            data["parent_asset"] = None
+        elif parent_given and not account_given:
+            data["account"] = data["parent_asset"].owner
+
+        return data
 
 
 class AssetTypesAPI(FlaskView):
@@ -299,13 +348,14 @@ class AssetAPI(FlaskView):
             check_access(account, "read")
             account_ids = [account.id]
         else:
-            use_all_accounts = all_accessible or root_asset
-            include_public = all_accessible or include_public or root_asset
-            account_ids = (
-                [a.id for a in get_accessible_accounts()]
-                if use_all_accounts
-                else [current_user.account.id]
+            use_all_accounts = all_accessible or (root_asset is not None)
+            include_public = (
+                all_accessible or include_public or (root_asset is not None)
             )
+            if use_all_accounts:
+                account_ids = [a.id for a in get_accessible_accounts()]
+            else:
+                account_ids = [current_user.account.id]
         filter_statement = GenericAsset.account_id.in_(account_ids)
         if include_public:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
@@ -912,7 +962,7 @@ class AssetAPI(FlaskView):
             - Assets
         """
         sensors = SensorsToShowSchema.flatten(asset.validate_sensors_to_show())
-        return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
+        return asset.chart_data_json(sensors=sensors, **kwargs)
 
     @route("/<id>/auditlog")
     @use_kwargs(
@@ -1540,3 +1590,176 @@ class AssetAPI(FlaskView):
             }
             kpis.append(kpi_dict)
         return dict(data=kpis), 200
+
+    @route("/<id>/annotations", methods=["POST"])
+    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @use_args(annotation_schema)
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    def post_annotation(self, annotation: Annotation, id: int, asset: GenericAsset):
+        """.. :quickref: Assets; Add an annotation to an asset.
+        ---
+        post:
+          summary: Creates a new asset annotation.
+          description: |
+            This endpoint creates a new :ref:`annotation <annotations>` on an asset.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: The ID of the asset to register the annotation on.
+              required: true
+              schema:
+                type: integer
+          requestBody:
+            content:
+              application/json:
+                schema: AnnotationSchema
+          responses:
+            200:
+              description: OK
+            201:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+            - Annotations
+        """
+
+        # Use get_or_create to handle duplicates gracefully
+        annotation, is_new = get_or_create_annotation(annotation)
+
+        # Link annotation to asset
+        if annotation not in asset.annotations:
+            asset.annotations.append(annotation)
+
+        db.session.commit()
+
+        # Return appropriate status code
+        status_code = 201 if is_new else 200
+        return annotation_schema.dump(annotation), status_code
+
+    @route("/<id>/copy", methods=["POST"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
+    @use_kwargs(CopyAssetSchema, location="query")
+    @as_json
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    def copy_assets(
+        self,
+        id,
+        asset: GenericAsset,
+        account: Account | None = None,
+        parent_asset: GenericAsset | None = None,
+    ):
+        """
+        .. :quickref: Assets; Copy an asset to a target account and/or parent.
+        ---
+        post:
+          summary: Copy an asset to a target account and/or parent.
+          description: |
+            This endpoint creates a copy of an existing asset and optionally places it
+            under a `target` account and/or `parent` asset.
+
+            Resolution rules:
+
+            - If both are omitted, the copy remains in the same account and keeps the same parent.
+            - If `account` is provided and `parent` is omitted, parent defaults to `null`.
+            - If `parent` is provided and `account` is omitted, account is derived from that parent.
+            - If both are provided, it is possible to assign the copied asset to a different account than the parent.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              description: ID of the asset to copy.
+              required: true
+              schema:
+                type: integer
+            - in: query
+              schema: CopyAssetSchema
+          responses:
+            201:
+              description: CREATED
+              content:
+                application/json:
+                  example:
+                    message: Successfully copied asset 10 to account 2.
+                    asset: 99
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        # Resolve effective targets for permission checks and fallback behavior.
+        # If neither target is given, use the source asset's account/parent.
+        resolved_account = account or asset.owner
+        resolved_parent = (
+            parent_asset
+            if account is not None
+            else (parent_asset or asset.parent_asset)
+        )
+
+        # When placing the copy under a parent asset, the parent's create-children
+        # permission is sufficient (any account member may add children to an asset).
+        # When creating a top-level asset (no parent), we fall back to the account-level
+        # create-children check, which requires account-admin or consultant.
+        if resolved_parent is not None:
+            check_access(resolved_parent, "create-children")
+        else:
+            check_access(resolved_account, "create-children")
+
+        try:
+            new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)
+        except ValueError as err:
+            return unprocessable_entity(str(err))
+
+        account_given = "account" in request.args
+        parent_given = "parent" in request.args
+
+        if not parent_given and not account_given:
+            message = f"Successfully copied asset {asset.id}."
+        elif parent_given and not account_given:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to parent asset {new_asset.parent_asset_id}."
+            )
+        elif not parent_given and account_given:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to account {new_asset.account_id}."
+            )
+        else:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to account {new_asset.account_id} "
+                f"under parent {new_asset.parent_asset_id}."
+            )
+
+        return {
+            "message": message,
+            "asset": new_asset.id,
+        }, 201
