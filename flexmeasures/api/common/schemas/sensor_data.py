@@ -178,9 +178,15 @@ class GetSensorDataFilterSchemaMixin:
         required=False,
         metadata=dict(
             description="Filter by a specific data source type.",
-            example="demo script",
+            example="forecaster",
         ),
     )
+
+    @validates_schema
+    def check_source_type_not_blank(self, data, **kwargs):
+        source_type = data.get("source_type")
+        if source_type is not None and not source_type.strip():
+            raise ValidationError({"source_type": ["Source type must not be blank."]})
 
 
 class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionSchema):
