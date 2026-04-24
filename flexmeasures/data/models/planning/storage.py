@@ -443,7 +443,13 @@ class MetaStorageScheduler(Scheduler):
         for d, (prefer_charging_sooner_d, prefer_curtailing_later_d) in enumerate(
             zip(prefer_charging_sooner, prefer_curtailing_later)
         ):
-            if prefer_charging_sooner_d:
+            # Mixed-device schedules can include non-storage devices such as PV.
+            # These do not have a state of charge, so there is nothing to "prefer full".
+            if (
+                prefer_charging_sooner_d
+                and soc_max[d] is not None
+                and soc_at_start[d] is not None
+            ):
                 tiny_price_slope = (
                     add_tiny_price_slope(
                         up_deviation_prices, "event_value", order="desc"
@@ -1938,6 +1944,8 @@ def build_device_soc_values(
         disregarded_periods: list[tuple[datetime, datetime]] = []
         for soc_value in soc_values:
             soc = soc_value["value"]
+            if isinstance(soc, ur.Quantity):
+                soc = soc.magnitude
             # convert timezone, otherwise DST would be problematic
             soc_constraint_start = soc_value["start"].astimezone(
                 device_values.index.tzinfo

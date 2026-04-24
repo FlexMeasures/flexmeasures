@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.31.1"
+    "version": "0.32.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -365,7 +365,7 @@
       },
       "get": {
         "summary": "Get sensor data",
-        "description": "The unit has to be convertible from the sensor's unit - e.g. you ask for kW, and the sensor's unit is MW.\n\nOptional parameters:\n\n- \"resolution\" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))\n- \"horizon\" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))\n- \"prior\" (the belief timing docs also apply here)\n- \"source\" (read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))\n\nAn example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m\u00b3/h:\n\n  ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m\u00b3/h\n\n(you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).\n\n > <strong>Note:</strong> This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.\n",
+        "description": "The unit has to be convertible from the sensor's unit - e.g. you ask for kW, and the sensor's unit is MW.\n\nOptional parameters:\n\n- \"resolution\" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))\n- \"horizon\" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))\n- \"prior\" (the belief timing docs also apply here)\n- \"source\" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))\n- \"account\" (filter by the account ID linked to data sources)\n\nAn example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m\u00b3/h:\n\n  ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m\u00b3/h\n\n(you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).\n\n > <strong>Note:</strong> This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -433,6 +433,37 @@
               "example": "m\u00b3/h"
             },
             "required": true
+          },
+          {
+            "in": "query",
+            "name": "resolution",
+            "description": "Resolution of the returned sensor data in ISO 8601 duration format.",
+            "schema": {
+              "type": "string",
+              "example": "PT15M",
+              "format": "duration"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "description": "Filter by a specific data source ID.",
+            "schema": {
+              "type": "integer",
+              "example": 42
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "account",
+            "description": "Filter by the account linked to data sources.",
+            "schema": {
+              "type": "integer",
+              "example": 3
+            },
+            "required": false
           }
         ],
         "responses": {
@@ -672,7 +703,7 @@
             "description": "ID of the sensor for which to retrieve the schedule.",
             "example": 5,
             "schema": {
-              "type": "int"
+              "type": "integer"
             }
           },
           {
@@ -1225,8 +1256,7 @@
             "description": "The ID of the sensor to register the annotation on.",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -1623,8 +1653,7 @@
             "description": "The ID of the account whose history is being requested.",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -1708,8 +1737,7 @@
             "description": "The ID of the account to retrieve.",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -1762,8 +1790,7 @@
             "description": "The ID of the account to update.",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -1971,8 +1998,7 @@
             "description": "The ID of the account to register the annotation on.",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -2784,6 +2810,79 @@
           },
           "403": {
             "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/copy": {
+      "post": {
+        "summary": "Copy an asset to a target account and/or parent.",
+        "description": "This endpoint creates a copy of an existing asset and optionally places it\nunder a `target` account and/or `parent` asset.\n\nResolution rules:\n\n- If both are omitted, the copy remains in the same account and keeps the same parent.\n- If `account` is provided and `parent` is omitted, parent defaults to `null`.\n- If `parent` is provided and `account` is omitted, account is derived from that parent.\n- If both are provided, it is possible to assign the copied asset to a different account than the parent.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "ID of the asset to copy.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "account",
+            "description": "Target account to copy the asset to.",
+            "schema": {
+              "type": "integer",
+              "example": 67
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "parent",
+            "description": "Target parent asset to copy the asset under.",
+            "schema": {
+              "type": "integer",
+              "example": 482
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "CREATED",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Successfully copied asset 10 to account 2.",
+                  "asset": 99
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "404": {
+            "description": "NOT_FOUND"
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
@@ -3652,8 +3751,7 @@
             "description": "The ID of the asset to register the annotation on.",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "integer"
             }
           }
         ],
@@ -4752,6 +4850,22 @@
         ],
         "additionalProperties": false
       },
+      "CopyAssetSchema": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "integer",
+            "description": "Target account to copy the asset to.",
+            "example": 67
+          },
+          "parent": {
+            "type": "integer",
+            "description": "Target parent asset to copy the asset under.",
+            "example": 482
+          }
+        },
+        "additionalProperties": false
+      },
       "DefaultAssetViewJSONSchema": {
         "type": "object",
         "properties": {
@@ -4828,6 +4942,9 @@
               "null"
             ],
             "maxLength": 255
+          },
+          "attributes": {
+            "default": "{}"
           },
           "account_roles": {
             "type": "array",
@@ -5557,6 +5674,9 @@
               "null"
             ],
             "maxLength": 255
+          },
+          "attributes": {
+            "default": "{}"
           },
           "account_roles": {
             "type": "array",

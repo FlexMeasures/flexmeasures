@@ -42,6 +42,18 @@ Keep FlexMeasures understandable and contributor-friendly by ensuring excellent 
 - [ ] **Clarity**: Avoid jargon without explanation
 - [ ] **Type hints**: Complement (don't duplicate) type hints
 
+### UI & User-Facing Terminology
+
+- [ ] **organisation not account**: In all UI-facing text (button labels, tooltips,
+  error messages, flash notices, template strings), use **"organisation"** instead of
+  **"account"**. The word "account" is easily confused with a user/login account.
+  The backend model is still called `Account`; only the *user-visible* language changes.
+  - ✅ "Copy to my organisation", "contact your organisation admin"
+  - ❌ "Copy to my account", "contact your account admin"
+- [ ] **No internal role names in UI**: Do not expose role names like `account-admin`
+  in button titles or error messages visible to end users. Use plain language instead
+  (e.g. "organisation admin").
+
 ### User Documentation
 
 - [ ] **Behavior changes**: Changes to behavior require doc updates

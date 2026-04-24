@@ -927,6 +927,16 @@ docstrings, inline comments, and documentation.**
 Double spaces (two spaces after a period) are a holdover from typewriter
 conventions and should not appear in Python source code or docs.
 
+### UI Terminology: Organisation not Account
+
+In all **user-visible** text (button labels, tooltips, flash messages, template
+strings, user-facing docs), use **"organisation"** instead of **"account"**.
+The backend model is still named `Account`; only the language shown to end users
+changes. Similarly, never expose internal role names (e.g. `account-admin`) in
+UI text — use plain language ("organisation admin") instead.
+
+Delegate enforcement of this rule to the Documentation Specialist.
+
 ### Must Actually Run Coordinator When Requested
 
 **The Coordinator is a subagent that the Lead can invoke.**

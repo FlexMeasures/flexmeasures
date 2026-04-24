@@ -24,9 +24,9 @@
 
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-md-2 on-top-md ps-0">
+<div class="container-fluid px-0">
+    <div class="row gx-0">
+        <div class="col-md-2 on-top-md col-action-left">
             <div class="header-action-button">
                 <div>
                     <button class="btn btn-primary" type="button" data-bs-toggle="modal"
@@ -555,9 +555,17 @@
         // This function is for backward compatibility with the previous format of sensors_to_show
         function sensorsToShowFormatter(graphs) {
             const newShape = [];
-
             for (const graph of graphs) {
-                if (typeof graph === "object") {
+                // isKeyValueObject
+                const isArray = Array.isArray(graph)
+                const isKeyValueObject = typeof graph === "object" &&
+                    graph !== null &&
+                    !Array.isArray(graph) && // Exclude arrays
+                    Object.keys(graph).length > 0;
+                const isNumber = typeof graph === "number";
+
+
+                if (isKeyValueObject) {
                     if ("sensors" in graph) {
                         const item = {};
                         item['title'] = graph['title'] || "No Title";
@@ -579,7 +587,17 @@
                         // raise toast error of "unknown format"
                         showToast(`Unknown graph format: ${JSON.stringify(graph)}`, "danger");
                     }
-                } else if (typeof graph === "number") {
+                } else if (isArray) {
+                    const item = {};
+                    item['title'] = "No Title";
+                    // Check if more than 1 sensor is present in the array, if yes, then we can assume it's a plot with multiple sensors, if not, then it's a single sensor plot
+                    if (graph.length === 1) {
+                        item['plots'] = [{ "sensor": graph[0] }];
+                    } else {
+                        item['plots'] = [{ "sensors": graph }];
+                    }
+                    newShape.push(item);
+                } else if (isNumber) {
                     const item = {};
                     item['title'] = "No Title";
                     item['plots'] = [{ "sensor": graph }];

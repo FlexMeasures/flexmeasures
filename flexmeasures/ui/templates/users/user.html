@@ -6,24 +6,30 @@
 
 {% block divs %}
 
+{% block breadcrumbs %} {{ super() }} {% endblock %}
+
 {% if user %}
 
-<div class="container-fluid">
-  <div class="row">
-    <div class="col-md-2 on-top-md">
+<div class="container-fluid px-0">
+  <div class="row gx-0">
+    <div class="col-md-2 col-action-left">
 
-      <div class="d-grid gap-2 col-8 mt-3">
+      <div class="header-action-button mt-3">
         {% if can_edit_user_details %}
-        <button class="btn p-2 border-0 btn-info" type="button" title="Edit user details" data-bs-toggle="modal"
-          data-bs-target="#editUserModal">Edit</button>
+        <div>
+          <a class="btn btn-sm btn-responsive btn-info nav-button"
+             data-bs-toggle="modal"
+             data-bs-target="#editUserModal"
+             title="Edit user details">Edit</a>
+        </div>
         {% endif %}
 
         {% if current_user.has_role('admin') or current_user.has_role('account-admin') %}
-        <button class="btn p-2 border-0 btn-info" type="button"
-          title="Reset the password and send instructions how to choose a new one."
-          onclick="window.location.href='/users/reset_password_for/{{ user.id }}'">
-          Reset password
-        </button>
+        <div>
+          <a href="/users/reset_password_for/{{ user.id }}"
+             class="btn btn-sm btn-info delete-button"
+             title="Reset the password and send instructions how to choose a new one.">Reset password</a>
+        </div>
         {% endif %}
       </div>
 
@@ -106,12 +112,23 @@
         </div>
       </div>
     </div>
-    <div class="col-md-2">
-      {% if can_view_user_auditlog %}
-      <button class="btn p-3 btn-info border-0 mb-3 mt-3" type="button"
-        onclick="window.location.href='/users/auditlog/{{ user.id }}'" title="View history of user actions.">User audit
-        log</button>
-      {% endif %}
+        <div class="col-md-2 col-action-right">
+      <div class="header-action-button mt-3">
+        {% if can_view_account_auditlog %}
+        <div>
+          <a href="/accounts/auditlog/{{ user.account.id }}"
+             class="btn btn-sm btn-responsive btn-info bt-md-0 mb-3 d-inline-block nav-button"
+             title="View history of account actions.">Account audit log</a>
+        </div>
+        {% endif %}
+        {% if can_view_user_auditlog %}
+        <div>
+          <a href="/users/auditlog/{{ user.id }}"
+             class="btn btn-sm btn-responsive btn-info mb-md-0 mb-3 d-inline-block nav-button"
+             title="View history of user actions.">User audit log</a>
+        </div>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>
@@ -162,7 +179,7 @@
               endif %}>
             <label class="form-check-label" for="active">Active</label>
           </div>
-          <button type="submit" class="btn btn-primary">Save changes</button>
+          <button type="submit" class="btn btn-primary create-button">Save changes</button>
         </form>
       </div>
     </div>

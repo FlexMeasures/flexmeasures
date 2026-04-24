@@ -3,6 +3,7 @@ import pytest
 from flexmeasures.data.services.users import create_user
 from flexmeasures.ui.tests.utils import login, logout
 from flexmeasures import Asset
+from flexmeasures.data.models.generic_assets import GenericAsset
 
 
 @pytest.fixture(scope="function")
@@ -23,6 +24,36 @@ def as_admin(client):
     login(client, "flexmeasures-admin@seita.nl", "testtest")
     yield
     logout(client)
+
+
+@pytest.fixture(scope="function")
+def as_prosumer_account_admin(client):
+    """Login the prosumer account-admin (has the 'account-admin' role)."""
+    login(client, "test_prosumer_user_2@seita.nl", "testtest")
+    yield
+    logout(client)
+
+
+@pytest.fixture(scope="function")
+def as_dummy_account_admin(client):
+    """Login the dummy account-admin (account-admin of a different account)."""
+    login(client, "test_dummy_account_admin@seita.nl", "testtest")
+    yield
+    logout(client)
+
+
+@pytest.fixture
+def public_asset(db, setup_generic_asset_types):
+    """A public asset with no owner account, readable by any logged-in user."""
+    asset = GenericAsset(
+        name="public-test-asset",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        latitude=10,
+        longitude=100,
+    )
+    db.session.add(asset)
+    db.session.commit()
+    return asset
 
 
 @pytest.fixture(scope="module", autouse=True)
