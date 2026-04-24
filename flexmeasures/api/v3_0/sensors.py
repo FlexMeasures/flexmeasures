@@ -65,6 +65,7 @@ from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.data.schemas.scheduling import GetScheduleSchema
 from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.data.services.sensors import get_sensor_stats
+from flexmeasures.data.services.sensors import delete_sensor as delete_sensor_and_data
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
@@ -1404,19 +1405,8 @@ class SensorAPI(FlaskView):
             - Sensors
         """
 
-        """Delete time series data."""
-        db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
-
-        AssetAuditLog.add_record(
-            sensor.generic_asset, f"Deleted sensor '{sensor.name}': {sensor.id}"
-        )
-
         sensor_name = sensor.name
-        AssetAuditLog.add_record(
-            sensor.generic_asset,
-            f"Deleted sensor '{sensor_name}': {id}",
-        )
-        db.session.execute(delete(Sensor).filter_by(id=sensor.id))
+        delete_sensor_and_data(sensor)
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
         return {}, 204
@@ -1989,7 +1979,6 @@ class SensorAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           requestBody:
             content:
               application/json:

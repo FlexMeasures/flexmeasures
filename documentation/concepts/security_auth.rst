@@ -79,6 +79,16 @@ Supported User Roles
 
 A user without any roles can, by and large, inspect and edit data in their own account, add beliefs and work on their own user account.
 
+.. note::
+
+   **Copy / delete asymmetry for assets.**
+   Because ``create-children`` on a :class:`GenericAsset` is open to all account members,
+   a plain user can copy an asset (and all its children) indefinitely.
+   However, deleting assets requires the ``account-admin`` role.
+   Account admins are therefore responsible for pruning unwanted copies.
+   This is intentional: members are free to contribute data, while admins retain
+   control over structural cleanup.
+
 These roles are natively supported and give users more rights:
 
 - ``admin``: A super-user who can do anything.

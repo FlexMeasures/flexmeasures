@@ -8,16 +8,19 @@ v0.33.0 | May XX, 2026
 
 New features
 -------------
+* Added API and UI support for copying assets and their subtrees [see `PR #2017 <https://www.github.com/FlexMeasures/flexmeasures/pull/2017>`_ and `PR #2120 <https://www.github.com/FlexMeasures/flexmeasures/pull/2120>`_]
 * Improve UX after deleting a child asset through the UI [see `PR #2119 <https://www.github.com/FlexMeasures/flexmeasures/pull/2119>`_]
 * Improve source filtering in the sensor data GET endpoint by exposing the documented query parameters in Swagger and allowing filtering by the account linked to data sources [see `PR #2083 <https://www.github.com/FlexMeasures/flexmeasures/pull/2083>`_]
 
 Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #2114 <https://www.github.com/FlexMeasures/flexmeasures/pull/2114>`_]
+* Run ``flexmeasures jobs run-worker`` with RQ's embedded scheduler on by default so jobs created with ``enqueue_in`` are promoted from the scheduled registry when due; pass ``--without-scheduler`` to disable [see `PR #2112 <https://www.github.com/FlexMeasures/flexmeasures/pull/2112>`_]
 
 Bugfixes
 -----------
 * Check read permissions for regressor sensors when triggering forecasts, and return a clearer 403 error when a referenced sensor is not readable [see `PR #2096 <https://www.github.com/FlexMeasures/flexmeasures/pull/2096>`_]
+* Make the sensor page load much faster for sensors with lots of data, by avoiding to load statistics over all of its history by default [see `PR #2129 <https://www.github.com/FlexMeasures/flexmeasures/pull/2129>`_]
 * Return a clear validation error (instead of a server ZeroDivisionError) when posting instantaneous (0-minute) data to non-instantaneous sensors via ``[POST] /sensors/(id)/data`` [see `PR #2116 <https://www.github.com/FlexMeasures/flexmeasures/pull/2116>`_]
 * Fix asset context page for asset names containing apostrophes [see `PR #2117 <https://www.github.com/FlexMeasures/flexmeasures/pull/2117>`_]
 
@@ -44,6 +47,7 @@ New features
 * Separate the ``StorageScheduler``'s tie-breaking preference for a full :abbr:`SoC (state of charge)` from its reported energy costs [see `PR #2023 <https://www.github.com/FlexMeasures/flexmeasures/pull/2023>`_ and `PR #2108 <https://www.github.com/FlexMeasures/flexmeasures/pull/2108>`_]
 * Improve asset graph hover interaction with a vertical ruler across subcharts, while keeping hover dots for easier visual tracking [see `PR #2079 <https://www.github.com/FlexMeasures/flexmeasures/pull/2079>`_]
 * Improve asset audit log messages for JSON field edits (especially ``sensors_to_show`` and nested flex-config values) [see `PR #2055 <https://www.github.com/FlexMeasures/flexmeasures/pull/2055>`_]
+* Clean up stale sensor references from ``flex-config`` and ``sensors_to_show`` when deleting a sensor, using JSONB queries to find affected assets before pruning those references [see `PR #2106 <https://www.github.com/FlexMeasures/flexmeasures/pull/2106>`_]
 
 Infrastructure / Support
 ----------------------
