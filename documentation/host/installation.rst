@@ -385,7 +385,7 @@ Then, start workers in a console (or some other method to keep a long-running pr
 
 .. code-block:: bash
 
-   $ flexmeasures jobs run-worker --queue "scheduling|forecasting"
+   $ flexmeasures jobs run-worker --queue "scheduling|forecasting|ingestion"
 
 
 You can go to `http://localhost:5000/tasks/` and see the state of job queues and find individual jobs (and investigate why they failed, for instance).
