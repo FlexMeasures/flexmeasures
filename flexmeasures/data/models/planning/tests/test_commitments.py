@@ -177,14 +177,25 @@ def test_multi_feed_device_scheduler_shared_buffer():
 
     assert commitment_groups == {"shared thermal buffer"}
 
-    # ---- key behavioural check:
-    # total commitment cost should be <= 1 breach per group per timestep
-    #
-    # If baselines were duplicated, cost would be ~2x for the shared buffer.
-    expected_max_cost = len(index) * breach_price * 2
-    assert planned_costs <= expected_max_cost
-    total_commodity_cost = sum(commodity_costs.values())
-    assert total_commodity_cost <= planned_costs
+    # The shared buffer minimum (SoC ≥ 100 at the final step) must be met without
+    # any breach.  If baseline costs were duplicated the optimiser would be driven
+    # to over-invest in commodities to avoid inflated penalties, which would also
+    # show up here as a non-zero breach cost.
+    buffer_min_cost = sum(
+        costs
+        for c, costs in zip(commitments, model.commitment_costs.values())
+        if c.name == "buffer min"
+    )
+    assert buffer_min_cost == 0, (
+        f"Shared buffer target was breached (breach cost = {buffer_min_cost}). "
+        "This may indicate that baseline costs were incorrectly duplicated."
+    )
+
+    # At hours 12–13 electricity (200) is cheaper than gas (300), so the heat pump
+    # runs at full power: 2 h × 20 kW = 40 kWh flow → 40 × 0.9 = 36 kWh SoC
+    # contribution to the shared buffer. The gas boiler covers the remainder:
+    # (100 − 36) kWh SoC / 0.9 efficiency × 300 price.
+    assert gas_cost == pytest.approx((100 - 40 * 0.9) / 0.9 * 300, rel=1e-6)
 
     # Expect the total electricity costs to be:
     # 2 * 20 for the heat pump
