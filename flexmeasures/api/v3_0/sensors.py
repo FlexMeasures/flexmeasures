@@ -592,6 +592,7 @@ class SensorAPI(FlaskView):
             - "prior" (the belief timing docs also apply here)
             - "source" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))
             - "account" (filter by the account ID linked to data sources)
+            - "source_type" (filter by data source type)
 
             An example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m³/h:
 
