@@ -264,16 +264,19 @@ def device_scheduler(  # noqa C901
     )
     model.c = RangeSet(0, len(commitments) - 1, doc="Set of commitments")
 
+    # Add 2D indices for commitment device groups (cg)
     def commitment_device_groups_init(m):
         return ((c, g) for c, groups in device_group_lookup.items() for g in groups)
 
     model.cg = Set(dimen=2, initialize=commitment_device_groups_init)
 
+    # Add 2D indices for commitment datetimes (cj)
     def commitments_init(m):
         return ((c, j) for c in m.c for j in commitments[c]["j"])
 
     model.cj = Set(dimen=2, initialize=commitments_init)
 
+    # Add 3D indices for commitment datetime device groups (cjg)
     def commitment_time_device_groups_init(m):
         return ((c, j, g) for (c, j) in m.cj for (_, g) in m.cg if _ == c)
 
