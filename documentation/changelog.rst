@@ -710,6 +710,7 @@ Bugfixes
 -----------
 * Fix ordering of jobs on the asset status page [see `PR #1106 <https://github.com/FlexMeasures/flexmeasures/pull/1106>`_]
 * Relax max staleness for status page using 2 * event_resolution as default instead of immediate staleness [see `PR #1108 <https://github.com/FlexMeasures/flexmeasures/pull/1108>`_]
+* Fix forecasting regressor filtering to respect issue-time availability and prevent improper data exclusion around forecast boundaries [see `PR #2133 <https://github.com/FlexMeasures/flexmeasures/pull/2133>`_]
 
 
 v0.21.0 | May 16, 2024
