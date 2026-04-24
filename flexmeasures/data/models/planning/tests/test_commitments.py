@@ -145,8 +145,8 @@ def test_multi_feed_device_scheduler_shared_buffer():
         initial_stock=0,
     )
 
-    # ---- sanity: model solved
-    assert results.solver.termination_condition in ("optimal", "locallyOptimal")
+    # ---- sanity: model solved optimally
+    assert results.solver.termination_condition == "optimal"
 
     # ---- key assertion: exactly TWO commitment groups
     #   - one for "shared thermal buffer"
@@ -301,7 +301,7 @@ def _run_hp_buffer_scenario(index, target_soc, shared: bool):
         initial_stock=0,
     )
 
-    assert results.solver.termination_condition in ("optimal", "locallyOptimal")
+    assert results.solver.termination_condition == "optimal"
 
     return sum(
         v
