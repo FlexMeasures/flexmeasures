@@ -177,10 +177,7 @@ def test_multi_feed_device_scheduler_shared_buffer():
 
     assert commitment_groups == {"shared thermal buffer"}
 
-    # The shared buffer minimum (SoC ≥ 100 at the final step) must be met without
-    # any breach.  If baseline costs were duplicated the optimiser would be driven
-    # to over-invest in commodities to avoid inflated penalties, which would also
-    # show up here as a non-zero breach cost.
+    # The shared buffer minimum (SoC ≥ 100 at the final step) must be met without any breach
     buffer_min_cost = sum(
         costs
         for c, costs in zip(commitments, model.commitment_costs.values())
