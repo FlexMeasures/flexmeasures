@@ -185,30 +185,23 @@ def test_multi_feed_device_scheduler_shared_buffer():
     assert total_commodity_cost <= planned_costs
 
 
-def test_device_group_shared_buffer():
+def _run_hp_buffer_scenario(index, target_soc, shared: bool):
     """
-    Two devices (heat pumps) jointly charge a shared thermal buffer.
-    A single StockCommitment targets the *combined* stock of both devices
-    (via device_group), so the deviation penalty is applied once per group,
-    not once per device.
+    Helper: run the two-heat-pump scheduler with either a shared or per-device buffer
+    commitment and return the total "buffer min" breach cost.
 
-    Key behaviour under test:
-      - The combined stock of devices 0+1 must reach min_soc=100 by the last slot.
-      - The optimizer is free to split the load between the two devices.
-      - The total breach cost is bounded by 1 breach per timestep (not 2),
-        confirming that device_group prevents cost duplication.
+    Each heat pump (device 0 and 1) can supply at most
+    derivative_max × hours × efficiency = 20 kW × 24 h × 0.9 = 432 kWh.
+
+    shared=True  → one StockCommitment on the *combined* stock of devices 0+1
+                   (maximum reachable: 864 kWh).
+    shared=False → two separate StockCommitments, one per HP, each requiring
+                   target_soc on its *own* stock (maximum per device: 432 kWh).
     """
-    # ---- time
-    start = pd.Timestamp("2026-01-01T00:00+01")
-    end = pd.Timestamp("2026-01-02T00:00+01")
-    resolution = pd.Timedelta("PT1H")
-    index = initialize_index(start=start, end=end, resolution=resolution)
     n = len(index)
+    breach_price = 1_000.0
+    energy_price = pd.Series(100, index=index)
 
-    # ---- two electricity devices feeding a shared thermal buffer, plus a battery
-    # device 0: heat pump A  (charge only)
-    # device 1: heat pump B  (charge only)
-    # device 2: battery      (charge and discharge)
     device_group = pd.Series(
         {
             0: "shared thermal buffer",
@@ -218,14 +211,17 @@ def test_device_group_shared_buffer():
     )
 
     # ---- device constraints
+    # device 0: heat pump A (charge only)
+    # device 1: heat pump B (charge only)
+    # device 2: battery     (charge and discharge)
     device_constraints = []
     for d in range(3):
         df = pd.DataFrame(
             {
                 "min": 0,
-                "max": 100,
+                "max": 500,
                 "equals": np.nan,
-                "derivative min": 0 if d in (0, 1) else -20,  # HPs: charge only
+                "derivative min": 0 if d in (0, 1) else -20,
                 "derivative max": 20,
                 "derivative equals": np.nan,
                 "derivative down efficiency": 0.9,
@@ -240,47 +236,52 @@ def test_device_group_shared_buffer():
         index=index,
     )
 
-    # ---- shared buffer must reach 100 kWh by the last slot (soft lower bound)
-    breach_price = 1_000.0
-    min_soc = pd.Series(0, index=index)
-    min_soc.iloc[-1] = 100
+    min_soc = pd.Series(0.0, index=index)
+    min_soc.iloc[-1] = target_soc
 
-    # A uniform energy price gives the optimizer a cost signal without commodity logic.
-    energy_price = pd.Series(100, index=index)
-
-    # ---- commitments
     commitments = []
 
-    # StockCommitment 1: combined stock of devices 0+1 must reach min_soc
-    # device=[[0,1], [0,1], ...] selects both HP devices per timestep
-    commitments.append(
-        StockCommitment(
-            name="buffer min",
-            index=index,
-            quantity=min_soc,
-            upwards_deviation_price=0,
-            downwards_deviation_price=-breach_price,
-            device=pd.Series([[0, 1]] * n, index=index),
-            device_group=device_group,
+    if shared:
+        # One commitment covering the *combined* stock of both HPs.
+        commitments.append(
+            StockCommitment(
+                name="buffer min",
+                index=index,
+                quantity=min_soc,
+                upwards_deviation_price=0,
+                downwards_deviation_price=-breach_price,
+                device=pd.Series([[0, 1]] * n, index=index),
+                device_group=device_group,
+            )
         )
-    )
+    else:
+        # Two separate commitments, one per HP — each must reach target_soc alone.
+        for d in range(2):
+            commitments.append(
+                StockCommitment(
+                    name="buffer min",
+                    index=index,
+                    quantity=min_soc,
+                    upwards_deviation_price=0,
+                    downwards_deviation_price=-breach_price,
+                    device=pd.Series(d, index=index),
+                    device_group=device_group,
+                )
+            )
 
-    # StockCommitment 2+3+4: individual upper bounds (each device's stock <= 100)
+    # Individual upper bounds (soft) and energy price for all three devices.
     for d in range(3):
         commitments.append(
             StockCommitment(
                 name=f"buffer max {d}",
                 index=index,
-                quantity=100.0,
+                quantity=500.0,
                 upwards_deviation_price=breach_price,
                 downwards_deviation_price=0,
                 device=pd.Series(d, index=index),
                 device_group=device_group,
             )
         )
-
-    # FlowCommitment: uniform energy price for each device
-    for d in range(3):
         commitments.append(
             FlowCommitment(
                 name="energy",
@@ -293,34 +294,58 @@ def test_device_group_shared_buffer():
             )
         )
 
-    # ---- run
-    planned_power, planned_costs, results, model = device_scheduler(
+    _, _, results, model = device_scheduler(
         device_constraints=device_constraints,
         ems_constraints=ems_constraints,
         commitments=commitments,
         initial_stock=0,
     )
 
-    # ---- solved
     assert results.solver.termination_condition in ("optimal", "locallyOptimal")
 
-    # ---- device_group structure: two groups
-    assert set(device_group.values) == {"shared thermal buffer", "battery SoC"}
-
-    # ---- KEY: the "buffer min" commitment cost must be zero
-    # Both HPs together can supply up to 2×20 kW×24 h×0.9 ≈ 864 kWh,
-    # so reaching 100 kWh is always feasible at zero breach cost.
-    # If device_group were NOT applied (separate commitment per device),
-    # the cost would be non-zero because each device alone cannot satisfy
-    # the full 100 kWh target in the model.
-    buffer_min_costs = sum(
+    return sum(
         v
         for c, v in zip(commitments, model.commitment_costs.values())
         if c.name == "buffer min"
     )
-    assert buffer_min_costs == 0, (
-        "Buffer min commitment should be satisfied at zero cost "
-        "(both HPs together can easily reach 100 kWh)"
+
+
+def test_device_group_shared_buffer():
+    """
+    Two heat pumps (devices 0 and 1) charge a shared thermal buffer with a target of
+    800 kWh by the last time slot.
+
+    Each HP can supply at most 20 kW × 24 h × 0.9 = 432 kWh on its own, so neither
+    can reach 800 kWh individually. Together they can supply up to 864 kWh, so the
+    target is feasible when the commitment tracks their *combined* stock.
+
+    This test verifies two contrasting scenarios:
+
+    1. Shared buffer (device_group): one StockCommitment on the combined stock of both
+       HPs. The optimizer fills 800 kWh across the two devices with zero breach cost.
+
+    2. Separate buffers (no device_group): one StockCommitment per HP, each requiring
+       800 kWh on its own stock. Each HP falls short by ~368 kWh, so both commitments
+       incur a breach, and the total breach cost is positive.
+    """
+    start = pd.Timestamp("2026-01-01T00:00+01")
+    end = pd.Timestamp("2026-01-02T00:00+01")
+    resolution = pd.Timedelta("PT1H")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    # 800 kWh: above what one HP can reach (432 kWh), below what two can reach (864 kWh).
+    target_soc = 800.0
+
+    shared_cost = _run_hp_buffer_scenario(index, target_soc, shared=True)
+    separate_cost = _run_hp_buffer_scenario(index, target_soc, shared=False)
+
+    assert shared_cost == 0, (
+        f"Shared buffer: both HPs together can reach {target_soc} kWh, "
+        f"so breach cost must be zero (got {shared_cost})"
+    )
+    assert separate_cost > 0, (
+        f"Separate buffers: each HP alone cannot reach {target_soc} kWh, "
+        f"so breach cost must be positive (got {separate_cost})"
     )
 
 
