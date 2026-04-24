@@ -504,7 +504,7 @@ class ForecasterParametersSchema(Schema):
 
         m_viewpoints = max(predict_period // forecast_frequency, 1)
 
-        return dict(
+        result = dict(
             sensor=target_sensor,
             model_save_dir=model_save_dir,
             output_path=output_path,
@@ -519,6 +519,11 @@ class ForecasterParametersSchema(Schema):
             beliefs_before=data.get("belief_time"),
             m_viewpoints=m_viewpoints,
         )
+        # Pass through any additional keys declared in subclass schemas (e.g. config in ForecastingTriggerSchema)
+        for key in data:
+            if key not in result:
+                result[key] = data[key]
+        return result
 
 
 class ForecastingTriggerSchema(ForecasterParametersSchema):
@@ -526,6 +531,7 @@ class ForecastingTriggerSchema(ForecasterParametersSchema):
     config = fields.Nested(
         TrainPredictPipelineConfigSchema(),
         required=False,
+        load_default={},
         metadata={
             "description": "Changing any of these will result in a new data source ID."
         },

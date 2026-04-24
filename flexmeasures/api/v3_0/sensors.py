@@ -42,6 +42,7 @@ from flexmeasures.api.common.utils.api_utils import (
 )
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
+from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AssetAuditLog
@@ -84,6 +85,60 @@ sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 annotation_schema = AnnotationSchema()
+
+
+REGRESSOR_CONFIG_FIELDS = {
+    "future-regressors": {
+        "schema_field_name": "future_regressors",
+        "label": "{'json': {'config': 'future-regressors'}}",
+    },
+    "past-regressors": {
+        "schema_field_name": "past_regressors",
+        "label": "{'json': {'config': 'past-regressors'}}",
+    },
+    "regressors": {
+        "schema_field_name": "regressors",
+        "label": "{'json': {'config': 'regressors'}}",
+    },
+}
+
+
+def regressors_loader(config: dict | None) -> dict[str, list[Sensor]]:
+    """Extract regressor sensors from the forecasting config for permission checking.
+
+    :param config:  Deserialized forecasting config (output of TrainPredictPipelineConfigSchema),
+                    which already contains resolved Sensor objects for regressor fields.
+    :returns:       Mapping of request field name to referenced Sensor objects, or an empty
+                    dict if no config or no regressors are specified.
+    """
+    if not config:
+        return {}
+
+    sensors_by_id = {
+        sensor.id: sensor
+        for regressor_list in [
+            config.get("future_regressors", []),
+            config.get("past_regressors", []),
+        ]
+        for sensor in regressor_list
+    }
+    request_config = (request.get_json(silent=True) or {}).get("config", {})
+
+    regressors_by_field = {}
+    for request_field_name, field_info in REGRESSOR_CONFIG_FIELDS.items():
+        if request_config:
+            field_sensor_ids = request_config.get(request_field_name, [])
+            field_sensors = [
+                sensors_by_id[sensor_id]
+                for sensor_id in field_sensor_ids
+                if sensor_id in sensors_by_id
+            ]
+        else:
+            field_sensors = config.get(field_info["schema_field_name"], [])
+        if field_sensors:
+            regressors_by_field[field_info["label"]] = field_sensors
+    return regressors_by_field
+
 
 # Create ForecasterParametersSchema OpenAPI compatible schema
 EXCLUDED_FORECASTING_FIELDS = [
@@ -148,6 +203,7 @@ class TriggerScheduleKwargsSchema(Schema):
     )
     flex_model = fields.Dict(
         data_key="flex-model",
+        load_default={},
         metadata=dict(
             description="The flex-model is validated according to the scheduler's `FlexModelSchema`.",
         ),
@@ -155,6 +211,7 @@ class TriggerScheduleKwargsSchema(Schema):
     flex_context = fields.Dict(
         required=False,
         data_key="flex-context",
+        load_default={},
         metadata=dict(
             description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
         ),
@@ -637,6 +694,18 @@ class SensorAPI(FlaskView):
     )
     @use_kwargs(TriggerScheduleKwargsSchema, location="json")
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_model",
+        ctx_loader=flex_model_loader,
+        pass_ctx_to_loader=True,
+    )
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_context",
+        ctx_loader=flex_context_loader,
+        pass_ctx_to_loader=True,
+    )
     def trigger_schedule(
         self,
         sensor: Sensor,
@@ -1616,6 +1685,12 @@ class SensorAPI(FlaskView):
         as_kwargs=True,
     )
     @permission_required_for_context("create-children", ctx_arg_name="sensor_to_save")
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="config",
+        ctx_loader=regressors_loader,
+        pass_ctx_to_loader=True,
+    )
     def trigger_forecast(self, id: int, **params):
         """
         .. :quickref: Forecasts; Trigger forecasting job for one sensor

@@ -42,11 +42,18 @@ FORBIDDEN_MSG = "You cannot be authorized for this content or functionality."
 
 def unauthorized_handler_e(e):
     """Swallow error. Useful for classical Flask error handler registration."""
-    log_error(e, str(e), verbose=False)
-    return unauthorized_handler()
+    message = getattr(e, "api_message", None)
+    log_error(
+        e, str(e) + " " + message if message is not None else str(e), verbose=False
+    )
+    return unauthorized_handler(message=message)
 
 
-def unauthorized_handler(func: Callable | None = None, params: list | None = None):
+def unauthorized_handler(
+    func: Callable | None = None,
+    params: list | None = None,
+    message: str | None = None,
+):
     """
     Handler for authorization problems.
     :param func: the Flask-Security-Too decorator, if relevant, and params are its parameters.
@@ -58,8 +65,17 @@ def unauthorized_handler(func: Callable | None = None, params: list | None = Non
     """
     if request.is_json or request.content_type is None:
         if hasattr(current_app, "unauthorized_handler_api"):
-            return current_app.unauthorized_handler_api(params)
-        response = jsonify(dict(message=FORBIDDEN_MSG, status=FORBIDDEN_ERROR_STATUS))
+            try:
+                # Pass the message if the handler supports it.
+                return current_app.unauthorized_handler_api(params, message=message)
+            except TypeError:
+                return current_app.unauthorized_handler_api(params)
+        response = jsonify(
+            dict(
+                message=message or FORBIDDEN_MSG,
+                status=FORBIDDEN_ERROR_STATUS,
+            )
+        )
         response.status_code = FORBIDDEN_STATUS_CODE
         return response
     if hasattr(current_app, "unauthorized_handler_html"):
