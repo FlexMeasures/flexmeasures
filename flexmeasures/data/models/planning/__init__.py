@@ -399,9 +399,9 @@ class Commitment:
 
     def pretty_print(self):
         """
-        Pretty-print a list of FlowCommitment objects as tabulated pandas DataFrames.
+        Pretty-print a list of Commitment objects as tabulated pandas DataFrames.
 
-        For each FlowCommitment, a DataFrame indexed by time is created containing
+        For each Commitment, a DataFrame indexed by time is created containing
         the commitment name, device values, group index, quantity, and any available
         upward or downward deviation prices. Each commitment is printed separately
         in a readable table format, making this function suitable for debugging,
