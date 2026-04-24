@@ -84,7 +84,7 @@ def test_get_sensor_data(
         None,
         None,
     ]
-    assert all(a == b for a, b in zip(values, expected))
+    assert values == expected
 
 
 @pytest.mark.parametrize(
@@ -216,7 +216,39 @@ def test_get_sensor_data_filtered_by_source_type(
     )
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
-    assert all(a == b for a, b in zip(response.json["values"], expected))
+    assert response.json["values"] == expected
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_sensor_data_rejects_blank_source_type(
+    client,
+    setup_api_test_data: dict[str, Sensor],
+    requesting_user,
+):
+    """Check that GET /sensors/<id>/data rejects a blank source_type filter."""
+    sensor = setup_api_test_data["some gas sensor"]
+    message = {
+        "start": "2021-05-02T00:00:00+02:00",
+        "duration": "PT1H20M",
+        "horizon": "PT0H",
+        "unit": "m³/h",
+        "source_type": "",
+        "resolution": "PT20M",
+    }
+    response = client.get(
+        url_for("SensorAPI:get_data", id=sensor.id),
+        query_string=message,
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 422
+    assert (
+        "Source type must not be blank."
+        in response.json["message"]["combined_sensor_data_description"]["source_type"][
+            0
+        ]
+    )
 
 
 @pytest.mark.parametrize(
