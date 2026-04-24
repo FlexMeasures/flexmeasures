@@ -66,7 +66,7 @@ def unauthorized_handler(
     if request.is_json or request.content_type is None:
         if hasattr(current_app, "unauthorized_handler_api"):
             try:
-                # Pass the message of the handler supports it
+                # Pass the message if the handler supports it.
                 return current_app.unauthorized_handler_api(params, message=message)
             except TypeError:
                 return current_app.unauthorized_handler_api(params)
