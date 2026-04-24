@@ -73,14 +73,149 @@ class TBSeriesSpecs(SeriesSpecs):
         self.search_params = search_params
         self.search_fnc = search_fnc
 
+    @staticmethod
+    def _extract_regressor_policy(
+        search_params: dict[str, Any],
+    ) -> tuple[dict[str, Any], datetime | None]:
+        """Return cleaned search params and optional regressor-policy context."""
+        cleaned_params = dict(search_params)
+        issue_time = cleaned_params.pop("policy_issue_time", None)
+        # Legacy compatibility: ignore this key if present.
+        cleaned_params.pop("policy_future_horizon_floor", None)
+        return cleaned_params, issue_time
+
+    def _load_beliefs_data(self, search_params: dict[str, Any]) -> BeliefsDataFrame:
+        return getattr(self.time_series_class, self.search_fnc)(**search_params)
+
+    @staticmethod
+    def _collapse_regressor_duplicates(
+        df: pd.DataFrame, issue_time: pd.Timestamp
+    ) -> pd.DataFrame:
+        """Keep one belief per event_start with source-aware tie-breaking.
+
+        Strategy:
+        - Historical events (< issue_time): prefer source "flex.service".
+        - Future events (>= issue_time): prefer source "Thiink forecaster".
+        - Within same preference bucket, keep most recent belief_time.
+        """
+        if not df.index.has_duplicates:
+            return df
+
+        work = df.copy()
+        work = work.reset_index().rename(columns={"index": "event_start"})
+        work["event_start"] = pd.to_datetime(work["event_start"], utc=True)
+
+        # Normalize source name for robust matching (source objects or plain strings).
+        if "source" in work.columns:
+            work["_source_name"] = work["source"].map(
+                lambda s: getattr(s, "name", str(s))
+            )
+        else:
+            work["_source_name"] = ""
+
+        if "belief_time" in work.columns:
+            work["_belief_time"] = pd.to_datetime(work["belief_time"], utc=True)
+        else:
+            work["_belief_time"] = pd.NaT
+
+        historical_mask = work["event_start"] < issue_time
+        preferred_hist = work["_source_name"] == "flex.service"
+        preferred_future = work["_source_name"] == "Thiink forecaster"
+        work["_preferred_source"] = False
+        work.loc[historical_mask, "_preferred_source"] = preferred_hist[historical_mask]
+        work.loc[~historical_mask, "_preferred_source"] = preferred_future[~historical_mask]
+
+        # Deterministic tie-breaks:
+        # 1) preferred source first
+        # 2) most recent belief_time
+        # 3) keep stable order for any remaining ties
+        work = work.sort_values(
+            by=["event_start", "_preferred_source", "_belief_time"],
+            ascending=[True, False, False],
+            kind="stable",
+        )
+        work = work.groupby("event_start", as_index=False).head(1)
+        work = work.drop(columns=["_source_name", "_belief_time", "_preferred_source"])
+        work = work.set_index("event_start")
+        return work
+
+    def _load_regressor_beliefs_split_by_issue_time(
+        self,
+        search_params: dict[str, Any],
+        issue_time: datetime,
+    ) -> BeliefsDataFrame:
+        """Load regressor beliefs with policy split.
+
+        Historical events (< issue_time) have no horizon floor.
+        Future events (>= issue_time) also avoid hard horizon filtering here,
+        so simulation/backfill data remains usable.
+        """
+        original_event_starts_after = search_params.get("event_starts_after")
+        original_event_ends_before = search_params.get("event_ends_before")
+        issue_time_ts = pd.Timestamp(issue_time)
+
+        historical_params = dict(search_params)
+        historical_params["horizons_at_least"] = None
+        if (
+            original_event_ends_before is None
+            or pd.Timestamp(original_event_ends_before) > issue_time_ts
+        ):
+            historical_params["event_ends_before"] = issue_time_ts
+
+        future_params = dict(search_params)
+        # Keep this explicit to avoid accidental policy coupling to belief_horizon
+        # values written by providers/simulations.
+        future_params["horizons_at_least"] = None
+        if (
+            original_event_starts_after is None
+            or pd.Timestamp(original_event_starts_after) < issue_time_ts
+        ):
+            future_params["event_starts_after"] = issue_time_ts
+        if original_event_ends_before is not None:
+            future_params["event_ends_before"] = original_event_ends_before
+
+        frames = []
+        if (
+            original_event_starts_after is None
+            or pd.Timestamp(original_event_starts_after) < issue_time_ts
+        ):
+            frames.append(self._load_beliefs_data(historical_params))
+        if (
+            original_event_ends_before is None
+            or pd.Timestamp(original_event_ends_before) > issue_time_ts
+        ):
+            frames.append(self._load_beliefs_data(future_params))
+
+        if not frames:
+            return self._load_beliefs_data(search_params)
+        if len(frames) == 1:
+            return frames[0]
+        merged = pd.concat(frames).sort_index()
+        # If both queries include the same belief row at the boundary (DB-dependent
+        # interval semantics), remove exact duplicates to keep indexes unique later.
+        merged = merged.loc[~merged.index.duplicated(keep="last")]
+        return merged
+
     def _load_series(self) -> pd.Series:
         logger.info("Reading %s data from database" % self.time_series_class.__name__)
 
-        bdf: BeliefsDataFrame = getattr(self.time_series_class, self.search_fnc)(
-            **self.search_params
-        )
+        (
+            search_params,
+            issue_time,
+        ) = self._extract_regressor_policy(self.search_params)
+        if issue_time is not None:
+            bdf: BeliefsDataFrame = self._load_regressor_beliefs_split_by_issue_time(
+                search_params=search_params,
+                issue_time=issue_time,
+            )
+        else:
+            bdf = self._load_beliefs_data(search_params)
         assert isinstance(bdf, BeliefsDataFrame)
-        df = simplify_index(bdf)
+        df = simplify_index(bdf, index_levels_to_columns=["belief_time", "source"])
+        if issue_time is not None:
+            df = self._collapse_regressor_duplicates(df, pd.Timestamp(issue_time))
+        if getattr(df.index, "tz", None) is not None and str(df.index.tz) != "UTC":
+            df = df.tz_convert("UTC")
         self.check_data(df)
 
         if self.post_load_processing is not None:
@@ -167,6 +302,7 @@ def create_initial_model_specs(  # noqa: C901
             sensor,
             query_window,
             forecast_horizon,
+            forecast_start,
             regressor_transformation,
             transform_to_normal,
         )
@@ -260,6 +396,7 @@ def configure_regressors_for_nearest_weather_sensor(
     sensor: Sensor,
     query_window,
     horizon,
+    forecast_start,
     regressor_transformation,  # the regressor transformation can be passed in
     transform_to_normal,  # if not, it a normalization can be applied
 ) -> list[TBSeriesSpecs]:
@@ -289,12 +426,22 @@ def configure_regressors_for_nearest_weather_sensor(
                 )
                 # Collect the weather data for the requested time window
                 regressor_specs_name = "%s_l0" % sensor_name
-                if len(regressor_transformation.keys()) == 0 and transform_to_normal:
-                    regressor_transformation = (
-                        get_normalization_transformation_from_sensor_attributes(
-                            closest_sensor,
+                # Handle transformation per regressor and avoid mutating shared state across loop iterations.
+                feature_transformation = regressor_transformation
+                if transform_to_normal:
+                    if isinstance(regressor_transformation, dict):
+                        if len(regressor_transformation.keys()) == 0:
+                            feature_transformation = (
+                                get_normalization_transformation_from_sensor_attributes(
+                                    closest_sensor,
+                                )
+                            )
+                    elif regressor_transformation is None:
+                        feature_transformation = (
+                            get_normalization_transformation_from_sensor_attributes(
+                                closest_sensor,
+                            )
                         )
-                    )
                 regressor_specs.append(
                     TBSeriesSpecs(
                         name=regressor_specs_name,
@@ -303,10 +450,12 @@ def configure_regressors_for_nearest_weather_sensor(
                             sensors=closest_sensor,
                             event_starts_after=query_window[0],
                             event_ends_before=query_window[1],
-                            horizons_at_least=horizon,
+                            horizons_at_least=None,
                             horizons_at_most=None,
+                            policy_issue_time=forecast_start,
                         ),
-                        feature_transformation=regressor_transformation,
+                        feature_transformation=feature_transformation,
+                        resampling_config={"upsampling_method": "ffill"},
                         interpolation_config={"method": "time"},
                     )
                 )
