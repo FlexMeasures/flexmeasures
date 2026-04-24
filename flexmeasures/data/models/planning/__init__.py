@@ -290,10 +290,12 @@ class Commitment:
     downwards_deviation_price: pd.Series = 0
 
     def __post_init__(self):
+        # device_group is a device→label lookup table, not a time series;
+        # exclude it from automatic time-series index coercion.
         series_attributes = [
             attr
             for attr, _type in self.__annotations__.items()
-            if _type == "pd.Series" and hasattr(self, attr)
+            if _type == "pd.Series" and hasattr(self, attr) and attr != "device_group"
         ]
         for series_attr in series_attributes:
             val = getattr(self, series_attr)
