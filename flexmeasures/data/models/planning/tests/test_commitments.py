@@ -184,6 +184,12 @@ def test_multi_feed_device_scheduler_shared_buffer():
     total_commodity_cost = sum(commodity_costs.values())
     assert total_commodity_cost <= planned_costs
 
+    # Expect the total electricity costs to be:
+    # 2 * 20 for the heat pump
+    # 2 * 20 for the battery charging
+    # minus 2 * 20 * 0.9 * 0.9 for the battery discharging after roundtrip efficiency
+    assert commodity_costs["electricity"] == 200 * (40 + 40) - 600 * (40 * 0.9 * 0.9)
+
 
 def _run_hp_buffer_scenario(index, target_soc, shared: bool):
     """
