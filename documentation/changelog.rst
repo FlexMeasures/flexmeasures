@@ -9,6 +9,7 @@ v0.33.0 | May XX, 2026
 New features
 -------------
 * Added API and UI support for copying assets and their subtrees [see `PR #2017 <https://www.github.com/FlexMeasures/flexmeasures/pull/2017>`_ and `PR #2120 <https://www.github.com/FlexMeasures/flexmeasures/pull/2120>`_]
+* The schedule API endpoint now returns a ``scheduling_result`` field alongside ``scheduler_info``, reporting unresolved and resolved soft SoC constraints (keyed by state-of-charge sensor ID).  Unresolved targets include the violation datetime and an always-positive ``unmet`` value in kWh (shortage for ``soc-minima``; excess for ``soc-maxima``).  Resolved targets report the ``margin`` (smallest positive headroom in kWh).  Note that ``soc-targets`` are hard constraints and are never reported here [see `PR #2072 <https://www.github.com/FlexMeasures/flexmeasures/pull/2072>`_]
 * Improve UX after deleting a child asset through the UI [see `PR #2119 <https://www.github.com/FlexMeasures/flexmeasures/pull/2119>`_]
 * Improve source filtering in the sensor data GET endpoint by exposing the documented query parameters in Swagger and allowing filtering by the account linked to data sources [see `PR #2083 <https://www.github.com/FlexMeasures/flexmeasures/pull/2083>`_]
 
