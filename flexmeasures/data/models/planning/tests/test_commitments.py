@@ -1,3 +1,4 @@
+import pytest
 import pandas as pd
 import numpy as np
 
@@ -8,7 +9,6 @@ from flexmeasures.data.models.planning import (
 )
 from flexmeasures.data.models.planning.utils import (
     initialize_index,
-    add_tiny_price_slope,
 )
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 
@@ -81,10 +81,9 @@ def test_multi_feed_device_scheduler_shared_buffer():
     electricity_price.iloc[12:14] = 200
     prices = {"gas": gas_price, "electricity": electricity_price}
 
-    sloped_prices = (
-        add_tiny_price_slope(electricity_price.to_frame())
-        - electricity_price.to_frame()
-    )
+    # Tie-breaking: prefer filling each device's storage as early as possible.
+    soc_max = 100.0
+    penalty = 0.001
 
     commitments = []
 
@@ -126,14 +125,13 @@ def test_multi_feed_device_scheduler_shared_buffer():
         )
 
         commitments.append(
-            FlowCommitment(
-                name="preferred_charge_sooner",
+            StockCommitment(
+                name=f"prefer a full storage {d} sooner",
                 index=index,
-                quantity=0,
-                upwards_deviation_price=sloped_prices,
-                downwards_deviation_price=sloped_prices,
+                quantity=soc_max,
+                upwards_deviation_price=0,
+                downwards_deviation_price=-penalty,
                 device=pd.Series(d, index=index),
-                device_group=device_commodity,
             )
         )
 
@@ -161,16 +159,20 @@ def test_multi_feed_device_scheduler_shared_buffer():
     }
     assert commodity_commitments == {"gas", "electricity"}
 
-    commitment_costs = {
-        "name": "commitment_costs",
-        "data": {
-            c.name: costs
-            for c, costs in zip(commitments, model.commitment_costs.values())
-        },
-    }
-    commodity_costs = {
-        k: v for k, v in commitment_costs["data"].items() if k in {"gas", "electricity"}
-    }
+    # Sum per-commitment costs grouped by name so that duplicate names
+    # (e.g. "electricity" for both heat pump and battery) are accumulated.
+    electricity_cost = sum(
+        costs
+        for c, costs in zip(commitments, model.commitment_costs.values())
+        if c.name == "electricity"
+    )
+    gas_cost = sum(
+        costs
+        for c, costs in zip(commitments, model.commitment_costs.values())
+        if c.name == "gas"
+    )
+    commodity_costs = {"gas": gas_cost, "electricity": electricity_cost}
+
     assert set(commodity_costs.keys()) == {"gas", "electricity"}
 
     assert commitment_groups == {"shared thermal buffer"}
@@ -188,13 +190,15 @@ def test_multi_feed_device_scheduler_shared_buffer():
     # 2 * 20 for the heat pump
     # 2 * 20 for the battery charging
     # minus 2 * 20 * 0.9 * 0.9 for the battery discharging after roundtrip efficiency
-    assert commodity_costs["electricity"] == 200 * (40 + 40) - 600 * (40 * 0.9 * 0.9)
+    assert electricity_cost == pytest.approx(
+        200 * (40 + 40) - 600 * (40 * 0.9 * 0.9), rel=1e-6
+    )
 
 
 def _run_hp_buffer_scenario(index, target_soc, shared: bool):
     """
     Helper: run the two-heat-pump scheduler with either a shared or per-device buffer
-    commitment and return the total "buffer min" breach cost.
+    commitment and return costs for assertions.
 
     Each heat pump (device 0 and 1) can supply at most
     derivative_max × hours × efficiency = 20 kW × 24 h × 0.9 = 432 kWh.
@@ -244,6 +248,10 @@ def _run_hp_buffer_scenario(index, target_soc, shared: bool):
 
     min_soc = pd.Series(0.0, index=index)
     min_soc.iloc[-1] = target_soc
+
+    # Tie-breaking: prefer filling each device's storage as early as possible.
+    soc_max = 500.0  # matches device_constraints["max"]
+    penalty = 0.001
 
     commitments = []
 
@@ -299,8 +307,18 @@ def _run_hp_buffer_scenario(index, target_soc, shared: bool):
                 device_group=device_group,
             )
         )
+        commitments.append(
+            StockCommitment(
+                name=f"prefer a full storage {d} sooner",
+                index=index,
+                quantity=soc_max,
+                upwards_deviation_price=0,
+                downwards_deviation_price=-penalty,
+                device=d,
+            )
+        )
 
-    _, _, results, model = device_scheduler(
+    planned_power, planned_costs, results, model = device_scheduler(
         device_constraints=device_constraints,
         ems_constraints=ems_constraints,
         commitments=commitments,
@@ -309,11 +327,17 @@ def _run_hp_buffer_scenario(index, target_soc, shared: bool):
 
     assert results.solver.termination_condition == "optimal"
 
-    return sum(
+    buffer_min_cost = sum(
         v
         for c, v in zip(commitments, model.commitment_costs.values())
         if c.name == "buffer min"
     )
+    energy_cost = sum(
+        v
+        for c, v in zip(commitments, model.commitment_costs.values())
+        if c.name == "energy"
+    )
+    return {"buffer_min_cost": buffer_min_cost, "energy_cost": energy_cost}
 
 
 def test_device_group_shared_buffer():
@@ -342,8 +366,13 @@ def test_device_group_shared_buffer():
     # 800 kWh: above what one HP can reach (432 kWh), below what two can reach (864 kWh).
     target_soc = 800.0
 
-    shared_cost = _run_hp_buffer_scenario(index, target_soc, shared=True)
-    separate_cost = _run_hp_buffer_scenario(index, target_soc, shared=False)
+    shared_result = _run_hp_buffer_scenario(index, target_soc, shared=True)
+    separate_result = _run_hp_buffer_scenario(index, target_soc, shared=False)
+
+    shared_cost = shared_result["buffer_min_cost"]
+    separate_cost = separate_result["buffer_min_cost"]
+    shared_energy = shared_result["energy_cost"]
+    separate_energy = separate_result["energy_cost"]
 
     assert shared_cost == 0, (
         f"Shared buffer: both HPs together can reach {target_soc} kWh, "
@@ -353,6 +382,15 @@ def test_device_group_shared_buffer():
         f"Separate buffers: each HP alone cannot reach {target_soc} kWh, "
         f"so breach cost must be positive (got {separate_cost})"
     )
+
+    # With shared buffer, the optimizer charges exactly 800 kWh combined.
+    # Total energy flow = 800 / 0.9 (accounting for charge efficiency).
+    assert shared_energy == pytest.approx(target_soc / 0.9 * 100, rel=1e-6)
+
+    # With separate buffers, each HP charges at maximum power for all 24 hours
+    # since the 800 kWh individual target is unreachable.
+    # Total energy = 2 HPs × 20 kW × 24 h × 100 price.
+    assert separate_energy == pytest.approx(2 * 20 * 24 * 100, rel=1e-6)
 
 
 def make_index(n: int = 5) -> pd.DatetimeIndex:
