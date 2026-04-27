@@ -690,7 +690,7 @@
                         ? [new Date(replayViewStart), new Date(replayViewEnd)]
                         : [replayViewStart.getTime(), replayViewEnd.getTime()];
                     vegaView.signal(xDomainSignal.name, domain);
-                    vegaView.run().finalize();
+                    vegaView.run();
                     return;
                 } catch (error) {
                     // Fall through to embedAndLoad fallback if signal update fails.
