@@ -381,7 +381,10 @@ export function extractApiErrorMessage(errorData, fallbackMessage) {
     if (lines.length > 0) return lines.join("; ");
   }
   return fallbackMessage || "Unknown error";
- * Optionally show a confirmation dialog, then perform a fetch request.
+}
+
+/**  
+  * Optionally show a confirmation dialog, then perform a fetch request.
  *
  * Error responses are normalised: a JSON body's `message` field is used
  * when available, otherwise the HTTP status text is used. Network errors
