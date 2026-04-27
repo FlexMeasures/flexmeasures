@@ -738,7 +738,7 @@
 
                 // Update only the replay ruler/cursor; chart data stays in place.
                 vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({ 'belief_time': beliefTime }));
-                vegaView.run().finalize();
+                vegaView.run();
 
                 document.getElementById('replay-time').innerHTML = beliefTime;
 
