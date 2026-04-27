@@ -619,12 +619,21 @@
         const finiteBeliefTimes = (previousResult?.data || [])
             .map((item) => item.belief_time)
             .filter((beliefTime) => Number.isFinite(beliefTime));
-        const replayStartMs = finiteBeliefTimes.length > 0
-            ? Math.min(...finiteBeliefTimes)
-            : fallbackStartMs;
-        const replayEndMs = finiteBeliefTimes.length > 0
-            ? Math.max(...finiteBeliefTimes)
-            : fallbackEndMs;
+        let replayStartMs = fallbackStartMs;
+        let replayEndMs = fallbackEndMs;
+        if (finiteBeliefTimes.length > 0) {
+            replayStartMs = finiteBeliefTimes[0];
+            replayEndMs = finiteBeliefTimes[0];
+            for (let i = 1; i < finiteBeliefTimes.length; i++) {
+                const beliefTime = finiteBeliefTimes[i];
+                if (beliefTime < replayStartMs) {
+                    replayStartMs = beliefTime;
+                }
+                if (beliefTime > replayEndMs) {
+                    replayEndMs = beliefTime;
+                }
+            }
+        }
 
         // Keep the same visible duration while auto-panning to follow the replay line.
         // Prefer the current zoomed x-domain from Vega's bound-scale signal.
