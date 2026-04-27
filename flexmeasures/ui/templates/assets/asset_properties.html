@@ -57,11 +57,11 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    {{ asset_form.parent_asset_id.label(class="control-label") }}
+                                    {{ asset_form.parent_asset_id.label(class="col-sm-6 control-label") }}
                                     <div class="col-md-6">
                                         <select name="parent_asset_id" id="parent_asset_id" class="form-control">
-                                            <option value="" {% if asset.parent_asset_id is none %} selected {% endif
-                                                %}>No Parent</option>
+                                            <option value="" {% if asset.parent_asset_id is none %} selected {%
+                                                endif %}>No Parent</option>
                                             {% for account_asset in account_assets %}
                                             {% if account_asset.id != asset.id %}
                                             <option value="{{ account_asset.id }}" {% if
@@ -69,24 +69,8 @@
                                                 {{ account_asset.name }} (ID: {{ account_asset.id }})</option>
                                             {% endif %}
                                             {% endfor %}
-                                        </div>
-                                    </div>
-                                    <div class="form-group">
-                                        {{ asset_form.parent_asset_id.label(class="col-sm-6 control-label") }}
-                                        <div class="col-md-6">
-                                            <select name="parent_asset_id" id="parent_asset_id" class="form-control">
-                                                <option value="" {% if asset.parent_asset_id is none %} selected {%
-                                                    endif %}>No Parent</option>
-                                                {% for account_asset in account_assets %}
-                                                {% if account_asset.id != asset.id %}
-                                                <option value="{{ account_asset.id }}" {% if
-                                                    asset.parent_asset_id==account_asset.id %} selected {% endif %}>
-                                                    {{ account_asset.name }} (ID: {{ account_asset.id }})</option>
-                                                {% endif %}
-                                                {% endfor %}
-                                            </select>
+                                        </select>
 
-                                        </div>
                                     </div>
                                 </div>
                                 <div class="form-group">
@@ -428,8 +412,7 @@
         import {
             getFlexFieldTitle, renderFlexFieldOptions, renderSensor,
             createReactiveState, processResourceRawJSON, getAsset,
-            getAccount, getSensor, apiBasePath, renderSensorSearchResults,
-            flattenErrorPayload, extractApiErrorMessage
+            getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
