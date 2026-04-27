@@ -25,16 +25,13 @@
     import { convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
     import {apiBasePath} from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
-    import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
+    import { beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { decompressChartData, checkDSTTransitions, checkSourceMasking } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
 
     // Global variables (Module scoped)
     let picker;
     let vegaView;
     let previousResult;
-    let previousPlaybackResult;
-    let queryStartDate;
-    let queryEndDate;
     let storeStartDate;
     let storeEndDate;
     let replaySpeed = 100;
@@ -47,7 +44,6 @@
     let chartSpecsPath;
     let controller = new AbortController();
     let signal = controller.signal;
-    let playBackDataLoadedForKnownDateRange = false;
     let sessionStart = null;
     let sessionEnd = null;
     let minRes;
@@ -510,7 +506,6 @@
             previousResult["annotations"] = result[1]
         {% endif %}
         checkSourceMasking(previousResult.data);
-        playBackDataLoadedForKnownDateRange = false;
         if (chartType === "bar_chart") {
             vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
         }
@@ -617,50 +612,104 @@
         stepTriggered = false;
         toggle.classList.remove('stopped');
         toggle.classList.add('playing');
-        var beliefTime = new Date(storeStartDate);
-        var numReplaySteps = Math.ceil((storeEndDate - storeStartDate) / beliefTimedelta);
-        queryStartDate = (storeStartDate != null) ? (storeStartDate.toISOString()) : (null);
-        queryEndDate = (storeEndDate != null) ? (storeEndDate.toISOString()) : (null);
-        const spinner = document.getElementById('spinner');
-        if (!playBackDataLoadedForKnownDateRange) {
-            spinner.hidden = false;
-            spinner.style.display = 'block';
-        }
-        Promise.all([
-            playBackDataLoadedForKnownDateRange ? Promise.resolve(previousPlaybackResult) :
-                // Fetch time series data (all data, not only the most recent beliefs)
-                fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false&compress_json=true', {
-                    method: "GET",
-                    headers: { "Content-Type": "application/json" },
-                    signal: signal,
-                })
-                    .then(function (response) { return response.json(); })
-                    .then(data => decompressChartData(data)),
-        ]).then(function (result) {
-            previousPlaybackResult = result[0];
-            replayBeliefsData(result[0]);
-            playBackDataLoadedForKnownDateRange = true;
-        }).catch(console.error)
-            .finally(function () {
-                spinner.hidden = true;
-                spinner.style.display = 'none';
-            });
-
-
         const timer = ms => new Promise(res => setAbortableTimeout(res, Math.max(ms, 0), signal));
+
+        const fallbackStartMs = storeStartDate.getTime();
+        const fallbackEndMs = storeEndDate.getTime();
+        const finiteBeliefTimes = (previousResult?.data || [])
+            .map((item) => item.belief_time)
+            .filter((beliefTime) => Number.isFinite(beliefTime));
+        const replayStartMs = finiteBeliefTimes.length > 0
+            ? Math.min(...finiteBeliefTimes)
+            : fallbackStartMs;
+        const replayEndMs = finiteBeliefTimes.length > 0
+            ? Math.max(...finiteBeliefTimes)
+            : fallbackEndMs;
+
+        // Keep the same visible duration while auto-panning to follow the replay line.
+        // Prefer the current zoomed x-domain from Vega's bound-scale signal.
+        function toMs(value) {
+            if (value instanceof Date) {
+                return value.getTime();
+            }
+            if (Number.isFinite(value)) {
+                return value;
+            }
+            return NaN;
+        }
+
+        function detectXDomainSignal() {
+            try {
+                const state = vegaView.getState({ signals: () => true }) || {};
+                const signals = state.signals || {};
+                const candidates = Object.entries(signals)
+                    .filter(([, value]) => {
+                        return Array.isArray(value)
+                            && value.length === 2
+                            && Number.isFinite(toMs(value[0]))
+                            && Number.isFinite(toMs(value[1]));
+                    })
+                    .map(([name, value]) => {
+                        let score = 0;
+                        if (name.includes("scroll")) score += 5;
+                        if (name.endsWith("_x")) score += 3;
+                        if (name.includes("x")) score += 1;
+                        return { name, value, score };
+                    })
+                    .sort((a, b) => b.score - a.score);
+                return candidates.length > 0 ? candidates[0] : null;
+            } catch (error) {
+                return null;
+            }
+        }
+
+        const xDomainSignal = detectXDomainSignal();
+        const initialDomainMs = xDomainSignal
+            ? [toMs(xDomainSignal.value[0]), toMs(xDomainSignal.value[1])]
+            : [fallbackStartMs, fallbackEndMs];
+        const viewWindowMs = Math.max(initialDomainMs[1] - initialDomainMs[0], beliefTimedelta);
+        let replayViewStart = new Date(storeStartDate);
+        let replayViewEnd = new Date(storeEndDate);
+
+        async function moveViewportTo(cursorMs) {
+            replayViewStart = new Date(cursorMs);
+            replayViewEnd = new Date(cursorMs + viewWindowMs);
+
+            if (xDomainSignal) {
+                try {
+                    const domain = xDomainSignal.value[0] instanceof Date
+                        ? [new Date(replayViewStart), new Date(replayViewEnd)]
+                        : [replayViewStart.getTime(), replayViewEnd.getTime()];
+                    vegaView.signal(xDomainSignal.name, domain);
+                    vegaView.run().finalize();
+                    return;
+                } catch (error) {
+                    // Fall through to embedAndLoad fallback if signal update fails.
+                }
+            }
+
+            await embedAndLoad(
+                chartSpecsPath + 'event_starts_after=' + replayViewStart.toISOString() + '&event_ends_before=' + replayViewEnd.toISOString() + '&',
+                elementId,
+                datasetName,
+                previousResult,
+                replayViewStart,
+                replayViewEnd,
+            );
+        }
 
         /**
          * Replays beliefs data.
          *
-         * As we go forward in time in steps, replayedData is updated with newData that was known at beliefTime,
-         * by splitting off newData from remainingData.
-         * Then, replayedData is loaded into the chart.
-         *
-         * @param {Array} remainingData Array containing beliefs.
+         * The chart data stays visible while replay is running, and the viewport
+         * auto-pans to keep the replay cursor in view.
          */
-        async function replayBeliefsData(remainingData) {
-            var replayedData = [];
-            for (var beliefTime = new Date(storeStartDate); beliefTime <= storeEndDate; beliefTime = new Date(beliefTime.getTime() + beliefTimedelta)) {
+        async function replayBeliefsData() {
+            // Always jump to replay start when play begins, so the moving line
+            // is visible even if the user is currently viewing another section.
+            await moveViewportTo(replayStartMs);
+
+            for (var beliefTime = new Date(replayStartMs); beliefTime.getTime() <= replayEndMs; beliefTime = new Date(beliefTime.getTime() + beliefTimedelta)) {
                 while (document.getElementById('replay').classList.contains('paused')) {
                     if (stepTriggered) {
                         stepTriggered = false;
@@ -673,25 +722,12 @@
                 }
                 var s = performance.now();
 
-                // Split off one replay step of new data from the remaining data
-                var newData;
-                [newData, remainingData] = partition(
-                    remainingData,
-                    (item) => item.belief_time <= beliefTime.getTime(),
-                );
+                // Auto-pan when the replay cursor leaves the currently visible section.
+                if (beliefTime.getTime() < replayViewStart.getTime() || beliefTime.getTime() > replayViewEnd.getTime()) {
+                    await moveViewportTo(beliefTime.getTime());
+                }
 
-                // Update beliefs in the replayed data given the new data
-                replayedData = updateBeliefs(replayedData, newData);
-
-                /** When selecting a longer time period (more than a week), the replay slows down a bit. This
-                 * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
-                 * loading that data into the graph takes 30-200 ms, depending on how much data is shown in the
-                 * graph. After trying different approaches, we fell back to the original approach of telling vega
-                 * to remove all previous data and to insert a completely new dataset at each iteration. Updating
-                 * the view with removing only a few data points (representing obsolete beliefs) and inserting only
-                 * a few data points (representing the most recent new beliefs) actually made it slower.
-                 */
-                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData));
+                // Update only the replay ruler/cursor; chart data stays in place.
                 vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({ 'belief_time': beliefTime }));
                 vegaView.run().finalize();
 
@@ -706,6 +742,8 @@
             // Stop replay when finished
             stopReplay()
         }
+
+        replayBeliefsData();
     }
 
     function fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate) {
