@@ -169,67 +169,75 @@
       <div class="card">
         <h3>Account</h3>
         <small>Account: {{ account.name }}</small>
-        <div class="table-responsive">
-          <table class="table table-striped">
-            <tbody>
-              <tr>
-                <td>ID</td>
-                <td>{{ account.id }}</td>
-              </tr>
-              <tr>
-                <td>Roles</td>
-                <td>
-                  {{ account.account_roles | map(attribute='name') | join(", ")
-                  }}
-                </td>
-              </tr>
-              {% if account.consultancy_account_name %}
-              <tr>
-                <td>Consultancy</td>
-                <td>{{ account.consultancy_account_name }}</td>
-              </tr>
-              {% endif %} {% if account.primary_color %}
-              <tr>
-                <td>Primary Color</td>
-                <td>
-                  <div
-                    style="
-                      width: 20px;
-                      height: 20px;
-                      background-color: {{ account.primary_color }};
-                      display: inline-block;
-                    "
-                  ></div>
-                </td>
-              </tr>
-              {% endif %} {% if account.secondary_color %}
-              <tr>
-                <td>Secondary Color</td>
-                <td>
-                  <div
-                    style="
-                      width: 20px;
-                      height: 20px;
-                      background-color: {{ account.secondary_color }};
-                      display: inline-block;
-                    "
-                  ></div>
-                </td>
-              </tr>
-              {% endif %} {% if account.logo_url %}
-              <tr>
-                <td>Logo URL</td>
-                <td>
-                  <img
-                    src="{{ account.logo_url }}"
-                    alt="Logo"
-                    style="max-width: 100px"
-                  />
-                </td>
-              </tr>
-              {% endif %}
-            </tbody>
-          </table>
+        <div class="row">
+          <div class="col-md-7">
+            <div class="floatThead-wrapper table-responsive">
+              <table class="table table-striped">
+                <tbody>
+                  <tr>
+                    <td>ID</td>
+                    <td>{{ account.id }}</td>
+                  </tr>
+                  <tr>
+                    <td>Roles</td>
+                    <td>
+                      {{ account.account_roles | map(attribute='name') | join(", ")
+                      }}
+                    </td>
+                  </tr>
+                  {% if account.consultancy_account_name %}
+                  <tr>
+                    <td>Consultancy</td>
+                    <td>{{ account.consultancy_account_name }}</td>
+                  </tr>
+                  {% endif %} {% if account.primary_color %}
+                  <tr>
+                    <td>Primary Color</td>
+                    <td>
+                      <div
+                        style="
+                          width: 20px;
+                          height: 20px;
+                          background-color: {{ account.primary_color }};
+                          display: inline-block;
+                        "
+                      ></div>
+                    </td>
+                  </tr>
+                  {% endif %} {% if account.secondary_color %}
+                  <tr>
+                    <td>Secondary Color</td>
+                    <td>
+                      <div
+                        style="
+                          width: 20px;
+                          height: 20px;
+                          background-color: {{ account.secondary_color }};
+                          display: inline-block;
+                        "
+                      ></div>
+                    </td>
+                  </tr>
+                  {% endif %} {% if account.logo_url %}
+                  <tr>
+                    <td>Logo URL</td>
+                    <td>
+                      <img
+                        src="{{ account.logo_url }}"
+                        alt="Logo"
+                        style="max-width: 100px"
+                      />
+                    </td>
+                  </tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="col-md-5">
+            {% from "_macros.html" import render_attributes %}
+            {{ render_attributes(account.attributes) }}
+          </div>
         </div>
       </div>
       <div class="card">
