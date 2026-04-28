@@ -361,9 +361,19 @@ class MetaStorageScheduler(Scheduler):
             StorageScheduler.COLUMNS, start, end, resolution
         )
 
-        # Set up commitments DataFrame
+        def device_list_series(
+            devices: list[int], index: pd.DatetimeIndex
+        ) -> pd.Series:
+            return pd.Series([tuple(devices)] * len(index), index=index, name="device")
+
+        commodity_to_devices = {}
         for d, flex_model_d in enumerate(flex_model):
             commodity = flex_model_d.get("commodity", "electricity")
+            commodity_to_devices.setdefault(commodity, []).append(d)
+
+        for commodity, devices in commodity_to_devices.items():
+            commodity_devices = device_list_series(devices, index)
+
             if commodity == "electricity":
                 up_price = commitment_upwards_deviation_price
                 down_price = commitment_downwards_deviation_price
@@ -376,23 +386,23 @@ class MetaStorageScheduler(Scheduler):
                 down_price = gas_deviation_prices
             else:
                 raise ValueError(
-                    f"Unsupported commodity {commodity} in flex-model. Only 'electricity' and 'gas' are supported."
+                    f"Unsupported commodity {commodity} in flex-model. "
+                    "Only 'electricity' and 'gas' are supported."
                 )
 
-            commitment = FlowCommitment(
-                # todo: report aggregate energy costs, too (need to be backwards compatible)
-                name=f"{commodity} energy {d}",
-                quantity=commitment_quantities,
-                upwards_deviation_price=up_price,
-                downwards_deviation_price=down_price,
-                commodity=commodity,
-                index=index,
-                device=d,
-                device_group=commodity,
+            commitments.append(
+                FlowCommitment(
+                    name=f"{commodity} net energy",
+                    quantity=commitment_quantities,
+                    upwards_deviation_price=up_price,
+                    downwards_deviation_price=down_price,
+                    commodity=commodity,
+                    index=index,
+                    device=commodity_devices,
+                    device_group=commodity,
+                )
             )
-            commitments.append(commitment)
 
-            # Set up peak commitments
             if self.flex_context.get("ems_peak_consumption_price") is not None:
                 ems_peak_consumption = get_continuous_series_sensor_or_quantity(
                     variable_quantity=self.flex_context.get(
@@ -402,14 +412,13 @@ class MetaStorageScheduler(Scheduler):
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
+                    max_value=np.inf,
                     fill_sides=True,
                 )
-                ems_peak_consumption_price = self.flex_context.get(
-                    "ems_peak_consumption_price"
-                )
                 ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=ems_peak_consumption_price,
+                    variable_quantity=self.flex_context.get(
+                        "ems_peak_consumption_price"
+                    ),
                     unit=self.flex_context["shared_currency_unit"] + "/MW",
                     query_window=(start, end),
                     resolution=resolution,
@@ -417,18 +426,19 @@ class MetaStorageScheduler(Scheduler):
                     fill_sides=True,
                 )
 
-                # Set up commitments DataFrame
-                commitment = FlowCommitment(
-                    name=f"consumption peak {d}",
-                    quantity=ems_peak_consumption,
-                    # positive price because breaching in the upwards (consumption) direction is penalized
-                    upwards_deviation_price=ems_peak_consumption_price,
-                    _type="any",
-                    index=index,
-                    device=d,
-                    device_group=flex_model_d["commodity"],
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} consumption peak",
+                        quantity=ems_peak_consumption,
+                        upwards_deviation_price=ems_peak_consumption_price,
+                        _type="any",
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
                 )
-                commitments.append(commitment)
+
             if self.flex_context.get("ems_peak_production_price") is not None:
                 ems_peak_production = get_continuous_series_sensor_or_quantity(
                     variable_quantity=self.flex_context.get(
@@ -438,14 +448,13 @@ class MetaStorageScheduler(Scheduler):
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
+                    max_value=np.inf,
                     fill_sides=True,
                 )
-                ems_peak_production_price = self.flex_context.get(
-                    "ems_peak_production_price"
-                )
                 ems_peak_production_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=ems_peak_production_price,
+                    variable_quantity=self.flex_context.get(
+                        "ems_peak_production_price"
+                    ),
                     unit=self.flex_context["shared_currency_unit"] + "/MW",
                     query_window=(start, end),
                     resolution=resolution,
@@ -453,31 +462,27 @@ class MetaStorageScheduler(Scheduler):
                     fill_sides=True,
                 )
 
-                # Set up commitments DataFrame
-                commitment = FlowCommitment(
-                    name=f"production peak {d}",
-                    quantity=-ems_peak_production,  # production is negative quantity
-                    # negative price because peaking in the downwards (production) direction is penalized
-                    downwards_deviation_price=-ems_peak_production_price,
-                    _type="any",
-                    index=index,
-                    device=d,
-                    device_group=flex_model_d["commodity"],
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} production peak",
+                        quantity=-ems_peak_production,
+                        downwards_deviation_price=-ems_peak_production_price,
+                        _type="any",
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
                 )
-                commitments.append(commitment)
 
-            # Set up capacity breach commitments and EMS capacity constraints
             ems_consumption_breach_price = self.flex_context.get(
                 "ems_consumption_breach_price"
             )
-
             ems_production_breach_price = self.flex_context.get(
                 "ems_production_breach_price"
             )
 
             if ems_consumption_breach_price is not None:
-
-                # Convert to Series
                 any_ems_consumption_breach_price = (
                     get_continuous_series_sensor_or_quantity(
                         variable_quantity=ems_consumption_breach_price,
@@ -491,8 +496,7 @@ class MetaStorageScheduler(Scheduler):
                 all_ems_consumption_breach_price = (
                     get_continuous_series_sensor_or_quantity(
                         variable_quantity=ems_consumption_breach_price,
-                        unit=self.flex_context["shared_currency_unit"]
-                        + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
+                        unit=self.flex_context["shared_currency_unit"] + "/MW*h",
                         query_window=(start, end),
                         resolution=resolution,
                         beliefs_before=belief_time,
@@ -500,40 +504,36 @@ class MetaStorageScheduler(Scheduler):
                     )
                 )
 
-                # Set up commitments DataFrame to penalize any breach
-                commitment = FlowCommitment(
-                    name=f"any consumption breach {d}",
-                    quantity=ems_consumption_capacity,
-                    # positive price because breaching in the upwards (consumption) direction is penalized
-                    upwards_deviation_price=any_ems_consumption_breach_price,
-                    _type="any",
-                    index=index,
-                    device=d,
-                    device_group=flex_model_d["commodity"],
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} any consumption breach",
+                        quantity=ems_consumption_capacity,
+                        upwards_deviation_price=any_ems_consumption_breach_price,
+                        _type="any",
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
                 )
-                commitments.append(commitment)
 
-                # Set up commitments DataFrame to penalize each breach
-                commitment = FlowCommitment(
-                    name=f"all consumption breaches {d}",
-                    quantity=ems_consumption_capacity,
-                    # positive price because breaching in the upwards (consumption) direction is penalized
-                    upwards_deviation_price=all_ems_consumption_breach_price,
-                    index=index,
-                    device=d,
-                    device_group=flex_model_d["commodity"],
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} all consumption breaches",
+                        quantity=ems_consumption_capacity,
+                        upwards_deviation_price=all_ems_consumption_breach_price,
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
                 )
-                commitments.append(commitment)
 
-                # Take the physical capacity as a hard constraint
                 ems_constraints["derivative max"] = ems_power_capacity_in_mw
             else:
-                # Take the contracted capacity as a hard constraint
                 ems_constraints["derivative max"] = ems_consumption_capacity
 
             if ems_production_breach_price is not None:
-
-                # Convert to Series
                 any_ems_production_breach_price = (
                     get_continuous_series_sensor_or_quantity(
                         variable_quantity=ems_production_breach_price,
@@ -547,8 +547,7 @@ class MetaStorageScheduler(Scheduler):
                 all_ems_production_breach_price = (
                     get_continuous_series_sensor_or_quantity(
                         variable_quantity=ems_production_breach_price,
-                        unit=self.flex_context["shared_currency_unit"]
-                        + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
+                        unit=self.flex_context["shared_currency_unit"] + "/MW*h",
                         query_window=(start, end),
                         resolution=resolution,
                         beliefs_before=belief_time,
@@ -556,35 +555,33 @@ class MetaStorageScheduler(Scheduler):
                     )
                 )
 
-                # Set up commitments DataFrame to penalize any breach
-                commitment = FlowCommitment(
-                    name=f"any production breach {d}",
-                    quantity=ems_production_capacity,
-                    # negative price because breaching in the downwards (production) direction is penalized
-                    downwards_deviation_price=-any_ems_production_breach_price,
-                    _type="any",
-                    index=index,
-                    device=d,
-                    device_group=flex_model_d["commodity"],
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} any production breach",
+                        quantity=ems_production_capacity,
+                        downwards_deviation_price=-any_ems_production_breach_price,
+                        _type="any",
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
                 )
-                commitments.append(commitment)
 
-                # Set up commitments DataFrame to penalize each breach
-                commitment = FlowCommitment(
-                    name=f"all production breaches {d}",
-                    quantity=ems_production_capacity,
-                    # negative price because breaching in the downwards (production) direction is penalized
-                    downwards_deviation_price=-all_ems_production_breach_price,
-                    index=index,
-                    device=d,
-                    device_group=flex_model_d["commodity"],
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} all production breaches",
+                        quantity=ems_production_capacity,
+                        downwards_deviation_price=-all_ems_production_breach_price,
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
                 )
-                commitments.append(commitment)
 
-                # Take the physical capacity as a hard constraint
                 ems_constraints["derivative min"] = -ems_power_capacity_in_mw
             else:
-                # Take the contracted capacity as a hard constraint
                 ems_constraints["derivative min"] = ems_production_capacity
 
         # Commitments per device
@@ -637,21 +634,6 @@ class MetaStorageScheduler(Scheduler):
                     sensor=inflexible_sensor,
                 )
             )
-
-        # # --- apply shared stock groups
-        # if hasattr(self, "stock_groups") and self.stock_groups:
-        #     for stock_id, devices in self.stock_groups.items():
-        #
-        #         if len(devices) <= 1:
-        #             continue
-        #
-        #         # combine stock delta
-        #         combined_delta = sum(
-        #             device_constraints[d]["stock delta"] for d in devices
-        #         )
-        #
-        #         for d in devices:
-        #             device_constraints[d]["stock delta"] = combined_delta
 
         # Create the device constraints for all the flexible devices
         for d in range(num_flexible_devices):
