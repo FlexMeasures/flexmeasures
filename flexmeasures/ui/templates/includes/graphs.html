@@ -690,7 +690,7 @@
                         ? [new Date(replayViewStart), new Date(replayViewEnd)]
                         : [replayViewStart.getTime(), replayViewEnd.getTime()];
                     vegaView.signal(xDomainSignal.name, domain);
-                    vegaView.run().finalize();
+                    vegaView.run();
                     return;
                 } catch (error) {
                     // Fall through to embedAndLoad fallback if signal update fails.
@@ -714,11 +714,25 @@
          * auto-pans to keep the replay cursor in view.
          */
         async function replayBeliefsData() {
+            const selectedStartMs = typeof storeStartDate !== 'undefined' && storeStartDate
+                ? new Date(storeStartDate).getTime()
+                : replayStartMs;
+            const selectedEndMs = typeof storeEndDate !== 'undefined' && storeEndDate
+                ? new Date(storeEndDate).getTime()
+                : replayEndMs;
+            const effectiveReplayStartMs = Math.max(replayStartMs, selectedStartMs);
+            const effectiveReplayEndMs = Math.min(replayEndMs, selectedEndMs);
+
+            if (effectiveReplayStartMs > effectiveReplayEndMs) {
+                stopReplay();
+                return;
+            }
+
             // Always jump to replay start when play begins, so the moving line
             // is visible even if the user is currently viewing another section.
-            await moveViewportTo(replayStartMs);
+            await moveViewportTo(effectiveReplayStartMs);
 
-            for (var beliefTime = new Date(replayStartMs); beliefTime.getTime() <= replayEndMs; beliefTime = new Date(beliefTime.getTime() + beliefTimedelta)) {
+            for (var beliefTime = new Date(effectiveReplayStartMs); beliefTime.getTime() <= effectiveReplayEndMs; beliefTime = new Date(beliefTime.getTime() + beliefTimedelta)) {
                 while (document.getElementById('replay').classList.contains('paused')) {
                     if (stepTriggered) {
                         stepTriggered = false;
@@ -738,7 +752,7 @@
 
                 // Update only the replay ruler/cursor; chart data stays in place.
                 vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({ 'belief_time': beliefTime }));
-                vegaView.run().finalize();
+                vegaView.run();
 
                 document.getElementById('replay-time').innerHTML = beliefTime;
 
