@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 from flask import url_for
-from rq.job import Job
+from rq.job import Job, JobStatus
 
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.utils.job_utils import work_on_rq
@@ -78,6 +78,52 @@ def test_get_job_status_queued(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
+def test_get_job_status_started(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    battery_soc_sensor,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    """A job whose status has been set to STARTED should be reported as STARTED."""
+    sensor = add_battery_assets["Test battery"].sensors[0]
+    message = message_for_trigger_schedule()
+
+    with app.test_client() as client:
+        trigger_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+        assert trigger_response.status_code == 200
+        job_id = trigger_response.json["schedule"]
+
+        # simulate the job being picked up by a worker
+        job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+        job.set_status(JobStatus.STARTED)
+
+        response = client.get(
+            url_for("JobAPI:get_job_status", uuid=job_id),
+        )
+
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    data = response.json
+    assert data["status"] == "STARTED"
+    assert "in progress" in data["message"].lower()
+    # metadata fields present
+    assert "func_name" in data
+    assert data["origin"] == "scheduling"
+    # enqueued_at is set; ended_at is not yet available
+    assert data["enqueued_at"] is not None
+    assert data["ended_at"] is None
+    # result is not yet available
+    assert data["result"] is None
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_get_job_status_finished(
     app,
     add_market_prices,
@@ -122,6 +168,8 @@ def test_get_job_status_finished(
     assert data["enqueued_at"] is not None
     assert data["started_at"] is not None
     assert data["ended_at"] is not None
+    # scheduling jobs return True on success; result must be present in the response
+    assert data["result"] is not None
 
 
 def test_get_job_status_unauthenticated(
