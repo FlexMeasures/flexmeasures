@@ -62,8 +62,8 @@
                                     {{ asset_form.parent_asset_id.label(class="col-sm-6 control-label") }}
                                     <div class="col-md-6">
                                         <select name="parent_asset_id" id="parent_asset_id" class="form-control">
-                                            <option value="" {% if asset.parent_asset_id is none %} selected {% endif
-                                                %}>No Parent</option>
+                                            <option value="" {% if asset.parent_asset_id is none %} selected {%
+                                                endif %}>No Parent</option>
                                             {% for account_asset in account_assets %}
                                             {% if account_asset.id != asset.id %}
                                             <option value="{{ account_asset.id }}" {% if
@@ -88,7 +88,6 @@
                                         <input class="form-control" id="asset-id" name="asset-id" type="text"
                                             value="{{ asset.id }}" disabled></input>
                                     </div>
-                                </div>
 
                                 <div class="form-group">
                                     {{ asset_form.sensors_to_show_as_kpis.label(class="col-sm-3 control-label") }}
@@ -99,7 +98,6 @@
                                         <span style="color: red;">[{{error}}]</span>
                                         {% endfor %}
                                     </div>
-                                </div>
 
                                 <div class="form-group">
                                     {{ asset_form.external_id.label(class="col-sm-3 control-label") }}
@@ -110,28 +108,28 @@
                                         <span style="color: red;">[{{error}}]</span>
                                         {% endfor %}
                                     </div>
-                                </div>
 
-                                <div class="form-group">
-                                    <label class="control-label">Location</label>
-                                    <small>(Click map to edit latitude and longitude in form)</small>
-                                    <div id="mapid"></div>
-                                    <button class="btn btn-sm btn-responsive btn-success create-button" type="submit"
-                                        value="Save"
-                                        style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
-                                        Save
-                                    </button>
+                                    <div class="form-group">
+                                        <label class="control-label">Location</label>
+                                        <small>(Click map to edit latitude and longitude in form)</small>
+                                        <div id="mapid"></div>
+                                        <button class="btn btn-sm btn-responsive btn-success create-button"
+                                            type="submit" value="Save"
+                                            style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
+                                            Save
+                                        </button>
+                                    </div>
                                 </div>
+                            </fieldset>
+                        </form>
+                        <div class="form-group pt-3">
+                            <div class="col-md-12">
+                                {{ json_attributes_editor_button(label="Open editor", field_label=attributes_label,
+                                field_description=attributes_description) }}
                             </div>
-                        </fieldset>
-                    </form>
-                    <div class="form-group pt-3">
-                        <div class="col-md-12">
-                            {{ json_attributes_editor_button(label="Open editor", field_label=attributes_label, field_description=attributes_description) }}
                         </div>
                     </div>
                 </div>
-            </div>
             </div>
             {% endif %}
 
@@ -403,7 +401,7 @@
         import {
             getFlexFieldTitle, renderFlexFieldOptions, renderSensor,
             createReactiveState, processResourceRawJSON, getAsset,
-            getAccount, getSensor, apiBasePath, renderSensorSearchResults
+            getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
@@ -644,9 +642,15 @@
                 });
 
                 if (response.status !== 200) {
-                    const errorData = await response.json();
-                    const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
-                    showToast(`Failed to update the flex model: ${errorMessage}`, "error");
+                    let errorData = null;
+                    try {
+                        errorData = await response.json();
+                    } catch (_error) {
+                        errorData = null;
+                    }
+
+                    const errorMessage = extractApiErrorMessage(errorData, response.statusText);
+                    showToast(`Failed to update the flex model <div>${errorMessage}</div>`, "error");
                     reRenderForm();
                 } else {
                     renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
@@ -1316,9 +1320,9 @@
     {% if user_can_update_asset %}
     {% from "_macros.html" import json_attributes_editor_modal %}
     {{ json_attributes_editor_modal(
-         api_url="/api/v3_0/assets/" ~ asset.id,
-         initial_attributes=asset.attributes,
-         entity_name=asset.name
+    api_url="/api/v3_0/assets/" ~ asset.id,
+    initial_attributes=asset.attributes,
+    entity_name=asset.name
     ) }}
     {% endif %}
     {% endblock %}

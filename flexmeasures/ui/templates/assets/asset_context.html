@@ -311,7 +311,8 @@
 <script type="module">
     import {
         getFlexFieldTitle, renderSensor, getAsset, createReactiveState,
-        apiBasePath, processResourceRawJSON, convertHtmlToElement, renderSensorSearchResults
+        apiBasePath, processResourceRawJSON, convertHtmlToElement, renderSensorSearchResults,
+        extractApiErrorMessage
     } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
     let hasInitialized = false;
@@ -427,9 +428,15 @@
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
-            showToast(`Failed to update the flex context: ${errorMessage}`, "error");
+            let errorData = null;
+            try {
+                errorData = await response.json();
+            } catch (_error) {
+                errorData = null;
+            }
+
+            const errorMessage = extractApiErrorMessage(errorData, response.statusText);
+            showToast(`Failed to update the flex context <div>${errorMessage}</div>`, "error");
         } else {
             showToast("Flex context updated successfully", "success");
         }
