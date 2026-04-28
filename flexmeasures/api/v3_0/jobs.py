@@ -23,7 +23,7 @@ class JobAPI(FlaskView):
     @auth_required()
     @use_kwargs({"job_id": fields.Str(data_key="uuid", required=True)}, location="path")
     @as_json
-    def get_job_status(self, uuid: str, job_id: str):
+    def get_job_status(self, job_id: str, **kwargs):
         """
         .. :quickref: Jobs; Get the status of a background job
 
