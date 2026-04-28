@@ -4181,9 +4181,95 @@
         ]
       }
     },
+    "/api/v3_0/jobs/{uuid}": {
+      "get": {
+        "summary": "Get the status of a background job",
+        "description": "Returns the current execution status and a human-readable result\nmessage for any background job (scheduling, forecasting, etc.)\nidentified by its UUID.\n\nWhile the job is pending or running this endpoint returns its\ncurrent status.  Once finished (successfully or not) it also\nincludes a descriptive message.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uuid",
+            "required": true,
+            "description": "UUID of the background job.",
+            "example": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job status retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "QUEUED",
+                        "STARTED",
+                        "FINISHED",
+                        "FAILED",
+                        "DEFERRED",
+                        "SCHEDULED",
+                        "STOPPED",
+                        "CANCELED"
+                      ],
+                      "description": "Current status of the job."
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description of the job status."
+                    }
+                  }
+                },
+                "examples": {
+                  "queued": {
+                    "summary": "Queued job",
+                    "value": {
+                      "status": "QUEUED",
+                      "message": "Scheduling job waiting to be processed."
+                    }
+                  },
+                  "finished": {
+                    "summary": "Finished job",
+                    "value": {
+                      "status": "FINISHED",
+                      "message": "Scheduling job has finished."
+                    }
+                  },
+                  "failed": {
+                    "summary": "Failed job",
+                    "value": {
+                      "status": "FAILED",
+                      "message": "Scheduling job failed with ValueError: ..."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "UNRECOGNIZED_JOB"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ]
+      }
+    },
     "/api/v3_0": {},
     "/api/v3_0/sensors/data": {},
-    "/api/v3_0/docs/dist/{filename}": {},
     "/api/v3_0/docs/{path}": {},
     "/api/dev/sensor/{id}": {},
     "/api/dev/sensor/{id}/chart": {},
