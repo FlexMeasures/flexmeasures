@@ -12,7 +12,11 @@ import click
 
 
 def handle_forecasting_exception(job, exc_type, exc_value, traceback):
-    """Persist forecasting job failure metadata without queueing a legacy fallback."""
+    """Persist forecasting job failure metadata.
+
+    Forecasting failures stay attached to the original job instead of
+    enqueueing a fallback job.
+    """
     click.echo(
         "HANDLING RQ FORECASTING WORKER EXCEPTION: %s:%s\n" % (exc_type, exc_value)
     )
