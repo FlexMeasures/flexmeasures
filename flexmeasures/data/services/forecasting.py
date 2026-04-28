@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 import click
 
 
@@ -31,10 +29,6 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
         "type": exc_type.__name__ if exc_type is not None else None,
         "message": str(exc_value),
     }
-    if isinstance(job.meta.get("start"), datetime):
-        job.meta["start"] = job.meta["start"].isoformat()
-    if isinstance(job.meta.get("end"), datetime):
-        job.meta["end"] = job.meta["end"].isoformat()
     job.save_meta()
 
     # The fixed-viewpoint pipeline is the only supported forecasting path, so
