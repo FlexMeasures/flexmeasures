@@ -25,6 +25,14 @@ Bugfixes
 * Fix asset context page for asset names containing apostrophes [see `PR #2117 <https://www.github.com/FlexMeasures/flexmeasures/pull/2117>`_]
 
 
+v0.32.1 | May XX, 2026
+============================
+
+Bugfixes
+-----------
+* Fix asset form overwriting attributes [see `PR #2138 <https://www.github.com/FlexMeasures/flexmeasures/pull/2138>`_]
+
+
 v0.32.0 | April 15, 2026
 ============================
 
