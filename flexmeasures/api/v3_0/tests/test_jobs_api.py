@@ -40,7 +40,7 @@ def test_get_job_status_queued(
     keep_scheduling_queue_empty,
     requesting_user,
 ):
-    """A job that is still queued should be reported as QUEUED."""
+    """A job that is still queued should be reported as QUEUED with metadata fields."""
     sensor = add_battery_assets["Test battery"].sensors[0]
     message = message_for_trigger_schedule()
 
@@ -60,8 +60,19 @@ def test_get_job_status_queued(
 
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
-    assert response.json["status"] == "QUEUED"
-    assert "waiting" in response.json["message"].lower()
+    data = response.json
+    assert data["status"] == "QUEUED"
+    assert "waiting" in data["message"].lower()
+    # metadata fields present
+    assert "func_name" in data
+    assert "origin" in data
+    assert data["origin"] == "scheduling"
+    # enqueued_at is set when a job is queued; started_at and ended_at are not yet
+    assert data["enqueued_at"] is not None
+    assert data["started_at"] is None
+    assert data["ended_at"] is None
+    # result is not yet available
+    assert data["result"] is None
 
 
 @pytest.mark.parametrize(
@@ -77,7 +88,7 @@ def test_get_job_status_finished(
     requesting_user,
     db,
 ):
-    """After the job has been processed it should be reported as FINISHED."""
+    """After the job has been processed the response should include timing fields."""
     sensor = add_battery_assets["Test battery"].sensors[0]
     message = message_for_trigger_schedule()
 
@@ -101,8 +112,16 @@ def test_get_job_status_finished(
 
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
-    assert response.json["status"] == "FINISHED"
-    assert "finished" in response.json["message"].lower()
+    data = response.json
+    assert data["status"] == "FINISHED"
+    assert "finished" in data["message"].lower()
+    # metadata fields present
+    assert "func_name" in data
+    assert data["origin"] == "scheduling"
+    # timing fields
+    assert data["enqueued_at"] is not None
+    assert data["started_at"] is not None
+    assert data["ended_at"] is not None
 
 
 def test_get_job_status_unauthenticated(

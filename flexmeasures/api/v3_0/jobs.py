@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
@@ -9,6 +11,11 @@ from webargs.flaskparser import use_kwargs
 from marshmallow import fields
 
 from flexmeasures.api.common.utils.api_utils import job_status_description
+
+
+def _isoformat_or_none(dt: datetime | None) -> str | None:
+    """Return an ISO-8601 string for *dt*, or ``None`` when *dt* is absent."""
+    return dt.isoformat() if dt is not None else None
 
 
 class JobAPI(FlaskView):
@@ -31,13 +38,13 @@ class JobAPI(FlaskView):
         get:
           summary: Get the status of a background job
           description: |
-            Returns the current execution status and a human-readable result
-            message for any background job (scheduling, forecasting, etc.)
-            identified by its UUID.
+            Returns the current execution status, a human-readable result
+            message, and timing metadata for any background job
+            (scheduling, forecasting, etc.) identified by its UUID.
 
             While the job is pending or running this endpoint returns its
             current status.  Once finished (successfully or not) it also
-            includes a descriptive message.
+            includes the job result and all available timestamps.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -71,22 +78,64 @@ class JobAPI(FlaskView):
                       message:
                         type: string
                         description: Human-readable description of the job status.
+                      result:
+                        description: Return value of the job function, or null when not yet available.
+                        nullable: true
+                      func_name:
+                        type: string
+                        description: Fully-qualified name of the function executed by this job.
+                      origin:
+                        type: string
+                        description: Name of the queue the job was placed on.
+                      enqueued_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        description: ISO-8601 timestamp of when the job was enqueued.
+                      started_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        description: ISO-8601 timestamp of when the job started executing.
+                      ended_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        description: ISO-8601 timestamp of when the job finished executing.
                   examples:
                     queued:
                       summary: Queued job
                       value:
                         status: QUEUED
                         message: "Scheduling job waiting to be processed."
+                        result: null
+                        func_name: "flexmeasures.data.services.scheduling.create_schedule"
+                        origin: scheduling
+                        enqueued_at: "2026-04-28T10:00:00+00:00"
+                        started_at: null
+                        ended_at: null
                     finished:
                       summary: Finished job
                       value:
                         status: FINISHED
                         message: "Scheduling job has finished."
+                        result: null
+                        func_name: "flexmeasures.data.services.scheduling.create_schedule"
+                        origin: scheduling
+                        enqueued_at: "2026-04-28T10:00:00+00:00"
+                        started_at: "2026-04-28T10:00:01+00:00"
+                        ended_at: "2026-04-28T10:00:05+00:00"
                     failed:
                       summary: Failed job
                       value:
                         status: FAILED
                         message: "Scheduling job failed with ValueError: ..."
+                        result: null
+                        func_name: "flexmeasures.data.services.scheduling.create_schedule"
+                        origin: scheduling
+                        enqueued_at: "2026-04-28T10:00:00+00:00"
+                        started_at: "2026-04-28T10:00:01+00:00"
+                        ended_at: "2026-04-28T10:00:02+00:00"
             400:
               description: UNRECOGNIZED_JOB
             401:
@@ -114,10 +163,22 @@ class JobAPI(FlaskView):
             else str(job_status).upper()
         )
 
+        # job.return_value is None when the job has not finished successfully
+        try:
+            result = job.return_value()
+        except Exception:  # noqa: BLE001
+            result = None
+
         return (
             dict(
                 status=status_name,
                 message=job_status_description(job),
+                result=result,
+                func_name=job.func_name,
+                origin=job.origin,
+                enqueued_at=_isoformat_or_none(job.enqueued_at),
+                started_at=_isoformat_or_none(job.started_at),
+                ended_at=_isoformat_or_none(job.ended_at),
             ),
             200,
         )
