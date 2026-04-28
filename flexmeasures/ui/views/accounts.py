@@ -13,7 +13,7 @@ from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.data import db
-from flexmeasures.ui.views.assets.forms import (
+from flexmeasures.ui.views import (
     ATTRIBUTES_FIELD_LABEL,
     ATTRIBUTES_FIELD_DESCRIPTION,
 )

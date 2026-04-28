@@ -26,7 +26,7 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.views.assets.forms import NewAssetForm, AssetForm
-from flexmeasures.ui.views.assets.forms import (
+from flexmeasures.ui.views import (
     ATTRIBUTES_FIELD_LABEL,
     ATTRIBUTES_FIELD_DESCRIPTION,
 )
@@ -386,7 +386,6 @@ class AssetCrudUI(FlaskView):
         asset_form.process(obj=asset)
 
         # JSON fields need to be pre-processed to be valid form data
-        asset_form.attributes.data = json.dumps(asset.attributes)
         asset_form.sensors_to_show_as_kpis.data = json.dumps(
             asset.sensors_to_show_as_kpis
         )
