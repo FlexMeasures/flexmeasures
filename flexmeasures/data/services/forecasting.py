@@ -30,7 +30,3 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
         "message": str(exc_value),
     }
     job.save_meta()
-
-    # The fixed-viewpoint pipeline is the only supported forecasting path, so
-    # failed jobs stay failed until a user retries with an updated request.
-    return False
