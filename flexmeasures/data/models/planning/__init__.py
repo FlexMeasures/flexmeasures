@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -52,6 +53,7 @@ class Scheduler:
 
     flex_model: list[dict] | dict | None = None
     flex_context: dict | None = None
+    stock_groups: dict | None = None
 
     fallback_scheduler_class: "Type[Scheduler] | None" = None
     info: dict | None = None
@@ -63,6 +65,41 @@ class Scheduler:
     supports_scheduling_an_asset = False
 
     return_multiple: bool = False
+
+    @staticmethod
+    def _build_stock_groups(flex_model: list[dict]) -> dict:
+        """
+        Build stock groups where devices sharing the same state-of-charge sensor are grouped together.
+        """
+        groups = defaultdict(list)
+        soc_usage = defaultdict(list)
+
+        for d, fm in enumerate(flex_model):
+            if fm.get("sensor") is None:
+                continue
+
+            soc = fm.get("state_of_charge")
+            if soc is not None:
+                if hasattr(soc, "id"):
+                    soc_id = soc.id
+                elif isinstance(soc, dict) and "sensor" in soc:
+                    sensor = soc["sensor"]
+                    soc_id = sensor.id if hasattr(sensor, "id") else sensor
+                else:
+                    soc_id = soc
+
+                soc_usage[soc_id].append(d)
+
+        for soc_id, device_list in soc_usage.items():
+            groups[soc_id] = device_list
+
+        missing_soc_sensor_i = -len(flex_model)
+        for d, fm in enumerate(flex_model):
+            if fm.get("sensor") is not None and fm.get("state_of_charge") is None:
+                groups[missing_soc_sensor_i].append(d)
+                missing_soc_sensor_i += 1
+
+        return dict(groups)
 
     def __init__(
         self,
@@ -202,12 +239,19 @@ class Scheduler:
             # Listify the flex-model for the next code block, which actually does the merging with the db_flex_model
             flex_model = [flex_model]
 
+        # Find which asset is relevant for a given device model in the flex-model from the trigger message
         for flex_model_d in flex_model:
             asset_id = flex_model_d.get("asset")
             if asset_id is None:
-                sensor_id = flex_model_d["sensor"]
-                sensor = db.session.get(Sensor, sensor_id)
-                asset_id = sensor.asset_id
+                sensor_id = flex_model_d.get("sensor")
+                if sensor_id is not None:
+                    sensor = db.session.get(Sensor, sensor_id)
+                    asset_id = sensor.asset_id
+                else:
+                    soc_sensor_ref = flex_model_d.get("state-of-charge")
+                    if soc_sensor_ref is not None:
+                        soc_sensor = db.session.get(Sensor, soc_sensor_ref["sensor"])
+                        asset_id = soc_sensor.asset_id
             if asset_id in db_flex_model:
                 flex_model_d = {**db_flex_model[asset_id], **flex_model_d}
             amended_flex_model.append(flex_model_d)

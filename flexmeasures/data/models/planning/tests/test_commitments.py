@@ -16,6 +16,7 @@ from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.utils import save_to_db
 
 
 def test_multi_feed_device_scheduler_shared_buffer():
@@ -482,7 +483,7 @@ def test_two_flexible_assets_with_commodity(app, db):
     # Preference costs should reflect this energy ratio
     battery_total_pref = costs_data["prefer a full storage 0 sooner"]
     hp_total_pref = costs_data["prefer a full storage 1 sooner"]
-    assert battery_total_pref == pytest.approx(2 * hp_total_pref, rel=1e-2), (
+    assert battery_total_pref == pytest.approx(2 * hp_total_pref, rel=1e-9), (
         f"Battery preference costs ({battery_total_pref:.2e}) should be twice the "
         f"heat pump ({hp_total_pref:.2e}) preference costs, since battery moves more energy (60 kWh vs 30 kWh)"
     )
@@ -617,10 +618,10 @@ def test_mixed_gas_and_electricity_assets(app, db):
 
     costs_data = commitment_costs[0]["data"]
 
-    # Battery: 60kWh Δ (20→80) / 0.95 eff × 100 EUR/MWh + discharge loss ≈ 4.32 EUR
+    # Battery: 60kWh Δ (20→80) / 0.95 eff × 100 EUR/MWh = 6.32 EUR (charge) + discharge loss ≈ 4.32 EUR
     assert costs_data["electricity energy 0"] == pytest.approx(4.32, rel=1e-2), (
-        f"Electricity energy cost (battery charging phase ~3h at 20kW with 95% efficiency "
-        f"+ discharge at end): 60kWh/0.95 × (100 EUR/MWh) = 4.32 EUR, "
+        f"Battery electricity cost (charges 60kWh with 95% efficiency + discharge): "
+        f"60kWh/0.95 × (100 EUR/MWh) = 4.32 EUR, "
         f"got {costs_data['electricity energy 0']}"
     )
 
@@ -672,3 +673,414 @@ def test_mixed_gas_and_electricity_assets(app, db):
         f"Battery preference cost should be positive since it can optimize charging timing, "
         f"got {battery_total_pref:.2e}"
     )
+
+
+def test_two_devices_shared_stock(app, db):
+    """
+    Two feeders charging a single storage.
+    Consider a single battery with two inverters feeding it, and a single state-of-charge sensor for the battery.
+     - Both inverters can charge the battery, but with different efficiencies.
+     - The battery has a single state of charge that both inverters affect.
+     - The scheduler should recognize the shared stock and optimize accordingly, without duplicating baselines or costs.
+    """
+    # ---- time
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-02T00:00:00+01:00")
+    power_sensor_resolution = pd.Timedelta("15m")
+    soc_sensor_resolution = pd.Timedelta(0)
+
+    # ---- assets
+    battery_type = get_or_create_model(GenericAssetType, name="battery")
+    inverter_type = get_or_create_model(GenericAssetType, name="inverter")
+
+    battery = GenericAsset(name="battery", generic_asset_type=battery_type)
+    inverter_1 = GenericAsset(name="inverter 1", generic_asset_type=inverter_type)
+    inverter_2 = GenericAsset(name="inverter 2", generic_asset_type=inverter_type)
+
+    db.session.add_all([battery, inverter_1, inverter_2])
+    db.session.commit()
+
+    power_1 = Sensor(
+        name="power",
+        unit="kW",
+        event_resolution=power_sensor_resolution,
+        generic_asset=inverter_1,
+    )
+    power_2 = Sensor(
+        name="power",
+        unit="kW",
+        event_resolution=power_sensor_resolution,
+        generic_asset=inverter_2,
+    )
+    power_3 = Sensor(
+        name="power",
+        unit="kW",
+        event_resolution=power_sensor_resolution,
+        generic_asset=battery,
+    )
+
+    state_of_charge = Sensor(
+        name="state-of-charge",
+        unit="kWh",
+        event_resolution=soc_sensor_resolution,
+        generic_asset=battery,
+    )
+
+    db.session.add_all([power_1, power_2, power_3, state_of_charge])
+    db.session.commit()
+
+    # ---- shared stock (both batteries charge from same pool)
+    flex_model = [
+        {
+            "sensor": power_1.id,
+            "state-of-charge": {"sensor": state_of_charge.id},
+            "power-capacity": "20 kW",
+            "charging-efficiency": 0.95,
+            "discharging-efficiency": 0.95,
+        },
+        {
+            "sensor": power_2.id,
+            "state-of-charge": {"sensor": state_of_charge.id},
+            "power-capacity": "20 kW",
+            "charging-efficiency": 0.99,
+            "discharging-efficiency": 0.45,
+        },
+        {
+            "state-of-charge": {"sensor": state_of_charge.id},
+            "soc-at-start": 20.0,
+            "soc-min": 10,
+            "soc-max": 200.0,
+            "soc-targets": [{"datetime": "2024-01-01T12:00:00+01:00", "value": 189.0}],
+        },
+    ]
+
+    flex_context = {
+        "consumption-price": "100 EUR/MWh",
+        "production-price": "100 EUR/MWh",
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=power_sensor_resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    schedules = scheduler.compute(skip_validation=True)
+
+    # ---- verify scheduler returned expected outputs
+    assert isinstance(schedules, list), (
+        "Scheduler should return a list of result objects "
+        "(device schedules, commitment costs, SOC)."
+    )
+
+    assert len(schedules) == 4, (
+        "Expected 4 outputs: two inverter schedules, one commitment_costs "
+        "object, and one state_of_charge schedule."
+    )
+
+    # ---- extract schedules
+    storage_schedules = [s for s in schedules if s["name"] == "storage_schedule"]
+    commitment_costs = [s for s in schedules if s["name"] == "commitment_costs"]
+    soc_schedule = next(s for s in schedules if s["name"] == "state_of_charge")
+
+    assert len(storage_schedules) == 2, (
+        "There should be two storage schedules corresponding to the two "
+        "inverters feeding the shared battery."
+    )
+
+    assert (
+        len(commitment_costs) == 1
+    ), "Commitment costs should be aggregated into a single result."
+
+    power1_schedule = next(s for s in storage_schedules if s["sensor"] == power_1)
+    power2_schedule = next(s for s in storage_schedules if s["sensor"] == power_2)
+
+    power1_data = power1_schedule["data"]
+    power2_data = power2_schedule["data"]
+    soc_data = soc_schedule["data"]
+    costs_data = commitment_costs[0]["data"]
+
+    # ---- charging behaviour
+    assert (power2_data > 0).any(), (
+        "The more efficient inverter should charge the battery at least "
+        "during some periods, showing that the optimizer prefers it."
+    )
+
+    assert (power1_data == 0).sum() > len(power1_data) * 0.5, (
+        "The less efficient inverter should remain idle for most of the "
+        "charging window, confirming that efficiency differences influence "
+        "device selection."
+    )
+
+    # ---- discharge behaviour
+    # Both inverters have zero power in the middle of the horizon
+    # Charging happens through inverter 2 (more efficient) as soon as possible (full SoC is preferred)
+    # Discharging happens through inverter 1 (more efficient) as late as possible (full SoC is preferred)
+    assert (
+        power1_data.iloc[0 : int(96 / 2 + 13)] == 0
+    ).all(), "Inverter 1 should be idle at the beginning of the scheduling period."
+
+    assert (
+        power2_data.iloc[int(96 / 2 - 13) : -1] == 0
+    ).all(), "Inverter 2 should be idle at the end of the scheduling period."
+
+    # Verify that inverter 1 actually discharges
+    assert (power1_data < 0).any(), "Inverter 1 should discharge the battery."
+    # Verify that inverter 1 never charges
+    assert not (power1_data > 0).any(), "Inverter 1 should not charge the battery."
+
+    # Verify that inverter 2 actually charges
+    assert (power2_data > 0).any(), "Inverter 2 should charge the battery."
+    # Verify that inverter 1 never charges
+    assert not (power2_data < 0).any(), "Inverter 2 should not discharge the battery."
+
+    # ---- SOC behaviour
+    assert soc_data.iloc[0] == pytest.approx(
+        20.0
+    ), "Initial state of charge must match the provided soc-at-start value."
+
+    assert soc_data.max() == pytest.approx(189.0, rel=1e-3), (
+        "SOC should rise to exactly 189.0 kWh (the target value), "
+        "confirming that both inverters contribute to the same shared stock."
+    )
+
+    assert soc_data.iloc[-1] == pytest.approx(
+        10.0, rel=1e-3
+    ), "SOC should decrease to soc-min (10.0) after the target is reached."
+
+    assert (
+        soc_data.max() > soc_data.iloc[0]
+    ), "SOC must increase during the charging phase."
+
+    # ---- energy cost checks
+    assert costs_data["electricity energy 0"] == pytest.approx(-17.0, rel=1e-2), (
+        "Electricity energy 0 corresponds to inverter 1 energy cost. "
+        "Negative value indicates net production/discharge value: "
+        "inverter 1 discharges ~340 kWh at 0.95 efficiency = -17 EUR."
+    )
+
+    assert costs_data["electricity energy 1"] == pytest.approx(17.07, rel=1e-2), (
+        "Electricity energy 1 corresponds to inverter 2 charging cost, "
+        "which should dominate since it performs most charging: "
+        "~682.8 kWh at 0.99 efficiency * 100 EUR/MWh ≈ 17.07 EUR."
+    )
+
+
+def test_simulation_copy_new(app, db):
+    # ---- asset types and assets
+    gas_boiler_type = get_or_create_model(GenericAssetType, name="gas-boiler")
+    buffer_type = get_or_create_model(GenericAssetType, name="heat-buffer")
+    site_type = get_or_create_model(GenericAssetType, name="site")
+
+    site = GenericAsset(
+        name="Test Site",
+        generic_asset_type=site_type,
+    )
+    building = GenericAsset(
+        name="Building", generic_asset_type=site_type, parent_asset_id=site.id
+    )
+
+    gas_boiler = GenericAsset(
+        name="Gas Boiler", generic_asset_type=gas_boiler_type, parent_asset_id=site.id
+    )
+    heat_buffer = GenericAsset(
+        name="Heat Buffer", generic_asset_type=buffer_type, parent_asset_id=site.id
+    )
+    electric_heater = GenericAsset(
+        name="Electric Heater",
+        generic_asset_type=get_or_create_model(
+            GenericAssetType, name="electric-heater"
+        ),
+        parent_asset_id=site.id,
+    )
+
+    db.session.add_all([gas_boiler, heat_buffer, building, electric_heater, site])
+    db.session.commit()
+
+    # ---- sensors
+    start = pd.Timestamp("2026-04-07T00:00:00+01:00")
+    end = pd.Timestamp(
+        "2026-04-09T06:00:00+01:00"
+    )  # Extended to allow discharge target on April 8
+    belief_time = pd.Timestamp(
+        "2026-04-05T00:00:00+01:00"
+    )  # 2 days before start for generous planning horizon
+    power_resolution = pd.Timedelta("15m")
+    energy_resolution = pd.Timedelta(0)
+
+    building_raw_power = Sensor(
+        name="building raw power",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=building,
+    )
+
+    boiler_power = Sensor(
+        name="boiler power",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=gas_boiler,
+    )
+
+    tank_power = Sensor(
+        name="heat buffer power",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=heat_buffer,
+    )
+
+    buffer_soc = Sensor(
+        name="buffer state of charge",
+        unit="kWh",
+        event_resolution=energy_resolution,  # instantaneous
+        generic_asset=heat_buffer,
+    )
+
+    buffer_soc_usage = Sensor(
+        name="buffer soc usage",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=heat_buffer,
+    )
+
+    heater_power = Sensor(
+        name="heater power",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=electric_heater,
+    )
+    soc_targets = Sensor(
+        name="buffer soc targets",
+        unit="kWh",
+        event_resolution=energy_resolution,  # instantaneous
+        generic_asset=heat_buffer,
+    )
+
+    db.session.add_all(
+        [
+            boiler_power,
+            buffer_soc,
+            tank_power,
+            buffer_soc_usage,
+            building_raw_power,
+            heater_power,
+            soc_targets,
+        ]
+    )
+    db.session.commit()
+    import timely_beliefs as tb
+    from flexmeasures import Source
+
+    # add dummy data to building raw power to ensure site-level constraints are respected
+    building_data = pd.Series(
+        100.0,
+        index=pd.date_range(start, end, freq=power_resolution, name="event_start"),
+        name="event_value",
+    ).reset_index()
+
+    soc_usage = building_data.copy()
+
+    bdf = tb.BeliefsDataFrame(
+        building_data,
+        belief_horizon=-pd.Timedelta(seconds=1) * np.array(range(len(building_data))),
+        sensor=building_raw_power,
+        source=get_or_create_model(Source, name="Simulation"),
+    )
+    save_to_db(bdf, bulk_save_objects=False, save_changed_beliefs_only=False)
+
+    soc_usage["event_value"] = soc_usage["event_value"] * 1.49
+    bdf = tb.BeliefsDataFrame(
+        soc_usage,
+        belief_time=belief_time,
+        sensor=buffer_soc_usage,
+        source=get_or_create_model(Source, name="Simulation"),
+    )
+
+    save_to_db(bdf, bulk_save_objects=False, save_changed_beliefs_only=False)
+
+    flex_model = [
+        # {
+        #     "sensor": pv_power.id,
+        #     "consumption-capacity": "0 kW",
+        #     "production-capacity": {"sensor": pv_raw_power.id},
+        #     "power-capacity": "1 GW",
+        # },
+        # {
+        #     "sensor": battery_power.id,
+        #     "soc-min": 0.0,
+        #     "soc-max": 100.0,
+        #     "soc-at-start": 20.0,
+        #     "power-capacity": "20 kW",
+        #     "roundtrip-efficiency": 0.9,
+        #     "soc-targets": [{"datetime": "2026-04-07T20:00:00+01:00", "value": 80.0}],
+        #     "state-of-charge": {"sensor": battery_soc.id},
+        #     "commodity": "electricity",
+        #
+        # },
+        {
+            "sensor": heater_power.id,
+            "state-of-charge": {"sensor": buffer_soc.id},
+            "power-capacity": "100 kW",
+            "charging-efficiency": 0.9,
+            "commodity": "electricity",
+            "production-capacity": "0 kW",
+            # "storage-efficiency": 0.9,  # todo: workaround does not work yet
+        },
+        {
+            "sensor": boiler_power.id,
+            "state-of-charge": {"sensor": buffer_soc.id},
+            "power-capacity": "100 kW",
+            "charging-efficiency": 0.9,
+            "commodity": "gas",
+            "production-capacity": "0 kW",
+            # "storage-efficiency": 0.9,  # todo: workaround does not work yet
+        },
+        {
+            # "sensor": tank_power.id,
+            "soc-min": 200.0,
+            "soc-max": 1000.0,
+            "soc-at-start": 200.0,
+            # "soc-targets": [
+            #     {"datetime": "2026-04-07T20:00:00+01:00", "value": 700.0},
+            # ],
+            "state-of-charge": {"sensor": buffer_soc.id},
+            # "soc-usage": [{"sensor": buffer_soc_usage.id}],
+            "storage-efficiency": 0.9,  # todo: does not work yet
+            # todo: consider assigning this to the heat commodity, maybe we can derive some useful (costs?) KPI from it
+        },
+    ]
+
+    flex_context = {
+        "consumption-price": "100 EUR/MWh",
+        "production-price": "100 EUR/MWh",
+        "gas-price": "150 EUR/MWh",
+        "site-power-capacity": "4700 kW",
+        "site-consumption-capacity": "4000 kW",
+        "site-production-capacity": "100 kW",
+        "site-consumption-breach-price": "100000 EUR/kW",
+        "site-production-breach-price": "100000 EUR/kW",
+        "relax-constraints": True,
+        "inflexible-device-sensors": [building_raw_power.id],
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=power_resolution,
+        belief_time=belief_time,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    pd.set_option("display.max_rows", None)
+    schedules = scheduler.compute(skip_validation=True)
+
+    # ---- verify outputs
+    print(schedules)
