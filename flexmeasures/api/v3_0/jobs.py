@@ -38,13 +38,12 @@ class JobAPI(FlaskView):
         get:
           summary: Get the status of a background job
           description: |
-            Returns the current execution status, a human-readable result
-            message, and timing metadata for any background job
-            (scheduling, forecasting, etc.) identified by its UUID.
+            Look up a background job by its UUID and see whether it is
+            queued, running, finished, or failed.
 
-            While the job is pending or running this endpoint returns its
-            current status.  Once finished (successfully or not) it also
-            includes the job result and all available timestamps.
+            The response includes a status message plus job metadata such
+            as the queue name, function name, timestamps, and the job
+            result when available.
           security:
             - ApiKeyAuth: []
           parameters:

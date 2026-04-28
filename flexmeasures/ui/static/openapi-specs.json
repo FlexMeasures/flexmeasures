@@ -4184,7 +4184,7 @@
     "/api/v3_0/jobs/{uuid}": {
       "get": {
         "summary": "Get the status of a background job",
-        "description": "Returns the current execution status and a human-readable result\nmessage for any background job (scheduling, forecasting, etc.)\nidentified by its UUID.\n\nWhile the job is pending or running this endpoint returns its\ncurrent status.  Once finished (successfully or not) it also\nincludes a descriptive message.\n",
+        "description": "Look up a background job by its UUID and see whether it is\nqueued, running, finished, or failed.\n\nThe response includes a status message plus job metadata such\nas the queue name, function name, timestamps, and the job\nresult when available.\n",
         "security": [
           {
             "ApiKeyAuth": []
