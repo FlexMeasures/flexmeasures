@@ -25,6 +25,11 @@ Bugfixes
 * Fix asset context page for asset names containing apostrophes [see `PR #2117 <https://www.github.com/FlexMeasures/flexmeasures/pull/2117>`_]
 
 
+v0.32.1 | May XX, 2026
+============================
+* Fix a bug where toast messages in flex-config modal are broken due to unexpected JSON structure  [see `PR #2124 <https://www.github.com/FlexMeasures/flexmeasures/pull/2124>`_]
+
+
 v0.32.0 | April 15, 2026
 ============================
 
