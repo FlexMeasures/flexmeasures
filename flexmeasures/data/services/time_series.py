@@ -165,12 +165,10 @@ def _drop_unchanged_beliefs_compared_to_db(
     previous_most_recent_beliefs = bdf_db_from_source[
         bdf_db_from_source.belief_times == most_recent_bt
     ]
-    # Use source_id (integer) instead of source (object) for cross-session comparison.
-    # When the candidate bdf was deserialized from an RQ job queue, its DataSource
-    # objects are detached instances from a different Python process. pandas index
-    # comparison falls back to identity, so deserialized and freshly-loaded objects
-    # that represent the same DB row are never considered equal. Comparing by .id
-    # avoids this.
+    # Use source_id (integer) instead of source (object) for robust cross-session
+    # comparison. Detached ORM instances (for example after serialization boundaries
+    # or different session lifecycles) may represent the same DB row but still fail
+    # object-identity based comparison in pandas indices.
     a_df = bdf.reset_index()
     a_df["source_id"] = a_df["source"].map(lambda s: s.id)
     b_df = previous_most_recent_beliefs.reset_index()
