@@ -61,8 +61,8 @@ class EfficiencyField(VariableQuantityField):
         super().__init__(
             "%",
             value_validator=validate.Range(
-                min=0,
-                max=100,
+                min=ur.Quantity("0%"),
+                max=ur.Quantity("100%"),
                 min_inclusive=False,
                 max_inclusive=True,
             ),
