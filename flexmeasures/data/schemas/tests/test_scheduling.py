@@ -803,6 +803,12 @@ def test_get_variable_quantity_unit(
 def test_db_flex_model_schema(
     db, app, setup_dummy_sensors, setup_efficiency_sensors, flex_model, fails
 ):
+    """Validate DB storage flex-model field parsing for fixed values and sensor refs.
+
+    This test parameterizes valid and invalid payloads for ``DBStorageFlexModelSchema``.
+    Human-readable sensor labels in the test cases are replaced with fixture IDs before loading so schema validation
+    runs against realistic API input.
+    """
     schema = DBStorageFlexModelSchema()
 
     sensors = {
