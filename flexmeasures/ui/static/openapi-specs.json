@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.32.0"
+    "version": "0.31.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -4183,7 +4183,6 @@
     },
     "/api/v3_0": {},
     "/api/v3_0/sensors/data": {},
-    "/api/v3_0/docs/dist/{filename}": {},
     "/api/v3_0/docs/{path}": {},
     "/api/dev/sensor/{id}": {},
     "/api/dev/sensor/{id}/chart": {},
@@ -5857,11 +5856,9 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "roundtrip-efficiency": {
-            "type": "string",
-            "x-minimum": "0 %",
-            "x-maximum": "100 %",
             "description": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries.\nCan be a percentage or a ratio in the range [0,1].\nDefaults to 100% (no roundtrip loss).\n",
-            "example": "90%"
+            "example": "90%",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "storage-efficiency": {
             "description": "The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time.\nAs a result, each time step the energy is held longer leads to higher losses.\nThis setting is crucial to some sorts of energy storage, e.g. thermal buffers.\nTo give an example, when this setting is at 95% (or 0.95), this means a loss of 5% per time step. Defaults to 100% (no storage loss over time).\nNote that the storage efficiency used by the scheduler is applied over each time step equal to the sensor resolution.\nFor example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865.\n",

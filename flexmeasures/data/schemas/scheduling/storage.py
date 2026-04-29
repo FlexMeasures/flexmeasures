@@ -39,8 +39,9 @@ SoCTarget = TypedDict(
 )
 
 
-class EfficiencyField(QuantityField):
-    """Field that deserializes to a Quantity with % units. Must be greater than 0% and less than or equal to 100%.
+class EfficiencyField(VariableQuantityField):
+    """Field that deserializes to a Quantity with % units or a Sensor reference.
+    Fixed values must be greater than 0% and less than or equal to 100%.
 
     Examples:
 
@@ -53,14 +54,15 @@ class EfficiencyField(QuantityField):
         Traceback (most recent call last):
         ...
         marshmallow.exceptions.ValidationError: ['Must be greater than 0 % and less than or equal to 100 %.']
+        >>> ef.deserialize({"sensor_id": 123})  # Also supports sensor references
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(
             "%",
-            validate=validate.Range(
-                min=ur.Quantity("0%"),
-                max=ur.Quantity("100%"),
+            value_validator=validate.Range(
+                min=0,
+                max=100,
                 min_inclusive=False,
                 max_inclusive=True,
             ),
