@@ -54,7 +54,8 @@ class EfficiencyField(VariableQuantityField):
         Traceback (most recent call last):
         ...
         marshmallow.exceptions.ValidationError: ['Must be greater than 0 % and less than or equal to 100 %.']
-        >>> ef.deserialize({"sensor_id": 123})  # Also supports sensor references
+
+    Sensor references are also supported, for example: {"sensor": 123}
     """
 
     def __init__(self, *args, **kwargs):
