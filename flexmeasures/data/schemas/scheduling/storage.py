@@ -39,8 +39,8 @@ SoCTarget = TypedDict(
 )
 
 
-class EfficiencyField(VariableQuantityField):
-    """Field that deserializes to a Quantity with % units or a Sensor reference.
+class EfficiencyField(QuantityField):
+    """Field that deserializes to a Quantity with % units.
     Fixed values must be greater than 0% and less than or equal to 100%.
 
     Examples:
@@ -54,14 +54,12 @@ class EfficiencyField(VariableQuantityField):
         Traceback (most recent call last):
         ...
         marshmallow.exceptions.ValidationError: ['Must be greater than 0 % and less than or equal to 100 %.']
-
-    Sensor references are also supported, for example: {"sensor": 123}
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(
             "%",
-            value_validator=validate.Range(
+            validate=validate.Range(
                 min=ur.Quantity("0%"),
                 max=ur.Quantity("100%"),
                 min_inclusive=False,
@@ -438,7 +436,8 @@ class DBStorageFlexModelSchema(Schema):
         metadata={"deprecated field": "soc-usage"},
     )
 
-    roundtrip_efficiency = EfficiencyField(
+    roundtrip_efficiency = VariableQuantityField(
+        "%",
         data_key="roundtrip-efficiency",
         required=False,
         metadata={"deprecated field": "roundtrip_efficiency"},
@@ -458,7 +457,8 @@ class DBStorageFlexModelSchema(Schema):
         metadata={"deprecated field": "discharging-efficiency"},
     )
 
-    storage_efficiency = EfficiencyField(
+    storage_efficiency = VariableQuantityField(
+        "%",
         data_key="storage-efficiency",
         required=False,
         metadata={"deprecated field": "storage_efficiency"},
