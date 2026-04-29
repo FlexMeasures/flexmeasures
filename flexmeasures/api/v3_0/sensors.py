@@ -40,6 +40,9 @@ from flexmeasures.api.common.utils.api_utils import (
     job_status_description,
     save_and_enqueue,
 )
+from flexmeasures.api.common.utils.deprecation_utils import (
+    _add_headers as add_deprecation_header,
+)
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
@@ -704,12 +707,14 @@ class SensorAPI(FlaskView):
         **kwargs,
     ):
         """
-        .. :quickref: Schedules; Trigger scheduling job for one device
+        .. :quickref: Schedules; Trigger scheduling job for one device (deprecated)
         ---
         post:
-          summary: Trigger scheduling job for one device
+          summary: Trigger scheduling job for one device. Deprecated.
+
           description: |
-            Trigger FlexMeasures to create a schedule for this sensor.
+            Trigger FlexMeasures to create a schedule for this sensor. Deprecated - please use the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger) instead.
+
             The assumption is that this sensor is the power sensor on a flexible asset.
 
             In this request, you can describe:
@@ -913,6 +918,9 @@ class SensorAPI(FlaskView):
         response = dict(schedule=job.id)
         d, s = request_processed()
         return dict(**response, **d), s
+
+    # mark endoint as deprecated
+    trigger_schedule.after_request = lambda response: add_deprecation_header(response)
 
     @route("/<id>/schedules/<uuid>", methods=["GET"])
     @use_kwargs(GetScheduleSchema(), location="args_and_json")
