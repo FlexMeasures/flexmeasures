@@ -174,6 +174,19 @@ class GetSensorDataFilterSchemaMixin:
             example=3,
         ),
     )
+    source_type = fields.Str(
+        required=False,
+        metadata=dict(
+            description="Filter by a specific data source type.",
+            example="forecaster",
+        ),
+    )
+
+    @validates_schema
+    def check_source_type_not_blank(self, data, **kwargs):
+        source_type = data.get("source_type")
+        if source_type is not None and not source_type.strip():
+            raise ValidationError({"source_type": ["Source type must not be blank."]})
 
 
 class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionSchema):
@@ -228,6 +241,7 @@ class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionS
         resolution = sensor_data_description.get("resolution")
         source = sensor_data_description.get("source")
         account = sensor_data_description.get("account")
+        source_type = sensor_data_description.get("source_type")
 
         # Post-load configuration of event frequency
         if resolution is None:
@@ -258,6 +272,7 @@ class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionS
                 horizons_at_most=horizons_at_most,
                 source=source,
                 source_account_ids=account.id if account else None,
+                source_types=[source_type] if source_type else None,
                 beliefs_before=sensor_data_description.get("prior", None),
                 one_deterministic_belief_per_event=True,
                 resolution=resolution,
