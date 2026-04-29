@@ -782,15 +782,34 @@ def test_get_variable_quantity_unit(
             {"soc-usage": ["3500 kW", {"sensor": "power-sensor"}]},
             False,
         ),
+        (
+            {"roundtrip-efficiency": {"sensor": "efficiency-sensor"}},
+            False,
+        ),
+        (
+            {"roundtrip-efficiency": {"sensor": "power-sensor"}},
+            {"roundtrip-efficiency": "Cannot convert MW to %"},
+        ),
+        (
+            {"storage-efficiency": {"sensor": "efficiency-sensor"}},
+            False,
+        ),
+        (
+            {"storage-efficiency": {"sensor": "power-sensor"}},
+            {"storage-efficiency": "Cannot convert MW to %"},
+        ),
     ],
 )
-def test_db_flex_model_schema(db, app, setup_dummy_sensors, flex_model, fails):
+def test_db_flex_model_schema(
+    db, app, setup_dummy_sensors, setup_efficiency_sensors, flex_model, fails
+):
     schema = DBStorageFlexModelSchema()
 
     sensors = {
         "energy-sensor": setup_dummy_sensors[0],
         "price-sensor": setup_dummy_sensors[1],
         "power-sensor": setup_dummy_sensors[3],
+        "efficiency-sensor": setup_efficiency_sensors,
     }
 
     for field_name, field_value in flex_model.items():
