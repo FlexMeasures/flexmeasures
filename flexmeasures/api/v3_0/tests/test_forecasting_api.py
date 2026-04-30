@@ -28,7 +28,9 @@ def test_trigger_forecast_with_unreadable_regressor_returns_403(
     supplier_account = setup_accounts["Supplier"]
     prosumer_account = setup_accounts["Prosumer"]
 
-    asset_type = GenericAssetType(name="test-asset-type-regressor-perm")
+    asset_type = GenericAssetType(
+        name=f"test-asset-type-regressor-perm-{regressor_field}"
+    )
     db.session.add(asset_type)
 
     # Target sensor: owned by Supplier account – requesting user has create-children here
