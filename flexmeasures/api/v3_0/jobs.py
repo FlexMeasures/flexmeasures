@@ -18,6 +18,18 @@ def _isoformat_or_none(dt: datetime | None) -> str | None:
     return dt.isoformat() if dt is not None else None
 
 
+def _failed_job_exc_info(job: Job) -> str | None:
+    """Return traceback text for failed jobs when RQ stored it."""
+    if not job.is_failed:
+        return None
+
+    latest_result = job.latest_result()
+    if latest_result is None:
+        return None
+
+    return latest_result.exc_string
+
+
 class JobAPI(FlaskView):
     """
     Endpoint for querying the status of background jobs by UUID.
@@ -44,6 +56,9 @@ class JobAPI(FlaskView):
             The response includes a status message plus job metadata such
             as the queue name, function name, timestamps, and the job
             result when available.
+
+            Failed jobs also include traceback information when the worker
+            stored it with the job result.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -101,6 +116,10 @@ class JobAPI(FlaskView):
                         format: date-time
                         nullable: true
                         description: ISO-8601 timestamp of when the job finished executing.
+                      exc_info:
+                        type: string
+                        nullable: true
+                        description: Traceback information for failed jobs, or null otherwise.
                   examples:
                     queued:
                       summary: Queued job
@@ -113,6 +132,7 @@ class JobAPI(FlaskView):
                         enqueued_at: "2026-04-28T10:00:00+00:00"
                         started_at: null
                         ended_at: null
+                        exc_info: null
                     finished:
                       summary: Finished job
                       value:
@@ -124,6 +144,7 @@ class JobAPI(FlaskView):
                         enqueued_at: "2026-04-28T10:00:00+00:00"
                         started_at: "2026-04-28T10:00:01+00:00"
                         ended_at: "2026-04-28T10:00:05+00:00"
+                        exc_info: null
                     failed:
                       summary: Failed job
                       value:
@@ -135,6 +156,7 @@ class JobAPI(FlaskView):
                         enqueued_at: "2026-04-28T10:00:00+00:00"
                         started_at: "2026-04-28T10:00:01+00:00"
                         ended_at: "2026-04-28T10:00:02+00:00"
+                        exc_info: "Traceback (most recent call last): ..."
             400:
               description: UNRECOGNIZED_JOB
             401:
@@ -178,6 +200,7 @@ class JobAPI(FlaskView):
                 enqueued_at=_isoformat_or_none(job.enqueued_at),
                 started_at=_isoformat_or_none(job.started_at),
                 ended_at=_isoformat_or_none(job.ended_at),
+                exc_info=_failed_job_exc_info(job),
             ),
             200,
         )
