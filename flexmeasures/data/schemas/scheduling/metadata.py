@@ -52,6 +52,11 @@ PRODUCTION_PRICE = MetaData(
     description="The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. [#old_production_price_field]_",
     example="0.12 EUR/kWh",
 )
+GAS_PRICE = MetaData(
+    description="The gas price applied to the site's aggregate gas consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem",
+    example={"sensor": 6},
+    # example="0.09 EUR/kWh",
+)
 SITE_POWER_CAPACITY = MetaData(
     description="""Maximum achievable power at the site's grid connection point, in either direction.
 Becomes a hard constraint in the optimization problem, which is especially suitable for physical limitations. [#asymmetric]_ [#minimum_capacity_overlap]_
@@ -184,7 +189,13 @@ The field may define (a sensor recording) contractual penalties, or a theoretica
 
 # FLEX-MODEL
 
-
+COMMODITY = MetaData(
+    description="""Commodity type for this storage flex-model.
+Allowed values are ``electricity`` and ``gas``.
+Defaults to ``electricity``.
+""",
+    example="electricity",
+)
 STATE_OF_CHARGE = MetaData(
     description="Sensor used to record the scheduled state of charge. If ``soc-at-start`` is omitted, FlexMeasures will also use this field to infer the starting state of charge. For this use case, the field may also contain a time series specification instead. When a sensor is used, its unit may be an energy unit (e.g. MWh or kWh) or a percentage (%). For sensors with a % unit, the ``soc-max`` flex-model field must be set to a non-zero value to allow converting between the energy-based schedule and a percentage.",
     example={"sensor": 12},

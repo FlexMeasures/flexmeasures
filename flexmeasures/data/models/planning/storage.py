@@ -160,12 +160,15 @@ class MetaStorageScheduler(Scheduler):
         # Get info from flex-context
         consumption_price_sensor = self.flex_context.get("consumption_price_sensor")
         production_price_sensor = self.flex_context.get("production_price_sensor")
+        gas_price_sensor = self.flex_context.get("gas_price_sensor")
+
         consumption_price = self.flex_context.get(
             "consumption_price", consumption_price_sensor
         )
         production_price = self.flex_context.get(
             "production_price", production_price_sensor
         )
+        gas_price = self.flex_context.get("gas_price", gas_price_sensor)
         # fallback to using the consumption price, for backwards compatibility
         if production_price is None:
             production_price = consumption_price
@@ -175,6 +178,23 @@ class MetaStorageScheduler(Scheduler):
 
         # Fetch the device's power capacity (required Sensor attribute)
         power_capacity_in_mw = self._get_device_power_capacity(flex_model, assets)
+
+        gas_deviation_prices = None
+        if gas_price is not None:
+            gas_deviation_prices = get_continuous_series_sensor_or_quantity(
+                variable_quantity=gas_price,
+                unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fill_sides=True,
+            ).to_frame(name="event_value")
+            ensure_prices_are_not_empty(gas_deviation_prices, gas_price)
+            gas_deviation_prices = (
+                gas_deviation_prices.loc[start : end - resolution]["event_value"]
+                * resolution
+                / pd.Timedelta("1h")
+            )
 
         # Check for known prices or price forecasts
         up_deviation_prices = get_continuous_series_sensor_or_quantity(
@@ -229,7 +249,10 @@ class MetaStorageScheduler(Scheduler):
 
         # Set up commitments to optimise for
         commitments = self.convert_to_commitments(
-            query_window=(start, end), resolution=resolution, beliefs_before=belief_time
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            flex_model=flex_model,
         )
 
         index = initialize_index(start, end, resolution)
@@ -247,189 +270,252 @@ class MetaStorageScheduler(Scheduler):
             / pd.Timedelta("1h")
         )
 
+        def _device_list_series(
+            devices: list[int], index: pd.DatetimeIndex
+        ) -> pd.Series:
+            return pd.Series([tuple(devices)] * len(index), index=index, name="device")
+
+        commodity_to_devices = {}
+
         # Set up commitments DataFrame
-        commitment = FlowCommitment(
-            name="energy",
-            quantity=commitment_quantities,
-            upwards_deviation_price=commitment_upwards_deviation_price,
-            downwards_deviation_price=commitment_downwards_deviation_price,
-            index=index,
-        )
-        commitments.append(commitment)
+        for d, flex_model_d in enumerate(flex_model):
+            commodity = flex_model_d.get("commodity", "electricity")
+            commodity_to_devices.setdefault(commodity, []).append(d)
 
-        # Set up peak commitments
-        if self.flex_context.get("ems_peak_consumption_price") is not None:
-            ems_peak_consumption = get_continuous_series_sensor_or_quantity(
-                variable_quantity=self.flex_context.get("ems_peak_consumption_in_mw"),
-                unit="MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
-                fill_sides=True,
-            )
-            ems_peak_consumption_price = self.flex_context.get(
-                "ems_peak_consumption_price"
-            )
-            ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_peak_consumption_price,
-                unit=self.flex_context["shared_currency_unit"] + "/MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
+        for commodity, devices in commodity_to_devices.items():
+            commodity_devices = _device_list_series(devices, index)
+            if commodity == "electricity":
+                up_price = commitment_upwards_deviation_price
+                down_price = commitment_downwards_deviation_price
+            elif commodity == "gas":
+                if gas_deviation_prices is None:
+                    raise ValueError(
+                        "Gas prices are required in the flex-context to set up gas flow commitments."
+                    )
+                up_price = gas_deviation_prices
+                down_price = gas_deviation_prices
+            else:
+                raise ValueError(
+                    f"Unsupported commodity {commodity} in flex-model. Only 'electricity' and 'gas' are supported."
+                )
 
-            # Set up commitments DataFrame
-            commitment = FlowCommitment(
-                name="consumption peak",
-                quantity=ems_peak_consumption,
-                # positive price because breaching in the upwards (consumption) direction is penalized
-                upwards_deviation_price=ems_peak_consumption_price,
-                _type="any",
-                index=index,
-            )
-            commitments.append(commitment)
-        if self.flex_context.get("ems_peak_production_price") is not None:
-            ems_peak_production = get_continuous_series_sensor_or_quantity(
-                variable_quantity=self.flex_context.get("ems_peak_production_in_mw"),
-                unit="MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
-                fill_sides=True,
-            )
-            ems_peak_production_price = self.flex_context.get(
-                "ems_peak_production_price"
-            )
-            ems_peak_production_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_peak_production_price,
-                unit=self.flex_context["shared_currency_unit"] + "/MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
+            commitments.append(
+                FlowCommitment(
+                    name=f"{commodity} net energy",
+                    quantity=commitment_quantities,
+                    upwards_deviation_price=up_price,
+                    downwards_deviation_price=down_price,
+                    commodity=commodity,
+                    index=index,
+                    device=commodity_devices,
+                    device_group=commodity,
+                )
             )
 
-            # Set up commitments DataFrame
-            commitment = FlowCommitment(
-                name="production peak",
-                quantity=-ems_peak_production,  # production is negative quantity
-                # negative price because peaking in the downwards (production) direction is penalized
-                downwards_deviation_price=-ems_peak_production_price,
-                _type="any",
-                index=index,
-            )
-            commitments.append(commitment)
+            # Set up peak commitments
+            if self.flex_context.get("ems_peak_consumption_price") is not None:
+                ems_peak_consumption = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=self.flex_context.get(
+                        "ems_peak_consumption_in_mw"
+                    ),
+                    unit="MW",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
+                    fill_sides=True,
+                )
+                ems_peak_consumption_price = self.flex_context.get(
+                    "ems_peak_consumption_price"
+                )
+                ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=ems_peak_consumption_price,
+                    unit=self.flex_context["shared_currency_unit"] + "/MW",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                )
 
-        # Set up capacity breach commitments and EMS capacity constraints
-        ems_consumption_breach_price = self.flex_context.get(
-            "ems_consumption_breach_price"
-        )
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} consumption peak",
+                        quantity=ems_peak_consumption,
+                        upwards_deviation_price=ems_peak_consumption_price,
+                        _type="any",
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
+                )
+            if self.flex_context.get("ems_peak_production_price") is not None:
+                ems_peak_production = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=self.flex_context.get(
+                        "ems_peak_production_in_mw"
+                    ),
+                    unit="MW",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
+                    fill_sides=True,
+                )
+                ems_peak_production_price = self.flex_context.get(
+                    "ems_peak_production_price"
+                )
+                ems_peak_production_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=ems_peak_production_price,
+                    unit=self.flex_context["shared_currency_unit"] + "/MW",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                )
 
-        ems_production_breach_price = self.flex_context.get(
-            "ems_production_breach_price"
-        )
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} production peak",
+                        quantity=-ems_peak_production,  # production is negative quantity
+                        # negative price because peaking in the downwards (production) direction is penalized
+                        downwards_deviation_price=-ems_peak_production_price,
+                        _type="any",
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
+                )
 
-        ems_constraints = initialize_df(
-            StorageScheduler.COLUMNS, start, end, resolution
-        )
-        if ems_consumption_breach_price is not None:
-
-            # Convert to Series
-            any_ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_consumption_breach_price,
-                unit=self.flex_context["shared_currency_unit"] + "/MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
-            all_ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_consumption_breach_price,
-                unit=self.flex_context["shared_currency_unit"]
-                + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
-
-            # Set up commitments DataFrame to penalize any breach
-            commitment = FlowCommitment(
-                name="any consumption breach",
-                quantity=ems_consumption_capacity,
-                # positive price because breaching in the upwards (consumption) direction is penalized
-                upwards_deviation_price=any_ems_consumption_breach_price,
-                _type="any",
-                index=index,
-            )
-            commitments.append(commitment)
-
-            # Set up commitments DataFrame to penalize each breach
-            commitment = FlowCommitment(
-                name="all consumption breaches",
-                quantity=ems_consumption_capacity,
-                # positive price because breaching in the upwards (consumption) direction is penalized
-                upwards_deviation_price=all_ems_consumption_breach_price,
-                index=index,
-            )
-            commitments.append(commitment)
-
-            # Take the physical capacity as a hard constraint
-            ems_constraints["derivative max"] = ems_power_capacity_in_mw
-        else:
-            # Take the contracted capacity as a hard constraint
-            ems_constraints["derivative max"] = ems_consumption_capacity
-
-        if ems_production_breach_price is not None:
-
-            # Convert to Series
-            any_ems_production_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_production_breach_price,
-                unit=self.flex_context["shared_currency_unit"] + "/MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
-            all_ems_production_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_production_breach_price,
-                unit=self.flex_context["shared_currency_unit"]
-                + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
+            # Set up capacity breach commitments and EMS capacity constraints
+            ems_consumption_breach_price = self.flex_context.get(
+                "ems_consumption_breach_price"
             )
 
-            # Set up commitments DataFrame to penalize any breach
-            commitment = FlowCommitment(
-                name="any production breach",
-                quantity=ems_production_capacity,
-                # negative price because breaching in the downwards (production) direction is penalized
-                downwards_deviation_price=-any_ems_production_breach_price,
-                _type="any",
-                index=index,
+            ems_production_breach_price = self.flex_context.get(
+                "ems_production_breach_price"
             )
-            commitments.append(commitment)
 
-            # Set up commitments DataFrame to penalize each breach
-            commitment = FlowCommitment(
-                name="all production breaches",
-                quantity=ems_production_capacity,
-                # negative price because breaching in the downwards (production) direction is penalized
-                downwards_deviation_price=-all_ems_production_breach_price,
-                index=index,
+            ems_constraints = initialize_df(
+                StorageScheduler.COLUMNS, start, end, resolution
             )
-            commitments.append(commitment)
+            if ems_consumption_breach_price is not None:
 
-            # Take the physical capacity as a hard constraint
-            ems_constraints["derivative min"] = -ems_power_capacity_in_mw
-        else:
-            # Take the contracted capacity as a hard constraint
-            ems_constraints["derivative min"] = ems_production_capacity
+                # Convert to Series
+                any_ems_consumption_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=ems_consumption_breach_price,
+                        unit=self.flex_context["shared_currency_unit"] + "/MW",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                all_ems_consumption_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=ems_consumption_breach_price,
+                        unit=self.flex_context["shared_currency_unit"]
+                        + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+
+                # Set up commitments DataFrame to penalize any breach
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} any consumption breach",
+                        quantity=ems_consumption_capacity,
+                        # positive price because breaching in the upwards (consumption) direction is penalized
+                        upwards_deviation_price=any_ems_consumption_breach_price,
+                        _type="any",
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
+                )
+
+                # Set up commitments DataFrame to penalize each breach
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} all consumption breaches",
+                        quantity=ems_consumption_capacity,
+                        # positive price because breaching in the upwards (consumption) direction is penalized
+                        upwards_deviation_price=all_ems_consumption_breach_price,
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
+                )
+
+                # Take the physical capacity as a hard constraint
+                ems_constraints["derivative max"] = ems_power_capacity_in_mw
+            else:
+                # Take the contracted capacity as a hard constraint
+                ems_constraints["derivative max"] = ems_consumption_capacity
+
+            if ems_production_breach_price is not None:
+
+                # Convert to Series
+                any_ems_production_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=ems_production_breach_price,
+                        unit=self.flex_context["shared_currency_unit"] + "/MW",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                all_ems_production_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=ems_production_breach_price,
+                        unit=self.flex_context["shared_currency_unit"]
+                        + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+
+                # Set up commitments DataFrame to penalize any breach
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} any production breach",
+                        quantity=ems_production_capacity,
+                        # negative price because breaching in the downwards (production) direction is penalized
+                        downwards_deviation_price=-any_ems_production_breach_price,
+                        _type="any",
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
+                )
+                # Set up commitments DataFrame to penalize each breach
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} all production breaches",
+                        quantity=ems_production_capacity,
+                        # negative price because breaching in the downwards (production) direction is penalized
+                        downwards_deviation_price=-all_ems_production_breach_price,
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
+                )
+                # Take the physical capacity as a hard constraint
+                ems_constraints["derivative min"] = -ems_power_capacity_in_mw
+            else:
+                # Take the contracted capacity as a hard constraint
+                ems_constraints["derivative min"] = ems_production_capacity
 
         # Commitments per device
 
@@ -944,6 +1030,7 @@ class MetaStorageScheduler(Scheduler):
 
     def convert_to_commitments(
         self,
+        flex_model,
         **timing_kwargs,
     ) -> list[FlowCommitment | StockCommitment]:
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
@@ -981,7 +1068,13 @@ class MetaStorageScheduler(Scheduler):
             commitment_spec["index"] = initialize_index(
                 start, end, timing_kwargs["resolution"]
             )
-            commitments.append(FlowCommitment(**commitment_spec))
+            for d, flex_model_d in enumerate(flex_model):
+                commitment = FlowCommitment(
+                    device=d,
+                    device_group=flex_model_d["commodity"],
+                    **commitment_spec,
+                )
+                commitments.append(commitment)
 
         return commitments
 

@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.32.0"
+    "version": "0.31.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -4183,7 +4183,6 @@
     },
     "/api/v3_0": {},
     "/api/v3_0/sensors/data": {},
-    "/api/v3_0/docs/dist/{filename}": {},
     "/api/v3_0/docs/{path}": {},
     "/api/dev/sensor/{id}": {},
     "/api/dev/sensor/{id}/chart": {},
@@ -4410,6 +4409,13 @@
               "sensor": 9
             },
             "$ref": "#/components/schemas/SensorReference"
+          },
+          "gas-price": {
+            "description": "The gas price applied to the site's aggregate gas consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem",
+            "example": {
+              "sensor": 6
+            },
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           }
         },
         "additionalProperties": false
@@ -5891,6 +5897,15 @@
               }
             ],
             "items": {}
+          },
+          "commodity": {
+            "type": "string",
+            "default": "electricity",
+            "enum": [
+              "electricity",
+              "gas"
+            ],
+            "description": "Commodity label for this device/asset."
           }
         },
         "additionalProperties": false
