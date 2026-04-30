@@ -155,7 +155,7 @@ def test_trigger_schedule_with_unreadable_flex_config_sensor(
     )
     assert (
         setup_capacity_sensor_on_asset_in_supplier_account.name
-        in trigger_schedule_response.json["message"]
+        not in trigger_schedule_response.json["message"]
     )
 
 
