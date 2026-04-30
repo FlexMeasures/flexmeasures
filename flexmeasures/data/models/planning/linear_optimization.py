@@ -224,16 +224,27 @@ def device_scheduler(  # noqa C901
     device_group_lookup = {}
 
     for c, df in enumerate(commitments):
-        if "device_group" not in df.columns or "device" not in df.columns:
+        if "device" not in df.columns:
+            # EMS-level commitment: no device grouping needed here;
+            # handled by ems_flow_commitment_equalities.
             continue
 
-        rows = df[["device", "device_group"]].dropna()
+        has_device_group = "device_group" in df.columns
+        if has_device_group:
+            rows = df[["device", "device_group"]].dropna()
+        else:
+            # Backwards-compatible default: each device is its own group.
+            # This preserves the behaviour of old-style DataFrame commitments that
+            # pre-date the device_group feature (e.g. from initialize_device_commitment).
+            rows = df[["device"]].dropna()
 
         device_group_lookup[c] = {}
 
         for _, row in rows.iterrows():
-            g = row["device_group"]
             d = row["device"]
+            # When no device_group column is present, use the device id itself as
+            # the group label so that each device forms an independent group.
+            g = row["device_group"] if has_device_group else d
 
             if isinstance(d, (list, tuple, set, np.ndarray)):
                 devices = set(d)
@@ -278,16 +289,19 @@ def device_scheduler(  # noqa C901
     )
     model.c = RangeSet(0, len(commitments) - 1, doc="Set of commitments")
 
+    # Add 2D indices for commitment device groups (cg)
     def commitment_device_groups_init(m):
         return ((c, g) for c, groups in device_group_lookup.items() for g in groups)
 
     model.cg = Set(dimen=2, initialize=commitment_device_groups_init)
 
+    # Add 2D indices for commitment datetimes (cj)
     def commitments_init(m):
         return ((c, j) for c in m.c for j in commitments[c]["j"])
 
     model.cj = Set(dimen=2, initialize=commitments_init)
 
+    # Add 3D indices for commitment datetime device groups (cjg)
     def commitment_time_device_groups_init(m):
         return ((c, j, g) for (c, j) in m.cj for (_, g) in m.cg if _ == c)
 
