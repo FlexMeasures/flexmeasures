@@ -443,27 +443,14 @@ def test_two_flexible_assets_with_commodity(app, db):
 
     costs_data = commitment_costs[0]["data"]
 
-    # Battery: 60kWh Δ (20→80) / 0.95 eff × 100 EUR/MWh = 6.32 EUR (charge) + discharge loss ≈ 4.32 EUR
-    assert costs_data["electricity energy 0"] == pytest.approx(4.32, rel=1e-2), (
-        f"Battery electricity cost (charges 60kWh with 95% efficiency + discharge): "
-        f"60kWh/0.95 × (100 EUR/MWh) = 4.32 EUR, "
-        f"got {costs_data['electricity energy 0']}"
-    )
-
+    # With net commodity-level results, energy costs are aggregated per commodity
+    # Battery: 60kWh Δ (20→80) / 0.95 eff × 100 EUR/MWh ≈ 6.32 EUR (charge) + discharge loss ≈ 4.32 EUR
     # Heat pump: 30kWh Δ (10→40) / 0.95 eff × 100 EUR/MWh ≈ 3.16 EUR (no discharge, prod-cap=0)
-    assert costs_data["electricity energy 1"] == pytest.approx(3.16, rel=1e-2), (
-        f"Heat pump electricity cost (charges 30kWh with 95% efficiency): "
-        f"30kWh/0.95 × (100 EUR/MWh) = 3.16 EUR, "
-        f"got {costs_data['electricity energy 1']}"
-    )
-
-    # Total electricity: battery (4.32) + heat pump (3.16) = 7.48 EUR
-    total_electricity_cost = sum(
-        v for k, v in costs_data.items() if k.startswith("electricity energy")
-    )
-    assert total_electricity_cost == pytest.approx(7.47, rel=1e-2), (
-        f"Total electricity cost (battery 4.32 + heat pump 3.16): "
-        f"= 7.48 EUR, got {total_electricity_cost}"
+    # Total: 4.32 + 3.16 = 7.47 EUR
+    electricity_net_energy_cost = costs_data.get("electricity net energy", 0)
+    assert electricity_net_energy_cost == pytest.approx(7.47, rel=1e-2), (
+        f"Total electricity net energy cost (battery 4.32 + heat pump 3.16): "
+        f"= 7.47 EUR, got {electricity_net_energy_cost}"
     )
 
     # Battery prefers to charge as early as possible (3h @20kW, 1h@>0kW, then 0kW until the last slot with full discharge)
@@ -480,8 +467,8 @@ def test_two_flexible_assets_with_commodity(app, db):
     # ---- RELATIVE COSTS: Battery vs Heat Pump
     # Battery moves 60 kWh, Heat Pump moves 30 kWh (2:1 ratio)
     # Preference costs should reflect this energy ratio
-    battery_total_pref = costs_data["prefer a full storage 0 sooner"]
-    hp_total_pref = costs_data["prefer a full storage 1 sooner"]
+    battery_total_pref = costs_data.get("prefer a full storage 0 sooner", 0)
+    hp_total_pref = costs_data.get("prefer a full storage 1 sooner", 0)
     assert battery_total_pref == pytest.approx(2 * hp_total_pref, rel=1e-2), (
         f"Battery preference costs ({battery_total_pref:.2e}) should be twice the "
         f"heat pump ({hp_total_pref:.2e}) preference costs, since battery moves more energy (60 kWh vs 30 kWh)"
@@ -618,25 +605,26 @@ def test_mixed_gas_and_electricity_assets(app, db):
     costs_data = commitment_costs[0]["data"]
 
     # Battery: 60kWh Δ (20→80) / 0.95 eff × 100 EUR/MWh + discharge loss ≈ 4.32 EUR
-    assert costs_data["electricity energy 0"] == pytest.approx(4.32, rel=1e-2), (
-        f"Electricity energy cost (battery charging phase ~3h at 20kW with 95% efficiency "
+    # Boiler: constant 1kW × 24h = 24 kWh = 0.024 MWh × 50 EUR/MWh = 1.20 EUR (no efficiency loss)
+    # Total: 4.32 + 1.20 = 5.52 EUR
+    # With net commodity aggregation, we have separate "electricity net energy" and "gas net energy"
+    electricity_net_energy = costs_data.get("electricity net energy", 0)
+    gas_net_energy = costs_data.get("gas net energy", 0)
+
+    assert electricity_net_energy == pytest.approx(4.32, rel=1e-2), (
+        f"Electricity net energy cost (battery charging phase ~3h at 20kW with 95% efficiency "
         f"+ discharge at end): 60kWh/0.95 × (100 EUR/MWh) = 4.32 EUR, "
-        f"got {costs_data['electricity energy 0']}"
+        f"got {electricity_net_energy}"
     )
 
-    # Boiler: constant 1kW × 24h = 24 kWh = 0.024 MWh × 50 EUR/MWh = 1.20 EUR (no efficiency loss)
-    assert costs_data["gas energy 1"] == pytest.approx(1.20, rel=1e-2), (
-        f"Gas energy cost (boiler constant 1kW for 24h): "
+    assert gas_net_energy == pytest.approx(1.20, rel=1e-2), (
+        f"Gas net energy cost (boiler constant 1kW for 24h): "
         f"1 kW × 24h = 24 kWh = 0.024 MWh × 50 EUR/MWh = 1.20 EUR, "
-        f"got {costs_data['gas energy 1']}"
+        f"got {gas_net_energy}"
     )
 
     # Total electricity + gas energy costs: battery (4.32) + boiler (1.20) = 5.52 EUR
-    total_energy_cost = sum(
-        v
-        for k, v in costs_data.items()
-        if k.endswith(" energy 0") or k.endswith(" energy 1")
-    )
+    total_energy_cost = electricity_net_energy + gas_net_energy
     assert total_energy_cost == pytest.approx(5.52, rel=1e-2), (
         f"Total energy cost (electricity 4.32 + gas 1.20): "
         f"= 5.52 EUR, got {total_energy_cost}"
@@ -651,8 +639,8 @@ def test_mixed_gas_and_electricity_assets(app, db):
     # ---- RELATIVE COSTS: Battery vs Boiler (different commodities)
     # Battery has storage flexibility; Boiler is pass-through with constant load
     # Battery preference costs should be higher than boiler's due to flexibility
-    battery_total_pref = costs_data["prefer a full storage 0 sooner"]
-    boiler_total_pref = costs_data["prefer a full storage 1 sooner"]
+    battery_total_pref = costs_data.get("prefer a full storage 0 sooner", 0)
+    boiler_total_pref = costs_data.get("prefer a full storage 1 sooner", 0)
 
     assert battery_total_pref > boiler_total_pref, (
         f"Battery preference costs ({battery_total_pref:.2e}) should be greater than "
