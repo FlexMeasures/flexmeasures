@@ -201,7 +201,6 @@ class AccountAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           responses:
             200:
               description: PROCESSED
@@ -255,7 +254,6 @@ class AccountAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           requestBody:
             description: Account data to be updated.
             required: true
@@ -305,17 +303,20 @@ class AccountAPI(FlaskView):
                 }, 401
         else:
             # Check if consultancy_account_id has changed
-            new_consultancy_account_id = account_data.get("consultancy_account_id")
-            if existing_consultancy_account_id != new_consultancy_account_id:
-                new_consultant_account = db.session.query(Account).get(
-                    new_consultancy_account_id
-                )
-                # Validate new consultant account
-                if (
-                    not new_consultant_account
-                    or new_consultant_account.id == account.id
-                ):
-                    return {"errors": ["Invalid consultancy_account_id"]}, 422
+            if "consultancy_account_id" in account_data:
+                new_consultancy_account_id = account_data.get("consultancy_account_id")
+                if new_consultancy_account_id is None:
+                    pass  # Allow clearing the consultancy relationship
+                elif existing_consultancy_account_id != new_consultancy_account_id:
+                    new_consultant_account = db.session.query(Account).get(
+                        new_consultancy_account_id
+                    )
+                    # Validate new consultant account
+                    if (
+                        not new_consultant_account
+                        or new_consultant_account.id == account.id
+                    ):
+                        return {"errors": ["Invalid consultancy_account_id"]}, 422
 
         # Track modified fields
         fields_to_check = [
@@ -380,7 +381,6 @@ class AccountAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           responses:
             200:
               description: PROCESSED
@@ -451,7 +451,6 @@ class AccountAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           requestBody:
             content:
               application/json:

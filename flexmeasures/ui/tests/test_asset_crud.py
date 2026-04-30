@@ -223,3 +223,185 @@ def test_delete_child_asset_redirects_to_parent(
     )
     assert response.status_code == 302
     assert url_for("AssetCrudUI:context", id=parent.id) in response.location
+
+
+# ---------------------------------------------------------------------------
+# Permission tests for the asset properties page
+#
+# ACL summary used by the tests below:
+#   - GenericAsset.update    → any member of the owning organisation (+ consultants)
+#   - GenericAsset.delete    → organisation-admin or consultant only
+#   - GenericAsset.create-children (child assets/sensors) → any organisation member
+#   - Account.create-children (top-level assets) → organisation-admin or consultant
+#
+# "user_can_create_assets" (Account.create-children) gates:
+#   • The "Create asset" child-asset button on the properties page
+#   • The "Copy this asset" / "Copy to <org>" copy buttons
+# "user_can_update_asset" (GenericAsset.update) gates the "Edit asset" sidepanel.
+# "user_can_delete_asset" (GenericAsset.delete) gates the "Delete this asset" button.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "login_fixture, expect_copy_sibling, expect_copy_to_own",
+    [
+        # Site admin can create any asset → sibling copy;
+        # asset is in their own organisation so "copy to own" is suppressed.
+        ("as_admin", True, False),
+        # Organisation-admin of same account → sibling copy; same suppression.
+        ("as_prosumer_account_admin", True, False),
+        # Plain organisation member: cannot create a top-level sibling,
+        # and asset is already in their own organisation so "copy to own" is also False.
+        ("as_prosumer_user1", False, False),
+    ],
+)
+def test_copy_button_visibility_own_account_asset(
+    db,
+    client,
+    setup_assets,
+    request,
+    login_fixture,
+    expect_copy_sibling,
+    expect_copy_to_own,
+):
+    """
+    The copy-asset buttons on the properties page respect organisation-level
+    'create-children' permissions.  The two buttons are independent:
+
+    - "Copy this asset" (sibling copy) requires create-children on the owning
+      organisation (organisation-admin or consultant).
+    - "Copy to <org name>" requires create-children on the *current user's*
+      organisation and is suppressed when the asset already belongs to it.
+
+    Both can be visible simultaneously (e.g. a site admin viewing an asset in
+    another organisation), but for these test cases the asset lives in the
+    logged-in user's own organisation so the own-org button is always suppressed.
+    """
+    from flexmeasures.data.services.users import find_user_by_email
+
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    asset_id = user.account.generic_assets[0].id
+    db.session.expunge(user)
+
+    request.getfixturevalue(login_fixture)
+
+    page = client.get(
+        url_for("AssetCrudUI:properties", id=asset_id),
+        follow_redirects=True,
+    )
+    assert page.status_code == 200
+
+    if expect_copy_sibling:
+        assert b"Copy this asset" in page.data
+    else:
+        assert b"Copy this asset" not in page.data
+
+    # The own-org button label uses the actual organisation name, not a generic phrase.
+    if expect_copy_to_own:
+        assert b"Copy to Test Prosumer Account" in page.data
+    else:
+        assert b"Copy to Test Prosumer Account" not in page.data
+
+
+def test_copy_to_own_account_button_for_cross_account_admin(
+    db, client, public_asset, as_dummy_account_admin
+):
+    """
+    An organisation-admin of a *different* organisation viewing a public asset should
+    see 'Copy to Test Dummy Account' but not 'Copy this asset' (creating a public
+    sibling requires site-admin privileges, which an organisation-admin does not have).
+    """
+    page = client.get(
+        url_for("AssetCrudUI:properties", id=public_asset.id),
+        follow_redirects=True,
+    )
+    assert page.status_code == 200
+    assert b"Copy to Test Dummy Account" in page.data
+    assert b"Copy this asset" not in page.data
+
+
+@pytest.mark.parametrize(
+    "login_fixture, expect_edit_panel",
+    [
+        # Site admin can update any asset.
+        ("as_admin", True),
+        # Account-admin of same account.
+        ("as_prosumer_account_admin", True),
+        # Plain account member: GenericAsset.update is open to all account
+        # members by design, so the edit sidepanel IS shown.
+        ("as_prosumer_user1", True),
+    ],
+)
+def test_edit_panel_visibility_on_properties_page(
+    db, client, setup_assets, request, login_fixture, expect_edit_panel
+):
+    """
+    The 'Edit asset' sidepanel is gated on GenericAsset.update, which is
+    intentionally open to every member of the owning account (not just admins).
+    """
+    from flexmeasures.data.services.users import find_user_by_email
+
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    asset_id = user.account.generic_assets[0].id
+    db.session.expunge(user)
+
+    request.getfixturevalue(login_fixture)
+
+    page = client.get(
+        url_for("AssetCrudUI:properties", id=asset_id),
+        follow_redirects=True,
+    )
+    assert page.status_code == 200
+    if expect_edit_panel:
+        assert b"Edit asset" in page.data
+    else:
+        assert b"Edit asset" not in page.data
+
+
+@pytest.mark.parametrize(
+    "login_fixture, expect_delete_btn, expect_create_asset_btn",
+    [
+        # Site admin: can delete and create top-level assets.
+        ("as_admin", True, True),
+        # Account-admin of same account: same rights.
+        ("as_prosumer_account_admin", True, True),
+        # Plain account member: cannot delete or create top-level assets.
+        ("as_prosumer_user1", False, False),
+    ],
+)
+def test_admin_only_buttons_on_properties_page(
+    db,
+    client,
+    setup_assets,
+    request,
+    login_fixture,
+    expect_delete_btn,
+    expect_create_asset_btn,
+):
+    """
+    'Delete this asset' and 'Create asset' (child asset via account) are
+    gated on account-admin permissions and must not appear for plain users.
+    """
+    from flexmeasures.data.services.users import find_user_by_email
+
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    asset_id = user.account.generic_assets[0].id
+    db.session.expunge(user)
+
+    request.getfixturevalue(login_fixture)
+
+    page = client.get(
+        url_for("AssetCrudUI:properties", id=asset_id),
+        follow_redirects=True,
+    )
+    assert page.status_code == 200
+
+    if expect_delete_btn:
+        assert b"Delete this asset" in page.data
+    else:
+        assert b"Delete this asset" not in page.data
+
+    if expect_create_asset_btn:
+        assert b"Create asset" in page.data
+    else:
+        assert b"Create asset" not in page.data

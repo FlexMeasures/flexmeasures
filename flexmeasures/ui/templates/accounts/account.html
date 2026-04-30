@@ -1,19 +1,23 @@
-{% extends "base.html" %} {% set active_page = "accounts" %} {% block title %}
-{{ account.name }} account {% endblock %} {% block divs %}
+{% extends "base.html" %}
 
-<div class="container-fluid">
-  <div class="row">
+{% set active_page = "accounts" %}
+
+{% block title %} {{ account.name }} account {% endblock %}
+
+{% block divs %}
+
+{% block breadcrumbs %} {{ super() }} {% endblock %}
+
+<div class="container-fluid px-0">
+  <div class="row gx-0">
+
     <div class="col-md-2 on-top-md ps-0">
       
       {% if user_can_update_account %}
       {% from "_macros.html" import json_attributes_editor_button %}
       <div class="sidepanel">
       <div class="sidepanel-container" style="--sidepanel-width: 450px">
-        <div
-          class="sidepanel-label"
-        >
-          Edit Account
-        </div>
+        <div class="sidepanel-label">Edit account</div>
         <div class="sidepanel-content">
           <form class="form-horizontal" id="editaccount">
             <fieldset>
@@ -169,76 +173,84 @@
       <div class="card">
         <h3>Account</h3>
         <small>Account: {{ account.name }}</small>
-        <div class="table-responsive">
-          <table class="table table-striped">
-            <tbody>
-              <tr>
-                <td>ID</td>
-                <td>{{ account.id }}</td>
-              </tr>
-              <tr>
-                <td>Roles</td>
-                <td>
-                  {{ account.account_roles | map(attribute='name') | join(", ")
-                  }}
-                </td>
-              </tr>
-              {% if account.consultancy_account_name %}
-              <tr>
-                <td>Consultancy</td>
-                <td>{{ account.consultancy_account_name }}</td>
-              </tr>
-              {% endif %} {% if account.primary_color %}
-              <tr>
-                <td>Primary Color</td>
-                <td>
-                  <div
-                    style="
-                      width: 20px;
-                      height: 20px;
-                      background-color: {{ account.primary_color }};
-                      display: inline-block;
-                    "
-                  ></div>
-                </td>
-              </tr>
-              {% endif %} {% if account.secondary_color %}
-              <tr>
-                <td>Secondary Color</td>
-                <td>
-                  <div
-                    style="
-                      width: 20px;
-                      height: 20px;
-                      background-color: {{ account.secondary_color }};
-                      display: inline-block;
-                    "
-                  ></div>
-                </td>
-              </tr>
-              {% endif %} {% if account.logo_url %}
-              <tr>
-                <td>Logo URL</td>
-                <td>
-                  <img
-                    src="{{ account.logo_url }}"
-                    alt="Logo"
-                    style="max-width: 100px"
-                  />
-                </td>
-              </tr>
-              {% endif %}
-            </tbody>
-          </table>
+        <div class="row">
+          <div class="col-md-7">
+            <div class="floatThead-wrapper table-responsive">
+              <table class="table table-striped">
+                <tbody>
+                  <tr>
+                    <td>ID</td>
+                    <td>{{ account.id }}</td>
+                  </tr>
+                  <tr>
+                    <td>Roles</td>
+                    <td>
+                      {{ account.account_roles | map(attribute='name') | join(", ")
+                      }}
+                    </td>
+                  </tr>
+                  {% if account.consultancy_account_name %}
+                  <tr>
+                    <td>Consultancy</td>
+                    <td>{{ account.consultancy_account_name }}</td>
+                  </tr>
+                  {% endif %} {% if account.primary_color %}
+                  <tr>
+                    <td>Primary Color</td>
+                    <td>
+                      <div
+                        style="
+                          width: 20px;
+                          height: 20px;
+                          background-color: {{ account.primary_color }};
+                          display: inline-block;
+                        "
+                      ></div>
+                    </td>
+                  </tr>
+                  {% endif %} {% if account.secondary_color %}
+                  <tr>
+                    <td>Secondary Color</td>
+                    <td>
+                      <div
+                        style="
+                          width: 20px;
+                          height: 20px;
+                          background-color: {{ account.secondary_color }};
+                          display: inline-block;
+                        "
+                      ></div>
+                    </td>
+                  </tr>
+                  {% endif %} {% if account.logo_url %}
+                  <tr>
+                    <td>Logo URL</td>
+                    <td>
+                      <img
+                        src="{{ account.logo_url }}"
+                        alt="Logo"
+                        style="max-width: 100px"
+                      />
+                    </td>
+                  </tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="col-md-5">
+            {% from "_macros.html" import render_attributes %}
+            {{ render_attributes(account.attributes) }}
+          </div>
         </div>
       </div>
       <div class="card">
          <div class="d-flex justify-content-between align-items-center">
           <h3 id="usersTableTitle">All users</h3>
           {% if user_can_create_children %}
-          <a class="btn bg-primary-custom text-decoration-none text-light" data-bs-toggle="modal"
+          <a class="btn bg-primary-custom text-decoration-none text-light nav-button" data-bs-toggle="modal"
             data-bs-target="#createUserModal">
-            Create User
+            Create user
           </a>
           {% endif %}
         </div>
@@ -264,9 +276,10 @@
       <div class="card">
         <h3>Assets
         {% if user_can_create_children %}
-            <button class="btn btn-sm btn-success mb-2 create-button" type="submit" style="float:right;">
-              <a href="/assets/new?account_id={{ account.id }}">Create asset</a>
-            </button>
+            <a href="/assets/new?account_id={{ account.id }}" style="float: right;"
+                class="btn bg-primary-custom text-decoration-none text-light nav-button">
+                Create asset
+            </a>
         {% endif %}
         </h3>
         <div class="form-check form-check-inline">
@@ -306,7 +319,7 @@
   <div class="modal-dialog modal-xl">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title pe-2">Create User</h5>
+        <h5 class="modal-title pe-2">Create user</h5>
         <div class="dropdown" data-bs-auto-close="outside">
           <span class="fa fa-info dropdown-toggle" role="button" data-bs-toggle="dropdown" aria-expanded="false"
             rel="tooltip" aria-hidden="true" tabindex="0" data-bs-placement="right"></span>
@@ -343,7 +356,7 @@
             </small>
           </div>
 
-          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="submit" class="btn btn-primary create-button">Save</button>
         </form>
       </div>
     </div>

@@ -174,98 +174,17 @@ The Coordinator has researched the FlexMeasures codebase and identified:
 
 #### Schema Migration Patterns
 
-**Context**: FlexMeasures uses Marshmallow schemas with `data_key` attributes to map Python attribute names to dictionary keys. When schemas change format (e.g., kebab-case migration), all code paths handling those dictionaries must be updated.
+**Context**: FlexMeasures uses Marshmallow schemas with `data_key` attributes to map Python attribute names to dictionary keys (e.g., `as_job` → `"as-job"`). When schemas change format, all code paths handling those dicts must be updated.
 
-**Pattern: Marshmallow data_key Format Changes**
-
-Example from PR #1953 (kebab-case migration):
-```python
-# Marshmallow schema definition
-class ForecasterParametersSchema(Schema):
-    as_job = fields.Boolean(data_key="as-job")  # Python: as_job, Dict: "as-job"
-    sensor_to_save = SensorIdField(data_key="sensor-to-save")
-```
-
-When schemas output dictionaries:
-```python
-parameters = {
-    "as-job": True,           # kebab-case (from data_key)
-    "sensor-to-save": 2,      # kebab-case (from data_key)
-    # NOT "as_job" or "sensor_to_save"
-}
-```
-
-**Code Paths Affected by Schema Format Changes**:
-
-1. **Parameter Cleaning**: Code that removes fields from parameter dictionaries
-   - Example: `Forecaster._clean_parameters` (line 111)
-   - Bug pattern: Tries to remove `"as_job"` but dict has `"as-job"`
-
-2. **Parameter Access**: Code that reads from parameter dictionaries
-   - Use: `params.get("as-job")` not `params.get("as_job")`
-   - Check all `.get()`, `[]`, `.pop()` calls
-
-3. **Data Source Creation**: Parameters stored in DataSource.attributes
-   - Must match schema output format
-   - Affects data source comparison/deduplication
-
-4. **Job Metadata**: Parameters stored in RQ job.meta
-   - Must match schema output format
-   - Affects job retrieval and comparison
-
-5. **API Documentation**: OpenAPI specs and examples
-   - Must reflect actual key format
-   - Update generated specs after schema changes
-
-**Detection Methods**:
-
-1. **Grep for snake_case keys**:
-   ```bash
-   grep -r '"as_job"' flexmeasures/
-   grep -r "'sensor_to_save'" flexmeasures/
-   ```
-
-2. **Check schema definitions**:
-   - Find all `data_key=` declarations
-   - List actual dictionary keys used
-
-3. **Test data sources**:
-   - Query: `DataSource.query.all()`
-   - Inspect: `.attributes['data_generator']['parameters']`
-   - Compare keys across different creation paths
-
-**Agent Responsibilities**:
-
-| Agent | Responsibility | When to Check |
-|-------|----------------|---------------|
-| **Test Specialist** | Detect format mismatches in test failures | Test compares data sources |
-| **API Specialist** | Verify API documentation matches format | Schema changes |
-| **Architecture Specialist** | Enforce schema-as-source-of-truth invariant | Any dict parameter usage |
-| **Lead** | Coordinate format verification across agents | Schema PRs |
-| **Coordinator** | Track pattern, update template checklist | Schema migration PRs |
+**Code paths to check**: parameter cleaning (`Forecaster._clean_parameters`), parameter access (`.get()`/`.pop()`), DataSource.attributes, RQ job.meta, OpenAPI specs.
 
 **Checklist for Schema Format Migrations**:
-
-When reviewing PRs that change Marshmallow schemas:
 - [ ] Identify all `data_key` changes (old → new format)
-- [ ] Find all code paths accessing those parameters
-- [ ] Verify parameter cleaning uses new format
-- [ ] Check data source attribute format
-- [ ] Verify job metadata uses new format
+- [ ] Verify parameter cleaning uses new format (grep old keys)
+- [ ] Check data source attribute format and job metadata
 - [ ] Update OpenAPI specs if needed
-- [ ] Run tests that compare data sources
-- [ ] Grep for old format keys in codebase
 
-**Session 2026-02-08 Case Study**:
-
-- **PR #1953**: Migrated parameters to kebab-case
-- **Bug**: `_clean_parameters` still used snake_case keys
-- **Result**: Parameters like `"as-job"` not removed from data sources
-- **Impact**: API and direct computation created different data sources
-- **Test**: `test_trigger_and_fetch_forecasts` correctly detected this
-- **Fix**: Updated `_clean_parameters` to use kebab-case keys
-
-**Key Insight**: Tests comparing data sources are integration tests validating consistency across code paths. When they fail, investigate production code for format mismatches before changing tests.
+**Key Insight**: Tests comparing data sources are integration tests. When they fail, investigate production code for format mismatches before changing tests (see PR #1953 / `_clean_parameters` kebab-case bug).
 
 #### UI Development Patterns
 
@@ -406,29 +325,10 @@ git log --author="Lead" --stat -5
 
 **When delegation failure detected:**
 
-1. **Document in session review** - What was the failure?
-2. **Check Lead instructions** - Were they followed?
-3. **Identify gap** - What prevented proper delegation?
-4. **Recommend fix** - How to prevent recurrence?
-5. **Update Lead instructions** - Add enforcement mechanism
-6. **Verify fix works** - Test with hypothetical scenario
-
-**Escalation pattern:**
-
-If Lead repeatedly violates delegation requirements:
-- This is a systemic issue requiring Coordinator intervention
-- Lead instructions need stronger enforcement
-- Consider adding mandatory checkpoints before work execution
-- May need explicit blockers to prevent solo execution
-
-**Common patterns to track:**
-
-| Pattern | Indicator | Action |
-|---------|-----------|--------|
-| Solo execution | Lead makes code commits | Flag as regression |
-| "Too simple" trap | Lead justifies not delegating | Update instructions with example |
-| Request misinterpretation | Lead confirms instead of implements | Strengthen request parsing guidance |
-| Delegation omission | Specialists not invoked on implementation | Verify Session Close Checklist followed |
+1. Document in session review — what failed and what prevented proper delegation
+2. Check Lead instructions — were they followed?
+3. Recommend fix and update Lead instructions with enforcement mechanism
+4. Verify fix works with a hypothetical scenario
 
 **Success indicators:**
 
@@ -437,8 +337,6 @@ If Lead repeatedly violates delegation requirements:
 - ✅ Lead synthesized findings
 - ✅ Team-based execution pattern maintained
 - ✅ Session Close Checklist verified delegation
-
-**This monitoring ensures Lead maintains its orchestration role and doesn't regress to solo execution.**
 
 ## Self-Improvement Notes
 
@@ -712,49 +610,13 @@ When reviewing schema changes that affect FK constraints:
 
 ### Session 2026-02-10: Annotation API Implementation (#470)
 
-**Pattern**: Systemic self-improvement failure across all agents
+**Observation**: Five agents completed substantial work (Architecture, API, Test, Documentation, Lead) — **ZERO agents updated their instruction files** (100% failure rate).
 
-**Observation**: Five agents completed substantial work (Architecture, API, Test, Documentation, Lead):
-- Created new API endpoints (3 POST endpoints)
-- Wrote 17 comprehensive test functions
-- Created 494-line feature guide documentation
-- Fixed model functions and schemas
-- Orchestrated multi-specialist coordination
-- **ZERO agents updated their instruction files**
+**Root causes**: Self-improvement not enforced; unclear triggers; no Lead verification step; requirement not in completion checklist.
 
-**Metrics**:
-- Agents involved: 5
-- Lines of code/docs added: ~1,500
-- Test functions created: 17
-- Agent instruction updates: 0 (100% failure rate)
+**Secondary violations**: Temporary file committed then removed; non-atomic commits; test claims without execution evidence; Lead didn't invoke Coordinator despite governance request.
 
-**Root causes identified**:
-1. **Self-improvement not enforced**: No blocking requirement, agents treat as optional
-2. **Unclear triggers**: Agents don't know when to update instructions ("after completing work" too vague)
-3. **No verification**: Lead doesn't check if agents self-improved
-4. **Invisible requirement**: Self-improvement not in task completion checklist
-
-**Secondary violations observed**:
-- Temporary file committed (`API_REVIEW_ANNOTATIONS.md`, 575 lines) then removed
-- Non-atomic commits mixing multiple concerns
-- Test claims without execution evidence
-- Lead didn't invoke Coordinator despite governance request
-
-**Solution implemented**:
-1. Added self-improvement enforcement to Lead checklist (see below)
-2. Documented temporary file prevention patterns
-3. Added test execution evidence requirement
-4. Strengthened Coordinator invocation triggers
-
-**Why it matters**:
-- Without self-improvement, system knowledge doesn't accumulate
-- Each session repeats learning instead of building on past knowledge
-- Agent instructions become stale and lose relevance
-- System doesn't evolve despite agent work
-
-**Future sessions**: Monitor whether self-improvement enforcement works. If pattern recurs 3+ times, escalate to architectural solution (e.g., automated checks, mandatory prompts).
-
-**Session 2026-02-10 (Annotation API Tests)**: Pattern recurred despite Lead update. Test Specialist fixed 32 annotation API tests (100% passing), made excellent technical commits, but did NOT update instructions with learned lessons (permission semantics, fixture selection, error code expectations). Lead enforcement unclear—may not have been involved in session. **Status**: Pattern persists. Approaching threshold for architectural solution.
+**Solution**: Added self-improvement enforcement to Lead checklist; documented temporary file prevention; added test execution evidence requirement; strengthened Coordinator invocation triggers.
 
 ### Enforcement Mechanism Added
 
