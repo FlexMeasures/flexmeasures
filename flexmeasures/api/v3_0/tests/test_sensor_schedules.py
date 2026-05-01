@@ -149,10 +149,12 @@ def test_trigger_schedule_with_unreadable_flex_config_sensor(
     print("Server responded with:\n%s" % trigger_schedule_response.json)
     check_deprecation(trigger_schedule_response, deprecation=None, sunset=None)
     assert trigger_schedule_response.status_code == 403
+    # Keep the field path in the error so API users can locate the bad reference.
     assert (
         str({"json": {flex_config: {field: "sensor"}}})
         in trigger_schedule_response.json["message"]
     )
+    # Do not leak metadata about a sensor the caller is not allowed to read.
     assert (
         setup_capacity_sensor_on_asset_in_supplier_account.name
         not in trigger_schedule_response.json["message"]
