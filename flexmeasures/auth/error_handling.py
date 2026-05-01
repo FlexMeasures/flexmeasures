@@ -8,7 +8,6 @@ Beware: There is a historical confusion of naming between authentication and aut
 
 from __future__ import annotations
 
-import inspect
 from typing import Callable
 
 from flask import request, jsonify, current_app
@@ -67,10 +66,13 @@ def unauthorized_handler(
     if request.is_json or request.content_type is None:
         if hasattr(current_app, "unauthorized_handler_api"):
             api_handler = current_app.unauthorized_handler_api
-            # Pass the message only if the handler supports it.
-            if _supports_message_kwarg(api_handler):
+            try:
                 return api_handler(params, message=message)
-            return api_handler(params)
+            except TypeError as error:
+                # Keep compatibility with older API handlers that only accept params.
+                if "unexpected keyword argument 'message'" not in str(error):
+                    raise
+                return api_handler(params)
         response = jsonify(
             dict(
                 message=message or FORBIDDEN_MSG,
@@ -113,17 +115,3 @@ def unauthenticated_handler(
     if hasattr(current_app, "unauthenticated_handler_html"):
         return current_app.unauthenticated_handler_html()
     return "%s:%s" % (UNAUTH_ERROR_CLASS, UNAUTH_MSG), UNAUTH_STATUS_CODE
-
-
-def _supports_message_kwarg(handler: Callable) -> bool:
-    """Check whether an unauthorized handler accepts ``message`` as a keyword argument."""
-    try:
-        signature = inspect.signature(handler)
-    except (TypeError, ValueError):
-        return False
-    if "message" in signature.parameters:
-        return True
-    return any(
-        parameter.kind == inspect.Parameter.VAR_KEYWORD
-        for parameter in signature.parameters.values()
-    )
