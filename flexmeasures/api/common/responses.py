@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Tuple, Union, Sequence
+from typing import Sequence
 import inflect
 from functools import wraps
 
@@ -9,8 +9,7 @@ p = inflect.engine()
 
 
 # Type annotation for responses: (message, status_code) or (message, status_code, header)
-# todo: Use | instead of Union and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
-ResponseTuple = Union[Tuple[dict, int], Tuple[dict, int, dict]]
+ResponseTuple = tuple[dict, int] | tuple[dict, int, dict]
 
 
 def is_response_tuple(value) -> bool:
@@ -177,12 +176,13 @@ def invalid_role(requested_access_role: str) -> ResponseTuple:
 
 def invalid_sender(
     required_permissions: list[str] | None = None,
+    message: str | None = None,
 ) -> ResponseTuple:
     """
     Signify that the sender is invalid to perform the request. Fits well with 403 errors.
     Optionally tell the user which permissions they should have.
     """
-    message = FORBIDDEN_MSG
+    message = message or FORBIDDEN_MSG
     if required_permissions:
         message += f" It requires {p.join(required_permissions)} permission(s)."
     return (
@@ -261,6 +261,11 @@ def unknown_schedule(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="UNKNOWN_SCHEDULE", message=message), 400
 
 
+@BaseMessage("No known forecast for this time period.")
+def unknown_forecast(message: str) -> ResponseTuple:
+    return dict(result="Rejected", status="UNKNOWN_FORECAST", message=message), 400
+
+
 def fallback_schedule_redirect(message: str, location: str) -> ResponseTuple:
     return (
         dict(result="Rejected", status="UNKNOWN_SCHEDULE", message=message),
@@ -269,7 +274,7 @@ def fallback_schedule_redirect(message: str, location: str) -> ResponseTuple:
     )
 
 
-def invalid_flex_config(message: str) -> ResponseTuple:
+def unprocessable_entity(message: str) -> ResponseTuple:
     return (
         dict(
             result="Rejected", status="UNPROCESSABLE_ENTITY", message=dict(json=message)

@@ -15,7 +15,9 @@ from flexmeasures.data.services.time_series import drop_unchanged_beliefs
 
 
 def save_to_session(objects: list[db.Model], overwrite: bool = False):
-    """Utility function to save to database, either efficiently with a bulk save, or inefficiently with a merge save."""
+    """
+    Utility function to save to database, either efficiently with a bulk save, or inefficiently with a merge save.
+    """
     if not overwrite:
         db.session.bulk_save_objects(objects)
     else:

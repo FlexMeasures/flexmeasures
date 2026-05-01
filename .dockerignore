@@ -1,0 +1,13 @@
+# we should ignore everything in flexmeasures dir, as we COPY that one
+flexmeasures.egg-info
+flexmeasures.log*
+
+**/__pycache__
+
+# Ignore locally made docs
+flexmeasures/ui/static/documentation
+
+# Ignore all forecasting artifacts (models, predictions, etc.)
+flexmeasures/data/models/forecasting/**/artifacts/
+flexmeasures/data/models/forecasting/**/*.pkl
+flexmeasures/data/models/forecasting/**/*.csv

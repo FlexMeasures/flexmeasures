@@ -15,6 +15,7 @@ class DataSourceIdField(fields.Int, MarshmallowClickMixin):
     @with_appcontext_if_needed()
     def _deserialize(self, value, attr, obj, **kwargs) -> DataSource:
         """Turn a source id into a DataSource."""
+        value = super()._deserialize(value, attr, obj, **kwargs)
         source = db.session.get(DataSource, value)
         if source is None:
             raise FMValidationError(f"No data source found with id {value}.")

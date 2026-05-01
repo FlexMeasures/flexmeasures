@@ -4,7 +4,7 @@ from flexmeasures.data.models.planning.exceptions import InfeasibleProblemExcept
 import pandas as pd
 from rq.job import Job
 from flexmeasures.data.services.scheduling import create_sequential_scheduling_job
-from flexmeasures.data.tests.utils import work_on_rq
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.models.time_series import Sensor
 

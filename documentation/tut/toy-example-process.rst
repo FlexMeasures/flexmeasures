@@ -1,6 +1,6 @@
 .. _tut_toy_schedule_process:
 
-Toy example III: Computing schedules for processes
+Toy example IV: Computing schedules for processes
 ====================================================
 
 Until this point we've been using a static battery, one of the most flexible energy assets, to reduce electricity bills. A battery can modulate rather freely, and both charge and discharge.
@@ -52,7 +52,7 @@ Trigger an updated schedule
 
 In this example, we are planning to consume at a 200kW constant power for a period of 4h. 
 
-This load is to be schedule for tomorrow, except from the period from 3pm to 4pm (imposed using the ``--forbid`` flag).
+This load is to be scheduled for tomorrow, except from the period from 3pm to 4pm (imposed using the ``time-restrictions`` parameter).
 
 
 Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, the simplest.
@@ -66,7 +66,7 @@ Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, 
 
 Under the INFLEXIBLE policy, the process starts as soon as possible, in this case, coinciding with the start of the planning window.
 
-Following the INFLEXIBLE policy, we'll schedule the same 4h block using a BREAKABLE policy.
+Following the INFLEXIBLE policy, we'll schedule the same 4h consumption requirement, but using a BREAKABLE policy.
 
 .. code-block:: bash
 
@@ -77,7 +77,7 @@ Following the INFLEXIBLE policy, we'll schedule the same 4h block using a BREAKA
  
 The BREAKABLE policy splits or breaks the process into blocks that can be scheduled discontinuously. The smallest possible unit is (currently) determined by the sensor's resolution. 
 
-Finally, we'll schedule the process using the SHIFTABLE policy.
+Finally, we'll schedule the process using the SHIFTABLE policy. The 4h block can't be interrupted, but can be moved anytime that works best.
 
 .. code-block:: bash
 
@@ -91,7 +91,7 @@ Results
 ---------
 
 The image below shows the resulting schedules following each of the three policies.
-You will see similar results in your `FlexMeasures UI <http://localhost:5000/assets/5/graphs>`_. 
+You will see similar results in your `FlexMeasures UI <http://localhost:5000/assets/6/graphs>`_. 
 
  
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-process.png
@@ -100,11 +100,11 @@ You will see similar results in your `FlexMeasures UI <http://localhost:5000/ass
 
 
 In the first policy, there's no flexibility and it needs to schedule the process as soon as possible. 
-Meanwhile, in the BREAKABLE policy, the consumption blocks surrounds the time restriction to consume in the cheapest hours. Among the three polices, the BREAKABLE policy can achieve the best 
-Finally, in the SHIFTABLE policy, the process is shifted to capture the best prices, avoiding the time restrictions.
+Meanwhile, in the BREAKABLE policy, the consumption blocks are in the cheap hours, but the restricted block is also in that time. So two consumption blocks surrounding that hour are planned. 
+Finally, in the SHIFTABLE policy, the process is shifted to capture the best prices, while still avoiding the restricted hour.
 
 
-Let's list the power price the policies achieved for each of the four blocks they scheduled:
+Let's list the power costs which the policies achieved for each of the four blocks they scheduled:
 
 .. _table-process:
 

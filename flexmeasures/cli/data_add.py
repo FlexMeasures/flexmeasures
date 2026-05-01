@@ -6,6 +6,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import Dict, Any
+from flexmeasures.data.schemas.forecasting.pipeline import (
+    TrainPredictPipelineConfigSchema,
+    ForecasterParametersSchema,
+)
 import isodate
 import json
 import yaml
@@ -28,11 +32,11 @@ from workalendar.registry import registry as workalendar_registry
 
 from flexmeasures import Forecaster, Reporter
 from flexmeasures.cli.utils import (
-    get_data_generator,
     JSONOrFile,
     MsgStyle,
     DeprecatedOption,
     DeprecatedOptionsCommand,
+    add_cli_options_from_schema,
 )
 from flexmeasures.data import db
 from flexmeasures.data.scripts.data_gen import (
@@ -40,7 +44,10 @@ from flexmeasures.data.scripts.data_gen import (
     populate_initial_structure,
     add_default_asset_types,
 )
-from flexmeasures.data.services.data_sources import get_or_create_source
+from flexmeasures.data.services.data_sources import (
+    get_or_create_source,
+    get_data_generator,
+)
 from flexmeasures.data.services.scheduling import make_schedule, create_scheduling_job
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.user import Account, AccountRole, RolesAccounts
@@ -48,7 +55,7 @@ from flexmeasures.data.models.time_series import (
     Sensor,
     TimedBelief,
 )
-from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.schemas import (
     AccountIdField,
@@ -57,7 +64,9 @@ from flexmeasures.data.schemas import (
     LatitudeField,
     LongitudeField,
     SensorIdField,
+    AssetIdField,
 )
+from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.schemas.sources import DataSourceIdField
 from flexmeasures.data.schemas.sensors import SensorSchema
 from flexmeasures.data.schemas.io import Output
@@ -66,6 +75,7 @@ from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema,
     GenericAssetTypeSchema,
 )
+from flexmeasures.data.schemas.utils import snake_to_kebab
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
@@ -77,7 +87,7 @@ from flexmeasures.data.services.utils import get_or_create_model
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.utils.time_utils import server_now, apply_offset_chain
 from flexmeasures.utils.unit_utils import convert_units, ur
-from flexmeasures.cli.utils import validate_color_cli, validate_url_cli, split_commas
+from flexmeasures.cli.utils import validate_color_cli, validate_url_cli
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
@@ -88,7 +98,7 @@ def fm_add_data():
     """FlexMeasures: Add data."""
 
 
-@fm_add_data.command("sources")
+@fm_add_data.command("sources-for-generators")
 @click.option(
     "--kind",
     default=["reporter"],
@@ -97,7 +107,7 @@ def fm_add_data():
     help="What kind of data generators to consider in the creation of the basic DataSources. Defaults to `reporter`.",
 )
 @with_appcontext
-def add_sources(kind: list[str]):
+def add_sources_for_generators(kind: list[str]):
     """Create data sources for the data generators found registered in the
     application and the plugins. Currently, this command only registers the
     sources for the Reporters.
@@ -504,14 +514,25 @@ def add_initial_structure():
     "source_type",
     required=True,
     type=str,
-    help="Type of source (for example, 'forecaster' or 'scheduler').",
+    help=f"Type of source (free, but FlexMeasures has support for {DEFAULT_DATASOURCE_TYPES}).",
 )
-def add_source(name: str, model: str, version: str, source_type: str):
+@click.option(
+    "--account",
+    "account",
+    required=False,
+    type=AccountIdField(),
+    help="Organisation account associated with the source.",
+)
+def add_source(
+    name: str, model: str, version: str, source_type: str, account: Account | None
+):
+    """Add a data source."""
     source = get_or_create_source(
         source=name,
         model=model,
         version=version,
         source_type=source_type,
+        account=account,
     )
     db.session.commit()
     click.secho(f"Added source {source.__repr__()}", **MsgStyle.SUCCESS)
@@ -803,46 +824,30 @@ def add_beliefs(
 )
 @click.option(
     "--account",
-    "--account-id",
     "account_ids",
     type=click.INT,
     multiple=True,
-    cls=DeprecatedOption,
-    deprecated=["--account-id"],
-    preferred="--account",
     help="Add annotation to this organisation account. Follow up with the account's ID. This argument can be given multiple times.",
 )
 @click.option(
     "--asset",
-    "--asset-id",
     "generic_asset_ids",
     type=int,
     multiple=True,
-    cls=DeprecatedOption,
-    deprecated=["--asset-id"],
-    preferred="--asset",
     help="Add annotation to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
 )
 @click.option(
     "--sensor",
-    "--sensor-id",
     "sensor_ids",
     type=int,
     multiple=True,
-    cls=DeprecatedOption,
-    deprecated=["--sensor-id"],
-    preferred="--sensor",
     help="Add annotation to this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
 )
 @click.option(
     "--user",
-    "--user-id",
     "user_id",
     type=int,
     required=True,
-    cls=DeprecatedOption,
-    deprecated=["--user-id"],
-    preferred="--user",
     help="Attribute annotation to this user. Follow up with the user's ID.",
 )
 def add_annotation(
@@ -863,6 +868,9 @@ def add_annotation(
         if end_str is not None
         else start + pd.offsets.DateOffset(days=1)
     )
+    if end <= start:
+        click.secho("End date must be after start date.", **MsgStyle.ERROR)
+        raise click.Abort()
     accounts = (
         db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
         if account_ids
@@ -884,7 +892,7 @@ def add_annotation(
     _source = get_or_create_source(user)
 
     # Create annotation
-    annotation = get_or_create_annotation(
+    annotation, _ = get_or_create_annotation(
         Annotation(
             content=content,
             start=start,
@@ -893,6 +901,12 @@ def add_annotation(
             type="label",
         )
     )
+    if not accounts and not assets and not sensors:
+        click.secho(
+            "No accounts, assets or sensors specified to add the annotation to. Please specify at least one.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
     for account in accounts:
         account.annotations.append(annotation)
     for asset in assets:
@@ -970,17 +984,16 @@ def add_holidays(
         for holiday in holidays:
             start = pd.Timestamp(holiday[0])
             end = start + pd.offsets.DateOffset(days=1)
-            annotations.append(
-                get_or_create_annotation(
-                    Annotation(
-                        content=holiday[1],
-                        start=start,
-                        end=end,
-                        source=_source,
-                        type="holiday",
-                    )
+            annotation, _ = get_or_create_annotation(
+                Annotation(
+                    content=holiday[1],
+                    start=start,
+                    end=end,
+                    source=_source,
+                    type="holiday",
                 )
             )
+            annotations.append(annotation)
         num_holidays[country] = len(holidays)
     db.session.add_all(annotations)
     for account in accounts:
@@ -996,128 +1009,12 @@ def add_holidays(
 
 @fm_add_data.command("forecasts")
 @click.option(
-    "--sensor",
-    required=True,
-    help="Create forecasts for this sensor. Follow up with the sensor's ID. This argument can be given multiple times.",
-)
-@click.option(
-    "--regressors",
-    "--regressor",
-    multiple=True,
-    callback=split_commas,
-    help="Sensor ID to be treated as a regressor. "
-    "Use this if both realizations and forecasts recorded on this sensor matter as a regressor. "
-    "This argument can be given multiple times, but can also be set to a comma-separated list.",
-)
-@click.option(
-    "--future-regressors",
-    "--future-regressor",
-    multiple=True,
-    callback=split_commas,
-    help="Sensor ID to be treated only as a future regressor. "
-    "Use this if only forecasts recorded on this sensor matter as a regressor. "
-    "This argument can be given multiple times, but can also be set to a comma-separated list.",
-)
-@click.option(
-    "--past-regressors",
-    "--past-regressor",
-    multiple=True,
-    callback=split_commas,
-    help="Sensor ID to be treated only as a past regressor. "
-    "Use this if only realizations recorded on this sensor matter as a regressor. "
-    "This argument can be given multiple times, but can also be set to a comma-separated list.",
-)
-@click.option(
-    "--train-start",
-    "--start-date",
-    "start_date",
-    required=False,
-    help=(
-        "Timestamp marking when training data begins. "
-        "Format: YYYY-MM-DDTHH:MM:SS±HH:MM. "
-        "If not provided, it defaults to a period equal to the training duration "
-        "ending at --from-date."
-    ),
-)
-@click.option(
-    "--to-date",
-    "--end-date",
-    "end_date",
-    required=True,
-    help="End date for running the pipeline (YYYY-MM-DDTHH:MM:SS+HH:MM).",
-)
-@click.option(
-    "--train-period",
-    required=False,
-    help="Duration of the initial training period (ISO 8601 duration, e.g. 'P7D', with a minimum of 2 days). "
-    "Subsequent training periods will grow with each cycle (see --retrain-frequency). "
-    "If not set, derives a training period from --start-predict-date instead. "
-    "If that is also not set, defaults to 2 days.",
-)
-@click.option(
-    "--retrain-frequency",
-    "--remodel-frequency",  # the term as used in the old forecasting tooling
-    "--predict-period",  # only used during development afaik
-    required=False,
-    help="The duration of a cycle of training and predicting, defining how often to retrain the model (ISO 8601 duration, e.g. 'PT24H'). "
-    "If not set, the model is not retrained.",
-)
-@click.option(
-    "--from-date",
-    "start_predict_date",
-    default=None,
-    required=False,
-    help="Start date for predictions (YYYY-MM-DDTHH:MM:SS+HH:MM). "
-    "If not set, defaults to now.",
-)
-@click.option(
-    "--max-forecast-horizon",
-    required=False,
-    help="Maximum forecast horizon (ISO 8601 duration, e.g. 'PT24H'). "
-    "Defaults to 48 hours.",
-)
-@click.option(
-    "--forecast-frequency",
-    help="Forecast frequency (ISO 8601 duration, e.g. 'PT24H'), i.e. how often to recompute forecasts. "
-    "Defaults to 1 hour.",
-)
-@click.option(
-    "--model-save-dir",
-    default="flexmeasures/data/models/forecasting/artifacts/models",
-    help="Directory to save the trained model.",
-)
-@click.option(
-    "--output-path",
-    help="Directory to save prediction outputs.",
-)
-@click.option("--probabilistic", is_flag=True, help="Enable probabilistic predictions.")
-@click.option(
-    "--sensor-to-save",
-    default=None,
-    help="Sensor ID to save forecasts into a specific sensor. By default, forecasts are saved to the target sensor.",
-)
-@click.option(
-    "--as-job",
-    is_flag=True,
-    help="Whether to queue a forecasting job instead of computing directly. "
-    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
-)
-@click.option(
-    "--max-training-period",
-    help="Maximum duration of the training period (ISO 8601 duration, e.g. 'P1Y'). defaults to 1 year.",
-)
-@click.option(
     "--resolution",
     help="[DEPRECATED] Resolution of forecast in minutes. If not set, resolution is determined from the sensor to be forecasted",
 )
 @click.option(
     "--horizon",
     help="[DEPRECATED] Forecasting horizon in hours. This argument can be given multiple times. Defaults to all possible horizons.",
-)
-@click.option(
-    "--ensure-positive",
-    is_flag=True,
-    help="Whether to ensure positive forecasts, by clipping out negative values.",
 )
 @click.option(
     "--config",
@@ -1160,22 +1057,23 @@ def add_holidays(
     is_flag=True,
     help="Add this flag to edit the parameters passed to the Forecaster in your default text editor (e.g. nano).",
 )
+@add_cli_options_from_schema(ForecasterParametersSchema())
+@add_cli_options_from_schema(TrainPredictPipelineConfigSchema())
 @click.option(
-    "--missing-threshold",
-    default=1.0,
-    help=(
-        "Maximum fraction of missing data allowed before raising an error. "
-        "Missing data under this threshold will be filled using forward filling or linear interpolation."
-    ),
+    "--as-job",
+    is_flag=True,
+    help="Whether to queue a forecasting job instead of computing directly. "
+    "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'forecasting' queue. Defaults to False.",
 )
 @with_appcontext
-def train_predict_pipeline(
+def add_forecast(  # noqa: C901
     forecaster_class: str,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
     parameters_file: TextIOBase | None = None,
     edit_config: bool = False,
     edit_parameters: bool = False,
+    as_job: bool = False,
     **kwargs,
 ):
     """
@@ -1184,11 +1082,11 @@ def train_predict_pipeline(
     \b
     Example
       flexmeasures add forecasts --sensor 2092 --regressors 2093
-        --start-date 2025-01-01T00:00:00+01:00 --to-date 2025-10-15T00:00:00+01:00
+        --to-date 2025-10-15T00:00:00+01:00
 
     \b
     Workflow
-      - Training window: defaults from --start-date until the CLI execution time.
+      - Training window: defaults to a 30-day period in advance of the CLI execution time.
       - Prediction window: defaults from CLI execution time until --to-date.
       - max-forecast-horizon: defaults to the length of the prediction window.
       - Forecasts are computed immediately; use --as-job to enqueue them.
@@ -1222,6 +1120,9 @@ def train_predict_pipeline(
 
     if config_file:
         config = yaml.safe_load(config_file)
+    for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
+        if field_value := kwargs.pop(field_name, None):
+            config[field.data_key] = field_value
 
     if edit_config:
         config = launch_editor("/tmp/config.yml")
@@ -1234,10 +1135,11 @@ def train_predict_pipeline(
     if edit_parameters:
         parameters = launch_editor("/tmp/parameters.yml")
 
-    # Move remaining kwargs to parameters
+    # Move remaining kwargs to parameters, converting from snake_case to kebab-case to match schema expectation
     for k, v in kwargs.items():
-        if k not in parameters:
-            parameters[k] = v
+        kebab_key = snake_to_kebab(k)
+        if kebab_key not in parameters:
+            parameters[kebab_key] = v
 
     forecaster = get_data_generator(
         source=source,
@@ -1248,7 +1150,30 @@ def train_predict_pipeline(
     )
 
     try:
-        forecaster.compute(parameters=parameters)
+        # Drop None values
+        parameters = {k: v for k, v in parameters.items() if v is not None}
+        pipeline_returns = forecaster.compute(as_job=as_job, parameters=parameters)
+
+        # Empty result
+        if not pipeline_returns:
+            click.secho("No forecasts or jobs were created.", **MsgStyle.ERROR)
+            return
+
+        # as_job case → list of job dicts like {"job-1": "<uuid>"}
+        if as_job:
+            n_jobs = pipeline_returns["n_jobs"]
+            click.secho(f"Created {n_jobs} forecasting job(s).", **MsgStyle.SUCCESS)
+            return
+
+        # direct computation: list of dicts containing BeliefsDataFrames
+        total_beliefs = sum(len(item["data"]) for item in pipeline_returns)
+        unique_belief_times = {
+            ts for item in pipeline_returns for ts in item["data"].belief_times.unique()
+        }
+        click.secho(
+            f"Successfully created {total_beliefs} forecast beliefs across {len(unique_belief_times)} unique belief times.",
+            **MsgStyle.SUCCESS,
+        )
 
     except Exception as e:
         click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
@@ -1261,8 +1186,13 @@ def train_predict_pipeline(
     "--sensor",
     "power_sensor",
     type=SensorIdField(),
-    required=True,
     help="Create schedule for this sensor. Should be a power sensor. Follow up with the sensor's ID.",
+)
+@click.option(
+    "--asset",
+    "asset",
+    type=AssetIdField(),
+    help="Create schedule for this asset. The flex model arg then needs to be a list with an entry for each relevant device sensor. Follow up with the asset's ID.",
 )
 @click.option(
     "--start",
@@ -1277,6 +1207,20 @@ def train_predict_pipeline(
     type=DurationField(),
     required=True,
     help="Duration of schedule, after --start. Follow up with a duration in ISO 6801 format, e.g. PT1H (1 hour) or PT45M (45 minutes).",
+)
+@click.option(
+    "--resolution",
+    "resolution",
+    type=DurationField(),
+    required=False,
+    help=AssetTriggerSchema._declared_fields["resolution"].metadata["description"],
+)
+@click.option(
+    "--prior",
+    "belief_time",
+    type=AwareDateTimeField(),
+    required=False,
+    help="Schedule with only information known prior to this datetime. If not set, defaults to now. Follow up with a timezone-aware datetime in ISO 6801 format.",
 )
 @click.option(
     "--soc-at-start",
@@ -1312,16 +1256,25 @@ def train_predict_pipeline(
     help="Whether to queue a scheduling job instead of computing directly. "
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'scheduling' queue. Defaults to False.",
 )
+@click.option(
+    "--dry-run",
+    "dry_run",
+    is_flag=True,
+    help="Add this flag to avoid saving the results to the database.",
+)
 def add_schedule(  # noqa C901
     power_sensor: Sensor,
+    asset: GenericAsset,
     start: datetime,
     duration: timedelta,
+    resolution: timedelta,
+    belief_time: datetime,
     scheduler_class: str,
     soc_at_start: ur.Quantity,
-    state_of_charge: Sensor | None = None,
     flex_context: str | None = None,
     flex_model: str | None = None,
     as_job: bool = False,
+    dry_run: bool = False,
 ):
     """Create a new schedule for an asset.
 
@@ -1330,25 +1283,48 @@ def add_schedule(  # noqa C901
     - Limited to power sensors (probably possible to generalize to non-electric assets)
     - Only supports datetimes on the hour or a multiple of the sensor resolution thereafter
     """
-
+    asset_or_sensor = None
+    if not power_sensor and not asset:
+        click.secho(
+            "Either --sensor or --asset is required.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    if power_sensor and asset:
+        click.secho(
+            "Do not supply both --sensor as well as --asset.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    if asset:
+        asset_or_sensor = asset
+        if not isinstance(flex_model, list):
+            click.secho(
+                "When scheduling an asset, the flex-model is expected to be passed as a list, so that it can describe multiple devices.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
+    else:
+        asset_or_sensor = power_sensor
+        if not isinstance(flex_model, dict):
+            click.secho(
+                "For scheduling one device (using the --sensor option), --flex-model should be a dict - the flex-model for the device.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
     scheduler_module = None
 
     if scheduler_class == "ProcessScheduler":
         scheduler_module = "flexmeasures.data.models.planning.process"
     elif scheduler_class == "StorageScheduler":
         scheduler_module = "flexmeasures.data.models.planning.storage"
-        if soc_at_start is None:
-            click.secho(
-                "For StorageScheduler, --soc-at-start is required.",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
+        if soc_at_start:
+            flex_model["soc-at-start"] = soc_at_start.to("%")
 
     scheduling_kwargs = dict(
         start=start,
         end=start + duration,
-        belief_time=server_now(),
-        resolution=power_sensor.event_resolution,
+        belief_time=belief_time or server_now(),
         flex_model=flex_model,
         flex_context=flex_context,
         scheduler_specs={
@@ -1356,9 +1332,16 @@ def add_schedule(  # noqa C901
             "class": scheduler_class,
         },
     )
+    if resolution:
+        scheduling_kwargs["resolution"] = resolution
+    elif power_sensor:
+        scheduling_kwargs["resolution"] = power_sensor.event_resolution
+    # otherwise, the scheduler will infer the resolution from the asset's device sensors
 
     if as_job:
-        job = create_scheduling_job(asset_or_sensor=power_sensor, **scheduling_kwargs)
+        job = create_scheduling_job(
+            asset_or_sensor=asset_or_sensor, **scheduling_kwargs
+        )
         if job:
             click.secho(
                 f"New scheduling job {job.id} has been added to the queue.",
@@ -1366,10 +1349,11 @@ def add_schedule(  # noqa C901
             )
     else:
         success = make_schedule(
-            asset_or_sensor=get_asset_or_sensor_ref(power_sensor),
+            asset_or_sensor=get_asset_or_sensor_ref(asset_or_sensor),
+            dry_run=dry_run,
             **scheduling_kwargs,
         )
-        if success:
+        if success and not dry_run:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
 
@@ -1769,6 +1753,7 @@ def add_toy_account(kind: str, name: str):
         unit: str = "MW",
         parent_asset_id: int | None = None,
         flex_context: dict | None = None,
+        flex_model: dict | None = None,
         **asset_attributes,
     ):
         asset_kwargs: Dict[str, Any] = {}
@@ -1776,6 +1761,8 @@ def add_toy_account(kind: str, name: str):
             asset_kwargs["parent_asset_id"] = parent_asset_id
         if flex_context is not None:
             asset_kwargs["flex_context"] = flex_context
+        if flex_model is not None:
+            asset_kwargs["flex_model"] = flex_model
 
         asset = get_or_create_model(
             GenericAsset,
@@ -1809,6 +1796,10 @@ def add_toy_account(kind: str, name: str):
         owner=db.session.get(Account, account_id),
         latitude=location[0],
         longitude=location[1],
+        flex_context={
+            "site-power-capacity": "500 kVA",
+            "consumption-price": {"sensor": day_ahead_sensor.id},
+        },
     )
     db.session.flush()
 
@@ -1819,10 +1810,11 @@ def add_toy_account(kind: str, name: str):
             "battery",
             "discharging",
             parent_asset_id=building_asset.id,
-            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
-            capacity_in_mw="500 kVA",
-            min_soc_in_mwh=0.05,
-            max_soc_in_mwh=0.45,
+            flex_model={
+                "power-capacity": "500 kVA",
+                "roundtrip-efficiency": "90%",
+                "soc-max": "450 kWh",
+            },
         )
 
         # create solar
@@ -1834,10 +1826,31 @@ def add_toy_account(kind: str, name: str):
         db.session.flush()
         battery = discharging_sensor.generic_asset
         battery.sensors_to_show = [
-            {"title": "Prices", "sensor": day_ahead_sensor.id},
+            {"title": "Prices", "plots": [{"sensor": day_ahead_sensor.id}]},
             {
                 "title": "Power flows",
-                "sensors": [production_sensor.id, discharging_sensor.id],
+                "plots": [
+                    {"sensors": [production_sensor.id, discharging_sensor.id]},
+                ],
+            },
+        ]
+
+        # the site gets a similar dashboard (TODO: after #1801, add also capacity constraint)
+        building_asset.sensors_to_show = [
+            {
+                "title": "Prices",
+                "plots": [
+                    {
+                        "asset": building_asset.id,
+                        "flex-context": "consumption-price",
+                    }
+                ],
+            },
+            {
+                "title": "Power flows",
+                "plots": [
+                    {"sensors": [production_sensor.id, discharging_sensor.id]},
+                ],
             },
         ]
 
@@ -1877,10 +1890,10 @@ def add_toy_account(kind: str, name: str):
 
         process = shiftable_power.generic_asset
         process.sensors_to_show = [
-            {"title": "Prices", "sensor": day_ahead_sensor.id},
-            {"title": "Inflexible", "sensor": inflexible_power.id},
-            {"title": "Breakable", "sensor": breakable_power.id},
-            {"title": "Shiftable", "sensor": shiftable_power.id},
+            {"title": "Prices", "plots": [{"sensor": day_ahead_sensor.id}]},
+            {"title": "Inflexible", "plots": [{"sensor": inflexible_power.id}]},
+            {"title": "Breakable", "plots": [{"sensor": breakable_power.id}]},
+            {"title": "Shiftable", "plots": [{"sensor": shiftable_power.id}]},
         ]
 
         db.session.commit()

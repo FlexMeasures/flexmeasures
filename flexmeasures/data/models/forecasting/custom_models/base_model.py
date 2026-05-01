@@ -1,11 +1,9 @@
-import sys
 import logging
 from abc import ABC, abstractmethod
 
 from darts import TimeSeries
 
 from flexmeasures.data.models.forecasting.utils import negative_to_zero
-from flexmeasures.data.models.forecasting.exceptions import CustomException
 
 
 class BaseModel(ABC):
@@ -81,19 +79,14 @@ class BaseModel(ABC):
         past_covariates: TimeSeries,
         future_covariates: TimeSeries,
     ) -> None:
-        try:
-            logging.debug("Training base model")
-            for i in range(self.max_forecast_horizon):
-                self.models[i].fit(
-                    series=series,
-                    past_covariates=past_covariates,
-                    future_covariates=future_covariates,
-                )
-            logging.debug("Base model trained successfully")
-        except Exception as e:
-            raise CustomException(
-                f"Error training base model: {e}. Try decreasing the start-date.", sys
+        logging.debug("Training base model")
+        for i in range(self.max_forecast_horizon):
+            self.models[i].fit(
+                series=series,
+                past_covariates=past_covariates,
+                future_covariates=future_covariates,
             )
+        logging.debug("Base model trained successfully")
 
     def predict(
         self,

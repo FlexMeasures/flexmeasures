@@ -1,6 +1,6 @@
 .. _tut_toy_schedule_reporter:
 
-Toy example IV: Computing reports
+Toy example V: Computing reports
 =====================================
 
 So far, we have worked on scheduling batteries and processes. Now, we are moving to one of the other three pillars of FlexMeasures: reporting. 
@@ -108,9 +108,9 @@ In practice, we need to create the `config` and `parameters`:
 
     $ echo "
     $ {
-    $    'weights' : {
-    $        'grid connection capacity' : 1.0,
-    $        'PV' : -1.0,
+    $    'weights': {
+    $        'grid connection capacity': 1.0,
+    $        'PV': -1.0,
     $    }
     $ }" > headroom-config.json
 
@@ -119,12 +119,14 @@ In practice, we need to create the `config` and `parameters`:
 
     $ echo "
     $ {
-    $     'input' : [{'name' : 'grid connection capacity','sensor' : 7},
-    $                {'name' : 'PV', 'sensor' : 3}],
-    $     'output' : [{'sensor' : 8}]
+    $     'input': [{'name': 'grid connection capacity', 'sensor': 7},
+    $                {'name': 'PV', 'sensor': 3, 'sources': [4]}],
+    $     'output': [{'sensor': 8}]
     $ }" > headroom-parameters.json
 
 The output sensor (ID: 8) is actually the one created just to store that information - the headroom our battery has when considering solar production.
+
+We limit the PV input to data with source 4, which is the one created when we added the toy account and is associated with our solar forecasts. This way, we ensure that only the forecasted values are used in the report, and not (also) schedules from the 3rd tutorial.
 
 Finally, we can create the report with the following command:
 
@@ -135,7 +137,7 @@ Finally, we can create the report with the following command:
        --start-offset DB,1D --end-offset DB,2D \
        --resolution PT15M
 
-Now we can visualize the diminished headroom in the following `link <http://localhost:5000/sensors/8/graphs>`_, which should resemble the following image:
+Now we can visualize the diminished headroom in the following `link <http://localhost:5000/sensors/8>`_, which should resemble the following image:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom.png
     :align: center
@@ -177,8 +179,8 @@ Define parameters in a JSON file:
 
     $ echo "
     $ {
-    $     'input' : [{'sensor' : 4}],
-    $     'output' : [{'sensor' : 9}]
+    $     'input': [{'sensor': 4}],
+    $     'output': [{'sensor': 9}]
     $ }" > inflexible-parameters.json
 
 Create report:
@@ -205,8 +207,8 @@ Define parameters in a JSON file:
 
     $ echo "
     $ {
-    $     'input' : [{'sensor' : 5}],
-    $     'output' : [{'sensor' : 10}]
+    $     'input': [{'sensor': 5}],
+    $     'output': [{'sensor': 10}]
     $ }" > breakable-parameters.json
 
 Create report:
@@ -233,8 +235,8 @@ Define parameters in a JSON file:
 
     $ echo "
     $ {
-    $     'input' : [{'sensor' : 6}],
-    $     'output' : [{'sensor' : 11}]
+    $     'input': [{'sensor': 6}],
+    $     'output': [{'sensor': 11}]
     $ }" > shiftable-parameters.json
 
 Create report:

@@ -213,7 +213,7 @@
 
     // create Map with tiles
     var assetMap = L
-        .map('mapid', { center: {{ map_center | tojson }}, zoom: 6 })
+        .map('mapid')
         .on('popupopen', function () {
             $(function () {
                 $('[data-toggle="tooltip"]').tooltip();
@@ -237,6 +237,25 @@
     {% endfor %}
     mcgLayerSupportGroup.addTo(assetMap);
     control.addTo(assetMap);
+
+    // compute bounds, center and zoom for covering pre-existing asset portfolio
+    bounds = L.latLngBounds({{ bounding_box | tojson }});
+    center = bounds.getCenter();
+    zoom = assetMap.getBoundsZoom(bounds);
+    // in case of a very small bounding box (e.g. representing a single point),
+    // zoom out slightly, just as far as you can while still making out the local buildings
+    zoom === 18 ? zoom = 17 : null
+
+    // start slightly zoomed out, then zoom in on pre-existing asset portfolio
+    assetMap.setView(center, Math.max(zoom - 1, 1));
+    assetMap.flyTo(center, zoom, { duration: 1.0 });
+
+    {% if prompt_user_for_location %}
+        const flyToPosition = (position) => {
+            assetMap.flyTo([position.coords.latitude, position.coords.longitude], 9);
+        }
+        navigator.geolocation.getCurrentPosition(flyToPosition);
+    {% endif %}
 
 </script>
 

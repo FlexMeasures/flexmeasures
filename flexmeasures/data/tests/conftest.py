@@ -7,7 +7,6 @@ from random import random
 import pandas as pd
 import numpy as np
 from flask_sqlalchemy import SQLAlchemy
-from statsmodels.api import OLS
 from flexmeasures import AssetType, Asset, Sensor
 import timely_beliefs as tb
 from sqlalchemy import select
@@ -18,10 +17,6 @@ from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.models.forecasting import model_map
-from flexmeasures.data.models.forecasting.model_spec_factory import (
-    create_initial_model_specs,
-)
 from flexmeasures.utils.time_utils import as_server_time
 
 from marshmallow import fields
@@ -94,126 +89,6 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy, setup_generic_asset_ty
                     source=data_source,
                 )
             )
-
-
-@pytest.fixture(scope="function")
-def setup_fresh_test_forecast_data(
-    fresh_db,
-    app,
-) -> dict[str, Sensor]:
-    return add_test_solar_sensor_and_irradiance_with_forecasts(fresh_db, empty=False)
-
-
-@pytest.fixture(scope="function")
-def setup_fresh_test_forecast_data_with_missing_data(
-    fresh_db,
-    app,
-) -> dict[str, Sensor]:
-    return add_test_solar_sensor_and_irradiance_with_forecasts(fresh_db, empty=True)
-
-
-def add_test_solar_sensor_and_irradiance_with_forecasts(
-    db: SQLAlchemy,
-    empty: bool = False,
-) -> dict[str, Sensor]:
-    """7 days of test data (one complete sine curve) for two sensors and irradiance sensor has forecasts"""
-
-    # Ensure DataSource and AssetType are persisted
-    data_source = db.session.execute(
-        select(DataSource).filter_by(name="Seita", type="demo script")
-    ).scalar_one_or_none()
-    if not data_source:
-        data_source = DataSource(name="Seita", type="demo script")
-        db.session.add(data_source)
-
-    asset_type = db.session.execute(
-        select(GenericAssetType).filter_by(name="Site")
-    ).scalar_one_or_none()
-    if not asset_type:
-        asset_type = GenericAssetType(name="Site")
-        db.session.add(asset_type)
-
-    db.session.flush()
-
-    # Create asset and sensors
-    asset = Asset(
-        name="Test station farther away",
-        generic_asset_type=asset_type,
-        latitude=100,
-        longitude=100,
-    )
-    db.session.add(asset)
-
-    sensor_specs = {
-        "irradiance-sensor": {
-            "unit": "kW/m²",
-            "multiplier": 600,
-            "horizon": timedelta(hours=6),
-            "resolution": timedelta(minutes=60),
-        },
-        "solar-sensor": {
-            "unit": "kW",
-            "multiplier": 1000,
-            "horizon": timedelta(hours=0),
-            "resolution": timedelta(minutes=15),
-        },
-    }
-
-    time_slots = pd.date_range(
-        datetime(2025, 1, 1), datetime(2025, 1, 7, 23, 45), freq="15min"
-    )
-
-    sensors: dict[str, Sensor] = {}
-
-    for name, config in sensor_specs.items():
-        sensor = Sensor(
-            name=name,
-            generic_asset=asset,
-            unit=config["unit"],
-            event_resolution=config["resolution"],
-        )
-        db.session.add(sensor)
-
-        values = [
-            random() * (1 + np.sin(x / 15)) * config["multiplier"]
-            for x in range(len(time_slots))
-        ]
-        if empty:
-            for i in range(0, len(values) // 2):
-                values[i] = np.nan
-        beliefs = [
-            TimedBelief(
-                sensor=sensor,
-                event_start=as_server_time(dt),
-                event_value=val,
-                belief_horizon=config["horizon"],
-                source=data_source,
-            )
-            for dt, val in zip(time_slots, values)
-        ]
-        db.session.add_all(beliefs)
-        sensors[name] = sensor
-
-    db.session.commit()
-    return sensors
-
-
-@pytest.fixture(scope="module", autouse=True)
-def add_failing_test_model(db):
-    """Add a test model specs to the lookup which should fail due to missing data.
-    It falls back to linear OLS (which falls back to naive)."""
-
-    def test_specs(**args):
-        """Customize initial specs with OLS and too early training start."""
-        model_specs = create_initial_model_specs(**args)
-        model_specs.set_model(OLS)
-        model_specs.start_of_training = model_specs.start_of_training - timedelta(
-            days=365
-        )
-        model_identifier = "failing-test model v1"
-        return model_specs, model_identifier, "linear-OLS"
-
-    model_map["failing-test"] = test_specs
 
 
 @pytest.fixture(scope="module")
@@ -538,5 +413,14 @@ def flex_description_sequential(
         ],
         "site-production-capacity": "2kW",
         "site-consumption-capacity": "5kW",
+        # Cheap commitments that are not expected to affect the resulting schedule
+        "commitments": [
+            {
+                "name": "a sample commitment rewarding supply",
+                "baseline": "0 kW",
+                "up-price": "0 EUR/MWh",
+                "down-price": "1 EUR/MWh",
+            },
+        ],
     }
     return dict(flex_model=flex_model, flex_context=flex_context)

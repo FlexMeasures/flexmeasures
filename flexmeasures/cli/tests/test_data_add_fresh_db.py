@@ -1,6 +1,7 @@
 import pytest
 import json
 import yaml
+import logging
 import os
 from datetime import datetime
 import pytz
@@ -9,15 +10,25 @@ from sqlalchemy import select
 from flexmeasures import Asset
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.user import Account
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 from flexmeasures.cli.tests.utils import check_command_ran_without_error
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.tests.utils import get_test_sensor
 
 
-@pytest.mark.skip_github
-def test_add_reporter(app, fresh_db, setup_dummy_data):
+def test_add_forecast(app, setup_dummy_data):
+    from flexmeasures.cli.data_add import add_forecast
+
+    cli_input = {
+        "sensor": 1,
+    }
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_forecast, to_flags(cli_input))
+    assert result.exit_code == 0, result.output
+
+
+def test_add_reporter(app, fresh_db, setup_dummy_data, caplog):
     """
     The reporter aggregates input data from two sensors (both have 200 data points)
     to a two-hour resolution.
@@ -53,6 +64,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
     # Running the command with start and end values.
 
     runner = app.test_cli_runner()
+    caplog.set_level(logging.INFO)
 
     cli_input_params = {
         "config": "reporter_config.yaml",
@@ -94,7 +106,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
             Sensor, report_sensor_id
         )  # get fresh report sensor instance
 
-        assert "Reporter PandasReporter found" in result.output
+        assert "Reporter PandasReporter found." in caplog.text
         assert f"Report computation done for sensor `{report_sensor}`." in result.output
 
         # Check report is saved to the database
@@ -147,7 +159,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
 
         assert (
             "Reporter `PandasReporter` fetched successfully from the database."
-            in result.output
+            in caplog.text
         )
         assert f"Report computation done for sensor `{report_sensor}`." in result.output
 
@@ -159,8 +171,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
         assert len(stored_report) == 95
 
 
-@pytest.mark.skip_github
-def test_add_multiple_output(app, fresh_db, setup_dummy_data):
+def test_add_multiple_output(app, fresh_db, setup_dummy_data, caplog):
     """ """
 
     from flexmeasures.cli.data_add import add_report
@@ -191,6 +202,7 @@ def test_add_multiple_output(app, fresh_db, setup_dummy_data):
     # Running the command with start and end values.
 
     runner = app.test_cli_runner()
+    caplog.set_level(logging.INFO)
 
     cli_input_params = {
         "config": "reporter_config.yaml",
@@ -234,7 +246,7 @@ def test_add_multiple_output(app, fresh_db, setup_dummy_data):
         report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
         report_sensor_2 = fresh_db.session.get(Sensor, report_sensor_2_id)
 
-        assert "Reporter PandasReporter found" in result.output
+        assert "Reporter PandasReporter found" in caplog.text
         assert f"Report computation done for sensor `{report_sensor}`." in result.output
         assert (
             f"Report computation done for sensor `{report_sensor_2}`." in result.output
@@ -250,7 +262,6 @@ def test_add_multiple_output(app, fresh_db, setup_dummy_data):
         assert all(report_sensor_2.search_beliefs() == 0)
 
 
-@pytest.mark.skip_github
 @pytest.mark.parametrize("process_type", [("INFLEXIBLE"), ("SHIFTABLE"), ("BREAKABLE")])
 def test_add_process(
     app, process_power_sensor, process_type, add_market_prices_fresh_db, db
@@ -298,7 +309,6 @@ def test_add_process(
     assert (schedule == -0.4).event_value.sum() == 4
 
 
-@pytest.mark.skip_github
 @pytest.mark.parametrize(
     "event_resolution, name, success",
     [("PT20M", "ONE", True), (15, "TWO", True), ("some_string", "THREE", False)],
@@ -330,7 +340,6 @@ def test_add_sensor(app, fresh_db, setup_dummy_asset, event_resolution, name, su
         assert sensor is None
 
 
-@pytest.mark.skip_github
 @pytest.mark.parametrize(
     "name, consultancy_account_id, success",
     [
@@ -365,7 +374,6 @@ def test_add_account(
         assert result.exit_code == 1
 
 
-@pytest.mark.skip_github
 @pytest.mark.parametrize("storage_power_capacity", ["sensor", "quantity", None])
 @pytest.mark.parametrize("storage_efficiency", ["sensor", "quantity", None])
 def test_add_storage_schedule(
@@ -455,3 +463,53 @@ def test_add_storage_schedule(
 
     check_command_ran_without_error(result)
     assert len(power_sensor.search_beliefs()) == 48
+
+
+def test_add_storage_schedule_uses_state_of_charge_sensor_for_soc_at_start(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_charging_station_assets_fresh_db,
+    setup_sources_fresh_db,
+):
+    from flexmeasures.cli.data_add import add_schedule
+
+    charging_station = add_charging_station_assets_fresh_db["Test charging station"]
+    power_sensor = next(s for s in charging_station.sensors if s.name == "power")
+    soc_sensor = add_charging_station_assets_fresh_db["uni-soc"]
+    start = "2015-01-01T00:00:00+01:00"
+
+    fresh_db.session.add(
+        TimedBelief(
+            sensor=soc_sensor,
+            source=setup_sources_fresh_db["Seita"],
+            event_start=datetime.fromisoformat(start),
+            event_value=2.5,
+            belief_time=datetime.fromisoformat(start),
+        )
+    )
+    fresh_db.session.commit()
+
+    cli_input_params = {
+        "sensor": power_sensor.id,
+        "start": start,
+        "duration": "PT12H",
+        "scheduler": "StorageScheduler",
+        "flex-context": json.dumps(
+            {"consumption-price": {"sensor": add_market_prices_fresh_db["epex_da"].id}}
+        ),
+        "flex-model": json.dumps(
+            {
+                "state-of-charge": {"sensor": soc_sensor.id},
+                "soc-min": "0 MWh",
+                "soc-max": "5 MWh",
+                "power-capacity": "2 MW",
+            }
+        ),
+    }
+
+    result = app.test_cli_runner().invoke(add_schedule, to_flags(cli_input_params))
+
+    check_command_ran_without_error(result)
+    assert len(power_sensor.search_beliefs()) == 48
+    assert power_sensor.generic_asset.get_attribute("soc_in_mwh") == 2.5

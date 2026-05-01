@@ -9,12 +9,14 @@ import pytest
 from rq.job import Job
 from sqlalchemy import select
 
+from flexmeasures import Sensor
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.models.planning.utils import initialize_series
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
-from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
+from flexmeasures.data.tests.utils import exception_reporter
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     load_custom_scheduler,
@@ -38,6 +40,8 @@ def test_scheduling_a_battery(
 
     battery = add_battery_assets_fresh_db["Test battery"].sensors[0]
     tz = pytz.timezone("Europe/Amsterdam")
+    # the start time does *not* match soc_datetime attribute from conftest, soc at start will be 0
+    # TODO: stop using attributes in conftest
     start = tz.localize(datetime(2015, 1, 2))
     end = tz.localize(datetime(2015, 1, 3))
     resolution = timedelta(minutes=15)
@@ -386,3 +390,242 @@ def test_save_state_of_charge(
     assert all(
         np.isclose(soc_schedule.event_value.values, soc_schedule_from_power.values)
     )
+
+
+def test_save_state_of_charge_percent_sensor(
+    fresh_db,
+    app,
+    smart_building,
+):
+    """
+    Test saving state of charge to a sensor with '%' unit.
+
+    Setup:
+    - 50% storage efficiency per 15-minute step
+    - soc-at-start = soc-max (starting full; cannot charge since already at max capacity)
+    - soc-minima at t+60min = 8% forcing charging in the last interval before that
+
+    Expected idle-decay pattern (no power flow in first 3 intervals):
+    - t+ 0min: 100 kWh = 100%
+    - t+15min:  50 kWh =  50%
+    - t+30min:  25 kWh =  25%
+    - t+45min:  12.5 kWh = 12.5%
+    - t+60min:   8 kWh =   8%  (soc-minima forces ~9.7 kW of charging in [t+45, t+60])
+    """
+    assets, sensors, _soc_sensors = smart_building
+
+    # Create an additional SOC sensor with '%' unit attached to the Test Heat Buffer asset
+    soc_sensor_pct = Sensor(
+        "state of charge percent",
+        unit="%",
+        event_resolution=timedelta(hours=0),
+        generic_asset=assets["Test Heat Buffer"],
+        timezone="Europe/Amsterdam",
+    )
+    fresh_db.session.add(soc_sensor_pct)
+    fresh_db.session.flush()
+
+    assert len(soc_sensor_pct.search_beliefs()) == 0
+
+    queue = app.queues["scheduling"]
+    start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
+    end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
+
+    soc_max_kwh = 100
+
+    scheduler_specs = {
+        "module": "flexmeasures.data.models.planning.storage",
+        "class": "StorageScheduler",
+    }
+
+    flex_model = {
+        "power-capacity": "10kW",
+        "soc-at-start": f"{soc_max_kwh}kWh",  # starting full → first steps are idle
+        "soc-min": 0.0,
+        "soc-max": f"{soc_max_kwh}kWh",
+        "storage-efficiency": "50%",
+        "charging-efficiency": "100%",
+        "discharging-efficiency": "100%",
+        "prefer-charging-sooner": False,
+        "state-of-charge": {"sensor": soc_sensor_pct.id},
+        # At t+60min, the SOC must be ≥ 8 kWh (= 8%), forcing charging in [t+45, t+60]
+        "soc-minima": [{"datetime": "2015-01-03T01:00+01:00", "value": "8 kWh"}],
+    }
+
+    flex_context = {
+        "consumption-price": "100 EUR/MWh",
+        "production-price": "0 EUR/MWh",
+        "site-production-capacity": "1MW",
+        "site-consumption-capacity": "1MW",
+    }
+
+    create_scheduling_job(
+        asset_or_sensor=sensors["Test Heat Buffer"],
+        scheduler_specs=scheduler_specs,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        enqueue=True,
+        start=start,
+        end=end,
+        round_to_decimals=12,
+        resolution=timedelta(minutes=15),
+    )
+
+    # Work on jobs
+    work_on_rq(queue, handle_scheduling_exception)
+
+    # Retrieve the SOC schedule from the %-unit sensor.
+    # No resolution argument needed: the sensor has event_resolution=timedelta(0)
+    # (instantaneous), so beliefs are already stored as point-in-time events.
+    soc_data = soc_sensor_pct.search_beliefs().reset_index()
+    assert len(soc_data) > 0
+
+    # All values must be valid percentages
+    assert soc_data["event_value"].between(0, 100).all()
+
+    soc_values = soc_data["event_value"].values
+
+    # Verify the idle-decay pattern: starting full, 50% storage efficiency
+    # (soc-at-start = soc-max means charging is not possible until the SOC decays)
+    storage_eff = 0.5
+    for i in range(4):
+        expected_pct = 100.0 * (storage_eff**i)  # 100, 50, 25, 12.5
+        assert np.isclose(
+            soc_values[i], expected_pct, rtol=1e-9
+        ), f"Expected SOC at step {i} = {expected_pct}%, got {soc_values[i]:.6f}%"
+
+    # At t+60min (index 4), the soc-minima forces charging → SOC ≈ 8%
+    assert np.isclose(
+        soc_values[4], 8.0, rtol=1e-4
+    ), f"Expected SOC at t+60min ≈ 8%, got {soc_values[4]:.6f}%"
+
+
+def test_save_state_of_charge_percent_sensor_with_zero_soc_max_fails(
+    fresh_db,
+    app,
+    smart_building,
+):
+    """Test that the SOC schedule is silently skipped (no crash) when soc-max is zero,
+    because the '%' conversion requires a non-zero capacity."""
+    assets, sensors, _soc_sensors = smart_building
+
+    soc_sensor_pct = Sensor(
+        "state of charge percent",
+        unit="%",
+        event_resolution=timedelta(hours=0),
+        generic_asset=assets["Test Heat Buffer"],
+        timezone="Europe/Amsterdam",
+    )
+    fresh_db.session.add(soc_sensor_pct)
+    fresh_db.session.flush()
+
+    assert len(soc_sensor_pct.search_beliefs()) == 0
+
+    queue = app.queues["scheduling"]
+    start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
+    end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
+
+    scheduler_specs = {
+        "module": "flexmeasures.data.models.planning.storage",
+        "class": "StorageScheduler",
+    }
+
+    job = create_scheduling_job(
+        asset_or_sensor=sensors["Test Heat Buffer"],
+        scheduler_specs=scheduler_specs,
+        flex_model={
+            "power-capacity": "10kW",
+            "soc-at-start": "0kWh",
+            "soc-min": 0.0,
+            "soc-max": "0kWh",
+            "state-of-charge": {"sensor": soc_sensor_pct.id},
+            "prefer-charging-sooner": True,
+            "storage-efficiency": "100%",
+            "charging-efficiency": "100%",
+            "discharging-efficiency": "100%",
+        },
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-production-capacity": "1MW",
+            "site-consumption-capacity": "1MW",
+        },
+        enqueue=True,
+        start=start,
+        end=end,
+        round_to_decimals=12,
+        resolution=timedelta(minutes=15),
+    )
+
+    work_on_rq(queue, handle_scheduling_exception)
+
+    # With soc-max = 0, the job should fail and the SOC schedule should not be saved
+    assert job.is_failed
+    assert len(soc_sensor_pct.search_beliefs()) == 0
+
+
+def test_scheduling_unit_conversion(
+    fresh_db,
+    app,
+    add_battery_kWh_assets_fresh_db,
+    setup_fresh_test_data,
+    add_market_prices_fresh_db,
+):
+    """Test scheduling of a battery consumption sensor and an inflexible device with MWh units, ensuring correct data creation and unit handling."""
+
+    battery_asset = add_battery_kWh_assets_fresh_db["Test battery"]
+    battery_consumption_sensor = battery_asset.sensors[0]
+    battery_inflexible_sensor = battery_asset.sensors[1]
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+
+    # Verify the scheduler DataSource does not exist yet
+    assert (
+        fresh_db.session.execute(
+            select(DataSource).filter_by(name="FlexMeasures", type="scheduler")
+        ).scalar_one_or_none()
+        is None
+    )
+
+    job = create_scheduling_job(
+        asset_or_sensor=battery_consumption_sensor,
+        start=start,
+        end=end,
+        belief_time=start,
+        resolution=resolution,
+        flex_model={
+            "roundtrip-efficiency": "98%",
+            "storage-efficiency": 0.999,
+        },
+        flex_context={"inflexible-device-sensors": [battery_inflexible_sensor.id]},
+    )
+
+    print("Job: %s" % job.id)
+
+    work_on_rq(app.queues["scheduling"], exc_handler=exception_reporter)
+
+    # Verify the scheduler DataSource was created during job execution
+    scheduler_source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="scheduler")
+    ).scalar_one_or_none()
+    assert scheduler_source is not None
+
+    power_values = fresh_db.session.scalars(
+        select(TimedBelief)
+        .filter(TimedBelief.sensor_id == battery_consumption_sensor.id)
+        .filter(TimedBelief.source_id == scheduler_source.id)
+    ).all()
+
+    # Check power limits: max charging should be equal capacity * resolution
+    max_allowed = 2 * 0.25  # 2 MW * 0.25h = 0.5 MWh
+    assert (
+        max(v.event_value for v in power_values) == max_allowed
+    ), "Expected charging (positive values) at max rate"
+
+    # Same for discharging
+    assert (
+        min(v.event_value for v in power_values) == -max_allowed
+    ), "Expected discharging (negative values at max rate"

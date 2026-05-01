@@ -17,9 +17,15 @@ including error handling.
 @parser.error_handler
 def handle_error(error, req, schema, *, error_status_code, error_headers):
     """Replacing webargs's error parser, so we can throw custom Exceptions."""
-    if error.__class__ == ValidationError:
-        # re-package all marshmallow's validation errors as our own kind (see below)
-        raise FMValidationError(message=error.messages)
+    if isinstance(error, ValidationError):
+        messages = error.messages
+
+        # Flatten custom location wrapper
+        if isinstance(messages, dict) and "args_and_json" in messages:
+            messages = messages["args_and_json"]
+
+        raise FMValidationError(message=messages)
+
     raise error
 
 
@@ -97,6 +103,9 @@ def combined_sensor_data_upload(request: Request, schema):
     data.update(request.files)
     belief_time = request.form.get("belief-time-measured-instantly")
     data.update({"belief-time-measured-instantly": belief_time})
+    unit = request.form.get("unit")
+    if unit is not None:
+        data.update({"unit": unit})
     return MultiDictProxy(data, schema)
 
 

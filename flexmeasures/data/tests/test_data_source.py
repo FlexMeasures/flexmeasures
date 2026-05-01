@@ -158,10 +158,13 @@ def test_data_generator_save_parameters(
 
 
 def test_keep_last_version():
-    s1 = DataSource(name="s1", model="model 1", type="forecaster", version="0.1.0")
-    s2 = DataSource(name="s1", model="model 1", type="forecaster")
-    s3 = DataSource(name="s1", model="model 2", type="forecaster")
-    s4 = DataSource(name="s1", model="model 2", type="scheduler")
+    s1 = DataSource(
+        id=1, name="s1", model="model 1", type="forecaster", version="0.1.0"
+    )
+    s2 = DataSource(id=2, name="s1", model="model 1", type="forecaster")
+    s3 = DataSource(id=3, name="s1", model="model 2", type="forecaster")
+    s4 = DataSource(id=4, name="s1", model="model 2", type="scheduler")
+    s5 = DataSource(id=5, name="s1", model="model 2", type="scheduler")
 
     def create_dummy_frame(sources: list[DataSource]) -> tb.BeliefsDataFrame:
         sensor = tb.Sensor("A")
@@ -201,6 +204,20 @@ def test_keep_last_version():
     # two sources with the same model but different types
     bdf = create_dummy_frame([s3, s4])
     np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s3, s4])
+    # also check the reverse order
+    bdf = bdf.sort_index(level="source", ascending=False, sort_remaining=False)
+    np.testing.assert_array_equal(
+        keep_latest_version(bdf).sources,
+        [s4, s3],
+        "Expected the original order of the data sources to be respected.",
+    )
+
+    # two sources with only different IDs (for instance, when they just differ by their data_generator_config)
+    bdf = create_dummy_frame([s4, s5])
+    np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s5])
+    # also check the reverse order
+    bdf = bdf.sort_index(level="source", ascending=False, sort_remaining=False)
+    np.testing.assert_array_equal(keep_latest_version(bdf).sources, [s5])
 
     # repeated source
     bdf = create_dummy_frame([s1, s1])
@@ -245,3 +262,44 @@ def test_keep_latest_version_preserves_probabilistic_splits():
     probs = set(kept.index.get_level_values("cumulative_probability").tolist())
     assert probs == {0.1, 0.5, 0.7, 0.9}  # no more 0.3
     assert len(kept) == 4
+
+
+def test_get_or_create_source_stable_under_key_order(db, app):
+    """get_or_create_source must return the same row regardless of dict key insertion order.
+
+    PostgreSQL JSONB normalises JSON object keys to alphabetical order on every
+    round-trip, so a dict like ``{"z": 1, "a": 2}`` comes back as ``{"a": 2, "z": 1}``.
+    Before the fix, ``hash_attributes`` used ``json.dumps`` *without* ``sort_keys``,
+    meaning the hash of the original dict and the hash of the JSONB-reloaded dict
+    differed.  ``get_or_create_source`` then failed to find the existing row and
+    silently inserted a duplicate, giving the new row a different ID.  The forecasting
+    pipeline stored beliefs under the new ID while the job meta still held the original
+    ID, so ``GET /sensors/{id}/forecasts/{uuid}`` returned 400 even though the
+    forecasts were present in the database.
+    """
+    from flexmeasures.data.services.data_sources import get_or_create_source
+
+    # Insert with keys in non-alphabetical insertion order
+    attrs_python_order = {"z_last": "value_z", "a_first": "value_a"}
+    source_original = get_or_create_source(
+        "test-hash-stability",
+        source_type="forecaster",
+        attributes=attrs_python_order,
+    )
+    original_id = source_original.id
+
+    # Simulate a JSONB round-trip: PostgreSQL returns keys in alphabetical order
+    attrs_jsonb_order = {"a_first": "value_a", "z_last": "value_z"}
+
+    # Before the fix this would create a *new* DataSource with a different ID
+    source_via_jsonb = get_or_create_source(
+        "test-hash-stability",
+        source_type="forecaster",
+        attributes=attrs_jsonb_order,
+    )
+
+    assert source_via_jsonb.id == original_id, (
+        "get_or_create_source created a duplicate DataSource when the same "
+        "attributes were supplied in a different key order (as PostgreSQL JSONB "
+        "would return them).  Ensure DataSource.hash_attributes uses sort_keys=True."
+    )

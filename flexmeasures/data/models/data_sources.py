@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import inspect
 import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
 from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.dialects.postgresql import JSONB
 
 import pandas as pd
 import timely_beliefs as tb
@@ -108,7 +110,9 @@ class DataGenerator:
         """
         raise NotImplementedError()
 
-    def compute(self, parameters: dict | None = None, **kwargs) -> list[dict[str, Any]]:
+    def compute(
+        self, parameters: dict | None = None, as_job: bool = False, **kwargs
+    ) -> list[dict[str, Any]]:
         """The configuration `parameters` stores dynamic parameters, parameters that, if
         changed, DO NOT trigger the creation of a new DataSource. Static parameters, such as
         the topology of an energy system, can go into `config`.
@@ -117,6 +121,7 @@ class DataGenerator:
         of the method compute when passing the `parameters` as deserialized attributes.
 
         :param parameters:  Serialized parameters, defaults to None.
+        :param as_job:      If True, runs as a job.
         :param kwargs:      Deserialized parameters (can be used as an alternative to the `parameters` kwarg).
         """
 
@@ -130,8 +135,15 @@ class DataGenerator:
 
         self._parameters = self._parameters_schema.load(self._parameters)
 
-        results = self._compute(**self._parameters)
-        results = self._assign_sensors_and_source(results)
+        sig = inspect.signature(inspect.unwrap(self._compute))
+        accepts_as_job = "as_job" in sig.parameters
+        if accepts_as_job:
+            results = self._compute(**self._parameters, as_job=as_job)
+        else:
+            results = self._compute(**self._parameters)
+
+        if not as_job:
+            results = self._assign_sensors_and_source(results)
         return results
 
     def _assign_sensors_and_source(
@@ -243,24 +255,54 @@ class DataGenerator:
         return _parameters
 
 
+DEFAULT_DATASOURCE_TYPES = [
+    "user",
+    "scheduler",
+    "forecaster",
+    "reporter",
+    "demo script",
+    "gateway",
+    "market",
+]
+
+
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
     __tablename__ = "data_source"
     __table_args__ = (
-        db.UniqueConstraint("name", "user_id", "model", "version", "attributes_hash"),
+        db.UniqueConstraint(
+            "name", "user_id", "account_id", "model", "version", "attributes_hash"
+        ),
     )
 
     # The type of data source (e.g. user, forecaster or scheduler)
+    # just a string, but preferably one of DEFAULT_DATASOURCE_TYPES
     type = db.Column(db.String(80), default="")
 
-    # The id of the user source (can link e.g. to fm_user table)
-    user_id = db.Column(
-        db.Integer, db.ForeignKey("fm_user.id"), nullable=True, unique=True
+    # The id of the user source (can link e.g. to fm_user table).
+    # No DB-level FK so that deleting a user preserves the lineage reference in this column.
+    user_id = db.Column(db.Integer, nullable=True, unique=True)
+    user = db.relationship(
+        "User",
+        primaryjoin="DataSource.user_id == User.id",
+        foreign_keys="[DataSource.user_id]",
+        backref=db.backref("data_source", lazy=True, passive_deletes="all"),
+        passive_deletes="all",
     )
-    user = db.relationship("User", backref=db.backref("data_source", lazy=True))
 
-    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+    # The account this data source belongs to (populated from user.account for user-type sources).
+    # No DB-level FK so that deleting an account preserves the lineage reference in this column.
+    account_id = db.Column(db.Integer, nullable=True)
+    account = db.relationship(
+        "Account",
+        primaryjoin="DataSource.account_id == Account.id",
+        foreign_keys="[DataSource.account_id]",
+        backref=db.backref("data_sources", lazy=True, passive_deletes="all"),
+        passive_deletes="all",
+    )
+
+    attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
     attributes_hash = db.Column(db.LargeBinary(length=256))
 
@@ -292,15 +334,20 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             name = user.username
             type = "user"
             self.user = user
+            # Prefer the FK column directly (avoids triggering a lazy load/autoflush).
+            # Fall back to the account relationship for users not yet flushed to the DB
+            # (where account_id may not be set on the column yet).
+            if user.account_id is not None:
+                self.account_id = user.account_id
+            elif user.account is not None:
+                self.account_id = user.account.id
         elif user is None and type == "user":
             raise TypeError("A data source cannot have type 'user' but no user set.")
         self.type = type
 
         if attributes is not None:
             self.attributes = attributes
-            self.attributes_hash = hashlib.sha256(
-                json.dumps(attributes).encode("utf-8")
-            ).digest()
+            self.attributes_hash = DataSource.hash_attributes(attributes)
         else:
             # Otherwise, the attributes only default to {} when flushing/committing to the db
             kwargs["attributes"] = {}
@@ -426,7 +473,20 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     @staticmethod
     def hash_attributes(attributes: dict) -> str:
-        return hashlib.sha256(json.dumps(attributes).encode("utf-8")).digest()
+        """Hash a dict of attributes to a fixed-length byte string.
+
+        Keys are sorted before hashing so that the result is stable regardless of
+        Python insertion order.  This matters because PostgreSQL JSONB serialises
+        JSON object keys in **alphabetical** order, so a round-trip through the
+        database changes the key order of the Python dict.  Without ``sort_keys``
+        the hash computed from the freshly-loaded dict would differ from the hash
+        that was stored when the :class:`DataSource` was first created, causing
+        :func:`~flexmeasures.data.services.data_sources.get_or_create_source` to
+        silently create a duplicate row.
+        """
+        return hashlib.sha256(
+            json.dumps(attributes, sort_keys=True).encode("utf-8")
+        ).digest()
 
     def get_attribute(self, attribute: str, default: Any = None) -> Any:
         """Looks for the attribute in the DataSource's attributes column."""
@@ -447,8 +507,8 @@ def keep_latest_version(
 
     The function performs the following steps:
 
-    1. Adds columns for the source's name, type, model, and version.
-    2. Sorts the rows by `source.version` in descending order.
+    1. Adds columns for the source's name, type, model, version and id.
+    2. Sorts the rows by `source.version` and `source.id`, both in descending order.
     3. Removes duplicates based on `source.name`, `source.type`, and `source.model`,
        keeping the latest version for each `event_start` (and `belief_time`).
     4. Drops the temporary columns added for source attributes.
@@ -483,25 +543,36 @@ def keep_latest_version(
             "source.type": s.type,
             "source.model": s.model,
             "source.version": Version(s.version or "0.0.0"),
+            "source.id": s.id,
         }
         for s in source_values
     }
     source_expanded = bdf.index.get_level_values("source").map(source_to_fields)
 
-    bdf[["source.name", "source.type", "source.model", "source.version"]] = (
-        pd.DataFrame(source_expanded.tolist(), index=bdf.index)
-    )
+    bdf[
+        ["source.name", "source.type", "source.model", "source.version", "source.id"]
+    ] = pd.DataFrame(source_expanded.tolist(), index=bdf.index)
     bdf["_" + event_column] = bdf.index.get_level_values(event_column)
     if not one_deterministic_belief_per_event:
         bdf["_" + belief_column] = bdf.index.get_level_values(belief_column)
-    # Sort by event_start (belief_time) and version, keeping only the latest version
+    # Sort by event_start (belief_time), version and ID, keeping only the latest version and highest ID
     if one_deterministic_belief_per_event:
-        sort_by = ["_" + event_column, "source.version"]
-        ascending = [True, False]
+        sort_by = ["_" + event_column, "source.version", "source.id"]
+        ascending = [True, False, False]
     else:
-        sort_by = ["_" + event_column, "_" + belief_column, "source.version"]
-        ascending = [True, True if belief_column == "belief_time" else False, False]
-    bdf = bdf.sort_values(by=sort_by, ascending=ascending)
+        sort_by = [
+            "_" + event_column,
+            "_" + belief_column,
+            "source.version",
+            "source.id",
+        ]
+        ascending = [
+            True,
+            True if belief_column == "belief_time" else False,
+            False,
+            False,
+        ]
+    bdf_sorted = bdf.sort_values(by=sort_by, ascending=ascending)
 
     # Drop duplicates based on event_start and source identifiers, keeping the latest version
     unique_columns = [
@@ -514,11 +585,11 @@ def keep_latest_version(
         unique_columns += ["_" + belief_column]
     # Keep probabilistic beliefs intact
     unique_keys = (
-        bdf[unique_columns].drop_duplicates().droplevel("cumulative_probability")
+        bdf_sorted[unique_columns].drop_duplicates().droplevel("cumulative_probability")
     )
     bdf = bdf.loc[bdf.index.droplevel("cumulative_probability").isin(unique_keys.index)]
 
     # Remove temporary columns
-    bdf = bdf.drop(columns=unique_columns + ["source.version"])
+    bdf = bdf.drop(columns=unique_columns + ["source.version", "source.id"])
 
     return bdf

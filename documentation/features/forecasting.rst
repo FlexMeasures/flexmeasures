@@ -17,7 +17,7 @@ There are even existing plugins for importing `weather forecasts <https://github
 
 If you need to make your own predictions, forecasting algorithms can be used within FlexMeasures, for instance, to arrive at an expected profile of future solar power production at the site.
 
-FlexMeasures provides a CLI command to generate forecasts (see below). An API endpoint will follow soon.
+FlexMeasures provides a CLI command and an API endpoint to generate forecasts (see below).
 
 FlexMeasures provides a **fixed viewpoint forecasting infrastructure**.
 This means that from one point in time (the fixed viewpoint), we forecast a range of events into the future (e.g. 24 hourly events for a span of one day). While the first forecast (one hour ahead) has a small horizon (1H), the last one has a large horizon (24H) and the accuracy between the two will usually differ (it is easier to forecast small horizons).
@@ -55,12 +55,39 @@ The main CLI parameters that control this process are:
 - ``to-date``: The global cutoff point. Training and prediction cycles continue until the ``predict-end`` reaches this date.
 - ``max-forecast-horizon``: The maximum length of a forecast into the future.
 - ``forecast-frequency``: Determines the number of prediction cycles within the forecast period (e.g. daily, hourly).
-- ``start-date``: Define the start of historical data used for training.
+- ``train-period``: Define a window of historical data to use for training.
 
 Note that:
 
 ``forecast-frequency`` together with ``max-forecast-horizon`` determine how the forecasting cycles advance through time.
-``start-date`` / ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
+``train-period``, ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
+
+Forecasting via the UI
+-----------------------
+
+The quickest way to create a one-off forecast is the **Create forecast** button on the sensor page (see :ref:`view_sensors_forecast_button`). The button is available to users with permission to record data on sensors, provided at least two days of historical data exist. The forecast duration defaults to 48 hours (configured via ``FLEXMEASURES_PLANNING_HORIZON``) but can be adjusted up to 7 days in the panel. No further configuration is needed — one click queues the job and the page shows progress messages until the forecast is ready.
+
+For more control over what and how to forecast, use the API.
+
+Forecasting via the API
+-----------------------
+
+In addition to the CLI command, FlexMeasures provides API endpoints for triggering forecasts and retrieving their results.
+
+These endpoints live under the Sensor API (``/api/v3_0/sensors``).
+
+A typical workflow is:
+
+1. Trigger a forecasting job for a sensor.
+2. Poll the job until it finishes.
+3. Retrieve the forecast results.
+
+For the exact API endpoints, parameters, and response formats, refer to the API v3 documentation:
+
+- `[POST] /sensors/(id)/forecasts/trigger <api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>`_
+- `[GET] /sensors/(id)/forecasts/(uuid) <api/v3_0.html#get--api-v3_0-sensors-id-forecasts-uuid>`_
+
+or try the endpoints interactively with the Swagger UI at ``/api/v3_0/docs``.
 
 Technical specs
 -----------------

@@ -3,12 +3,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from datetime import datetime, timezone
 
-from flask_security import UserMixin, RoleMixin
+from flask_security import UserMixin, RoleMixin, current_user
 import pandas as pd
 from sqlalchemy import select, func
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.dialects.postgresql import JSONB
 from timely_beliefs import utils as tb_utils
 
 from flexmeasures.data import db
@@ -19,6 +21,7 @@ from flexmeasures.data.models.annotations import (
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
 from flexmeasures.auth.policy import AuthModelMixin, CONSULTANT_ROLE, ACCOUNT_ADMIN_ROLE
+from flexmeasures.utils.time_utils import server_now
 
 if TYPE_CHECKING:
     from flexmeasures.data.models.data_sources import DataSource
@@ -65,6 +68,7 @@ class Account(db.Model, AuthModelMixin):
     primary_color = Column(String(7), default=None)
     secondary_color = Column(String(7), default=None)
     logo_url = Column(String(255), default=None)
+    attributes = Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_accounts",
@@ -356,6 +360,60 @@ def remember_last_seen(user):
         user.last_seen_at = datetime.now(timezone.utc)
         db.session.add(user)
         db.session.commit()
+
+
+def log_password_reset(the_app, user):
+    """Record in an audit log when a password gets reset"""
+    from flexmeasures.data.models.audit_log import AuditLog
+
+    active_user_id, active_user_name = None, None
+    if hasattr(current_user, "id"):
+        active_user_id, active_user_name = current_user.id, current_user.username
+    user_audit_log = AuditLog(
+        event_datetime=server_now(),
+        event=f"Password reset for user {user.username}",
+        active_user_id=active_user_id,
+        active_user_name=active_user_name,
+        affected_user_id=user.id,
+    )
+    db.session.add(user_audit_log)
+    db.session.commit()
+
+
+def log_password_changed(the_app, user):
+    """Record in an audit log when a password gets changed"""
+    from flexmeasures.data.models.audit_log import AuditLog
+
+    active_user_id, active_user_name = None, None
+    if hasattr(current_user, "id"):
+        active_user_id, active_user_name = current_user.id, current_user.username
+    user_audit_log = AuditLog(
+        event_datetime=server_now(),
+        event=f"Password changed for user {user.username}",
+        active_user_id=active_user_id,
+        active_user_name=active_user_name,
+        affected_user_id=user.id,
+    )
+    db.session.add(user_audit_log)
+    db.session.commit()
+
+
+def log_reset_password_instructions_sent(the_app, user, *args, **kwargs):
+    """Record in an audit log when reset password instructions get sent"""
+    from flexmeasures.data.models.audit_log import AuditLog
+
+    active_user_id, active_user_name = None, None
+    if hasattr(current_user, "id"):
+        active_user_id, active_user_name = current_user.id, current_user.username
+    user_audit_log = AuditLog(
+        event_datetime=server_now(),
+        event=f"Reset password instructions sent for user {user.username}",
+        active_user_id=active_user_id,
+        active_user_name=active_user_name,
+        affected_user_id=user.id,
+    )
+    db.session.add(user_audit_log)
+    db.session.commit()
 
 
 def is_user(o) -> bool:

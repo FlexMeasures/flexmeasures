@@ -81,10 +81,10 @@ def get_flexmeasures_env(app, cfg_location) -> str | None:
 
     if app.testing:
         flexmeasures_env = "testing"
-    elif cfg_config.get("FLEXMEASURES_ENV", None):
-        flexmeasures_env = cfg_config.get("FLEXMEASURES_ENV", None)
     elif os.getenv("FLEXMEASURES_ENV", None):
         flexmeasures_env = os.getenv("FLEXMEASURES_ENV", None)
+    elif cfg_config.get("FLEXMEASURES_ENV", None):
+        flexmeasures_env = cfg_config.get("FLEXMEASURES_ENV", None)
     elif os.getenv("FLASK_ENV", None):
         flexmeasures_env = os.getenv("FLASK_ENV", None)
         app.logger.warning(
@@ -135,8 +135,8 @@ def read_config(app: Flask, custom_path_to_config: str | None):
     path_to_config_home = str(Path.home().joinpath(".flexmeasures.cfg"))
     path_to_config_instance = os.path.join(app.instance_path, "flexmeasures.cfg")
 
-    # We only load end vars and custom config when not testing (that should run completely on defaults)
-    if not app.testing:
+    # We only load env vars and custom config when not testing (that should run completely on defaults)
+    if not app.testing and flexmeasures_env != "documentation":
         # the env can be in config, but might have been explicitly set in app:create
         preloaded_flexmeasures_env = app.config.get("FLEXMEASURES_ENV", None)
         # First, env vars, custom config can override those
@@ -153,7 +153,7 @@ def read_config(app: Flask, custom_path_to_config: str | None):
             app.config["SQLALCHEMY_DATABASE_URI"] = custom_test_db_uri
 
     # Check for missing values.
-    # Documentation runs fine without them.
+    # Again, tests and documentation run fine without them.
     if not app.testing and flexmeasures_env != "documentation":
         if not are_required_settings_complete(app):
             if not os.path.exists(used_path_to_config):

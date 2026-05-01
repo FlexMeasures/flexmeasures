@@ -56,6 +56,7 @@ PREFERRED_UNITS = [
 PREFERRED_UNITS_DICT = dict(
     [(ur.parse_expression(x).dimensionality, x) for x in PREFERRED_UNITS]
 )
+SI_PREFIXES = list(ur._prefixes.keys())
 
 
 def to_preferred(x: pint.Quantity) -> pint.Quantity:
@@ -108,9 +109,15 @@ def find_smallest_common_unit(units: list[str]) -> tuple[str, dict[str, float]]:
     ('a.u.', {'kW': 1.0, 'm': 1.0})
     >>> find_smallest_common_unit(["EUR", "AUD"])
     ('a.u.', {'EUR': 1.0, 'AUD': 1.0})
+    >>> find_smallest_common_unit(["EUR", "EUR"])
+    ('EUR', {'EUR': 1.0})
+    >>> find_smallest_common_unit(["°C", "°C"])
+    ('°C', {'°C': 1.0})
     """
     if not units:
         return "a.u.", {}
+    if len(set(units)) == 1:
+        return units[0], {unit: 1.0 for unit in units}
 
     try:
         # Convert all to quantities and check dimensionality
@@ -251,8 +258,10 @@ def is_energy_unit(unit: str) -> bool:
 
 
 def is_currency_unit(unit: str | pint.Quantity | pint.Unit) -> bool:
-    """For Example:
+    """For example:
     >>> is_currency_unit("EUR")
+    True
+    >>> is_currency_unit("kEUR")
     True
     >>> is_currency_unit("KRW")
     True
@@ -266,12 +275,28 @@ def is_currency_unit(unit: str | pint.Quantity | pint.Unit) -> bool:
     if isinstance(unit, pint.Unit):
         return is_currency_unit(str(unit))
 
-    return Currency(code=unit) in list_all_currencies()
+    return Currency(code=strip_si_prefix(unit)) in list_all_currencies()
+
+
+def strip_si_prefix(unit: str) -> str:
+    """For example:
+    >>> strip_si_prefix("MEUR")
+    'EUR'
+    >>> strip_si_prefix("kEUR")
+    'EUR'
+    >>> strip_si_prefix("cEUR")
+    'EUR'
+    """
+    if len(unit) == 4 and unit[0] in SI_PREFIXES:
+        return unit[1:]
+    return unit
 
 
 def is_price_unit(unit: str) -> bool:
     """For example:
     >>> is_price_unit("EUR/MWh")
+    True
+    >>> is_price_unit("kEUR/MWh")
     True
     >>> is_price_unit("KRW/MWh")
     True
@@ -280,18 +305,18 @@ def is_price_unit(unit: str) -> bool:
     >>> is_price_unit("beans/MW")
     False
     """
-    if (
-        unit[:3] in [str(c) for c in list_all_currencies()]
-        and len(unit) > 3
-        and unit[3] == "/"
-    ):
-        return True
-    return False
+    if "/" not in unit:
+        return False
+    currency, _ = unit.split("/", 1)
+    currency = strip_si_prefix(currency)
+    return currency in [str(c) for c in list_all_currencies()]
 
 
 def is_energy_price_unit(unit: str) -> bool:
     """For example:
     >>> is_energy_price_unit("EUR/MWh")
+    True
+    >>> is_energy_price_unit("kEUR/MWh")
     True
     >>> is_energy_price_unit("KRW/MWh")
     True
@@ -300,14 +325,17 @@ def is_energy_price_unit(unit: str) -> bool:
     >>> is_energy_price_unit("beans/MW")
     False
     """
-    if is_price_unit(unit) and is_energy_unit(unit[4:]):
-        return True
-    return False
+    if not is_price_unit(unit):
+        return False
+    denom = unit.split("/", 1)[1]
+    return is_energy_unit(denom)
 
 
 def is_capacity_price_unit(unit: str) -> bool:
     """For example:
     >>> is_capacity_price_unit("EUR/MW")
+    True
+    >>> is_capacity_price_unit("kEUR/MW")
     True
     >>> is_capacity_price_unit("KRW/MW")
     True
@@ -316,9 +344,10 @@ def is_capacity_price_unit(unit: str) -> bool:
     >>> is_capacity_price_unit("beans/MWh")
     False
     """
-    if is_price_unit(unit) and is_power_unit(unit[4:]):
-        return True
-    return False
+    if not is_price_unit(unit):
+        return False
+    denom = unit.split("/", 1)[1]
+    return is_power_unit(denom)
 
 
 def is_speed_unit(unit: str) -> bool:
@@ -378,6 +407,31 @@ def get_unit_dimension(unit: str) -> str:
     if len(dimensions) == 1:
         return list(dimensions.keys())[0][1:-1]
     return "value"
+
+
+def split_into_magnitude_and_unit(value: str) -> tuple[str | None, str | None]:
+    """Extract the unit part from a string representing a quantity, as well as the number value.
+
+    For example:
+    >>> split_into_magnitude_and_unit("1000 kW")
+    ('1000', 'kW')
+    >>> split_into_magnitude_and_unit("350 EUR/MWh")
+    ('350', 'EUR/MWh')
+    >>> split_into_magnitude_and_unit("50")
+    ('50', '')
+    >>> split_into_magnitude_and_unit("kW")
+    (None, 'kW')
+    """
+    try:
+        # ur.Quantity parses the number and unit automatically
+        qty = ur.Quantity(value)
+        value = f"{qty.magnitude:g}" if qty.magnitude != 1 else None
+
+        # We return the units formatted with "~P" (short pretty format)
+        # to match the registry settings.
+        return value, f"{qty.units:~P}"
+    except Exception:
+        return None, None
 
 
 def _convert_time_units(
@@ -456,6 +510,7 @@ def convert_units(
                 # Catch multiplicative conversions that use the resolution, like "kWh/15min" to "kW"
                 if event_resolution is None and isinstance(data, tb.BeliefsSeries):
                     event_resolution = data.event_resolution
+
                 multiplier = determine_unit_conversion_multiplier(
                     from_unit, to_unit, event_resolution
                 )

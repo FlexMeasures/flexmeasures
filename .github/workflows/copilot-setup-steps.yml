@@ -1,0 +1,63 @@
+# GitHub Copilot Agent Environment Setup
+# This file defines the standardized environment setup for GitHub Copilot agents
+# working on the FlexMeasures repository.
+#
+# Reference: https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/customize-the-agent-environment
+
+name: Copilot Setup Steps
+
+on:
+  workflow_dispatch:
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out src from Git
+        uses: actions/checkout@v6
+
+      - name: Set up test environment
+        uses: ./.github/actions/setup-test-env
+        with:
+          python-version: "3.12"
+      - name: Install pre-commit hooks
+        run: |
+          # Install pre-commit for code quality checks
+          uv tool install pre-commit
+          
+          # Install the pre-commit hooks
+          pre-commit install
+    services:
+      postgres:
+        image: postgres:17.4
+        env:
+          POSTGRES_USER: flexmeasures_test
+          POSTGRES_PASSWORD: flexmeasures_test
+          POSTGRES_DB: flexmeasures_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U flexmeasures_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: flexmeasures_test
+      PGDB: flexmeasures_test
+      PGPASSWORD: flexmeasures_test
+      FLEXMEASURES_ENV: testing
+      SQLALCHEMY_DATABASE_URI: postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test
+      FLEXMEASURES_REDIS_URL: redis://127.0.0.1:6379/0

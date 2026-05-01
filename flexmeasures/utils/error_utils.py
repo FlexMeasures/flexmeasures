@@ -8,16 +8,13 @@ import traceback
 from flask import Flask, jsonify, current_app, request
 from werkzeug.exceptions import (
     HTTPException,
-    InternalServerError,
-    BadRequest,
-    NotFound,
-    Gone,
+    SecurityError,
 )
 from sqlalchemy.orm import Query
 
 
-def log_error(exc: Exception, error_msg: str):
-    """Collect meta data about the exception and log it.
+def log_error(exc: Exception, error_msg: str, verbose: bool = True):
+    """Collect metadata about the exception and log it.
     error_msg comes in as an extra attribute because Exception implementations differ here.
     """
     exc_info = sys.exc_info()
@@ -28,14 +25,18 @@ def log_error(exc: Exception, error_msg: str):
 
     extra = dict(url=request.path, **get_err_source_info(last_traceback))
 
-    msg = (
-        '{error_name}:"{message}" [occurred at {src_module}({src_func}):{src_linenr},'
-        "URL was: {url}]".format(
-            error_name=exc.__class__.__name__, message=error_msg, **extra
-        )
-    )
+    msg = '{error_name} - URL was: {url} - "{message}"'
+    if verbose:
+        msg += " [occurred at {src_module} (in {src_func}, line {src_linenr})"
 
-    current_app.logger.error(msg, exc_info=exc_info)
+    # Fill in message contents
+    msg = msg.format(error_name=exc.__class__.__name__, message=error_msg, **extra)
+
+    # Log error with or without traceback
+    if verbose:
+        current_app.logger.error(msg, exc_info=exc_info)
+    else:
+        current_app.logger.error(msg)
 
 
 def get_err_source_info(original_traceback=None) -> dict:
@@ -63,7 +64,6 @@ def error_handling_router(error: HTTPException):
     We respond in json if the request content-type is JSON.
     The ui package can also define how it wants to render HTML errors, by setting a function.
     """
-    log_error(error, getattr(error, "description", str(error)))
 
     http_error_code = 500  # fallback
     if hasattr(error, "code"):
@@ -72,12 +72,30 @@ def error_handling_router(error: HTTPException):
         except (ValueError, TypeError):  # if code is not an int or None
             pass
 
+    # Some errors don't need a verbose log statement
+    if http_error_code == 404:
+        # For 404 Not Found we only log the name, because the description is just 'The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.'
+        log_error(
+            error,
+            error.name,
+            verbose=False,
+        )
+    elif http_error_code in (401, 403, 410) or isinstance(error, SecurityError):
+        log_error(
+            error,
+            error.description,
+            verbose=False,
+        )
+    else:
+        log_error(error, getattr(error, "description", str(error)))
+
     error_text = getattr(
         error, "description", f"Something went wrong: {error.__class__.__name__}"
     )
-
-    if request.is_json or (
-        request.url_rule is not None and request.url_rule.rule.startswith("/api")
+    if (
+        request.is_json
+        or (request.url_rule is not None and request.url_rule.rule.startswith("/api"))
+        or isinstance(error, SecurityError)
     ):
         response = jsonify(
             dict(
@@ -95,19 +113,14 @@ def error_handling_router(error: HTTPException):
         return current_app.HttpException_handler_html(error)
     # This fallback is ugly but better than nothing.
     else:
-        return "%s:%s" % (error.__class__.__name__, error_text), http_error_code
+        return "%s: %s" % (error.__class__.__name__, error_text), http_error_code
 
 
 def add_basic_error_handlers(app: Flask):
     """
-    Register classes we care about with the generic handler.
+    Register a generic error handler for all exceptions.
     See also the auth package for auth-specific error handling (Unauthorized, Forbidden)
     """
-    app.register_error_handler(InternalServerError, error_handling_router)
-    app.register_error_handler(BadRequest, error_handling_router)
-    app.register_error_handler(HTTPException, error_handling_router)
-    app.register_error_handler(NotFound, error_handling_router)
-    app.register_error_handler(Gone, error_handling_router)
     app.register_error_handler(Exception, error_handling_router)
 
 

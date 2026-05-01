@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 import math
 import io
+import json
 
 from flask import url_for
 from sqlalchemy import select, func
@@ -24,7 +25,7 @@ sensor_schema = SensorSchema()
 
 
 @pytest.mark.parametrize(
-    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, expected_status_code, filter_account_id, filter_asset_id, asset_id_of_of_first_sensor_result",
+    "requesting_user, search_by, search_value, exp_sensor_name, exp_num_results, include_consultancy_clients, use_pagination, expected_status_code, filter_account_id, filter_asset_id, asset_id_of_first_sensor_result",
     [
         (
             "test_supplier_user_4@seita.nl",
@@ -44,7 +45,7 @@ sensor_schema = SensorSchema()
             None,
             None,
             "power",
-            2,
+            6,
             False,
             False,
             200,
@@ -147,7 +148,7 @@ def test_fetch_sensors(
     expected_status_code,
     filter_account_id,
     filter_asset_id,
-    asset_id_of_of_first_sensor_result,
+    asset_id_of_first_sensor_result,
 ):
     """
     Retrieve all sensors.
@@ -157,7 +158,7 @@ def test_fetch_sensors(
 
     The `filter_asset_id` specifies the asset_id to filter for.
 
-    The `asset_id_of_of_first_sensor_result` specifies the asset_id of the first sensor
+    The `asset_id_of_first_sensor_result` specifies the asset_id of the first sensor
     in the result list. This sensors is expected to be from a child asset of the asset
     specified in `filter_asset_id`.
 
@@ -196,18 +197,24 @@ def test_fetch_sensors(
         if use_pagination:
             assert isinstance(response.json["data"][0], dict)
             assert is_valid_unit(response.json["data"][0]["unit"])
-            assert response.json["num-records"] == exp_num_results
+            assert response.json["num-records"] == exp_num_results, (
+                f"If this line fails, a conftest may have added another sensor "
+                f"accessible to {requesting_user}. Update the exp_num_results in the test parameters accordingly."
+            )
             assert response.json["filtered-records"] == exp_num_results
         else:
             assert isinstance(response.json, list)
             assert is_valid_unit(response.json[0]["unit"])
             assert response.json[0]["name"] == exp_sensor_name
-            assert len(response.json) == exp_num_results
+            assert len(response.json) == exp_num_results, (
+                f"If this line fails, a conftest may have added another sensor "
+                f"accessible to {requesting_user}. Update the exp_num_results in the test parameters accordingly."
+            )
 
-            if asset_id_of_of_first_sensor_result is not None:
+            if asset_id_of_first_sensor_result is not None:
                 assert (
                     response.json[0]["generic_asset_id"]
-                    == asset_id_of_of_first_sensor_result
+                    == asset_id_of_first_sensor_result
                 )
             elif filter_asset_id:
                 assert response.json[0]["generic_asset_id"] == filter_asset_id
@@ -323,6 +330,7 @@ def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requestin
         content_type="multipart/form-data",
         headers={"Authorization": auth_token},
     )
+    print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200 or response.status_code == 400
 
     check_audit_log_event(
@@ -356,6 +364,7 @@ def test_upload_excel_file(client, requesting_user):
         content_type="multipart/form-data",
         headers={"Authorization": auth_token},
     )
+    print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200 or response.status_code == 400
 
 
@@ -528,6 +537,29 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     existing_sensor_id = existing_sensor.id
     sensor_count = db.session.scalar(select(func.count()).select_from(Sensor))
 
+    asset = existing_sensor.generic_asset
+    asset.flex_model = {
+        "soc-max": {"sensor": existing_sensor_id},
+        "static-limit": "10 kW",
+    }
+    asset.flex_context = {
+        "consumption-price": {"sensor": existing_sensor_id},
+        "inflexible-device-sensors": [existing_sensor_id],
+    }
+    asset.sensors_to_show = [
+        {"title": "Power", "plots": [{"sensor": existing_sensor_id}]},
+        existing_sensor_id,
+    ]
+    asset.sensors_to_show_as_kpis = [
+        {
+            "sensor": existing_sensor_id,
+            "title": "Temperature KPI",
+            "function": "sum",
+        }
+    ]
+    db.session.add(asset)
+    db.session.commit()
+
     delete_sensor_response = client.delete(
         url_for("SensorAPI:delete", id=existing_sensor_id),
     )
@@ -544,9 +576,43 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
         db.session.scalar(select(func.count()).select_from(Sensor)) == sensor_count - 1
     )
 
+    asset_after = db.session.get(GenericAsset, asset.id)
+    assert asset_after.flex_model.get("soc-max") is None
+    assert asset_after.flex_model.get("static-limit") == "10 kW"
+    assert asset_after.flex_context.get("consumption-price") is None
+    assert asset_after.flex_context.get("inflexible-device-sensors") == []
+    assert str(existing_sensor_id) not in json.dumps(asset_after.sensors_to_show)
+    assert str(existing_sensor_id) not in json.dumps(
+        asset_after.sensors_to_show_as_kpis
+    )
+
     check_audit_log_event(
         db=db,
         event=f"Deleted sensor '{existing_sensor.name}': {existing_sensor.id}",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
+    check_audit_log_event(
+        db=db,
+        event=f"Removed sensor reference '{existing_sensor.name}': {existing_sensor.id} from flex-model (because sensor has been deleted).",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
+    check_audit_log_event(
+        db=db,
+        event=f"Removed sensor reference '{existing_sensor.name}': {existing_sensor.id} from flex-context (because sensor has been deleted).",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
+    check_audit_log_event(
+        db=db,
+        event=f"Removed sensor reference '{existing_sensor.name}': {existing_sensor.id} from sensors-to-show (because sensor has been deleted).",
+        user=requesting_user,
+        asset=existing_sensor.generic_asset,
+    )
+    check_audit_log_event(
+        db=db,
+        event=f"Removed sensor reference '{existing_sensor.name}': {existing_sensor.id} from sensors-to-show-as-kpis (because sensor has been deleted).",
         user=requesting_user,
         asset=existing_sensor.generic_asset,
     )

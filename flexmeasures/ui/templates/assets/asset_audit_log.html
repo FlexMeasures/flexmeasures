@@ -7,19 +7,24 @@
 {% block divs %}
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
-<div class="container-fluid">
-    <div class="row">
-        <div class="asset auditlog card">
+<div class="container-fluid px-0">
+    <div class="row gx-0">
+        <div class="col-sm-2"></div>
+        <div class="col-sm-8 asset auditlog card">
             <h3>History of actions for asset <a href="/assets/{{ asset.id }}">{{ asset.name }}</a></h3>
-            <table id="assetAuditLog" class="table table-striped paginate nav-on-click" title="View data">
+            <table id="assetAuditLog" class="table table-striped paginate">
             </table>
         </div>
+        <div class="col-sm-2"></div>
     </div>
 </div>
 
 <script>
     function AuditLog(event_datetime, event, acting_user_name) {
-        this.event_datetime = event_datetime;
+        const naturalDateTime = new Date(event_datetime);
+        const naturalDate = naturalDateTime.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+
+        this.event_datetime = `<span title="${naturalDateTime}">${naturalDate}</span>`;
         this.event = event;
         this.acting_user_name = acting_user_name;
     }

@@ -84,13 +84,16 @@ def potentially_limit_assets_query_to_accounts(
 
 def get_source_criteria(
     cls: "Type[ts.TimedValue] | Type[ts.TimedBelief]",
-    user_source_ids: int | list[int],
-    source_types: list[str],
-    exclude_source_types: list[str],
+    user_source_ids: int | list[int] | None = None,
+    source_account_ids: int | list[int] | None = None,
+    source_types: list[str] | None = None,
+    exclude_source_types: list[str] | None = None,
 ) -> list[BinaryExpression]:
     source_criteria: list[BinaryExpression] = []
     if user_source_ids is not None:
         source_criteria.append(user_source_criterion(cls, user_source_ids))
+    if source_account_ids is not None:
+        source_criteria.append(source_account_criterion(source_account_ids))
     if source_types is not None:
         if user_source_ids and "user" not in source_types:
             source_types.append("user")
@@ -129,6 +132,13 @@ def user_source_criterion(
     if hasattr(cls, "data_source_id"):
         return cls.data_source_id.not_in(ignorable_user_source_ids)
     return cls.source_id.not_in(ignorable_user_source_ids)
+
+
+def source_account_criterion(source_account_ids: int | list[int]) -> BinaryExpression:
+    """Criterion to collect only data from sources belonging to the given account IDs."""
+    if not isinstance(source_account_ids, list):
+        source_account_ids = [source_account_ids]
+    return DataSource.account_id.in_(source_account_ids)
 
 
 def source_type_criterion(source_types: list[str]) -> BinaryExpression:
@@ -235,19 +245,20 @@ def simplify_index(
     * The index levels are dropped (by overwriting the multi-level index with just the “event_start” index level).
       Only for the columns named in index_levels_to_columns, the relevant information is kept around.
     """
+    df = bdf.copy()
     if index_levels_to_columns is not None:
         for col in index_levels_to_columns:
             try:
-                bdf[col] = bdf.index.get_level_values(col)
+                df[col] = df.index.get_level_values(col)
             except KeyError:
-                if hasattr(bdf, col):
-                    bdf[col] = getattr(bdf, col)
-                elif hasattr(bdf, flexmeasures_inflection.pluralize(col)):
-                    bdf[col] = getattr(bdf, flexmeasures_inflection.pluralize(col))
+                if hasattr(df, col):
+                    df[col] = getattr(df, col)
+                elif hasattr(df, flexmeasures_inflection.pluralize(col)):
+                    df[col] = getattr(df, flexmeasures_inflection.pluralize(col))
                 else:
                     raise KeyError(f"Level {col} not found")
-    bdf.index = bdf.index.get_level_values("event_start")
-    return bdf
+    df.index = df.index.get_level_values("event_start")
+    return df
 
 
 def multiply_dataframe_with_deterministic_beliefs(

@@ -40,6 +40,7 @@ def mock_asset_data(
         account_id=int(account_id),
         latitude=70.4,
         longitude=30.9,
+        external_id=None,
     )
     if as_list:
         asset_list = [asset]
@@ -91,6 +92,8 @@ def mock_asset_data_with_kpis(
 def mock_asset_data_as_form_input(api_data: dict) -> dict:
     form_input = copy.deepcopy(api_data)
     form_input["account"] = api_data["account_id"]
+    if api_data.get("external_id") is None:
+        form_input["external_id"] = ""
     return form_input
 
 

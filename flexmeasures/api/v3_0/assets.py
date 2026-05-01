@@ -1,17 +1,18 @@
 from __future__ import annotations
+
 import json
 from datetime import datetime, timedelta
 from http import HTTPStatus
 from humanize import naturaldelta
 
-from flask import request
+from flask import request, current_app
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
 from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
 
-from marshmallow import fields, ValidationError, Schema, validate
+from marshmallow import fields, post_load, ValidationError, Schema, validate
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, func, or_
@@ -25,65 +26,90 @@ from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
     get_sensor_stats,
 )
-from flexmeasures.api.common.schemas.utils import make_openapi_compatible
+from flexmeasures.api.common.schemas.scheduling import (
+    flex_context_schema_openAPI,
+    storage_flex_model_schema_openAPI,
+)
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 from flexmeasures.api.common.schemas.assets import (
     AssetAPIQuerySchema,
     AssetPaginationSchema,
+    PublicAssetAPISchema,
 )
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
+from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.queries.generic_assets import query_assets_by_search_terms
+from flexmeasures.data.queries.generic_assets import (
+    filter_assets_under_root,
+    query_assets_by_search_terms,
+)
 from flexmeasures.data.schemas import AwareDateTimeField
+from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
+    SensorsToShowSchema,
 )
-from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
-from flexmeasures.data.schemas.scheduling import AssetTriggerSchema, FlexContextSchema
+from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
     create_simultaneous_scheduling_job,
 )
-from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
+from flexmeasures.api.common.utils.api_utils import (
+    get_accessible_accounts,
+    copy_asset,
+)
 from flexmeasures.api.common.responses import (
-    invalid_flex_config,
+    unprocessable_entity,
     request_processed,
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
-from flexmeasures.utils.coding_utils import (
-    flatten_unique,
-)
+from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data.schemas.sensors import (
     SensorSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.utils.time_utils import naturalized_datetime_str
 from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
-assets_schema = AssetSchema(many=True)
+annotation_schema = AnnotationSchema()
+# creating this once to avoid recreating it on every request
+default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
 
 
-# Create FlexContext, FlexModel and AssetTrigger OpenAPI compatible schemas
-storage_flex_model_schema_openAPI = make_openapi_compatible(StorageFlexModelSchema)
-flex_context_schema_openAPI = make_openapi_compatible(FlexContextSchema)
-
-
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
-    flex_context = fields.Nested(flex_context_schema_openAPI, required=True)
-    flex_model = fields.Nested(storage_flex_model_schema_openAPI, required=True)
+
+    def __init__(self, *args, **kwargs):
+        kwargs["exclude"] = ["asset"]
+        super().__init__(*args, **kwargs)
+
+    flex_context = fields.Nested(
+        flex_context_schema_openAPI,
+        required=True,
+        data_key="flex-context",
+        metadata=dict(
+            description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+        ),
+    )
+    flex_model = fields.Nested(
+        storage_flex_model_schema_openAPI(exclude=["asset"]),
+        required=True,
+        data_key="flex-model",
+        metadata=dict(
+            description="The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
+        ),
+    )
 
 
 class AssetChartKwargsSchema(Schema):
@@ -136,6 +162,48 @@ class DefaultAssetViewJSONSchema(Schema):
 class KPIKwargsSchema(Schema):
     event_starts_after = AwareDateTimeField(format="iso", required=False)
     event_ends_before = AwareDateTimeField(format="iso", required=False)
+
+
+class CopyAssetSchema(Schema):
+    account = AccountIdField(
+        data_key="account",
+        required=False,
+        metadata=dict(
+            description="Target account to copy the asset to.",
+            example=67,
+        ),
+    )
+    parent_asset = AssetIdField(
+        data_key="parent",
+        required=False,
+        metadata=dict(
+            description="Target parent asset to copy the asset under.",
+            example=482,
+        ),
+    )
+
+    @post_load
+    def resolve_account_and_parent(self, data, **kwargs):
+        """
+        Resolve the account/parent relationship after loading:
+
+        - If ``account`` is explicitly given but ``parent_asset`` is not, the copy
+          becomes a top-level asset (no parent) in the given account.
+        - If ``parent_asset`` is explicitly given but ``account`` is not, the copy
+          inherits the account of the parent asset.
+        - If both are explicitly given, the copy can belong to a different account
+          than its parent, which is a valid cross-account parent relationship.
+        - If neither is given, the original asset's account and parent are preserved.
+        """
+        account_given = "account" in data
+        parent_given = "parent_asset" in data
+
+        if account_given and not parent_given:
+            data["parent_asset"] = None
+        elif parent_given and not account_given:
+            data["account"] = data["parent_asset"].owner
+
+        return data
 
 
 class AssetTypesAPI(FlaskView):
@@ -192,9 +260,12 @@ class AssetAPI(FlaskView):
     @as_json
     def index(
         self,
-        account: Account | None,
+        fields_in_response: list[str] | None,
         all_accessible: bool,
         include_public: bool,
+        account: Account | None = None,
+        root_asset: GenericAsset | None = None,
+        max_depth: int | None = None,
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
@@ -202,16 +273,18 @@ class AssetAPI(FlaskView):
         sort_dir: str | None = None,
     ):
         """
-        .. :quickref: Assets; List all assets owned  by user's accounts, or a certain account or all accessible accounts.
+        .. :quickref: Assets; List assets accessible by the user.
         ---
         get:
-          summary: List all assets owned  by user's accounts, or a certain account or all accessible accounts.
+          summary: List assets accessible by the user.
           description: |
-            This endpoint returns all accessible assets by accounts.
+            This endpoint returns all assets that are accessible by the user after applying optional filters.
 
               - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
               - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
+              - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).
+              - The `depth` query parameter can be used to search only a max number of descendant generations from the root.
 
             The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
               - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
@@ -219,6 +292,8 @@ class AssetAPI(FlaskView):
               - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name.
               The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)
 
+            Per default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).
+            You can use the `fields` query parameter to specify a custom set of fields to include in the response.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -268,19 +343,21 @@ class AssetAPI(FlaskView):
             - Assets
         """
 
-        # find out which accounts are relevant
-        if all_accessible:
-            accounts = get_accessible_accounts()
-        else:
-            if account is None:
-                account = current_user.account
+        # Find out which accounts are relevant
+        if account is not None:
             check_access(account, "read")
-            accounts = [account]
-
-        filter_statement = GenericAsset.account_id.in_([a.id for a in accounts])
-
-        # add public assets if the request asks for all the accessible assets
-        if all_accessible or include_public:
+            account_ids = [account.id]
+        else:
+            use_all_accounts = all_accessible or (root_asset is not None)
+            include_public = (
+                all_accessible or include_public or (root_asset is not None)
+            )
+            if use_all_accounts:
+                account_ids = [a.id for a in get_accessible_accounts()]
+            else:
+                account_ids = [current_user.account.id]
+        filter_statement = GenericAsset.account_id.in_(account_ids)
+        if include_public:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
 
         query = query_assets_by_search_terms(
@@ -290,8 +367,22 @@ class AssetAPI(FlaskView):
             sort_dir=sort_dir,
         )
 
+        query = filter_assets_under_root(
+            query=query, root_asset=root_asset, max_depth=max_depth
+        )
+
+        if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
+            # TODO: for v0.31, this is to be tested in sunset mode; in v0.32 we only do this
+            response_schema = default_list_assets_schema
+        else:
+            response_schema = AssetSchema(
+                many=True
+            )  # in non-sunset, we default like usual, but still respect fields_in_response
+        if fields_in_response != default_response_fields:
+            response_schema = AssetSchema(many=True, only=fields_in_response)
+
         if page is None:
-            response = asset_schema.dump(db.session.scalars(query).all(), many=True)
+            response = response_schema.dump(db.session.scalars(query).all(), many=True)
         else:
             if per_page is None:
                 per_page = 10
@@ -303,7 +394,7 @@ class AssetAPI(FlaskView):
                 select(func.count(GenericAsset.id)).filter(filter_statement)
             )
             response = {
-                "data": asset_schema.dump(select_pagination.items, many=True),
+                "data": response_schema.dump(select_pagination.items, many=True),
                 "num-records": num_records,
                 "filtered-records": select_pagination.total,
             }
@@ -446,8 +537,9 @@ class AssetAPI(FlaskView):
         return response, 200
 
     @route("/public", methods=["GET"])
+    @use_kwargs(PublicAssetAPISchema, location="query")
     @as_json
-    def public(self):
+    def public(self, fields_in_response: list[str] | None):
         """
         .. :quickref: Assets; Return all public assets.
         ---
@@ -456,6 +548,9 @@ class AssetAPI(FlaskView):
           description: This endpoint returns all public assets.
           security:
             - ApiKeyAuth: []
+          parameters:
+            - in: query
+              schema: PublicAssetAPISchema
           responses:
             200:
               description: PROCESSED
@@ -471,7 +566,16 @@ class AssetAPI(FlaskView):
         assets = db.session.scalars(
             select(GenericAsset).filter(GenericAsset.account_id.is_(None))
         ).all()
-        return assets_schema.dump(assets), 200
+        if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
+            # TODO: for v0.31, this is to be tested in sunset mode; in v0.32 we only do this
+            response_schema = default_list_assets_schema
+        else:
+            response_schema = AssetSchema(
+                many=True
+            )  # in non-sunset, we default like usual, but still respect fields_in_response
+        if fields_in_response != default_response_fields:
+            response_schema = AssetSchema(many=True, only=fields_in_response)
+        return response_schema.dump(assets), 200
 
     @route("", methods=["POST"])
     @permission_required_for_context(
@@ -608,7 +712,6 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(asset), 200
 
     @route("/<id>", methods=["PATCH"])
-    @use_args(patch_asset_schema)
     @use_kwargs(
         {
             "db_asset": AssetIdField(
@@ -619,7 +722,7 @@ class AssetAPI(FlaskView):
     )
     @permission_required_for_context("update", ctx_arg_name="db_asset")
     @as_json
-    def patch(self, asset_data: dict, id: int, db_asset: GenericAsset):
+    def patch(self, id: int, db_asset: GenericAsset):
         """
         .. :quickref: Assets; Update an asset given its identifier.
         ---
@@ -665,6 +768,7 @@ class AssetAPI(FlaskView):
                         latitude: 11.1
                         longitude: 99.9
                         account_id: 1
+                        external_id: ""
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
@@ -676,10 +780,26 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        # For us to be able to add our own context, we need to validate the data ourselves
+        asset_data = request.get_json()
+        if not asset_data:
+            return unprocessable_entity("No JSON data provided.")
+
+        asset_schema = AssetSchema(partial=True)
+        asset_schema.context = {
+            "asset": db_asset
+        }  # context for validating fields like parent_asset_id
+
         try:
-            db_asset = patch_asset(db_asset, asset_data)
+            validated_data = asset_schema.load(asset_data)
         except ValidationError as e:
-            return invalid_flex_config(str(e.messages))
+            return unprocessable_entity(e.messages)
+
+        try:
+            db_asset = patch_asset(db_asset, validated_data)
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200
@@ -797,6 +917,9 @@ class AssetAPI(FlaskView):
             "event_ends_before": AwareDateTimeField(format="iso", required=False),
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
+            "use_latest_version_per_event": fields.Boolean(
+                required=False, load_default=False
+            ),
             "most_recent_beliefs_only": fields.Boolean(required=False),
             "compress_json": fields.Boolean(required=False),
         },
@@ -838,8 +961,8 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        sensors = flatten_unique(asset.validate_sensors_to_show())
-        return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
+        sensors = SensorsToShowSchema.flatten(asset.validate_sensors_to_show())
+        return asset.chart_data_json(sensors=sensors, **kwargs)
 
     @route("/<id>/auditlog")
     @use_kwargs(
@@ -945,7 +1068,7 @@ class AssetAPI(FlaskView):
         audit_logs_response: list = [
             {
                 "event": audit_log.event,
-                "event_datetime": naturalized_datetime_str(audit_log.event_datetime),
+                "event_datetime": audit_log.event_datetime.isoformat(),
                 "active_user_name": audit_log.active_user_name,
                 "active_user_id": audit_log.active_user_id,
             }
@@ -1107,6 +1230,66 @@ class AssetAPI(FlaskView):
             "message": "Default asset view updated successfully.",
         }, 200
 
+    @route("/keep_legends_below_graphs", methods=["POST"])
+    @as_json
+    @use_kwargs(
+        {"keep_legends_below_graphs": fields.Boolean(required=False)}, location="json"
+    )
+    def update_keep_legends_below_graphs(self, **kwargs):
+        """
+        .. :quickref: Assets; Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.
+        ---
+        post:
+          summary: Toggle whether for the current user legends should always be combined below graphs or shown to the right (per graph) above a certain number.
+          description: |
+            This endpoint toggles whether the legend position for graphs is always at the bottom, even with many plots. The default is `False`, meaning that from 7 sensors or above, the legends will be shown to the right of graphs, for better readability. On narrow screens, users might want to turn this to `True`.
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    keep_legends_below_graphs:
+                      type: boolean
+                  required:
+                    - keep_legends_below_graphs
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    message:
+                      summary: Message
+                      value:
+                        message: "Legend position preference updated successfully."
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+          tags:
+            - Assets
+        """
+        # Update the request.values
+        request_values = request.values.copy()
+        request_values.update(kwargs)
+        request.values = request_values
+
+        keep_legends_below_graphs = kwargs.get("keep_legends_below_graphs", True)
+        if keep_legends_below_graphs:
+            # Set the default legend position for asset charts for the current user session
+            set_session_variables(
+                "keep_legends_below_graphs",
+            )
+        else:
+            # Remove the default legend position from the session
+            clear_session(keys_to_clear=["keep_legends_below_graphs"])
+
+        return {
+            "message": "Default legend position updated successfully.",
+        }, 200
+
     @route("/<id>/schedules/trigger", methods=["POST"])
     @use_args(AssetTriggerSchema(), location="args_and_json", as_kwargs=True)
     # Simplification of checking for create-children access on each of the flexible sensors,
@@ -1117,6 +1300,7 @@ class AssetAPI(FlaskView):
         asset: GenericAsset,
         start_of_schedule: datetime,
         duration: timedelta,
+        resolution: timedelta | None = None,
         belief_time: datetime | None = None,
         flex_model: dict | None = None,
         flex_context: dict | None = None,
@@ -1149,10 +1333,13 @@ class AssetAPI(FlaskView):
             > To use sequential scheduling, use ``sequential=true`` in the JSON body.
 
             The length of the schedule can be set explicitly through the 'duration' field.
-            Otherwise, it is set by the config setting [see planning_horizon_config](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-planning-horizon), which defaults to 48 hours.
+            Otherwise, it is set by [a config setting](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-planning-horizon), which defaults to 48 hours.
             If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.
-            Finally, the schedule length is limited by [see max_planning_horizon_config](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.
+            Finally, the schedule length is limited by [a config setting](https://flexmeasures.readthedocs.io/stable/configuration.html#flexmeasures-max-planning-horizon), which defaults to 2520 steps of each sensor's resolution.
             Targets that exceed the max planning horizon are not accepted.
+
+            The 'resolution' field governs how often setpoints are allowed to change.
+            Note that the resulting schedule is still saved in the resolution of each individual sensor.
 
             The appropriate algorithm is chosen by FlexMeasures (based on asset type).
             It's also possible to use custom schedulers and custom flexibility models, [see plugin_customization](https://flexmeasures.readthedocs.io/stable/plugin/customisation.html#plugin-customization).
@@ -1164,9 +1351,7 @@ class AssetAPI(FlaskView):
             - in: path
               name: id
               required: true
-              description: ID of the asset to schedule.
-              schema:
-                type: integer
+              $ref: '#/components/parameters/AssetIdPath'
 
           requestBody:
               content:
@@ -1188,25 +1373,62 @@ class AssetAPI(FlaskView):
                           The battery consumption power capacity is limited by sensor 42 and the production capacity is constant (30 kW).
                           Finally, the site consumption capacity is limited by sensor 32.
                         value:
-                          "start": "2015-06-02T10:00:00+00:00"
-                          "flex-model":
-                            - "sensor": 931
-                              "soc-at-start": 12.1
-                              "state-of-charge": {"sensor": 74}
-                              "soc-unit": "kWh"
-                              "power-capacity": "25kW"
-                              "consumption-capacity" : {"sensor": 42}
-                              "production-capacity" : "30 kW"
-                            - "sensor": 932
-                              "consumption-capacity": "0 kW"
-                              "production-capacity": {"sensor": 760}
-                          "flex-context":
-                            "consumption-price": {"sensor": 9}
-                            "production-price": {"sensor": 10}
-                            "inflexible-device-sensors": [13, 14, 15]
-                            "site-power-capacity": "100kW"
-                            "site-production-capacity": "80kW"
-                            "site-consumption-capacity": {"sensor": 32}
+                          start: "2015-06-02T10:00:00+00:00"
+                          flex-model:
+                            - sensor: 931
+                              soc-at-start: 12.1 kWh
+                              state-of-charge: {sensor: 74}
+                              power-capacity: 25 kW
+                              consumption-capacity: {sensor: 42}
+                              production-capacity: 30 kW
+                            - sensor: 932
+                              consumption-capacity: 0 kW
+                              production-capacity: {sensor: 760}
+                          flex-context:
+                            consumption-price: {sensor: 9}
+                            production-price: {sensor: 10}
+                            inflexible-device-sensors: [13, 14, 15]
+                            site-power-capacity: 100 kVA
+                            site-production-capacity: 80 kW
+                            site-consumption-capacity: {sensor: 32}
+                      heating_system:
+                        description: |
+                          This message triggers a schedule, starting at 10.00am, for a heating system that consists of a heat pump (with power sensor 931) and a heat buffer (with thermal state of charge sensor 74).
+                          This also schedules a curtailable production asset (with power sensor 932),
+                          whose production forecasts are recorded under sensor 760.
+
+                          Aggregate consumption (of all devices within this EMS) should be priced by sensor 9,
+                          and aggregate production should be priced by sensor 10,
+                          where the aggregate power flow in the EMS is described by the sum over sensors 13, 14, 15,
+                          and the two power sensors (931 and 932) of the flexible devices being optimized (referenced in the flex-model).
+
+                          The heat pump's consumption power capacity is limited by sensor 42, and it cannot produce electricity (only heat).
+                          It turns power to heat with a Coefficient of Performance (COP) of 4.
+                          The heat buffer has a constant heat demand of 5 kW thermal, and a storage efficiency of 99.7%.
+                          Finally, the site consumption capacity is limited by sensor 32.
+                        value:
+                          start: "2015-06-02T10:00:00+00:00"
+                          flex-model:
+                            - sensor: 931
+                              soc-at-start: 12.1 kWh
+                              state-of-charge: {sensor: 74}
+                              power-capacity: 25 kW
+                              consumption-capacity: {sensor: 42}
+                              production-capacity: 0 kW
+                              soc-usage:
+                                - "5 kW"
+                              charging-efficiency: "4"  # COP
+                              storage-efficiency: 99.7%
+                            - sensor: 932
+                              consumption-capacity: 0 kW
+                              production-capacity: {sensor: 760}
+                          flex-context:
+                            consumption-price: {sensor: 9}
+                            production-price: {sensor: 10}
+                            inflexible-device-sensors: [13, 14, 15]
+                            site-power-capacity: 100 kVA
+                            site-production-capacity: 80 kW
+                            site-consumption-capacity: {sensor: 32}
 
           responses:
               200:
@@ -1221,7 +1443,7 @@ class AssetAPI(FlaskView):
                           This message indicates that the scheduling request has been processed without any error.
                           A scheduling job has been created with some Universally Unique Identifier (UUID),
                           which will be picked up by a worker.
-                          The given UUID may be used to obtain the resulting schedule for each flexible device: [see /sensors/schedules/.](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
+                          The given UUID may be used to obtain the resulting schedule for each flexible device: see [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
                         value:
                           status: PROCESSED
                           schedule: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
@@ -1246,6 +1468,7 @@ class AssetAPI(FlaskView):
             start=start_of_schedule,
             end=end_of_schedule,
             belief_time=belief_time,  # server time if no prior time was sent
+            resolution=resolution,
             flex_model=flex_model,
             flex_context=flex_context,
         )
@@ -1256,9 +1479,9 @@ class AssetAPI(FlaskView):
         try:
             job = f(asset=asset, enqueue=True, **scheduler_kwargs)
         except ValidationError as err:
-            return invalid_flex_config(err.messages)
+            return unprocessable_entity(err.messages)
         except ValueError as err:
-            return invalid_flex_config(str(err))
+            return unprocessable_entity(str(err))
 
         response = dict(schedule=job.id)
         d, s = request_processed()
@@ -1367,3 +1590,176 @@ class AssetAPI(FlaskView):
             }
             kpis.append(kpi_dict)
         return dict(data=kpis), 200
+
+    @route("/<id>/annotations", methods=["POST"])
+    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @use_args(annotation_schema)
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    def post_annotation(self, annotation: Annotation, id: int, asset: GenericAsset):
+        """.. :quickref: Assets; Add an annotation to an asset.
+        ---
+        post:
+          summary: Creates a new asset annotation.
+          description: |
+            This endpoint creates a new :ref:`annotation <annotations>` on an asset.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: The ID of the asset to register the annotation on.
+              required: true
+              schema:
+                type: integer
+          requestBody:
+            content:
+              application/json:
+                schema: AnnotationSchema
+          responses:
+            200:
+              description: OK
+            201:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+            - Annotations
+        """
+
+        # Use get_or_create to handle duplicates gracefully
+        annotation, is_new = get_or_create_annotation(annotation)
+
+        # Link annotation to asset
+        if annotation not in asset.annotations:
+            asset.annotations.append(annotation)
+
+        db.session.commit()
+
+        # Return appropriate status code
+        status_code = 201 if is_new else 200
+        return annotation_schema.dump(annotation), status_code
+
+    @route("/<id>/copy", methods=["POST"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
+    @use_kwargs(CopyAssetSchema, location="query")
+    @as_json
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    def copy_assets(
+        self,
+        id,
+        asset: GenericAsset,
+        account: Account | None = None,
+        parent_asset: GenericAsset | None = None,
+    ):
+        """
+        .. :quickref: Assets; Copy an asset to a target account and/or parent.
+        ---
+        post:
+          summary: Copy an asset to a target account and/or parent.
+          description: |
+            This endpoint creates a copy of an existing asset and optionally places it
+            under a `target` account and/or `parent` asset.
+
+            Resolution rules:
+
+            - If both are omitted, the copy remains in the same account and keeps the same parent.
+            - If `account` is provided and `parent` is omitted, parent defaults to `null`.
+            - If `parent` is provided and `account` is omitted, account is derived from that parent.
+            - If both are provided, it is possible to assign the copied asset to a different account than the parent.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              description: ID of the asset to copy.
+              required: true
+              schema:
+                type: integer
+            - in: query
+              schema: CopyAssetSchema
+          responses:
+            201:
+              description: CREATED
+              content:
+                application/json:
+                  example:
+                    message: Successfully copied asset 10 to account 2.
+                    asset: 99
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        # Resolve effective targets for permission checks and fallback behavior.
+        # If neither target is given, use the source asset's account/parent.
+        resolved_account = account or asset.owner
+        resolved_parent = (
+            parent_asset
+            if account is not None
+            else (parent_asset or asset.parent_asset)
+        )
+
+        # When placing the copy under a parent asset, the parent's create-children
+        # permission is sufficient (any account member may add children to an asset).
+        # When creating a top-level asset (no parent), we fall back to the account-level
+        # create-children check, which requires account-admin or consultant.
+        if resolved_parent is not None:
+            check_access(resolved_parent, "create-children")
+        else:
+            check_access(resolved_account, "create-children")
+
+        try:
+            new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)
+        except ValueError as err:
+            return unprocessable_entity(str(err))
+
+        account_given = "account" in request.args
+        parent_given = "parent" in request.args
+
+        if not parent_given and not account_given:
+            message = f"Successfully copied asset {asset.id}."
+        elif parent_given and not account_given:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to parent asset {new_asset.parent_asset_id}."
+            )
+        elif not parent_given and account_given:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to account {new_asset.account_id}."
+            )
+        else:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to account {new_asset.account_id} "
+                f"under parent {new_asset.parent_asset_id}."
+            )
+
+        return {
+            "message": message,
+            "asset": new_asset.id,
+        }, 201
