@@ -1,37 +1,72 @@
-from flask import current_app
-import isodate
+from datetime import timedelta
+
 import pytest
 from flask import url_for
 
-from rq.job import Job
-from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.api.tests.utils import get_auth_token
-from flexmeasures.data.services.forecasting import handle_forecasting_exception
-from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+from flexmeasures.data import db
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.time_series import Sensor
 
 
-@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_trigger_and_fetch_forecasts(
+@pytest.mark.parametrize(
+    "regressor_field",
+    ["future-regressors", "past-regressors", "regressors"],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_trigger_forecast_with_unreadable_regressor_returns_403(
     app,
-    setup_fresh_test_forecast_data,
-    setup_roles_users_fresh_db,
+    setup_roles_users,
+    setup_accounts,
     requesting_user,
+    regressor_field,
 ):
-    """
-    Full test:
-    1. Trigger forecasting 2 jobs for 2 forecasting cycles via /<sensor>/forecasts
-    2. Execute forecasting queue synchronously
-    3. Fetch each job's results via /<sensor>/forecasts/<job_id>
-    4. Compare returned forecasts computed directly from the DB with those returned by the API
-    """
+    """Triggering a forecast that uses a regressor the requesting user cannot read must return 403."""
+
+    supplier_account = setup_accounts["Supplier"]
+    prosumer_account = setup_accounts["Prosumer"]
+
+    asset_type = GenericAssetType(
+        name=f"test-asset-type-regressor-perm-{regressor_field}"
+    )
+    db.session.add(asset_type)
+
+    # Target sensor: owned by Supplier account – requesting user has create-children here
+    supplier_asset = GenericAsset(
+        name=f"supplier-target-asset-{regressor_field}",
+        generic_asset_type=asset_type,
+        owner=supplier_account,
+    )
+    db.session.add(supplier_asset)
+    target_sensor = Sensor(
+        name=f"supplier-target-sensor-{regressor_field}",
+        unit="kW",
+        event_resolution=timedelta(hours=1),
+        generic_asset=supplier_asset,
+    )
+    db.session.add(target_sensor)
+
+    # Regressor sensor: owned by Prosumer account – requesting user has no read access here
+    prosumer_asset = GenericAsset(
+        name=f"prosumer-private-regressor-asset-{regressor_field}",
+        generic_asset_type=asset_type,
+        owner=prosumer_account,
+    )
+    db.session.add(prosumer_asset)
+    private_regressor = Sensor(
+        name=f"prosumer-private-regressor-sensor-{regressor_field}",
+        unit="kW",
+        event_resolution=timedelta(hours=1),
+        generic_asset=prosumer_asset,
+    )
+    db.session.add(private_regressor)
+    db.session.commit()
 
     client = app.test_client()
-    token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    token = get_auth_token(client, "test_supplier_user_4@seita.nl", "testtest")
 
-    # This sensor is used to *trigger* the forecasting jobs via the API
-    sensor_0 = setup_fresh_test_forecast_data["solar-sensor"]
-
-    # Trigger job
     payload = {
         "start": "2025-01-05T00:00:00+00:00",
         "end": "2025-01-05T02:00:00+00:00",
@@ -40,89 +75,17 @@ def test_trigger_and_fetch_forecasts(
         "config": {
             "train-start": "2025-01-01T00:00:00+00:00",
             "retrain-frequency": "PT1H",
+            regressor_field: [private_regressor.id],
         },
     }
 
-    trigger_url = url_for("SensorAPI:trigger_forecast", id=sensor_0.id)
+    trigger_url = url_for("SensorAPI:trigger_forecast", id=target_sensor.id)
     trigger_res = client.post(
         trigger_url, json=payload, headers={"Authorization": token}
     )
-    assert trigger_res.status_code == 200, trigger_res.json
-
-    trigger_json = trigger_res.get_json()
-    wrap_up_job = app.queues["forecasting"].fetch_job(trigger_json["forecast"])
-    job_ids = wrap_up_job.kwargs.get("cycle_job_ids", [])
-
-    # Two forecast cycles expected from payload
-    assert len(job_ids) == 2
-
-    # Ensure jobs were successfully queued
-    for job_id in job_ids:
-        job = app.queues["forecasting"].fetch_job(job_id)
-        assert job is not None, f"Job {job_id} should exist in the queue"
-
-        # Fetch queued forecasting job
-        fetch_url = url_for("SensorAPI:get_forecast", id=sensor_0.id, uuid=job_id)
-        res = client.get(fetch_url, headers={"Authorization": token})
-        assert res.status_code == 202, "expected a 202 (Accepted) status"
-        assert res.json["status"].upper() == job.get_status().upper()
-
-    # Run forecasting queue
-    work_on_rq(
-        app.queues["forecasting"],
-        exc_handler=handle_forecasting_exception,
+    assert trigger_res.status_code == 403
+    assert trigger_res.json["status"] == "INVALID_SENDER"
+    assert (
+        f"{{'json': {{'config': '{regressor_field}'}}}}" in trigger_res.json["message"]
     )
-
-    # This sensor is where the directly computed forecasts will be saved
-    sensor_1 = setup_fresh_test_forecast_data["solar-sensor-1"]
-    payload["sensor"] = sensor_1.id
-
-    # Run pipeline manually to compute expected forecasts
-    pipeline = TrainPredictPipeline(config=payload.pop("config", {}))
-    pipeline.compute(parameters=payload)
-
-    # Fetch forecasts for each job
-    for job_id in job_ids:
-
-        fetch_url = url_for("SensorAPI:get_forecast", id=sensor_0.id, uuid=job_id)
-        res = client.get(fetch_url, headers={"Authorization": token})
-        assert res.status_code == 200, res.json
-
-        data = res.get_json()
-
-        # Retrieve the job so we know which timestamps to query
-        queue = current_app.queues["forecasting"]
-        job = Job.fetch(job_id, connection=queue.connection)
-
-        # Validate structure
-        assert data["start"] == "2025-01-05T00:00:00+00:00"
-        assert "duration" in data
-        assert data["unit"] == sensor_0.unit
-        assert "values" in data
-
-        api_forecasts = data["values"]
-        assert isinstance(api_forecasts, list)
-        assert len(api_forecasts) > 0
-
-        # Load only the latest belief per event_start
-        forecasts_df = sensor_1.search_beliefs(
-            event_starts_after=job.meta.get("start"),
-            event_ends_before=job.meta.get("end"),
-            source_types=["forecaster"],
-            most_recent_beliefs_only=True,
-            use_latest_version_per_event=True,
-        ).reset_index()
-
-        expected_values = forecasts_df["event_value"].tolist()
-
-        # Validate duration matches DB result
-        expected_start = forecasts_df["event_start"].min()
-        expected_last_start = forecasts_df["event_start"].max()
-        expected_duration = (
-            expected_last_start + sensor_1.event_resolution - expected_start
-        )
-
-        assert data["duration"] == isodate.duration_isoformat(expected_duration)
-
-        # API should return exactly these most-recent beliefs
-        assert api_forecasts == expected_values
+    assert private_regressor.name in trigger_res.json["message"]

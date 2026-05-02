@@ -10,6 +10,7 @@ from marshmallow import ValidationError
 
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.models.generic_assets import (
     GenericAsset as Asset,
     GenericAssetType,
@@ -594,6 +595,90 @@ def test_prior_restricts_training_beliefs(
         f"Forecasts after anomaly ({mean_after:.1f}) should be at least 10x higher "
         f"than forecasts before anomaly ({mean_before:.1f})"
     )
+
+
+def test_future_regressor_splits_use_only_beliefs_known_at_issue_time(monkeypatch):
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+    future_regressor = type(
+        "SensorStub",
+        (),
+        {"name": "weather", "id": 2, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[future_regressor],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 7, 23),
+        event_ends_before=datetime(2025, 1, 8, 1),
+        predict_start=datetime(2025, 1, 8),
+        predict_end=datetime(2025, 1, 8, 1),
+    )
+    issue_time = pd.Timestamp("2025-01-08T00:00:00")
+    future_col = pipeline.future_regressors[0]
+
+    df = pd.DataFrame(
+        [
+            {
+                "event_start": pd.Timestamp("2025-01-07T23:00:00"),
+                "belief_time": issue_time - pd.Timedelta(hours=2),
+                pipeline.target: None,
+                future_col: 88.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-07T23:00:00"),
+                "belief_time": issue_time,
+                pipeline.target: 1.0,
+                future_col: 10.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T00:00:00"),
+                "belief_time": issue_time - pd.Timedelta(minutes=5),
+                pipeline.target: None,
+                future_col: 20.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T00:00:00"),
+                "belief_time": issue_time + pd.Timedelta(minutes=5),
+                pipeline.target: None,
+                future_col: 99.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T01:00:00"),
+                "belief_time": issue_time,
+                pipeline.target: None,
+                future_col: 30.0,
+            },
+        ]
+    )
+
+    captured_future_frames = []
+
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.future_regressors:
+            captured_future_frames.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+
+    pipeline.split_data_all_beliefs(df, is_predict_pipeline=True)
+
+    assert len(captured_future_frames) == 1
+    values_by_event = captured_future_frames[0].set_index("event_start")[future_col]
+    assert values_by_event.loc[pd.Timestamp("2025-01-07T23:00:00")] == 10.0
+    assert values_by_event.loc[pd.Timestamp("2025-01-08T00:00:00")] == 20.0
+    assert values_by_event.loc[pd.Timestamp("2025-01-08T01:00:00")] == 30.0
+    assert 88.0 not in set(values_by_event)
+    assert 99.0 not in set(values_by_event)
+
+
 def test_future_regressor_changes_forecasts_in_issue_time_window(
     app, fresh_db, tmp_path
 ):
@@ -659,8 +744,7 @@ def test_future_regressor_changes_forecasts_in_issue_time_window(
         ((37 * i + 13) % 97) + ((i % 5) * 0.1) for i in range(len(history_index))
     ]
     future_regressor_values = [
-        ((53 * i + 7) % 101) + 150 + ((i % 7) * 0.1)
-        for i in range(len(forecast_index))
+        ((53 * i + 7) % 101) + 150 + ((i % 7) * 0.1) for i in range(len(forecast_index))
     ]
     target_historical_values = [3 * value + 5 for value in historical_regressor_values]
     target_future_truth = [3 * value + 5 for value in future_regressor_values]
@@ -758,9 +842,9 @@ def test_future_regressor_changes_forecasts_in_issue_time_window(
             series.index = pd.to_datetime(series.index, utc=True)
             return series.sort_index().rename(series_name)
 
-        assert "event_start" in series.index.names, (
-            "Expected event_start in forecast index for deterministic alignment."
-        )
+        assert (
+            "event_start" in series.index.names
+        ), "Expected event_start in forecast index for deterministic alignment."
         values_by_event = series.rename("event_value").reset_index()
         sort_cols = ["event_start"]
         if "belief_time" in values_by_event.columns:
@@ -780,15 +864,11 @@ def test_future_regressor_changes_forecasts_in_issue_time_window(
         collapsed_series.index = pd.to_datetime(collapsed_series.index, utc=True)
         return collapsed_series.sort_index().rename(series_name)
 
-    forecasts_without_regressor = (
-        collapse_to_event_start_series(
-            returns_without_regressor[0]["data"], "without_regressor"
-        )
+    forecasts_without_regressor = collapse_to_event_start_series(
+        returns_without_regressor[0]["data"], "without_regressor"
     )
-    forecasts_with_regressor = (
-        collapse_to_event_start_series(
-            returns_with_regressor[0]["data"], "with_regressor"
-        )
+    forecasts_with_regressor = collapse_to_event_start_series(
+        returns_with_regressor[0]["data"], "with_regressor"
     )
     aligned_forecasts = pd.concat(
         [forecasts_without_regressor, forecasts_with_regressor],
@@ -826,9 +906,9 @@ def test_future_regressor_changes_forecasts_in_issue_time_window(
         aligned_forecasts.loc[first_forecast_timestamp, "with_regressor"]
         - truth.loc[first_forecast_timestamp]
     )
-    assert first_error_with_regressor < first_error_without_regressor, (
-        "At the issue-time boundary, the future-regressor run should be more accurate."
-    )
+    assert (
+        first_error_with_regressor < first_error_without_regressor
+    ), "At the issue-time boundary, the future-regressor run should be more accurate."
     assert mae_with_regressor < mae_without_regressor, (
         "The future-regressor forecast is expected to be more accurate "
         "on this deterministic synthetic dataset."

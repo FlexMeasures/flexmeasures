@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.32.0"
+    "version": "0.0.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -4183,7 +4183,6 @@
     },
     "/api/v3_0": {},
     "/api/v3_0/sensors/data": {},
-    "/api/v3_0/docs/dist/{filename}": {},
     "/api/v3_0/docs/{path}": {},
     "/api/dev/sensor/{id}": {},
     "/api/dev/sensor/{id}/chart": {},

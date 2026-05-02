@@ -255,3 +255,31 @@ def test_patch_account_attributes_empty_dict(
     )
     assert response.status_code == 200
     assert json.loads(response.json["attributes"]) == {}
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_account_attributes_with_consultancy(
+    client, setup_api_test_data, requesting_user, db
+):
+    """Updating attributes on an account that has a consultancy_account_id must not
+    return 'Invalid consultancy_account_id' when consultancy_account_id is not part
+    of the PATCH body."""
+    consultancy_client_account = find_user_by_email(
+        "test_consultant_client@seita.nl"
+    ).account
+    assert consultancy_client_account.consultancy_account_id is not None
+
+    new_attrs = {"key": "value"}
+    response = client.patch(
+        url_for("AccountAPI:patch", id=consultancy_client_account.id),
+        json={"attributes": json.dumps(new_attrs)},
+    )
+    print(f"Response: {response.json}")
+    assert response.status_code == 200
+    stored = json.loads(response.json["attributes"])
+    assert stored["key"] == "value"
+    # consultancy_account_id must remain unchanged
+    assert (
+        response.json["consultancy_account_id"]
+        == consultancy_client_account.consultancy_account_id
+    )
