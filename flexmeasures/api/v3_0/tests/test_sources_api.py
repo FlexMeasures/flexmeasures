@@ -209,14 +209,14 @@ def test_get_sources_only_latest_preserves_different_accounts(
         type="scheduler",
         model="StorageScheduler",
         version="1.0",
-        account=prosumer_user.account,
+        account_id=prosumer_user.account_id,
     )
     source_account_b = DataSource(
         name="SharedScheduler",
         type="scheduler",
         model="StorageScheduler",
         version="1.0",
-        account=supplier_user.account,
+        account_id=supplier_user.account_id,
     )
     db.session.add_all([source_account_a, source_account_b])
     db.session.flush()
