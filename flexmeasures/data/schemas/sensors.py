@@ -67,6 +67,7 @@ class TimedEventSchema(Schema):
     def __init__(
         self,
         timezone: str | None = None,
+        event_resolution: timedelta | None = None,
         value_validator: Validator | None = None,
         to_unit: str | None = None,
         default_src_unit: str | None = None,
@@ -79,6 +80,7 @@ class TimedEventSchema(Schema):
         :param timezone:  Optionally, set a timezone to be able to interpret nominal durations.
         """
         self.timezone = timezone
+        self.event_resolution = event_resolution
         self.value_validator = value_validator
         super().__init__(*args, **kwargs)
         if to_unit is not None:
@@ -97,12 +99,23 @@ class TimedEventSchema(Schema):
         if self.value_validator is not None:
             self.value_validator(_value)
 
+    def floor_timing_fields(self, data: dict) -> None:
+        if self.event_resolution in (None, timedelta(0)):
+            return
+
+        for key in ("datetime", "start", "end"):
+            if data.get(key) is not None:
+                data[key] = (
+                    pd.Timestamp(data[key]).floor(self.event_resolution).to_pydatetime()
+                )
+
     @validates_schema
     def check_time_window(self, data, **kwargs):
         """Checks whether a complete time interval can be derived from the timing fields.
 
         The data is updated in-place, guaranteeing that the 'start' and 'end' fields are filled out.
         """
+        self.floor_timing_fields(data)
         dt = data.get("datetime")
         start = data.get("start")
         end = data.get("end")
@@ -336,6 +349,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         default_src_unit: str | None = None,
         return_magnitude: bool = False,
         timezone: str | None = None,
+        event_resolution: timedelta | None = None,
         value_validator: Validator | None = None,
         additional_sensor_units: list[str] | None = None,
         **kwargs,
@@ -380,6 +394,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             value_validator = RepurposeValidatorToIgnoreSensorsAndLists(value_validator)
             self.validators.insert(0, value_validator)
         self.timezone = timezone
+        self.event_resolution = event_resolution
         self.value_validator = value_validator
         if to_unit.startswith("/") and len(to_unit) < 2:
             raise ValueError(
@@ -443,6 +458,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             fields.Nested(
                 TimedEventSchema(
                     timezone=self.timezone,
+                    event_resolution=self.event_resolution,
                     value_validator=self.value_validator,
                     to_unit=self.to_unit,
                     default_src_unit=self.default_src_unit,
@@ -709,6 +725,11 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     # Reraise the error if an event frequency could not be inferred
                     pd.infer_freq(bdf.index.unique("event_start"))
 
+                if sensor.event_resolution != timedelta(0) and sensor.get_attribute(
+                    "round_datetimes_on_ingestion", True
+                ):
+                    bdf = floor_bdf_event_starts(bdf, bdf.event_resolution)
+
                 bdf["event_value"] = convert_units(
                     bdf["event_value"],
                     from_unit,
@@ -745,6 +766,20 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         fields["data"] = dfs
         fields["filenames"] = [file.filename for file in files]
         return fields
+
+
+def floor_bdf_event_starts(
+    bdf: tb.BeliefsDataFrame, event_resolution: timedelta
+) -> tb.BeliefsDataFrame:
+    floored_bdf = pd.DataFrame(bdf.reset_index())
+    floored_bdf["event_start"] = pd.DatetimeIndex(bdf.event_starts).floor(
+        event_resolution
+    )
+    return tb.BeliefsDataFrame(
+        floored_bdf,
+        sensor=bdf.sensor,
+        event_resolution=bdf.event_resolution,
+    )
 
 
 class QuantitySchema(Schema):
