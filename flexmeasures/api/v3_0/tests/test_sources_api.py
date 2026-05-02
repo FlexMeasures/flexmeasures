@@ -185,3 +185,47 @@ def test_get_sources_only_latest(client, setup_api_test_data, requesting_user, d
     # v2 (higher version) must be present, v1 must be absent
     assert source_v2.id in latest_ids
     assert source_v1.id not in latest_ids
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_admin_user@seita.nl"],
+    indirect=True,
+)
+def test_get_sources_only_latest_preserves_different_accounts(
+    client, setup_api_test_data, requesting_user, db
+):
+    """only_latest must NOT collapse sources with the same name/type/model but different account_ids.
+
+    Two accessible sources that share the same generator identity but belong to
+    different organisations are distinct lineages and must both survive the
+    deduplication step.
+    """
+    prosumer_user = find_user_by_email("test_prosumer_user@seita.nl")
+    supplier_user = find_user_by_email("test_supplier_user_4@seita.nl")
+
+    source_account_a = DataSource(
+        name="SharedScheduler",
+        type="scheduler",
+        model="StorageScheduler",
+        version="1.0",
+        account=prosumer_user.account,
+    )
+    source_account_b = DataSource(
+        name="SharedScheduler",
+        type="scheduler",
+        model="StorageScheduler",
+        version="1.0",
+        account=supplier_user.account,
+    )
+    db.session.add_all([source_account_a, source_account_b])
+    db.session.flush()
+
+    response = client.get(
+        url_for("SourceAPI:index"), query_string={"only_latest": True}
+    )
+    assert response.status_code == 200
+    latest_ids = [s["id"] for s in response.json["sources"]]
+    # Both sources must be present because they belong to different accounts
+    assert source_account_a.id in latest_ids
+    assert source_account_b.id in latest_ids

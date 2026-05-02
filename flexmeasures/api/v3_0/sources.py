@@ -48,7 +48,11 @@ def _get_accessible_account_ids() -> list[int] | None:
 
 
 def _filter_sources_to_latest(sources: list[DataSource]) -> list[DataSource]:
-    """Keep only the highest-versioned DataSource per (name, type, model) group.
+    """Keep only the highest-versioned DataSource per (name, type, model, account_id) group.
+
+    ``account_id`` is included in the key so that two sources with the same
+    generator identity but belonging to different organisations are never
+    collapsed into one — both represent valid, distinct lineages.
 
     When two sources share the same version (or both have no version), the one
     with the higher id wins.
@@ -65,9 +69,9 @@ def _filter_sources_to_latest(sources: list[DataSource]) -> list[DataSource]:
             )
             return Version("0.0.0")
 
-    best: dict[tuple[str, str, str | None], DataSource] = {}
+    best: dict[tuple[str, str, str | None, int | None], DataSource] = {}
     for source in sources:
-        key = (source.name, source.type, source.model)
+        key = (source.name, source.type, source.model, source.account_id)
         if key not in best:
             best[key] = source
         else:
