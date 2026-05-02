@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import isodate
+from copy import deepcopy
 from datetime import datetime, timedelta
+import pandas as pd
 
 from flexmeasures.data.services.sensors import (
     serialize_sensor_status_data,
@@ -219,6 +221,27 @@ class TriggerScheduleKwargsSchema(Schema):
             description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
         ),
     )
+
+
+def floor_timed_event_datetimes(flex_model: dict, sensor: Sensor) -> dict:
+    if sensor.event_resolution == timedelta(0) or not sensor.get_attribute(
+        "round_datetimes_on_ingestion", True
+    ):
+        return flex_model
+
+    floored_flex_model = deepcopy(flex_model)
+    for value in floored_flex_model.values():
+        if not isinstance(value, list):
+            continue
+        for timed_event in value:
+            if not isinstance(timed_event, dict):
+                continue
+            for key in ("datetime", "start", "end"):
+                if key in timed_event:
+                    timed_event[key] = isodate.datetime_isoformat(
+                        pd.Timestamp(timed_event[key]).floor(sensor.event_resolution)
+                    )
+    return floored_flex_model
 
 
 class SensorAPI(FlaskView):
@@ -885,6 +908,9 @@ class SensorAPI(FlaskView):
             raise ValidationError(
                 f"Resolution of {resolution} is incompatible with the sensor's required resolution of {sensor.event_resolution}."
             )
+
+        if flex_model is not None:
+            flex_model = floor_timed_event_datetimes(flex_model, sensor)
 
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(

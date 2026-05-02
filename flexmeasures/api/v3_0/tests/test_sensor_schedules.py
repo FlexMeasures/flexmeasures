@@ -98,6 +98,44 @@ def test_trigger_schedule_with_invalid_flexmodel(
             )
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_schedule_floors_flex_model_datetimes(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    battery_soc_sensor,
+    add_charging_station_assets,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    message = message_for_trigger_schedule(with_targets=True)
+    offclock_target = "2015-01-02T23:00:40+01:00"
+    expected_target = "2015-01-02T23:00:00+01:00"
+    for field in ("soc-targets", "soc-minima", "soc-maxima"):
+        message["flex-model"][field][0]["datetime"] = offclock_target
+
+    sensor = add_charging_station_assets["Test charging station"].sensors[0]
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+
+    assert trigger_schedule_response.status_code == 200
+    assert len(app.queues["scheduling"]) == 1
+
+    job = app.queues["scheduling"].jobs[0]
+    for field in ("soc-targets", "soc-minima", "soc-maxima"):
+        target = job.kwargs["flex_model"][field][0]
+        assert target["datetime"] == expected_target
+        if "start" in target:
+            assert parse_datetime(target["start"]) == parse_datetime(expected_target)
+        if "end" in target:
+            assert parse_datetime(target["end"]) == parse_datetime(expected_target)
+
+
 @pytest.mark.parametrize("message", [message_for_trigger_schedule(unknown_prices=True)])
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
