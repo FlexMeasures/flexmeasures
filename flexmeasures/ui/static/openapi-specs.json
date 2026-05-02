@@ -4183,7 +4183,69 @@
     },
     "/api/v3_0": {},
     "/api/v3_0/sensors/data": {},
-    "/api/v3_0/docs/dist/{filename}": {},
+    "/api/v3_0/sources": {
+      "get": {
+        "summary": "List accessible data sources and defined source types.",
+        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\n<strong>Access rules:</strong>\n\n- Admins see all data sources.\n- Users with the <code>consultant</code> role see sources belonging to their\n  own account and to any consultancy-client accounts for which their\n  account is the consultancy.\n- All other authenticated users see only sources belonging to their\n  own account, plus sources that have neither a <code>user_id</code> nor an\n  <code>account_id</code> (i.e. system/public sources).\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "only_latest",
+            "description": "If true, return only the most recent version of each source (grouped by name, type and model). Determined by the highest model version string; ties are broken by the highest source id.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "example": {
+                  "types": [
+                    "user",
+                    "scheduler",
+                    "forecaster",
+                    "reporter",
+                    "demo script",
+                    "gateway",
+                    "market"
+                  ],
+                  "sources": [
+                    {
+                      "id": 1,
+                      "name": "Seita",
+                      "type": "scheduler",
+                      "model": "StorageScheduler",
+                      "version": "1.0",
+                      "description": "Seita's StorageScheduler model v1.0",
+                      "account_id": 2
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
     "/api/v3_0/docs/{path}": {},
     "/api/dev/sensor/{id}": {},
     "/api/dev/sensor/{id}/chart": {},
