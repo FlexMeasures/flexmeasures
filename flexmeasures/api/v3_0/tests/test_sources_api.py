@@ -229,3 +229,75 @@ def test_get_sources_only_latest_preserves_different_accounts(
     # Both sources must be present because they belong to different accounts
     assert source_account_a.id in latest_ids
     assert source_account_b.id in latest_ids
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_prosumer_user@seita.nl"],
+    indirect=True,
+)
+def test_get_sources_user_id_rule(client, setup_api_test_data, requesting_user, db):
+    """A source with a user_id but no account_id must not be visible to a regular user.
+
+    The public/system filter requires *both* account_id IS NULL and user_id IS NULL.
+    A source that is user-owned (user_id set) but not account-affiliated should
+    therefore be hidden from callers who do not belong to that user's account.
+    """
+    # Create a source with user_id set but no account affiliation.
+    # Since every real user already has a DataSource (unique constraint on user_id),
+    # we use a sentinel id far outside the range of real test users.  There is no
+    # DB-level FK on user_id, so this is safe.
+    _FAKE_USER_ID = 99_999
+    user_owned_source = DataSource(
+        name="UserOwnedSource",
+        type="demo script",
+    )
+    user_owned_source.user_id = _FAKE_USER_ID
+    db.session.add(user_owned_source)
+    db.session.flush()
+
+    response = client.get(url_for("SourceAPI:index"))
+    assert response.status_code == 200
+    source_ids = [s["id"] for s in response.json["sources"]]
+    assert user_owned_source.id not in source_ids
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_prosumer_user@seita.nl"],
+    indirect=True,
+)
+def test_get_sources_only_latest_tie_break_by_id(
+    client, setup_api_test_data, requesting_user, db
+):
+    """When two sources share the same version, the one with the higher id must win.
+
+    This covers the documented tie-break rule in _filter_sources_to_latest.
+    """
+    source_lower_id = DataSource(
+        name="TieBreakScheduler",
+        type="scheduler",
+        model="TieModel",
+        version="1.0",
+    )
+    source_higher_id = DataSource(
+        name="TieBreakScheduler",
+        type="scheduler",
+        model="TieModel",
+        version="1.0",
+    )
+    db.session.add(source_lower_id)
+    db.session.flush()
+    db.session.add(source_higher_id)
+    db.session.flush()
+    # Ensure the expected ID ordering holds
+    assert source_higher_id.id > source_lower_id.id
+
+    response = client.get(
+        url_for("SourceAPI:index"), query_string={"only_latest": True}
+    )
+    assert response.status_code == 200
+    latest_ids = [s["id"] for s in response.json["sources"]]
+    # Higher id must win the tie
+    assert source_higher_id.id in latest_ids
+    assert source_lower_id.id not in latest_ids
