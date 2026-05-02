@@ -446,7 +446,11 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         sensor = sensor_data["sensor"]
         inferred_resolution = sensor_data["duration"] / len(sensor_data["values"])
 
-        if frequency := sensor.get_attribute("frequency"):
+        if sensor.event_resolution != timedelta(0) and sensor.get_attribute(
+            "round_datetimes_on_ingestion", True
+        ):
+            start = pd.Timestamp(start).floor(sensor.event_resolution)
+        elif frequency := sensor.get_attribute("frequency"):
             start = pd.Timestamp(start).round(frequency)
 
         if event_resolution == timedelta(hours=0):
