@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from flask import url_for
+import pandas as pd
 import pytest
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -197,12 +198,6 @@ def test_post_sensor_data_bad_auth(
     "request_field, new_value, error_field, error_text",
     [
         ("start", "2021-06-07T00:00:00", "start", "Not a valid aware datetime"),
-        (
-            "duration",
-            "PT30M",
-            "_schema",
-            "Resolution of 0:05:00 is incompatible",
-        ),  # downsampling not supported
         ("unit", "m", "_schema", "Required unit"),
         ("type", "GetSensorDataRequest", "type", "Must be one of"),
     ],
@@ -237,6 +232,43 @@ def test_post_invalid_sensor_data(
         error_text
         in response.json["message"]["combined_sensor_data_description"][error_field][0]
     )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_non_instantaneous_sensor_data_floor(
+    client, setup_api_test_data, requesting_user
+):
+    post_data = make_sensor_data_request_for_gas_sensor(unit="m³/h")
+    post_data["start"] = "2021-06-08T00:00:40+02:00"
+    sensor = setup_api_test_data["some gas sensor"]
+
+    rows = len(sensor.search_beliefs())
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        json=post_data,
+    )
+
+    assert response.status_code == 200
+
+    data = sensor.search_beliefs().reset_index()
+    new_data = data[
+        data["event_start"].between(
+            pd.Timestamp("2021-06-07 22:00:00+0000", tz="UTC"),
+            pd.Timestamp("2021-06-07 22:50:00+0000", tz="UTC"),
+        )
+    ]
+    assert len(sensor.search_beliefs()) - rows == 6
+    assert list(new_data["event_start"]) == [
+        pd.Timestamp("2021-06-07 22:00:00+0000", tz="UTC"),
+        pd.Timestamp("2021-06-07 22:10:00+0000", tz="UTC"),
+        pd.Timestamp("2021-06-07 22:20:00+0000", tz="UTC"),
+        pd.Timestamp("2021-06-07 22:30:00+0000", tz="UTC"),
+        pd.Timestamp("2021-06-07 22:40:00+0000", tz="UTC"),
+        pd.Timestamp("2021-06-07 22:50:00+0000", tz="UTC"),
+    ]
 
 
 @pytest.mark.parametrize(
