@@ -700,7 +700,10 @@ def test_future_regressor_changes_forecasts_in_issue_time_window(
     Integration check for deterministic regressor behavior around issue-time splitting.
 
     We build two target sensors with identical history, run one with a future regressor
-    and one without, and assert the forecast window output differs.
+    and one without, and assert the future-regressor run is more accurate. The
+    target is constructed as a deterministic function of the weather regressor, so
+    admitting the regressor forecasts known at each forecast belief time should
+    improve the forecast.
     """
     db = fresh_db
 
@@ -796,8 +799,10 @@ def test_future_regressor_changes_forecasts_in_issue_time_window(
         )
 
     for ts, reg_value in zip(forecast_index, future_regressor_values):
-        # Keep a very short horizon for future regressors; this used to be
-        # vulnerable to stricter horizon filtering around issue time.
+        # Each weather-regressor forecast is issued five minutes before its
+        # hourly event starts. That makes it a 65-minute-horizon forecast for
+        # the full hourly event, while the pipeline issues target forecasts at
+        # the start of each event with a 60-minute max forecast horizon.
         beliefs.append(
             TimedBelief(
                 sensor=weather_regressor,
