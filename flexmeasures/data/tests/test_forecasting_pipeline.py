@@ -17,6 +17,7 @@ from flexmeasures.data.models.generic_assets import (
 )
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 
@@ -626,30 +627,40 @@ def test_future_regressor_splits_use_only_beliefs_known_at_issue_time(monkeypatc
 
     df = pd.DataFrame(
         [
+            # Historical forecast belief: known at issue time, but not realized,
+            # so it should not be used for the past part of the regressor split.
             {
                 "event_start": pd.Timestamp("2025-01-07T23:00:00"),
                 "belief_time": issue_time - pd.Timedelta(hours=2),
                 pipeline.target: None,
                 future_col: 88.0,
             },
+            # Historical realized belief: known at issue time and realized,
+            # so this is the admissible value for the past event.
             {
                 "event_start": pd.Timestamp("2025-01-07T23:00:00"),
                 "belief_time": issue_time,
                 pipeline.target: 1.0,
                 future_col: 10.0,
             },
+            # Future forecast belief: known at issue time and still a forecast,
+            # so this is admissible for the future part of the split.
             {
                 "event_start": pd.Timestamp("2025-01-08T00:00:00"),
                 "belief_time": issue_time - pd.Timedelta(minutes=5),
                 pipeline.target: None,
                 future_col: 20.0,
             },
+            # Future forecast belief: not known at issue time,
+            # so it must be excluded even though it is for the same event.
             {
                 "event_start": pd.Timestamp("2025-01-08T00:00:00"),
                 "belief_time": issue_time + pd.Timedelta(minutes=5),
                 pipeline.target: None,
                 future_col: 99.0,
             },
+            # Future forecast belief exactly known at issue time,
+            # proving the issue-time boundary itself remains admissible.
             {
                 "event_start": pd.Timestamp("2025-01-08T01:00:00"),
                 "belief_time": issue_time,
@@ -661,6 +672,9 @@ def test_future_regressor_splits_use_only_beliefs_known_at_issue_time(monkeypatc
 
     captured_future_frames = []
 
+    # Capture the future-regressor frame after split_data_all_beliefs has applied
+    # belief-time filtering, but before missing-value filling can alter its shape.
+    # This lets the assertions below inspect which beliefs survived the split.
     def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
         if sensor_names == self.future_regressors:
             captured_future_frames.append(df.copy())
@@ -830,46 +844,12 @@ def test_future_regressor_changes_forecasts_in_issue_time_window(
         }
     )
 
-    def collapse_to_event_start_series(forecast_df, series_name: str) -> pd.Series:
-        """Align forecasts across runs by event_start only.
-
-        BeliefsDataFrame indexes include run-specific belief metadata (e.g. source),
-        so joining on the full index can produce empty intersections even when both
-        runs contain forecasts for the same event starts.
-        """
-        series = forecast_df["event_value"].sort_index()
-        if not isinstance(series.index, pd.MultiIndex):
-            series.index = pd.to_datetime(series.index, utc=True)
-            return series.sort_index().rename(series_name)
-
-        assert (
-            "event_start" in series.index.names
-        ), "Expected event_start in forecast index for deterministic alignment."
-        values_by_event = series.rename("event_value").reset_index()
-        sort_cols = ["event_start"]
-        if "belief_time" in values_by_event.columns:
-            sort_cols.append("belief_time")
-        values_by_event = values_by_event.sort_values(sort_cols)
-        unique_values_per_event = values_by_event.groupby("event_start")[
-            "event_value"
-        ].nunique()
-        assert (unique_values_per_event <= 1).all(), (
-            "Expected at most one unique forecast value per event_start. "
-            "Conflicting duplicates indicate a forecasting regression."
-        )
-        values_by_event = values_by_event.drop_duplicates(
-            subset=["event_start"], keep="last"
-        )
-        collapsed_series = values_by_event.set_index("event_start")["event_value"]
-        collapsed_series.index = pd.to_datetime(collapsed_series.index, utc=True)
-        return collapsed_series.sort_index().rename(series_name)
-
-    forecasts_without_regressor = collapse_to_event_start_series(
-        returns_without_regressor[0]["data"], "without_regressor"
-    )
-    forecasts_with_regressor = collapse_to_event_start_series(
-        returns_with_regressor[0]["data"], "with_regressor"
-    )
+    forecasts_without_regressor = simplify_index(returns_without_regressor[0]["data"])[
+        "event_value"
+    ].rename("without_regressor")
+    forecasts_with_regressor = simplify_index(returns_with_regressor[0]["data"])[
+        "event_value"
+    ].rename("with_regressor")
     aligned_forecasts = pd.concat(
         [forecasts_without_regressor, forecasts_with_regressor],
         axis=1,
@@ -880,11 +860,13 @@ def test_future_regressor_changes_forecasts_in_issue_time_window(
     assert list(forecasts_with_regressor.index) == list(forecast_index)
     assert not aligned_forecasts.empty
     assert aligned_forecasts.notna().all(axis=None)
+    # First confirm the admissible future covariates affect the forecast at all.
+    # The accuracy assertions below check that the effect is beneficial.
     assert (
         aligned_forecasts["without_regressor"]
         .ne(aligned_forecasts["with_regressor"])
         .any()
-    ), "Forecasts should differ for at least one timestamp when a future regressor is used."
+    ), "Future-regressor run should produce a different forecast because it has admissible future covariates."
 
     truth = pd.Series(target_future_truth, index=forecast_index, name="truth")
     mae_without_regressor = (
