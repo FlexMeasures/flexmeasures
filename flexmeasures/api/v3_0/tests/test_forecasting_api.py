@@ -85,7 +85,9 @@ def test_trigger_forecast_with_unreadable_regressor_returns_403(
     )
     assert trigger_res.status_code == 403
     assert trigger_res.json["status"] == "INVALID_SENDER"
+    # Keep the config field path in the error so API users can fix the bad reference.
     assert (
         f"{{'json': {{'config': '{regressor_field}'}}}}" in trigger_res.json["message"]
     )
-    assert private_regressor.name in trigger_res.json["message"]
+    # Do not leak metadata about a regressor sensor the caller cannot read.
+    assert private_regressor.name not in trigger_res.json["message"]
