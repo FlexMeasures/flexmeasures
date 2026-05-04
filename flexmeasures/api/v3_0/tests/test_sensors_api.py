@@ -342,6 +342,45 @@ def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requestin
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_csv_file_measured_instantly_with_resampling(
+    client, db, setup_api_test_data, requesting_user
+):
+    """Test that uploading data with belief-time-measured-instantly=on and resampling needed
+    completes correctly and does not hang (regression test for O(N^2) slow track in resample_events).
+
+    The "some gas sensor" has 10-minute resolution. We upload 5-minute data, triggering
+    downsampling. With belief_time_measured_instantly=True, each event gets a unique belief_time
+    which previously caused the slow track in resample_events with O(N^2) memory usage.
+    """
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    # 5-minute resolution data -> needs downsampling to sensor's 10-minute resolution
+    csv_content = """event_start,event_value
+2022-12-16T05:00:00Z,10
+2022-12-16T05:05:00Z,20
+2022-12-16T05:10:00Z,30
+2022-12-16T05:15:00Z,40
+2022-12-16T05:20:00Z,50
+2022-12-16T05:25:00Z,60
+"""
+    sensor = setup_api_test_data["some gas sensor"]
+    file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
+
+    data = {
+        "uploaded-files": file,
+        "belief-time-measured-instantly": "on",
+    }
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data=data,
+        content_type="multipart/form-data",
+        headers={"Authorization": auth_token},
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_upload_excel_file(client, requesting_user):
     import openpyxl
 

@@ -728,9 +728,16 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                         is_stock_unit(from_unit)
                         for is_stock_unit in known_stock_unit_validators
                     ):
-                        bdf = bdf.resample_events(sensor.event_resolution, method="sum")
+                        bdf = bdf.resample_events(
+                            sensor.event_resolution,
+                            method="sum",
+                            keep_only_most_recent_belief=True,
+                        )
                     else:
-                        bdf = bdf.resample_events(sensor.event_resolution)
+                        bdf = bdf.resample_events(
+                            sensor.event_resolution,
+                            keep_only_most_recent_belief=True,
+                        )
                 dfs.append(bdf)
             except Exception as e:
                 error_message = (
