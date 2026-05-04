@@ -4196,10 +4196,10 @@
           {
             "in": "query",
             "name": "only_latest",
-            "description": "If true, return only the most recent version of each source (grouped by name, type and model). Determined by the highest model version string; ties are broken by the highest source id.",
+            "description": "If true, return only the most recent version of each source (grouped by name, type and model). Defaults to true. Determined by the highest model version string; ties are broken by the highest source id.",
             "schema": {
               "type": "boolean",
-              "default": false
+              "default": true
             },
             "required": false
           }
