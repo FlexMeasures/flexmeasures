@@ -686,9 +686,12 @@ def test_fetch_sensor_stats(
             assert record["Min value"]
             assert record["Max value"]
             if source == "Test Admin User (ID: 7)":
-                sum_values = 162.0
-                count_values = 36
-                mean_value = 4.5
+                # 36 values from CSV/Excel uploads (upsampled from 1H to 10min)
+                # + 3 values from test_upload_csv_file_measured_instantly_with_resampling
+                # (downsampled from 5min to 10min: values 15, 35, 55)
+                sum_values = 267.0
+                count_values = 39
+                mean_value = 267.0 / 39
             elif source == "Test Supplier User (ID: 6)":
                 sum_values = 275.1
                 count_values = 3
