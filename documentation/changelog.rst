@@ -16,7 +16,7 @@ New features
 Infrastructure / Support
 ----------------------
 * Remove legacy rolling viewpoint forecasting code and utilities after migrating to fixed-point forecasting [see `PR #2082 <https://www.github.com/FlexMeasures/flexmeasures/pull/2082>`_]
-* Upgraded dependencies [see `PR #2114 <https://www.github.com/FlexMeasures/flexmeasures/pull/2114>`_]
+* Upgraded dependencies [see `PR #2114 <https://www.github.com/FlexMeasures/flexmeasures/pull/2114>`_ and `PR #2148 <https://www.github.com/FlexMeasures/flexmeasures/pull/2148>`_]
 * Run ``flexmeasures jobs run-worker`` with RQ's embedded scheduler on by default so jobs created with ``enqueue_in`` are promoted from the scheduled registry when due; pass ``--without-scheduler`` to disable [see `PR #2112 <https://www.github.com/FlexMeasures/flexmeasures/pull/2112>`_]
 
 Bugfixes

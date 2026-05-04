@@ -149,30 +149,6 @@ If ANY test fails during full suite execution:
 - Compare against SensorIdField pattern
 - See Lead's Click context error pattern
 
-### Integration with Lead
-
-The Test Specialist MUST provide evidence of full test suite execution to Lead.
-
-**Required evidence format:**
-```
-Full test suite execution:
-- Command: pytest
-- Results: 2,847 tests passed (100%)
-- Duration: 145.3s
-- Warnings: None
-- Coverage: 87.2% (unchanged)
-```
-
-**Lead verification:**
-Lead's session close checklist includes:
-- [ ] Test Specialist confirmed full test suite execution
-- [ ] All tests pass (100%)
-- [ ] Test output captured and reviewed
-
-**Enforcement:**
-Lead cannot close session until Test Specialist provides evidence of full test suite execution with 100% pass rate.
-
-
 ### Testing Patterns for FlexMeasures
 
 FlexMeasures uses pytest with two main fixture patterns for database management:
@@ -239,18 +215,6 @@ def test_create_annotation(client, setup_api_fresh_test_data, fresh_db):
     annotation = Annotation.query.filter_by(content="New annotation").first()
     assert annotation is not None
 ```
-
-**Performance Impact**
-
-Module-scoped `db` fixture:
-- ✅ **Faster**: Database created once per test module
-- ✅ **Shared data**: All tests use same database state
-- ⚠️ **Limitation**: Tests must not modify data (read-only)
-
-Function-scoped `fresh_db` fixture:
-- ✅ **Isolation**: Each test gets fresh database
-- ✅ **Modifications OK**: Tests can create/update/delete freely
-- ⚠️ **Slower**: Database created/destroyed per test function
 
 **Decision Tree**
 
@@ -409,22 +373,6 @@ def test_annotation_post_invalid_entity_id(client, entity_type, invalid_id):
     assert "does not exist" in response.json["message"].lower()
 ```
 
-#### When You Get 404 vs 422
-
-```python
-# 404: Route doesn't exist
-response = client.get("/api/dev/nonexistent-endpoint")
-assert response.status_code == 404
-
-# 422: Field validation fails (route exists, data invalid)
-response = client.post("/api/dev/annotation/assets/99999", json={"content": "test"})
-assert response.status_code == 422
-
-# 201: Everything valid
-response = client.post("/api/dev/annotation/assets/1", json={"content": "test"})
-assert response.status_code == 201  # Created
-```
-
 **Related FlexMeasures patterns**: Marshmallow schema validation, webargs error handling, REST API conventions
 
 ### Installation and Setup
@@ -571,45 +519,6 @@ containers are started automatically by the GitHub Actions runner environment. I
 environment you must have these running yourself before executing tests.
 
 If setup steps fail or are unclear, escalate to the Tooling & CI Specialist.
-
-### Test Execution Workflow (CRITICAL)
-
-Follow `.github/workflows/copilot-setup-steps.yml` for the authoritative environment setup. In summary:
-
-1. **PostgreSQL** must be running with user/db `flexmeasures_test` and password `flexmeasures_test`.
-2. **Redis** must be running on `localhost:6379`.
-3. **Install dependencies**: `uv sync --locked --group test`
-4. **Set env vars**: `FLEXMEASURES_ENV=testing`, `SQLALCHEMY_DATABASE_URI=postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test`, `FLEXMEASURES_REDIS_URL=redis://127.0.0.1:6379/0`
-5. **Run tests**: `uv run poe test` or `pytest`
-
-If setup fails, escalate to the Tooling & CI Specialist.
-
-❌ **Don't**: Assume PostgreSQL is running
-✅ **Do**: Check service status before running tests
-
-❌ **Don't**: Skip environment variable setup
-✅ **Do**: Export all required variables (FLEXMEASURES_ENV, SQLALCHEMY_DATABASE_URI, etc.)
-
-❌ **Don't**: Claim "tests pass" without showing pytest output
-✅ **Do**: Capture and verify actual test results (passed/failed counts)
-
-❌ **Don't**: Ignore connection errors and move on
-✅ **Do**: Debug and fix setup issues before proceeding
-
-### Running Tests in FlexMeasures Dev Environment
-
-```bash
-# Install test dependencies
-uv sync --locked --group test
-# Run all tests (canonical command)
-uv run poe test
-# Run specific file or function
-uv run pytest path/to/test_file.py::test_function_name -v
-# Check pre-commit before committing
-pre-commit run --all-files
-```
-
-**Key pitfalls**: Don't just suggest tests — run them and show output. Don't assume the environment is ready without checking. Don't commit without running pre-commit.
 
 ### Testing DataSource Properties After API Calls
 
