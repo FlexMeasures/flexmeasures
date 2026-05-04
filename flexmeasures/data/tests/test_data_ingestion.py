@@ -115,3 +115,35 @@ def test_ingestion_job_succeeds_via_rq_worker(app, setup_beliefs, db):
     work_on_rq(app.queues["ingestion"], exc_handler=exception_reporter)
 
     assert app.queues["ingestion"].failed_job_registry.count == 0
+
+
+def test_deserialize_ingestion_data_handles_mixed_timezone_offsets(setup_beliefs, db):
+    sensor = get_test_sensor(db)
+    source = sensor.search_beliefs(source="ENTSO-E").lineage.sources[0]
+    payload = [
+        {
+            "sensor_id": sensor.id,
+            "beliefs": [
+                {
+                    "event_start": "2021-03-28T01:00:00+01:00",
+                    "belief_time": "2021-03-27T12:00:00+01:00",
+                    "source_id": source.id,
+                    "cumulative_probability": 0.5,
+                    "event_value": 21.0,
+                },
+                {
+                    "event_start": "2021-03-28T03:00:00+02:00",
+                    "belief_time": "2021-03-27T13:00:00+02:00",
+                    "source_id": source.id,
+                    "cumulative_probability": 0.5,
+                    "event_value": 22.0,
+                },
+            ],
+        }
+    ]
+
+    restored = deserialize_ingestion_data(payload)
+
+    assert len(restored) == 1
+    assert restored[0].event_starts.tz is not None
+    assert str(restored[0].event_starts.tz) in ("UTC", "UTC+00:00")
