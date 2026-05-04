@@ -7,7 +7,6 @@ from random import random
 import pandas as pd
 import numpy as np
 from flask_sqlalchemy import SQLAlchemy
-from statsmodels.api import OLS
 from flexmeasures import AssetType, Asset, Sensor
 import timely_beliefs as tb
 from sqlalchemy import select
@@ -18,10 +17,6 @@ from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.models.forecasting import model_map
-from flexmeasures.data.models.forecasting.model_spec_factory import (
-    create_initial_model_specs,
-)
 from flexmeasures.utils.time_utils import as_server_time
 
 from marshmallow import fields
@@ -94,24 +89,6 @@ def add_test_weather_sensor_and_forecasts(db: SQLAlchemy, setup_generic_asset_ty
                     source=data_source,
                 )
             )
-
-
-@pytest.fixture(scope="module", autouse=True)
-def add_failing_test_model(db):
-    """Add a test model specs to the lookup which should fail due to missing data.
-    It falls back to linear OLS (which falls back to naive)."""
-
-    def test_specs(**args):
-        """Customize initial specs with OLS and too early training start."""
-        model_specs = create_initial_model_specs(**args)
-        model_specs.set_model(OLS)
-        model_specs.start_of_training = model_specs.start_of_training - timedelta(
-            days=365
-        )
-        model_identifier = "failing-test model v1"
-        return model_specs, model_identifier, "linear-OLS"
-
-    model_map["failing-test"] = test_specs
 
 
 @pytest.fixture(scope="module")
