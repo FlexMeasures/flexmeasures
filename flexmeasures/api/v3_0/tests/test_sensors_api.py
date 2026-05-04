@@ -345,12 +345,13 @@ def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requestin
 def test_upload_csv_file_measured_instantly_with_resampling(
     client, db, setup_api_test_data, requesting_user
 ):
-    """Test that uploading data with belief-time-measured-instantly=on and resampling needed
-    completes correctly and does not hang (regression test for O(N^2) slow track in resample_events).
+    """Regression test: uploading data with belief-time-measured-instantly=on and resampling
+    needed should complete with a 200 status and not trigger the O(N²) slow path in
+    resample_events that previously caused server hangs and OOM crashes.
 
     The "some gas sensor" has 10-minute resolution. We upload 5-minute data, triggering
     downsampling. With belief_time_measured_instantly=True, each event gets a unique belief_time
-    which previously caused the slow track in resample_events with O(N^2) memory usage.
+    which previously caused the slow track in resample_events with O(N²) memory usage.
     """
     auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
     # 5-minute resolution data -> needs downsampling to sensor's 10-minute resolution
@@ -376,7 +377,6 @@ def test_upload_csv_file_measured_instantly_with_resampling(
         content_type="multipart/form-data",
         headers={"Authorization": auth_token},
     )
-    print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
 
 
