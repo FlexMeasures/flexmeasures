@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
+import pytz
 import pytest
 from flask import url_for
+from redis.exceptions import ConnectionError as RedisConnectionError
 from rq.job import Job, JobStatus
 
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
+from flexmeasures.data.services.scheduling import (
+    create_scheduling_job,
+    handle_scheduling_exception,
+)
 from flexmeasures.data.tests.test_scheduling_repeated_jobs_fresh_db import (
     FailingScheduler,
 )
 from flexmeasures.utils.job_utils import work_on_rq
-from flexmeasures.data.services.scheduling import handle_scheduling_exception
 
 
 @pytest.mark.parametrize(
@@ -19,6 +26,7 @@ from flexmeasures.data.services.scheduling import handle_scheduling_exception
 )
 def test_get_job_status_unknown_uuid(
     app,
+    setup_roles_users,
     add_battery_assets,
     keep_scheduling_queue_empty,
     requesting_user,
@@ -30,6 +38,55 @@ def test_get_job_status_unknown_uuid(
         )
     assert response.status_code == 404
     assert "not found" in response.json["message"]
+
+
+@pytest.mark.parametrize(
+    "requesting_user, expected_status_code",
+    [
+        ("test_prosumer_user@seita.nl", 200),
+        ("test_dummy_user_3@seita.nl", 403),
+    ],
+    indirect=["requesting_user"],
+)
+def test_get_job_status_requires_read_access(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    battery_soc_sensor,
+    keep_scheduling_queue_empty,
+    requesting_user,
+    expected_status_code,
+):
+    sensor = add_battery_assets["Test battery"].sensors[0]
+    timezone = pytz.timezone("Europe/Amsterdam")
+    start = timezone.localize(datetime(2015, 1, 2))
+    end = timezone.localize(datetime(2015, 1, 3))
+
+    job = create_scheduling_job(
+        asset_or_sensor=sensor,
+        start=start,
+        end=end,
+        belief_time=start,
+        resolution=timedelta(minutes=15),
+        flex_model={
+            "roundtrip-efficiency": "98%",
+            "storage-efficiency": 0.999,
+        },
+    )
+
+    assert job.meta["asset_or_sensor"]["id"] == sensor.id
+    assert job.meta["asset_or_sensor"]["class"] == "Sensor"
+
+    with app.test_client() as client:
+        response = client.get(
+            url_for("JobAPI:get_job_status", uuid=job.id),
+        )
+
+    assert response.status_code == expected_status_code
+    if expected_status_code == 200:
+        assert response.json["status"] == "QUEUED"
+    else:
+        assert response.json["status"] == "INVALID_SENDER"
 
 
 @pytest.mark.parametrize(
@@ -276,3 +333,28 @@ def test_get_job_status_unauthenticated(
             url_for("JobAPI:get_job_status", uuid="any-uuid"),
         )
     assert response.status_code == 401
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_job_status_returns_503_when_redis_is_unavailable(
+    app,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    requesting_user,
+    monkeypatch,
+):
+    def fail_ping():
+        raise RedisConnectionError("Connection refused")
+
+    monkeypatch.setattr(app.redis_connection, "ping", fail_ping)
+
+    with app.test_client() as client:
+        response = client.get(
+            url_for("JobAPI:get_job_status", uuid="any-uuid"),
+        )
+
+    assert response.status_code == 503
+    assert response.json["status"] == "ERROR"
+    assert response.json["message"] == "Job queues are currently unavailable."
