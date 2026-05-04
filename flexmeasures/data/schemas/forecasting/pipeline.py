@@ -519,10 +519,8 @@ class ForecasterParametersSchema(Schema):
             beliefs_before=data.get("belief_time"),
             m_viewpoints=m_viewpoints,
         )
-        # Pass through any additional keys declared in subclass schemas (e.g. config in ForecastingTriggerSchema)
-        for key in data:
-            if key not in result:
-                result[key] = data[key]
+        if "config" in data:
+            result["config"] = data["config"]
         return result
 
 

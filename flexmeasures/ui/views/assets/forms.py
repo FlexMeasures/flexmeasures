@@ -18,14 +18,6 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.schemas.generic_assets import SensorsToShowAsKPIsSchema
 
 
-# Shared label/description for the "attributes" JSON field.
-# Imported by sensor and account views so the text is defined exactly once.
-ATTRIBUTES_FIELD_LABEL = "Other attributes (JSON)"
-ATTRIBUTES_FIELD_DESCRIPTION = (
-    "Custom attributes as JSON, for custom functionality, e.g. used in plugins."
-)
-
-
 class AssetForm(FlaskForm):
     """The default asset form only allows to edit the name and location."""
 
@@ -48,11 +40,6 @@ class AssetForm(FlaskForm):
     parent_asset_id = IntegerField(
         "Parent Asset Id",
         validators=[optional()],
-    )
-    attributes = StringField(
-        ATTRIBUTES_FIELD_LABEL,
-        default="{}",
-        description=ATTRIBUTES_FIELD_DESCRIPTION,
     )
     sensors_to_show_as_kpis = StringField(
         "Sensors to show as KPIs (JSON)",

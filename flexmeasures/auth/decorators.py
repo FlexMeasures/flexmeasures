@@ -222,18 +222,11 @@ def _check_access_for_context(context, permission: str):
                 try:
                     check_access(c, permission)
                 except Forbidden as exc:
-                    context_name = getattr(c, "name", str(c))
-                    context_id = getattr(c, "id", None)
-                    context_suffix = (
-                        f"'{context_name}' (ID {context_id})"
-                        if context_id is not None
-                        else f"'{context_name}'"
-                    )
                     setattr(
                         exc,
                         "api_message",
                         f"You cannot be authorized for the '{label}' field "
-                        f"because it references sensor {context_suffix}.",
+                        "because it references a sensor you cannot read.",
                     )
                     raise
         return

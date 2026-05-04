@@ -20,7 +20,7 @@ from flexmeasures.ui.views.assets.utils import (
     user_can_delete,
     user_can_update,
 )
-from flexmeasures.ui.views.assets.forms import (
+from flexmeasures.ui.views import (
     ATTRIBUTES_FIELD_LABEL,
     ATTRIBUTES_FIELD_DESCRIPTION,
 )
