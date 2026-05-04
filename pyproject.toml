@@ -32,7 +32,7 @@ dynamic = ["version"]
 dependencies = [
     "pyyaml>=6.0.3",
     "altair>=6.0.0",
-    "numpy<2",
+    "numpy",
     "pandas>=2.2.1",
     "pint>=0.19.1",
     "py-moneyed>=3.0",
