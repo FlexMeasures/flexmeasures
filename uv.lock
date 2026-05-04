@@ -1240,7 +1240,7 @@ requires-dist = [
     { name = "sentry-sdk", extras = ["flask"], specifier = ">=2.52.0" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "tabulate", specifier = ">=0.9.0" },
-    { name = "timely-beliefs", extras = ["forecast"], specifier = ">=3.5.4" },
+    { name = "timely-beliefs", extras = ["forecast"], specifier = ">=3.5.5" },
     { name = "tldextract", specifier = ">=5.3.1" },
     { name = "u8darts", specifier = ">=0.29.0" },
     { name = "uniplot", specifier = ">=0.12.1" },
@@ -3722,7 +3722,7 @@ wheels = [
 
 [[package]]
 name = "timely-beliefs"
-version = "3.5.4"
+version = "3.5.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "importlib-metadata" },
@@ -3737,9 +3737,9 @@ dependencies = [
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "sqlalchemy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2e/64/31f61a6bf6d90bd541eff4f63e82328a75f0e971ac68fbbd06cdfe74e135/timely_beliefs-3.5.4.tar.gz", hash = "sha256:4b1f4d162387251d181e5cf0e2b5d48dca3b325997577a8c12b370766435a458", size = 793522, upload-time = "2026-03-25T16:03:07.471Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/bb/9369de8f0af17b9063c70073cb63b4d6d32d2ac16105ad1967cce1e393e2/timely_beliefs-3.5.5.tar.gz", hash = "sha256:c165db5e92fb3557296b6dbfb9b526de27729f6bb5b23b1b4d65ea1b407216d5", size = 793855, upload-time = "2026-05-04T15:10:38.682Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/46/8c/ea4c853fb5fb61db0bd48910473d54c1b7a349b9e2a3c126ea5914aa0fa4/timely_beliefs-3.5.4-py2.py3-none-any.whl", hash = "sha256:d9dc16a5434376113cb61c419de021534d3850e51dd01af34a1b512714dcc000", size = 807542, upload-time = "2026-03-25T16:03:05.785Z" },
+    { url = "https://files.pythonhosted.org/packages/2f/76/2032d023b3540f4cbeb3fe0fa45f1c50b036ab30beaeb0bf8257042b0d7c/timely_beliefs-3.5.5-py2.py3-none-any.whl", hash = "sha256:bb09c96ddc10b7ccd4520395acd29df7737ba79ed65ce1c8335cd03d98ba0c31", size = 807541, upload-time = "2026-05-04T15:10:36.885Z" },
 ]
 
 [package.optional-dependencies]

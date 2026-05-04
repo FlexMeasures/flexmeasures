@@ -63,8 +63,8 @@ dependencies = [
     # pinned to <6.9 due to a HiGHS deadlock, see https://github.com/FlexMeasures/flexmeasures/issues/1443
     "pyomo>=5.6,<6.9",
     "tabulate>=0.9.0",
-    # 3.5.2: fixed issue with resampling to instantaneous
-    "timely-beliefs[forecast]>=3.5.4",
+    # 3.5.5: got rid of BlockManager deprecation warnings
+    "timely-beliefs[forecast]>=3.5.5",
     "python-dotenv>=1.2.1",
     # see GH#607 for issue on this pin
     "sqlalchemy>=2.0",
