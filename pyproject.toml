@@ -265,6 +265,11 @@ markers = [
     "skip_github: skip test in GitHub Actions. Useful in case the test passes, but breaks the test suite on GH Actions."
 ]
 
+# Restrict uv's dependency resolution to the three real target platforms.
+# Without this, uv generates fork markers for impossible platform combinations
+# (e.g. os_name == 'nt' AND sys_platform == 'darwin'), which causes
+# `uv sync --locked` to fail because the fork markers don't fully cover the
+# declared environment space.
 [tool.uv]
 environments = [
     "sys_platform == 'linux'",
