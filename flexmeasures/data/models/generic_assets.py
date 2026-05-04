@@ -116,6 +116,7 @@ def _generate_fixed_value_records(
     timestamps_ms = _fixed_value_timestamps_ms(
         event_starts_after, event_ends_before, resolution
     )
+    belief_time_ms = int(event_starts_after.timestamp() * 1000)
     sensor_meta = sensor.as_dict  # uses _as_dict_override for fixed-value sensors
     source_dict = _fixed_value_source_dict(flex_source)
 
@@ -123,6 +124,7 @@ def _generate_fixed_value_records(
         {
             "event_start": ts_ms,
             "event_value": constant_value,
+            "belief_time": belief_time_ms,
             "sensor": sensor_meta,
             "source": source_dict,
             "sensor_unit": sensor.unit,
@@ -160,12 +162,14 @@ def _generate_fixed_value_records_compressed(
     timestamps_ms = _fixed_value_timestamps_ms(
         event_starts_after, event_ends_before, resolution
     )
+    belief_time_ms = int(event_starts_after.timestamp() * 1000)
 
     return [
         {
             "ts": ts_ms,
             "sid": sensor.id,
             "val": constant_value,
+            "bt": belief_time_ms,
             "sf": 1.0,
             "src": source_id,
             "bh": 0,
