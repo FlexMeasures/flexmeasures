@@ -23,12 +23,12 @@ def test_get_job_status_unknown_uuid(
     keep_scheduling_queue_empty,
     requesting_user,
 ):
-    """Requesting a non-existent job UUID should return 400."""
+    """Requesting a non-existent job UUID should return 404."""
     with app.test_client() as client:
         response = client.get(
             url_for("JobAPI:get_job_status", uuid="non-existent-uuid"),
         )
-    assert response.status_code == 400
+    assert response.status_code == 404
     assert "not found" in response.json["message"]
 
 

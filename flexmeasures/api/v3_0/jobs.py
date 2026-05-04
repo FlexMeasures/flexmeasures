@@ -157,8 +157,8 @@ class JobAPI(FlaskView):
                         started_at: "2026-04-28T10:00:01+00:00"
                         ended_at: "2026-04-28T10:00:02+00:00"
                         exc_info: "Traceback (most recent call last): ..."
-            400:
-              description: UNRECOGNIZED_JOB
+            404:
+              description: NOT_FOUND
             401:
               description: UNAUTHORIZED
           tags:

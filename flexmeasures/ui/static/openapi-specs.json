@@ -4312,8 +4312,8 @@
               }
             }
           },
-          "400": {
-            "description": "UNRECOGNIZED_JOB"
+          "404": {
+            "description": "NOT_FOUND"
           },
           "401": {
             "description": "UNAUTHORIZED"
