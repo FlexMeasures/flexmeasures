@@ -142,7 +142,7 @@ def test_get_sensor_data_filtered_by_source_account(
         "duration": "PT1H20M",
         "horizon": "PT0H",
         "unit": "m³/h",
-        "account": source_user.account_id,
+        "source-account": source_user.account_id,
         "resolution": "PT20M",
     }
     response = client.get(
@@ -207,7 +207,7 @@ def test_get_sensor_data_filtered_by_source_type(
         "duration": "PT1H20M",
         "horizon": "PT0H",
         "unit": "m³/h",
-        "source_type": source_type,
+        "source-type": source_type,
         "resolution": "PT20M",
     }
     response = client.get(
@@ -222,19 +222,19 @@ def test_get_sensor_data_filtered_by_source_type(
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
-def test_get_sensor_data_rejects_blank_source_type(
+def test_get_sensor_data_rejects_empty_source_type(
     client,
     setup_api_test_data: dict[str, Sensor],
     requesting_user,
 ):
-    """Check that GET /sensors/<id>/data rejects a blank source_type filter."""
+    """Check that GET /sensors/<id>/data rejects an empty source-type filter."""
     sensor = setup_api_test_data["some gas sensor"]
     message = {
         "start": "2021-05-02T00:00:00+02:00",
         "duration": "PT1H20M",
         "horizon": "PT0H",
         "unit": "m³/h",
-        "source_type": "",
+        "source-type": "",
         "resolution": "PT20M",
     }
     response = client.get(
@@ -244,8 +244,8 @@ def test_get_sensor_data_rejects_blank_source_type(
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 422
     assert (
-        "Source type must not be blank."
-        in response.json["message"]["combined_sensor_data_description"]["source_type"][
+        "Shorter than minimum length 1."
+        in response.json["message"]["combined_sensor_data_description"]["source-type"][
             0
         ]
     )
