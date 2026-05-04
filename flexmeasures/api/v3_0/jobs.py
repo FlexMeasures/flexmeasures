@@ -6,11 +6,16 @@ from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
+from redis.exceptions import ConnectionError as RedisConnectionError
 from rq.job import Job, JobStatus, NoSuchJobError
 from webargs.flaskparser import use_kwargs
 from marshmallow import fields
 
 from flexmeasures.api.common.utils.api_utils import job_status_description
+from flexmeasures.auth.policy import check_access
+from flexmeasures.data import db
+from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.services.utils import get_asset_or_sensor_from_ref
 
 
 def _isoformat_or_none(dt: datetime | None) -> str | None:
@@ -28,6 +33,38 @@ def _failed_job_exc_info(job: Job) -> str | None:
         return None
 
     return latest_result.exc_string
+
+
+def _job_read_context(job: Job):
+    """Resolve the asset or sensor whose read access governs this job."""
+    asset_or_sensor_ref = job.meta.get("asset_or_sensor") or job.kwargs.get(
+        "asset_or_sensor"
+    )
+    if asset_or_sensor_ref is not None:
+        return get_asset_or_sensor_from_ref(asset_or_sensor_ref)
+
+    sensor_id = job.meta.get("sensor_id")
+    if sensor_id is None:
+        forecast_kwargs = job.meta.get("forecast_kwargs", {})
+        if isinstance(forecast_kwargs, dict):
+            sensor_id = forecast_kwargs.get("sensor_id")
+    if sensor_id is None:
+        sensor_id = job.kwargs.get("sensor_id")
+
+    if sensor_id is None:
+        return None
+
+    return db.session.get(Sensor, sensor_id)
+
+
+def _job_queue_unavailable_response():
+    return (
+        dict(
+            status="ERROR",
+            message="Job queues are currently unavailable.",
+        ),
+        503,
+    )
 
 
 class JobAPI(FlaskView):
@@ -161,13 +198,21 @@ class JobAPI(FlaskView):
               description: NOT_FOUND
             401:
               description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            503:
+              description: SERVICE_UNAVAILABLE
           tags:
             - Jobs
         """
         connection = current_app.redis_connection
 
         try:
+            connection.ping()
             job = Job.fetch(job_id, connection=connection)
+            read_context = _job_read_context(job)
+            if read_context is not None:
+                check_access(read_context, "read")
         except NoSuchJobError:
             return (
                 dict(
@@ -176,17 +221,21 @@ class JobAPI(FlaskView):
                 ),
                 404,
             )
+        except RedisConnectionError:
+            return _job_queue_unavailable_response()
 
-        job_status = job.get_status()
-        status_name = (
-            job_status.name
-            if isinstance(job_status, JobStatus)
-            else str(job_status).upper()
-        )
-
-        # job.return_value is None when the job has not finished successfully
         try:
+            job_status = job.get_status()
+            status_name = (
+                job_status.name
+                if isinstance(job_status, JobStatus)
+                else str(job_status).upper()
+            )
+
+            # job.return_value is None when the job has not finished successfully
             result = job.return_value()
+        except RedisConnectionError:
+            return _job_queue_unavailable_response()
         except Exception:  # noqa: BLE001
             result = None
 

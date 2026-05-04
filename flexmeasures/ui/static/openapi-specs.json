@@ -4317,6 +4317,12 @@
           },
           "401": {
             "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE"
           }
         },
         "tags": [
