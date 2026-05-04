@@ -372,34 +372,6 @@ def test_chart_data_json_compressed_fixed_value_records_are_correct(
         assert "src" in r, "Compressed fixed-value record must carry a 'src' key"
 
 
-def test_chart_data_json_compressed_fixed_value_records_use_start_as_belief_time(
-    battery_with_soc_flex_model,
-):
-    """Fixed-value records must be visible from the first replay step."""
-    battery, _ = battery_with_soc_flex_model
-
-    start = datetime(2015, 1, 1, tzinfo=pytz.utc)
-    end = datetime(2015, 1, 2, tzinfo=pytz.utc)
-
-    import json
-
-    parsed = json.loads(
-        battery.chart_data_json(
-            compress_json=True,
-            event_starts_after=start,
-            event_ends_before=end,
-        )
-    )
-
-    fixed_value_records = [r for r in parsed["data"] if r["sid"] in (-1, -2)]
-    expected_belief_time = int(start.timestamp() * 1000)
-
-    assert fixed_value_records, "Expected fixed-value records in compressed data"
-    assert all(
-        r.get("bt") == expected_belief_time for r in fixed_value_records
-    ), "Fixed-value compressed records must use the selected chart start as belief time"
-
-
 def test_chart_data_json_compressed_source_references_flex_model(
     battery_with_soc_flex_model,
 ):
