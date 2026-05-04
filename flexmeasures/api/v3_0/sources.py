@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import logging
-
+from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import current_user, auth_required
@@ -21,12 +20,13 @@ API endpoint to list accessible data sources and defined source types.
 
 class SourceQuerySchema(Schema):
     only_latest = fields.Bool(
-        load_default=False,
+        load_default=True,
         metadata={
             "description": (
                 "If true, return only the most recent version of each source "
-                "(grouped by name, type and model). Determined by the highest "
-                "model version string; ties are broken by the highest source id."
+                "(grouped by name, type and model). Defaults to true. "
+                "Determined by the highest model version string; ties are "
+                "broken by the highest source id."
             )
         },
     )
@@ -62,7 +62,7 @@ def _filter_sources_to_latest(sources: list[DataSource]) -> list[DataSource]:
         try:
             return Version(source.version or "0.0.0")
         except InvalidVersion:
-            logging.getLogger(__name__).warning(
+            current_app.logger.warning(
                 "DataSource %d has an invalid version string %r; treating as 0.0.0",
                 source.id,
                 source.version,
@@ -92,7 +92,7 @@ class SourceAPI(FlaskView):
     @route("", methods=["GET"])
     @use_kwargs(SourceQuerySchema, location="query")
     @as_json
-    def index(self, only_latest: bool = False):
+    def index(self, only_latest: bool = True):
         """List accessible data sources and defined source types.
 
         .. :quickref: Sources; List accessible data sources and defined source types.
