@@ -125,6 +125,9 @@ def add_beliefs_to_db_and_enqueue_forecasting_jobs(
                                         - 'success_with_unchanged_beliefs_skipped'
                                         - 'success_but_nothing_new'
     """
+    # https://docs.sqlalchemy.org/en/13/faq/connections.html#how-do-i-use-engines-connections-sessions-with-python-multiprocessing-or-os-fork
+    db.engine.dispose()
+
     if serialized_data is not None:
         data = deserialize_ingestion_data(serialized_data)
     if data is None:

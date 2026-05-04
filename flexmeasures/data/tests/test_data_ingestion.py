@@ -9,7 +9,9 @@ from flexmeasures.data.services.data_ingestion import (
     deserialize_ingestion_data,
     serialize_ingestion_data,
 )
+from flexmeasures.data.tests.utils import exception_reporter
 from flexmeasures.tests.utils import get_test_sensor
+from flexmeasures.utils.job_utils import work_on_rq
 
 
 def _to_comparable_df(bdf):
@@ -89,3 +91,26 @@ def test_ingestion_service_accepts_serialized_data(setup_beliefs, db):
     )
 
     assert status == "success_but_nothing_new"
+
+
+def test_ingestion_job_succeeds_via_rq_worker(app, setup_beliefs, db):
+    """Regression test: ingestion job must succeed when processed by an RQ worker.
+
+    Without db.engine.dispose() the forked worker inherits stale SQLAlchemy
+    connections from the parent process, causing the job to fail.
+    """
+    sensor = get_test_sensor(db)
+    bdf = sensor.search_beliefs(source="ENTSO-E", most_recent_beliefs_only=False).iloc[
+        :1
+    ]
+    serialized = serialize_ingestion_data(bdf)
+
+    app.queues["ingestion"].enqueue(
+        add_beliefs_to_db_and_enqueue_forecasting_jobs,
+        serialized_data=serialized,
+        save_changed_beliefs_only=True,
+    )
+
+    work_on_rq(app.queues["ingestion"], exc_handler=exception_reporter)
+
+    assert app.queues["ingestion"].failed_job_registry.count == 0
