@@ -168,6 +168,7 @@ class GetSensorDataFilterSchemaMixin:
         ),
     )
     account = AccountIdField(
+        data_key="source-account",
         required=False,
         metadata=dict(
             description="Filter by the account linked to data sources.",
@@ -175,18 +176,14 @@ class GetSensorDataFilterSchemaMixin:
         ),
     )
     source_type = fields.Str(
+        data_key="source-type",
         required=False,
+        validate=Length(min=1),
         metadata=dict(
             description="Filter by a specific data source type.",
             example="forecaster",
         ),
     )
-
-    @validates_schema
-    def check_source_type_not_blank(self, data, **kwargs):
-        source_type = data.get("source_type")
-        if source_type is not None and not source_type.strip():
-            raise ValidationError({"source_type": ["Source type must not be blank."]})
 
 
 class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionSchema):
