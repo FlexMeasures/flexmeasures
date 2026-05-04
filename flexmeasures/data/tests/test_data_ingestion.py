@@ -100,6 +100,7 @@ def test_ingestion_job_succeeds_via_rq_worker(app, setup_beliefs, db):
     connections from the parent process, causing the job to fail.
     """
     sensor = get_test_sensor(db)
+    # A single belief is sufficient to exercise the worker's DB connection handling.
     bdf = sensor.search_beliefs(source="ENTSO-E", most_recent_beliefs_only=False).iloc[
         :1
     ]

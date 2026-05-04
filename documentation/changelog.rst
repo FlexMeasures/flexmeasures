@@ -29,7 +29,7 @@ Bugfixes
 * Make the sensor page load much faster for sensors with lots of data, by avoiding to load statistics over all of its history by default [see `PR #2129 <https://www.github.com/FlexMeasures/flexmeasures/pull/2129>`_]
 * Return a clear validation error (instead of a server ZeroDivisionError) when posting instantaneous (0-minute) data to non-instantaneous sensors via ``[POST] /sensors/(id)/data`` [see `PR #2116 <https://www.github.com/FlexMeasures/flexmeasures/pull/2116>`_]
 * Fix asset context page for asset names containing apostrophes [see `PR #2117 <https://www.github.com/FlexMeasures/flexmeasures/pull/2117>`_]
-* Fix ingestion queue worker crashing with a database error when the worker process is forked (Linux), by calling ``db.engine.dispose()`` at the start of the ingestion job function, matching the existing pattern used by the scheduling worker [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_]
+* Fix ingestion jobs crashing when processed by an RQ worker due to stale database connections inherited by the forked worker process [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_]
 
 
 v0.32.1 | May XX, 2026
