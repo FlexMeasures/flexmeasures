@@ -264,3 +264,10 @@ addopts = "--strict-markers --ignore=docker-compose-data"
 markers = [
     "skip_github: skip test in GitHub Actions. Useful in case the test passes, but breaks the test suite on GH Actions."
 ]
+
+[tool.uv]
+environments = [
+    "sys_platform == 'linux'",
+    "sys_platform == 'darwin'",
+    "sys_platform == 'win32'",
+]
