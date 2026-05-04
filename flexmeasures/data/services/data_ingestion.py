@@ -19,16 +19,6 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.utils import save_to_db
 
 
-def _to_utc_iso(dt) -> str:
-    """Serialize a datetime-like value as an ISO string in UTC."""
-    ts = pd.Timestamp(dt)
-    if ts.tzinfo is None:
-        ts = ts.tz_localize("UTC")
-    else:
-        ts = ts.tz_convert("UTC")
-    return ts.isoformat()
-
-
 def serialize_ingestion_data(
     data: tb.BeliefsDataFrame | list[tb.BeliefsDataFrame],
 ) -> list[dict]:
@@ -52,8 +42,8 @@ def serialize_ingestion_data(
         for belief in bdf.reset_index().itertuples(index=False):
             serialized_rows.append(
                 {
-                    "event_start": _to_utc_iso(belief.event_start),
-                    "belief_time": _to_utc_iso(belief.belief_time),
+                    "event_start": belief.event_start.isoformat(),
+                    "belief_time": belief.belief_time.isoformat(),
                     "source_id": belief.source.id,
                     "cumulative_probability": float(belief.cumulative_probability),
                     "event_value": (
@@ -102,8 +92,8 @@ def deserialize_ingestion_data(payload: Sequence[dict]) -> list[tb.BeliefsDataFr
                 TimedBelief(
                     sensor=sensor,
                     source=source,
-                    event_start=pd.to_datetime(row["event_start"], utc=True),
-                    belief_time=pd.to_datetime(row["belief_time"], utc=True),
+                    event_start=pd.Timestamp(row["event_start"]),
+                    belief_time=pd.Timestamp(row["belief_time"]),
                     cumulative_probability=row["cumulative_probability"],
                     event_value=row["event_value"],
                 )
@@ -135,9 +125,6 @@ def add_beliefs_to_db_and_enqueue_forecasting_jobs(
                                         - 'success_with_unchanged_beliefs_skipped'
                                         - 'success_but_nothing_new'
     """
-    # https://docs.sqlalchemy.org/en/13/faq/connections.html#how-do-i-use-engines-connections-sessions-with-python-multiprocessing-or-os-fork
-    db.engine.dispose()
-
     if serialized_data is not None:
         data = deserialize_ingestion_data(serialized_data)
     if data is None:
