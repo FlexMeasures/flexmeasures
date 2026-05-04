@@ -174,7 +174,7 @@ class JobAPI(FlaskView):
                     status="ERROR",
                     message=f"Job {job_id} not found.",
                 ),
-                400,
+                404,
             )
 
         job_status = job.get_status()
