@@ -152,7 +152,7 @@ def test_get_sources_consultant_sees_client_sources(
     indirect=True,
 )
 def test_get_sources_only_latest(client, setup_api_test_data, requesting_user, db):
-    """The only_latest toggle must return at most one source per (name, type, model) group."""
+    """The endpoint should default to latest-only and allow opting out via only_latest=false."""
     # Create two versioned sources in the same group, both public (no account_id / user_id)
     source_v1 = DataSource(
         name="VersionedScheduler",
@@ -169,22 +169,21 @@ def test_get_sources_only_latest(client, setup_api_test_data, requesting_user, d
     db.session.add_all([source_v1, source_v2])
     db.session.flush()
 
-    # Without the toggle both versions are returned
-    response_all = client.get(url_for("SourceAPI:index"))
+    # By default only the latest version is returned
+    response_default = client.get(url_for("SourceAPI:index"))
+    assert response_default.status_code == 200
+    default_ids = [s["id"] for s in response_default.json["sources"]]
+    assert source_v2.id in default_ids
+    assert source_v1.id not in default_ids
+
+    # Callers can opt out of deduplication and request all versions explicitly
+    response_all = client.get(
+        url_for("SourceAPI:index"), query_string={"only_latest": False}
+    )
     assert response_all.status_code == 200
     all_ids = [s["id"] for s in response_all.json["sources"]]
     assert source_v1.id in all_ids
     assert source_v2.id in all_ids
-
-    # With the toggle only the latest version is returned
-    response_latest = client.get(
-        url_for("SourceAPI:index"), query_string={"only_latest": True}
-    )
-    assert response_latest.status_code == 200
-    latest_ids = [s["id"] for s in response_latest.json["sources"]]
-    # v2 (higher version) must be present, v1 must be absent
-    assert source_v2.id in latest_ids
-    assert source_v1.id not in latest_ids
 
 
 @pytest.mark.parametrize(
