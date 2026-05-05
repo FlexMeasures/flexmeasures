@@ -1,7 +1,7 @@
 from typing import Any
 
 from flexmeasures.data import ma
-from marshmallow import fields, validates
+from marshmallow import Schema, fields, validates
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole
@@ -58,6 +58,28 @@ class AccountSchema(ma.SQLAlchemySchema):
     def validate_logo_url(self, value, **kwargs):
         try:
             validate_url(value)
+        except ValueError as e:
+            raise FMValidationError(str(e))
+
+
+class AccountCreateSchema(Schema):
+    """Schema for creating an account via API."""
+
+    name = fields.String(required=True)
+    primary_color = fields.String(required=False, allow_none=True)
+    secondary_color = fields.String(required=False, allow_none=True)
+
+    @validates("primary_color")
+    def validate_primary_color(self, value, **kwargs):
+        try:
+            validate_color_hex(value)
+        except ValueError as e:
+            raise FMValidationError(str(e))
+
+    @validates("secondary_color")
+    def validate_secondary_color(self, value, **kwargs):
+        try:
+            validate_color_hex(value)
         except ValueError as e:
             raise FMValidationError(str(e))
 

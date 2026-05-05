@@ -25,7 +25,11 @@ from werkzeug.exceptions import (
 )
 
 from flexmeasures.app import create as create_app
-from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
+from flexmeasures.auth.policy import (
+    ADMIN_ROLE,
+    ADMIN_READER_ROLE,
+    CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE,
+)
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
@@ -157,10 +161,15 @@ def create_test_accounts(db) -> dict[str, Account]:
     consultancy_account_role = AccountRole(
         name="Consultancy", description="A consultancy account"
     )
+    consultant_with_own_clients_role = AccountRole(
+        name=CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE,
+        description="Consultancy account that can create own client accounts",
+    )
     # Create Consultancy and ConsultancyClient account.
     # The ConsultancyClient account needs the account id of the Consultancy account so the order is important.
     consultancy_account = Account(
-        name="Test Consultancy Account", account_roles=[consultancy_account_role]
+        name="Test Consultancy Account",
+        account_roles=[consultancy_account_role, consultant_with_own_clients_role],
     )
     db.session.add(consultancy_account)
     consultancy_client_account_role = AccountRole(

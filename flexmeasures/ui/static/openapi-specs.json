@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.32.0"
+    "version": "0.31.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -1966,6 +1966,48 @@
           },
           "400": {
             "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Accounts"
+        ]
+      },
+      "post": {
+        "summary": "Create a new account.",
+        "description": "Create a new account with a required name and optional UI colors.\n\n- Admin users can create accounts.\n- Consultant users can create accounts only if their account has the\n  `CONSULTANT_WITH_OWN_CLIENTS` account role.\n- For consultant users, the newly created account is automatically\n  linked to their own account as consultancy account.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "Account fields for creation.",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountCreateSchema"
+              },
+              "example": {
+                "name": "New Customer Account",
+                "primary_color": "#1a3443",
+                "secondary_color": "#f1a122"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "PROCESSED"
           },
           "401": {
             "description": "UNAUTHORIZED"
@@ -4958,6 +5000,30 @@
             ]
           }
         },
+        "additionalProperties": false
+      },
+      "AccountCreateSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "primary_color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "secondary_color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
         "additionalProperties": false
       },
       "AccountAPIQuerySchema": {

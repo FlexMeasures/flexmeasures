@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% set active_page = "accounts" %}
+{% block title %} Create account {% endblock %}
+
+{% block divs %}
+<div class="container-fluid">
+  <div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+      <div class="card">
+        <h3>Create account</h3>
+        <form id="create-account-form">
+          <div class="form-group mb-3">
+            <label for="name" class="control-label">Name</label>
+            <input type="text" class="form-control" id="name" name="name" required />
+          </div>
+
+          <div class="form-group mb-3">
+            <label for="primary_color" class="control-label">Primary Color</label>
+            <input
+              type="text"
+              class="form-control"
+              id="primary_color"
+              name="primary_color"
+              placeholder="#1a3443"
+            />
+          </div>
+
+          <div class="form-group mb-3">
+            <label for="secondary_color" class="control-label">Secondary Color</label>
+            <input
+              type="text"
+              class="form-control"
+              id="secondary_color"
+              name="secondary_color"
+              placeholder="#f1a122"
+            />
+          </div>
+
+          <button type="submit" class="btn btn-success">Create account</button>
+        </form>
+
+        <div id="create-account-error" class="text-danger mt-3" style="display: none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  $(document).ready(function () {
+    $("#create-account-form").on("submit", function (event) {
+      event.preventDefault();
+
+      const payload = {
+        name: $("#name").val(),
+      };
+
+      const primaryColor = $("#primary_color").val();
+      const secondaryColor = $("#secondary_color").val();
+
+      if (primaryColor) {
+        payload.primary_color = primaryColor;
+      }
+      if (secondaryColor) {
+        payload.secondary_color = secondaryColor;
+      }
+
+      $.ajax({
+        type: "POST",
+        url: "/api/v3_0/accounts",
+        contentType: "application/json",
+        data: JSON.stringify(payload),
+        success: function (response) {
+          window.location.href = `/accounts/${response.id}`;
+        },
+        error: function (xhr) {
+          const fallbackMessage = "Could not create account.";
+          const errors = xhr.responseJSON && xhr.responseJSON.errors;
+          const message = errors && errors.length > 0 ? errors.join(", ") : fallbackMessage;
+          $("#create-account-error").text(message).show();
+        },
+      });
+    });
+  });
+</script>
+{% endblock %}

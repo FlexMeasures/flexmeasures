@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from sqlalchemy import select
 from werkzeug.exceptions import Forbidden, Unauthorized
-from flask_classful import FlaskView
+from flask_classful import FlaskView, route
 from flask_security import login_required
 from flask_security.core import current_user
 
-from flexmeasures.auth.policy import user_has_admin_access, check_access
+from flexmeasures.auth.policy import (
+    user_has_admin_access,
+    check_access,
+    FlexMeasuresPlatform,
+)
 
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, ICON_MAPPING
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
@@ -28,9 +32,23 @@ class AccountCrudUI(FlaskView):
     def index(self):
         """/accounts"""
 
+        user_can_create_account = True
+        try:
+            check_access(FlexMeasuresPlatform.init(), "create-children")
+        except (Forbidden, Unauthorized):
+            user_can_create_account = False
+
         return render_flexmeasures_template(
             "accounts/accounts.html",
+            user_can_create_account=user_can_create_account,
         )
+
+    @route("/new", methods=["GET"])
+    @login_required
+    def new(self):
+        """/accounts/new"""
+        check_access(FlexMeasuresPlatform.init(), "create-children")
+        return render_flexmeasures_template("accounts/account_create.html")
 
     @login_required
     def get(self, account_id: str):
