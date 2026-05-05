@@ -35,7 +35,7 @@ v0.32.1 | May XX, 2026
 Bugfixes
 -----------
 * Fix asset form overwriting attributes [see `PR #2138 <https://www.github.com/FlexMeasures/flexmeasures/pull/2138>`_]
-* Fix a bug where toast messages in flex-config modal are broken due to unexpected JSON structure  [see `PR #2124 <https://www.github.com/FlexMeasures/flexmeasures/pull/2124>`_]
+* Fix a bug where toast messages in flex-config modal are broken due to unexpected JSON structure [see `PR #2124 <https://www.github.com/FlexMeasures/flexmeasures/pull/2124>`_]
 * Fix removal of unchanged beliefs by comparing per event [see `PR #2150 <https://www.github.com/FlexMeasures/flexmeasures/pull/2150>`_]
 
 
@@ -48,7 +48,7 @@ v0.32.0 | April 15, 2026
 
 New features
 -------------
-* Upgrade graph modal to support flex-config references in plots  [see `PR #1926 <https://www.github.com/FlexMeasures/flexmeasures/pull/1926>`_ and `PR #1904 <https://www.github.com/FlexMeasures/flexmeasures/pull/1904>`_]
+* Upgrade graph modal to support flex-config references in plots [see `PR #1926 <https://www.github.com/FlexMeasures/flexmeasures/pull/1926>`_ and `PR #1904 <https://www.github.com/FlexMeasures/flexmeasures/pull/1904>`_]
 * Add a button to create forecasts from the sensor page, visible to users with permission to record data on the sensor, and enabled when at least two days of data are present [see `PR #1985 <https://www.github.com/FlexMeasures/flexmeasures/pull/1985>`_]
 * Button on sensor page to delete data (by date range and source) [see `PR #2095 <https://www.github.com/FlexMeasures/flexmeasures/pull/2095>`_]
 * Support inferring ``soc-at-start`` from configured ``state-of-charge`` sources and fail early when those values are stale or missing near schedule start [see `PR #2026 <https://www.github.com/FlexMeasures/flexmeasures/pull/2026>`_]
@@ -108,7 +108,7 @@ Bugfixes
 
 Infrastructure / Support
 ------------------------
-* Re-add bcrypt dependency  [see `PR #2029 <https://github.com/FlexMeasures/flexmeasures/pull/2029>`_]
+* Re-add bcrypt dependency [see `PR #2029 <https://github.com/FlexMeasures/flexmeasures/pull/2029>`_]
 
 
 v0.31.1 | March 6, 2026
@@ -1197,15 +1197,15 @@ Infrastructure / Support
 * Revised strategy for removing unchanged beliefs when saving data: retain the oldest measurement (ex-post belief), too [see `PR #518 <https://www.github.com/FlexMeasures/flexmeasures/pull/518>`_]
 * Scheduling test for maximizing self-consumption, and improved time series db queries for fixed tariffs (and other long-term constants) [see `PR #532 <https://www.github.com/FlexMeasures/flexmeasures/pull/532>`_]
 * Clean up table formatting for ``flexmeasures show`` CLI commands [see `PR #540 <https://www.github.com/FlexMeasures/flexmeasures/pull/540>`_]
-* Add  ``"Deprecation"`` and ``"Sunset"`` response headers for API users of deprecated API versions, and log warnings for FlexMeasures hosts when users still use them [see `PR #554 <https://www.github.com/FlexMeasures/flexmeasures/pull/554>`_ and `PR #565 <https://www.github.com/FlexMeasures/flexmeasures/pull/565>`_]
+* Add ``"Deprecation"`` and ``"Sunset"`` response headers for API users of deprecated API versions, and log warnings for FlexMeasures hosts when users still use them [see `PR #554 <https://www.github.com/FlexMeasures/flexmeasures/pull/554>`_ and `PR #565 <https://www.github.com/FlexMeasures/flexmeasures/pull/565>`_]
 * Explain how to avoid potential ``SMTPRecipientsRefused`` errors when using FlexMeasures in combination with a mail server [see `PR #558 <https://www.github.com/FlexMeasures/flexmeasures/pull/558>`_]
 * Set a limit to the allowed planning window for API users, using the ``FLEXMEASURES_MAX_PLANNING_HORIZON`` setting [see `PR #568 <https://www.github.com/FlexMeasures/flexmeasures/pull/568>`_]
 
 .. warning:: The API endpoint (`[POST] /sensors/(id)/schedules/trigger <api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_) to make new schedules will (in v0.13) sunset the storage flexibility parameters (they move to the ``flex-model`` parameter group), as well as the parameters describing other sensors (they move to ``flex-context``).
 
-.. warning:: The CLI command ``flexmeasures monitor tasks`` has been  deprecated (it's being renamed to ``flexmeasures monitor last-run``). The old name will be sunset in version 0.13.
+.. warning:: The CLI command ``flexmeasures monitor tasks`` has been deprecated (it's being renamed to ``flexmeasures monitor last-run``). The old name will be sunset in version 0.13.
     
-.. warning:: The CLI command  ``flexmeasures add schedule`` has been renamed to ``flexmeasures add schedule for-storage``. The old name will be sunset in version 0.13.
+.. warning:: The CLI command ``flexmeasures add schedule`` has been renamed to ``flexmeasures add schedule for-storage``. The old name will be sunset in version 0.13.
 
 
 v0.11.3 | November 2, 2022
@@ -1373,13 +1373,13 @@ v0.8.0 | January 24, 2022
 ===========================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
-.. warning:: In case you use FlexMeasures for simulations using ``FLEXMEASURES_MODE = "play"``, allowing to overwrite data is now set separately using  :ref:`overwrite-config`. Add ``FLEXMEASURES_ALLOW_DATA_OVERWRITE = True`` to your config settings to keep the old behaviour.
+.. warning:: In case you use FlexMeasures for simulations using ``FLEXMEASURES_MODE = "play"``, allowing to overwrite data is now set separately using :ref:`overwrite-config`. Add ``FLEXMEASURES_ALLOW_DATA_OVERWRITE = True`` to your config settings to keep the old behaviour.
 .. note:: v0.8.0 is doing much of the work we need to do to move to the new data model (see :ref:`note_on_datamodel_transition`). We hope to keep the migration steps for users very limited. One thing you'll notice is that we are copying over existing data to the new model (which will be kept in sync) with the ``db upgrade`` command (see warning above), which can take a few minutes.
 
 New features
 -----------
 * Bar charts of sensor data for individual sensors, that can be navigated using a calendar [see `PR #99 <https://www.github.com/FlexMeasures/flexmeasures/pull/99>`_ and `PR #290 <https://www.github.com/FlexMeasures/flexmeasures/pull/290>`_]
-* Charts with sensor data can be requested in one of the supported  [`vega-lite themes <https://github.com/vega/vega-themes#included-themes>`_] (incl. a dark theme) [see `PR #221 <https://www.github.com/FlexMeasures/flexmeasures/pull/221>`_]
+* Charts with sensor data can be requested in one of the supported [`vega-lite themes <https://github.com/vega/vega-themes#included-themes>`_] (incl. a dark theme) [see `PR #221 <https://www.github.com/FlexMeasures/flexmeasures/pull/221>`_]
 * Mobile friendly (responsive) charts of sensor data, and such charts can be requested with a custom width and height [see `PR #313 <https://www.github.com/FlexMeasures/flexmeasures/pull/313>`_]
 * Schedulers take into account round-trip efficiency if set [see `PR #291 <https://www.github.com/FlexMeasures/flexmeasures/pull/291>`_]
 * Schedulers take into account min/max state of charge if set [see `PR #325 <https://www.github.com/FlexMeasures/flexmeasures/pull/325>`_]
@@ -1590,7 +1590,7 @@ Infrastructure / Support
 * Added concept pages to documentation [see `PR #65 <https://www.github.com/FlexMeasures/flexmeasures/pull/65>`_]
 * Dump and restore postgres database as CLI commands [see `PR #68 <https://github.com/FlexMeasures/flexmeasures/pull/68>`_]
 * Improved installation tutorial as part of [`PR #54 <https://www.github.com/FlexMeasures/flexmeasures/pull/54>`_]
-* Moved developer docs from Readmes into the main documentation  [see `PR #73 <https://github.com/FlexMeasures/flexmeasures/pull/73>`_]
+* Moved developer docs from Readmes into the main documentation [see `PR #73 <https://github.com/FlexMeasures/flexmeasures/pull/73>`_]
 * Ensured unique sensor ids for all sensors [see `PR #70 <https://github.com/FlexMeasures/flexmeasures/pull/70>`_ and (fix) `PR #77 <https://github.com/FlexMeasures/flexmeasures/pull/77>`_]
 
 
