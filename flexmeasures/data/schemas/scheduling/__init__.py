@@ -962,10 +962,12 @@ class AssetTriggerSchema(Schema):
     flex_model = fields.List(
         fields.Nested(MultiSensorFlexModelSchema()),
         data_key="flex-model",
+        load_default=[],
     )
     flex_context = fields.Dict(
         required=False,
         data_key="flex-context",
+        load_default={},
     )
     sequential = fields.Bool(
         load_default=False,
