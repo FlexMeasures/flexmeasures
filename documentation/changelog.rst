@@ -36,6 +36,7 @@ Bugfixes
 -----------
 * Fix asset form overwriting attributes [see `PR #2138 <https://www.github.com/FlexMeasures/flexmeasures/pull/2138>`_]
 * Fix a bug where toast messages in flex-config modal are broken due to unexpected JSON structure  [see `PR #2124 <https://www.github.com/FlexMeasures/flexmeasures/pull/2124>`_]
+* Fix removal of unchanged beliefs by comparing per event [see `PR #2150 <https://www.github.com/FlexMeasures/flexmeasures/pull/2150>`_]
 
 
 v0.32.0 | April 15, 2026
