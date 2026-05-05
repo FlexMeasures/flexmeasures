@@ -225,8 +225,7 @@ class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionS
         if not source_type:
             return
         sensor: Sensor = data["sensor"]
-        source_types = [source.type for source in sensor.search_data_sources()]
-        if source_type not in source_types:
+        if not sensor.search_data_sources(source_types=[source_type]):
             raise ValidationError(
                 f"No data sources with source-type '{source_type}' has recorded any data on this sensor.",
                 field_name="source_type",
