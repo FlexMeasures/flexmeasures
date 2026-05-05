@@ -421,6 +421,15 @@ pytest -k test_auth_token  # Ensure auth setup runs
 - Update checklist based on real issues
 - Refine guidance on caching and optimization
 
+### Lessons Learned
+
+#### `uv sync --locked` fails after `uv lock --upgrade` (PR #2148)
+
+- **Symptom**: `uv sync --locked` fails with "needs to be updated, but `--locked` was provided" even after running `uv lock`
+- **Root cause**: New packages (e.g. `numba`/`llvmlite`) introduce fork markers with impossible platform combos (e.g. `os_name == 'nt' AND sys_platform == 'darwin'`), causing coverage check to fail
+- **Fix**: Add `[tool.uv] environments` to `pyproject.toml` limiting resolution to actual target platforms, then regenerate `uv.lock`
+- **Verification**: After any significant `uv lock --upgrade`, run `uv sync --locked` locally and confirm exit code 0
+
 ### Continuous Improvement
 
 - Monitor CI run times and optimize

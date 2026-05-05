@@ -63,8 +63,8 @@ dependencies = [
     # pinned to <6.9 due to a HiGHS deadlock, see https://github.com/FlexMeasures/flexmeasures/issues/1443
     "pyomo>=5.6,<6.9",
     "tabulate>=0.9.0",
-    # 3.5.2: fixed issue with resampling to instantaneous
-    "timely-beliefs[forecast]>=3.5.4",
+    # 3.5.5: got rid of BlockManager deprecation warnings
+    "timely-beliefs[forecast]>=3.5.5",
     "python-dotenv>=1.2.1",
     # see GH#607 for issue on this pin
     "sqlalchemy>=2.0",
@@ -262,4 +262,16 @@ source = "vcs"
 addopts = "--strict-markers --ignore=docker-compose-data"
 markers = [
     "skip_github: skip test in GitHub Actions. Useful in case the test passes, but breaks the test suite on GH Actions."
+]
+
+# Restrict uv's dependency resolution to the three real target platforms.
+# Without this, uv generates fork markers for impossible platform combinations
+# (e.g. os_name == 'nt' AND sys_platform == 'darwin'), which causes
+# `uv sync --locked` to fail because the fork markers don't fully cover the
+# declared environment space.
+[tool.uv]
+environments = [
+    "sys_platform == 'linux'",
+    "sys_platform == 'darwin'",
+    "sys_platform == 'win32'",
 ]

@@ -31,12 +31,12 @@ from flexmeasures.data.models.time_series import TimedBelief
         ),  # upsample from single value for 1-hour interval, sent as float rather than list of floats
         (
             4,
-            6,
+            0,
             "m³/h",
             False,
-            -11.28,
+            None,
             False,
-            200,
+            422,
         ),  # failed to resample from 15-min intervals to 10-min intervals
         (
             10,

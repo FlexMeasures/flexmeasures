@@ -364,6 +364,28 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             )
 
     @validates_schema
+    def check_resolution_compatibility_of_sensor_data(self, data, **kwargs):
+        """Ensure event frequency is compatible with the sensor's event resolution.
+
+        For a sensor recording instantaneous values, any event frequency is compatible.
+        For a sensor recording non-instantaneous values, the event frequency must fit the sensor's event resolution.
+        Currently, only upsampling is supported (e.g. converting hourly events to 15-minute events).
+        """
+        required_resolution = data["sensor"].event_resolution
+
+        if required_resolution == timedelta(hours=0):
+            # For instantaneous sensors, any event frequency is compatible
+            return
+
+        # The event frequency is inferred by assuming sequential, equidistant values within a time interval.
+        # The event resolution is assumed to be equal to the event frequency.
+        inferred_resolution = data["duration"] / len(data["values"])
+        if inferred_resolution % required_resolution != timedelta(hours=0):
+            raise ValidationError(
+                f"Resolution of {inferred_resolution} is incompatible with the sensor's required resolution of {required_resolution}."
+            )
+
+    @validates_schema
     def check_multiple_instantaneous_values(self, data, **kwargs):
         """Ensure that we are not getting multiple instantaneous values that overlap.
         That is, two values spanning the same moment (a zero duration).
@@ -382,6 +404,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         If needed, upsample and convert units, then deserialize to a BeliefsDataFrame.
         Returns a dict with the BDF in it, as that is expected by webargs when used with as_kwargs=True.
         """
+        data = self.possibly_upsample_values(data)
         data = self.possibly_convert_units(data)
         bdf = self.load_bdf(data)
 
@@ -444,7 +467,6 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         event_resolution = sensor_data["duration"] / num_values
         start = sensor_data["start"]
         sensor = sensor_data["sensor"]
-        inferred_resolution = sensor_data["duration"] / len(sensor_data["values"])
 
         if sensor.event_resolution != timedelta(0) and sensor.get_attribute(
             "round_datetimes_on_ingestion", True
@@ -474,20 +496,13 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             belief_timing["belief_horizon"] = sensor_data["horizon"]
         else:
             belief_timing["belief_time"] = server_now()
-        bdf = BeliefsDataFrame(
+        return BeliefsDataFrame(
             s,
             source=source,
             sensor=sensor_data["sensor"],
-            event_resolution=inferred_resolution,
+            event_resolution=event_resolution,
             **belief_timing,
         )
-        try:
-            resampled_bdf = bdf.resample_events(sensor.event_resolution)
-        except NotImplementedError:
-            raise ValidationError(
-                f"Resolution of {inferred_resolution} is incompatible with the sensor's required resolution of {sensor.event_resolution}."
-            )
-        return resampled_bdf
 
 
 class GetSensorDataSchemaEntityAddress(GetSensorDataSchema):
