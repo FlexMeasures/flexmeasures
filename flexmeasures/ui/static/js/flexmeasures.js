@@ -658,6 +658,7 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fres
     const dropdownButton = document.getElementById('sourceKeyDropdown');
     const noDataWarning = document.getElementById('noDataWarning');
     const fetchError = document.getElementById('fetchError');
+    const allTimeStatsWarning = document.getElementById('allTimeStatsWarning');
     let queryParams = '?sort=false';
     // Show the spinner
     spinner.classList.remove('d-none');
@@ -673,6 +674,14 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fres
     dropdownMenu.innerHTML = '';
     noDataWarning.classList.add('d-none');
     fetchError.classList.add('d-none');
+    // Show all-time warning when the checkbox is unchecked (showing all-time stats)
+    if (allTimeStatsWarning) {
+        if (!toggleStatsCheckbox.checked) {
+            allTimeStatsWarning.classList.remove('d-none');
+        } else {
+            allTimeStatsWarning.classList.add('d-none');
+        }
+    }
     tableBody.innerHTML = '';
     
     fetch('/api/v3_0/sensors/' + sensor_id + '/stats' + queryParams)

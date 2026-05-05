@@ -72,6 +72,7 @@ from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
 from flexmeasures.data.schemas.sensors import (
     SensorSchema,
 )
@@ -1295,6 +1296,18 @@ class AssetAPI(FlaskView):
     # Simplification of checking for create-children access on each of the flexible sensors,
     # which assumes each of the flexible sensors belongs to the given asset.
     @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_model",
+        ctx_loader=flex_model_loader,
+        pass_ctx_to_loader=True,
+    )
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_context",
+        ctx_loader=flex_context_loader,
+        pass_ctx_to_loader=True,
+    )
     def trigger_schedule(
         self,
         asset: GenericAsset,
@@ -1723,12 +1736,14 @@ class AssetAPI(FlaskView):
             else (parent_asset or asset.parent_asset)
         )
 
-        # Check create-children permission on the target account.
-        check_access(resolved_account, "create-children")
-
-        # Also check create-children permission on the target parent (if any).
+        # When placing the copy under a parent asset, the parent's create-children
+        # permission is sufficient (any account member may add children to an asset).
+        # When creating a top-level asset (no parent), we fall back to the account-level
+        # create-children check, which requires account-admin or consultant.
         if resolved_parent is not None:
             check_access(resolved_parent, "create-children")
+        else:
+            check_access(resolved_account, "create-children")
 
         try:
             new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)
