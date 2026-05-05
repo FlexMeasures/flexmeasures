@@ -4,12 +4,12 @@ FlexMeasures Changelog
 **********************
 
 
-v0.32.1 | May XX, 2026
+v0.32.1 | May 5, 2026
 ============================
 
 Bugfixes
 -----------
-* Fix account attribute saving via the API for accounts that have a consultancy account set; the PATCH endpoint no longer incorrectly rejects requests that do not include ``consultancy_account_id`` in the body [see `PR #2133 <https://www.github.com/FlexMeasures/flexmeasures/pull/2133>`_]
+* Fix account attribute saving via the API for accounts that have a consultancy account set; the PATCH endpoint no longer incorrectly rejects requests that do not include ``consultancy_account_id`` in the body [see `PR #2140 <https://www.github.com/FlexMeasures/flexmeasures/pull/2140>`_]
 * Make the sensor page load much faster for sensors with lots of data, by avoiding to load statistics over all of its history by default [see `PR #2129 <https://www.github.com/FlexMeasures/flexmeasures/pull/2129>`_]
 * Return a clear validation error (instead of a server ZeroDivisionError) when posting instantaneous (0-minute) data to non-instantaneous sensors via ``[POST] /sensors/(id)/data`` [see `PR #2116 <https://www.github.com/FlexMeasures/flexmeasures/pull/2116>`_]
 * Fix asset form overwriting attributes [see `PR #2138 <https://www.github.com/FlexMeasures/flexmeasures/pull/2138>`_]
