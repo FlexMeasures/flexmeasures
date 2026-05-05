@@ -72,6 +72,7 @@ from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
 from flexmeasures.data.schemas.sensors import (
     SensorSchema,
 )
@@ -1295,6 +1296,18 @@ class AssetAPI(FlaskView):
     # Simplification of checking for create-children access on each of the flexible sensors,
     # which assumes each of the flexible sensors belongs to the given asset.
     @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_model",
+        ctx_loader=flex_model_loader,
+        pass_ctx_to_loader=True,
+    )
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_context",
+        ctx_loader=flex_context_loader,
+        pass_ctx_to_loader=True,
+    )
     def trigger_schedule(
         self,
         asset: GenericAsset,

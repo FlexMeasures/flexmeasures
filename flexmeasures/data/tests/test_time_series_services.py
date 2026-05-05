@@ -182,6 +182,68 @@ def test_drop_unchanged_compares_against_latest_prior_belief(
     )
 
 
+def test_drop_unchanged_belief_with_multi_event_start_db(setup_beliefs, db):
+    """An unchanged belief for event_start T1 must be dropped even when bdf_db also contains
+    a belief for a different event_start T2 whose belief_time is more recent.
+
+    Without the ``& (bdf_db.event_starts == event_start)`` filter in
+    ``_drop_unchanged_beliefs_compared_to_db``, ``most_recent_bt`` could be taken from T2's
+    belief row, causing the T1 candidate to be compared against T2's value rather than T1's,
+    and the unchanged candidate would NOT be dropped.
+    """
+    sensor = get_test_sensor(db)
+    source = DataSource(name="Multi-event-start repro source", type="demo script")
+    db.session.add(source)
+    db.session.commit()
+
+    event_start_1 = pd.Timestamp("2021-03-28 16:00:00+00:00")
+    event_start_2 = pd.Timestamp("2021-03-28 17:00:00+00:00")
+    belief_time_t1 = pd.Timestamp("2021-03-27 08:00:00+00:00")  # older BT for T1
+    belief_time_t2 = pd.Timestamp("2021-03-27 09:00:00+00:00")  # newer BT for T2
+    belief_time_candidate = pd.Timestamp("2021-03-27 10:00:00+00:00")  # candidate BT
+
+    # bdf_db has beliefs for both event_starts; T2 has the more recent belief_time
+    bdf_db = BeliefsDataFrame(
+        [
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start_1,
+                belief_time=belief_time_t1,
+                event_value=42.0,
+            ),
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start_2,
+                belief_time=belief_time_t2,
+                event_value=99.0,
+            ),
+        ]
+    )
+
+    # Candidate for T1 with the same value as the existing T1 belief → should be dropped
+    candidate = BeliefsDataFrame(
+        [
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start_1,
+                belief_time=belief_time_candidate,
+                event_value=42.0,
+            )
+        ]
+    )
+
+    filtered = _drop_unchanged_beliefs_compared_to_db(candidate, bdf_db=bdf_db)
+    assert len(filtered) == 0, (
+        "Unchanged candidate (value=42.0 for event_start_1) should be dropped: "
+        "the latest prior belief for event_start_1 already has the same value. "
+        "Without the event_start filter the code wrongly picks T2's newer belief_time "
+        "as most_recent_bt and compares against T2's value instead of T1's."
+    )
+
+
 def test_save_exact_duplicate_deterministic_belief(setup_beliefs, db):
     """Saving an exact duplicate deterministic belief should succeed without errors."""
 

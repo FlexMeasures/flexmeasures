@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.0.0"
+    "version": "0.32.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -365,7 +365,7 @@
       },
       "get": {
         "summary": "Get sensor data",
-        "description": "The unit has to be convertible from the sensor's unit - e.g. you ask for kW, and the sensor's unit is MW.\n\nOptional parameters:\n\n- \"resolution\" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))\n- \"horizon\" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))\n- \"prior\" (the belief timing docs also apply here)\n- \"source\" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))\n- \"account\" (filter by the account ID linked to data sources)\n\nAn example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m\u00b3/h:\n\n  ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m\u00b3/h\n\n(you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).\n\n > <strong>Note:</strong> This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.\n",
+        "description": "The unit has to be convertible from the sensor's unit - e.g. you ask for kW, and the sensor's unit is MW.\n\nOptional parameters:\n\n- \"resolution\" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))\n- \"horizon\" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))\n- \"prior\" (the belief timing docs also apply here)\n- \"source\" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))\n- \"source-account\" (filter by the account ID linked to data sources)\n- \"source-type\" (filter by data source type)\n\nAn example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m\u00b3/h:\n\n  ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m\u00b3/h\n\n(you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).\n\n > <strong>Note:</strong> This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -457,11 +457,22 @@
           },
           {
             "in": "query",
-            "name": "account",
+            "name": "source-account",
             "description": "Filter by the account linked to data sources.",
             "schema": {
               "type": "integer",
               "example": 3
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "source-type",
+            "description": "Filter by a specific data source type.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "forecaster"
             },
             "required": false
           }
@@ -4181,8 +4192,220 @@
         ]
       }
     },
+    "/api/v3_0/jobs/{uuid}": {
+      "get": {
+        "summary": "Get the status of a background job",
+        "description": "Look up a background job by its UUID and see whether it is\nqueued, running, finished, or failed.\n\nThe response includes a status message plus job metadata such\nas the queue name, function name, timestamps, and the job\nresult when available.\n\nFailed jobs also include traceback information when the worker\nstored it with the job result.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uuid",
+            "required": true,
+            "description": "UUID of the background job.",
+            "example": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job status retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "QUEUED",
+                        "STARTED",
+                        "FINISHED",
+                        "FAILED",
+                        "DEFERRED",
+                        "SCHEDULED",
+                        "STOPPED",
+                        "CANCELED"
+                      ],
+                      "description": "Current status of the job."
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description of the job status."
+                    },
+                    "result": {
+                      "description": "Return value of the job function, or null when not yet available.",
+                      "nullable": true
+                    },
+                    "func_name": {
+                      "type": "string",
+                      "description": "Fully-qualified name of the function executed by this job."
+                    },
+                    "origin": {
+                      "type": "string",
+                      "description": "Name of the queue the job was placed on."
+                    },
+                    "enqueued_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "description": "ISO-8601 timestamp of when the job was enqueued."
+                    },
+                    "started_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "description": "ISO-8601 timestamp of when the job started executing."
+                    },
+                    "ended_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "description": "ISO-8601 timestamp of when the job finished executing."
+                    },
+                    "exc_info": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Traceback information for failed jobs, or null otherwise."
+                    }
+                  }
+                },
+                "examples": {
+                  "queued": {
+                    "summary": "Queued job",
+                    "value": {
+                      "status": "QUEUED",
+                      "message": "Scheduling job waiting to be processed.",
+                      "result": null,
+                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "origin": "scheduling",
+                      "enqueued_at": "2026-04-28T10:00:00+00:00",
+                      "started_at": null,
+                      "ended_at": null,
+                      "exc_info": null
+                    }
+                  },
+                  "finished": {
+                    "summary": "Finished job",
+                    "value": {
+                      "status": "FINISHED",
+                      "message": "Scheduling job has finished.",
+                      "result": null,
+                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "origin": "scheduling",
+                      "enqueued_at": "2026-04-28T10:00:00+00:00",
+                      "started_at": "2026-04-28T10:00:01+00:00",
+                      "ended_at": "2026-04-28T10:00:05+00:00",
+                      "exc_info": null
+                    }
+                  },
+                  "failed": {
+                    "summary": "Failed job",
+                    "value": {
+                      "status": "FAILED",
+                      "message": "Scheduling job failed with ValueError: ...",
+                      "result": null,
+                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "origin": "scheduling",
+                      "enqueued_at": "2026-04-28T10:00:00+00:00",
+                      "started_at": "2026-04-28T10:00:01+00:00",
+                      "ended_at": "2026-04-28T10:00:02+00:00",
+                      "exc_info": "Traceback (most recent call last): ..."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ]
+      }
+    },
     "/api/v3_0": {},
     "/api/v3_0/sensors/data": {},
+    "/api/v3_0/sources": {
+      "get": {
+        "summary": "List accessible data sources and defined source types.",
+        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\n<strong>Access rules:</strong>\n\n- Admins see all data sources.\n- Users with the <code>consultant</code> role see sources belonging to their\n  own account and to any consultancy-client accounts for which their\n  account is the consultancy.\n- All other authenticated users see only sources belonging to their\n  own account, plus sources that have neither a <code>user_id</code> nor an\n  <code>account_id</code> (i.e. system/public sources).\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "only_latest",
+            "description": "If true, return only the most recent version of each source (grouped by name, type and model). Defaults to true. Determined by the highest model version string; ties are broken by the highest source id.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "example": {
+                  "types": [
+                    "user",
+                    "scheduler",
+                    "forecaster",
+                    "reporter",
+                    "demo script",
+                    "gateway",
+                    "market"
+                  ],
+                  "sources": [
+                    {
+                      "id": 1,
+                      "name": "Seita",
+                      "type": "scheduler",
+                      "model": "StorageScheduler",
+                      "version": "1.0",
+                      "description": "Seita's StorageScheduler model v1.0",
+                      "account_id": 2
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
     "/api/v3_0/docs/{path}": {},
     "/api/dev/sensor/{id}": {},
     "/api/dev/sensor/{id}/chart": {},
@@ -5599,11 +5822,13 @@
           },
           "flex-model": {
             "type": "object",
+            "default": {},
             "description": "The flex-model is validated according to the scheduler's `FlexModelSchema`.",
             "additionalProperties": {}
           },
           "flex-context": {
             "type": "object",
+            "default": {},
             "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
             "additionalProperties": {}
           },

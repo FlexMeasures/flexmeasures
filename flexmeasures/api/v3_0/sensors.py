@@ -42,6 +42,7 @@ from flexmeasures.api.common.utils.api_utils import (
 )
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
+from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AssetAuditLog
@@ -202,6 +203,7 @@ class TriggerScheduleKwargsSchema(Schema):
     )
     flex_model = fields.Dict(
         data_key="flex-model",
+        load_default={},
         metadata=dict(
             description="The flex-model is validated according to the scheduler's `FlexModelSchema`.",
         ),
@@ -209,6 +211,7 @@ class TriggerScheduleKwargsSchema(Schema):
     flex_context = fields.Dict(
         required=False,
         data_key="flex-context",
+        load_default={},
         metadata=dict(
             description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
         ),
@@ -645,7 +648,8 @@ class SensorAPI(FlaskView):
             - "horizon" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))
             - "prior" (the belief timing docs also apply here)
             - "source" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))
-            - "account" (filter by the account ID linked to data sources)
+            - "source-account" (filter by the account ID linked to data sources)
+            - "source-type" (filter by data source type)
 
             An example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m³/h:
 
@@ -691,6 +695,18 @@ class SensorAPI(FlaskView):
     )
     @use_kwargs(TriggerScheduleKwargsSchema, location="json")
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_model",
+        ctx_loader=flex_model_loader,
+        pass_ctx_to_loader=True,
+    )
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_context",
+        ctx_loader=flex_context_loader,
+        pass_ctx_to_loader=True,
+    )
     def trigger_schedule(
         self,
         sensor: Sensor,
