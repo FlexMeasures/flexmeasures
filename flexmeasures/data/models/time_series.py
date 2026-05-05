@@ -832,6 +832,16 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
 
         return db.session.scalars(q).unique().all()
 
+    @property
+    def data_sources(self) -> list[DataSource]:
+        """Return all DataSource objects that have recorded beliefs for this sensor.
+
+        Uses a two-step subquery (distinct source IDs → DataSource rows) so that
+        it scales to very large timed_belief tables without fetching every belief row.
+        Equivalent to ``search_data_sources()`` with no filters.
+        """
+        return self.search_data_sources()
+
 
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     """A timed belief holds a precisely timed record of a belief about an event.
