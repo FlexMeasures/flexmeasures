@@ -220,7 +220,7 @@ class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionS
             )
 
     @validates_schema
-    def source_type_must_exist(self, data, **kwargs):
+    def source_type_must_exist_on_sensor(self, data, **kwargs):
         source_type = data.get("source_type")
         if not source_type:
             return
