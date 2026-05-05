@@ -227,7 +227,7 @@ class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionS
         sensor: Sensor = data["sensor"]
         if not sensor.search_data_sources(source_types=[source_type]):
             raise ValidationError(
-                f"No data sources with source-type '{source_type}' has recorded any data on this sensor.",
+                f"No data source with source-type '{source_type}' has recorded any data on this sensor.",
                 field_name="source_type",
             )
 

@@ -223,7 +223,7 @@ def test_get_sensor_data_filtered_by_source_type(
         assert response.json["values"] == expected_values
     else:
         assert (
-            f"No data sources with source-type '{source_type}' has recorded any data on this sensor."
+            f"No data source with source-type '{source_type}' has recorded any data on this sensor."
             in response.json["message"]["combined_sensor_data_description"][
                 "source-type"
             ]
