@@ -167,10 +167,11 @@ def test_get_sensor_data_filtered_by_source_account(
 
 
 @pytest.mark.parametrize(
-    "source_type, expected",
+    "source_type, expected_statuscode, expected_values",
     [
         (
             "user",
+            200,
             [
                 sum(GAS_MEASUREMENTS_10MIN[0:2]) / 2,  # 91.5
                 GAS_MEASUREMENTS_10MIN[2],  # 92.1
@@ -180,6 +181,7 @@ def test_get_sensor_data_filtered_by_source_account(
         ),
         (
             "demo script",
+            200,
             [
                 GAS_MEASUREMENTS_10MIN[0],  # 91.3
                 GAS_MEASUREMENTS_10MIN[2],  # 92.1
@@ -187,7 +189,7 @@ def test_get_sensor_data_filtered_by_source_account(
                 None,
             ],
         ),
-        ("scheduler", [None, None, None, None]),
+        ("scheduler", 422, [None, None, None, None]),
     ],
 )
 @pytest.mark.parametrize(
@@ -198,7 +200,8 @@ def test_get_sensor_data_filtered_by_source_type(
     setup_api_test_data: dict[str, Sensor],
     requesting_user,
     source_type,
-    expected,
+    expected_statuscode,
+    expected_values,
 ):
     """Check that GET /sensors/<id>/data can filter by source type."""
     sensor = setup_api_test_data["some gas sensor"]
@@ -215,8 +218,16 @@ def test_get_sensor_data_filtered_by_source_type(
         query_string=message,
     )
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 200
-    assert response.json["values"] == expected
+    assert response.status_code == expected_statuscode
+    if expected_statuscode == 200:
+        assert response.json["values"] == expected_values
+    else:
+        assert (
+            f"No data sources with source-type '{source_type}' has recorded any data on this sensor."
+            in response.json["message"]["combined_sensor_data_description"][
+                "source-type"
+            ]
+        )
 
 
 @pytest.mark.parametrize(

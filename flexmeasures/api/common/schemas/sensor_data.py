@@ -219,6 +219,19 @@ class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionS
                 f"The unit requested for this message type should be convertible from an energy price unit, got incompatible unit: {requested_unit}"
             )
 
+    @validates_schema
+    def source_type_must_exist(self, data, **kwargs):
+        source_type = data.get("source_type")
+        if not source_type:
+            return
+        sensor: Sensor = data["sensor"]
+        source_types = [source.type for source in sensor.data_sources]
+        if source_type not in source_types:
+            raise ValidationError(
+                f"No data sources with source-type '{source_type}' has recorded any data on this sensor.",
+                field_name="source_type",
+            )
+
     @staticmethod
     def load_data_and_make_response(sensor_data_description: dict) -> dict:
         """Turn the de-serialized and validated data description into a response.
