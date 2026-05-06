@@ -1,5 +1,39 @@
 export const apiBasePath = window.location.origin;
 
+export function humanizeIsoDuration(isoDuration) {
+  if (typeof isoDuration !== "string") {
+    return isoDuration;
+  }
+
+  const match = isoDuration.match(
+    /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/,
+  );
+
+  if (!match) {
+    return isoDuration;
+  }
+
+  const units = [
+    { value: match[1], label: "year" },
+    { value: match[2], label: "month" },
+    { value: match[3], label: "week" },
+    { value: match[4], label: "day" },
+    { value: match[5], label: "hour" },
+    { value: match[6], label: "minute" },
+    { value: match[7], label: "second" },
+  ];
+
+  const parts = units
+    .filter((unit) => unit.value !== undefined)
+    .map((unit) => {
+      const num = Number(unit.value);
+      const suffix = num === 1 ? "" : "s";
+      return `${unit.value} ${unit.label}${suffix}`;
+    });
+
+  return parts.length > 0 ? parts.join(" ") : isoDuration;
+}
+
 // Fetch Account Details
 export async function getAccount(accountId) {
   const cacheKey = `account_${accountId}`;

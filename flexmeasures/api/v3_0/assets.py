@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta
 from http import HTTPStatus
-from humanize import naturaldelta
 
 from flask import request, current_app
 from flask_classful import FlaskView, route
@@ -524,7 +523,6 @@ class AssetAPI(FlaskView):
         sensors_response: list = [
             {
                 **sensor_schema.dump(sensor),
-                "event_resolution": naturaldelta(sensor.event_resolution),
             }
             for sensor in select_pagination.items
         ]
