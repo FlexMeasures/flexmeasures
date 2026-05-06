@@ -30,6 +30,7 @@ class CustomLGBM(BaseModel):
         use_past_covariates=False,
         use_future_covariates=False,
         ensure_positive=False,
+        seasonal_lag_steps=24,
     ):
 
         if models_params is None:
@@ -52,6 +53,7 @@ class CustomLGBM(BaseModel):
             }
         else:
             self.models_params = models_params
+        self.seasonal_lag_steps = seasonal_lag_steps
         super().__init__(
             max_forecast_horizon=max_forecast_horizon,
             probabilistic=probabilistic,
@@ -70,9 +72,9 @@ class CustomLGBM(BaseModel):
 
             # Lag features are dynamically set based on the forecast horizon
             lag = (
-                24
+                self.seasonal_lag_steps
                 - (  # temporarily make the adaptation to the sensor resolution; To do: inlude a list of seasonal lags to include, given as pd.timedelta objects
-                    horizon % 24
+                    horizon % self.seasonal_lag_steps
                 )
             )  # Adjust to repeat the lag structure every 24 hours
             lags = [-1, -lag, -lag - 1]
@@ -80,11 +82,11 @@ class CustomLGBM(BaseModel):
             # Special cases for lags
             if (
                 horizon == 0
-                or horizon % 24 == 0
+                or horizon % self.seasonal_lag_steps == 0
                 or horizon == self.max_forecast_horizon - 1
             ):
-                lags = [-1, -24]
-            elif horizon % 24 == 23:
+                lags = [-1, -self.seasonal_lag_steps]
+            elif horizon % self.seasonal_lag_steps == self.seasonal_lag_steps - 1:
                 lags = [-1, -2]
 
             # lags = list(range(-1, -25, -1))  # todo: consider letting the model figure out which lags are important
