@@ -146,6 +146,7 @@ def _drop_unchanged_beliefs_compared_to_db(
     It is preferable to call the public function drop_unchanged_beliefs instead.
     """
     source = bdf.lineage.sources[0]  # unique source
+    event_start = bdf.event_starts[0]  # unique event_start
     belief_time = bdf.lineage.belief_times[0]  # unique belief time
     # Compare by ID rather than object identity: the candidate bdf may have been
     # deserialized from an RQ job queue (pickled in a different process), so its
