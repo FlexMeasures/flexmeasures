@@ -146,12 +146,19 @@ def _drop_unchanged_beliefs_compared_to_db(
     It is preferable to call the public function drop_unchanged_beliefs instead.
     """
     source = bdf.lineage.sources[0]  # unique source
+    event_start = bdf.event_starts[0]  # unique event_start
     belief_time = bdf.lineage.belief_times[0]  # unique belief time
     # Compare by ID rather than object identity: the candidate bdf may have been
     # deserialized from an RQ job queue (pickled in a different process), so its
     # DataSource objects are detached and won't be identical to the freshly-loaded
     # ones in bdf_db even when they represent the same DB row.
-    bdf_db_from_source = bdf_db[bdf_db.sources.map(lambda s: s.id) == source.id]
+    # Also filter by event_start: bdf_db may contain beliefs for multiple event_starts,
+    # and we must not let a newer belief_time from a different event_start contaminate
+    # the most-recent-belief-time lookup for this candidate's event_start.
+    bdf_db_from_source = bdf_db[
+        (bdf_db.sources.map(lambda s: s.id) == source.id)
+        & (bdf_db.event_starts == event_start)
+    ]
     if bdf_db_from_source.empty:
         return bdf
     # Use .max() rather than searchsorted: the result is correct regardless of
