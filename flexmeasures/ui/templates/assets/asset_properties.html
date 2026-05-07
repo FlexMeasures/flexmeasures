@@ -411,10 +411,8 @@
     <script type="module" type="text/javascript">
 
         import {
-            getFlexFieldTitle, renderFlexFieldOptions, renderSensor,
-            createReactiveState, processResourceRawJSON, getAsset, getHumanFriendlyDeltaOrTimeStr,
-            getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage,
-            humanizeIsoDuration
+            getFlexFieldTitle, renderFlexFieldOptions, renderSensor, createReactiveState, getAsset, humanizeIsoDuration,
+            getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage, processResourceRawJSON
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
         // Expose helper to the classic script block below.
