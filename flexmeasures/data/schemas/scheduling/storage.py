@@ -436,8 +436,7 @@ class DBStorageFlexModelSchema(Schema):
         metadata={"deprecated field": "soc-usage"},
     )
 
-    roundtrip_efficiency = VariableQuantityField(
-        "%",
+    roundtrip_efficiency = EfficiencyField(
         data_key="roundtrip-efficiency",
         required=False,
         metadata={"deprecated field": "roundtrip_efficiency"},

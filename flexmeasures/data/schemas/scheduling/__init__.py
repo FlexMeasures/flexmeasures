@@ -658,8 +658,8 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "default": None,
         "description": rst_to_openapi(metadata.ROUNDTRIP_EFFICIENCY.description),
         "types": {
-            "backend": "typeThree",
-            "ui": "One fixed value or a dynamic signal (via a sensor).",
+            "backend": "typeFive",
+            "ui": "Fixed value only.",
         },
         "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
     },
