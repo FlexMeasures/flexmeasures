@@ -783,12 +783,12 @@ def test_get_variable_quantity_unit(
             False,
         ),
         (
-            {"roundtrip-efficiency": {"sensor": "efficiency-sensor"}},
+            {"roundtrip-efficiency": "90%"},
             False,
         ),
         (
-            {"roundtrip-efficiency": {"sensor": "power-sensor"}},
-            {"roundtrip-efficiency": "Cannot convert MW to %"},
+            {"roundtrip-efficiency": "12 MW"},
+            {"roundtrip-efficiency": "Cannot convert value `12 MW` to '%'"},
         ),
         (
             {"storage-efficiency": {"sensor": "efficiency-sensor"}},
