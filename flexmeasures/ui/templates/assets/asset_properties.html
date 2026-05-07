@@ -16,109 +16,108 @@
             {% if user_can_update_asset %}
             {% from "_macros.html" import json_attributes_editor_button %}
             <div class="sidepanel">
-                <div class="sidepanel-container" style="--sidepanel-width: 450px">
-                    <div class="sidepanel-label">Edit asset</div>
-                    <div class="sidepanel-content">
-                        <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}">
-                            {{ asset_form.csrf_token }}
-                            {{ asset_form.hidden_tag() }}
-                            <fieldset>
-                                <div class="asset-form">
+            <div class="sidepanel-container" style="--sidepanel-width: 450px">
+                <div class="sidepanel-label">Edit asset</div>
+                <div class="sidepanel-content">
+                    <form class="form-horizontal" method="POST" action="/assets/{{ asset.id }}">
+                        {{ asset_form.csrf_token }}
+                        {{ asset_form.hidden_tag() }}
+                        <fieldset>
+                            <div class="asset-form">
 
-                                    <h3>Edit {{ asset.name }}</h3>
-                                    <small>Owned by account: {{ asset.account_id | accountname }} (ID: {{
-                                        asset.account_id
-                                        }})</small>
+                                <h3>Edit {{ asset.name }}</h3>
+                                <small>Owned by account: {{ asset.account_id | accountname }} (ID: {{ asset.account_id
+                                    }})</small>
 
-                                    <div class="form-group">
-                                        {{ asset_form.name.label(class="control-label") }}
-                                        <div class="col-md-3">
-                                            {{ asset_form.name(class_="form-control") }}
-                                            {% for error in asset_form.errors.name %}
-                                            <span style="color: red;">[{{error}}]</span>
+                                <div class="form-group">
+                                    {{ asset_form.name.label(class="control-label") }}
+                                    <div class="col-md-3">
+                                        {{ asset_form.name(class_="form-control") }}
+                                        {% for error in asset_form.errors.name %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    {{ asset_form.latitude.label(class="control-label") }}
+                                    <div class="col-md-6">
+                                        {{ asset_form.latitude(class_="form-control") }}
+                                        {% for error in asset_form.errors.latitude %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    {{ asset_form.longitude.label(class="control-label") }}
+                                    <div class="col-md-6">
+                                        {{ asset_form.longitude(class_="form-control") }}
+                                        {% for error in asset_form.errors.longitude %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    {{ asset_form.parent_asset_id.label(class="col-sm-6 control-label") }}
+                                    <div class="col-md-6">
+                                        <select name="parent_asset_id" id="parent_asset_id" class="form-control">
+                                            <option value="" {% if asset.parent_asset_id is none %} selected {%
+                                                endif %}>No Parent</option>
+                                            {% for account_asset in account_assets %}
+                                            {% if account_asset.id != asset.id %}
+                                            <option value="{{ account_asset.id }}" {% if
+                                                asset.parent_asset_id==account_asset.id %} selected {% endif %}>
+                                                {{ account_asset.name }} (ID: {{ account_asset.id }})</option>
+                                            {% endif %}
                                             {% endfor %}
-                                        </div>
-                                    </div>
-                                    <div class="form-group">
-                                        {{ asset_form.latitude.label(class="control-label") }}
-                                        <div class="col-md-6">
-                                            {{ asset_form.latitude(class_="form-control") }}
-                                            {% for error in asset_form.errors.latitude %}
-                                            <span style="color: red;">[{{error}}]</span>
-                                            {% endfor %}
-                                        </div>
-                                    </div>
-                                    <div class="form-group">
-                                        {{ asset_form.longitude.label(class="control-label") }}
-                                        <div class="col-md-6">
-                                            {{ asset_form.longitude(class_="form-control") }}
-                                            {% for error in asset_form.errors.longitude %}
-                                            <span style="color: red;">[{{error}}]</span>
-                                            {% endfor %}
-                                        </div>
-                                    </div>
-                                    <div class="form-group">
-                                        {{ asset_form.parent_asset_id.label(class="col-sm-6 control-label") }}
-                                        <div class="col-md-6">
-                                            <select name="parent_asset_id" id="parent_asset_id" class="form-control">
-                                                <option value="" {% if asset.parent_asset_id is none %} selected {%
-                                                    endif %}>No Parent</option>
-                                                {% for account_asset in account_assets %}
-                                                {% if account_asset.id != asset.id %}
-                                                <option value="{{ account_asset.id }}" {% if
-                                                    asset.parent_asset_id==account_asset.id %} selected {% endif %}>
-                                                    {{ account_asset.name }} (ID: {{ account_asset.id }})</option>
-                                                {% endif %}
-                                                {% endfor %}
-                                            </select>
+                                        </select>
 
-                                        </div>
                                     </div>
-                                    <div class="form-group">
-                                        <label for="assset-type" class="control-label">Asset Type</label>
-                                        <div class="col-md-6">
-                                            <input class="form-control" id="asset-type-id" name="asset-type" type="text"
-                                                value="{{ asset.generic_asset_type.name }}" disabled></input>
-                                        </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="assset-type" class="control-label">Asset Type</label>
+                                    <div class="col-md-6">
+                                        <input class="form-control" id="asset-type-id" name="asset-type" type="text"
+                                            value="{{ asset.generic_asset_type.name }}" disabled></input>
                                     </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="asset-id" class="control-label">Asset id</label>
+                                    <div class="col-md-6">
+                                        <input class="form-control" id="asset-id" name="asset-id" type="text"
+                                            value="{{ asset.id }}" disabled></input>
+                                    </div>
+
+                                <div class="form-group">
+                                    {{ asset_form.sensors_to_show_as_kpis.label(class="control-label") }}
+                                    <div class="col-md-3">
+                                        <small>{{ asset_form.sensors_to_show_as_kpis.description }}</small>
+                                        {{ asset_form.sensors_to_show_as_kpis(class_="form-control") }}
+                                        {% for error in asset_form.errors.sensors_to_show_as_kpis %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+
+                                <div class="form-group">
+                                    {{ asset_form.external_id.label(class="control-label") }}
+                                    <div class="col-md-3">
+                                        <small>{{ asset_form.external_id.description }}</small>
+                                        {{ asset_form.external_id(class_="form-control") }}
+                                        {% for error in asset_form.errors.external_id %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+
                                     <div class="form-group">
-                                        <label for="asset-id" class="control-label">Asset id</label>
-                                        <div class="col-md-6">
-                                            <input class="form-control" id="asset-id" name="asset-id" type="text"
-                                                value="{{ asset.id }}" disabled></input>
-                                        </div>
-
-                                        <div class="form-group">
-                                            {{ asset_form.sensors_to_show_as_kpis.label(class="control-label") }}
-                                            <div class="col-md-3">
-                                                <small>{{ asset_form.sensors_to_show_as_kpis.description }}</small>
-                                                {{ asset_form.sensors_to_show_as_kpis(class_="form-control") }}
-                                                {% for error in asset_form.errors.sensors_to_show_as_kpis %}
-                                                <span style="color: red;">[{{error}}]</span>
-                                                {% endfor %}
-                                            </div>
-
-                                            <div class="form-group">
-                                                {{ asset_form.external_id.label(class="control-label") }}
-                                                <div class="col-md-3">
-                                                    <small>{{ asset_form.external_id.description }}</small>
-                                                    {{ asset_form.external_id(class_="form-control") }}
-                                                    {% for error in asset_form.errors.external_id %}
-                                                    <span style="color: red;">[{{error}}]</span>
-                                                    {% endfor %}
-                                                </div>
-
-                                                <div class="form-group">
-                                                    <label class="control-label">Location</label>
-                                                    <small>(Click map to edit latitude and longitude in form)</small>
-                                                    <div id="mapid"></div>
-                                                    <button class="btn btn-sm btn-responsive btn-success create-button"
-                                                        type="submit" value="Save"
-                                                        style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
-                                                        Save
-                                                    </button>
-                                                </div>
-                                            </div>
+                                        <label class="control-label">Location</label>
+                                        <small>(Click map to edit latitude and longitude in form)</small>
+                                        <div id="mapid"></div>
+                                        <button class="btn btn-sm btn-responsive btn-success create-button"
+                                            type="submit" value="Save"
+                                            style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
+                                            Save
+                                        </button>
+                                    </div>
+                                </div>
                             </fieldset>
                         </form>
                         <div class="form-group pt-3">
@@ -145,7 +144,8 @@
                 {% if user_can_copy_to_own_account %}
                 <div>
                     <button class="js-copy-asset-btn btn btn-sm btn-responsive create-button" type="button"
-                        data-asset-id="{{ asset.id }}" data-target-account-id="{{ copy_target_account_id }}"
+                        data-asset-id="{{ asset.id }}"
+                        data-target-account-id="{{ copy_target_account_id }}"
                         title="Copy asset and all its children to {{ own_organisation_name }}{% if not user_can_delete_asset %} — note: you can copy but not delete; contact your organisation admin to remove unwanted copies{% endif %}. Ctrl-click to open the copy in a new tab.">
                         Copy to {{ own_organisation_name }}
                     </button>
@@ -153,8 +153,8 @@
                 {% endif %}
                 {% if user_can_delete_asset %}
                 <div>
-                    <button id="delete-asset-button" class="btn btn-sm btn-responsive delete-button" type="button"
-                        data-asset-id="{{ asset.id }}">Delete this asset
+                    <button id="delete-asset-button" class="btn btn-sm btn-responsive delete-button"
+                        type="button" data-asset-id="{{ asset.id }}">Delete this asset
                     </button>
                 </div>
                 {% endif %}
