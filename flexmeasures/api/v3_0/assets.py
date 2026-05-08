@@ -453,7 +453,7 @@ class AssetAPI(FlaskView):
                 application/json:
                   examples:
                     single_sensor:
-                      summary: One asset being returned in the response
+                      summary: One sensor being returned in the response
                       value:
                         data:
                         - id: 1
