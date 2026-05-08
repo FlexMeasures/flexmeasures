@@ -322,7 +322,8 @@ class FlexContextSchema(Schema):
             warnings.warn(
                 "The `inflexible-device-sensors` field is deprecated. "
                 "Use `inflexible-loads` for sensors with consumption-positive convention "
-                "and `inflexible-generators` for sensors with production-positive convention.",
+                "and `inflexible-generators` for sensors with production-positive convention "
+                "(the FlexMeasures default).",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -960,6 +961,11 @@ class MultiSensorFlexModelSchema(Schema):
                 extra[k] = v
             else:
                 rest[k] = v
+        # Validate mutual exclusion of consumption and production before remapping
+        if "consumption" in rest and "production" in rest:
+            raise ValidationError(
+                "Specify either 'consumption' or 'production', not both."
+            )
         # Map consumption/production to sensor and set is_consumption_sensor explicitly.
         # The deprecated 'sensor' field leaves is_consumption_sensor unset (None),
         # meaning the sensor's own `consumption_is_positive` attribute will be used as a fallback.

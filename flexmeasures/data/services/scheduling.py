@@ -649,12 +649,12 @@ def make_schedule(  # noqa: C901
         if result["sensor"].measures_power:
             # Use the explicit sign convention if set (via 'consumption' or 'production' field),
             # otherwise fall back to the sensor's own `consumption_is_positive` attribute.
-            result_consumption_is_positive = result.get("is_consumption_sensor")
-            if result_consumption_is_positive is None:
-                result_consumption_is_positive = result["sensor"].get_attribute(
+            consumption_is_positive = result.get("is_consumption_sensor")
+            if consumption_is_positive is None:
+                consumption_is_positive = result["sensor"].get_attribute(
                     "consumption_is_positive", False
                 )
-            if not result_consumption_is_positive:
+            if not consumption_is_positive:
                 sign = -1
 
         ts_value_schedule = [

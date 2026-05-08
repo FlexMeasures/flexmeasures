@@ -1452,6 +1452,22 @@ class MetaStorageScheduler(Scheduler):
             )
         return q
 
+    @staticmethod
+    def _build_is_consumption_sensor_map(
+        flex_model: list[dict],
+    ) -> dict:
+        """Build a mapping from sensor object to its is_consumption_sensor flag.
+
+        Returns a dict where values are True (consumption-positive), False
+        (production-positive), or None (fall back to sensor attribute).
+        """
+        mapping: dict = {}
+        for fm_item in flex_model:
+            s = fm_item.get("sensor")
+            if s is not None and s not in mapping:
+                mapping[s] = fm_item.get("is_consumption_sensor")
+        return mapping
+
 
 class StorageFallbackScheduler(MetaStorageScheduler):
     __version__ = "3"
@@ -1513,12 +1529,9 @@ class StorageFallbackScheduler(MetaStorageScheduler):
             is_consumption_sensor_map = {}
             flex_model = self.flex_model
             if isinstance(flex_model, list):
-                for fm_item in flex_model:
-                    s = fm_item.get("sensor")
-                    if s is not None and s not in is_consumption_sensor_map:
-                        is_consumption_sensor_map[s] = fm_item.get(
-                            "is_consumption_sensor"
-                        )
+                is_consumption_sensor_map = self._build_is_consumption_sensor_map(
+                    flex_model
+                )
             return [
                 {
                     "name": "storage_schedule",
@@ -1694,11 +1707,9 @@ class StorageScheduler(MetaStorageScheduler):
 
         if self.return_multiple:
             # Build a mapping from sensor to is_consumption_sensor (from flex_model if available)
-            is_consumption_sensor_map = {}
-            for fm_item in flex_model:
-                s = fm_item.get("sensor")
-                if s is not None and s not in is_consumption_sensor_map:
-                    is_consumption_sensor_map[s] = fm_item.get("is_consumption_sensor")
+            is_consumption_sensor_map = self._build_is_consumption_sensor_map(
+                flex_model
+            )
             storage_schedules = [
                 {
                     "name": "storage_schedule",
