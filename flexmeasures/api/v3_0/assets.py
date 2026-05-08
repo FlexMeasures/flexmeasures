@@ -467,7 +467,7 @@ class AssetAPI(FlaskView):
                             id: 1
                             name: battery
                     paginated_sensors:
-                      summary: A paginated list of assets being returned in the response
+                      summary: A paginated list of sensors being returned in the response
                       value:
                         data:
                         - id: 1
