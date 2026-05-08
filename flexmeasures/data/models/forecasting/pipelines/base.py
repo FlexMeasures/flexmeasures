@@ -277,6 +277,53 @@ class BasePipeline:
             belief_timestamps_list : list[pd.Timestamp]
             """
 
+            def _select_per_regressor(
+                data: pd.DataFrame,
+                regressor_columns: list[str],
+                *,
+                selection: str,
+            ) -> pd.DataFrame:
+                """Select one known value per (event_start, regressor)."""
+                selected = (
+                    data[["event_start"]]
+                    .drop_duplicates()
+                    .sort_values("event_start")
+                    .reset_index(drop=True)
+                )
+
+                for regressor in regressor_columns:
+                    regressor_data = data[
+                        ["event_start", "belief_time", regressor]
+                    ].dropna(subset=[regressor])
+                    if regressor_data.empty:
+                        selected[regressor] = np.nan
+                        continue
+
+                    if selection == "latest":
+                        idx = regressor_data.groupby("event_start")[
+                            "belief_time"
+                        ].idxmax()
+                    else:
+                        regressor_data = regressor_data.copy()
+                        regressor_data["time_diff"] = (
+                            regressor_data["event_start"]
+                            - regressor_data["belief_time"]
+                        ).abs()
+                        idx = regressor_data.groupby("event_start")[
+                            "time_diff"
+                        ].idxmin()
+
+                    selected_values = regressor_data.loc[
+                        idx, ["event_start", regressor]
+                    ]
+                    selected = selected.merge(
+                        selected_values,
+                        on="event_start",
+                        how="left",
+                    )
+
+                return selected
+
             target_sensor_resolution = self.target_sensor.event_resolution
 
             # target_start is the timestamp of the event_start of the first event in realizations
@@ -327,44 +374,24 @@ class BasePipeline:
                     X_past_regressors_df["belief_time"]
                     > X_past_regressors_df["event_start"]
                 ].copy()
-                idx = past_obs.groupby("event_start")["belief_time"].idxmax()
-                past_latest = (
-                    past_obs.loc[idx].sort_values("event_start").reset_index(drop=True)
+                past_latest = _select_per_regressor(
+                    past_obs,
+                    self.past_regressors,
+                    selection="latest",
                 )
-                past_keep = [c for c in past_latest.columns if c not in ("belief_time")]
-                past_latest = past_latest[past_keep]
 
             future_realized_latest = None
-            future_all_closest = None
             if X_future_regressors_df is not None:
                 # Realized-only (belief_time > event_start): take closest per event_start
                 fr = X_future_regressors_df.loc[
                     X_future_regressors_df["belief_time"]
                     > X_future_regressors_df["event_start"]
                 ].copy()
-                fr["time_diff"] = (fr["event_start"] - fr["belief_time"]).abs()
-                idx_fr = fr.groupby("event_start")["time_diff"].idxmin()
-                fr = (
-                    fr.loc[idx_fr]
-                    .drop(columns=["time_diff"])
-                    .sort_values("event_start")
-                    .reset_index(drop=True)
+                future_realized_latest = _select_per_regressor(
+                    fr,
+                    self.future_regressors,
+                    selection="closest",
                 )
-
-                # All beliefs: closest per event_start (used for forecast slice)
-                fa = X_future_regressors_df.copy()
-                fa["time_diff"] = (fa["event_start"] - fa["belief_time"]).abs()
-                idx_fa = fa.groupby("event_start")["time_diff"].idxmin()
-                fa = (
-                    fa.loc[idx_fa]
-                    .drop(columns=["time_diff"])
-                    .sort_values("event_start")
-                    .reset_index(drop=True)
-                )
-
-                keep = [c for c in fr.columns if c not in ("belief_time")]
-                future_realized_latest = fr[keep]
-                future_all_closest = fa[keep]
 
             y_clean = (
                 y.drop(columns=["belief_time"])
@@ -444,10 +471,7 @@ class BasePipeline:
                     past_covariates = None
 
                 # Future covariates (realized up to target_end + forecasts up to forecast_end) split
-                if (
-                    future_realized_latest is not None
-                    and future_all_closest is not None
-                ):
+                if future_realized_latest is not None:
                     realized_slice = _slice_closed(
                         future_realized_latest, target_start, target_end
                     )
@@ -467,23 +491,11 @@ class BasePipeline:
 
                     # for each event_start in that window, pick the latest belief before the event
                     # (closest from below wrt belief_time)
-                    fc_window["time_diff"] = (
-                        X_future_regressors_df.loc[fc_window.index, "event_start"]
-                        - X_future_regressors_df.loc[fc_window.index, "belief_time"]
-                    ).abs()
-                    idx_fc = fc_window.groupby("event_start")["belief_time"].idxmax()
-                    forecast_slice = (
-                        fc_window.loc[idx_fc]
-                        .drop(columns=["time_diff"], errors="ignore")
-                        .sort_values("event_start")
-                        .reset_index(drop=True)
+                    forecast_slice = _select_per_regressor(
+                        fc_window,
+                        self.future_regressors,
+                        selection="latest",
                     )
-
-                    # keep only value columns (drop meta)
-                    keep_fc = [
-                        c for c in forecast_slice.columns if c not in ("belief_time")
-                    ]
-                    forecast_slice = forecast_slice[keep_fc]
 
                     future_df = (
                         pd.concat([realized_slice, forecast_slice], ignore_index=True)
