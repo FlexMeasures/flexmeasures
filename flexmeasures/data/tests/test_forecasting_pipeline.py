@@ -598,7 +598,9 @@ def test_prior_restricts_training_beliefs(
     )
 
 
-def test_future_regressor_splits_use_only_beliefs_known_at_issue_time(monkeypatch):
+def test_future_regressor_splits_use_only_beliefs_known_at_forecast_belief_time(
+    monkeypatch,
+):
     target_sensor = type(
         "SensorStub",
         (),
@@ -622,48 +624,56 @@ def test_future_regressor_splits_use_only_beliefs_known_at_issue_time(monkeypatc
         predict_start=datetime(2025, 1, 8),
         predict_end=datetime(2025, 1, 8, 1),
     )
-    issue_time = pd.Timestamp("2025-01-08T00:00:00")
+    forecast_belief_time = pd.Timestamp("2025-01-08T00:00:00")
     future_col = pipeline.future_regressors[0]
 
     df = pd.DataFrame(
         [
-            # Historical forecast belief: known at issue time, but not realized,
+            # Historical forecast belief: known at forecast belief time, but not realized,
             # so it should not be used for the past part of the regressor split.
             {
                 "event_start": pd.Timestamp("2025-01-07T23:00:00"),
-                "belief_time": issue_time - pd.Timedelta(hours=2),
+                "belief_time": forecast_belief_time - pd.Timedelta(hours=2),
                 pipeline.target: None,
                 future_col: 88.0,
             },
-            # Historical realized belief: known at issue time and realized,
+            # Historical realized belief: known exactly at forecast belief time,
             # so this is the admissible value for the past event.
             {
                 "event_start": pd.Timestamp("2025-01-07T23:00:00"),
-                "belief_time": issue_time,
+                "belief_time": forecast_belief_time,
                 pipeline.target: 1.0,
                 future_col: 10.0,
             },
-            # Future forecast belief: known at issue time and still a forecast,
+            # Historical realized belief: recorded after forecast belief time,
+            # so it must be rejected even though it is the latest realized value.
+            {
+                "event_start": pd.Timestamp("2025-01-07T23:00:00"),
+                "belief_time": forecast_belief_time + pd.Timedelta(minutes=30),
+                pipeline.target: 1.0,
+                future_col: 99.0,
+            },
+            # Future forecast belief: known at forecast belief time and still a forecast,
             # so this is admissible for the future part of the split.
             {
                 "event_start": pd.Timestamp("2025-01-08T00:00:00"),
-                "belief_time": issue_time - pd.Timedelta(minutes=5),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=5),
                 pipeline.target: None,
                 future_col: 20.0,
             },
-            # Future forecast belief: not known at issue time,
+            # Future forecast belief: not known at forecast belief time,
             # so it must be excluded even though it is for the same event.
             {
                 "event_start": pd.Timestamp("2025-01-08T00:00:00"),
-                "belief_time": issue_time + pd.Timedelta(minutes=5),
+                "belief_time": forecast_belief_time + pd.Timedelta(minutes=5),
                 pipeline.target: None,
-                future_col: 99.0,
+                future_col: 77.0,
             },
-            # Future forecast belief exactly known at issue time,
-            # proving the issue-time boundary itself remains admissible.
+            # Future forecast belief exactly known at forecast belief time,
+            # proving the forecast belief-time boundary itself remains admissible.
             {
                 "event_start": pd.Timestamp("2025-01-08T01:00:00"),
-                "belief_time": issue_time,
+                "belief_time": forecast_belief_time,
                 pipeline.target: None,
                 future_col: 30.0,
             },
@@ -691,13 +701,14 @@ def test_future_regressor_splits_use_only_beliefs_known_at_issue_time(monkeypatc
     assert values_by_event.loc[pd.Timestamp("2025-01-08T01:00:00")] == 30.0
     assert 88.0 not in set(values_by_event)
     assert 99.0 not in set(values_by_event)
+    assert 77.0 not in set(values_by_event)
 
 
-def test_future_regressor_changes_forecasts_in_issue_time_window(
+def test_future_regressor_changes_forecasts_in_forecast_belief_time_window(
     app, fresh_db, tmp_path
 ):
     """
-    Integration check for deterministic regressor behavior around issue-time splitting.
+    Integration check for deterministic regressor behavior around belief-time splitting.
 
     We build two target sensors with identical history, run one with a future regressor
     and one without, and assert the future-regressor run is more accurate. The
@@ -895,7 +906,7 @@ def test_future_regressor_changes_forecasts_in_issue_time_window(
     )
     assert (
         first_error_with_regressor < first_error_without_regressor
-    ), "At the issue-time boundary, the future-regressor run should be more accurate."
+    ), "At the forecast belief-time boundary, the future-regressor run should be more accurate."
     assert mae_with_regressor < mae_without_regressor, (
         "The future-regressor forecast is expected to be more accurate "
         "on this deterministic synthetic dataset."

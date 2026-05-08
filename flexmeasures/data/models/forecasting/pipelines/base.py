@@ -349,18 +349,15 @@ class BasePipeline:
 
             def _latest_known_by_event_start(
                 df_: pd.DataFrame,
-                issue_time: pd.Timestamp,
+                forecast_belief_time: pd.Timestamp,
                 realized_only: bool = False,
             ) -> pd.DataFrame:
-                """Select one row per event using only beliefs known at issue time."""
-                if df_ is None:
-                    return None
-
+                """Select one row per event using beliefs known at forecast belief time."""
                 keep = [c for c in df_.columns if c not in ("belief_time")]
                 if df_.empty:
                     return df_.iloc[0:0][keep].copy()
 
-                known = df_.loc[df_["belief_time"] <= issue_time].copy()
+                known = df_.loc[df_["belief_time"] <= forecast_belief_time].copy()
                 if realized_only:
                     known = known.loc[known["belief_time"] > known["event_start"]]
                 if known.empty:
@@ -454,7 +451,7 @@ class BasePipeline:
                         forecast_slice = fc_window.iloc[0:0][keep_fc].copy()
                     else:
                         # For each future event_start, pick the latest belief known
-                        # at the simulated issue time.
+                        # at the simulated forecast belief time.
                         idx_fc = fc_window.groupby("event_start")[
                             "belief_time"
                         ].idxmax()
