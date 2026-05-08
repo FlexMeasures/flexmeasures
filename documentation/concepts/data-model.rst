@@ -170,10 +170,29 @@ We assume that this is what users send in.
 
 Note that, if forecasts are created, they will have the same sign as original data.
 
-For schedules, the sign of resulting power data (beliefs) is being switched when data is stored (assuming consumption , and you can prevent that by setting ``sensor.attributes["consumption_is_positive"] = True``.
+For schedules, the sign convention of resulting power data (beliefs) depends on how the sensor is configured:
 
+- By default, FlexMeasures stores schedule results with **production as positive** and consumption as negative (the FlexMeasures default).
+- If you set ``sensor.attributes["consumption_is_positive"] = True`` on the power sensor, consumption is stored as positive.
 
-.. note:: We will soon document better what the scheduler does in detail, and how the attribute works.
+When it comes to inflexible devices in the :ref:`flex_context <flex_context>`, the convention should be made explicit using the new ``inflexible-loads`` and ``inflexible-generators`` fields:
+
+- Use ``inflexible-generators`` for sensors that store **production as positive** values (e.g. rooftop solar where positive readings = generation). This is also the FlexMeasures default.
+- Use ``inflexible-loads`` for sensors that store **consumption as positive** values (e.g. a building load sensor where positive readings = consumption).
+
+For example, if your solar PV sensor uses the default FlexMeasures convention (positive = production), include it as::
+
+    "flex-context": {"inflexible-generators": [<solar_sensor_id>]}
+
+If your building consumption sensor stores positive values for load, include it as::
+
+    "flex-context": {"inflexible-loads": [<building_sensor_id>]}
+
+When triggering asset-level schedules, use ``consumption`` or ``production`` in the flex-model to make the sign convention explicit::
+
+    "flex-model": [{"production": <solar_sensor_id>}, {"consumption": <battery_sensor_id>, "soc-at-start": "50 kWh"}]
+
+This replaces the ambiguous ``sensor`` key and avoids relying on the ``consumption_is_positive`` sensor attribute for scheduling purposes.
 
 
 Accounts & Users
