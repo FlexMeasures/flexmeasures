@@ -317,8 +317,8 @@ class FlexContextSchema(Schema):
 
     @post_load
     def warn_deprecated_inflexible_device_sensors(self, data: dict, **kwargs):
-        """Emit a deprecation warning if the old `inflexible-device-sensors` field is used."""
-        if "inflexible_device_sensors" in data and data["inflexible_device_sensors"]:
+        """Emit a deprecation warning if the deprecated `inflexible-device-sensors` field is present in the input."""
+        if "inflexible_device_sensors" in data:
             warnings.warn(
                 "The `inflexible-device-sensors` field is deprecated. "
                 "Use `inflexible-loads` for sensors with consumption-positive convention "
@@ -953,7 +953,13 @@ class MultiSensorFlexModelSchema(Schema):
 
     @post_load
     def warn_deprecated_sensor_field(self, data: dict, **kwargs):
-        """Emit a deprecation warning if the old `sensor` field is used directly."""
+        """Emit a deprecation warning if the old `sensor` field is used without an explicit sign convention.
+
+        The `sensor` field leaves `is_consumption_sensor` as None (no explicit sign convention),
+        unlike `consumption` (sets True) or `production` (sets False).
+        Note: `is_consumption_sensor` is set internally by the `@pre_load` hook when
+        `consumption` or `production` fields are used; it is not a user-facing input.
+        """
         if "sensor" in data and data.get("is_consumption_sensor") is None:
             warnings.warn(
                 "The `sensor` field in flex-model entries is deprecated. "
@@ -967,7 +973,7 @@ class MultiSensorFlexModelSchema(Schema):
 
     @pre_load
     def unwrap_envelope(self, data, **kwargs):
-        """Any field other than 'sensor', 'asset', 'consumption', 'production' becomes part of the sensor's flex-model."""
+        """Any field other than 'sensor', 'asset', 'consumption', 'production', 'is_consumption_sensor' becomes part of the sensor's flex-model."""
         extra = {}
         rest = {}
         for k, v in data.items():
