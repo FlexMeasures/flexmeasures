@@ -660,8 +660,10 @@ def test_split_data_selects_latest_future_belief_per_regressor():
     pipeline.split_data_all_beliefs(df=input_df)
 
     assert captured_future_df is not None
-    selected = captured_future_df.loc[
+    selected_rows = captured_future_df.loc[
         captured_future_df["event_start"] == pd.Timestamp("2025-01-08 10:00:00")
-    ].iloc[0]
+    ]
+    assert len(selected_rows) == 1
+    selected = selected_rows.iloc[0]
     assert selected[regressor_a] == pytest.approx(5.0)
     assert selected[regressor_b] == pytest.approx(7.0)
