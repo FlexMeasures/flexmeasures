@@ -205,6 +205,8 @@ class SensorsToShowSchema(fields.Field):
                 raise ValidationError(f"The value for '{field_name}' must be a string.")
 
             if value not in valid_collection:
+                if self.allow_missing_asset_flex_field:
+                    return
                 raise ValidationError(f"'{field_name}' value '{value}' is not valid.")
 
             attr_to_check = (
