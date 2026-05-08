@@ -457,7 +457,9 @@ class AssetAPI(FlaskView):
                       value:
                         data:
                         - id: 1
-                          name: Test battery
+                          name: Test battery power
+                          unit: kW
+                          event_resolution: PT15M
                           latitude: 10
                           longitude: 100
                           account_id: 2
