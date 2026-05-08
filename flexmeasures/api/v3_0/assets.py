@@ -497,7 +497,7 @@ class AssetAPI(FlaskView):
                 or_(*[Sensor.name.ilike(f"%{term}%") for term in search_terms])
             )
 
-        if sort_by is not None and sort_dir is not None:
+        if sort_by is not None:
             valid_sort_columns = {
                 "id": Sensor.id,
                 "name": Sensor.name,
