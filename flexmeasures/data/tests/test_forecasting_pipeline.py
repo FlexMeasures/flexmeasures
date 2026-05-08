@@ -5,10 +5,12 @@ import pytest
 import logging
 import pandas as pd
 from datetime import timedelta
+from types import SimpleNamespace
 
 from marshmallow import ValidationError
 
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
@@ -588,3 +590,80 @@ def test_prior_restricts_training_beliefs(
         f"Forecasts after anomaly ({mean_after:.1f}) should be at least 10x higher "
         f"than forecasts before anomaly ({mean_before:.1f})"
     )
+
+
+def test_split_data_selects_latest_future_belief_per_regressor():
+    """
+    Ensure future covariates keep the latest known value per regressor, not per joined row.
+    """
+    resolution = timedelta(hours=1)
+    pipeline = BasePipeline(
+        target_sensor=SimpleNamespace(
+            name="target",
+            id=1,
+            event_resolution=resolution,
+        ),
+        future_regressors=[
+            SimpleNamespace(name="regressor-a", id=2),
+            SimpleNamespace(name="regressor-b", id=3),
+        ],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=pd.Timestamp("2025-01-08 09:00:00"),
+        event_ends_before=pd.Timestamp("2025-01-08 10:00:00"),
+    )
+
+    captured_future_df = None
+
+    def capture_future_covariates(
+        df, sensors, sensor_names, start, end, **kwargs
+    ):  # noqa: ARG001
+        nonlocal captured_future_df
+        if sensor_names == pipeline.future_regressors:
+            captured_future_df = df.copy()
+        return df
+
+    pipeline.detect_and_fill_missing_values = capture_future_covariates
+
+    regressor_a, regressor_b = pipeline.future_regressors
+    target_col = pipeline.target
+    input_df = pd.DataFrame(
+        [
+            {
+                "event_start": "2025-01-08 09:00:00",
+                "belief_time": "2025-01-08 10:00:00",
+                regressor_a: None,
+                regressor_b: None,
+                target_col: 1.0,
+            },
+            {
+                "event_start": "2025-01-08 10:00:00",
+                "belief_time": "2025-01-08 09:30:00",
+                regressor_a: 5.0,
+                regressor_b: None,
+                target_col: None,
+            },
+            {
+                "event_start": "2025-01-08 10:00:00",
+                "belief_time": "2025-01-08 09:45:00",
+                regressor_a: None,
+                regressor_b: 7.0,
+                target_col: None,
+            },
+        ]
+    )
+    input_df["event_start"] = pd.to_datetime(input_df["event_start"])
+    input_df["belief_time"] = pd.to_datetime(input_df["belief_time"])
+
+    pipeline.split_data_all_beliefs(df=input_df)
+
+    assert captured_future_df is not None
+    selected_rows = captured_future_df.loc[
+        captured_future_df["event_start"] == pd.Timestamp("2025-01-08 10:00:00")
+    ]
+    assert len(selected_rows) == 1
+    selected = selected_rows.iloc[0]
+    assert selected[regressor_a] == pytest.approx(5.0)
+    assert selected[regressor_b] == pytest.approx(7.0)
