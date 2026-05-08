@@ -434,7 +434,7 @@ class AssetAPI(FlaskView):
             The endpoint supports pagination of the sensor list using the `page` and `per_page` query parameters.
 
             - If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.
-            - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+            - If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).
             The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
           security:
             - ApiKeyAuth: []
