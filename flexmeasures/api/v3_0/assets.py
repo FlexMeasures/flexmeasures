@@ -460,24 +460,20 @@ class AssetAPI(FlaskView):
                           name: Test battery power
                           unit: kW
                           event_resolution: PT15M
-                          latitude: 10
-                          longitude: 100
-                          account_id: 2
-                          generic_asset_type:
-                            id: 1
-                            name: battery
+                          generic_asset_id: 1
+                          timezone: Europe/Amsterdam
+                          entity_address: "ea1.2021-01.io.flexmeasures.company:fm1.42"
                     paginated_sensors:
                       summary: A paginated list of sensors being returned in the response
                       value:
                         data:
                         - id: 1
-                          name: Test battery
-                          latitude: 10
-                          longitude: 100
-                          account_id: 2
-                          generic_asset_type:
-                            id: 1
-                            name: battery
+                          name: Test battery power
+                          unit: kW
+                          event_resolution: PT15M
+                          generic_asset_id: 1
+                          timezone: Europe/Amsterdam
+                          entity_address: "ea1.2021-01.io.flexmeasures.company:fm1.42"
                         num-records: 1
                         filtered-records: 1
             400:
