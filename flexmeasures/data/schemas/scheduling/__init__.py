@@ -324,7 +324,7 @@ class FlexContextSchema(Schema):
                 "Use `inflexible-loads` for sensors with consumption-positive convention "
                 "and `inflexible-generators` for sensors with production-positive convention "
                 "(the FlexMeasures default).",
-                DeprecationWarning,
+                UserWarning,
                 stacklevel=2,
             )
         return data
@@ -950,6 +950,20 @@ class MultiSensorFlexModelSchema(Schema):
             raise ValidationError(
                 "Specify either a sensor (or consumption/production) or an asset."
             )
+
+    @post_load
+    def warn_deprecated_sensor_field(self, data: dict, **kwargs):
+        """Emit a deprecation warning if the old `sensor` field is used directly."""
+        if "sensor" in data and data.get("is_consumption_sensor") is None:
+            warnings.warn(
+                "The `sensor` field in flex-model entries is deprecated. "
+                "Use `consumption` to explicitly indicate a consumption sensor "
+                "or `production` to indicate a production sensor, "
+                "so FlexMeasures does not have to guess the sign convention from the sensor's attributes.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return data
 
     @pre_load
     def unwrap_envelope(self, data, **kwargs):

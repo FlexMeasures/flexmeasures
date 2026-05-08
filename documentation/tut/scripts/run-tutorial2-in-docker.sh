@@ -45,7 +45,7 @@ docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 3 --sta
 echo "[TUTORIAL-RUNNER] update schedule taking solar into account ..."
 docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 2 \
   --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
-  --flex-context '{"inflexible-device-sensors": [3]}' \
+  --flex-context '{"inflexible-generators": [3]}' \
   --flex-model '{"soc-min": "50 kWh"}'
 
 echo "[TUTORIAL-RUNNER] showing schedule ..."
