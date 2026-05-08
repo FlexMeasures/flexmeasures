@@ -503,6 +503,7 @@ class AssetAPI(FlaskView):
                 "name": Sensor.name,
                 "resolution": Sensor.event_resolution,
             }
+            sort_dir = sort_dir or "asc"
 
             query = query.order_by(
                 valid_sort_columns[sort_by].asc()
