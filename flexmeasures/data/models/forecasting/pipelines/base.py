@@ -283,7 +283,26 @@ class BasePipeline:
                 *,
                 selection: str,
             ) -> pd.DataFrame:
-                """Select one known value per (event_start, regressor)."""
+                """
+                Select one known value per `(event_start, regressor)`.
+
+                Parameters
+                ----------
+                data : pd.DataFrame
+                    Input frame with `event_start`, `belief_time`, and regressor columns.
+                regressor_columns : list[str]
+                    Regressor columns to select values for independently.
+                selection : str
+                    Selection strategy:
+                    - `"latest"`: choose the highest belief_time per event_start.
+                    - `"closest"`: choose the minimum |event_start - belief_time| per event_start.
+
+                Returns
+                -------
+                pd.DataFrame
+                    Wide frame with one row per event_start and one selected value
+                    per regressor column.
+                """
                 selected = (
                     data[["event_start"]]
                     .drop_duplicates()

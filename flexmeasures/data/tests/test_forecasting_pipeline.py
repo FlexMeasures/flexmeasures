@@ -617,7 +617,7 @@ def test_split_data_selects_latest_future_belief_per_regressor():
 
     captured_future_df = None
 
-    def capture_detect_and_fill(
+    def capture_future_covariates(
         df, sensors, sensor_names, start, end, **kwargs
     ):  # noqa: ARG001
         nonlocal captured_future_df
@@ -625,7 +625,7 @@ def test_split_data_selects_latest_future_belief_per_regressor():
             captured_future_df = df.copy()
         return df
 
-    pipeline.detect_and_fill_missing_values = capture_detect_and_fill
+    pipeline.detect_and_fill_missing_values = capture_future_covariates
 
     regressor_a, regressor_b = pipeline.future_regressors
     target_col = pipeline.target
