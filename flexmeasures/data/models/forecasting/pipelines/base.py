@@ -303,6 +303,12 @@ class BasePipeline:
                     Wide frame with one row per event_start and one selected value
                     per regressor column.
                 """
+                if selection not in {"latest", "closest"}:
+                    raise ValueError(
+                        "selection must be one of {'latest', 'closest'}, "
+                        f"got {selection!r}"
+                    )
+
                 selected = (
                     data[["event_start"]]
                     .drop_duplicates()
