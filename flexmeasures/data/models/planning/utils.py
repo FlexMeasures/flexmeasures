@@ -173,6 +173,7 @@ def get_power_values(
     resolution: timedelta,
     beliefs_before: datetime | None,
     sensor: Sensor,
+    consumption_is_positive: bool | None = None,
 ) -> np.ndarray:
     """Get measurements or forecasts of an inflexible device represented by a power or energy sensor as an array of power values in MW.
 
@@ -180,11 +181,14 @@ def get_power_values(
     If the requested schedule lies in the past, the returned data will consist of (the most recent) measurements (if any exist).
     The latter amounts to answering "What if we could have scheduled under perfect foresight?".
 
-    :param query_window:    datetime window within which events occur (equal to the scheduling window)
-    :param resolution:      timedelta used to resample the forecasts to the resolution of the schedule
-    :param beliefs_before:  datetime used to indicate we are interested in the state of knowledge at that time
-    :param sensor:          power sensor representing an energy flow out of the device
-    :returns:               power measurements or forecasts (consumption is positive, production is negative)
+    :param query_window:            datetime window within which events occur (equal to the scheduling window)
+    :param resolution:              timedelta used to resample the forecasts to the resolution of the schedule
+    :param beliefs_before:          datetime used to indicate we are interested in the state of knowledge at that time
+    :param sensor:                  power sensor representing an energy flow out of the device
+    :param consumption_is_positive: if True, positive sensor values represent consumption (no negation needed);
+                                    if False, positive sensor values represent production (negation applied);
+                                    if None (default), the sensor's ``consumption_is_positive`` attribute is used.
+    :returns:                       power measurements or forecasts (consumption is positive, production is negative)
     """
     bdf: tb.BeliefsDataFrame = TimedBelief.search(
         sensor,
@@ -211,9 +215,14 @@ def get_power_values(
         event_resolution=sensor.event_resolution,
     )
 
-    if sensor.get_attribute(
-        "consumption_is_positive", False
-    ):  # FlexMeasures default is to store consumption as negative power values
+    # Determine the sign convention: if consumption_is_positive is explicitly provided,
+    # use it; otherwise fall back to the sensor's own attribute.
+    if consumption_is_positive is None:
+        consumption_is_positive = sensor.get_attribute(
+            "consumption_is_positive", False
+        )  # FlexMeasures default is to store consumption as negative power values
+
+    if consumption_is_positive:
         return series
 
     return -series

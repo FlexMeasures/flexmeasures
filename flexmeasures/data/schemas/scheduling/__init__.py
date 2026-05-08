@@ -1,4 +1,5 @@
 from __future__ import annotations
+import warnings
 from datetime import timedelta
 from typing import Any, Callable, Dict
 
@@ -297,12 +298,35 @@ class FlexContextSchema(Schema):
         data_key="inflexible-device-sensors",
         metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
     )
+    inflexible_loads = fields.List(
+        SensorIdField(),
+        data_key="inflexible-loads",
+        metadata=metadata.INFLEXIBLE_LOADS.to_dict(),
+    )
+    inflexible_generators = fields.List(
+        SensorIdField(),
+        data_key="inflexible-generators",
+        metadata=metadata.INFLEXIBLE_GENERATORS.to_dict(),
+    )
     aggregate_power = VariableQuantityField(
         to_unit="MW",
         data_key="aggregate-power",
         required=False,
         metadata=metadata.AGGREGATE_POWER.to_dict(),
     )
+
+    @post_load
+    def warn_deprecated_inflexible_device_sensors(self, data: dict, **kwargs):
+        """Emit a deprecation warning if the old `inflexible-device-sensors` field is used."""
+        if "inflexible_device_sensors" in data and data["inflexible_device_sensors"]:
+            warnings.warn(
+                "The `inflexible-device-sensors` field is deprecated. "
+                "Use `inflexible-loads` for sensors with consumption-positive convention "
+                "and `inflexible-generators` for sensors with production-positive convention.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return data
 
     def set_default_breach_prices(
         self, data: dict, fields: list[str], price: ur.Quantity
@@ -569,6 +593,16 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.INFLEXIBLE_DEVICE_SENSORS.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "inflexible-loads": {
+        "default": [],
+        "description": rst_to_openapi(metadata.INFLEXIBLE_LOADS.description),
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "inflexible-generators": {
+        "default": [],
+        "description": rst_to_openapi(metadata.INFLEXIBLE_GENERATORS.description),
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
     "commitments": {
         "default": None,
         "description": rst_to_openapi(metadata.COMMITMENTS.description),
@@ -816,14 +850,21 @@ class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
                 )
 
     def _validate_inflexible_device_sensors(self, data: dict):
-        """Validate inflexible device sensors."""
-        if "inflexible_device_sensors" in data:
-            for sensor in data["inflexible_device_sensors"]:
-                if not is_power_unit(sensor.unit) and not is_energy_unit(sensor.unit):
-                    raise ValidationError(
-                        f"Inflexible device sensor '{sensor.id}' must have a power or energy unit.",
-                        field_name="inflexible-device-sensors",
-                    )
+        """Validate inflexible device sensors (deprecated) and new inflexible-loads/generators fields."""
+        for field_name, data_key in (
+            ("inflexible_device_sensors", "inflexible-device-sensors"),
+            ("inflexible_loads", "inflexible-loads"),
+            ("inflexible_generators", "inflexible-generators"),
+        ):
+            if field_name in data:
+                for sensor in data[field_name]:
+                    if not is_power_unit(sensor.unit) and not is_energy_unit(
+                        sensor.unit
+                    ):
+                        raise ValidationError(
+                            f"Inflexible device sensor '{sensor.id}' must have a power or energy unit.",
+                            field_name=data_key,
+                        )
 
     def _forbid_fixed_prices(self, data: dict, **kwargs):
         """Do not allow fixed consumption price or fixed production price in the flex-context fields saved in the db.
@@ -864,6 +905,24 @@ class MultiSensorFlexModelSchema(Schema):
 
         {
             "sensor": <Sensor 1>,
+            "is_consumption_sensor": None,
+            "sensor_flex_model": {
+                "soc-at-start": "10 kWh"
+            }
+        }
+
+    And:
+
+        {
+            "consumption": 1,
+            "soc-at-start": "10 kWh"
+        }
+
+    becomes:
+
+        {
+            "sensor": <Sensor 1>,
+            "is_consumption_sensor": True,
             "sensor_flex_model": {
                 "soc-at-start": "10 kWh"
             }
@@ -872,6 +931,9 @@ class MultiSensorFlexModelSchema(Schema):
 
     sensor = SensorIdField(required=False)
     asset = GenericAssetIdField(required=False)
+    consumption = SensorIdField(required=False)
+    production = SensorIdField(required=False)
+    is_consumption_sensor = fields.Bool(required=False, load_default=None)
     # it's up to the Scheduler to deserialize the underlying flex-model
     sensor_flex_model = fields.Dict(data_key="sensor-flex-model")
 
@@ -884,11 +946,13 @@ class MultiSensorFlexModelSchema(Schema):
         ):
             raise ValidationError("Sensor does not belong to asset.")
         if "sensor" not in data and "asset" not in data:
-            raise ValidationError("Specify either a sensor or an asset.")
+            raise ValidationError(
+                "Specify either a sensor (or consumption/production) or an asset."
+            )
 
     @pre_load
     def unwrap_envelope(self, data, **kwargs):
-        """Any field other than 'sensor' and 'asset' becomes part of the sensor's flex-model."""
+        """Any field other than 'sensor', 'asset', 'consumption', 'production' becomes part of the sensor's flex-model."""
         extra = {}
         rest = {}
         for k, v in data.items():
@@ -896,6 +960,15 @@ class MultiSensorFlexModelSchema(Schema):
                 extra[k] = v
             else:
                 rest[k] = v
+        # Map consumption/production to sensor and set is_consumption_sensor explicitly.
+        # The deprecated 'sensor' field leaves is_consumption_sensor unset (None),
+        # meaning the sensor's own `consumption_is_positive` attribute will be used as a fallback.
+        if "consumption" in rest:
+            rest["sensor"] = rest.pop("consumption")
+            rest["is_consumption_sensor"] = True
+        elif "production" in rest:
+            rest["sensor"] = rest.pop("production")
+            rest["is_consumption_sensor"] = False
         return {"sensor-flex-model": extra, **rest}
 
     @post_dump

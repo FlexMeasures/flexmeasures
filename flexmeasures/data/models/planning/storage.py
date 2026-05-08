@@ -172,6 +172,8 @@ class MetaStorageScheduler(Scheduler):
         inflexible_device_sensors = self.flex_context.get(
             "inflexible_device_sensors", []
         )
+        inflexible_loads = self.flex_context.get("inflexible_loads", [])
+        inflexible_generators = self.flex_context.get("inflexible_generators", [])
 
         # Fetch the device's power capacity (required Sensor attribute)
         power_capacity_in_mw = self._get_device_power_capacity(flex_model, assets)
@@ -468,18 +470,32 @@ class MetaStorageScheduler(Scheduler):
                 )
                 commitments.append(commitment)
 
+        # Build the combined list of inflexible sensors with their sign convention.
+        # Each entry is (sensor, consumption_is_positive):
+        # - inflexible_loads: positive stored values = consumption → consumption_is_positive=True
+        # - inflexible_generators: positive stored values = production → consumption_is_positive=False
+        # - inflexible_device_sensors (deprecated): use the sensor's own attribute
+        all_inflexible = (
+            [(s, True) for s in inflexible_loads]
+            + [(s, False) for s in inflexible_generators]
+            + [(s, None) for s in inflexible_device_sensors]
+        )
+
         # Set up device constraints: scheduled flexible devices for this EMS (from index 0 to D-1), plus the forecasted inflexible devices (at indices D to n).
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
-            for i in range(num_flexible_devices + len(inflexible_device_sensors))
+            for i in range(num_flexible_devices + len(all_inflexible))
         ]
-        for i, inflexible_sensor in enumerate(inflexible_device_sensors):
+        for i, (inflexible_sensor, consumption_is_positive) in enumerate(
+            all_inflexible
+        ):
             device_constraints[i + num_flexible_devices]["derivative equals"] = (
                 get_power_values(
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
                     sensor=inflexible_sensor,
+                    consumption_is_positive=consumption_is_positive,
                 )
             )
 
@@ -1054,6 +1070,9 @@ class MetaStorageScheduler(Scheduler):
                 ).load(sensor_flex_model["sensor_flex_model"])
                 self.flex_model[d]["sensor"] = sensor_flex_model.get("sensor")
                 self.flex_model[d]["asset"] = sensor_flex_model.get("asset")
+                self.flex_model[d]["is_consumption_sensor"] = sensor_flex_model.get(
+                    "is_consumption_sensor"
+                )
 
                 # Extend schedule period in case a target exceeds its end
                 self.possibly_extend_end(
@@ -1490,11 +1509,22 @@ class StorageFallbackScheduler(MetaStorageScheduler):
             }
 
         if self.return_multiple:
+            # Build a mapping from sensor to is_consumption_sensor (from flex_model if available)
+            is_consumption_sensor_map = {}
+            flex_model = self.flex_model
+            if isinstance(flex_model, list):
+                for fm_item in flex_model:
+                    s = fm_item.get("sensor")
+                    if s is not None and s not in is_consumption_sensor_map:
+                        is_consumption_sensor_map[s] = fm_item.get(
+                            "is_consumption_sensor"
+                        )
             return [
                 {
                     "name": "storage_schedule",
                     "sensor": sensor,
                     "data": storage_schedule[sensor],
+                    "is_consumption_sensor": is_consumption_sensor_map.get(sensor),
                 }
                 for sensor in sensors
                 if sensor is not None
@@ -1663,12 +1693,19 @@ class StorageScheduler(MetaStorageScheduler):
             }
 
         if self.return_multiple:
+            # Build a mapping from sensor to is_consumption_sensor (from flex_model if available)
+            is_consumption_sensor_map = {}
+            for fm_item in flex_model:
+                s = fm_item.get("sensor")
+                if s is not None and s not in is_consumption_sensor_map:
+                    is_consumption_sensor_map[s] = fm_item.get("is_consumption_sensor")
             storage_schedules = [
                 {
                     "name": "storage_schedule",
                     "sensor": sensor,
                     "data": storage_schedule[sensor],
                     "unit": sensor.unit,
+                    "is_consumption_sensor": is_consumption_sensor_map.get(sensor),
                 }
                 for sensor in storage_schedule.keys()
                 if sensor is not None
