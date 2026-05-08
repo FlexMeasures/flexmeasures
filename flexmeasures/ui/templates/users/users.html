@@ -58,8 +58,8 @@
                 <a href="/accounts/${account["id"]}" title="View this account">${account["name"]}</a>
               `;
       this.timezone = timezone;
-      this.lastLogin = lastLogin;
-      this.lastSeen = lastSeen;
+      this.lastLogin = lastLogin ? getHumanFriendlyDeltaOrTimeStr(lastLogin) : "";
+      this.lastSeen = lastSeen ? getHumanFriendlyDeltaOrTimeStr(lastSeen) : "";
       this.active = active;
    }
 
