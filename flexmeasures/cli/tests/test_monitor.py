@@ -26,6 +26,7 @@ def test_monitor_help(app):
         assert "--inform-this-user" in result.output
     result = runner.invoke(monitor_last_seen, ["--help"])
     assert "--account" in result.output
+    assert "--clients-of-this-consultant" in result.output
 
 
 def test_get_default_monitoring_email_recipients_prefers_new_config(app, monkeypatch):

@@ -196,6 +196,8 @@ def send_lastseen_monitoring_alert(
     last_seen_delta: timedelta,
     alerted_users: bool,
     account_ids: list[int] | None = None,
+    client_account_ids: list[int] | None = None,
+    consultant_account_id: int | None = None,
     account_role: str | None = None,
     user_role: str | None = None,
     txt_about_already_alerted_users: str = "",
@@ -231,6 +233,8 @@ def send_lastseen_monitoring_alert(
             "delta": last_seen_delta,
             "alerted_users": alerted_users,
             "account_ids": account_ids,
+            "client_account_ids": client_account_ids,
+            "consultant_account_id": consultant_account_id,
             "account_role": account_role,
             "user_role": user_role,
         },
@@ -245,6 +249,18 @@ def send_lastseen_monitoring_alert(
         else:
             account_ids_txt = ", ".join(str(account_id) for account_id in account_ids)
             msg += f"\nThis alert concerns users whose accounts have IDs {account_ids_txt}."
+    if consultant_account_id:
+        msg += (
+            "\nThis alert concerns users whose accounts are clients of consultant "
+            f"account {consultant_account_id}"
+        )
+        if client_account_ids:
+            client_account_ids_txt = ", ".join(
+                str(account_id) for account_id in client_account_ids
+            )
+            msg += f" ({client_account_ids_txt})."
+        else:
+            msg += "."
     if account_role:
         msg += f"\nThis alert concerns users whose accounts have the role '{account_role}'."
     if user_role:
@@ -270,6 +286,34 @@ def send_lastseen_monitoring_alert(
     )
 
     app.logger.error(msg)
+
+
+def get_absent_users(
+    last_seen_delta: timedelta,
+    account_ids: list[int],
+    client_account_ids: list[int],
+    filter_by_client_accounts: bool,
+    account_role: str | None = None,
+    user_role: str | None = None,
+) -> list[User]:
+    """
+    Get users whose last contact is too old, narrowed down by account and role filters.
+    """
+    query = select(User).filter(
+        User.last_seen_at < datetime.now(timezone.utc) - last_seen_delta
+    )
+    if account_ids:
+        query = query.filter(User.account_id.in_(account_ids))
+    if filter_by_client_accounts:
+        query = query.filter(User.account_id.in_(client_account_ids))
+    query = query.order_by(User.last_seen_at.asc())
+    users = db.session.scalars(query).all()
+
+    if account_role is not None:
+        users = [user for user in users if user.account.has_role(account_role)]
+    if user_role is not None:
+        users = [user for user in users if user.has_role(user_role)]
+    return users
 
 
 @fm_monitor.command("last-seen")
@@ -298,6 +342,11 @@ def send_lastseen_monitoring_alert(
     type=AccountIdField(),
     multiple=True,
     help="The ID of an account to filter for. Use multiple times if needed.",
+)
+@click.option(
+    "--clients-of-this-consultant",
+    type=AccountIdField(),
+    help="The ID of a consultant account whose client accounts should be monitored.",
 )
 @click.option(
     "--user-role",
@@ -333,6 +382,7 @@ def monitor_last_seen(
     alert_users: bool = False,
     account_role: str | None = None,
     accounts: tuple[Account, ...] = (),
+    clients_of_this_consultant: Account | None = None,
     user_role: str | None = None,
     custom_user_message: str | None = None,
     only_newly_absent_users: bool = True,
@@ -363,17 +413,22 @@ def monitor_last_seen(
     )
     email_recipients = get_monitoring_email_recipients(inform_this_user)
     account_ids = [account.id for account in accounts]
+    client_account_ids = (
+        [account.id for account in clients_of_this_consultant.get_all_client_accounts()]
+        if clients_of_this_consultant is not None
+        else []
+    )
 
     try:
         latest_run: LatestTaskRun = db.session.get(LatestTaskRun, task_name)
-        # find users we haven't seen in the given time window (last_seen_at is naive UTC)
-        query = select(User).filter(
-            User.last_seen_at < datetime.now(timezone.utc) - last_seen_delta
+        users = get_absent_users(
+            last_seen_delta,
+            account_ids,
+            client_account_ids,
+            clients_of_this_consultant is not None,
+            account_role,
+            user_role,
         )
-        if account_ids:
-            query = query.filter(User.account_id.in_(account_ids))
-        query = query.order_by(User.last_seen_at.asc())
-        users = db.session.scalars(query).all()
     except (sqla_exc.ResourceClosedError, sqla_exc.DatabaseError):
         if len(email_recipients) > 0:
             email = Message(
@@ -384,11 +439,6 @@ def monitor_last_seen(
             app.mail.send(email)
         raise click.Abort()
 
-    # role filters
-    if account_role is not None:
-        users = [user for user in users if user.account.has_role(account_role)]
-    if user_role is not None:
-        users = [user for user in users if user.has_role(user_role)]
     # filter out users who we already included in this check's last run
     txt_about_already_alerted_users = ""
     if only_newly_absent_users and latest_run:
@@ -436,6 +486,10 @@ def monitor_last_seen(
         last_seen_delta,
         alerted_users=alert_users,
         account_ids=account_ids,
+        client_account_ids=client_account_ids,
+        consultant_account_id=(
+            clients_of_this_consultant.id if clients_of_this_consultant else None
+        ),
         account_role=account_role,
         user_role=user_role,
         txt_about_already_alerted_users=txt_about_already_alerted_users,
