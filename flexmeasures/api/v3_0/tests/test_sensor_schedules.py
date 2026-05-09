@@ -155,7 +155,7 @@ def test_trigger_schedule_floors_flex_model_datetimes(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_trigger_schedule_invalid_flex_model_datetime_returns_422(
+def test_trigger_schedule_with_invalid_flex_model_datetime(
     app,
     add_battery_assets,
     keep_scheduling_queue_empty,
@@ -173,12 +173,10 @@ def test_trigger_schedule_invalid_flex_model_datetime_returns_422(
 
     assert trigger_schedule_response.status_code == 422
     assert "soc-minima" in trigger_schedule_response.json["message"]["json"]
-    assert (
-        "Not a valid datetime"
-        in trigger_schedule_response.json["message"]["json"]["soc-minima"]["0"][
-            "datetime"
-        ][0]
-    )
+    datetime_error = trigger_schedule_response.json["message"]["json"]["soc-minima"][
+        "0"
+    ]["datetime"][0]
+    assert "Not a valid datetime" in datetime_error
 
 
 @pytest.mark.parametrize(
