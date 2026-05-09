@@ -172,11 +172,12 @@ def test_trigger_schedule_with_invalid_flex_model_datetime(
         )
 
     assert trigger_schedule_response.status_code == 422
-    assert "soc-minima" in trigger_schedule_response.json["message"]["json"]
-    datetime_error = trigger_schedule_response.json["message"]["json"]["soc-minima"][
-        "0"
-    ]["datetime"][0]
-    assert "Not a valid datetime" in datetime_error
+    errors = trigger_schedule_response.json["message"]["json"]
+    minima_errors = errors.get("soc-minima", {})
+    timed_event_errors = minima_errors.get("0", {})
+    datetime_errors = timed_event_errors.get("datetime", [])
+    assert datetime_errors
+    assert "Not a valid datetime" in datetime_errors[0]
 
 
 @pytest.mark.parametrize(
