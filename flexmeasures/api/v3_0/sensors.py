@@ -233,17 +233,30 @@ def floor_timed_event_datetimes(flex_model: dict, sensor: Sensor) -> dict:
         return flex_model
 
     floored_flex_model = deepcopy(flex_model)
-    for value in floored_flex_model.values():
+    for value_name, value in floored_flex_model.items():
         if not isinstance(value, list):
             continue
-        for timed_event in value:
+        for index, timed_event in enumerate(value):
             if not isinstance(timed_event, dict):
                 continue
             for key in ("datetime", "start", "end"):
                 if key in timed_event:
-                    timed_event[key] = isodate.datetime_isoformat(
-                        pd.Timestamp(timed_event[key]).floor(sensor.event_resolution)
-                    )
+                    try:
+                        timed_event[key] = isodate.datetime_isoformat(
+                            pd.Timestamp(timed_event[key]).floor(sensor.event_resolution)
+                        )
+                    except (TypeError, ValueError) as exc:
+                        raise ValidationError(
+                            {
+                                value_name: {
+                                    index: {
+                                        key: [
+                                            f"Not a valid datetime: {timed_event[key]!r}."
+                                        ]
+                                    }
+                                }
+                            }
+                        ) from exc
     return floored_flex_model
 
 
