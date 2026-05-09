@@ -243,7 +243,9 @@ def floor_timed_event_datetimes(flex_model: dict, sensor: Sensor) -> dict:
                 if key in timed_event:
                     try:
                         timed_event[key] = isodate.datetime_isoformat(
-                            pd.Timestamp(timed_event[key]).floor(sensor.event_resolution)
+                            pd.Timestamp(timed_event[key]).floor(
+                                sensor.event_resolution
+                            )
                         )
                     except (TypeError, ValueError) as exc:
                         raise ValidationError(
