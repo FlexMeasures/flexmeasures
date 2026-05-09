@@ -172,9 +172,14 @@ def test_trigger_schedule_with_invalid_flex_model_datetime(
         )
 
     assert trigger_schedule_response.status_code == 422
+    assert "message" in trigger_schedule_response.json
+    assert "json" in trigger_schedule_response.json["message"]
     errors = trigger_schedule_response.json["message"]["json"]
+    assert "soc-minima" in errors
     minima_errors = errors.get("soc-minima", {})
+    assert "0" in minima_errors
     timed_event_errors = minima_errors.get("0", {})
+    assert "datetime" in timed_event_errors
     datetime_errors = timed_event_errors.get("datetime", [])
     assert datetime_errors
     assert "Not a valid datetime" in datetime_errors[0]
