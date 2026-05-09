@@ -29,10 +29,42 @@ def fm_monitor():
     """FlexMeasures: Monitor tasks."""
 
 
-def get_email_recipients():
-    recipients = app.config.get("FLEXMEASURES_MONITORING_MAIL_RECIPIENTS", [])
+def get_default_monitoring_email_recipients():
+    recipients = app.config.get("FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS", [])
+    deprecated_recipients = app.config.get("FLEXMEASURES_MONITORING_MAIL_RECIPIENTS")
+    if deprecated_recipients:
+        app.logger.warning(
+            "FLEXMEASURES_MONITORING_MAIL_RECIPIENTS is deprecated. Use "
+            "FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS instead."
+        )
+        if not recipients:
+            recipients = deprecated_recipients
     if isinstance(recipients, str):
         recipients = [recipients]
+    return recipients
+
+
+def get_monitoring_email_recipients(
+    informed_users: tuple[str | int, ...] = ()
+) -> list[str]:
+    if not informed_users:
+        return get_default_monitoring_email_recipients()
+
+    recipients = []
+    for user_identifier in informed_users:
+        user_identifier = str(user_identifier)
+        if user_identifier.isdecimal():
+            user = db.session.get(User, int(user_identifier))
+        else:
+            user = db.session.execute(
+                select(User).filter_by(email=user_identifier)
+            ).scalar_one_or_none()
+        if user is None:
+            raise click.BadParameter(
+                f"No user with ID or email address {user_identifier} exists.",
+                param_hint="--inform-this-user",
+            )
+        recipients.append(user.email)
     return recipients
 
 
@@ -41,6 +73,7 @@ def send_task_monitoring_alert(
     msg: str,
     latest_run: LatestTaskRun | None = None,
     custom_msg: str | None = None,
+    email_recipients: list[str] | None = None,
 ):
     """
     Send any monitoring message per Sentry and per email. Also log an error.
@@ -60,8 +93,12 @@ def send_task_monitoring_alert(
 
     capture_message_for_sentry(msg)
 
-    email_recipients = get_email_recipients()
+    if email_recipients is None:
+        email_recipients = get_default_monitoring_email_recipients()
     if len(email_recipients) > 0:
+        app.logger.debug(
+            f"Monitoring alert about latest task run of {task_name}, send to {email_recipients}"
+        )
         email = Message(subject=f"Problem with task {task_name}", bcc=email_recipients)
         email.body = (
             f"{msg}\n\n{latest_run_txt}\nWe suggest to check the logs.{custom_msg_txt}"
@@ -86,13 +123,20 @@ def send_task_monitoring_alert(
     default="",
     help="Add this message to the monitoring alert (if one is sent).",
 )
-def monitor_latest_run(task, custom_message):
+@click.option(
+    "--inform-this-user",
+    type=str,
+    multiple=True,
+    help="User ID or email address to send the monitoring alert to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
+)
+def monitor_latest_run(task, custom_message, inform_this_user: tuple[str, ...] = ()):
     """
     Check if the given task's last successful execution happened less than the allowed time ago.
 
     Tasks are CLI commands with the @task_with_status_report decorator.
     If not, alert someone, via email or sentry.
     """
+    email_recipients = get_monitoring_email_recipients(inform_this_user)
     for t in task:
         task_name = t[0]
         app.logger.info(f"Checking latest run of task {task_name} ...")
@@ -100,11 +144,21 @@ def monitor_latest_run(task, custom_message):
             latest_run: LatestTaskRun = db.session.get(LatestTaskRun, task_name)
         except (sqla_exc.ResourceClosedError, sqla_exc.DatabaseError):
             msg = f"Task {task_name} could not be checked due to a database connectivity problem."
-            send_task_monitoring_alert(task_name, msg, custom_msg=custom_message)
+            send_task_monitoring_alert(
+                task_name,
+                msg,
+                custom_msg=custom_message,
+                email_recipients=email_recipients,
+            )
             raise click.Abort()
         if latest_run is None:
             msg = f"Task {task_name} has no last run and thus cannot be monitored. Is it configured properly?"
-            send_task_monitoring_alert(task_name, msg, custom_msg=custom_message)
+            send_task_monitoring_alert(
+                task_name,
+                msg,
+                custom_msg=custom_message,
+                email_recipients=email_recipients,
+            )
             raise click.Abort()
 
         now = server_now()
@@ -115,7 +169,11 @@ def monitor_latest_run(task, custom_message):
             if latest_run.status is False:
                 msg = f"A failure has been reported on task {task_name}."
                 send_task_monitoring_alert(
-                    task_name, msg, latest_run=latest_run, custom_msg=custom_message
+                    task_name,
+                    msg,
+                    latest_run=latest_run,
+                    custom_msg=custom_message,
+                    email_recipients=email_recipients,
                 )
         else:
             msg = (
@@ -123,7 +181,11 @@ def monitor_latest_run(task, custom_message):
                 f" ({acceptable_interval})."
             )
             send_task_monitoring_alert(
-                task_name, msg, latest_run=latest_run, custom_msg=custom_message
+                task_name,
+                msg,
+                latest_run=latest_run,
+                custom_msg=custom_message,
+                email_recipients=email_recipients,
             )
     app.logger.info("Done checking task runs ...")
 
@@ -135,6 +197,7 @@ def send_lastseen_monitoring_alert(
     account_role: str | None = None,
     user_role: str | None = None,
     txt_about_already_alerted_users: str = "",
+    email_recipients: list[str] | None = None,
 ):
     """
     Tell monitoring recipients and Sentry about user(s) we haven't seen in a while.
@@ -178,13 +241,17 @@ def send_lastseen_monitoring_alert(
         msg += (
             "\n\nThe user(s) has/have not been notified (--alert-users was not used)."
         )
-    email_recipients = get_email_recipients()
+    if email_recipients is None:
+        email_recipients = get_default_monitoring_email_recipients()
     if len(email_recipients) > 0:
         email = Message(
             subject="Last contact by user(s) too long ago", bcc=email_recipients
         )
         email.body = msg
         app.mail.send(email)
+    app.logger.debug(
+        f"Monitoring alert about users not seen in a while, send to {email_recipients}"
+    )
 
     app.logger.error(msg)
 
@@ -231,6 +298,12 @@ def send_lastseen_monitoring_alert(
     default="monitor-last-seen-users",
     help="Optional name of the task, to distinguish finding out when the last monitoring happened (see --only-newly-absent-users).",
 )
+@click.option(
+    "--inform-this-user",
+    type=str,
+    multiple=True,
+    help="User ID or email address to send the monitoring alert to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
+)
 def monitor_last_seen(
     maximum_minutes_since_last_seen: int,
     alert_users: bool = False,
@@ -239,6 +312,7 @@ def monitor_last_seen(
     custom_user_message: str | None = None,
     only_newly_absent_users: bool = True,
     task_name: str = "monitor-last-seen-users",
+    inform_this_user: tuple[str, ...] = (),
 ):
     """
     Check if given users last contact (via a request) happened less than the allowed time ago.
@@ -259,17 +333,19 @@ def monitor_last_seen(
     last_seen_delta = timedelta(minutes=maximum_minutes_since_last_seen)
     latest_run: LatestTaskRun | None = None
     users: list[User] = []
+    app.logger.debug(
+        f"Checking which users have not been seen for more than {last_seen_delta} ..."
+    )
+    email_recipients = get_monitoring_email_recipients(inform_this_user)
 
     try:
         latest_run: LatestTaskRun = db.session.get(LatestTaskRun, task_name)
         # find users we haven't seen in the given time window (last_seen_at is naive UTC)
-        users = db.session.scalars(
-            select(User).filter(
-                User.last_seen_at < datetime.now(timezone.utc) - last_seen_delta
-            )
-        ).all()
+        query = select(User).filter(
+            User.last_seen_at < datetime.now(timezone.utc) - last_seen_delta
+        )
+        users = db.session.scalars(query).all()
     except (sqla_exc.ResourceClosedError, sqla_exc.DatabaseError):
-        email_recipients = get_email_recipients()
         if len(email_recipients) > 0:
             email = Message(
                 subject="Could not monitor last seen status of users",
@@ -333,6 +409,7 @@ def monitor_last_seen(
         account_role=account_role,
         user_role=user_role,
         txt_about_already_alerted_users=txt_about_already_alerted_users,
+        email_recipients=email_recipients,
     )
 
     # remember that we checked at this time

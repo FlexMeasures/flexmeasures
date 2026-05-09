@@ -23,16 +23,20 @@ Here is an example for illustration:
 
     $ flexmeasures monitor last-seen --account-role SubscriberToServiceXYZ --user-role bot --maximum-minutes-since-last-seen 100
 
-As you see, users are filtered by roles. You might need to add roles before this works as you want.
+As you see, users are filtered by roles. You might need to add roles before this works as you want. Use ``--inform-this-user`` one or more times to send the monitoring alert to specific FlexMeasures user IDs or email addresses. If you do not use ``--inform-this-user``, FlexMeasures falls back to :ref:`default_monitoring_mail_recipients`.
 
-.. todo:: Adding roles and assigning them to users and/or accounts is not supported by the CLI or UI yet (besides ``flexmeasures add account-role``). This is `work in progress <https://github.com/FlexMeasures/flexmeasures/projects/18>`_. Right now, it requires you to add roles on the database level. 
+.. code-block:: bash
+
+    $ flexmeasures monitor last-seen --account-role SubscriberToServiceXYZ --user-role bot --maximum-minutes-since-last-seen 100 --inform-this-user 42 --inform-this-user alerts@example.com
+
+.. todo:: Adding roles and assigning them to accounts is not supported by the UI yet (user roles can be added in the UI). Account roles can be added with ``flexmeasures add account-role``.
 
 
 Monitoring task runs
 ---------------------
 
 The CLI task ``flexmeasures monitor latest-run`` lets you be alerted when tasks have not successfully run at least so-and-so many minutes ago.
-The alerts will come in via Sentry, but you can also send them to email addresses with the config setting :ref:`monitoring_mail_recipients`.
+The alerts will come in via Sentry, but you can also send them to specific FlexMeasures user IDs or email addresses with ``--inform-this-user`` or to email addresses with the config setting :ref:`default_monitoring_mail_recipients`.
 
 For illustration, here is one example of how we monitor the latest run times of tasks on a server ― the below is run in a cron script every hour and checks if every listed task ran 60, 6 or 1440 minutes ago, respectively:
 
@@ -61,4 +65,3 @@ Per default the function name is used as task name. If the number of tasks accum
     @task_with_status_report("pluginA_myFunction")
     def my_function():
         ...
-
