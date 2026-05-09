@@ -24,10 +24,13 @@ Here is an example for illustration:
     $ flexmeasures monitor last-seen --account-role SubscriberToServiceXYZ --user-role bot --maximum-minutes-since-last-seen 100
 
 As you see, users are filtered by roles. You might need to add roles before this works as you want. Use ``--inform-this-user`` one or more times to send the monitoring alert to specific FlexMeasures user IDs or email addresses. If you do not use ``--inform-this-user``, FlexMeasures falls back to :ref:`default_monitoring_mail_recipients`.
+You can also narrow the check to users in one or more accounts with ``--account``.
+Use ``--account`` multiple times to include multiple accounts.
+If you run distinct filters, such as separate checks per account or account group, use distinct ``--task-name`` values so the ``--only-newly-absent-users`` feature tracks each filter independently.
 
 .. code-block:: bash
 
-    $ flexmeasures monitor last-seen --account-role SubscriberToServiceXYZ --user-role bot --maximum-minutes-since-last-seen 100 --inform-this-user 42 --inform-this-user alerts@example.com
+    $ flexmeasures monitor last-seen --task-name monitor-last-seen-account-12 --account 12 --account-role SubscriberToServiceXYZ --user-role bot --maximum-minutes-since-last-seen 100 --inform-this-user 42 --inform-this-user alerts@example.com
 
 .. todo:: Adding roles and assigning them to accounts is not supported by the UI yet (user roles can be added in the UI). Account roles can be added with ``flexmeasures add account-role``.
 

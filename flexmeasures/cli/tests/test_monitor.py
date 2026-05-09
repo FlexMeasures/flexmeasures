@@ -1,4 +1,7 @@
+import re
 from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import select
 
 from flexmeasures.data.models.task_runs import LatestTaskRun
 from flexmeasures.data.models.user import User
@@ -21,6 +24,8 @@ def test_monitor_help(app):
 
         assert result.exit_code == 0
         assert "--inform-this-user" in result.output
+    result = runner.invoke(monitor_last_seen, ["--help"])
+    assert "--account" in result.output
 
 
 def test_get_default_monitoring_email_recipients_prefers_new_config(app, monkeypatch):
@@ -250,6 +255,163 @@ def test_monitor_last_seen_uses_deprecated_config_fallback(
     assert result.exit_code == 0
     assert len(outbox) == 1
     assert outbox[0].bcc == ["ops@example.test"]
+
+
+def test_monitor_last_seen_filters_users_by_account_id(
+    app, fresh_db, setup_roles_users_fresh_db, setup_accounts_fresh_db, monkeypatch
+):
+    from flexmeasures.cli import monitor
+    from flexmeasures.cli.monitor import monitor_last_seen
+
+    monkeypatch.setattr(monitor, "capture_message_for_sentry", lambda msg: None)
+    monkeypatch.setattr(monitor, "set_sentry_context", lambda *args, **kwargs: None)
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS",
+        ["ops@example.test"],
+    )
+    for user in fresh_db.session.scalars(select(User)).all():
+        user.last_seen_at = datetime.now(timezone.utc)
+    prosumer_user = fresh_db.session.get(
+        User, setup_roles_users_fresh_db["Test Prosumer User"]
+    )
+    supplier_user = fresh_db.session.get(
+        User, setup_roles_users_fresh_db["Test Supplier User"]
+    )
+    prosumer_user.last_seen_at = datetime.now(timezone.utc) - timedelta(minutes=120)
+    supplier_user.last_seen_at = datetime.now(timezone.utc) - timedelta(minutes=120)
+    fresh_db.session.commit()
+
+    with app.mail.record_messages() as outbox:
+        result = app.test_cli_runner().invoke(
+            monitor_last_seen,
+            [
+                "--maximum-minutes-since-last-seen",
+                "30",
+                "--all-absent-users",
+                "--account",
+                str(setup_accounts_fresh_db["Prosumer"].id),
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert len(outbox) == 1
+    assert "User ID" in outbox[0].body
+    assert "Account ID" in outbox[0].body
+    assert re.search(
+        rf"^{prosumer_user.username}\s+{prosumer_user.id}\s+{prosumer_user.account_id}\s+",
+        outbox[0].body,
+        flags=re.MULTILINE,
+    )
+    assert prosumer_user.username in outbox[0].body
+    assert supplier_user.username not in outbox[0].body
+    assert f"account has ID {setup_accounts_fresh_db['Prosumer'].id}" in outbox[0].body
+
+
+def test_monitor_last_seen_combines_account_id_and_user_role_filters(
+    app, fresh_db, setup_roles_users_fresh_db, setup_accounts_fresh_db, monkeypatch
+):
+    from flexmeasures.cli import monitor
+    from flexmeasures.cli.monitor import monitor_last_seen
+
+    monkeypatch.setattr(monitor, "capture_message_for_sentry", lambda msg: None)
+    monkeypatch.setattr(monitor, "set_sentry_context", lambda *args, **kwargs: None)
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS",
+        ["ops@example.test"],
+    )
+    plain_user = fresh_db.session.get(
+        User, setup_roles_users_fresh_db["Test Prosumer User"]
+    )
+    account_admin = fresh_db.session.get(
+        User, setup_roles_users_fresh_db["Test Prosumer User 2"]
+    )
+    plain_user.last_seen_at = datetime.now(timezone.utc) - timedelta(minutes=120)
+    account_admin.last_seen_at = datetime.now(timezone.utc) - timedelta(minutes=120)
+    fresh_db.session.commit()
+
+    with app.mail.record_messages() as outbox:
+        result = app.test_cli_runner().invoke(
+            monitor_last_seen,
+            [
+                "--maximum-minutes-since-last-seen",
+                "30",
+                "--all-absent-users",
+                "--account",
+                str(setup_accounts_fresh_db["Prosumer"].id),
+                "--user-role",
+                "account-admin",
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert len(outbox) == 1
+    assert account_admin.username in outbox[0].body
+    assert f"{plain_user.username}  " not in outbox[0].body
+
+
+def test_monitor_last_seen_without_account_id_reports_users_from_all_accounts(
+    app, fresh_db, setup_roles_users_fresh_db, monkeypatch
+):
+    from flexmeasures.cli import monitor
+    from flexmeasures.cli.monitor import monitor_last_seen
+
+    monkeypatch.setattr(monitor, "capture_message_for_sentry", lambda msg: None)
+    monkeypatch.setattr(monitor, "set_sentry_context", lambda *args, **kwargs: None)
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS",
+        ["ops@example.test"],
+    )
+    for user in fresh_db.session.scalars(select(User)).all():
+        user.last_seen_at = datetime.now(timezone.utc)
+    prosumer_user = fresh_db.session.get(
+        User, setup_roles_users_fresh_db["Test Prosumer User"]
+    )
+    supplier_user = fresh_db.session.get(
+        User, setup_roles_users_fresh_db["Test Supplier User"]
+    )
+    prosumer_user.last_seen_at = datetime.now(timezone.utc) - timedelta(minutes=120)
+    supplier_user.last_seen_at = datetime.now(timezone.utc) - timedelta(minutes=180)
+    fresh_db.session.commit()
+
+    with app.mail.record_messages() as outbox:
+        result = app.test_cli_runner().invoke(
+            monitor_last_seen,
+            [
+                "--maximum-minutes-since-last-seen",
+                "30",
+                "--all-absent-users",
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert len(outbox) == 1
+    assert prosumer_user.username in outbox[0].body
+    assert supplier_user.username in outbox[0].body
+    assert outbox[0].body.index(supplier_user.username) < outbox[0].body.index(
+        prosumer_user.username
+    )
+
+
+def test_monitor_last_seen_rejects_unknown_account_id(app, fresh_db):
+    from flexmeasures.cli.monitor import monitor_last_seen
+
+    with app.mail.record_messages() as outbox:
+        result = app.test_cli_runner().invoke(
+            monitor_last_seen,
+            [
+                "--maximum-minutes-since-last-seen",
+                "30",
+                "--account",
+                "9999",
+            ],
+        )
+
+    assert result.exit_code != 0
+    assert "No account found with id 9999" in result.output
+    assert len(outbox) == 0
 
 
 def test_monitor_last_seen_informs_requested_user(

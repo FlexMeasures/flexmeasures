@@ -19,7 +19,8 @@ from tabulate import tabulate
 
 from flexmeasures.data import db
 from flexmeasures.data.models.task_runs import LatestTaskRun
-from flexmeasures.data.models.user import User
+from flexmeasures.data.models.user import Account, User
+from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.cli.utils import MsgStyle
 
@@ -194,6 +195,7 @@ def send_lastseen_monitoring_alert(
     users: list[User],
     last_seen_delta: timedelta,
     alerted_users: bool,
+    account_ids: list[int] | None = None,
     account_role: str | None = None,
     user_role: str | None = None,
     txt_about_already_alerted_users: str = "",
@@ -204,7 +206,12 @@ def send_lastseen_monitoring_alert(
     """
 
     user_info = [
-        [user.username, user.last_seen_at.strftime("%d %b %Y %I:%M:%S %p")]
+        [
+            user.username,
+            user.id,
+            user.account_id,
+            user.last_seen_at.strftime("%d %b %Y %I:%M:%S %p"),
+        ]
         for user in users
     ]
 
@@ -213,7 +220,9 @@ def send_lastseen_monitoring_alert(
         f" than {last_seen_delta}, even though we expect they would have:\n\n"
     )
 
-    msg += tabulate(user_info, headers=["User", "Last contact"])
+    msg += tabulate(
+        user_info, headers=["User", "User ID", "Account ID", "Last contact"]
+    )
 
     # Sentry
     set_sentry_context(
@@ -221,6 +230,7 @@ def send_lastseen_monitoring_alert(
         {
             "delta": last_seen_delta,
             "alerted_users": alerted_users,
+            "account_ids": account_ids,
             "account_role": account_role,
             "user_role": user_role,
         },
@@ -229,6 +239,12 @@ def send_lastseen_monitoring_alert(
 
     # Email
     msg += "\n"
+    if account_ids:
+        if len(account_ids) == 1:
+            msg += f"\nThis alert concerns users whose account has ID {account_ids[0]}."
+        else:
+            account_ids_txt = ", ".join(str(account_id) for account_id in account_ids)
+            msg += f"\nThis alert concerns users whose accounts have IDs {account_ids_txt}."
     if account_role:
         msg += f"\nThis alert concerns users whose accounts have the role '{account_role}'."
     if user_role:
@@ -276,6 +292,14 @@ def send_lastseen_monitoring_alert(
     help="The name of an account role to filter for.",
 )
 @click.option(
+    "--account",
+    "accounts",
+    required=False,
+    type=AccountIdField(),
+    multiple=True,
+    help="The ID of an account to filter for. Use multiple times if needed.",
+)
+@click.option(
     "--user-role",
     type=str,
     help="The name of a user role to filter for.",
@@ -308,6 +332,7 @@ def monitor_last_seen(
     maximum_minutes_since_last_seen: int,
     alert_users: bool = False,
     account_role: str | None = None,
+    accounts: tuple[Account, ...] = (),
     user_role: str | None = None,
     custom_user_message: str | None = None,
     only_newly_absent_users: bool = True,
@@ -337,6 +362,7 @@ def monitor_last_seen(
         f"Checking which users have not been seen for more than {last_seen_delta} ..."
     )
     email_recipients = get_monitoring_email_recipients(inform_this_user)
+    account_ids = [account.id for account in accounts]
 
     try:
         latest_run: LatestTaskRun = db.session.get(LatestTaskRun, task_name)
@@ -344,6 +370,9 @@ def monitor_last_seen(
         query = select(User).filter(
             User.last_seen_at < datetime.now(timezone.utc) - last_seen_delta
         )
+        if account_ids:
+            query = query.filter(User.account_id.in_(account_ids))
+        query = query.order_by(User.last_seen_at.asc())
         users = db.session.scalars(query).all()
     except (sqla_exc.ResourceClosedError, sqla_exc.DatabaseError):
         if len(email_recipients) > 0:
@@ -406,6 +435,7 @@ def monitor_last_seen(
         users,
         last_seen_delta,
         alerted_users=alert_users,
+        account_ids=account_ids,
         account_role=account_role,
         user_role=user_role,
         txt_about_already_alerted_users=txt_about_already_alerted_users,
