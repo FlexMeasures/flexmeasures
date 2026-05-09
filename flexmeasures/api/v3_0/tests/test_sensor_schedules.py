@@ -153,6 +153,35 @@ def test_trigger_schedule_floors_flex_model_datetimes(
 
 
 @pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_schedule_invalid_flex_model_datetime_returns_422(
+    app,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    message = message_for_trigger_schedule(with_targets=True)
+    message["flex-model"]["soc-minima"][0]["datetime"] = "not-a-datetime"
+
+    sensor = add_battery_assets["Test battery"].sensors[0]
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+
+    assert trigger_schedule_response.status_code == 422
+    assert "soc-minima" in trigger_schedule_response.json["message"]["json"]
+    assert (
+        "Not a valid datetime"
+        in trigger_schedule_response.json["message"]["json"]["soc-minima"]["0"][
+            "datetime"
+        ][0]
+    )
+
+
+@pytest.mark.parametrize(
     "flex_config, field",
     [
         ("flex-context", "site-consumption-capacity"),

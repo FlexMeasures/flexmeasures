@@ -940,7 +940,10 @@ class SensorAPI(FlaskView):
             )
 
         if flex_model is not None:
-            flex_model = floor_timed_event_datetimes(flex_model, sensor)
+            try:
+                flex_model = floor_timed_event_datetimes(flex_model, sensor)
+            except ValidationError as err:
+                return unprocessable_entity(err.messages)
 
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
