@@ -8,10 +8,31 @@ from datetime import timedelta
 
 from marshmallow import ValidationError
 
+from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
+
+
+def test_custom_lgbm_falls_back_when_daily_lag_is_under_sampled():
+    """Short histories should keep the old lag pattern instead of failing."""
+    under_sampled_model = CustomLGBM(
+        max_forecast_horizon=192,
+        probabilistic=False,
+        seasonal_lag_steps=96,
+        training_sample_count=288,
+    )
+    assert under_sampled_model.models[96].lags["target"] == [-24, -1]
+    assert under_sampled_model.models[-1].lags["target"] == [-24, -1]
+
+    sufficiently_sampled_model = CustomLGBM(
+        max_forecast_horizon=192,
+        probabilistic=False,
+        seasonal_lag_steps=96,
+        training_sample_count=384,
+    )
+    assert sufficiently_sampled_model.models[-1].lags["target"] == [-96, -1]
 
 
 @pytest.mark.parametrize(

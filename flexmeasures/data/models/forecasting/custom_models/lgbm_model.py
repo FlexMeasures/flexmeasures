@@ -31,6 +31,9 @@ class CustomLGBM(BaseModel):
         use_future_covariates=False,
         ensure_positive=False,
         seasonal_lag_steps=24,
+        fallback_lag_steps=24,
+        training_sample_count=None,
+        min_samples_per_horizon=2,
     ):
 
         if models_params is None:
@@ -53,6 +56,12 @@ class CustomLGBM(BaseModel):
             }
         else:
             self.models_params = models_params
+        if (
+            training_sample_count is not None
+            and training_sample_count - seasonal_lag_steps - (max_forecast_horizon - 1)
+            < min_samples_per_horizon
+        ):
+            seasonal_lag_steps = fallback_lag_steps
         self.seasonal_lag_steps = seasonal_lag_steps
         super().__init__(
             max_forecast_horizon=max_forecast_horizon,

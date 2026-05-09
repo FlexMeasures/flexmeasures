@@ -129,6 +129,7 @@ class TrainPipeline(BasePipeline):
                 seasonal_lag_steps=max(
                     int(timedelta(days=1) / self.target_sensor.event_resolution), 1
                 ),
+                training_sample_count=len(y_train),
             )
         }
 
