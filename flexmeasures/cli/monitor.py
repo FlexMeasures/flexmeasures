@@ -344,7 +344,7 @@ def get_absent_users(
     help="The ID of an account to filter for. Use multiple times if needed.",
 )
 @click.option(
-    "--clients-of-this-consultant",
+    "--consultancy",
     type=AccountIdField(),
     help="The ID of a consultant account whose client accounts should be monitored.",
 )
@@ -363,13 +363,13 @@ def get_absent_users(
     "--only-newly-absent-users/--all-absent-users",
     type=bool,
     default=True,
-    help="If True, a user is only included in this alert once after they were absent for too long. Defaults to True, so as to keep regular emails to low volume with newsworthy alerts.",
+    help="If True, a user is only included in this alert once after they were absent for too long. Defaults to True, so as to keep regular emails to low volume with newsworthy alerts. See also --task-name.",
 )
 @click.option(
     "--task-name",
     type=str,
     default="monitor-last-seen-users",
-    help="Optional name of the task, to distinguish finding out when the last monitoring happened (see --only-newly-absent-users).",
+    help="Optional name of the task, to distinguish finding out when the last monitoring happened (see --only-newly-absent-users). Helps to distinguish multiple versions of this command.",
 )
 @click.option(
     "--inform-this-user",
@@ -382,7 +382,7 @@ def monitor_last_seen(
     alert_users: bool = False,
     account_role: str | None = None,
     accounts: tuple[Account, ...] = (),
-    clients_of_this_consultant: Account | None = None,
+    consultancy: Account | None = None,
     user_role: str | None = None,
     custom_user_message: str | None = None,
     only_newly_absent_users: bool = True,
@@ -414,8 +414,8 @@ def monitor_last_seen(
     email_recipients = get_monitoring_email_recipients(inform_this_user)
     account_ids = [account.id for account in accounts]
     client_account_ids = (
-        [account.id for account in clients_of_this_consultant.get_all_client_accounts()]
-        if clients_of_this_consultant is not None
+        [account.id for account in consultancy.get_all_client_accounts()]
+        if consultancy is not None
         else []
     )
 
@@ -425,7 +425,7 @@ def monitor_last_seen(
             last_seen_delta,
             account_ids,
             client_account_ids,
-            clients_of_this_consultant is not None,
+            consultancy is not None,
             account_role,
             user_role,
         )
@@ -487,9 +487,7 @@ def monitor_last_seen(
         alerted_users=alert_users,
         account_ids=account_ids,
         client_account_ids=client_account_ids,
-        consultant_account_id=(
-            clients_of_this_consultant.id if clients_of_this_consultant else None
-        ),
+        consultant_account_id=consultancy.id if consultancy else None,
         account_role=account_role,
         user_role=user_role,
         txt_about_already_alerted_users=txt_about_already_alerted_users,

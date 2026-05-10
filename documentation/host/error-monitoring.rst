@@ -26,7 +26,7 @@ Here is an example for illustration:
 As you see, users are filtered by roles. You might need to add roles before this works as you want. Use ``--inform-this-user`` one or more times to send the monitoring alert to specific FlexMeasures user IDs or email addresses. If you do not use ``--inform-this-user``, FlexMeasures falls back to :ref:`default_monitoring_mail_recipients`.
 You can also narrow the check to users in one or more accounts with ``--account``.
 Use ``--account`` multiple times to include multiple accounts.
-Use ``--clients-of-this-consultant`` to narrow the check to users in accounts that are clients of the given consultant account.
+Use ``--consultancy`` to narrow the check to users in accounts that are clients of the given consultant account.
 If you run distinct filters, such as separate checks per account, account group or consultant, use distinct ``--task-name`` values so the ``--only-newly-absent-users`` feature tracks each filter independently.
 
 .. code-block:: bash
