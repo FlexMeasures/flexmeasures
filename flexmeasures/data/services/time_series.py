@@ -113,16 +113,19 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     )
     if bdf_db.empty:
         return bdf
-
-    return (
-        bdf.convert_index_from_belief_horizon_to_time()
+    canonical_index = ["event_start", "belief_time", "source", "cumulative_probability"]
+    ordered_bdf = (
+        bdf.reorder_levels(canonical_index)
         .groupby(
             level=["event_start", "belief_time", "source"],
             group_keys=False,
-            as_index=False,
         )
         .apply(_drop_unchanged_beliefs_compared_to_db, bdf_db=bdf_db)
     )
+    # pandas 2.x groupby/apply can lose level names when some groups return empty DataFrames
+    if ordered_bdf.index.names != canonical_index:
+        ordered_bdf.index.names = canonical_index
+    return ordered_bdf
 
 
 def _drop_unchanged_beliefs_compared_to_db(
