@@ -113,6 +113,7 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     )
     if bdf_db.empty:
         return bdf
+    bdf = bdf.convert_index_from_belief_horizon_to_time()
     canonical_index = ["event_start", "belief_time", "source", "cumulative_probability"]
     ordered_bdf = (
         bdf.reorder_levels(canonical_index)
