@@ -27,6 +27,14 @@ Bugfixes
 * Check read permissions for sensors referenced in forecasting and scheduling config payloads, and return a clearer 403 error when a referenced sensor is not readable [see `PR #2096 <https://www.github.com/FlexMeasures/flexmeasures/pull/2096>`_ and `PR #2125 <https://www.github.com/FlexMeasures/flexmeasures/pull/2125>`_]
 
 
+v0.32.2 | May XX, 2026
+============================
+
+Bugfixes
+-----------
+* Fix removal of unchanged beliefs when saving data [see `PR #2159 <https://www.github.com/FlexMeasures/flexmeasures/pull/2159>`_]
+
+
 v0.32.1 | May 5, 2026
 ============================
 
