@@ -23,8 +23,7 @@ def test_monitor_help(app):
         result = runner.invoke(command, ["--help"])
 
         assert result.exit_code == 0
-        assert "--inform-this-user" in result.output
-        assert "--inform-this-email" in result.output
+        assert "--recipient" in result.output
     result = runner.invoke(monitor_last_seen, ["--help"])
     assert "--account" in result.output
     assert "--consultancy" in result.output
@@ -99,9 +98,9 @@ def test_monitor_latest_run_informs_requested_users(
                 "--task",
                 "import-data",
                 "10",
-                "--inform-this-user",
+                "--recipient",
                 str(first_user.id),
-                "--inform-this-user",
+                "--recipient",
                 str(second_user.id),
             ],
         )
@@ -138,7 +137,7 @@ def test_monitor_latest_run_informs_requested_email(
                 "--task",
                 "import-data",
                 "10",
-                "--inform-this-email",
+                "--recipient",
                 informed_user.email,
             ],
         )
@@ -178,9 +177,9 @@ def test_monitor_latest_run_informs_requested_users_and_emails(
                 "--task",
                 "import-data",
                 "10",
-                "--inform-this-user",
+                "--recipient",
                 str(first_user.id),
-                "--inform-this-email",
+                "--recipient",
                 second_user.email,
             ],
         )
@@ -195,7 +194,7 @@ def test_monitor_latest_run_rejects_unknown_informed_user(app, fresh_db):
 
     result = app.test_cli_runner().invoke(
         monitor_latest_run,
-        ["--task", "import-data", "10", "--inform-this-user", "9999"],
+        ["--task", "import-data", "10", "--recipient", "9999"],
     )
 
     assert result.exit_code != 0
@@ -224,7 +223,7 @@ def test_monitor_latest_run_informs_requested_unknown_email(app, fresh_db, monke
                 "--task",
                 "import-data",
                 "10",
-                "--inform-this-email",
+                "--recipient",
                 "missing@example.test",
             ],
         )
@@ -232,6 +231,21 @@ def test_monitor_latest_run_informs_requested_unknown_email(app, fresh_db, monke
     assert result.exit_code == 0
     assert len(outbox) == 1
     assert outbox[0].bcc == ["missing@example.test"]
+
+
+def test_monitor_latest_run_rejects_invalid_recipient(app, fresh_db):
+    from flexmeasures.cli.monitor import monitor_latest_run
+
+    result = app.test_cli_runner().invoke(
+        monitor_latest_run,
+        ["--task", "import-data", "10", "--recipient", "not-an-email"],
+    )
+
+    assert result.exit_code != 0
+    assert (
+        "Recipient not-an-email is neither a valid user ID nor email address"
+        in result.output
+    )
 
 
 def test_monitor_last_seen_uses_deprecated_config_fallback(
@@ -498,7 +512,7 @@ def test_monitor_last_seen_informs_requested_user(
                 "--maximum-minutes-since-last-seen",
                 "30",
                 "--all-absent-users",
-                "--inform-this-user",
+                "--recipient",
                 str(informed_user.id),
             ],
         )
@@ -532,7 +546,7 @@ def test_monitor_last_seen_informs_requested_email(
                 "--maximum-minutes-since-last-seen",
                 "30",
                 "--all-absent-users",
-                "--inform-this-email",
+                "--recipient",
                 informed_user.email,
             ],
         )

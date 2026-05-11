@@ -10,6 +10,8 @@ import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 from flask_mail import Message
+from marshmallow import ValidationError, fields
+from werkzeug.exceptions import NotFound
 from sentry_sdk import (
     capture_message as capture_message_for_sentry,
     set_context as set_sentry_context,
@@ -46,14 +48,29 @@ def get_default_monitoring_email_recipients():
     return recipients
 
 
-def get_monitoring_email_recipients(
-    informed_users: tuple[User, ...] = (),
-    informed_email_addresses: tuple[str, ...] = (),
-) -> list[str]:
-    if not informed_users and not informed_email_addresses:
+def get_monitoring_email_recipients(recipients: tuple[str, ...] = ()) -> list[str]:
+    if not recipients:
         return get_default_monitoring_email_recipients()
 
-    return [user.email for user in informed_users] + list(informed_email_addresses)
+    email_recipients = []
+    for recipient in recipients:
+        if recipient.isdecimal():
+            try:
+                user = UserIdField().deserialize(recipient)
+            except NotFound as exc:
+                raise click.BadParameter(
+                    f"User {recipient} not found.", param_hint="--recipient"
+                ) from exc
+            email_recipients.append(user.email)
+        else:
+            try:
+                email_recipients.append(fields.Email().deserialize(recipient))
+            except ValidationError as exc:
+                raise click.BadParameter(
+                    f"Recipient {recipient} is neither a valid user ID nor email address.",
+                    param_hint="--recipient",
+                ) from exc
+    return email_recipients
 
 
 def send_task_monitoring_alert(
@@ -112,22 +129,15 @@ def send_task_monitoring_alert(
     help="Add this message to the monitoring alert (if one is sent).",
 )
 @click.option(
-    "--inform-this-user",
-    type=UserIdField(),
-    multiple=True,
-    help="User ID to send the monitoring alert to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
-)
-@click.option(
-    "--inform-this-email",
+    "--recipient",
     type=str,
     multiple=True,
-    help="Email address to send the monitoring alert to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
+    help="User ID or email address to send the monitoring alert to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
 )
 def monitor_latest_run(
     task,
     custom_message,
-    inform_this_user: tuple[User, ...] = (),
-    inform_this_email: tuple[str, ...] = (),
+    recipient: tuple[str, ...] = (),
 ):
     """
     Check if the given task's last successful execution happened less than the allowed time ago.
@@ -135,9 +145,7 @@ def monitor_latest_run(
     Tasks are CLI commands with the @task_with_status_report decorator.
     If not, alert someone, via email or sentry.
     """
-    email_recipients = get_monitoring_email_recipients(
-        inform_this_user, inform_this_email
-    )
+    email_recipients = get_monitoring_email_recipients(recipient)
     for t in task:
         task_name = t[0]
         app.logger.info(f"Checking latest run of task {task_name} ...")
@@ -371,16 +379,10 @@ def get_absent_users(
     help="Optional name of the task, to distinguish finding out when the last monitoring happened (see --only-newly-absent-users). Helps to distinguish multiple versions of this command.",
 )
 @click.option(
-    "--inform-this-user",
-    type=UserIdField(),
-    multiple=True,
-    help="User ID to send the monitoring alert to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
-)
-@click.option(
-    "--inform-this-email",
+    "--recipient",
     type=str,
     multiple=True,
-    help="Email address to send the monitoring alert to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
+    help="User ID or email address to send the monitoring alert to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
 )
 def monitor_last_seen(
     maximum_minutes_since_last_seen: int,
@@ -392,8 +394,7 @@ def monitor_last_seen(
     custom_user_message: str | None = None,
     only_newly_absent_users: bool = True,
     task_name: str = "monitor-last-seen-users",
-    inform_this_user: tuple[User, ...] = (),
-    inform_this_email: tuple[str, ...] = (),
+    recipient: tuple[str, ...] = (),
 ):
     """
     Check if given users last contact (via a request) happened less than the allowed time ago.
@@ -417,9 +418,7 @@ def monitor_last_seen(
     app.logger.debug(
         f"Checking which users have not been seen for more than {last_seen_delta} ..."
     )
-    email_recipients = get_monitoring_email_recipients(
-        inform_this_user, inform_this_email
-    )
+    email_recipients = get_monitoring_email_recipients(recipient)
     account_ids = [account.id for account in accounts]
     client_account_ids = (
         [account.id for account in consultancy.get_all_client_accounts()]

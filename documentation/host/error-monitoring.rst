@@ -23,7 +23,7 @@ Here is an example for illustration:
 
     $ flexmeasures monitor last-seen --account-role SubscriberToServiceXYZ --user-role bot --maximum-minutes-since-last-seen 100
 
-As you see, users are filtered by roles. You might need to add roles before this works as you want. Use ``--inform-this-user`` one or more times to send the monitoring alert to specific FlexMeasures user IDs, and ``--inform-this-email`` one or more times to send it to specific email addresses. If you do not use either option, FlexMeasures falls back to :ref:`default_monitoring_mail_recipients`.
+As you see, users are filtered by roles. You might need to add roles before this works as you want. Use ``--recipient`` one or more times to send the monitoring alert to specific FlexMeasures user IDs or email addresses. If you do not use this option, FlexMeasures falls back to :ref:`default_monitoring_mail_recipients`.
 You can also narrow the check to users in one or more accounts with ``--account``.
 Use ``--account`` multiple times to include multiple accounts.
 Use ``--consultancy`` to narrow the check to users in accounts that are clients of the given consultant account.
@@ -31,7 +31,7 @@ If you run distinct filters, such as separate checks per account, account group 
 
 .. code-block:: bash
 
-    $ flexmeasures monitor last-seen --task-name monitor-last-seen-account-12 --account 12 --account-role SubscriberToServiceXYZ --user-role bot --maximum-minutes-since-last-seen 100 --inform-this-user 42 --inform-this-email alerts@example.com
+    $ flexmeasures monitor last-seen --task-name monitor-last-seen-account-12 --account 12 --account-role SubscriberToServiceXYZ --user-role bot --maximum-minutes-since-last-seen 100 --recipient 42 --recipient alerts@example.com
 
 .. todo:: Adding roles and assigning them to accounts is not supported by the UI yet (user roles can be added in the UI). Account roles can be added with ``flexmeasures add account-role``.
 
@@ -40,7 +40,7 @@ Monitoring task runs
 ---------------------
 
 The CLI task ``flexmeasures monitor latest-run`` lets you be alerted when tasks have not successfully run at least so-and-so many minutes ago.
-The alerts will come in via Sentry, but you can also send them to specific FlexMeasures user IDs with ``--inform-this-user``, specific email addresses with ``--inform-this-email`` or to email addresses with the config setting :ref:`default_monitoring_mail_recipients`.
+The alerts will come in via Sentry, but you can also send them to specific FlexMeasures user IDs or email addresses with ``--recipient`` or to email addresses with the config setting :ref:`default_monitoring_mail_recipients`.
 
 For illustration, here is one example of how we monitor the latest run times of tasks on a server ― the below is run in a cron script every hour and checks if every listed task ran 60, 6 or 1440 minutes ago, respectively:
 
