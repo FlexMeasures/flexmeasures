@@ -365,6 +365,47 @@ def test_monitor_last_seen_combines_account_id_and_user_role_filters(
     assert f"{plain_user.username}  " not in outbox[0].body
 
 
+def test_monitor_last_seen_filters_users_by_consultancy(
+    app, fresh_db, setup_roles_users_fresh_db, setup_accounts_fresh_db, monkeypatch
+):
+    from flexmeasures.cli import monitor
+    from flexmeasures.cli.monitor import monitor_last_seen
+
+    monkeypatch.setattr(monitor, "capture_message_for_sentry", lambda msg: None)
+    monkeypatch.setattr(monitor, "set_sentry_context", lambda *args, **kwargs: None)
+    monkeypatch.setitem(
+        app.config,
+        "FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS",
+        ["ops@example.test"],
+    )
+    client_user = fresh_db.session.get(
+        User, setup_roles_users_fresh_db["Test Consultancy Client User"]
+    )
+    supplier_user = fresh_db.session.get(
+        User, setup_roles_users_fresh_db["Test Supplier User"]
+    )
+    client_user.last_seen_at = datetime.now(timezone.utc) - timedelta(minutes=120)
+    supplier_user.last_seen_at = datetime.now(timezone.utc) - timedelta(minutes=120)
+    fresh_db.session.commit()
+
+    with app.mail.record_messages() as outbox:
+        result = app.test_cli_runner().invoke(
+            monitor_last_seen,
+            [
+                "--maximum-minutes-since-last-seen",
+                "30",
+                "--all-absent-users",
+                "--consultancy",
+                str(setup_accounts_fresh_db["Consultancy"].id),
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert len(outbox) == 1
+    assert client_user.username in outbox[0].body
+    assert supplier_user.username not in outbox[0].body
+
+
 def test_monitor_last_seen_without_account_id_reports_users_from_all_accounts(
     app, fresh_db, setup_roles_users_fresh_db, monkeypatch
 ):
