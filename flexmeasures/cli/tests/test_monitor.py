@@ -24,6 +24,7 @@ def test_monitor_help(app):
 
         assert result.exit_code == 0
         assert "--inform-this-user" in result.output
+        assert "--inform-this-email" in result.output
     result = runner.invoke(monitor_last_seen, ["--help"])
     assert "--account" in result.output
     assert "--consultancy" in result.output
@@ -110,7 +111,7 @@ def test_monitor_latest_run_informs_requested_users(
     assert outbox[0].bcc == [first_user.email, second_user.email]
 
 
-def test_monitor_latest_run_informs_requested_user_by_email(
+def test_monitor_latest_run_informs_requested_email(
     app, fresh_db, setup_roles_users_fresh_db, monkeypatch
 ):
     from flexmeasures.cli import monitor
@@ -137,7 +138,7 @@ def test_monitor_latest_run_informs_requested_user_by_email(
                 "--task",
                 "import-data",
                 "10",
-                "--inform-this-user",
+                "--inform-this-email",
                 informed_user.email,
             ],
         )
@@ -147,7 +148,7 @@ def test_monitor_latest_run_informs_requested_user_by_email(
     assert outbox[0].bcc == [informed_user.email]
 
 
-def test_monitor_latest_run_informs_requested_users_by_mixed_identifiers(
+def test_monitor_latest_run_informs_requested_users_and_emails(
     app, fresh_db, setup_roles_users_fresh_db, monkeypatch
 ):
     from flexmeasures.cli import monitor
@@ -179,7 +180,7 @@ def test_monitor_latest_run_informs_requested_users_by_mixed_identifiers(
                 "10",
                 "--inform-this-user",
                 str(first_user.id),
-                "--inform-this-user",
+                "--inform-this-email",
                 second_user.email,
             ],
         )
@@ -198,27 +199,39 @@ def test_monitor_latest_run_rejects_unknown_informed_user(app, fresh_db):
     )
 
     assert result.exit_code != 0
-    assert "No user with ID or email address 9999 exists" in result.output
+    assert "User 9999 not found" in result.output
 
 
-def test_monitor_latest_run_rejects_unknown_informed_user_email(app, fresh_db):
+def test_monitor_latest_run_informs_requested_unknown_email(app, fresh_db, monkeypatch):
+    from flexmeasures.cli import monitor
     from flexmeasures.cli.monitor import monitor_latest_run
 
-    result = app.test_cli_runner().invoke(
-        monitor_latest_run,
-        [
-            "--task",
-            "import-data",
-            "10",
-            "--inform-this-user",
-            "missing@example.test",
-        ],
+    monkeypatch.setattr(monitor, "capture_message_for_sentry", lambda msg: None)
+    monkeypatch.setattr(monitor, "set_sentry_context", lambda *args, **kwargs: None)
+    fresh_db.session.add(
+        LatestTaskRun(
+            name="import-data",
+            datetime=datetime.now(timezone.utc) - timedelta(minutes=5),
+            status=False,
+        )
     )
+    fresh_db.session.commit()
 
-    assert result.exit_code != 0
-    assert (
-        "No user with ID or email address missing@example.test exists" in result.output
-    )
+    with app.mail.record_messages() as outbox:
+        result = app.test_cli_runner().invoke(
+            monitor_latest_run,
+            [
+                "--task",
+                "import-data",
+                "10",
+                "--inform-this-email",
+                "missing@example.test",
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert len(outbox) == 1
+    assert outbox[0].bcc == ["missing@example.test"]
 
 
 def test_monitor_last_seen_uses_deprecated_config_fallback(
@@ -454,7 +467,7 @@ def test_monitor_last_seen_informs_requested_user(
     assert outbox[0].bcc == [informed_user.email]
 
 
-def test_monitor_last_seen_informs_requested_user_by_email(
+def test_monitor_last_seen_informs_requested_email(
     app, fresh_db, setup_roles_users_fresh_db, monkeypatch
 ):
     from flexmeasures.cli import monitor
@@ -478,7 +491,7 @@ def test_monitor_last_seen_informs_requested_user_by_email(
                 "--maximum-minutes-since-last-seen",
                 "30",
                 "--all-absent-users",
-                "--inform-this-user",
+                "--inform-this-email",
                 informed_user.email,
             ],
         )

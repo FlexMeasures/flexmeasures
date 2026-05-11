@@ -21,6 +21,7 @@ from flexmeasures.data import db
 from flexmeasures.data.models.task_runs import LatestTaskRun
 from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.schemas.account import AccountIdField
+from flexmeasures.api.common.schemas.users import UserIdField
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.cli.utils import MsgStyle
 
@@ -46,27 +47,13 @@ def get_default_monitoring_email_recipients():
 
 
 def get_monitoring_email_recipients(
-    informed_users: tuple[str | int, ...] = ()
+    informed_users: tuple[User, ...] = (),
+    informed_email_addresses: tuple[str, ...] = (),
 ) -> list[str]:
-    if not informed_users:
+    if not informed_users and not informed_email_addresses:
         return get_default_monitoring_email_recipients()
 
-    recipients = []
-    for user_identifier in informed_users:
-        user_identifier = str(user_identifier)
-        if user_identifier.isdecimal():
-            user = db.session.get(User, int(user_identifier))
-        else:
-            user = db.session.execute(
-                select(User).filter_by(email=user_identifier)
-            ).scalar_one_or_none()
-        if user is None:
-            raise click.BadParameter(
-                f"No user with ID or email address {user_identifier} exists.",
-                param_hint="--inform-this-user",
-            )
-        recipients.append(user.email)
-    return recipients
+    return [user.email for user in informed_users] + list(informed_email_addresses)
 
 
 def send_task_monitoring_alert(
@@ -126,18 +113,31 @@ def send_task_monitoring_alert(
 )
 @click.option(
     "--inform-this-user",
+    type=UserIdField(),
+    multiple=True,
+    help="User ID to send the monitoring alert to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
+)
+@click.option(
+    "--inform-this-email",
     type=str,
     multiple=True,
-    help="User ID or email address to send the monitoring alert to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
+    help="Email address to send the monitoring alert to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
 )
-def monitor_latest_run(task, custom_message, inform_this_user: tuple[str, ...] = ()):
+def monitor_latest_run(
+    task,
+    custom_message,
+    inform_this_user: tuple[User, ...] = (),
+    inform_this_email: tuple[str, ...] = (),
+):
     """
     Check if the given task's last successful execution happened less than the allowed time ago.
 
     Tasks are CLI commands with the @task_with_status_report decorator.
     If not, alert someone, via email or sentry.
     """
-    email_recipients = get_monitoring_email_recipients(inform_this_user)
+    email_recipients = get_monitoring_email_recipients(
+        inform_this_user, inform_this_email
+    )
     for t in task:
         task_name = t[0]
         app.logger.info(f"Checking latest run of task {task_name} ...")
@@ -251,7 +251,7 @@ def send_lastseen_monitoring_alert(
             msg += f"\nThis alert concerns users whose accounts have IDs {account_ids_txt}."
     if consultant_account_id:
         msg += (
-            "\nThis alert concerns users whose accounts are clients of consultant "
+            "\nThis alert concerns users whose accounts are clients of consultancy "
             f"account {consultant_account_id}"
         )
         if client_account_ids:
@@ -291,8 +291,7 @@ def send_lastseen_monitoring_alert(
 def get_absent_users(
     last_seen_delta: timedelta,
     account_ids: list[int],
-    client_account_ids: list[int],
-    filter_by_client_accounts: bool,
+    client_account_ids: list[int] | None = None,
     account_role: str | None = None,
     user_role: str | None = None,
 ) -> list[User]:
@@ -304,7 +303,7 @@ def get_absent_users(
     )
     if account_ids:
         query = query.filter(User.account_id.in_(account_ids))
-    if filter_by_client_accounts:
+    if client_account_ids is not None:
         query = query.filter(User.account_id.in_(client_account_ids))
     query = query.order_by(User.last_seen_at.asc())
     users = db.session.scalars(query).all()
@@ -346,7 +345,7 @@ def get_absent_users(
 @click.option(
     "--consultancy",
     type=AccountIdField(),
-    help="The ID of a consultant account whose client accounts should be monitored.",
+    help="The ID of a consultancy account whose client accounts should be monitored.",
 )
 @click.option(
     "--user-role",
@@ -373,9 +372,15 @@ def get_absent_users(
 )
 @click.option(
     "--inform-this-user",
+    type=UserIdField(),
+    multiple=True,
+    help="User ID to send the monitoring alert to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
+)
+@click.option(
+    "--inform-this-email",
     type=str,
     multiple=True,
-    help="User ID or email address to send the monitoring alert to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
+    help="Email address to send the monitoring alert to. Use multiple times if needed. If not used, the default monitoring mail recipients are informed.",
 )
 def monitor_last_seen(
     maximum_minutes_since_last_seen: int,
@@ -387,7 +392,8 @@ def monitor_last_seen(
     custom_user_message: str | None = None,
     only_newly_absent_users: bool = True,
     task_name: str = "monitor-last-seen-users",
-    inform_this_user: tuple[str, ...] = (),
+    inform_this_user: tuple[User, ...] = (),
+    inform_this_email: tuple[str, ...] = (),
 ):
     """
     Check if given users last contact (via a request) happened less than the allowed time ago.
@@ -411,12 +417,14 @@ def monitor_last_seen(
     app.logger.debug(
         f"Checking which users have not been seen for more than {last_seen_delta} ..."
     )
-    email_recipients = get_monitoring_email_recipients(inform_this_user)
+    email_recipients = get_monitoring_email_recipients(
+        inform_this_user, inform_this_email
+    )
     account_ids = [account.id for account in accounts]
     client_account_ids = (
         [account.id for account in consultancy.get_all_client_accounts()]
         if consultancy is not None
-        else []
+        else None
     )
 
     try:
@@ -425,7 +433,6 @@ def monitor_last_seen(
             last_seen_delta,
             account_ids,
             client_account_ids,
-            consultancy is not None,
             account_role,
             user_role,
         )
