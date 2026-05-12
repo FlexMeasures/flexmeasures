@@ -73,3 +73,29 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
         select(GenericAsset).filter_by(id=existing_asset_id)
     ).scalar_one_or_none()
     assert deleted_asset is None
+
+
+def test_patch_asset_accepts_flex_context_object(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
+    db = fresh_db
+    with AccountContext("Test Supplier Account") as supplier:
+        existing_asset = supplier.generic_assets[0]
+    assert existing_asset.flex_context == {}
+
+    patch_data = {
+        "flex_context": {
+            "site-power-capacity": "1000 kW",
+        }
+    }
+    response = client.patch(
+        url_for("AssetAPI:patch", id=existing_asset.id),
+        json=patch_data,
+    )
+
+    assert response.status_code == 200
+    updated_asset = db.session.execute(
+        select(GenericAsset).filter_by(id=existing_asset.id)
+    ).scalar_one_or_none()
+    assert updated_asset is not None
+    assert updated_asset.flex_context["site-power-capacity"] == "1000 kW"
