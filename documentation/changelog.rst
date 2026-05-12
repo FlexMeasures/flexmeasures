@@ -25,7 +25,7 @@ Bugfixes
 * Make the sensor page load much faster for sensors with lots of data, by avoiding to load statistics over all of its history by default [see `PR #2129 <https://www.github.com/FlexMeasures/flexmeasures/pull/2129>`_]
 * Return a clear validation error (instead of a server ZeroDivisionError) when posting instantaneous (0-minute) data to non-instantaneous sensors via ``[POST] /sensors/(id)/data`` [see `PR #2116 <https://www.github.com/FlexMeasures/flexmeasures/pull/2116>`_]
 * Fix asset context page for asset names containing apostrophes [see `PR #2117 <https://www.github.com/FlexMeasures/flexmeasures/pull/2117>`_]
-* Fix a bug where the API rejects raw JSON that hasnt been loaded [see `PR #2117 <https://www.github.com/FlexMeasures/flexmeasures/pull/2117>`_]
+* Corrected flex-config data format for Asset API updates to prevent JSON parsing failures. [see `PR #2149 <https://www.github.com/FlexMeasures/flexmeasures/pull/2149>`_]
 
 v0.32.1 | May XX, 2026
 ============================
