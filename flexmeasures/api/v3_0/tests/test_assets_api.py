@@ -1243,23 +1243,11 @@ def test_copy_asset_api_rejects_copy_to_descendant(
 def test_regular_user_can_create_child_asset(
     client, setup_api_test_data, setup_accounts, requesting_user, db
 ):
-    """
-    A plain (non-admin) account member CAN create a child asset under a parent
+    """A plain (non-admin) account member can create a child asset under a parent
     asset that belongs to their own account.
 
     ``GenericAsset.create-children`` is open to every member of the owning
-    account, so the check should succeed for any Prosumer account member.
-
-    Bug (on main): The ``post`` endpoint applied
-    ``@permission_required_for_context("create-children",
-    ctx_loader=AccountIdField.load_current)``, which checked the permission on
-    the *current user's account*.  ``Account.create-children`` requires
-    account-admin, so a plain user received 403.
-
-    Fix: The endpoint now checks ``create-children`` on the *parent asset*
-    instead, which allows any account member.
-
-    Expected: 201 Created with the fix applied, 403 on main.
+    account, so the check succeeds for any Prosumer account member.
     """
     prosumer_account = setup_accounts["Prosumer"]
     parent = db.session.scalars(
@@ -1289,23 +1277,12 @@ def test_regular_user_can_create_child_asset(
 def test_account_admin_cannot_create_child_under_cross_account_parent(
     client, setup_api_test_data, setup_accounts, requesting_user, db
 ):
-    """
-    An account-admin of the Prosumer account must NOT be able to create a child
+    """An account-admin of the Prosumer account must not be able to create a child
     asset whose *parent* belongs to the Supplier account.
 
     ``GenericAsset.create-children`` only allows members of the account that
-    owns the parent asset.  A Prosumer account-admin is not a Supplier account
+    owns the parent asset. A Prosumer account-admin is not a Supplier account
     member, so the request must be rejected.
-
-    Bug (on main): The ``post`` endpoint checked ``create-children`` on the
-    *current user's own account*; a Prosumer account-admin satisfied that check
-    and received 201, allowing them to nest assets under arbitrary foreign
-    parents.
-
-    Fix: The check is moved to the *parent asset*, so the Prosumer account-admin
-    is correctly blocked from creating children under a Supplier-owned asset.
-
-    Expected: 403 Forbidden with the fix applied, 201 (wrong) on main.
     """
     turbine = db.session.scalars(
         select(GenericAsset).filter_by(name="Test wind turbine")

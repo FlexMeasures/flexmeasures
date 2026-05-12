@@ -44,19 +44,10 @@ def test_account_page_breadcrumb(db, client, as_prosumer_user1):
 def test_account_page_forbidden_for_different_account_user(
     db, client, setup_accounts, as_dummy_user3
 ):
-    """
-    A user from the Dummy account must NOT be able to view the Prosumer account
-    page.
+    """A user from the Dummy account must not be able to view the Prosumer account page.
 
-    Bug (on main): ``AccountCrudUI.get`` did not call
-    ``check_access(account, "read")``, so any authenticated user could view any
-    account page regardless of their account membership.  The response was 200.
-
-    Fix: ``check_access(account, "read")`` is now called after loading the
-    account.  A Dummy-account user is not a member of the Prosumer account and
-    has no consultant role, so the call raises ``Forbidden`` and returns 403.
-
-    Expected: 403 Forbidden with the fix applied, 200 on main.
+    ``AccountCrudUI.get`` calls ``check_access(account, "read")``, which blocks
+    users who are not members of the requested account.
     """
     prosumer_account = setup_accounts["Prosumer"]
 

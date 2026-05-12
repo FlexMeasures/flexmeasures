@@ -278,7 +278,8 @@ def test_breadcrumb_cross_account_parent(
     assert page.status_code == 200
 
     # The breadcrumb must surface the parent's account name and the parent's
-    # own name so that the user can navigate up the hierarchy.
+    # own name (note: clicking these links may not load if the user is not
+    # authorized to view the parent's account page).
     assert supplier_account.name.encode() in page.data  # e.g. "Test Supplier Account"
     assert (
         supplier_parent.name.encode() in page.data
