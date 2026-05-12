@@ -15,10 +15,13 @@ from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
     ],
     indirect=True,
 )
-def test_post_an_asset_as_admin(client, setup_api_fresh_test_data, requesting_user, db):
+def test_post_an_asset_as_admin(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
     """
     Post one extra asset, as an admin user.
     """
+    db = fresh_db
     with AccountContext("Test Prosumer Account") as prosumer:
         post_data = get_asset_post_data(
             account_id=prosumer.id,
@@ -42,7 +45,8 @@ def test_post_an_asset_as_admin(client, setup_api_fresh_test_data, requesting_us
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_edit_an_asset(client, setup_api_fresh_test_data, requesting_user, db):
+def test_edit_an_asset(client, setup_api_fresh_test_data, requesting_user, fresh_db):
+    db = fresh_db
     with AccountContext("Test Supplier Account") as supplier:
         existing_asset = supplier.generic_assets[0]
 
@@ -62,10 +66,12 @@ def test_edit_an_asset(client, setup_api_fresh_test_data, requesting_user, db):
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_patch_asset_accepts_flex_context_object(
-    client, setup_api_fresh_test_data, requesting_user, db
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
 ):
+    db = fresh_db
     with AccountContext("Test Supplier Account") as supplier:
         existing_asset = supplier.generic_assets[0]
+    assert existing_asset.flex_context == {}
 
     patch_data = {
         "flex_context": {
@@ -86,7 +92,8 @@ def test_patch_asset_accepts_flex_context_object(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db):
+def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, fresh_db):
+    db = fresh_db
     with AccountContext("Test Prosumer Account") as prosumer:
         existing_asset_id = prosumer.generic_assets[0].id
 
