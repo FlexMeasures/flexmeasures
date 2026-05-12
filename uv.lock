@@ -1327,7 +1327,7 @@ requires-dist = [
     { name = "tldextract", specifier = ">=5.3.1" },
     { name = "u8darts", specifier = ">=0.29.0" },
     { name = "uniplot", specifier = ">=0.12.1" },
-    { name = "urllib3", specifier = ">=2.6.0" },
+    { name = "urllib3", specifier = ">=2.7.0" },
     { name = "vl-convert-python", specifier = ">=1.9.0.post1" },
     { name = "webargs", specifier = ">=8.7.1" },
     { name = "werkzeug", specifier = ">=3.1.6" },
