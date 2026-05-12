@@ -293,22 +293,13 @@ def test_upload_sensor_data_floors_offclock_datetimes(
     )
     assert response.status_code == 200
 
-    beliefs = (
-        fresh_db.session.execute(
-            select(TimedBelief)
-            .filter(TimedBelief.sensor_id == sensor.id)
-            .filter(TimedBelief.event_start >= expected_event_starts[0])
-            .filter(
-                TimedBelief.event_start
-                < expected_event_starts[-1] + sensor.event_resolution
-            )
-            .order_by(TimedBelief.event_start)
-        )
-        .scalars()
-        .all()
+    bdf = sensor.search_beliefs(
+        expected_event_starts[0], expected_event_starts[-1] + sensor.event_resolution
     )
-    assert [b.event_start for b in beliefs] == expected_event_starts
-    assert [b.event_value for b in beliefs] == expected_event_values
+    pd.testing.assert_index_equal(
+        bdf.event_starts, pd.DatetimeIndex(expected_event_starts, name="event_start")
+    )
+    assert bdf["event_value"].to_list() == expected_event_values
 
 
 @pytest.mark.parametrize(
