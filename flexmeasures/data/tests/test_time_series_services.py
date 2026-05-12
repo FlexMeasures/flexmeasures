@@ -8,6 +8,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.services.time_series import (
     _drop_unchanged_beliefs_compared_to_db,
+    drop_unchanged_beliefs,
 )
 from flexmeasures.tests.utils import get_test_sensor
 
@@ -242,6 +243,92 @@ def test_drop_unchanged_belief_with_multi_event_start_db(setup_beliefs, db):
         "Without the event_start filter the code wrongly picks T2's newer belief_time "
         "as most_recent_bt and compares against T2's value instead of T1's."
     )
+
+
+def test_drop_unchanged_beliefs_preserves_index_names_with_mixed_groups(
+    setup_beliefs, db
+):
+    """drop_unchanged_beliefs must preserve all MultiIndex level names when some event_starts
+    are already in the DB (those groups become empty after filtering) while others are new.
+
+    Regression test for a pandas 2.x bug where groupby(...).apply() drops level names
+    for non-grouped levels when mixed empty/non-empty groups are concatenated and the
+    index level order of the applied function's output differs from the groupby input.
+
+    Without the fix (reorder_levels to canonical order before groupby + restoring names
+    after apply), the returned DataFrame has None for the 'source' and
+    'cumulative_probability' level names, causing the subsequent reorder_levels() call
+    in drop_unchanged_beliefs to raise KeyError: 'Level source not found'.
+    """
+    sensor = get_test_sensor(db)
+    source = DataSource(name="Mixed groups repro source", type="demo script")
+    db.session.add(source)
+    db.session.commit()
+
+    belief_time = pd.Timestamp("2021-03-27 08:00:00+00:00")
+    # T1: already stored in DB with the same value → will become an empty group in apply()
+    event_start_existing = pd.Timestamp("2021-03-28 16:00:00+00:00")
+    # T2: not yet in DB → will become a non-empty group in apply()
+    event_start_new = pd.Timestamp("2021-03-28 17:00:00+00:00")
+    existing_value = 42.0
+    new_value = 99.0
+
+    # Pre-populate the DB with a belief for T1
+    bdf_seed = BeliefsDataFrame(
+        [
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start_existing,
+                belief_time=belief_time,
+                event_value=existing_value,
+            )
+        ]
+    )
+    save_to_db(bdf_seed)
+
+    # Candidate BDF spans both T1 (unchanged, same value) and T2 (new)
+    bdf_candidate = BeliefsDataFrame(
+        [
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start_existing,
+                belief_time=belief_time,
+                event_value=existing_value,  # identical → should be dropped
+            ),
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=event_start_new,
+                belief_time=belief_time,
+                event_value=new_value,  # new → should be kept
+            ),
+        ]
+    )
+    # Simulate the non-canonical index level order observed in production (e.g. after
+    # passing through pandas reset_index/set_index round-trips in reporters).  The bug
+    # only manifests when cumulative_probability appears before source in the index.
+    bdf_candidate = bdf_candidate.reorder_levels(
+        ["event_start", "belief_time", "cumulative_probability", "source"]
+    )
+
+    # This call must not raise KeyError: 'Level source not found'
+    result = drop_unchanged_beliefs(bdf_candidate)
+
+    # The result must have all four named index levels
+    assert result.index.names == [
+        "event_start",
+        "belief_time",
+        "source",
+        "cumulative_probability",
+    ], f"Index level names were corrupted: {result.index.names}"
+
+    # The unchanged belief for T1 must have been dropped; the new T2 belief must remain
+    assert (
+        len(result) == 1
+    ), f"Expected only the new belief to survive, got {len(result)} rows"
+    assert result.event_starts[0] == event_start_new
 
 
 def test_save_exact_duplicate_deterministic_belief(setup_beliefs, db):

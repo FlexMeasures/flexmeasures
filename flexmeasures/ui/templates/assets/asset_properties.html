@@ -340,7 +340,8 @@
                     </div>
 
                     <div class="d-flex ms-auto align-items-center gap-2">
-                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto create-button">Save</button>
+                        <button type="button" id="saveChangesBtn"
+                            class="btn btn-primary ms-auto create-button">Save</button>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
 
@@ -410,9 +411,8 @@
     <script type="module" type="text/javascript">
 
         import {
-            getFlexFieldTitle, renderFlexFieldOptions, renderSensor,
-            createReactiveState, processResourceRawJSON, getAsset,
-            getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage
+            getFlexFieldTitle, renderFlexFieldOptions, renderSensor, createReactiveState, getAsset,
+            getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage, processResourceRawJSON
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
@@ -1242,7 +1242,7 @@
             this.id = id;
             this.name = name;
             this.unit = unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : unit;
-            this.resolution = resolution
+            this.resolution = humanizeIsoDuration(resolution);
             this.url = `/sensors/${id}`;
         }
 

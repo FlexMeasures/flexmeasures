@@ -110,7 +110,7 @@ Click the "Edit Graph" button to open the graph editor.
 
 Use the "Add Graph" button to create graphs. For each graph, you can select one or more sensors, from all available sensors associated with the asset, including public sensors, and add them to your plot.
 
-In addition, you can add an asset's flex-config to the graph, as long as the value of that config is a sensor(e.g. `[{"title":"Power","plots":[{"sensor":2}]},{"title":"Costs","plots":[{"sensors":[5,6]}]}]`).
+In addition, you can add an asset's flex-config to the graph, whether the value is a sensor or a fixed value (e.g. `[{"title":"Power","plots":[{"sensor":2}]},{"title":"Costs","plots":[{"sensors":[5,6]}]}]`).
 
 Finally, it is possible to set custom titles for any graph by clicking on the "edit" button right next to the default or current title.
 
@@ -121,7 +121,7 @@ Finally, it is possible to set custom titles for any graph by clicking on the "e
 |
 
 Internally, the asset has a `sensors_to_show` field, which controls which sensor data appears in the plot. This can also be set by a script or through the API. 
-The accepted format is a dictionary with a graph title followed by a plot containing senors or asset flex-config reference (e.g. `[{"title":"Power","plots":[{"sensor":2}]},{"title":"Costs","plots":[{"sensor":5},{"asset":10,"flex-model":"soc-min"},]}]`).
+The accepted format is a dictionary with a graph title followed by a plot containing sensors or asset flex-config reference (e.g. `[{"title":"Power","plots":[{"sensor":2}]},{"title":"Costs","plots":[{"sensor":5},{"asset":10,"flex-model":"soc-min"},]}]`).
 
 
 Showing daily KPIs
