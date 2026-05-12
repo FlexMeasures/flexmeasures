@@ -71,6 +71,7 @@ def test_patch_asset_accepts_flex_context_object(
     db = fresh_db
     with AccountContext("Test Supplier Account") as supplier:
         existing_asset = supplier.generic_assets[0]
+    assert existing_asset.flex_context == {}
 
     patch_data = {
         "flex_context": {
