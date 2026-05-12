@@ -11,6 +11,7 @@ Bugfixes
 -----------
 * Fix removal of unchanged beliefs when saving data [see `PR #2159 <https://www.github.com/FlexMeasures/flexmeasures/pull/2159>`_]
 * Fix soc-fields set to fixed quantities [see `PR #2160 <https://www.github.com/FlexMeasures/flexmeasures/pull/2160>`_]
+* Fix disappearing plots on asset graphs during playback [see `PR #2147 <https://www.github.com/FlexMeasures/flexmeasures/pull/2147>`_]
 
 
 v0.32.1 | May 5, 2026
