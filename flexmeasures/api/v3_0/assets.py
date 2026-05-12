@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta
 from http import HTTPStatus
-from humanize import naturaldelta
 
 from flask import request, current_app
 from flask_classful import FlaskView, route
@@ -432,10 +431,10 @@ class AssetAPI(FlaskView):
           description: |
             This endpoint returns all sensors under an asset.
 
-            The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
+            The endpoint supports pagination of the sensor list using the `page` and `per_page` query parameters.
 
             - If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.
-            - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+            - If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).
             The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
           security:
             - ApiKeyAuth: []
@@ -453,30 +452,28 @@ class AssetAPI(FlaskView):
               content:
                 application/json:
                   examples:
-                    single_asset:
-                      summary: One asset being returned in the response
+                    single_sensor:
+                      summary: One sensor being returned in the response
                       value:
                         data:
                         - id: 1
-                          name: Test battery
-                          latitude: 10
-                          longitude: 100
-                          account_id: 2
-                          generic_asset_type:
-                            id: 1
-                            name: battery
-                    paginated_assets:
-                      summary: A paginated list of assets being returned in the response
+                          name: Test battery power
+                          unit: kW
+                          event_resolution: PT15M
+                          generic_asset_id: 1
+                          timezone: Europe/Amsterdam
+                          entity_address: "ea1.2021-01.io.flexmeasures.company:fm1.42"
+                    paginated_sensors:
+                      summary: A paginated list of sensors being returned in the response
                       value:
                         data:
                         - id: 1
-                          name: Test battery
-                          latitude: 10
-                          longitude: 100
-                          account_id: 2
-                          generic_asset_type:
-                            id: 1
-                            name: battery
+                          name: Test battery power
+                          unit: kW
+                          event_resolution: PT15M
+                          generic_asset_id: 1
+                          timezone: Europe/Amsterdam
+                          entity_address: "ea1.2021-01.io.flexmeasures.company:fm1.42"
                         num-records: 1
                         filtered-records: 1
             400:
@@ -500,12 +497,13 @@ class AssetAPI(FlaskView):
                 or_(*[Sensor.name.ilike(f"%{term}%") for term in search_terms])
             )
 
-        if sort_by is not None and sort_dir is not None:
+        if sort_by is not None:
             valid_sort_columns = {
                 "id": Sensor.id,
                 "name": Sensor.name,
                 "resolution": Sensor.event_resolution,
             }
+            sort_dir = sort_dir or "asc"
 
             query = query.order_by(
                 valid_sort_columns[sort_by].asc()
@@ -524,7 +522,6 @@ class AssetAPI(FlaskView):
         sensors_response: list = [
             {
                 **sensor_schema.dump(sensor),
-                "event_resolution": naturaldelta(sensor.event_resolution),
             }
             for sensor in select_pagination.items
         ]

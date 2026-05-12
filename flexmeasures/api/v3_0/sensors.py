@@ -1648,14 +1648,14 @@ class SensorAPI(FlaskView):
                       summary: Successful response
                       description: A successful response with sensor status data
                       value:
-                        - staleness: "2 hours"
+                        - staleness: "PT2H"
                           stale: true
                           staleness_since: "2024-01-15T14:30:00+00:00"
                           reason: "data is outdated"
                           source_type: "forecast"
                           id: 64907
                           name: "temperature"
-                          resolution: "5 minutes"
+                          resolution: "PT5M"
                           asset_name: "Building A"
                           relation: "sensor belongs to this asset"
             400:
