@@ -31,6 +31,14 @@ Bugfixes
 * Standardize resolution formatting across API endpoints for consistent response payloads [see `PR #2152 <https://www.github.com/FlexMeasures/flexmeasures/pull/2152>`_]
 * Fix disappearing plots on asset graphs during playback [see `PR #2147 <https://www.github.com/FlexMeasures/flexmeasures/pull/2147>`_]
 
+v0.32.2 | May XX, 2026
+============================
+
+Bugfixes
+-----------
+* Fix removal of unchanged beliefs when saving data [see `PR #2159 <https://www.github.com/FlexMeasures/flexmeasures/pull/2159>`_]
+
+
 v0.32.1 | May 5, 2026
 ============================
 
