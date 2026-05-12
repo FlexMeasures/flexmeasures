@@ -29,7 +29,7 @@ Bugfixes
 * Fix forecasting regressor filtering to use only regressor beliefs known at the forecast ``belief_time`` [see `PR #2134 <https://www.github.com/FlexMeasures/flexmeasures/pull/2134>`_]
 * Check read permissions for sensors referenced in forecasting and scheduling config payloads, and return a clearer 403 error when a referenced sensor is not readable [see `PR #2096 <https://www.github.com/FlexMeasures/flexmeasures/pull/2096>`_ and `PR #2125 <https://www.github.com/FlexMeasures/flexmeasures/pull/2125>`_]
 * Standardize resolution formatting across API endpoints for consistent response payloads [see `PR #2152 <https://www.github.com/FlexMeasures/flexmeasures/pull/2152>`_]
-* Fix disappearing plots on asset graphs during playback [see `PR #2147 <https://www.github.com/FlexMeasures/flexmeasures/pull/2147>`_]
+
 
 v0.32.2 | May 12, 2026
 ============================
@@ -38,6 +38,7 @@ Bugfixes
 -----------
 * Fix removal of unchanged beliefs when saving data [see `PR #2159 <https://www.github.com/FlexMeasures/flexmeasures/pull/2159>`_]
 * Fix soc-fields set to fixed quantities [see `PR #2160 <https://www.github.com/FlexMeasures/flexmeasures/pull/2160>`_]
+* Fix disappearing plots on asset graphs during playback [see `PR #2147 <https://www.github.com/FlexMeasures/flexmeasures/pull/2147>`_]
 
 
 v0.32.1 | May 5, 2026
