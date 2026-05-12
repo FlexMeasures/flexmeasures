@@ -666,7 +666,9 @@ class AssetAPI(FlaskView):
             if account_id is not None:
                 account = db.session.get(Account, account_id)
                 check_access(account, "create-children")
-            # else: public asset (account_id is None); schema already validates admin-only access
+            # else: public asset (account_id is None).
+            # GenericAssetSchema.validate_account already rejects account_id=None
+            # for non-admins (raises ValidationError), so no extra check is needed here.
 
         asset = create_asset(asset_data)
         db.session.commit()
