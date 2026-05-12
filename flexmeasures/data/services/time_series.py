@@ -69,14 +69,9 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     # Save the oldest ex-post beliefs explicitly, even if they do not deviate from the most recent ex-ante beliefs
     ex_ante_bdf = bdf[bdf.belief_horizons > timedelta(0)]
     ex_post_bdf = bdf[bdf.belief_horizons <= timedelta(0)]
+    canonical_order = ["event_start", "belief_time", "source", "cumulative_probability"]
     if not ex_ante_bdf.empty and not ex_post_bdf.empty:
         # We treat each part separately to avoid that ex-post knowledge would be lost
-        canonical_order = [
-            "event_start",
-            "belief_time",
-            "source",
-            "cumulative_probability",
-        ]
         ex_ante_bdf = drop_unchanged_beliefs(ex_ante_bdf).reorder_levels(
             canonical_order
         )
@@ -113,16 +108,18 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     )
     if bdf_db.empty:
         return bdf
-
-    return (
-        bdf.convert_index_from_belief_horizon_to_time()
+    ordered_bdf = (
+        bdf.reorder_levels(canonical_order)
         .groupby(
             level=["event_start", "belief_time", "source"],
             group_keys=False,
-            as_index=False,
         )
         .apply(_drop_unchanged_beliefs_compared_to_db, bdf_db=bdf_db)
     )
+    # pandas 2.x groupby/apply can lose level names when some groups return empty DataFrames
+    if ordered_bdf.index.names != canonical_order:
+        ordered_bdf.index.names = canonical_order
+    return ordered_bdf
 
 
 def _drop_unchanged_beliefs_compared_to_db(
