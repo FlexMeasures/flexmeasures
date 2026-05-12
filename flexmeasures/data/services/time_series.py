@@ -146,8 +146,11 @@ def _drop_unchanged_beliefs_compared_to_db(
     It is preferable to call the public function drop_unchanged_beliefs instead.
     """
     source = bdf.lineage.sources[0]  # unique source
+    event_start = bdf.event_starts[0]  # unique event_start
     belief_time = bdf.lineage.belief_times[0]  # unique belief time
-    bdf_db_from_source = bdf_db[bdf_db.sources == source]
+    bdf_db_from_source = bdf_db[
+        (bdf_db.sources == source) & (bdf_db.event_starts == event_start)
+    ]
     if bdf_db_from_source.empty:
         return bdf
     # Use .max() rather than searchsorted: the result is correct regardless of
