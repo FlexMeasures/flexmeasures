@@ -411,12 +411,9 @@
     <script type="module" type="text/javascript">
 
         import {
-            getFlexFieldTitle, renderFlexFieldOptions, renderSensor, createReactiveState, getAsset, humanizeIsoDuration,
+            getFlexFieldTitle, renderFlexFieldOptions, renderSensor, createReactiveState, getAsset,
             getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage, processResourceRawJSON
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
-
-        // Expose helper to the classic script block below.
-        window.humanizeIsoDuration = humanizeIsoDuration;
 
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
         const senSearchResEle = document.getElementById("sensorsSearchResults")
@@ -1245,7 +1242,7 @@
             this.id = id;
             this.name = name;
             this.unit = unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : unit;
-            this.resolution = window.humanizeIsoDuration ? window.humanizeIsoDuration(resolution) : resolution;
+            this.resolution = humanizeIsoDuration(resolution);
             this.url = `/sensors/${id}`;
         }
 
