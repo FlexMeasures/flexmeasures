@@ -416,6 +416,55 @@ The workflow includes:
 - Use f-strings for string formatting
 - Follow the project's code style (enforced by black, flake8)
 
+### Docstring Style Rules (ENFORCED — learned from PR #2163 review)
+
+#### 1. No historical context in test docstrings
+
+Test docstrings must describe **what the test currently verifies** — not why the
+bug existed or how behaviour changed.
+
+**Forbidden in docstrings:**
+```
+# Bug (on main): ...
+# Fix: ...
+# Expected: X on main, Y with fix
+```
+
+**Correct pattern** — describe the expected behaviour only:
+```python
+def test_forecast_horizon_is_preserved():
+    """Verify that the forecast horizon stored on each belief matches the sensor resolution."""
+```
+
+Historical context belongs in **commit messages** or **PR descriptions**, never
+in source code docstrings. It is scoped to the agent session only and must not
+be committed.
+
+#### 2. Minimal line-wrapping inside sentences
+
+Keep each sentence on as few lines as possible. Do **not** hard-wrap sentences
+mid-phrase to stay within 79 characters. A single long sentence is better than
+one broken across two lines.
+
+**Wrong** (sentence split mid-phrase):
+```python
+"""Verify that posting sensor data creates a data source whose account_id
+matches the posting user's account."""
+```
+
+**Correct** (sentence on one line):
+```python
+"""Verify that posting sensor data creates a data source whose account_id matches the posting user's account."""
+```
+
+#### 3. No double spaces after punctuation
+
+Use exactly **one** space after periods, commas, colons, and all other
+punctuation in docstrings, inline comments, and any documentation strings.
+
+**Wrong:** `"""Check asset.  A Prosumer asset is created."""`
+**Correct:** `"""Check asset. A Prosumer asset is created."""`
+
 ### Code Quality and Linting
 
 Before finalizing tests, always apply the project's code quality checks:
