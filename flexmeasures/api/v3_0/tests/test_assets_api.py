@@ -267,12 +267,20 @@ def test_get_public_assets(
 def test_alter_an_asset(
     client, setup_api_test_data, setup_accounts, requesting_user, db
 ):
-    # without being an account-admin, no asset can be created ...
+    # Without being an account-admin, no top-level asset can be created.
     with AccountContext("Test Prosumer Account") as prosumer:
         prosumer_asset = prosumer.generic_assets[0]
+        prosumer_asset_type_id = prosumer_asset.generic_asset_type_id
+        prosumer_id = prosumer.id
     asset_creation_response = client.post(
         url_for("AssetAPI:post"),
-        json={},
+        json={
+            "name": "Should be forbidden top-level asset",
+            "latitude": 30.1,
+            "longitude": 100.42,
+            "generic_asset_type_id": prosumer_asset_type_id,
+            "account_id": prosumer_id,
+        },
     )
     print(f"Creation Response: {asset_creation_response.json}")
     assert asset_creation_response.status_code == 403
@@ -1213,3 +1221,110 @@ def test_copy_asset_api_rejects_copy_to_descendant(
         "cannot copy an asset to itself or any of its descendants"
         in response.json["message"]["json"]
     )
+
+
+# ---------------------------------------------------------------------------
+# Auth-fix tests for AssetAPI.post
+#
+# Fix 1: Regular users were blocked from creating child assets because the
+#         endpoint checked ``create-children`` on the *account* (requiring
+#         account-admin) instead of on the *parent asset* (which allows any
+#         account member).
+#
+# Fix 2: Account-admins could create child assets under *any* parent in any
+#         account, because the check was only on their own account.  After the
+#         fix the check is on the parent asset's owning account.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_regular_user_can_create_child_asset(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """
+    A plain (non-admin) account member CAN create a child asset under a parent
+    asset that belongs to their own account.
+
+    ``GenericAsset.create-children`` is open to every member of the owning
+    account, so the check should succeed for any Prosumer account member.
+
+    Bug (on main): The ``post`` endpoint applied
+    ``@permission_required_for_context("create-children",
+    ctx_loader=AccountIdField.load_current)``, which checked the permission on
+    the *current user's account*.  ``Account.create-children`` requires
+    account-admin, so a plain user received 403.
+
+    Fix: The endpoint now checks ``create-children`` on the *parent asset*
+    instead, which allows any account member.
+
+    Expected: 201 Created with the fix applied, 403 on main.
+    """
+    prosumer_account = setup_accounts["Prosumer"]
+    parent = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    assert parent is not None, "Battery asset must exist in the Prosumer account"
+
+    post_data = {
+        "name": "Test child battery (auth-fix test 1)",
+        "latitude": 30.1,
+        "longitude": 100.42,
+        "generic_asset_type_id": parent.generic_asset_type_id,
+        "account_id": prosumer_account.id,
+        "parent_asset_id": parent.id,
+    }
+    response = client.post(url_for("AssetAPI:post"), json=post_data)
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 201
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_account_admin_cannot_create_child_under_cross_account_parent(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """
+    An account-admin of the Prosumer account must NOT be able to create a child
+    asset whose *parent* belongs to the Supplier account.
+
+    ``GenericAsset.create-children`` only allows members of the account that
+    owns the parent asset.  A Prosumer account-admin is not a Supplier account
+    member, so the request must be rejected.
+
+    Bug (on main): The ``post`` endpoint checked ``create-children`` on the
+    *current user's own account*; a Prosumer account-admin satisfied that check
+    and received 201, allowing them to nest assets under arbitrary foreign
+    parents.
+
+    Fix: The check is moved to the *parent asset*, so the Prosumer account-admin
+    is correctly blocked from creating children under a Supplier-owned asset.
+
+    Expected: 403 Forbidden with the fix applied, 201 (wrong) on main.
+    """
+    turbine = db.session.scalars(
+        select(GenericAsset).filter_by(name="Test wind turbine")
+    ).first()
+    assert turbine is not None, "Wind turbine asset must exist in the Supplier account"
+
+    prosumer_account = setup_accounts["Prosumer"]
+
+    # account_id is set to the user's own account – the schema requires non-site-admins
+    # to only create assets for their own account, so this is the only valid value.
+    # The security hole is that the parent belongs to a *different* account.
+    post_data = {
+        "name": "Cross-account child (auth-fix test 2)",
+        "latitude": 30.1,
+        "longitude": 100.42,
+        "generic_asset_type_id": turbine.generic_asset_type_id,
+        "account_id": prosumer_account.id,
+        "parent_asset_id": turbine.id,
+    }
+    response = client.post(url_for("AssetAPI:post"), json=post_data)
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 403

@@ -579,9 +579,6 @@ class AssetAPI(FlaskView):
         return response_schema.dump(assets), 200
 
     @route("", methods=["POST"])
-    @permission_required_for_context(
-        "create-children", ctx_loader=AccountIdField.load_current
-    )
     @use_args(asset_schema)
     def post(self, asset_data: dict):
         """
@@ -653,6 +650,20 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        # When placing the new asset under a parent, check create-children on the
+        # parent asset (any account member may add children to an asset they can see).
+        # When creating a top-level asset (no parent), check create-children on the
+        # target account, which requires account-admin or consultant.
+        # This aligns with the copy_assets endpoint.
+        parent_asset_id = asset_data.get("parent_asset_id")
+        if parent_asset_id is not None:
+            parent_asset = db.session.get(GenericAsset, parent_asset_id)
+            check_access(parent_asset, "create-children")
+        else:
+            account_id = asset_data.get("account_id")
+            account = db.session.get(Account, account_id) if account_id else None
+            check_access(account, "create-children")
+
         asset = create_asset(asset_data)
         db.session.commit()
 
