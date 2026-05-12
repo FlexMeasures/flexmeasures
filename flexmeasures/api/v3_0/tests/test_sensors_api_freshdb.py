@@ -261,6 +261,18 @@ def test_upload_sensor_data_with_unit_conversion_success(
             ],
             [30, 60],
         ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            1,
+            "2025-01-01T10:00:40+00:00",
+            timedelta(minutes=5),
+            [10, 20, 30, 40],
+            [
+                pd.Timestamp("2025-01-01T10:00:00+00:00"),
+                pd.Timestamp("2025-01-01T10:15:00+00:00"),
+            ],
+            [20, 40],
+        ),
     ],
     indirect=["requesting_user"],
 )
