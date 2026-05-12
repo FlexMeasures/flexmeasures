@@ -246,11 +246,16 @@ def test_post_invalid_sensor_data(
 def test_post_non_instantaneous_sensor_data_floor(
     client, setup_api_test_data, requesting_user
 ):
+    imprecise_start = "2021-06-08T00:00:40+02:00"
+    precise_start = "2021-06-08T00:00:00+02:00"
+    precise_end = "2021-06-08T01:00:00+02:00"
     post_data = make_sensor_data_request_for_gas_sensor(unit="m³/h")
-    post_data["start"] = "2021-06-08T00:00:40+02:00"
+    post_data["start"] = imprecise_start
     sensor = setup_api_test_data["some gas sensor"]
 
-    rows = len(sensor.search_beliefs())
+    assert (
+        len(sensor.search_beliefs(precise_start, precise_end)) == 0
+    ), "No beliefs were expected before we post our test data."
 
     response = client.post(
         url_for("SensorAPI:post_data", id=sensor.id),
@@ -259,21 +264,15 @@ def test_post_non_instantaneous_sensor_data_floor(
 
     assert response.status_code == 200
 
-    data = sensor.search_beliefs().reset_index()
-    new_data = data[
-        data["event_start"].between(
-            pd.Timestamp("2021-06-07 22:00:00+0000", tz="UTC"),
-            pd.Timestamp("2021-06-07 22:50:00+0000", tz="UTC"),
-        )
-    ]
-    assert len(sensor.search_beliefs()) - rows == 6
+    new_data = sensor.search_beliefs(precise_start, precise_end).reset_index()
+    assert len(new_data) == 6
     assert list(new_data["event_start"]) == [
-        pd.Timestamp("2021-06-07 22:00:00+0000", tz="UTC"),
-        pd.Timestamp("2021-06-07 22:10:00+0000", tz="UTC"),
-        pd.Timestamp("2021-06-07 22:20:00+0000", tz="UTC"),
-        pd.Timestamp("2021-06-07 22:30:00+0000", tz="UTC"),
-        pd.Timestamp("2021-06-07 22:40:00+0000", tz="UTC"),
-        pd.Timestamp("2021-06-07 22:50:00+0000", tz="UTC"),
+        pd.Timestamp("2021-06-08 00:00:00+02"),
+        pd.Timestamp("2021-06-08 00:10:00+02"),
+        pd.Timestamp("2021-06-08 00:20:00+02"),
+        pd.Timestamp("2021-06-08 00:30:00+02"),
+        pd.Timestamp("2021-06-08 00:40:00+02"),
+        pd.Timestamp("2021-06-08 00:50:00+02"),
     ]
 
 
