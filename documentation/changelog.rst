@@ -28,7 +28,10 @@ Bugfixes
 -----------
 * Fix forecasting regressor filtering to use only regressor beliefs known at the forecast ``belief_time`` [see `PR #2134 <https://www.github.com/FlexMeasures/flexmeasures/pull/2134>`_]
 * Check read permissions for sensors referenced in forecasting and scheduling config payloads, and return a clearer 403 error when a referenced sensor is not readable [see `PR #2096 <https://www.github.com/FlexMeasures/flexmeasures/pull/2096>`_ and `PR #2125 <https://www.github.com/FlexMeasures/flexmeasures/pull/2125>`_]
-
+* Make the sensor page load much faster for sensors with lots of data, by avoiding to load statistics over all of its history by default [see `PR #2129 <https://www.github.com/FlexMeasures/flexmeasures/pull/2129>`_]
+* Return a clear validation error (instead of a server ZeroDivisionError) when posting instantaneous (0-minute) data to non-instantaneous sensors via ``[POST] /sensors/(id)/data`` [see `PR #2116 <https://www.github.com/FlexMeasures/flexmeasures/pull/2116>`_]
+* Fix asset context page for asset names containing apostrophes [see `PR #2117 <https://www.github.com/FlexMeasures/flexmeasures/pull/2117>`_]
+* Fix disappearing plots on asset graphs during playback [see `PR #2147 <https://www.github.com/FlexMeasures/flexmeasures/pull/2147>`_]
 
 v0.32.1 | May 5, 2026
 ============================
