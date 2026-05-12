@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 from humanize import naturaldelta
 
-from flask import request, current_app
+from flask import abort, request, current_app
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
@@ -658,6 +658,8 @@ class AssetAPI(FlaskView):
         parent_asset_id = asset_data.get("parent_asset_id")
         if parent_asset_id is not None:
             parent_asset = db.session.get(GenericAsset, parent_asset_id)
+            if parent_asset is None:
+                abort(404, f"Parent asset with id {parent_asset_id} not found.")
             check_access(parent_asset, "create-children")
         else:
             account_id = asset_data.get("account_id")

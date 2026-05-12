@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import select
-from werkzeug.exceptions import Forbidden, Unauthorized
+from werkzeug.exceptions import Forbidden, NotFound, Unauthorized
 from flask_classful import FlaskView
 from flask_security import login_required
 from flask_security.core import current_user
@@ -36,6 +36,8 @@ class AccountCrudUI(FlaskView):
     def get(self, account_id: str):
         """/accounts/<account_id>"""
         account = db.session.execute(select(Account).filter_by(id=account_id)).scalar()
+        if account is None:
+            raise NotFound(f"Account with id {account_id} not found.")
         check_access(account, "read")
         if account.consultancy_account_id:
             consultancy_account = db.session.execute(
