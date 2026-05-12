@@ -246,11 +246,11 @@ def test_post_invalid_sensor_data(
 def test_post_non_instantaneous_sensor_data_floor(
     client, setup_api_test_data, requesting_user
 ):
-    imprecise_start = "2021-06-08T00:00:40+02:00"
+    offclock_start = "2021-06-08T00:00:40+02:00"
     precise_start = "2021-06-08T00:00:00+02:00"
     precise_end = "2021-06-08T01:00:00+02:00"
     post_data = make_sensor_data_request_for_gas_sensor(unit="m³/h")
-    post_data["start"] = imprecise_start
+    post_data["start"] = offclock_start
     sensor = setup_api_test_data["some gas sensor"]
 
     assert (
