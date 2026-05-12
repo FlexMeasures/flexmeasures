@@ -164,13 +164,15 @@ def save_and_enqueue(
                 if forecasting_jobs is not None
                 else None
             )
-            ingestion_queue.enqueue(
+            job = ingestion_queue.enqueue(
                 add_beliefs_to_db_and_enqueue_forecasting_jobs,
                 serialized_data=serialized_data,
                 forecasting_job_ids=forecasting_job_ids,
                 save_changed_beliefs_only=save_changed_beliefs_only,
             )
-            return request_processed()
+            response, code = request_processed()
+            response["job_id"] = job.id
+            return response, code
         else:
             current_app.logger.warning(
                 "No workers connected to the ingestion queue. Processing sensor data directly."

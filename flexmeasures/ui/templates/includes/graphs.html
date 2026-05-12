@@ -23,7 +23,7 @@
 
     // Import local js (the FM version is used for cache-busting, causing the browser to fetch the updated version from the server)
     import { convertToCSV } from "{{ url_for('flexmeasures_ui.static', filename='js/data-utils.js') }}?v={{ flexmeasures_version }}";
-    import {apiBasePath} from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+    import { apiBasePath, pollJobStatus } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { decompressChartData, checkDSTTransitions, checkSourceMasking } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
@@ -172,7 +172,6 @@
             .then(async function (response) {
                 if (response.ok) {
                     const data = await response.json();
-                    showToast(data.message, "success");
                     // Update date range
                     picker.setDateRange(
                         storeStartDate,
@@ -180,8 +179,22 @@
                     );
                     uploadSpinner.classList.add('d-none');
                     upload.classList.remove('d-none');
-                    // Reload the chart so newly-uploaded data is immediately visible
-                    document.dispatchEvent(new CustomEvent('newDataAvailable'));
+
+                    if (data.job_id) {
+                        // Track the background ingestion job and refresh when done.
+                        pollJobStatus(data.job_id, {
+                            processingMessage: "Upload received. Processing data in the background\u2026",
+                            successMessage: "Data processed successfully.",
+                            onFinished: () => {
+                                document.dispatchEvent(new CustomEvent('newDataAvailable'));
+                                loadSensorStats({{ sensor.id }}, "", "", true);
+                            },
+                        });
+                    } else {
+                        // No queued job: data was saved synchronously.
+                        showToast(data.message, "success");
+                        document.dispatchEvent(new CustomEvent('newDataAvailable'));
+                    }
                 } else {
                     const data = await response.json();
                     const messageKeys = Object.keys(data.message);

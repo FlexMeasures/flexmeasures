@@ -479,3 +479,90 @@ export function initDeleteAssetButton() {
         );
     });
 }
+
+/**
+ * Poll a background job until it reaches a terminal state (finished or failed).
+ *
+ * Calls GET /api/v3_0/jobs/<uuid> every `intervalMs` milliseconds and updates
+ * a toast notification as the status changes.  Polling stops automatically on
+ * success, failure, or network error, and also when the optional AbortSignal
+ * fires (useful for component/page teardown).
+ *
+ * @param {string}      jobUuid     - UUID returned by the upload endpoint.
+ * @param {object}      [options]
+ * @param {number}      [options.intervalMs=3000]      - Polling interval in ms.
+ * @param {string}      [options.processingMessage="Processing…"] - Toast text while queued/started.
+ * @param {string}      [options.successMessage="Job completed successfully."] - Toast text on finish.
+ * @param {string}      [options.errorMessage]         - Override toast text on failure (defaults to the
+ *                                                       server message when absent).
+ * @param {AbortSignal} [options.signal]               - Abort polling externally (e.g. page unload).
+ * @param {function}    [options.onFinished]           - Called with the full response JSON on finish.
+ * @param {function}    [options.onFailed]             - Called with the full response JSON on failure.
+ * @returns {function} stopPolling - Call to cancel polling manually.
+ */
+export function pollJobStatus(jobUuid, options = {}) {
+    const {
+        intervalMs = 3000,
+        processingMessage = "Processing\u2026",
+        successMessage = "Job completed successfully.",
+        errorMessage = null,
+        signal = null,
+        onFinished = null,
+        onFailed = null,
+    } = options;
+
+    const url = `${apiBasePath}/api/v3_0/jobs/${encodeURIComponent(jobUuid)}`;
+
+    // Show an initial "processing" info toast right away.
+    showToast(processingMessage, "info");
+
+    let stopped = false;
+
+    function stop() {
+        stopped = true;
+        clearInterval(intervalId);
+    }
+
+    // Honour an external AbortSignal (e.g. page navigation / component unmount).
+    if (signal) {
+        signal.addEventListener("abort", stop, { once: true });
+    }
+
+    async function poll() {
+        if (stopped) return;
+
+        let data;
+        try {
+            const response = await fetch(url, { credentials: "same-origin" });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            data = await response.json();
+        } catch (err) {
+            stop();
+            showToast("Could not reach job status endpoint: " + err.message, "error");
+            if (onFailed) onFailed(null);
+            return;
+        }
+
+        const status = (data.status || "").toUpperCase();
+
+        if (status === "FINISHED") {
+            stop();
+            showToast(successMessage, "success");
+            if (onFinished) onFinished(data);
+        } else if (status === "FAILED" || status === "STOPPED" || status === "CANCELED") {
+            stop();
+            const msg = errorMessage || data.message || "Job failed.";
+            showToast(msg, "error");
+            if (onFailed) onFailed(data);
+        }
+        // QUEUED / STARTED / DEFERRED / SCHEDULED → keep polling, toast already shown.
+    }
+
+    // Poll immediately on first tick, then on each interval.
+    const intervalId = setInterval(poll, intervalMs);
+    poll();
+
+    return stop;
+}
