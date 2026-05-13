@@ -17,9 +17,11 @@ from flexmeasures.api.common.utils.api_utils import catch_timed_belief_replaceme
 from flexmeasures.data.models.user import User
 from flexmeasures.api.common.utils.args_parsing import (
     validation_error_handler,
+    request_entity_too_large_handler,
 )
 from flexmeasures.api.common.responses import invalid_sender
 from flexmeasures.data.schemas.utils import FMValidationError
+from werkzeug.exceptions import RequestEntityTooLarge
 from flexmeasures.api.v3_0.users import AuthRequestSchema
 
 # The api blueprint. It is registered with the Flask app (see app.py)
@@ -150,6 +152,7 @@ def register_at(app: Flask):
 
     # handle API specific errors
     app.register_error_handler(FMValidationError, validation_error_handler)
+    app.register_error_handler(RequestEntityTooLarge, request_entity_too_large_handler)
     app.register_error_handler(IntegrityError, catch_timed_belief_replacements)
     app.unauthorized_handler_api = invalid_sender
 

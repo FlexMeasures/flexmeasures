@@ -3,6 +3,8 @@ from typing import Sequence
 import inflect
 from functools import wraps
 
+from flask import url_for
+
 from flexmeasures.auth.error_handling import FORBIDDEN_MSG, FORBIDDEN_STATUS_CODE
 
 p = inflect.engine()
@@ -62,7 +64,7 @@ def already_received_and_successfully_processed(message: str) -> ResponseTuple:
 
 
 @BaseMessage(
-    "Some of the data represents a replacement, which is reserved for customized servers. If you are hosting FlexMeasures, you can enable replacements by setting FLEXMEASURES_ALLOW_DATA_OVERWRITE=True in the configuration settings. Alternatively, update the prior in your request."
+    "Some of the data represents a replacement: existing values would be changed for the same sensor, source, event timestamp and belief time. This is reserved for customized servers. If you are hosting FlexMeasures, you can enable replacements by setting FLEXMEASURES_ALLOW_DATA_OVERWRITE=True in the configuration settings. Alternatively, submit the data with a different prior, or check whether the same file was already uploaded with different values."
 )
 def invalid_replacement(message: str) -> ResponseTuple:
     return (
@@ -376,6 +378,25 @@ def unrecognized_asset(message: str) -> ResponseTuple:
 @BaseMessage("Request has been processed.")
 def request_processed(message: str) -> ResponseTuple:
     return dict(status="PROCESSED", message=message), 200
+
+
+def request_accepted_for_processing(
+    job_id: str,
+    message: str = "Request has been accepted for processing.",
+) -> ResponseTuple:
+    return (
+        dict(
+            status="ACCEPTED",
+            message=message,
+            job_monitor_url=url_for("JobAPI:get_job_status", uuid=job_id),
+            job_id=job_id,
+        ),
+        202,
+    )
+
+
+def request_too_large(message: str) -> ResponseTuple:
+    return dict(result="Rejected", status="PAYLOAD_TOO_LARGE", message=message), 413
 
 
 def pluralize(usef_role_name: str) -> str:

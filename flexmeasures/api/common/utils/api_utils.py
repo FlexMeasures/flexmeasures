@@ -22,7 +22,6 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.data_ingestion import (
     add_beliefs_to_db_and_enqueue_forecasting_jobs,
-    serialize_ingestion_data,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
@@ -31,6 +30,7 @@ from flexmeasures.api.common.responses import (
     invalid_replacement,
     ResponseTuple,
     request_processed,
+    request_accepted_for_processing,
     already_received_and_successfully_processed,
 )
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
@@ -150,6 +150,32 @@ def save_and_enqueue(
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:
+    status = add_beliefs_to_db_and_enqueue_forecasting_jobs(
+        data,
+        forecasting_jobs=forecasting_jobs,
+        save_changed_beliefs_only=save_changed_beliefs_only,
+    )
+
+    # Pick a response
+    if status == "success":
+        return request_processed()
+    elif status in (
+        "success_with_unchanged_beliefs_skipped",
+        "success_but_nothing_new",
+    ):
+        return already_received_and_successfully_processed()
+    return invalid_replacement()
+
+
+def enqueue_sensor_data_ingestion(
+    sensor_id: int,
+    user_id: int,
+    sensor_data: dict | None = None,
+    uploaded_files: list[dict] | None = None,
+    upload_data: dict | None = None,
+    forecasting_jobs: list[Job] | None = None,
+    save_changed_beliefs_only: bool = True,
+) -> ResponseTuple:
     ingestion_queue = current_app.queues.get("ingestion")
     if ingestion_queue is None:
         current_app.logger.warning(
@@ -158,32 +184,41 @@ def save_and_enqueue(
     else:
         workers = Worker.all(queue=ingestion_queue)
         if workers:
-            serialized_data = serialize_ingestion_data(data)
             forecasting_job_ids = (
                 [job.id for job in forecasting_jobs]
                 if forecasting_jobs is not None
                 else None
             )
-            ingestion_queue.enqueue(
+            job = ingestion_queue.enqueue(
                 add_beliefs_to_db_and_enqueue_forecasting_jobs,
-                serialized_data=serialized_data,
+                sensor_id=sensor_id,
+                user_id=user_id,
+                sensor_data=sensor_data,
+                uploaded_files=uploaded_files,
+                upload_data=upload_data,
                 forecasting_job_ids=forecasting_job_ids,
                 save_changed_beliefs_only=save_changed_beliefs_only,
+                meta={"sensor_id": sensor_id},
             )
-            return request_processed()
+            return request_accepted_for_processing(
+                job.id,
+                "Sensor data has been accepted for processing.",
+            )
         else:
             current_app.logger.warning(
                 "No workers connected to the ingestion queue. Processing sensor data directly."
             )
 
-    # Attempt to save directly (fallback when no ingestion queue or workers are available)
     status = add_beliefs_to_db_and_enqueue_forecasting_jobs(
-        data,
+        sensor_id=sensor_id,
+        user_id=user_id,
+        sensor_data=sensor_data,
+        uploaded_files=uploaded_files,
+        upload_data=upload_data,
         forecasting_jobs=forecasting_jobs,
         save_changed_beliefs_only=save_changed_beliefs_only,
     )
 
-    # Pick a response
     if status == "success":
         return request_processed()
     elif status in (
