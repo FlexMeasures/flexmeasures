@@ -556,8 +556,15 @@ export function pollJobStatus(jobUuid, options = {}) {
             const msg = errorMessage || data.message || "Job failed.";
             showToast(msg, "error");
             if (onFailed) onFailed(data);
+        } else if (status === "STARTED") { // This is the shown status when ingestion is in progress
+              // show a inprogress message
+              const inProgressMessage = data.message || "Job is in progress.";
+              showToast(inProgressMessage, "info");
+        } else {
+            // QUEUED / STARTED / DEFERRED / SCHEDULED → keep polling, show status updates
+            const statusToast = data.message || `Job status: ${status}`;
+            console.log(`[pollJobStatus] Still processing: ${statusToast}`);
         }
-        // QUEUED / STARTED / DEFERRED / SCHEDULED → keep polling, toast already shown.
     }
 
     // Poll immediately on first tick, then on each interval.
