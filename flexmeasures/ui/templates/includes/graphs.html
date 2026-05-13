@@ -374,8 +374,21 @@
             {% endif %}
 
             if (timerangeVar in data) {
-                var start = new Date(data[timerangeVar].start);
-                var end = new Date(data[timerangeVar].end);
+                var fullDataStart = new Date(data[timerangeVar].start);
+                var fullDataEnd = new Date(data[timerangeVar].end);
+                {% if active_page == "sensors" %}
+                if (!isNaN(fullDataStart.getTime()) && !isNaN(fullDataEnd.getTime())) {
+                    document.dispatchEvent(new CustomEvent('sensorDataRangeAvailable', {
+                        detail: {
+                            firstEventStart: fullDataStart,
+                            lastEventEnd: fullDataEnd,
+                        }
+                    }));
+                }
+                {% endif %}
+
+                var start = new Date(fullDataStart);
+                var end = new Date(fullDataEnd);
                 end.setSeconds(end.getSeconds() - 1); // -1 second in case most recent event ends at midnight
                 start.setHours(0, 0, 0, 0); // get start of first day
                 end.setHours(0, 0, 0, 0); // get start of last day
