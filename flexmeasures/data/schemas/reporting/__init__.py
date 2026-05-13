@@ -56,11 +56,10 @@ class BeliefsSearchConfigSchema(Schema):
     horizons_at_most = DurationField()
 
     source = DataSourceIdField()
-    source_account_ids = fields.List(fields.Int())
+    source_account_ids = AccountIdOrListField()
 
     source_types = fields.List(fields.Str())
     exclude_source_types = fields.List(fields.Str())
-    account_id = AccountIdOrListField()
     most_recent_beliefs_only = fields.Boolean()
     most_recent_events_only = fields.Boolean()
 
