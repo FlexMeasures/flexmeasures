@@ -13,7 +13,6 @@ from timely_beliefs import BeliefsDataFrame
 import pandas as pd
 
 from humanize.time import precisedelta
-from humanize import naturaldelta
 
 from flexmeasures.data.models.time_series import TimedBelief
 
@@ -702,14 +701,14 @@ def serialize_sensor_status_data(
     for sensor_status in sensor_statuses:
         sensor_status["id"] = sensor.id
         sensor_status["name"] = sensor.name
-        sensor_status["resolution"] = naturaldelta(sensor.event_resolution)
+        sensor_status["resolution"] = duration_isoformat(sensor.event_resolution)
         sensor_status["staleness"] = (
-            naturaldelta(sensor_status["staleness"])
+            duration_isoformat(sensor_status["staleness"])
             if sensor_status["staleness"] is not None
             else None
         )
         sensor_status["staleness_since"] = (
-            naturaldelta(sensor_status["staleness_since"])
+            sensor_status["staleness_since"].isoformat()
             if sensor_status["staleness_since"] is not None
             else None
         )

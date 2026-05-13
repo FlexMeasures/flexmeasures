@@ -116,6 +116,7 @@ def _generate_fixed_value_records(
     timestamps_ms = _fixed_value_timestamps_ms(
         event_starts_after, event_ends_before, resolution
     )
+    belief_time_ms = int(event_starts_after.timestamp() * 1000)
     sensor_meta = sensor.as_dict  # uses _as_dict_override for fixed-value sensors
     source_dict = _fixed_value_source_dict(flex_source)
 
@@ -123,6 +124,7 @@ def _generate_fixed_value_records(
         {
             "event_start": ts_ms,
             "event_value": constant_value,
+            "belief_time": belief_time_ms,
             "sensor": sensor_meta,
             "source": source_dict,
             "sensor_unit": sensor.unit,
@@ -160,12 +162,14 @@ def _generate_fixed_value_records_compressed(
     timestamps_ms = _fixed_value_timestamps_ms(
         event_starts_after, event_ends_before, resolution
     )
+    belief_time_ms = int(event_starts_after.timestamp() * 1000)
 
     return [
         {
             "ts": ts_ms,
             "sid": sensor.id,
             "val": constant_value,
+            "bt": belief_time_ms,
             "sf": 1.0,
             "src": source_id,
             "bh": 0,
@@ -430,7 +434,9 @@ class GenericAsset(db.Model, AuthModelMixin):
             extract_sensors_from_flex_config,
         )
 
-        sensors_to_show_schema = SensorsToShowSchema()
+        sensors_to_show_schema = SensorsToShowSchema(
+            allow_missing_asset_flex_field=True
+        )
 
         # Deserialize the sensor_ids_to_show using SensorsToShowSchema
         standardized_sensors_to_show = sensors_to_show_schema.deserialize(
@@ -534,14 +540,29 @@ class GenericAsset(db.Model, AuthModelMixin):
         self, plot, sensors_list, asset_refs_list, extract_utils, SensorClass
     ):
         """Helper to extract sensors and asset refs from a single plot configuration."""
+        from marshmallow import ValidationError
+
         if "sensor" in plot:
             sensors_list.append(plot["sensor"])
         if "sensors" in plot:
             sensors_list.extend(plot["sensors"])
         if "asset" in plot:
-            extracted_sensors, refs = extract_utils(plot)
+            try:
+                extracted_sensors, refs = extract_utils(plot)
+            except ValidationError as err:
+                # Keep chart rendering resilient when a previously saved flex reference
+                # is no longer configured on the referenced asset.
+                current_app.logger.warning(
+                    "Skipping invalid asset plot reference %s on asset %s: %s",
+                    plot,
+                    self.id,
+                    err,
+                )
+                return
             for sensor_id in extracted_sensors:
                 sensor = db.session.get(SensorClass, sensor_id)
+                if sensor is None:
+                    continue
                 flex_config_key = plot.get("flex-context") or plot.get("flex-model")
                 sensor.name = f"{sensor.name} ({flex_config_key})"
             sensors_list.extend(extracted_sensors)
