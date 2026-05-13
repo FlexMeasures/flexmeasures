@@ -134,7 +134,9 @@ def user_source_criterion(
     return cls.source_id.not_in(ignorable_user_source_ids)
 
 
-def source_account_criterion(source_account_ids: int | list[int] | "Account" | list["Account"]) -> BinaryExpression:
+def source_account_criterion(
+    source_account_ids: int | list[int] | "Account" | list["Account"],
+) -> BinaryExpression:
     """Criterion to collect only data from sources belonging to the given account(s).
 
     Accepts account IDs as integers or Account model instances (or a list of either).
@@ -142,7 +144,9 @@ def source_account_criterion(source_account_ids: int | list[int] | "Account" | l
     if not isinstance(source_account_ids, list):
         source_account_ids = [source_account_ids]
     # Support both integer IDs and Account model instances
-    source_account_ids = [a.id if not isinstance(a, int) else a for a in source_account_ids]
+    source_account_ids = [
+        a.id if not isinstance(a, int) else a for a in source_account_ids
+    ]
     return DataSource.account_id.in_(source_account_ids)
 
 
