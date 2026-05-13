@@ -15,6 +15,7 @@ from sqlalchemy import select, Select
 from flexmeasures.data.config import db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.user import Account
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
@@ -135,7 +136,7 @@ def user_source_criterion(
 
 
 def source_account_criterion(
-    source_account_ids: int | list[int] | "Account" | list["Account"],
+    source_account_ids: int | list[int] | Account | list[Account],
 ) -> BinaryExpression:
     """Criterion to collect only data from sources belonging to the given account(s).
 
