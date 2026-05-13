@@ -327,7 +327,7 @@ def test_search_beliefs_account_id_filter(db, setup_sources_with_accounts):
 
     # Filter by Prosumer account: should return only 1 belief
     bdf_a = sensor.search_beliefs(
-        account_id=source_account_a.account_id,
+        source_account_ids=source_account_a.account_id,
         most_recent_beliefs_only=False,
     )
     assert len(bdf_a) == 1
@@ -335,7 +335,7 @@ def test_search_beliefs_account_id_filter(db, setup_sources_with_accounts):
 
     # Filter by Supplier account: should return only 1 belief
     bdf_b = sensor.search_beliefs(
-        account_id=source_account_b.account_id,
+        source_account_ids=source_account_b.account_id,
         most_recent_beliefs_only=False,
     )
     assert len(bdf_b) == 1
@@ -343,7 +343,7 @@ def test_search_beliefs_account_id_filter(db, setup_sources_with_accounts):
 
     # Filter by both accounts: should return 2 beliefs
     bdf_ab = sensor.search_beliefs(
-        account_id=[source_account_a.account_id, source_account_b.account_id],
+        source_account_ids=[source_account_a.account_id, source_account_b.account_id],
         most_recent_beliefs_only=False,
     )
     assert len(bdf_ab) == 2
@@ -357,7 +357,7 @@ def test_search_beliefs_account_id_filter(db, setup_sources_with_accounts):
 
     # Empty list: matches nothing (consistent with SQL IN () semantics)
     bdf_empty_list = sensor.search_beliefs(
-        account_id=[],
+        source_account_ids=[],
         most_recent_beliefs_only=False,
     )
     assert len(bdf_empty_list) == 0
@@ -374,7 +374,7 @@ def test_timed_belief_search_account_id_filter(db, setup_sources_with_accounts):
     # Filter by Prosumer account
     bdf = TimedBelief.search(
         sensor,
-        account_id=source_account_a.account_id,
+        source_account_ids=source_account_a.account_id,
         most_recent_beliefs_only=False,
     )
     assert len(bdf) == 1
@@ -383,7 +383,7 @@ def test_timed_belief_search_account_id_filter(db, setup_sources_with_accounts):
     # Filter by a non-existent account id: should return no beliefs
     bdf_empty = TimedBelief.search(
         sensor,
-        account_id=999999,
+        source_account_ids=999999,
         most_recent_beliefs_only=False,
     )
     assert len(bdf_empty) == 0
@@ -403,7 +403,7 @@ def test_generic_asset_search_beliefs_account_id_filter(
     # Filter by Prosumer account: should return only 1 belief
     bdf_dict_a = asset.search_beliefs(
         sensors=[sensor],
-        account_id=source_account_a.account_id,
+        source_account_ids=source_account_a.account_id,
         most_recent_beliefs_only=False,
     )
     bdf_a = bdf_dict_a[sensor]
