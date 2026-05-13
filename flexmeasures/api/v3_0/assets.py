@@ -4,7 +4,8 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 from humanize import naturaldelta
 
-from flask import request, current_app
+from flask import abort, request, current_app
+from werkzeug.exceptions import Forbidden
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
@@ -64,10 +65,10 @@ from flexmeasures.api.common.responses import (
     unprocessable_entity,
     request_processed,
 )
-from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
-from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.policy import check_access, user_has_admin_access
+from flexmeasures.cli import is_running as running_as_cli
 from flexmeasures.data.schemas.sensors import (
     SensorSchema,
 )
@@ -531,9 +532,6 @@ class AssetAPI(FlaskView):
         return response_schema.dump(assets), 200
 
     @route("", methods=["POST"])
-    @permission_required_for_context(
-        "create-children", ctx_loader=AccountIdField.load_current
-    )
     @use_args(asset_schema)
     def post(self, asset_data: dict):
         """
@@ -605,6 +603,33 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        # When placing the new asset under a parent, check create-children on the
+        # parent asset (any account member may add children to an asset they can see).
+        # When creating a top-level asset (no parent), check create-children on the
+        # target account, which requires account-admin or consultant.
+        # This aligns with the copy_assets endpoint.
+        parent_asset_id = asset_data.get("parent_asset_id")
+        if parent_asset_id is not None:
+            parent_asset = db.session.get(GenericAsset, parent_asset_id)
+            if parent_asset is None:
+                abort(404, f"Parent asset with id {parent_asset_id} not found.")
+            check_access(parent_asset, "create-children")
+        else:
+            account_id = asset_data.get("account_id")
+            if account_id is not None:
+                account = db.session.get(Account, account_id)
+                check_access(account, "create-children")
+            elif not running_as_cli() and not user_has_admin_access(
+                current_user, "update"
+            ):
+                # Public asset (account_id is None). Only site admins and CLI may create
+                # public assets. Note: GenericAssetSchema.validate_account only runs for
+                # explicitly-provided account_id values; when account_id is absent from
+                # the request body, that validator is not called by Marshmallow.
+                raise Forbidden(
+                    "Only site admins may create public assets (account_id=None)."
+                )
+
         asset = create_asset(asset_data)
         db.session.commit()
 
