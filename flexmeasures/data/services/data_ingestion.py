@@ -4,108 +4,82 @@ Logic around data ingestion (jobs)
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from io import BytesIO
 
 from flask import current_app
-import pandas as pd
 from rq.job import Job
 from rq.job import NoSuchJobError
-from sqlalchemy import select
 import timely_beliefs as tb
+from werkzeug.datastructures import FileStorage
 
 from flexmeasures.data import db
-from flexmeasures.data.models.data_sources import DataSource
-from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.user import User
 from flexmeasures.data.utils import save_to_db
 
 
-def serialize_ingestion_data(
-    data: tb.BeliefsDataFrame | list[tb.BeliefsDataFrame],
-) -> list[dict]:
-    """Serialize beliefs data to primitive types suitable for queue kwargs.
-
-    The returned payload intentionally avoids ORM instances (Sensor/DataSource),
-    which can break across process boundaries when pickled by RQ.
-    """
-
-    bdfs: list[tb.BeliefsDataFrame]
-    if isinstance(data, list):
-        bdfs = data
-    else:
-        bdfs = [data]
-
-    payload: list[dict] = []
-    for bdf in bdfs:
-        # Normalize timing representation to belief_time for stable serialization.
-        bdf = bdf.convert_index_from_belief_horizon_to_time()
-        serialized_rows: list[dict] = []
-        for belief in bdf.reset_index().itertuples(index=False):
-            serialized_rows.append(
-                {
-                    "event_start": belief.event_start.isoformat(),
-                    "belief_time": belief.belief_time.isoformat(),
-                    "source_id": belief.source.id,
-                    "cumulative_probability": float(belief.cumulative_probability),
-                    "event_value": (
-                        None
-                        if pd.isna(belief.event_value)
-                        else float(belief.event_value)
-                    ),
-                }
-            )
-
-        payload.append(
-            {
-                "sensor_id": bdf.sensor.id,
-                "beliefs": serialized_rows,
-            }
-        )
-    return payload
+def _get_ingestion_context(sensor_id: int, user_id: int) -> tuple[Sensor, User]:
+    sensor = db.session.get(Sensor, sensor_id)
+    if sensor is None:
+        raise ValueError(f"No such sensor: {sensor_id}")
+    user = db.session.get(User, user_id)
+    if user is None:
+        raise ValueError(f"No such user: {user_id}")
+    return sensor, user
 
 
-def deserialize_ingestion_data(payload: Sequence[dict]) -> list[tb.BeliefsDataFrame]:
-    """Deserialize queue-safe ingestion payload back into BeliefsDataFrames."""
+def _load_json_sensor_data(
+    sensor_id: int,
+    user_id: int,
+    sensor_data: dict,
+) -> tb.BeliefsDataFrame:
+    """Validate and transform raw JSON sensor data into a BeliefsDataFrame."""
 
-    bdfs: list[tb.BeliefsDataFrame] = []
-    for item in payload:
-        sensor = db.session.get(Sensor, item["sensor_id"])
-        if sensor is None:
-            raise ValueError(f"No such sensor: {item['sensor_id']}")
+    from flexmeasures.api.common.schemas.sensor_data import PostSensorDataSchema
 
-        belief_rows = item.get("beliefs", [])
-        if not belief_rows:
-            bdfs.append(tb.BeliefsDataFrame(sensor=sensor))
-            continue
+    _sensor, user = _get_ingestion_context(sensor_id, user_id)
+    payload = dict(sensor_data)
+    payload.pop("id", None)
+    payload["sensor"] = sensor_id
+    return PostSensorDataSchema(source_user=user).load(payload)["bdf"]
 
-        source_ids = sorted({row["source_id"] for row in belief_rows})
-        sources = db.session.scalars(
-            select(DataSource).filter(DataSource.id.in_(source_ids))
-        ).all()
-        source_map = {source.id: source for source in sources}
 
-        beliefs: list[TimedBelief] = []
-        for row in belief_rows:
-            source = source_map.get(row["source_id"])
-            if source is None:
-                raise ValueError(f"No such source: {row['source_id']}")
-            beliefs.append(
-                TimedBelief(
-                    sensor=sensor,
-                    source=source,
-                    event_start=pd.Timestamp(row["event_start"]),
-                    belief_time=pd.Timestamp(row["belief_time"]),
-                    cumulative_probability=row["cumulative_probability"],
-                    event_value=row["event_value"],
-                )
-            )
-        bdfs.append(tb.BeliefsDataFrame(beliefs))
+def _file_storage_from_payload(file_payload: dict) -> FileStorage:
+    stream = BytesIO(file_payload["content"])
+    stream.name = file_payload["filename"]
+    return FileStorage(
+        stream=stream,
+        filename=file_payload["filename"],
+        content_type=file_payload["content_type"],
+    )
 
-    return bdfs
+
+def _load_uploaded_sensor_data(
+    sensor_id: int,
+    user_id: int,
+    uploaded_files: list[dict],
+    upload_data: dict,
+) -> list[tb.BeliefsDataFrame]:
+    """Validate and transform raw uploaded files into BeliefsDataFrames."""
+
+    from flexmeasures.data.schemas.sensors import SensorDataFileSchema
+
+    _sensor, user = _get_ingestion_context(sensor_id, user_id)
+    payload = dict(upload_data)
+    payload["id"] = sensor_id
+    payload["uploaded-files"] = [
+        _file_storage_from_payload(file_payload) for file_payload in uploaded_files
+    ]
+    return SensorDataFileSchema(source_user=user).load(payload)["data"]
 
 
 def add_beliefs_to_db_and_enqueue_forecasting_jobs(
     data: tb.BeliefsDataFrame | list[tb.BeliefsDataFrame] | None = None,
-    serialized_data: list[dict] | None = None,
+    sensor_id: int | None = None,
+    user_id: int | None = None,
+    sensor_data: dict | None = None,
+    uploaded_files: list[dict] | None = None,
+    upload_data: dict | None = None,
     forecasting_jobs: list[Job] | None = None,
     forecasting_job_ids: list[str] | None = None,
     save_changed_beliefs_only: bool = True,
@@ -116,7 +90,11 @@ def add_beliefs_to_db_and_enqueue_forecasting_jobs(
     but can also be called directly (e.g. as a fallback when no workers are available).
 
     :param data:                        BeliefsDataFrame (or list thereof) to be saved.
-    :param serialized_data:             Queue-safe payload containing only primitive types.
+    :param sensor_id:                   Sensor ID for raw JSON or file ingestion.
+    :param user_id:                     User ID used to resolve the source of raw ingested data.
+    :param sensor_data:                 Raw JSON payload from the sensor data endpoint.
+    :param uploaded_files:              Uploaded file contents and metadata.
+    :param upload_data:                 Raw form payload from the sensor data upload endpoint.
     :param forecasting_jobs:            Optional list of forecasting Jobs to enqueue after saving.
     :param forecasting_job_ids:         Optional list of forecasting Job ids to enqueue after saving.
     :param save_changed_beliefs_only:   If True, skip saving beliefs whose value hasn't changed.
@@ -125,10 +103,21 @@ def add_beliefs_to_db_and_enqueue_forecasting_jobs(
                                         - 'success_with_unchanged_beliefs_skipped'
                                         - 'success_but_nothing_new'
     """
-    if serialized_data is not None:
-        data = deserialize_ingestion_data(serialized_data)
+    if sensor_data is not None:
+        if sensor_id is None or user_id is None:
+            raise ValueError("Expected sensor_id and user_id for raw sensor data.")
+        data = _load_json_sensor_data(sensor_id, user_id, sensor_data)
+    elif uploaded_files is not None:
+        if sensor_id is None or user_id is None:
+            raise ValueError("Expected sensor_id and user_id for uploaded sensor data.")
+        data = _load_uploaded_sensor_data(
+            sensor_id,
+            user_id,
+            uploaded_files,
+            upload_data or {},
+        )
     if data is None:
-        raise ValueError("Expected either data or serialized_data.")
+        raise ValueError("Expected data, sensor_data, or uploaded_files.")
 
     status = save_to_db(data, save_changed_beliefs_only=save_changed_beliefs_only)
     db.session.commit()

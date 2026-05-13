@@ -5,7 +5,7 @@ import math
 import io
 import json
 
-from flask import url_for
+from flask import current_app, url_for
 from sqlalchemy import select, func
 
 from flexmeasures.data.models.time_series import TimedBelief
@@ -339,6 +339,68 @@ def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requestin
         user=requesting_user,
         asset=sensor.generic_asset,
     )
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_csv_file_returns_accepted_job(
+    client, setup_api_test_data, requesting_user, monkeypatch
+):
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        lambda queue: [object()],
+    )
+    current_app.queues["ingestion"].empty()
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    csv_content = """event_start,event_value
+2022-12-16T05:11:00Z,4
+"""
+    sensor = setup_api_test_data["some gas sensor"]
+    file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": file},
+        content_type="multipart/form-data",
+        headers={"Authorization": auth_token},
+    )
+
+    assert response.status_code == 202
+    assert response.json["status"] == "ACCEPTED"
+    assert response.json["job_monitor_url"] == url_for(
+        "JobAPI:get_job_status", uuid=response.json["job_id"]
+    )
+    job = current_app.queues["ingestion"].fetch_job(response.json["job_id"])
+    assert job.kwargs["sensor_id"] == sensor.id
+    assert job.kwargs["uploaded_files"][0]["filename"] == "test.csv"
+    assert job.kwargs["uploaded_files"][0]["content"] == csv_content.encode("utf-8")
+    assert "data" not in job.kwargs
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_csv_file_rejects_large_upload(
+    client, setup_api_test_data, requesting_user, monkeypatch
+):
+    monkeypatch.setitem(
+        current_app.config,
+        "FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES",
+        1,
+    )
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    sensor = setup_api_test_data["some gas sensor"]
+    file = (
+        io.BytesIO(b"event_start,event_value\n2022-12-16T05:11:00Z,4\n"),
+        "test.csv",
+    )
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": file},
+        content_type="multipart/form-data",
+        headers={"Authorization": auth_token},
+    )
+
+    assert response.status_code == 413
+    assert response.json["status"] == "PAYLOAD_TOO_LARGE"
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
