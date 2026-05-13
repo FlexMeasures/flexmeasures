@@ -420,7 +420,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources. Without this set and a most recent parameter used (see below), the results can be of any source.
         :param user_source_ids: Optional list of user source ids to query only specific user sources
-        :param source_account_ids: Optional list of account ids to query only sources linked to specific accounts
+        :param source_account_ids: Optional account ID (or list thereof) to query only sources linked to specific accounts
         :param source_types: Optional list of source type names to query only specific source types *
         :param exclude_source_types: Optional list of source type names to exclude specific source types *
         :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
@@ -883,7 +883,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param user_source_ids: Optional list of user source ids to query only specific user sources
-        :param source_account_ids: Optional list of account ids to query only sources linked to specific accounts
+        :param source_account_ids: Optional account ID (or list thereof) to query only sources linked to specific accounts
         :param source_types: Optional list of source type names to query only specific source types *
         :param exclude_source_types: Optional list of source type names to exclude specific source types *
         :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
