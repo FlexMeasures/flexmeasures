@@ -73,7 +73,12 @@ For the data, note the following:
 - The resolution does not have to be the sensor resolution ― FlexMeasures will attempt to convert your data to the sensor resolution. Not all resolutions fit. What works best: Upsampling.
 - Data can have gaps, but FlexMeasures still needs to be able to guess the frequency.
 - Duplicates will be removed.
-- For the unit of the data (e.g. kW), see help text on the unit selection below."
+- For the unit of the data (e.g. kW), see help text on the unit selection below.
+{% if config.FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES is not none -%}
+- Uploads are limited to {{ "%.1f"|format(config.FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES / 1024 / 1024) }} MiB per request.
+{%- else -%}
+- This server has no FlexMeasures-specific upload size limit configured.
+{%- endif %}"
             style="color: white; cursor: pointer;"
         >
         </i> <!-- This icon is intentionally indented like tis so the content aligns properly when view. -->
@@ -138,7 +143,7 @@ For the data, note the following:
                                             style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
                                             Upload file
                                         </button>
-                                        <div id="spinner-upload-sensor-data" class="d-none spinner spinner-bottom-right">
+                                        <div id="spinner-upload-sensor-data" class="d-none text-end mt-3" aria-live="polite">
                                             <i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
                                             <span class="sr-only">Loading...</span>
                                         </div>

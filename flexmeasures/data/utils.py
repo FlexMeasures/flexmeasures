@@ -134,7 +134,7 @@ def save_to_db(
                 # No state changes among the beliefs
                 continue
 
-        current_app.logger.info("SAVING TO DB...")
+        current_app.logger.info("SAVING TO DB ...")
         TimedBelief.add_to_session(
             session=db.session,
             beliefs_data_frame=timed_values,
@@ -144,6 +144,7 @@ def save_to_db(
             ),
         )
         values_saved += len(timed_values)
+        current_app.logger.info(f"SAVED {len(timed_values)} TO DB.")
     # Flush to bring up potential unique violations (due to attempting to replace beliefs)
     db.session.flush()
 

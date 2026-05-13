@@ -496,6 +496,7 @@ export function initDeleteAssetButton() {
  * @param {string}      [options.errorMessage]         - Override toast text on failure (defaults to the
  *                                                       server message when absent).
  * @param {AbortSignal} [options.signal]               - Abort polling externally (e.g. page unload).
+ * @param {function}    [options.onStatus]             - Called with the full response JSON on each poll.
  * @param {function}    [options.onFinished]           - Called with the full response JSON on finish.
  * @param {function}    [options.onFailed]             - Called with the full response JSON on failure.
  * @returns {function} stopPolling - Call to cancel polling manually.
@@ -507,6 +508,7 @@ export function pollJobStatus(jobUuid, options = {}) {
         successMessage = "Job completed successfully.",
         errorMessage = null,
         signal = null,
+        onStatus = null,
         onFinished = null,
         onFailed = null,
     } = options;
@@ -546,6 +548,7 @@ export function pollJobStatus(jobUuid, options = {}) {
         }
 
         const status = (data.status || "").toUpperCase();
+        if (onStatus) onStatus(data);
 
         if (status === "FINISHED") {
             stop();

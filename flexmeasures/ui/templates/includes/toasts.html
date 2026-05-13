@@ -31,14 +31,6 @@
             });
         }
 
-        function showAllToasts() {
-            const toastElements = document.querySelectorAll(".toast");
-            toastElements.forEach((toast) => {
-                const toastInstance = new bootstrap.Toast(toast);
-                toastInstance.show();
-            });
-        }
-        
         function maybeHideCloseToastBtn() {
             const remainingToasts = toastStack.querySelectorAll(".toast");
             if (remainingToasts.length === 0) {
@@ -55,26 +47,29 @@
          * GLOBAL FUNCTION: showToast
          * Attached to window so it can be called from anywhere.
          */
-        window.showToast = function(message, type, { highlightDuplicates = true, showDuplicateCount = true } = {}) {
+        window.showToast = function(message, type, { highlightDuplicates = true, showDuplicateCount = true, delay = null } = {}) {
             let colorClass;
             let colorStyle = "";
             let title;
-            let delay;
+            let toastDelay;
 
             // Determine the type of toast
             if (type == "error") {
-                delay = 10000;
+                toastDelay = 10000;
                 colorClass = "bg-danger";
                 title = "Error";
             } else if (type == "success") {
-                delay = 2000;
+                toastDelay = 2000;
                 colorClass = "bg-success";
                 title = "Success";
             } else {
-                delay = 5000;
+                toastDelay = 5000;
                 // JINJA VARIABLE WORKS HERE NOW:
                 colorStyle = "background-color: {{ primary_color | default('#007bff') }};";
                 title = "Info";
+            }
+            if (delay !== null) {
+                toastDelay = delay;
             }
 
             // Search for duplicate
@@ -107,7 +102,7 @@
             const toast = document.createElement("div");
             toast.classList.add("toast", "mb-1");
             toast.setAttribute("data-bs-autohide", "true");
-            toast.setAttribute("data-bs-delay", delay);
+            toast.setAttribute("data-bs-delay", toastDelay);
             toast.setAttribute("role", "alert");
             toast.setAttribute("aria-live", "assertive");
             toast.setAttribute("aria-atomic", "true");
@@ -118,14 +113,16 @@
                     <strong class="me-auto">${title}</strong>
                     <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
                 </div>
-                <div class="toast-body" data-original-message="${message}" data-count="1">
-                    ${message}
-                </div>
+                <div class="toast-body" data-count="1"></div>
             `;
+            const toastBody = toast.querySelector(".toast-body");
+            toastBody.dataset.originalMessage = message;
+            toastBody.innerHTML = message;
 
             toastStack.insertAdjacentElement("afterbegin", toast);
             closeToastBtn.style.display = "block";
-            showAllToasts();
+            const toastInstance = new bootstrap.Toast(toast);
+            toastInstance.show();
 
             // Cleanup listeners
             const handleClose = () => {

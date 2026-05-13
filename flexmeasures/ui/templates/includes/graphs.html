@@ -161,9 +161,14 @@
         {% if active_page == "sensors" and user_can_update_sensor %}
         let upload = document.querySelector('#submitUpload');
         let uploadSpinner = document.querySelector("#spinner-upload-sensor-data");
+        function finishUploadStatus() {
+            uploadSpinner.classList.add('d-none');
+            upload.disabled = false;
+        }
         upload.addEventListener('click', function (e) {
-            upload.classList.add('d-none');
+            upload.disabled = true;
             uploadSpinner.classList.remove('d-none');
+            showToast("Uploading data...", "info");
             var formData = new FormData(document.getElementById('uploadForm'));
             fetch(apiBasePath + '/api/v3_0/sensors/' + {{ sensor.id }} + '/data/upload', {
             method: 'POST',
@@ -172,69 +177,75 @@
             .then(async function (response) {
                 if (response.ok) {
                     const data = await response.json();
-                    // Update date range
-                    picker.setDateRange(
-                        storeStartDate,
-                        subtract(storeEndDate, 1),
-                    );
-                    uploadSpinner.classList.add('d-none');
-                    upload.classList.remove('d-none');
-
-                    if (data.job_id) {
+                    if (response.status === 202 && data.job_id) {
+                        const jobLink = data.job_monitor_url ? ` <a href="${data.job_monitor_url}" target="_blank">Monitor job</a>` : "";
+                        showToast(`${data.message}${jobLink}`, "success", {delay: 10000});
                         // Track the background ingestion job and refresh when done.
                         pollJobStatus(data.job_id, {
                             processingMessage: "Upload received. Processing data in the background\u2026",
                             successMessage: "Data processed successfully.",
                             onFinished: () => {
+                                finishUploadStatus();
                                 document.dispatchEvent(new CustomEvent('newDataAvailable'));
                                 loadSensorStats({{ sensor.id }}, "", "", true);
+                            },
+                            onFailed: () => {
+                                finishUploadStatus();
                             },
                         });
                     } else {
                         // No queued job: data was saved synchronously.
                         showToast(data.message, "success");
+                        // Update date range
+                        picker.setDateRange(
+                            storeStartDate,
+                            subtract(storeEndDate, 1),
+                        );
                         document.dispatchEvent(new CustomEvent('newDataAvailable'));
+                        finishUploadStatus();
                     }
                 } else {
                     const data = await response.json();
-                    const messageKeys = Object.keys(data.message);
-                    messageKeys.forEach(mKey => {
-                        if (data.message[mKey] === undefined) {
-                            showToast(data.message, "error");
-                        }
-                        else {
-                            for (const [key, value] of Object.entries(data.message[mKey])) {
-                                if (typeof value === 'string') {
-                                    showToast(value, "error");
-                                } else if (Array.isArray(value)) {
-                                    value.forEach(element => {
-                                        showToast(element, "error");
-                                    });
-                                } else if (typeof value === 'object' && value !== null) {
-                                    Object.values(value).forEach(element => {
-                                        if (Array.isArray(element)) {
-                                            element.forEach(item => showToast(item, "error"));
-                                        } else {
+                    if (typeof data.message === "string") {
+                        showToast(data.message, "error");
+                    } else {
+                        const messageKeys = Object.keys(data.message);
+                        messageKeys.forEach(mKey => {
+                            if (data.message[mKey] === undefined) {
+                                showToast(data.message, "error");
+                            }
+                            else {
+                                for (const [key, value] of Object.entries(data.message[mKey])) {
+                                    if (typeof value === 'string') {
+                                        showToast(value, "error");
+                                    } else if (Array.isArray(value)) {
+                                        value.forEach(element => {
                                             showToast(element, "error");
-                                        }
-                                    });
-                                } else {
-                                    // fallback for unexpected types
-                                    showToast(String(value), "error");
+                                        });
+                                    } else if (typeof value === 'object' && value !== null) {
+                                        Object.values(value).forEach(element => {
+                                            if (Array.isArray(element)) {
+                                                element.forEach(item => showToast(item, "error"));
+                                            } else {
+                                                showToast(element, "error");
+                                            }
+                                        });
+                                    } else {
+                                        // fallback for unexpected types
+                                        showToast(String(value), "error");
+                                    }
                                 }
                             }
-                        }
-                    });
-                    uploadSpinner.classList.add('d-none');
-                    upload.classList.remove('d-none');
+                        });
+                    }
+                    finishUploadStatus();
                 }
             })
             .catch(function (error) {
                 // Network or unexpected error
                 console.error("Upload error:", error);
                 showToast("An error occurred: " + error.message, "error");
-                uploadSpinner.classList.add('d-none');
-                upload.classList.remove('d-none');
+                finishUploadStatus();
             });
     });
     {% endif %}
