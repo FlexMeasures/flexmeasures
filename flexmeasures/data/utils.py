@@ -134,7 +134,7 @@ def save_to_db(
                 # No state changes among the beliefs
                 continue
 
-        current_app.logger.info("SAVING TO DB...")
+        current_app.logger.info("SAVING DATA  ...")
         TimedBelief.add_to_session(
             session=db.session,
             beliefs_data_frame=timed_values,
@@ -143,6 +143,7 @@ def save_to_db(
                 "FLEXMEASURES_ALLOW_DATA_OVERWRITE", False
             ),
         )
+        current_app.logger.info("SAVED DATA TO DB.")
         values_saved += len(timed_values)
     # Flush to bring up potential unique violations (due to attempting to replace beliefs)
     db.session.flush()
