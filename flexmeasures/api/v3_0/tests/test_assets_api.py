@@ -1240,6 +1240,58 @@ def test_copy_asset_api_rejects_copy_to_descendant(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
+def test_regular_user_cannot_create_public_asset(
+    client, setup_api_test_data, setup_accounts, setup_markets, requesting_user
+):
+    """A plain account member must not be able to create a public asset (account_id=None).
+
+    Only site admins may create assets without an owning account. Omitting account_id
+    from the request body must be treated the same as sending account_id=null.
+    """
+    epex_asset = setup_markets["epex_da"].generic_asset
+    assert epex_asset.account_id is None, "epex must be a public asset"
+
+    post_data = {
+        "name": "Unauthorized public asset",
+        "latitude": 10.0,
+        "longitude": 20.0,
+        "generic_asset_type_id": epex_asset.generic_asset_type_id,
+        # account_id deliberately omitted → public asset
+    }
+    response = client.post(url_for("AssetAPI:post"), json=post_data)
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_regular_user_cannot_create_child_of_public_asset(
+    client, setup_api_test_data, setup_accounts, setup_markets, requesting_user
+):
+    """A plain account member must not be able to create a child asset under a public
+    (account-less) parent. The parent's create-children ACL must deny non-admins.
+    """
+    epex_asset = setup_markets["epex_da"].generic_asset
+    assert epex_asset.account_id is None, "epex must be a public asset"
+
+    prosumer_account = setup_accounts["Prosumer"]
+    post_data = {
+        "name": "Unauthorized child of public asset",
+        "latitude": 10.0,
+        "longitude": 20.0,
+        "generic_asset_type_id": epex_asset.generic_asset_type_id,
+        "account_id": prosumer_account.id,
+        "parent_asset_id": epex_asset.id,
+    }
+    response = client.post(url_for("AssetAPI:post"), json=post_data)
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_regular_user_can_create_child_asset(
     client, setup_api_test_data, setup_accounts, requesting_user, db
 ):

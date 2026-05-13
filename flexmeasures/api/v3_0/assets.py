@@ -6,6 +6,7 @@ from http import HTTPStatus
 from humanize import naturaldelta
 
 from flask import abort, request, current_app
+from werkzeug.exceptions import Forbidden
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
@@ -71,7 +72,8 @@ from flexmeasures.api.common.responses import (
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
-from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.policy import check_access, user_has_admin_access
+from flexmeasures.cli import is_running as running_as_cli
 from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
 from flexmeasures.data.schemas.sensors import (
     SensorSchema,
@@ -666,9 +668,16 @@ class AssetAPI(FlaskView):
             if account_id is not None:
                 account = db.session.get(Account, account_id)
                 check_access(account, "create-children")
-            # else: public asset (account_id is None).
-            # GenericAssetSchema.validate_account already rejects account_id=None
-            # for non-admins (raises ValidationError), so no extra check is needed here.
+            elif not running_as_cli() and not user_has_admin_access(
+                current_user, "update"
+            ):
+                # Public asset (account_id is None). Only site admins and CLI may create
+                # public assets. Note: GenericAssetSchema.validate_account only runs for
+                # explicitly-provided account_id values; when account_id is absent from
+                # the request body, that validator is not called by Marshmallow.
+                raise Forbidden(
+                    "Only site admins may create public assets (account_id=None)."
+                )
 
         asset = create_asset(asset_data)
         db.session.commit()
