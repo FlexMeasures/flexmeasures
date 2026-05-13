@@ -1223,20 +1223,6 @@ def test_copy_asset_api_rejects_copy_to_descendant(
     )
 
 
-# ---------------------------------------------------------------------------
-# Auth-fix tests for AssetAPI.post
-#
-# Fix 1: Regular users were blocked from creating child assets because the
-#         endpoint checked ``create-children`` on the *account* (requiring
-#         account-admin) instead of on the *parent asset* (which allows any
-#         account member).
-#
-# Fix 2: Account-admins could create child assets under *any* parent in any
-#         account, because the check was only on their own account.  After the
-#         fix the check is on the parent asset's owning account.
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
