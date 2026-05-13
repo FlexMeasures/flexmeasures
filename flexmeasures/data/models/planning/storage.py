@@ -35,6 +35,7 @@ from flexmeasures.data.schemas.scheduling import (
     FlexContextSchema,
     MultiSensorFlexModelSchema,
 )
+from flexmeasures.data.services.scheduling_result import SchedulingJobResult
 from flexmeasures.utils.calculations import (
     integrate_time_series,
 )
@@ -44,6 +45,10 @@ from flexmeasures.utils.unit_utils import ur, convert_units
 
 
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
+
+#: Key used to store and retrieve the ``SchedulingJobResult`` in RQ job metadata
+#: and in the multi-result list returned by ``StorageScheduler.compute()``.
+SCHEDULING_RESULT_KEY = "scheduling_result"
 
 
 class MetaStorageScheduler(Scheduler):
@@ -1516,8 +1521,12 @@ class StorageScheduler(MetaStorageScheduler):
         soc_at_start: list[float],
         device_constraints: list,
         resolution: timedelta,
-    ) -> dict:
+    ) -> tuple[dict, dict]:
         """Build the state-of-charge schedule for each device that has a state-of-charge sensor.
+
+        Also computes the MWh SoC for devices that have ``soc-minima`` or ``soc-maxima``
+        constraints (even without a state-of-charge sensor) so that unresolved targets can be
+        checked later.
 
         Converts the integrated power schedule from MWh to the sensor's unit.
         For sensors with a '%' unit, the soc-max flex-model field is used as capacity.
@@ -1526,46 +1535,205 @@ class StorageScheduler(MetaStorageScheduler):
         Note: soc-max is a QuantityField (not a VariableQuantityField), so it is always a float
         after deserialization and cannot be a sensor reference. The isinstance guard below is
         therefore a defensive check for forward-compatibility.
+
+        :returns: Tuple of (soc_schedule keyed by SoC sensor in sensor unit,
+                            soc_schedule_mwh keyed by device index in MWh).
         """
         soc_schedule = {}
+        soc_schedule_mwh = {}
         for d, flex_model_d in enumerate(flex_model):
             state_of_charge_sensor = flex_model_d.get("state_of_charge", None)
+            has_soc_sensor = isinstance(state_of_charge_sensor, Sensor)
+            has_soc_minima_maxima = (
+                flex_model_d.get("soc_minima") is not None
+                or flex_model_d.get("soc_maxima") is not None
+            )
+            # Skip devices that neither have a SoC sensor nor soc-minima/soc-maxima constraints
+            if not has_soc_sensor and not has_soc_minima_maxima:
+                continue
+            # Skip devices without a known initial SoC (required for integration)
+            if soc_at_start[d] is None:
+                continue
+
+            soc_mwh = integrate_time_series(
+                series=ems_schedule[d],
+                initial_stock=soc_at_start[d],
+                stock_delta=device_constraints[d]["stock delta"]
+                * resolution
+                / timedelta(hours=1),
+                up_efficiency=device_constraints[d]["derivative up efficiency"],
+                down_efficiency=device_constraints[d]["derivative down efficiency"],
+                storage_efficiency=device_constraints[d]["efficiency"]
+                .astype(float)
+                .fillna(1),
+            )
+            soc_schedule_mwh[d] = soc_mwh
+
+            if has_soc_sensor:
+                soc_unit = state_of_charge_sensor.unit
+                capacity = None
+                if soc_unit == "%":
+                    soc_max = flex_model_d.get("soc_max")
+                    if isinstance(soc_max, Sensor):
+                        raise ValueError(
+                            f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
+                            "soc-max as a sensor reference is not supported for '%' unit conversion. "
+                            "Skipping state-of-charge schedule."
+                        )
+                    if not soc_max:
+                        raise ValueError(
+                            f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
+                            "soc-max is missing or zero. Skipping state-of-charge schedule."
+                        )
+                    capacity = (
+                        f"{soc_max} MWh"  # all flex model fields are in MWh by now
+                    )
+                soc_schedule[state_of_charge_sensor] = convert_units(
+                    soc_mwh,
+                    from_unit="MWh",
+                    to_unit=soc_unit,
+                    capacity=capacity,
+                )
+        return soc_schedule, soc_schedule_mwh
+
+    def _compute_unresolved_targets(
+        self,
+        flex_model: list[dict],
+        soc_schedule_mwh: dict,
+        start: datetime,
+        end: datetime,
+        resolution: timedelta,
+    ) -> tuple[dict, dict]:
+        """Compute unmet and met SoC minima/maxima targets per device.
+
+        For each device that has a ``state_of_charge`` Sensor and ``soc-minima``
+        or ``soc-maxima`` constraints in the flex model, compares the computed MWh
+        SoC schedule against those constraints.  Devices without a
+        ``state_of_charge`` Sensor are skipped.
+
+        Constraints are evaluated over the window ``(start + resolution, end)`` (i.e.
+        the first scheduled slot through the end of the schedule).  The ``start``
+        slot itself is the initial condition (``soc_at_start``), not a scheduled
+        value, so it is excluded.
+
+        Note: ``soc-targets`` are modelled as hard constraints and are not checked
+        here, as by definition the scheduler will not allow any deviation from them.
+
+        :param flex_model:        The deserialized flex model (list of per-device dicts).
+        :param soc_schedule_mwh:  MWh SoC schedule keyed by device index ``d``.
+        :param start:             Start of the schedule.
+        :param end:               End of the schedule.
+        :param resolution:        Schedule resolution.
+        :returns: A tuple ``(unresolved_targets, resolved_targets)``.
+
+                  ``unresolved_targets`` is keyed by state-of-charge sensor ID string.
+                  Each value is a dict with keys ``"soc-minima"`` and/or ``"soc-maxima"``
+                  (only present when a violation exists), each containing
+                  ``{"datetime": <ISO 8601 UTC string>, "unmet": "<value> kWh"}``
+                  where ``unmet`` is always positive.
+
+                  ``resolved_targets`` is also keyed by state-of-charge sensor ID string.
+                  Each value is a dict with keys ``"soc-minima"`` and/or ``"soc-maxima"``
+                  (only present when the constraint type was defined and fully met), each
+                  containing ``{"datetime": <ISO 8601 UTC string>, "margin": "<value> kWh"}``
+                  for the slot with the tightest (smallest positive) margin.
+        """
+        # Use the configured rounding precision, or the scheduler's default of 6.
+        precision = self.round_to_decimals if self.round_to_decimals is not None else 6
+
+        unresolved: dict = {}
+        resolved: dict = {}
+
+        for d, flex_model_d in enumerate(flex_model):
+            soc_mwh = soc_schedule_mwh.get(d)
+            if soc_mwh is None:
+                continue
+
+            # Only use state-of-charge sensors as keys; skip devices without one.
+            state_of_charge_sensor = flex_model_d.get("state_of_charge")
             if not isinstance(state_of_charge_sensor, Sensor):
                 continue
-            soc_unit = state_of_charge_sensor.unit
-            capacity = None
-            if soc_unit == "%":
-                soc_max = flex_model_d.get("soc_max")
-                if isinstance(soc_max, Sensor):
-                    raise ValueError(
-                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
-                        "soc-max as a sensor reference is not supported for '%' unit conversion. "
-                        "Skipping state-of-charge schedule."
-                    )
-                if not soc_max:
-                    raise ValueError(
-                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
-                        "soc-max is missing or zero. Skipping state-of-charge schedule."
-                    )
-                capacity = f"{soc_max} MWh"  # all flex model fields are in MWh by now
-            soc_schedule[state_of_charge_sensor] = convert_units(
-                integrate_time_series(
-                    series=ems_schedule[d],
-                    initial_stock=soc_at_start[d],
-                    stock_delta=device_constraints[d]["stock delta"]
-                    * resolution
-                    / timedelta(hours=1),
-                    up_efficiency=device_constraints[d]["derivative up efficiency"],
-                    down_efficiency=device_constraints[d]["derivative down efficiency"],
-                    storage_efficiency=device_constraints[d]["efficiency"]
-                    .astype(float)
-                    .fillna(1),
-                ),
-                from_unit="MWh",
-                to_unit=soc_unit,
-                capacity=capacity,
-            )
-        return soc_schedule
+            device_key = str(state_of_charge_sensor.id)
+
+            device_violations: dict = {}
+            device_resolved: dict = {}
+
+            # Check soc_minima (first time slot where scheduled SoC < minima)
+            soc_minima_d = flex_model_d.get("soc_minima")
+            if soc_minima_d is not None:
+                soc_minima_series = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima_d,
+                    unit="MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=self.belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="max",
+                )
+                defined_minima = soc_minima_series.dropna()
+                if len(defined_minima) > 0:
+                    aligned_soc = soc_mwh.reindex(defined_minima.index)
+                    shortages = defined_minima - aligned_soc
+                    violations = shortages[shortages > 0]
+                    if not violations.empty:
+                        first_t = violations.index[0]
+                        unmet_kwh = round(float(violations[first_t]) * 1000, precision)
+                        device_violations["soc-minima"] = {
+                            "datetime": first_t.tz_convert("UTC").isoformat(),
+                            "unmet": f"{unmet_kwh} kWh",
+                        }
+                    else:
+                        # All minima met — record the tightest margin (min headroom above min).
+                        # violations.empty guarantees shortages <= 0, so margins (soc - minima) >= 0.
+                        margins = aligned_soc - defined_minima
+                        tightest_t = margins.idxmin()
+                        margin_kwh = round(float(margins[tightest_t]) * 1000, precision)
+                        device_resolved["soc-minima"] = {
+                            "datetime": tightest_t.tz_convert("UTC").isoformat(),
+                            "margin": f"{margin_kwh} kWh",
+                        }
+
+            # Check soc_maxima (first time slot where scheduled SoC > maxima)
+            soc_maxima_d = flex_model_d.get("soc_maxima")
+            if soc_maxima_d is not None:
+                soc_maxima_series = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_d,
+                    unit="MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=self.belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="min",
+                )
+                defined_maxima = soc_maxima_series.dropna()
+                if len(defined_maxima) > 0:
+                    aligned_soc = soc_mwh.reindex(defined_maxima.index)
+                    excesses = aligned_soc - defined_maxima
+                    violations = excesses[excesses > 0]
+                    if not violations.empty:
+                        first_t = violations.index[0]
+                        unmet_kwh = round(float(violations[first_t]) * 1000, precision)
+                        device_violations["soc-maxima"] = {
+                            "datetime": first_t.tz_convert("UTC").isoformat(),
+                            "unmet": f"{unmet_kwh} kWh",
+                        }
+                    else:
+                        # All maxima met — record the tightest margin (min headroom below max).
+                        # violations.empty guarantees excesses <= 0, so margins (maxima - soc) >= 0.
+                        margins = defined_maxima - aligned_soc
+                        tightest_t = margins.idxmin()
+                        margin_kwh = round(float(margins[tightest_t]) * 1000, precision)
+                        device_resolved["soc-maxima"] = {
+                            "datetime": tightest_t.tz_convert("UTC").isoformat(),
+                            "margin": f"{margin_kwh} kWh",
+                        }
+
+            if device_violations:
+                unresolved[device_key] = device_violations
+            if device_resolved:
+                resolved[device_key] = device_resolved
+
+        return unresolved, resolved
 
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
@@ -1636,7 +1804,7 @@ class StorageScheduler(MetaStorageScheduler):
             flex_model["sensor"] = sensors[0]
             flex_model = [flex_model]
 
-        soc_schedule = self._build_soc_schedule(
+        soc_schedule, soc_schedule_mwh = self._build_soc_schedule(
             flex_model, ems_schedule, soc_at_start, device_constraints, resolution
         )
 
@@ -1661,8 +1829,17 @@ class StorageScheduler(MetaStorageScheduler):
                 sensor: soc_schedule[sensor].round(self.round_to_decimals)
                 for sensor in soc_schedule.keys()
             }
+            # Round the MWh SoC schedule to the same precision so that violation
+            # detection does not flag floating-point epsilon differences.
+            soc_schedule_mwh = {
+                d: series.round(self.round_to_decimals)
+                for d, series in soc_schedule_mwh.items()
+            }
 
         if self.return_multiple:
+            unresolved_targets, resolved_targets = self._compute_unresolved_targets(
+                flex_model, soc_schedule_mwh, start, end, resolution
+            )
             storage_schedules = [
                 {
                     "name": "storage_schedule",
@@ -1694,7 +1871,18 @@ class StorageScheduler(MetaStorageScheduler):
                 }
                 for sensor, soc in soc_schedule.items()
             ]
-            return storage_schedules + commitment_costs + soc_schedules
+            scheduling_result = [
+                {
+                    "name": SCHEDULING_RESULT_KEY,
+                    "data": SchedulingJobResult(
+                        unresolved_targets=unresolved_targets,
+                        resolved_targets=resolved_targets,
+                    ),
+                }
+            ]
+            return (
+                storage_schedules + commitment_costs + soc_schedules + scheduling_result
+            )
         else:
             return storage_schedule[sensors[0]]
 
