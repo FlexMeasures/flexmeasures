@@ -38,7 +38,7 @@ from flexmeasures.api.common.schemas.sensors import SensorId  # noqa F401
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import (
     job_status_description,
-    enqueue_sensor_data_ingestion,
+    process_sensor_data_ingestion,
 )
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
@@ -455,8 +455,6 @@ class SensorAPI(FlaskView):
     @permission_required_for_context(
         "create-children",
         ctx_arg_name="sensor",
-        ctx_loader=lambda sensor: sensor,
-        pass_ctx_to_loader=True,
     )
     def upload_data(
         self,
@@ -582,7 +580,7 @@ class SensorAPI(FlaskView):
         }
         if unit is not None:
             upload_data["unit"] = unit
-        response, code = enqueue_sensor_data_ingestion(
+        response, code = process_sensor_data_ingestion(
             sensor_id=sensor.id,
             user_id=current_user.id,
             uploaded_files=files_for_job,
@@ -599,8 +597,6 @@ class SensorAPI(FlaskView):
     @permission_required_for_context(
         "create-children",
         ctx_arg_name="sensor",
-        ctx_loader=lambda sensor: sensor,
-        pass_ctx_to_loader=True,
     )
     def post_data(self, id: int, sensor: Sensor, sensor_data: dict):
         """
@@ -659,7 +655,7 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
-        response, code = enqueue_sensor_data_ingestion(
+        response, code = process_sensor_data_ingestion(
             sensor_id=sensor.id,
             user_id=current_user.id,
             sensor_data=sensor_data,

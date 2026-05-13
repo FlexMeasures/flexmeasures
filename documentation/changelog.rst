@@ -30,6 +30,7 @@ Bugfixes
 -----------
 * Fix forecasting regressor filtering to use only regressor beliefs known at the forecast ``belief_time`` [see `PR #2134 <https://www.github.com/FlexMeasures/flexmeasures/pull/2134>`_]
 * Check read permissions for sensors referenced in forecasting and scheduling config payloads, and return a clearer 403 error when a referenced sensor is not readable [see `PR #2096 <https://www.github.com/FlexMeasures/flexmeasures/pull/2096>`_ and `PR #2125 <https://www.github.com/FlexMeasures/flexmeasures/pull/2125>`_]
+* Clean up stale sensor references from ``flex-config`` and ``sensors_to_show`` when deleting a sensor, using JSONB queries to find affected assets before pruning those references [see `PR #2106 <https://www.github.com/FlexMeasures/flexmeasures/pull/2106>`_]
 
 
 v0.32.1 | May 5, 2026
@@ -44,7 +45,6 @@ Bugfixes
 * Fix a bug where toast messages in flex-config modal are broken due to unexpected JSON structure [see `PR #2124 <https://www.github.com/FlexMeasures/flexmeasures/pull/2124>`_]
 * Fix asset context page for asset names containing apostrophes [see `PR #2117 <https://www.github.com/FlexMeasures/flexmeasures/pull/2117>`_]
 * Fix removal of unchanged beliefs by comparing per event [see `PR #2150 <https://www.github.com/FlexMeasures/flexmeasures/pull/2150>`_]
-* Clean up stale sensor references from ``flex-config`` and ``sensors_to_show`` when deleting a sensor, using JSONB queries to find affected assets before pruning those references [see `PR #2106 <https://www.github.com/FlexMeasures/flexmeasures/pull/2106>`_]
 
 
 v0.32.0 | April 15, 2026

@@ -132,6 +132,7 @@ def save_to_db(
 
             if timed_values.empty:
                 # No state changes among the beliefs
+                current_app.logger.info("No changes needing to be saved to DB.")
                 continue
 
         current_app.logger.info("SAVING TO DB ...")
@@ -144,7 +145,7 @@ def save_to_db(
             ),
         )
         values_saved += len(timed_values)
-        current_app.logger.info(f"SAVED {len(timed_values)} TO DB.")
+        current_app.logger.info(f"SAVED {len(timed_values)} values TO DB.")
     # Flush to bring up potential unique violations (due to attempting to replace beliefs)
     db.session.flush()
 
