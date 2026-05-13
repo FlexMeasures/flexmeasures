@@ -425,6 +425,8 @@ def create_sequential_scheduling_job(
         on_success=success_callback,
         connection=current_app.queues["scheduling"].connection,
     )
+    job.meta["asset_or_sensor"] = get_asset_or_sensor_ref(asset)
+    job.save_meta()
 
     try:
         job_status = job.get_status(refresh=True)

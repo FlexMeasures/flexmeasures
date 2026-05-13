@@ -1,12 +1,15 @@
 from typing import Any
 
+import click
 from flask import abort
 from flask_security import current_user
 from marshmallow import fields, validate
 from sqlalchemy import select
+from werkzeug.exceptions import NotFound
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import User, Account
+from flexmeasures.data.schemas.utils import MarshmallowClickMixin
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 
 
@@ -36,7 +39,7 @@ class AccountIdField(fields.Integer):
         return current_user.account if not current_user.is_anonymous else None
 
 
-class UserIdField(fields.Integer):
+class UserIdField(fields.Integer, MarshmallowClickMixin):
     """
     Field that represents a user ID. It deserializes from the user id to a user instance.
     """
@@ -55,6 +58,14 @@ class UserIdField(fields.Integer):
         if user is None:
             raise abort(404, f"User {user_id} not found")
         return user
+
+    def convert(self, value, param, ctx, **kwargs):
+        try:
+            return super().convert(value, param, ctx, **kwargs)
+        except NotFound as exc:
+            raise click.BadParameter(
+                f"User {value} not found.", ctx=ctx, param=param
+            ) from exc
 
     def _serialize(self, value: User, attr, obj, **kwargs) -> int:
         return value.id

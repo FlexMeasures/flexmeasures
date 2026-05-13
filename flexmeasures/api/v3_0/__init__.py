@@ -22,10 +22,17 @@ from flexmeasures.api.v3_0.sensors import (
 )
 from flexmeasures.api.v3_0.accounts import AccountAPI
 from flexmeasures.api.v3_0.users import UserAPI
-from flexmeasures.api.v3_0.assets import AssetAPI, AssetTriggerSchema, AssetTypesAPI
+from flexmeasures.api.v3_0.assets import (
+    AssetAPI,
+    AssetTriggerSchema,
+    AssetTypesAPI,
+    CopyAssetSchema,
+)
 from flexmeasures.api.v3_0.health import HealthAPI
+from flexmeasures.api.v3_0.jobs import JobAPI
 from flexmeasures.api.v3_0.public import ServicesAPI
 from flexmeasures.api.v3_0.deprecated import SensorEntityAddressAPI
+from flexmeasures.api.v3_0.sources import SourceAPI
 from flexmeasures.api.v3_0.assets import (
     flex_context_schema_openAPI,
     AssetAPIQuerySchema,
@@ -51,8 +58,10 @@ def register_at(app: Flask):
     AssetAPI.register(app, route_prefix=v3_0_api_prefix)
     AssetTypesAPI.register(app, route_prefix=v3_0_api_prefix)
     HealthAPI.register(app, route_prefix=v3_0_api_prefix)
+    JobAPI.register(app, route_prefix=v3_0_api_prefix)
     ServicesAPI.register(app)
     SensorEntityAddressAPI.register(app, route_prefix=v3_0_api_prefix)
+    SourceAPI.register(app, route_prefix=v3_0_api_prefix)
 
     register_swagger_ui(app)
 
@@ -148,6 +157,7 @@ def create_openapi_specs(app: Flask):
         ("AssetAPIQuerySchema", AssetAPIQuerySchema),
         ("AssetSchema", AssetSchema),
         ("AnnotationSchema", AnnotationSchema),
+        ("CopyAssetSchema", CopyAssetSchema),
         ("DefaultAssetViewJSONSchema", DefaultAssetViewJSONSchema),
         ("AccountSchema", AccountSchema(partial=True)),
         ("AccountAPIQuerySchema", AccountAPIQuerySchema),

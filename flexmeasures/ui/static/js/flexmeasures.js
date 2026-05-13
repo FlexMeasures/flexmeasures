@@ -480,6 +480,11 @@ const dateFormatter = new Intl.DateTimeFormat(
   [], {"year": "numeric", "month": "long", "day": "numeric"}
 )
 
+// Renders a compact date in the local timezone without a time component.
+const shortDateFormatter = new Intl.DateTimeFormat(
+    [], {"year": "numeric", "month": "short", "day": "2-digit"}
+)
+
 // Renders an HH:MM time in the local timezone, including timezone info.
 // e.g. "12:17 BST"
 const timeFormatter = new Intl.DateTimeFormat(
@@ -523,7 +528,8 @@ function getHumanFriendlyDateString(iso8601_date_string) {
  * 
  * If longer ago than 24 hours, let getHumanFriendlyDateString take over.
  */
-function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string) {
+function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string, options = {}) {
+    const dateOnlyForOlder = options.dateOnlyForOlder === true;
   const date = new Date(Date.parse(iso8601_date_string));
   const now = new Date();
 
@@ -583,9 +589,48 @@ function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string) {
 
   // 3. Fallback: Too far in the past or future
   else {
-    // If the difference is 7 days or more, return the full date string.
-    return getHumanFriendlyDateString(iso8601_date_string);
+        // For table views, optionally hide time for older moments.
+        if (dateOnlyForOlder) {
+            return shortDateFormatter.format(date);
+        }
+
+        // If the difference is 7 days or more, return the full date string.
+        return getHumanFriendlyDateString(iso8601_date_string);
   }
+}
+
+function humanizeIsoDuration(isoDuration) {
+  if (typeof isoDuration !== "string") {
+    return isoDuration;
+  }
+
+  const match = isoDuration.match(
+    /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/,
+  );
+
+  if (!match) {
+    return isoDuration;
+  }
+
+  const units = [
+    { value: match[1], label: "year" },
+    { value: match[2], label: "month" },
+    { value: match[3], label: "week" },
+    { value: match[4], label: "day" },
+    { value: match[5], label: "hour" },
+    { value: match[6], label: "minute" },
+    { value: match[7], label: "second" },
+  ];
+
+  const parts = units
+    .filter((unit) => unit.value !== undefined)
+    .map((unit) => {
+      const num = Number(unit.value);
+      const suffix = num === 1 ? "" : "s";
+      return `${unit.value} ${unit.label}${suffix}`;
+    });
+
+  return parts.length > 0 ? parts.join(" ") : isoDuration;
 }
 
 // Function to return a loading row for a table
@@ -649,7 +694,7 @@ function updateStatsTable(stats, tableBody) {
     });
 }
 
-function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
+function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fresh=false) {
     const spinner = document.getElementById('spinner-run-simulation');
     const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
     const tableBody = document.getElementById('statsTableBody');
@@ -658,17 +703,30 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
     const dropdownButton = document.getElementById('sourceKeyDropdown');
     const noDataWarning = document.getElementById('noDataWarning');
     const fetchError = document.getElementById('fetchError');
+    const allTimeStatsWarning = document.getElementById('allTimeStatsWarning');
     let queryParams = '?sort=false';
     // Show the spinner
     spinner.classList.remove('d-none');
     if (toggleStatsCheckbox.checked) {
         queryParams = `?sort=false&event_start_time=${event_start_time}&event_end_time=${event_end_time}`
     }
-    
+    //add a cache buster to ensure we get the latest data after an upload
+    if (fresh === true) {
+        queryParams += `&fresh=true`;
+    }
+
     // Enable all the default behaviors on every API call.
     dropdownMenu.innerHTML = '';
     noDataWarning.classList.add('d-none');
     fetchError.classList.add('d-none');
+    // Show all-time warning when the checkbox is unchecked (showing all-time stats)
+    if (allTimeStatsWarning) {
+        if (!toggleStatsCheckbox.checked) {
+            allTimeStatsWarning.classList.remove('d-none');
+        } else {
+            allTimeStatsWarning.classList.add('d-none');
+        }
+    }
     tableBody.innerHTML = '';
     
     fetch('/api/v3_0/sensors/' + sensor_id + '/stats' + queryParams)
@@ -708,6 +766,39 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
             const firstSourceKey = getLatestBeliefName(data);
             dropdownButton.textContent = firstSourceKey;
             updateStatsTable(data[firstSourceKey], tableBody);
+
+            // Populate the "Delete data" source dropdown if it exists on the page,
+            // re-using the stats data already fetched to avoid a duplicate API call.
+            const deleteSourceSelect = document.getElementById('deleteDataSource');
+            if (deleteSourceSelect) {
+                // Keep only the "All sources" placeholder option, then add sources from stats
+                deleteSourceSelect.innerHTML = '<option value="">All sources</option>';
+                Object.keys(data).forEach(sourceKey => {
+                    const idMatch = sourceKey.match(/\(ID:\s*(\d+)\)$/);
+                    if (!idMatch) { return; }
+                    const option = document.createElement('option');
+                    option.value = idMatch[1];
+                    option.textContent = sourceKey;
+                    deleteSourceSelect.appendChild(option);
+                });
+            }
+
+            // Notify the "Delete data" panel of the overall first/last event times
+            // across all sources so the "Select all data" link can populate the inputs.
+            const firstEventDates = Object.values(data)
+                .map(d => new Date(d["First event start"]))
+                .filter(d => !isNaN(d.getTime()));
+            const lastEventDates = Object.values(data)
+                .map(d => new Date(d["Last event end"]))
+                .filter(d => !isNaN(d.getTime()));
+            if (firstEventDates.length > 0 && lastEventDates.length > 0) {
+                document.dispatchEvent(new CustomEvent('sensorDataRangeAvailable', {
+                    detail: {
+                        firstEventStart: new Date(Math.min(...firstEventDates)),
+                        lastEventEnd: new Date(Math.max(...lastEventDates))
+                    }
+                }));
+            }
         } else {
             // If the stats table is empty, make the properties table full width
             noDataWarning.classList.remove('d-none');

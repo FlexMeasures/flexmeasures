@@ -4,16 +4,14 @@
 
 {% block title %} {{asset.name}} {% endblock %}
 
-
-
 {% block divs %}
 
 {% block breadcrumbs %} {{ super() }} {% endblock %}
 
-<div class="container-fluid">
-    <div class="row">
+<div class="container-fluid px-0">
+    <div class="row gx-0">
 
-        <div class="col-md-2 on-top-md ps-0">
+        <div class="col-md-2 on-top-md col-action-left">
 
             {% if user_can_update_asset %}
             {% from "_macros.html" import json_attributes_editor_button %}
@@ -32,7 +30,7 @@
                                     }})</small>
 
                                 <div class="form-group">
-                                    {{ asset_form.name.label(class="col-sm-3 control-label") }}
+                                    {{ asset_form.name.label(class="control-label") }}
                                     <div class="col-md-3">
                                         {{ asset_form.name(class_="form-control") }}
                                         {% for error in asset_form.errors.name %}
@@ -41,7 +39,7 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    {{ asset_form.latitude.label(class="col-sm-6 control-label") }}
+                                    {{ asset_form.latitude.label(class="control-label") }}
                                     <div class="col-md-6">
                                         {{ asset_form.latitude(class_="form-control") }}
                                         {% for error in asset_form.errors.latitude %}
@@ -50,7 +48,7 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    {{ asset_form.longitude.label(class="col-sm-6 control-label") }}
+                                    {{ asset_form.longitude.label(class="control-label") }}
                                     <div class="col-md-6">
                                         {{ asset_form.longitude(class_="form-control") }}
                                         {% for error in asset_form.errors.longitude %}
@@ -62,8 +60,8 @@
                                     {{ asset_form.parent_asset_id.label(class="col-sm-6 control-label") }}
                                     <div class="col-md-6">
                                         <select name="parent_asset_id" id="parent_asset_id" class="form-control">
-                                            <option value="" {% if asset.parent_asset_id is none %} selected {% endif
-                                                %}>No Parent</option>
+                                            <option value="" {% if asset.parent_asset_id is none %} selected {%
+                                                endif %}>No Parent</option>
                                             {% for account_asset in account_assets %}
                                             {% if account_asset.id != asset.id %}
                                             <option value="{{ account_asset.id }}" {% if
@@ -76,22 +74,21 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label for="assset-type" class="col-sm-6 control-label">Asset Type</label>
+                                    <label for="assset-type" class="control-label">Asset Type</label>
                                     <div class="col-md-6">
                                         <input class="form-control" id="asset-type-id" name="asset-type" type="text"
                                             value="{{ asset.generic_asset_type.name }}" disabled></input>
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label for="asset-id" class="col-sm-6 control-label">Asset id</label>
+                                    <label for="asset-id" class="control-label">Asset id</label>
                                     <div class="col-md-6">
                                         <input class="form-control" id="asset-id" name="asset-id" type="text"
                                             value="{{ asset.id }}" disabled></input>
                                     </div>
-                                </div>
 
                                 <div class="form-group">
-                                    {{ asset_form.sensors_to_show_as_kpis.label(class="col-sm-3 control-label") }}
+                                    {{ asset_form.sensors_to_show_as_kpis.label(class="control-label") }}
                                     <div class="col-md-3">
                                         <small>{{ asset_form.sensors_to_show_as_kpis.description }}</small>
                                         {{ asset_form.sensors_to_show_as_kpis(class_="form-control") }}
@@ -99,10 +96,9 @@
                                         <span style="color: red;">[{{error}}]</span>
                                         {% endfor %}
                                     </div>
-                                </div>
 
                                 <div class="form-group">
-                                    {{ asset_form.external_id.label(class="col-sm-3 control-label") }}
+                                    {{ asset_form.external_id.label(class="control-label") }}
                                     <div class="col-md-3">
                                         <small>{{ asset_form.external_id.description }}</small>
                                         {{ asset_form.external_id(class_="form-control") }}
@@ -110,52 +106,65 @@
                                         <span style="color: red;">[{{error}}]</span>
                                         {% endfor %}
                                     </div>
-                                </div>
 
-                                <div class="form-group">
-                                    <label class="control-label">Location</label>
-                                    <small>(Click map to edit latitude and longitude in form)</small>
-                                    <div id="mapid"></div>
-                                    <button class="btn btn-sm btn-responsive btn-success create-button" type="submit"
-                                        value="Save"
-                                        style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
-                                        Save
-                                    </button>
+                                    <div class="form-group">
+                                        <label class="control-label">Location</label>
+                                        <small>(Click map to edit latitude and longitude in form)</small>
+                                        <div id="mapid"></div>
+                                        <button class="btn btn-sm btn-responsive btn-success create-button"
+                                            type="submit" value="Save"
+                                            style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
+                                            Save
+                                        </button>
+                                    </div>
                                 </div>
+                            </fieldset>
+                        </form>
+                        <div class="form-group pt-3">
+                            <div class="col-md-12">
+                                {{ json_attributes_editor_button(label="Open editor", field_label=attributes_label,
+                                field_description=attributes_description) }}
                             </div>
-                        </fieldset>
-                    </form>
-                    <div class="form-group pt-3">
-                        <div class="col-md-12">
-                            {{ json_attributes_editor_button(label="Open editor", field_label=attributes_label, field_description=attributes_description) }}
                         </div>
                     </div>
                 </div>
             </div>
-            </div>
             {% endif %}
 
             <div class="header-action-button">
-                {% if user_can_delete_asset %}
+                {% if user_can_copy_as_sibling %}
                 <div>
-                    <form action="/assets/delete_with_data/{{ asset.id }}" method="get">
-                        <button id="delete-asset-button" class="btn btn-sm btn-responsive btn-danger"
-                            type="submit">Delete this
-                            asset
-                        </button>
-                    </form>
-                    <script>
-                        $("#delete-asset-button").click(function () {
-                            if (confirm("Are you sure you want to delete this asset and all time series data associated with it?")) {
-                                return true;
-                            }
-                            else {
-                                return false;
-                            }
-                        });
-                    </script>
+                    <button class="js-copy-asset-btn btn btn-sm btn-responsive create-button" type="button"
+                        data-asset-id="{{ asset.id }}"
+                        title="Copy asset and all its children{% if user_can_copy_to_own_account %} as a sibling{% endif %}{% if not user_can_delete_asset %} — note: you can copy but not delete; contact your organisation admin to remove unwanted copies{% endif %}. Ctrl-click to open the copy in a new tab.">
+                        Copy this asset
+                    </button>
                 </div>
                 {% endif %}
+                {% if user_can_copy_to_own_account %}
+                <div>
+                    <button class="js-copy-asset-btn btn btn-sm btn-responsive create-button" type="button"
+                        data-asset-id="{{ asset.id }}"
+                        data-target-account-id="{{ copy_target_account_id }}"
+                        title="Copy asset and all its children to {{ own_organisation_name }}{% if not user_can_delete_asset %} — note: you can copy but not delete; contact your organisation admin to remove unwanted copies{% endif %}. Ctrl-click to open the copy in a new tab.">
+                        Copy to {{ own_organisation_name }}
+                    </button>
+                </div>
+                {% endif %}
+                {% if user_can_delete_asset %}
+                <div>
+                    <button id="delete-asset-button" class="btn btn-sm btn-responsive delete-button"
+                        type="button" data-asset-id="{{ asset.id }}">Delete this asset
+                    </button>
+                </div>
+                {% endif %}
+                <script type="module">
+                    import { initCopyAssetButtons, initDeleteAssetButton } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+                    document.addEventListener("DOMContentLoaded", function () {
+                        initCopyAssetButtons();
+                        initDeleteAssetButton();
+                    });
+                </script>
             </div>
         </div>
 
@@ -165,7 +174,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <h3>Asset Properties - {{ asset.name }}</h3>
 
-                    <a class="btn bg-primary-custom text-decoration-none text-light" data-bs-toggle="modal"
+                    <a class="btn bg-primary-custom text-decoration-none text-light nav-button" data-bs-toggle="modal"
                         data-bs-target="#flexModelModal">
                         Edit flex-model
                     </a>
@@ -207,7 +216,7 @@
 
                     {% if user_can_create_children %}
                     <a href="/assets/{{asset.id}}/sensors/new"
-                        class="btn bg-primary-custom text-decoration-none text-light">
+                        class="btn bg-primary-custom text-decoration-none text-light nav-button">
                         Create sensor
                     </a>
                     {% endif %}
@@ -223,7 +232,7 @@
                     <h3>All child assets for {{ asset.name }} </h3>
                     {% if user_can_create_assets %}
                     <a href="/assets/new?parent_asset_id={{asset.id}}"
-                        class="btn bg-primary-custom text-decoration-none text-light" style="float:right;">
+                        class="btn bg-primary-custom text-decoration-none text-light nav-button" style="float:right;">
                         Create asset
                     </a>
                     {% endif %}
@@ -331,7 +340,8 @@
                     </div>
 
                     <div class="d-flex ms-auto align-items-center gap-2">
-                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
+                        <button type="button" id="saveChangesBtn"
+                            class="btn btn-primary ms-auto create-button">Save</button>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
 
@@ -401,9 +411,8 @@
     <script type="module" type="text/javascript">
 
         import {
-            getFlexFieldTitle, renderFlexFieldOptions, renderSensor,
-            createReactiveState, processResourceRawJSON, getAsset,
-            getAccount, getSensor, apiBasePath, renderSensorSearchResults
+            getFlexFieldTitle, renderFlexFieldOptions, renderSensor, createReactiveState, getAsset,
+            getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage, processResourceRawJSON
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
@@ -644,9 +653,15 @@
                 });
 
                 if (response.status !== 200) {
-                    const errorData = await response.json();
-                    const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
-                    showToast(`Failed to update the flex model: ${errorMessage}`, "error");
+                    let errorData = null;
+                    try {
+                        errorData = await response.json();
+                    } catch (_error) {
+                        errorData = null;
+                    }
+
+                    const errorMessage = extractApiErrorMessage(errorData, response.statusText);
+                    showToast(`Failed to update the flex model <div>${errorMessage}</div>`, "error");
                     reRenderForm();
                 } else {
                     renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
@@ -1227,7 +1242,7 @@
             this.id = id;
             this.name = name;
             this.unit = unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : unit;
-            this.resolution = resolution
+            this.resolution = humanizeIsoDuration(resolution);
             this.url = `/sensors/${id}`;
         }
 
@@ -1316,9 +1331,9 @@
     {% if user_can_update_asset %}
     {% from "_macros.html" import json_attributes_editor_modal %}
     {{ json_attributes_editor_modal(
-         api_url="/api/v3_0/assets/" ~ asset.id,
-         initial_attributes=asset.attributes,
-         entity_name=asset.name
+    api_url="/api/v3_0/assets/" ~ asset.id,
+    initial_attributes=asset.attributes,
+    entity_name=asset.name
     ) }}
     {% endif %}
     {% endblock %}

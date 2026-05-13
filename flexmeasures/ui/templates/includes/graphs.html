@@ -150,6 +150,9 @@
                 });
                 // Reload daterange
                 embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate)
+                if (!vegaView || !previousResult) {
+                    return;
+                }
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult.data)).resize().run();
                 if (chartType === "bar_chart") {
                     vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(previousResult.annotations)).resize().run();
@@ -234,11 +237,11 @@
     document.getElementById('toggleStatsCheckbox').addEventListener('change', function () {
         if (this.checked) {
             loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
-                }
-                else {
-        loadSensorStats({{ sensor.id }});
-                }
-            });
+        }
+        else {
+            loadSensorStats({{ sensor.id }}, "", "", true);
+        }
+    });
     {% endif %}
 
     // Keypress Listener
@@ -281,7 +284,26 @@
         };
     }
     document.addEventListener('sensorsToShowUpdated', reloadChartData);
-    document.addEventListener('newDataAvailable', reloadChartData);
+    {% if active_page == "sensors" %}
+    async function reloadSensorStats() {
+        const toggleStats = document.getElementById('toggleStatsCheckbox');
+        if (toggleStats) {
+            if (toggleStats.checked) {
+                loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString(), true);
+            } else {
+                loadSensorStats({{ sensor.id }}, "", "", true);
+            }
+        }
+    }
+    document.addEventListener('newDataAvailable', function() {
+        reloadChartData();
+        reloadSensorStats();
+    });
+    document.addEventListener('dataDeleted', function() {
+        reloadChartData();
+        reloadSensorStats();
+    });
+    {% endif %}
 
     {% if event_starts_after and event_ends_before %}
     $("#spinner").show();
@@ -445,14 +467,20 @@
             var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
             var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
 
+            // Notify the "Delete data" panel of the new graph date range so its inputs stay in sync.
+            // detail: { startDate: Date, endDate: Date } – endDate has +1 day applied (exclusive end).
+            document.dispatchEvent(new CustomEvent('graphDateRangeChanged', {
+                detail: { startDate: startDate, endDate: endDate }
+            }));
+
             {% if active_page == "sensors" %}
             const toggleStats = document.getElementById('toggleStatsCheckbox');
             if (toggleStats.checked) {
                 loadSensorStats({{ sensor.id }}, storeStartDate.toISOString(), storeEndDate.toISOString());
-    }
-                else {
-        loadSensorStats({{ sensor.id }});
-                }
+            }
+            else {
+                loadSensorStats({{ sensor.id }}, "", "");
+            }
     {% endif %}
 
     stopReplay()
@@ -579,6 +607,10 @@
         signal = controller.signal;
 
         // Remove replay ruler and replay time
+        if (!vegaView) {
+            document.getElementById('replay-time').innerHTML = '';
+            return;
+        }
         vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({ 'belief_time': null })).run().finalize();
         document.getElementById('replay-time').innerHTML = '';
 
@@ -657,6 +689,10 @@
 
                 // Update beliefs in the replayed data given the new data
                 replayedData = updateBeliefs(replayedData, newData);
+
+                if (!vegaView) {
+                    break;
+                }
 
                 /** When selecting a longer time period (more than a week), the replay slows down a bit. This
                  * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and

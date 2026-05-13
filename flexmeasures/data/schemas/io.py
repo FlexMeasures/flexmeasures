@@ -36,6 +36,7 @@ class Input(Schema):
     horizons_at_most = DurationField()
 
     user_source_ids = fields.List(DataSourceIdField())
+    source_account_ids = fields.List(fields.Int())
     source_types = fields.List(fields.Str())
     exclude_source_types = fields.List(fields.Str())
     account_id = AccountIdOrListField()

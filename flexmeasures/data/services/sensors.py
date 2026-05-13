@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import json
+import time
 import hashlib
 from datetime import datetime, timedelta
+from typing import Any
 from flask import current_app
+from sqlalchemy import delete
 
 from isodate import duration_isoformat
-import time
 from timely_beliefs import BeliefsDataFrame
 import pandas as pd
 
 from humanize.time import precisedelta
-from humanize import naturaldelta
 
 from flexmeasures.data.models.time_series import TimedBelief
 
@@ -20,10 +21,371 @@ import sqlalchemy as sa
 
 from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
+from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
 from flexmeasures.data.schemas.reporting import StatusSchema
 from flexmeasures.utils.time_utils import server_now
+
+
+_REMOVE = object()
+
+
+def _prune_flex_config_sensor_refs(
+    value: dict[str, Any] | list[Any] | int | str | None, sensor_id: int
+) -> tuple[dict[str, Any] | list[Any] | int | str | None | object, bool]:
+    """Recursively remove sensor references from nested flex_model/flex_context JSON structures.
+
+    This function handles deeply nested JSON objects and lists from flex_model and flex_context
+    JSONB columns. It scans for sensor references in two forms:
+    - Direct objects: {"sensor": sensor_id_to_remove}
+    - Lists: [sensor_id_to_remove, ...] in "inflexible-device-sensors" keys
+
+    Args:
+        value: A JSON-like value (dict, list, int, str, None) from flex_model/flex_context.
+               Can be arbitrarily nested.
+        sensor_id: The ID of the sensor to remove references to.
+
+    Returns:
+        A tuple (pruned_value, changed):
+        - pruned_value: The value with sensor references removed. Can be:
+            - `_REMOVE` (sentinel object): Remove this entire entry from parent
+            - A pruned dict/list/scalar: The value with refs removed
+        - changed (bool): True if any references were actually removed.
+
+    Example:
+        >>> value = {"soc-max": {"sensor": 42}, "limit": "10 kW"}
+        >>> pruned, did_change = _prune_flex_config_sensor_refs(value, sensor_id=42)
+        >>> pruned
+        {'limit': '10 kW'}
+        >>> did_change
+        True
+    """
+    if isinstance(value, dict):
+        # Direct sensor reference object (for example {"sensor": 12})
+        if set(value.keys()) == {"sensor"} and value.get("sensor") == sensor_id:
+            return _REMOVE, True
+
+        changed = False
+        pruned_dict: dict[str, Any] = {}
+        for k, v in value.items():
+            if k == "inflexible-device-sensors" and isinstance(v, list):
+                new_list = [entry for entry in v if entry != sensor_id]
+                if len(new_list) != len(v):
+                    changed = True
+                pruned_dict[k] = new_list
+                continue
+
+            new_v, was_changed = _prune_flex_config_sensor_refs(v, sensor_id)
+            changed = changed or was_changed
+            if new_v is _REMOVE:
+                changed = True
+                continue
+            pruned_dict[k] = new_v
+        return pruned_dict, changed
+
+    if isinstance(value, list):
+        changed = False
+        pruned_list: list[Any] = []
+        for item in value:
+            new_item, was_changed = _prune_flex_config_sensor_refs(item, sensor_id)
+            changed = changed or was_changed
+            if new_item is _REMOVE:
+                changed = True
+                continue
+            pruned_list.append(new_item)
+        return pruned_list, changed
+
+    return value, False
+
+
+def _prune_sensors_to_show_refs(
+    value: list[Any] | None, sensor_id: int
+) -> tuple[list[Any] | None, bool]:
+    """Remove sensor references from sensors_to_show JSON list.
+
+    This function handles sensors_to_show lists which support multiple entry formats:
+    - Bare sensor IDs: [42, 43, ...]
+    - Grouped sensor IDs: [42, [43, 44], ...] (nested lists)
+    - Dict entries: [{"sensor": 42, ...}, ...] (delegated to _prune_sensors_to_show_entry)
+
+    Args:
+        value: The sensors_to_show JSON list (or None). Each entry can be an int, list of ints, or dict.
+        sensor_id: The ID of the sensor to remove references to.
+
+    Returns:
+        A tuple (pruned_list, changed):
+        - pruned_list: The list with sensor references removed (or empty lists filtered out).
+                       Returns None/value unchanged if input is not a list.
+        - changed (bool): True if any references were actually removed.
+
+    Example:
+        >>> value = [42, [43, 42], {"sensor": 42}]
+        >>> pruned, did_change = _prune_sensors_to_show_refs(value, sensor_id=42)
+        >>> pruned
+        [[43]]
+        >>> did_change
+        True
+    """
+    if not isinstance(value, list):
+        return value, False
+
+    changed = False
+    cleaned: list[Any] = []
+
+    for entry in value:
+        if isinstance(entry, int):
+            if entry == sensor_id:
+                changed = True
+                continue
+            cleaned.append(entry)
+            continue
+
+        if isinstance(entry, list):
+            new_group = [sid for sid in entry if sid != sensor_id]
+            if len(new_group) != len(entry):
+                changed = True
+            if new_group:
+                cleaned.append(new_group)
+            else:
+                changed = True
+            continue
+
+        if isinstance(entry, dict):
+            pruned_entry, entry_changed = _prune_sensors_to_show_entry(entry, sensor_id)
+            changed = changed or entry_changed
+            if pruned_entry is _REMOVE:
+                continue
+            cleaned.append(pruned_entry)
+            continue
+
+        cleaned.append(entry)
+
+    return cleaned, changed
+
+
+def _prune_sensors_to_show_entry(
+    entry: dict[str, Any], sensor_id: int
+) -> tuple[dict[str, Any] | object, bool]:
+    """Remove sensor references from a single sensors_to_show dict entry.
+
+    Handles three field types within a dict entry:
+    - "sensor": Direct sensor ID reference → remove if matches
+    - "sensors": List of sensor IDs → filter out matching IDs
+    - "plots": List of plot dicts, each may contain "sensor" or "sensors" → recurse
+
+    Args:
+        entry: A dict from the sensors_to_show list (e.g., {"sensor": 42, "title": "..."}).
+        sensor_id: The ID of the sensor to remove references to.
+
+    Returns:
+        A tuple (pruned_entry, changed):
+        - pruned_entry: Can be:
+            - `_REMOVE`: Remove this entire entry from parent list
+            - Modified entry dict: The entry with refs removed
+        - changed (bool): True if any references were removed.
+
+    Example:
+        >>> entry = {"sensor": 42, "title": "Power"}
+        >>> pruned, did_change = _prune_sensors_to_show_entry(entry, sensor_id=42)
+        >>> pruned is _REMOVE
+        True
+    """
+    if "sensor" in entry:
+        if entry.get("sensor") == sensor_id:
+            return _REMOVE, True
+        return entry, False
+
+    if "sensors" in entry and isinstance(entry["sensors"], list):
+        new_sensors = [sid for sid in entry["sensors"] if sid != sensor_id]
+        changed = len(new_sensors) != len(entry["sensors"])
+        if not new_sensors:
+            return _REMOVE, True
+        copied = dict(entry)
+        copied["sensors"] = new_sensors
+        return copied, changed
+
+    if "plots" in entry and isinstance(entry["plots"], list):
+        changed = False
+        new_plots: list[Any] = []
+        for plot in entry["plots"]:
+            if not isinstance(plot, dict):
+                new_plots.append(plot)
+                continue
+            if plot.get("sensor") == sensor_id:
+                changed = True
+                continue
+            if "sensors" in plot and isinstance(plot["sensors"], list):
+                new_sensors = [sid for sid in plot["sensors"] if sid != sensor_id]
+                if len(new_sensors) != len(plot["sensors"]):
+                    changed = True
+                if not new_sensors:
+                    changed = True
+                    continue
+                copied_plot = dict(plot)
+                copied_plot["sensors"] = new_sensors
+                new_plots.append(copied_plot)
+            else:
+                new_plots.append(plot)
+
+        if not new_plots:
+            return _REMOVE, True
+        copied = dict(entry)
+        copied["plots"] = new_plots
+        return copied, changed
+
+    return entry, False
+
+
+def _prune_sensors_to_show_as_kpis_refs(
+    value: list[Any] | None, sensor_id: int
+) -> tuple[list[Any] | None, bool]:
+    """Remove sensor references from sensors_to_show_as_kpis JSON list.
+
+    This function handles sensors_to_show_as_kpis lists which support:
+    - Bare sensor IDs: [42, 43, ...]
+    - Dict entries: [{"sensor": 42, "title": "...", "function": "sum"}, ...]
+
+    Args:
+        value: The sensors_to_show_as_kpis JSON list (or None). Each entry is an int or dict.
+        sensor_id: The ID of the sensor to remove references to.
+
+    Returns:
+        A tuple (pruned_list, changed):
+        - pruned_list: The list with sensor references removed.
+                       Returns None/value unchanged if input is not a list.
+        - changed (bool): True if any references were actually removed.
+
+    Example:
+        >>> value = [42, {"sensor": 42, "title": "Temp KPI", "function": "sum"}]
+        >>> pruned, did_change = _prune_sensors_to_show_as_kpis_refs(value, sensor_id=42)
+        >>> pruned
+        []
+        >>> did_change
+        True
+    """
+    if not isinstance(value, list):
+        return value, False
+
+    changed = False
+    cleaned: list[Any] = []
+    for entry in value:
+        if isinstance(entry, int) and entry == sensor_id:
+            changed = True
+            continue
+        if isinstance(entry, dict) and entry.get("sensor") == sensor_id:
+            changed = True
+            continue
+        cleaned.append(entry)
+
+    return cleaned, changed
+
+
+def cleanup_sensor_references_in_assets(
+    sensor_id: int, sensor_name: str | None = None
+) -> int:
+    """Remove references to a sensor in JSONB config fields across assets.
+
+    Returns the number of updated assets.
+    """
+
+    vars_json = sa.func.jsonb_build_object("sid", sensor_id)
+    candidates = db.session.scalars(
+        sa.select(GenericAsset).where(
+            sa.or_(
+                sa.func.jsonb_path_exists(
+                    GenericAsset.flex_model,
+                    "$.**.sensor ? (@ == $sid)",
+                    vars_json,
+                ),
+                sa.func.jsonb_path_exists(
+                    GenericAsset.flex_context,
+                    "$.**.sensor ? (@ == $sid)",
+                    vars_json,
+                ),
+                sa.func.jsonb_path_exists(
+                    GenericAsset.flex_context,
+                    '$."inflexible-device-sensors"[*] ? (@ == $sid)',
+                    vars_json,
+                ),
+                sa.func.jsonb_path_exists(
+                    GenericAsset.sensors_to_show,
+                    "$.**.sensor ? (@ == $sid)",
+                    vars_json,
+                ),
+                sa.func.jsonb_path_exists(
+                    GenericAsset.sensors_to_show,
+                    "$.**.sensors[*] ? (@ == $sid)",
+                    vars_json,
+                ),
+                sa.func.jsonb_path_exists(
+                    GenericAsset.sensors_to_show,
+                    "$[*] ? (@ == $sid)",
+                    vars_json,
+                ),
+                sa.func.jsonb_path_exists(
+                    GenericAsset.sensors_to_show_as_kpis,
+                    "$.**.sensor ? (@ == $sid)",
+                    vars_json,
+                ),
+            )
+        )
+    ).all()
+
+    changed_assets = 0
+    for asset in candidates:
+        flex_model, flex_model_was_updated = _prune_flex_config_sensor_refs(
+            asset.flex_model, sensor_id
+        )
+        flex_context, flex_context_was_updated = _prune_flex_config_sensor_refs(
+            asset.flex_context, sensor_id
+        )
+        sensors_to_show, sensors_to_show_was_updated = _prune_sensors_to_show_refs(
+            asset.sensors_to_show, sensor_id
+        )
+        sensors_to_show_as_kpis, sensors_to_show_as_kpis_was_updated = (
+            _prune_sensors_to_show_as_kpis_refs(
+                asset.sensors_to_show_as_kpis, sensor_id
+            )
+        )
+
+        changed = any(
+            (
+                flex_model_was_updated,
+                flex_context_was_updated,
+                sensors_to_show_was_updated,
+                sensors_to_show_as_kpis_was_updated,
+            )
+        )
+        if not changed:
+            continue
+
+        changed_field_events = (
+            (flex_model_was_updated, "flex-model"),
+            (flex_context_was_updated, "flex-context"),
+            (sensors_to_show_was_updated, "sensors-to-show"),
+            (sensors_to_show_as_kpis_was_updated, "sensors-to-show-as-kpis"),
+        )
+        for field_changed, field_name in changed_field_events:
+            if not field_changed:
+                continue
+            sensor_label = (
+                f"'{sensor_name}': {sensor_id}" if sensor_name else str(sensor_id)
+            )
+            AssetAuditLog.add_record(
+                asset,
+                f"Removed sensor reference {sensor_label} from {field_name} (because sensor has been deleted).",
+            )
+
+        asset.flex_model = flex_model
+        asset.flex_context = flex_context
+        asset.sensors_to_show = sensors_to_show
+        asset.sensors_to_show_as_kpis = sensors_to_show_as_kpis
+        db.session.add(asset)
+        changed_assets += 1
+
+    return changed_assets
 
 
 def get_sensors(
@@ -296,11 +658,7 @@ def get_asset_sensors_metadata(
     validated_asset_sensors = asset.validate_sensors_to_show(
         suggest_default_sensors=False
     )
-    sensor_groups = [
-        sensor["sensors"] for sensor in validated_asset_sensors if sensor is not None
-    ]
-    merged_sensor_groups = sum(sensor_groups, [])
-    sensors_to_show.extend(merged_sensor_groups)
+    sensors_to_show.extend(SensorsToShowSchema.flatten(validated_asset_sensors))
 
     sensors_list = [
         *inflexible_device_sensors,
@@ -343,14 +701,14 @@ def serialize_sensor_status_data(
     for sensor_status in sensor_statuses:
         sensor_status["id"] = sensor.id
         sensor_status["name"] = sensor.name
-        sensor_status["resolution"] = naturaldelta(sensor.event_resolution)
+        sensor_status["resolution"] = duration_isoformat(sensor.event_resolution)
         sensor_status["staleness"] = (
-            naturaldelta(sensor_status["staleness"])
+            duration_isoformat(sensor_status["staleness"])
             if sensor_status["staleness"] is not None
             else None
         )
         sensor_status["staleness_since"] = (
-            naturaldelta(sensor_status["staleness_since"])
+            sensor_status["staleness_since"].isoformat()
             if sensor_status["staleness_since"] is not None
             else None
         )
@@ -580,7 +938,11 @@ _SENSOR_STATS_MAX_SIZE = 1000
 
 
 def get_sensor_stats(
-    sensor: Sensor, event_start_time: str, event_end_time: str, sort_keys: bool = True
+    sensor: Sensor,
+    event_start_time: str,
+    event_end_time: str,
+    sort_keys: bool = True,
+    from_cache: bool = True,
 ) -> dict:
     """Get stats for a sensor.
 
@@ -591,7 +953,7 @@ def get_sensor_stats(
     bucket = round(time.time() / _SENSOR_STATS_TTL)
     key = (sensor.id, event_end_time, event_start_time, sort_keys, bucket)
 
-    if key in _sensor_stats_cache:
+    if from_cache and key in _sensor_stats_cache:
         return _sensor_stats_cache[key]
 
     result = _get_sensor_stats(sensor, event_end_time, event_start_time, sort_keys)
@@ -604,3 +966,20 @@ def get_sensor_stats(
         _sensor_stats_cache[key] = result
 
     return result
+
+
+def delete_sensor(sensor: Sensor):
+    """Delete a sensor and all its time series data.
+
+    Does not commit the session.
+    Cleans up sensor references in asset JSONB fields.
+    Creates an audit log.
+    """
+    sensor_name = sensor.name
+    cleanup_sensor_references_in_assets(sensor.id, sensor.name)
+    db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
+    AssetAuditLog.add_record(
+        sensor.generic_asset, f"Deleted sensor '{sensor_name}': {sensor.id}"
+    )
+    db.session.execute(delete(Sensor).filter_by(id=sensor.id))
+    current_app.logger.info("Deleted sensor '%s'." % sensor_name)

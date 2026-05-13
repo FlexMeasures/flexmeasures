@@ -629,6 +629,50 @@ When conducting work:
    - Run the CLI commands or API calls mentioned
    - Verify the implementation works end-to-end
 
+### Must Validate the Whole Test Module After Any Test Change
+
+**When fixing or adding a test, always run the entire test module — not just the single test.**
+
+Fixing one test can silently break adjacent tests in the same module, especially when:
+- Fixtures are `scope="module"` and tests share mutable state (SQLAlchemy objects, in-memory dicts)
+- A test modifies a shared object (e.g. `asset.sensors_to_show`) and does not clean up after itself
+- The cleanup itself introduces a new failure (e.g. resetting to `None` instead of the column default `[]`)
+
+**Mandatory scope for test validation:**
+
+| Change type | Minimum scope to run |
+|---|---|
+| Fix a single failing test | Full test module |
+| Add a new test | Full test module |
+| Change a shared fixture | All modules that use that fixture |
+| Change production code touched by tests | Full test suite |
+
+**Anti-patterns to avoid:**
+
+- ❌ Running only `-k test_name` and declaring success
+- ❌ Assuming module-scoped fixture state is clean between tests
+- ❌ Resetting shared objects to `None` when the column default is `[]`
+
+**Correct pattern:**
+
+```bash
+# After fixing test_foo, always run the whole module:
+python -m pytest path/to/test_module.py -v
+# All tests must pass before closing.
+```
+
+**Lesson from session 2026-04-13:**
+- Fixed `test_asset_sensors_metadata_old_sensors_to_show_format` in isolation — passed.
+- Ran only `-k test_asset_sensors_metadata_old_sensors_to_show_format` — passed.
+- Closed without running the full module.
+- Next test `test_asset_sensors_metadata` in the same module was broken because the
+  regression test left `sensors_to_show = None` on a module-scoped asset fixture.
+- Root cause: `validate_sensors_to_show` had a bug — `sensors_to_show = None` with
+  `suggest_default_sensors=False` fell through to `deserialize(None)` which raised
+  `ValidationError` instead of returning `[]` as documented.
+- Fix required changes in both the test (reset to `[]`, the column default) and
+  production code (`validate_sensors_to_show` early-return guard split into two cases).
+
 ### Must Make Atomic Commits
 
 **Never mix different types of changes in a single commit.**
@@ -882,6 +926,16 @@ docstrings, inline comments, and documentation.**
 
 Double spaces (two spaces after a period) are a holdover from typewriter
 conventions and should not appear in Python source code or docs.
+
+### UI Terminology: Organisation not Account
+
+In all **user-visible** text (button labels, tooltips, flash messages, template
+strings, user-facing docs), use **"organisation"** instead of **"account"**.
+The backend model is still named `Account`; only the language shown to end users
+changes. Similarly, never expose internal role names (e.g. `account-admin`) in
+UI text — use plain language ("organisation admin") instead.
+
+Delegate enforcement of this rule to the Documentation Specialist.
 
 ### Must Actually Run Coordinator When Requested
 
