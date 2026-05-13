@@ -15,7 +15,10 @@ from werkzeug.datastructures import FileStorage
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.user import User
-from flexmeasures.data.utils import save_to_db
+from flexmeasures.data.utils import (
+    SAVE_TO_DB_SUCCESS_WITH_CHANGES_STATUSES,
+    save_to_db,
+)
 
 
 def _get_ingestion_context(sensor_id: int, user_id: int) -> tuple[Sensor, User]:
@@ -98,10 +101,7 @@ def add_beliefs_to_db_and_enqueue_forecasting_jobs(
     :param forecasting_jobs:            Optional list of forecasting Jobs to enqueue after saving.
     :param forecasting_job_ids:         Optional list of forecasting Job ids to enqueue after saving.
     :param save_changed_beliefs_only:   If True, skip saving beliefs whose value hasn't changed.
-    :returns:                           Status string, one of:
-                                        - 'success'
-                                        - 'success_with_unchanged_beliefs_skipped'
-                                        - 'success_but_nothing_new'
+    :returns:                           Status string as returned by ``save_to_db``.
     """
     if sensor_data is not None:
         if sensor_id is None or user_id is None:
@@ -123,7 +123,7 @@ def add_beliefs_to_db_and_enqueue_forecasting_jobs(
     db.session.commit()
 
     # Only enqueue forecasting jobs upon successfully saving new data
-    if status[:7] == "success" and status != "success_but_nothing_new":
+    if status in SAVE_TO_DB_SUCCESS_WITH_CHANGES_STATUSES:
         if forecasting_jobs is not None:
             for job in forecasting_jobs:
                 current_app.queues["forecasting"].enqueue_job(job)

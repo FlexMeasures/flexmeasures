@@ -14,6 +14,22 @@ from flexmeasures.data.models.time_series import TimedBelief, Sensor
 from flexmeasures.data.services.time_series import drop_unchanged_beliefs
 
 
+SAVE_TO_DB_SUCCESS = "success"
+SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED = (
+    "success_with_unchanged_beliefs_skipped"
+)
+SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW = "success_but_nothing_new"
+SAVE_TO_DB_SUCCESS_STATUSES = (
+    SAVE_TO_DB_SUCCESS,
+    SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+    SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
+)
+SAVE_TO_DB_SUCCESS_WITH_CHANGES_STATUSES = (
+    SAVE_TO_DB_SUCCESS,
+    SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+)
+
+
 def save_to_session(objects: list[db.Model], overwrite: bool = False):
     """
     Utility function to save to database, either efficiently with a bulk save, or inefficiently with a merge save.
@@ -91,9 +107,9 @@ def save_to_db(
     :param save_changed_beliefs_only: if True, unchanged beliefs are skipped (updated beliefs are only stored if they represent changed beliefs)
                                       if False, all updated beliefs are stored
     :returns: status string, one of the following:
-              - 'success': all beliefs were saved
-              - 'success_with_unchanged_beliefs_skipped': not all beliefs represented a state change
-              - 'success_but_nothing_new': no beliefs represented a state change
+              - SAVE_TO_DB_SUCCESS: all beliefs were saved
+              - SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED: not all beliefs represented a state change
+              - SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW: no beliefs represented a state change
     """
 
     # Convert to list
@@ -102,7 +118,7 @@ def save_to_db(
     else:
         timed_values_list = data
 
-    status = "success"
+    status = SAVE_TO_DB_SUCCESS
     values_saved = 0
     for timed_values in timed_values_list:
 
@@ -124,7 +140,7 @@ def save_to_db(
             timed_values = drop_unchanged_beliefs(timed_values)
             len_after = len(timed_values)
             if len_after < len_before:
-                status = "success_with_unchanged_beliefs_skipped"
+                status = SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED
 
             # Work around bug in which groupby still introduces an index level, even though we asked it not to
             if None in timed_values.index.names:
@@ -150,7 +166,7 @@ def save_to_db(
     db.session.flush()
 
     if values_saved == 0:
-        status = "success_but_nothing_new"
+        status = SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW
     return status
 
 
