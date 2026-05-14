@@ -3896,6 +3896,33 @@
   "openapi": "3.1.2",
   "components": {
     "schemas": {
+      "CommodityFlexContext": {
+        "type": "object",
+        "properties": {
+          "commodity": {
+            "type": "string",
+            "enum": [
+              "electricity",
+              "gas"
+            ]
+          },
+          "consumption-price": {},
+          "production-price": {},
+          "site-power-capacity": {},
+          "site-consumption-capacity": {},
+          "site-production-capacity": {},
+          "site-consumption-breach-price": {},
+          "site-production-breach-price": {},
+          "site-peak-consumption": {},
+          "site-peak-consumption-price": {},
+          "site-peak-production": {},
+          "site-peak-production-price": {}
+        },
+        "required": [
+          "commodity"
+        ],
+        "additionalProperties": false
+      },
       "Quantity": {
         "type": "string",
         "description": "Quantity string describing a fixed quantity.",
@@ -3974,6 +4001,12 @@
       "FlexContextOpenAPISchema": {
         "type": "object",
         "properties": {
+          "commodities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommodityFlexContext"
+            }
+          },
           "consumption-breach-price": {
             "description": "This <strong>penalty value</strong> is used to discourage the violation of the <code>consumption-capacity</code> constraint in the flex-model.\nIt effectively treats the capacity as a <strong>soft constraint</strong>, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
             "example": "10 EUR/kW",
