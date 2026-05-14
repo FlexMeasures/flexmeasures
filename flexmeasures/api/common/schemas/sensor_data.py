@@ -167,7 +167,7 @@ class GetSensorDataFilterSchemaMixin:
             example=42,
         ),
     )
-    account = AccountIdField(
+    source_account = AccountIdField(
         data_key="source-account",
         required=False,
         metadata=dict(
@@ -249,7 +249,7 @@ class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionS
         unit = sensor_data_description["unit"]
         resolution = sensor_data_description.get("resolution")
         source = sensor_data_description.get("source")
-        account = sensor_data_description.get("account")
+        source_account = sensor_data_description.get("source_account")
         source_type = sensor_data_description.get("source_type")
 
         # Post-load configuration of event frequency
@@ -280,7 +280,7 @@ class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionS
                 horizons_at_least=horizons_at_least,
                 horizons_at_most=horizons_at_most,
                 source=source,
-                source_account_ids=account.id if account else None,
+                source_account_ids=source_account.id if source_account else None,
                 source_types=[source_type] if source_type else None,
                 beliefs_before=sensor_data_description.get("prior", None),
                 one_deterministic_belief_per_event=True,

@@ -398,3 +398,38 @@ def test_chart_data_json_compressed_source_references_flex_model(
         "Source metadata must reference 'flex-model' for values from the flex_model; "
         f"got descriptions: {source_descriptions}"
     )
+
+
+def test_chart_data_json_skips_invalid_saved_asset_reference(
+    battery_with_soc_flex_model,
+):
+    """Invalid saved flex references should be ignored instead of crashing chart endpoints."""
+    battery, soc_sensor = battery_with_soc_flex_model
+
+    # Keep one valid sensor plot and add one invalid flex-context reference.
+    battery.sensors_to_show = [
+        {
+            "title": "Mixed",
+            "plots": [
+                {"sensor": soc_sensor.id},
+                {"asset": battery.id, "flex-context": "non-existing-field"},
+            ],
+        }
+    ]
+
+    start = datetime(2015, 1, 1, tzinfo=pytz.utc)
+    end = datetime(2015, 1, 2, tzinfo=pytz.utc)
+
+    import json
+
+    parsed = json.loads(
+        battery.chart_data_json(
+            compress_json=True,
+            event_starts_after=start,
+            event_ends_before=end,
+        )
+    )
+
+    sensor_ids_in_data = {r["sid"] for r in parsed["data"]}
+    assert soc_sensor.id in sensor_ids_in_data
+    assert -1 not in sensor_ids_in_data
