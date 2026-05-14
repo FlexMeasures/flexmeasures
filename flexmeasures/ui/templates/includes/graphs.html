@@ -181,8 +181,6 @@
                 if (response.ok) {
                     const data = await response.json();
                     if (response.status === 202 && data.job_id) {
-                        const jobLink = data.job_monitor_url ? ` <a href="${data.job_monitor_url}" target="_blank">Monitor job</a>` : "";
-                        showToast(`${data.message}${jobLink}`, "success", {delay: 10000});
                         // Track the background ingestion job and refresh when done.
                         pollJobStatus(data.job_id, {
                             processingMessage: "Upload received. Processing data in the background\u2026",
