@@ -8,7 +8,7 @@ from packaging.version import Version
 from flask import current_app
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
@@ -757,45 +757,96 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         event_ends_before: datetime_type | None = None,
         source_types: list[str] | None = None,
         exclude_source_types: list[str] | None = None,
-    ) -> list[DataSource]:
+        check_exists: bool = False,
+    ) -> list[DataSource] | bool:
+        """
+        :returns: list of Data Source objects, or, if check_exists, True if any such sources exist, False if none do.
+        """
 
-        q = select(DataSource).join(TimedBelief).filter(TimedBelief.sensor == self)
+        has_time_filters = (
+            event_starts_after is not None
+            or (event_ends_after is not None and not pd.isnull(event_ends_after))
+            or (event_starts_before is not None and not pd.isnull(event_starts_before))
+            or event_ends_before is not None
+        )
 
-        # todo: refactor to use apply_event_timing_filters from timely-beliefs
-        if event_starts_after:
-            q = q.filter(TimedBelief.event_start >= event_starts_after)
-
-        if not pd.isnull(event_ends_after):
-            if self.event_resolution == timedelta(0):
-                # inclusive
-                q = q.filter(TimedBelief.event_start >= event_ends_after)
-            else:
-                # exclusive
-                q = q.filter(
-                    TimedBelief.event_start > event_ends_after - self.event_resolution
-                )
-
-        if not pd.isnull(event_starts_before):
-            if self.event_resolution == timedelta(0):
-                # inclusive
-                q = q.filter(TimedBelief.event_start <= event_starts_before)
-            else:
-                # exclusive
-                q = q.filter(TimedBelief.event_start < event_starts_before)
-
-        if event_ends_before:
-            q = q.filter(
-                TimedBelief.event_start
-                <= pd.Timestamp(event_ends_before) - self.event_resolution
+        if has_time_filters:
+            # When time filters are present we must join through TimedBelief; we
+            # build the belief sub-query first and then join to DataSource so that
+            # the database can use the (sensor_id, event_start) index before
+            # expanding to the full belief row-set.
+            belief_q = select(TimedBelief.source_id).where(
+                TimedBelief.sensor_id == self.id
             )
 
+            # todo: refactor to use apply_event_timing_filters from timely-beliefs
+            if event_starts_after:
+                belief_q = belief_q.where(TimedBelief.event_start >= event_starts_after)
+
+            if event_ends_after is not None and not pd.isnull(event_ends_after):
+                if self.event_resolution == timedelta(0):
+                    # inclusive
+                    belief_q = belief_q.where(
+                        TimedBelief.event_start >= event_ends_after
+                    )
+                else:
+                    # exclusive
+                    belief_q = belief_q.where(
+                        TimedBelief.event_start
+                        > event_ends_after - self.event_resolution
+                    )
+
+            if event_starts_before is not None and not pd.isnull(event_starts_before):
+                if self.event_resolution == timedelta(0):
+                    # inclusive
+                    belief_q = belief_q.where(
+                        TimedBelief.event_start <= event_starts_before
+                    )
+                else:
+                    # exclusive
+                    belief_q = belief_q.where(
+                        TimedBelief.event_start < event_starts_before
+                    )
+
+            if event_ends_before:
+                belief_q = belief_q.where(
+                    TimedBelief.event_start
+                    <= pd.Timestamp(event_ends_before) - self.event_resolution
+                )
+
+            q = select(DataSource).where(DataSource.id.in_(belief_q.distinct()))
+        else:
+            # No time filters: retrieve distinct source IDs for this sensor via a
+            # lightweight index-only scan, then fetch those DataSource rows. This
+            # avoids a full join across potentially hundreds of millions of belief
+            # rows just to enumerate a handful of sources.
+            source_id_subq = (
+                select(TimedBelief.source_id)
+                .where(TimedBelief.sensor_id == self.id)
+                .distinct()
+                .subquery()
+            )
+            q = select(DataSource).where(DataSource.id.in_(select(source_id_subq)))
+
         if source_types:
-            q = q.filter(DataSource.type.in_(source_types))
+            q = q.where(DataSource.type.in_(source_types))
 
         if exclude_source_types:
-            q = q.filter(DataSource.type.not_in(exclude_source_types))
+            q = q.where(DataSource.type.not_in(exclude_source_types))
 
-        return db.session.scalars(q).all()
+        if check_exists:
+            return db.session.execute(select(exists(q))).scalar()
+        return db.session.scalars(q).unique().all()
+
+    @property
+    def data_sources(self) -> list[DataSource]:
+        """Return all DataSource objects that have recorded beliefs for this sensor.
+
+        Uses a two-step subquery (distinct source IDs → DataSource rows) so that
+        it scales to very large timed_belief tables without fetching every belief row.
+        Equivalent to ``search_data_sources()`` with no filters.
+        """
+        return self.search_data_sources()
 
 
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
