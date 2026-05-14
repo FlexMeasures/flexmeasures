@@ -25,6 +25,11 @@ from flexmeasures.data.services.data_ingestion import (
 )
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.utils import (
+    SAVE_TO_DB_SUCCESS,
+    SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
+    SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+)
 from flexmeasures.auth.policy import check_access
 from flexmeasures.api.common.responses import (
     invalid_replacement,
@@ -157,17 +162,17 @@ def save_and_enqueue(
     )
 
     # Pick a response
-    if status == "success":
+    if status == SAVE_TO_DB_SUCCESS:
         return request_processed()
     elif status in (
-        "success_with_unchanged_beliefs_skipped",
-        "success_but_nothing_new",
+        SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+        SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
     ):
         return already_received_and_successfully_processed()
     return invalid_replacement()
 
 
-def enqueue_sensor_data_ingestion(
+def process_sensor_data_ingestion(
     sensor_id: int,
     user_id: int,
     sensor_data: dict | None = None,
@@ -176,6 +181,12 @@ def enqueue_sensor_data_ingestion(
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:
+    """Process sensor data ingestion asynchronously when possible.
+
+    If an ingestion queue with connected workers is available, enqueue a background
+    job and return ``202 Accepted``. Otherwise, process the data synchronously and
+    return the resulting ingestion response.
+    """
     ingestion_queue = current_app.queues.get("ingestion")
     if ingestion_queue is None:
         current_app.logger.warning(
@@ -219,11 +230,11 @@ def enqueue_sensor_data_ingestion(
         save_changed_beliefs_only=save_changed_beliefs_only,
     )
 
-    if status == "success":
+    if status == SAVE_TO_DB_SUCCESS:
         return request_processed()
     elif status in (
-        "success_with_unchanged_beliefs_skipped",
-        "success_but_nothing_new",
+        SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+        SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
     ):
         return already_received_and_successfully_processed()
     return invalid_replacement()

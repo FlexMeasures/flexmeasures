@@ -6,14 +6,21 @@ FlexMeasures Changelog
 v0.33.0 | May XX, 2026
 ============================
 
-.. note:: It is recommended to add a worker to the ``ingestion`` queue (or configure existing workers to handle it, as well), so that sensor data posted via the API is processed asynchronously [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_].
+.. note:: It is recommended to assign a worker to the ``ingestion`` queue (or configure existing workers to handle it, as well),
+          so that sensor data posted via the API is processed asynchronously [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_].
+          For instance, using:
+
+          .. code-block:: bash
+
+             $ flexmeasures jobs run-worker --queue "forecasting|scheduling|ingestion"
+
 .. warning:: We are deprecating ``FLEXMEASURES_MONITORING_MAIL_RECIPIENTS`` in favor of ``FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS``.
 
 New features
 -------------
 * Added API and UI support for copying assets and their subtrees [see `PR #2017 <https://www.github.com/FlexMeasures/flexmeasures/pull/2017>`_ and `PR #2120 <https://www.github.com/FlexMeasures/flexmeasures/pull/2120>`_]
 * Improve UX after deleting a child asset through the UI [see `PR #2119 <https://www.github.com/FlexMeasures/flexmeasures/pull/2119>`_]
-* Improve source filtering in the sensor data GET endpoint by exposing the documented query parameters in Swagger and allowing filtering by the account linked to data sources [see `PR #2083 <https://www.github.com/FlexMeasures/flexmeasures/pull/2083>`_]
+* Improve source filtering in the sensor data GET endpoint by exposing the documented query parameters in Swagger and allowing filtering by the account linked to data sources [see `PR #2083 <https://www.github.com/FlexMeasures/flexmeasures/pull/2083>`_ and `PR #2151 <https://www.github.com/FlexMeasures/flexmeasures/pull/2151>`_]
 * Added a unified job status endpoint ``GET /api/v3_0/jobs/<uuid>`` to retrieve the current execution status and result message for any background job [see `PR #2141 <https://www.github.com/FlexMeasures/flexmeasures/pull/2141>`_]
 * New ``GET /api/v3_0/sources`` endpoint to list accessible data sources and defined types, with ``only_latest=true`` by default to return only the most recent version per source [see `PR #2126 <https://www.github.com/FlexMeasures/flexmeasures/pull/2126>`_]
 * Add support for filtering sensor data GET requests by ``source-type`` on ``/api/v3_0/sensors/<id>/data`` [see `PR #2127 <https://www.github.com/FlexMeasures/flexmeasures/pull/2127>`_]
@@ -23,13 +30,31 @@ Infrastructure / Support
 ----------------------
 * Move sensor data ingestion to a job queue for improved performance when POSTing large amounts of data to the sensor data API, returning a ``202 Accepted`` response with a job status URL when queued [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_]
 * Remove legacy rolling viewpoint forecasting code and utilities after migrating to fixed-point forecasting [see `PR #2082 <https://www.github.com/FlexMeasures/flexmeasures/pull/2082>`_]
-* Upgraded dependencies [see `PR #2114 <https://www.github.com/FlexMeasures/flexmeasures/pull/2114>`_ and `PR #2148 <https://www.github.com/FlexMeasures/flexmeasures/pull/2148>`_]
+* Upgraded dependencies [see `PR #2114 <https://www.github.com/FlexMeasures/flexmeasures/pull/2114>`_, `PR #2148 <https://www.github.com/FlexMeasures/flexmeasures/pull/2148>`_ and `PR #2161 <https://www.github.com/FlexMeasures/flexmeasures/pull/2161>`_]
 * Run ``flexmeasures jobs run-worker`` with RQ's embedded scheduler on by default so jobs created with ``enqueue_in`` are promoted from the scheduled registry when due; pass ``--without-scheduler`` to disable [see `PR #2112 <https://www.github.com/FlexMeasures/flexmeasures/pull/2112>`_]
+* Support filtering time series data by data source account [`PR #2065 <https://www.github.com/FlexMeasures/flexmeasures/pull/2065>`_]
+* Speed up finding the data sources associated with a sensor and the sensors associated with a data source [`PR #2151 <https://www.github.com/FlexMeasures/flexmeasures/pull/2151>`_]
 
 Bugfixes
 -----------
+* Fix auth on asset creation: regular users can now create child assets (the permission check now targets the parent asset, not the current user's account), and account-admins can no longer nest assets under parents from other accounts [see `PR #2163 <https://www.github.com/FlexMeasures/flexmeasures/pull/2163>`_]
+* Fix account UI page exposing details to users from other accounts; any logged-in user could previously view the page [see `PR #2163 <https://www.github.com/FlexMeasures/flexmeasures/pull/2163>`_]
 * Fix forecasting regressor filtering to use only regressor beliefs known at the forecast ``belief_time`` [see `PR #2134 <https://www.github.com/FlexMeasures/flexmeasures/pull/2134>`_]
 * Check read permissions for sensors referenced in forecasting and scheduling config payloads, and return a clearer 403 error when a referenced sensor is not readable [see `PR #2096 <https://www.github.com/FlexMeasures/flexmeasures/pull/2096>`_ and `PR #2125 <https://www.github.com/FlexMeasures/flexmeasures/pull/2125>`_]
+* Clean up stale sensor references from ``flex-config`` and ``sensors_to_show`` when deleting a sensor, using JSONB queries to find affected assets before pruning those references [see `PR #2106 <https://www.github.com/FlexMeasures/flexmeasures/pull/2106>`_]
+* Corrected flex-config data format for Asset API updates to prevent JSON parsing failures. [see `PR #2162 <https://www.github.com/FlexMeasures/flexmeasures/pull/2162>`_]
+* Standardize resolution formatting across API endpoints for consistent response payloads [see `PR #2152 <https://www.github.com/FlexMeasures/flexmeasures/pull/2152>`_]
+* Make the auth check for CLI commands work with ``flask``, too, instead of only with the ``flexmeasures`` alias [see `PR #2169 <https://www.github.com/FlexMeasures/flexmeasures/pull/2169>`_]
+
+
+v0.32.2 | May 12, 2026
+============================
+
+Bugfixes
+-----------
+* Fix removal of unchanged beliefs when saving data [see `PR #2159 <https://www.github.com/FlexMeasures/flexmeasures/pull/2159>`_]
+* Fix soc-fields set to fixed quantities [see `PR #2160 <https://www.github.com/FlexMeasures/flexmeasures/pull/2160>`_]
+* Fix disappearing plots on asset graphs during playback [see `PR #2147 <https://www.github.com/FlexMeasures/flexmeasures/pull/2147>`_]
 
 
 v0.32.1 | May 5, 2026
@@ -44,7 +69,6 @@ Bugfixes
 * Fix a bug where toast messages in flex-config modal are broken due to unexpected JSON structure [see `PR #2124 <https://www.github.com/FlexMeasures/flexmeasures/pull/2124>`_]
 * Fix asset context page for asset names containing apostrophes [see `PR #2117 <https://www.github.com/FlexMeasures/flexmeasures/pull/2117>`_]
 * Fix removal of unchanged beliefs by comparing per event [see `PR #2150 <https://www.github.com/FlexMeasures/flexmeasures/pull/2150>`_]
-* Clean up stale sensor references from ``flex-config`` and ``sensors_to_show`` when deleting a sensor, using JSONB queries to find affected assets before pruning those references [see `PR #2106 <https://www.github.com/FlexMeasures/flexmeasures/pull/2106>`_]
 
 
 v0.32.0 | April 15, 2026

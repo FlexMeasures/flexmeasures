@@ -155,7 +155,7 @@ class Config(object):
     FLEXMEASURES_JOB_CACHE_TTL: int = (
         3600  # Time to live for the job caching keys in seconds. Set a negative timedelta to persist forever.
     )
-    FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES: int | None = 3 * 1024 * 1024
+    FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES: int | None = 3.3 * 1024 * 1024
     FLEXMEASURES_TASK_CHECK_AUTH_TOKEN: str | None = None
     FLEXMEASURES_REDIS_URL: str = "localhost"
     FLEXMEASURES_REDIS_PORT: int = 6379

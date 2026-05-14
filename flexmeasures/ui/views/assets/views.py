@@ -30,12 +30,14 @@ from flexmeasures.ui.views import (
     ATTRIBUTES_FIELD_LABEL,
     ATTRIBUTES_FIELD_DESCRIPTION,
 )
-from flexmeasures.ui.views.assets.utils import (
-    get_asset_by_id_or_raise_notfound,
+from flexmeasures.ui.utils.auth_utils import (
     user_can_create_assets,
     user_can_create_children,
     user_can_delete,
     user_can_update,
+)
+from flexmeasures.ui.views.assets.utils import (
+    get_asset_by_id_or_raise_notfound,
     get_list_assets_chart,
     add_child_asset,
 )
