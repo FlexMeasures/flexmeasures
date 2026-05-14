@@ -8,7 +8,7 @@ from packaging.version import Version
 from flask import current_app
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
@@ -757,7 +757,11 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         event_ends_before: datetime_type | None = None,
         source_types: list[str] | None = None,
         exclude_source_types: list[str] | None = None,
-    ) -> list[DataSource]:
+        check_exists: bool = False,
+    ) -> list[DataSource] | bool:
+        """
+        :returns: list of Data Source objects, or, if check_exists, True if any such sources exist, False if none do.
+        """
 
         has_time_filters = (
             event_starts_after is not None
@@ -830,6 +834,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         if exclude_source_types:
             q = q.where(DataSource.type.not_in(exclude_source_types))
 
+        if check_exists:
+            return db.session.execute(select(exists(q))).scalar()
         return db.session.scalars(q).unique().all()
 
     @property
