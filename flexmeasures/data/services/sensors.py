@@ -877,7 +877,7 @@ def _get_sensor_stats(
             "Sum over values": sum_values,
             "Number of values": count_values,
         }
-        if sort_keys is False:
+        if not sort_keys:
             stats[data_source] = stats[data_source].items()
     return stats
 
