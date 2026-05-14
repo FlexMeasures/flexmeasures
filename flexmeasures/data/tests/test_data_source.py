@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+import time
 
 from flexmeasures.data.models.reporting import Reporter
 
@@ -303,3 +304,62 @@ def test_get_or_create_source_stable_under_key_order(db, app):
         "attributes were supplied in a different key order (as PostgreSQL JSONB "
         "would return them).  Ensure DataSource.hash_attributes uses sort_keys=True."
     )
+
+
+def test_sensor_data_sources_and_data_source_sensors_load_fast(
+    db, app, setup_test_data
+):
+    """Both Sensor.data_sources and DataSource.sensors should be fast to load.
+
+    A previous ORM relationship implementation used to join through the full timed_belief table, which is expensive on large tables.
+    The property implementation avoids that full join by first collecting distinct source/sensor
+    IDs via an index-only scan, then fetching the small set of DataSource/Sensor rows.
+    This test guards bounds on the wall-clock time of both accessors.
+    """
+    from sqlalchemy import select
+    from flexmeasures.data.models.time_series import Sensor
+
+    # Pick a sensor that has beliefs in the test DB (market prices are added by setup_test_data)
+    sensor = db.session.execute(
+        select(Sensor).where(Sensor.name == "epex_da")
+    ).scalar_one_or_none()
+    if sensor is None:
+        # Fallback: any sensor that has beliefs
+        sensor = db.session.execute(select(Sensor)).scalars().first()
+    assert sensor is not None, "No sensor found in test DB"
+
+    # --- Sensor.data_sources ---
+    db.session.expire_all()  # ensure no cached results
+    t0 = time.perf_counter()
+    sources = sensor.data_sources
+    t1 = time.perf_counter()
+    elapsed_sensor_data_sources = t1 - t0
+
+    assert isinstance(sources, list), "Sensor.data_sources should return a list"
+    assert len(sources) > 0, "Expected at least one data source for the sensor"
+    print(
+        f"\nSensor.data_sources: {len(sources)} source(s) in {elapsed_sensor_data_sources*1000:.1f} ms"
+    )
+
+    # Pick one of the data sources and test DataSource.sensors
+    source = sources[0]
+
+    db.session.expire_all()
+    t0 = time.perf_counter()
+    sensors = source.sensors
+    t1 = time.perf_counter()
+    elapsed_data_source_sensors = t1 - t0
+
+    assert isinstance(sensors, list), "DataSource.sensors should return a list"
+    assert len(sensors) > 0, "Expected at least one sensor for the data source"
+    print(
+        f"DataSource.sensors: {len(sensors)} sensor(s) in {elapsed_data_source_sensors*1000:.1f} ms"
+    )
+
+    # Both should complete within a generous 2 s budget on any CI machine
+    assert (
+        elapsed_sensor_data_sources < 2.0
+    ), f"Sensor.data_sources took {elapsed_sensor_data_sources:.3f}s — too slow"
+    assert (
+        elapsed_data_source_sensors < 2.0
+    ), f"DataSource.sensors took {elapsed_data_source_sensors:.3f}s — too slow"
