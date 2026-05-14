@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import pytest
 import time
-
-from flexmeasures.data.models.reporting import Reporter
-
-from flexmeasures.data.models.data_sources import keep_latest_version, DataSource
-
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pytz import UTC
 
 import numpy as np
 import pandas as pd
 import timely_beliefs as tb
+from sqlalchemy import insert
+
+from flexmeasures.data.models.data_sources import keep_latest_version, DataSource
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.reporting import Reporter
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 
 def test_get_reporter_from_source(db, app, test_reporter, add_nearby_weather_sensors):
@@ -306,60 +307,97 @@ def test_get_or_create_source_stable_under_key_order(db, app):
     )
 
 
-def test_sensor_data_sources_and_data_source_sensors_load_fast(
-    db, app, setup_test_data
-):
-    """Both Sensor.data_sources and DataSource.sensors should be fast to load.
+def test_sensor_data_sources_and_data_source_sensors_load_fast(db, app):
+    """Both Sensor.data_sources and DataSource.sensors must stay fast on large tables.
 
-    A previous ORM relationship implementation used to join through the full timed_belief table, which is expensive on large tables.
-    The property implementation avoids that full join by first collecting distinct source/sensor
-    IDs via an index-only scan, then fetching the small set of DataSource/Sensor rows.
+    A previous ORM relationship implementation issued a single JOIN across the full timed_belief table to load either accessor, so its cost grows linearly with the number of belief rows.
+    The property implementation instead performs an index-only scan for distinct IDs first, then a tiny primary-key lookup,
+    keeping cost proportional to the number of sources/sensors rather than beliefs.
+
     This test guards bounds on the wall-clock time of both accessors.
+    Specifically, the test inserts 100 000 belief rows for one sensor / one source, then asserts both accessors return in under 100 ms.
+    That threshold is comfortably met by the two-step subquery but exceeded by the ORM join on any ordinary database server.
+
+    Measured before #2151 (ORM relationship):
+        Sensor.data_sources: ~725 ms  →  FAILS
+        DataSource.sensors: ~1000 ms  →  FAILS
+
+    Measured after #2151 (two-step subquery property):
+        Sensor.data_sources: ~13 ms  →  PASSES
+        DataSource.sensors:  ~15 ms  →  PASSES
     """
-    from sqlalchemy import select
-    from flexmeasures.data.models.time_series import Sensor
+    THRESHOLD_S = 0.100  # 100 ms — passes with subquery property, fails with ORM join
+    N_BELIEFS = 100_000
 
-    # Pick a sensor that has beliefs in the test DB (market prices are added by setup_test_data)
-    sensor = db.session.execute(
-        select(Sensor).where(Sensor.name == "epex_da")
-    ).scalar_one_or_none()
-    if sensor is None:
-        # Fallback: any sensor that has beliefs
-        sensor = db.session.execute(select(Sensor)).scalars().first()
-    assert sensor is not None, "No sensor found in test DB"
+    # --- minimal schema objects ------------------------------------------------
+    asset_type = GenericAssetType(name="perf_test_type")
+    db.session.add(asset_type)
+    db.session.flush()
 
-    # --- Sensor.data_sources ---
-    db.session.expire_all()  # ensure no cached results
+    asset = GenericAsset(name="perf_test_asset", generic_asset_type=asset_type)
+    db.session.add(asset)
+    db.session.flush()
+
+    sensor = Sensor(
+        name="perf_test_sensor",
+        generic_asset=asset,
+        unit="MW",
+        event_resolution=timedelta(minutes=15),
+    )
+    db.session.add(sensor)
+    db.session.flush()
+
+    source = DataSource(name="perf_test_source", type="demo script")
+    db.session.add(source)
+    db.session.flush()
+
+    # --- bulk-insert 100 000 belief rows via Core (fast path) ------------------
+    base_dt = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    rows = [
+        {
+            "sensor_id": sensor.id,
+            "source_id": source.id,
+            "event_start": base_dt + timedelta(minutes=15 * i),
+            "belief_horizon": timedelta(0),
+            "cumulative_probability": 0.5,
+            "event_value": float(i),
+        }
+        for i in range(N_BELIEFS)
+    ]
+    db.session.execute(insert(TimedBelief), rows)
+    db.session.flush()
+
+    # --- Sensor.data_sources ---------------------------------------------------
+    db.session.expire_all()
     t0 = time.perf_counter()
     sources = sensor.data_sources
-    t1 = time.perf_counter()
-    elapsed_sensor_data_sources = t1 - t0
+    elapsed_sensor_data_sources = time.perf_counter() - t0
 
-    assert isinstance(sources, list), "Sensor.data_sources should return a list"
-    assert len(sources) > 0, "Expected at least one data source for the sensor"
+    assert isinstance(sources, list)
+    assert len(sources) == 1
     print(
-        f"\nSensor.data_sources: {len(sources)} source(s) in {elapsed_sensor_data_sources*1000:.1f} ms"
+        f"\nSensor.data_sources ({N_BELIEFS:,} beliefs): "
+        f"{elapsed_sensor_data_sources * 1000:.1f} ms"
     )
 
-    # Pick one of the data sources and test DataSource.sensors
-    source = sources[0]
-
+    # --- DataSource.sensors ----------------------------------------------------
     db.session.expire_all()
     t0 = time.perf_counter()
     sensors = source.sensors
-    t1 = time.perf_counter()
-    elapsed_data_source_sensors = t1 - t0
+    elapsed_data_source_sensors = time.perf_counter() - t0
 
-    assert isinstance(sensors, list), "DataSource.sensors should return a list"
-    assert len(sensors) > 0, "Expected at least one sensor for the data source"
+    assert isinstance(sensors, list)
+    assert len(sensors) == 1
     print(
-        f"DataSource.sensors: {len(sensors)} sensor(s) in {elapsed_data_source_sensors*1000:.1f} ms"
+        f"DataSource.sensors ({N_BELIEFS:,} beliefs): "
+        f"{elapsed_data_source_sensors * 1000:.1f} ms"
     )
 
-    # Both should complete within a generous 2 s budget on any CI machine
-    assert (
-        elapsed_sensor_data_sources < 2.0
-    ), f"Sensor.data_sources took {elapsed_sensor_data_sources:.3f}s — too slow"
-    assert (
-        elapsed_data_source_sensors < 2.0
-    ), f"DataSource.sensors took {elapsed_data_source_sensors:.3f}s — too slow"
+    assert elapsed_sensor_data_sources < THRESHOLD_S, (
+        f"Sensor.data_sources took {elapsed_sensor_data_sources * 1000:.1f} ms "
+        f"(limit {THRESHOLD_S * 1000:.0f} ms) — use the two-step subquery property"
+    )
+    assert elapsed_data_source_sensors < THRESHOLD_S, (
+        f"DataSource.sensors took {elapsed_data_source_sensors * 1000:.1f} ms "
+        f"(limit {THRESHOLD_S * 1000:.0f} ms) — use the two-step subquery property"
+    )
