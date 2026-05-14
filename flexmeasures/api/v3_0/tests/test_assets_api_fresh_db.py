@@ -75,6 +75,7 @@ def test_delete_an_asset(client, setup_api_fresh_test_data, requesting_user, db)
     assert deleted_asset is None
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_patch_asset_accepts_flex_context_object(
     client, setup_api_fresh_test_data, requesting_user, fresh_db
 ):
