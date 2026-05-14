@@ -139,9 +139,100 @@ class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
     pass
 
 
+class CommodityFlexContextSchema(Schema):
+    commodity = fields.Str(
+        required=True,
+        validate=validate.OneOf(["electricity", "gas"]),
+        data_key="commodity",
+    )
+
+    consumption_price = VariableQuantityField(
+        "/MWh",
+        required=False,
+        data_key="consumption-price",
+        return_magnitude=False,
+    )
+
+    production_price = VariableQuantityField(
+        "/MWh",
+        required=False,
+        data_key="production-price",
+        return_magnitude=False,
+    )
+
+    ems_power_capacity_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-power-capacity",
+        value_validator=validate.Range(min=0),
+    )
+
+    ems_consumption_capacity_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-consumption-capacity",
+        value_validator=validate.Range(min=0),
+    )
+
+    ems_production_capacity_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-production-capacity",
+        value_validator=validate.Range(min=0),
+    )
+
+    ems_consumption_breach_price = VariableQuantityField(
+        "/MW",
+        required=False,
+        data_key="site-consumption-breach-price",
+        value_validator=validate.Range(min=0),
+    )
+
+    ems_production_breach_price = VariableQuantityField(
+        "/MW",
+        required=False,
+        data_key="site-production-breach-price",
+        value_validator=validate.Range(min=0),
+    )
+
+    ems_peak_consumption_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-peak-consumption",
+        value_validator=validate.Range(min=0),
+    )
+
+    ems_peak_consumption_price = VariableQuantityField(
+        "/MW",
+        required=False,
+        data_key="site-peak-consumption-price",
+        value_validator=validate.Range(min=0),
+    )
+
+    ems_peak_production_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-peak-production",
+        value_validator=validate.Range(min=0),
+    )
+
+    ems_peak_production_price = VariableQuantityField(
+        "/MW",
+        required=False,
+        data_key="site-peak-production-price",
+        value_validator=validate.Range(min=0),
+    )
+
+
 class FlexContextSchema(Schema):
     """This schema defines fields that provide context to the portfolio to be optimized."""
 
+    commodity_contexts = fields.Nested(
+        CommodityFlexContextSchema,
+        data_key="commodities",
+        required=False,
+        many=True,
+    )
     # Device commitments
     consumption_breach_price = VariableQuantityField(
         "/MW",

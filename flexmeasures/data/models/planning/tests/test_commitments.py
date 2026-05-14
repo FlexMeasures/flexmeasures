@@ -871,7 +871,7 @@ def test_two_devices_shared_stock(app, db):
     )
 
 
-def test_simulation_copy_new(app, db):
+def set_up_simulation_assets_and_sensors(app, db):
     # ---- asset types and assets
     gas_boiler_type = get_or_create_model(GenericAssetType, name="gas-boiler")
     buffer_type = get_or_create_model(GenericAssetType, name="heat-buffer")
@@ -902,14 +902,6 @@ def test_simulation_copy_new(app, db):
     db.session.add_all([gas_boiler, heat_buffer, building, electric_heater, site])
     db.session.commit()
 
-    # ---- sensors
-    start = pd.Timestamp("2026-04-07T00:00:00+01:00")
-    end = pd.Timestamp(
-        "2026-04-09T06:00:00+01:00"
-    )  # Extended to allow discharge target on April 8
-    belief_time = pd.Timestamp(
-        "2026-04-05T00:00:00+01:00"
-    )  # 2 days before start for generous planning horizon
     power_resolution = pd.Timedelta("15m")
     energy_resolution = pd.Timedelta(0)
 
@@ -960,6 +952,30 @@ def test_simulation_copy_new(app, db):
         event_resolution=energy_resolution,  # instantaneous
         generic_asset=heat_buffer,
     )
+    consumption_price = Sensor(
+        name="consumption price",
+        unit="EUR/MWh",
+        event_resolution=energy_resolution,
+        generic_asset=site,
+    )
+    production_price = Sensor(
+        name="production price",
+        unit="EUR/MWh",
+        event_resolution=energy_resolution,
+        generic_asset=site,
+    )
+    gas_price = Sensor(
+        name="gas price",
+        unit="EUR/MWh",
+        event_resolution=energy_resolution,
+        generic_asset=site,
+    )
+    dynamic_consumption_capacity = Sensor(
+        name="dynamic consumption capacity",
+        unit="kW",
+        event_resolution=power_resolution,
+        generic_asset=site,
+    )
 
     db.session.add_all(
         [
@@ -970,16 +986,66 @@ def test_simulation_copy_new(app, db):
             building_raw_power,
             heater_power,
             soc_targets,
+            consumption_price,
+            production_price,
+            gas_price,
+            dynamic_consumption_capacity,
         ]
     )
     db.session.commit()
+    return {
+        "site": site,
+        "building": building,
+        "gas_boiler": gas_boiler,
+        "heat_buffer": heat_buffer,
+        "electric_heater": electric_heater,
+        "building_raw_power": building_raw_power,
+        "boiler_power": boiler_power,
+        "tank_power": tank_power,
+        "buffer_soc": buffer_soc,
+        "buffer_soc_usage": buffer_soc_usage,
+        "heater_power": heater_power,
+        "soc_targets": soc_targets,
+        "power_resolution": power_resolution,
+        "energy_resolution": energy_resolution,
+        "consumption_price": consumption_price,
+        "production_price": production_price,
+        "gas_price": gas_price,
+        "dynamic_consumption_capacity": dynamic_consumption_capacity,
+    }
+
+
+def test_simulation_with_dynamic_consumption_capacity(app, db):
+
+    start = pd.Timestamp("2026-04-07T00:00:00+01:00")
+    end = pd.Timestamp(
+        "2026-04-09T06:00:00+01:00"
+    )  # Extended to allow discharge target on April 8
+    belief_time = pd.Timestamp(
+        "2026-04-05T00:00:00+01:00"
+    )  # 2 days before start for generous planning horizon
+
+    setup_data = set_up_simulation_assets_and_sensors(app, db)
+
+    site = setup_data["site"]
+    building_raw_power = setup_data["building_raw_power"]
+    heater_power = setup_data["heater_power"]
+    boiler_power = setup_data["boiler_power"]
+    buffer_soc = setup_data["buffer_soc"]
+    buffer_soc_usage = setup_data["buffer_soc_usage"]
+    consumption_price = setup_data["consumption_price"]
+    gas_price = setup_data["gas_price"]
+    dynamic_consumption_capacity = setup_data["dynamic_consumption_capacity"]
+
     import timely_beliefs as tb
     from flexmeasures import Source
 
     # add dummy data to building raw power to ensure site-level constraints are respected
     building_data = pd.Series(
         100.0,
-        index=pd.date_range(start, end, freq=power_resolution, name="event_start"),
+        index=pd.date_range(
+            start, end, freq=setup_data["power_resolution"], name="event_start"
+        ),
         name="event_value",
     ).reset_index()
 
@@ -988,40 +1054,97 @@ def test_simulation_copy_new(app, db):
     bdf = tb.BeliefsDataFrame(
         building_data,
         belief_horizon=-pd.Timedelta(seconds=1) * np.array(range(len(building_data))),
-        sensor=building_raw_power,
+        sensor=setup_data["building_raw_power"],
         source=get_or_create_model(Source, name="Simulation"),
     )
     save_to_db(bdf, bulk_save_objects=False, save_changed_beliefs_only=False)
 
-    soc_usage["event_value"] = soc_usage["event_value"] * 1.49
+    # Dynamic site consumption capacity:
+    # - 1200 * 0.6 = 720 kW from 12:00 to 18:00
+    # - 1200 kW for the rest of the day
+    dynamic_capacity_data = pd.DataFrame(
+        index=pd.date_range(
+            start, end, freq=setup_data["power_resolution"], name="event_start"
+        )
+    ).reset_index()
+
+    # Dynamic electricity and gas prices:
+    # - Electricity is cheaper than gas from 12:00 to 16:00
+    # - Gas is cheaper for the rest of the day
+    price_index = pd.date_range(
+        start,
+        end,
+        freq=setup_data["power_resolution"],
+        name="event_start",
+    )
+
+    electricity_price_data = pd.DataFrame(index=price_index).reset_index()
+    gas_price_data = pd.DataFrame(index=price_index).reset_index()
+
+    # Default prices: gas cheaper than electricity
+    electricity_price_data["event_value"] = 120.0
+    gas_price_data["event_value"] = 90.0
+
+    # From 12:00 until before 16:00, electricity cheaper than gas
+    cheap_electricity_mask = electricity_price_data["event_start"].dt.hour.between(
+        12, 15
+    )
+
+    electricity_price_data.loc[
+        cheap_electricity_mask,
+        "event_value",
+    ] = 50.0
+
+    gas_price_data.loc[
+        cheap_electricity_mask,
+        "event_value",
+    ] = 150.0
+
+    bdf = tb.BeliefsDataFrame(
+        electricity_price_data,
+        belief_time=belief_time,
+        sensor=setup_data["consumption_price"],
+        source=get_or_create_model(Source, name="Simulation"),
+    )
+    save_to_db(bdf, bulk_save_objects=False, save_changed_beliefs_only=False)
+
+    bdf = tb.BeliefsDataFrame(
+        gas_price_data,
+        belief_time=belief_time,
+        sensor=setup_data["gas_price"],
+        source=get_or_create_model(Source, name="Simulation"),
+    )
+    save_to_db(bdf, bulk_save_objects=False, save_changed_beliefs_only=False)
+
+    dynamic_capacity_data["event_value"] = 100.0
+
+    dynamic_capacity_data.loc[
+        dynamic_capacity_data["event_start"].dt.hour.between(12, 17),
+        "event_value",
+    ] = (
+        100.0 * 0.6
+    )
+
+    bdf = tb.BeliefsDataFrame(
+        dynamic_capacity_data,
+        belief_time=belief_time,
+        sensor=setup_data["dynamic_consumption_capacity"],
+        source=get_or_create_model(Source, name="Simulation"),
+    )
+
+    save_to_db(bdf, bulk_save_objects=False, save_changed_beliefs_only=False)
+
+    soc_usage["event_value"] = 100
     bdf = tb.BeliefsDataFrame(
         soc_usage,
         belief_time=belief_time,
-        sensor=buffer_soc_usage,
+        sensor=setup_data["buffer_soc_usage"],
         source=get_or_create_model(Source, name="Simulation"),
     )
 
     save_to_db(bdf, bulk_save_objects=False, save_changed_beliefs_only=False)
 
     flex_model = [
-        # {
-        #     "sensor": pv_power.id,
-        #     "consumption-capacity": "0 kW",
-        #     "production-capacity": {"sensor": pv_raw_power.id},
-        #     "power-capacity": "1 GW",
-        # },
-        # {
-        #     "sensor": battery_power.id,
-        #     "soc-min": 0.0,
-        #     "soc-max": 100.0,
-        #     "soc-at-start": 20.0,
-        #     "power-capacity": "20 kW",
-        #     "roundtrip-efficiency": 0.9,
-        #     "soc-targets": [{"datetime": "2026-04-07T20:00:00+01:00", "value": 80.0}],
-        #     "state-of-charge": {"sensor": battery_soc.id},
-        #     "commodity": "electricity",
-        #
-        # },
         {
             "sensor": heater_power.id,
             "state-of-charge": {"sensor": buffer_soc.id},
@@ -1049,21 +1172,42 @@ def test_simulation_copy_new(app, db):
             #     {"datetime": "2026-04-07T20:00:00+01:00", "value": 700.0},
             # ],
             "state-of-charge": {"sensor": buffer_soc.id},
-            # "soc-usage": [{"sensor": buffer_soc_usage.id}],
+            "soc-usage": [{"sensor": buffer_soc_usage.id}],
             "storage-efficiency": 0.9,  # todo: does not work yet
             # todo: consider assigning this to the heat commodity, maybe we can derive some useful (costs?) KPI from it
         },
     ]
 
     flex_context = {
-        "consumption-price": "100 EUR/MWh",
-        "production-price": "100 EUR/MWh",
-        "gas-price": "150 EUR/MWh",
-        "site-power-capacity": "4700 kW",
-        "site-consumption-capacity": "4000 kW",
-        "site-production-capacity": "100 kW",
-        "site-consumption-breach-price": "100000 EUR/kW",
-        "site-production-breach-price": "100000 EUR/kW",
+        "commodities": [
+            {
+                "commodity": "electricity",
+                "consumption-price": {
+                    "sensor": consumption_price.id,
+                },
+                "production-price": {
+                    "sensor": consumption_price.id,
+                },
+                "site-power-capacity": "1900 kW",
+                "site-consumption-capacity": {
+                    "sensor": dynamic_consumption_capacity.id,
+                },
+                "site-production-capacity": "100 kW",
+                "site-consumption-breach-price": "100000 EUR/kW",
+                "site-production-breach-price": "100000 EUR/kW",
+            },
+            {
+                "commodity": "gas",
+                "consumption-price": {
+                    "sensor": gas_price.id,
+                },
+                "production-price": {
+                    "sensor": gas_price.id,
+                },
+                # No electricity dynamic capacity here.
+                "site-consumption-capacity": "100000 kW",
+            },
+        ],
         "relax-constraints": True,
         "inflexible-device-sensors": [building_raw_power.id],
     }
@@ -1072,7 +1216,7 @@ def test_simulation_copy_new(app, db):
         asset_or_sensor=site,
         start=start,
         end=end,
-        resolution=power_resolution,
+        resolution=setup_data["power_resolution"],
         belief_time=belief_time,
         flex_model=flex_model,
         flex_context=flex_context,
@@ -1082,5 +1226,118 @@ def test_simulation_copy_new(app, db):
     pd.set_option("display.max_rows", None)
     schedules = scheduler.compute(skip_validation=True)
 
-    # ---- verify outputs
-    print(schedules)
+    heater_schedule = next(
+        schedule["data"]
+        for schedule in schedules
+        if schedule.get("sensor") == heater_power
+    )
+
+    boiler_schedule = next(
+        schedule["data"]
+        for schedule in schedules
+        if schedule.get("sensor") == boiler_power
+    )
+    # The electric heater should only be active in the cheap-electricity window.
+    # In local time, electricity is cheaper from 12:00 to 16:00.
+    # During this period, the dynamic electricity site capacity is only 60 kW.
+    # Therefore, the electric heater is expected to run at 60 kW, not its full
+    # 100 kW device capacity.
+    pd.testing.assert_series_equal(
+        heater_schedule.loc["2026-04-07T11:00:00+00:00":"2026-04-07T14:45:00+00:00"],
+        pd.Series(
+            60.0,
+            index=pd.date_range(
+                "2026-04-07T11:00:00+00:00",
+                "2026-04-07T14:45:00+00:00",
+                freq="15min",
+            ),
+            dtype="float64",
+        ),
+        check_names=False,
+        obj=(
+            "electric heater dispatch during cheap-electricity window on day 1; "
+            "expected 60 kW because dynamic electricity capacity limits the heater"
+        ),
+    )
+
+    # When electricity is cheaper than gas, the gas boiler should stay off.
+    # The heat demand is then supplied by the electric heater instead.
+    pd.testing.assert_series_equal(
+        boiler_schedule.loc["2026-04-07T11:00:00+00:00":"2026-04-07T14:45:00+00:00"],
+        pd.Series(
+            0.0,
+            index=pd.date_range(
+                "2026-04-07T11:00:00+00:00",
+                "2026-04-07T14:45:00+00:00",
+                freq="15min",
+            ),
+            dtype="float64",
+        ),
+        check_names=False,
+        obj=(
+            "gas boiler dispatch during cheap-electricity window on day 1; "
+            "expected 0 kW because electricity is cheaper than gas"
+        ),
+    )
+
+    pd.testing.assert_series_equal(
+        heater_schedule.loc["2026-04-08T11:00:00+00:00":"2026-04-08T14:45:00+00:00"],
+        pd.Series(
+            60.0,
+            index=pd.date_range(
+                "2026-04-08T11:00:00+00:00",
+                "2026-04-08T14:45:00+00:00",
+                freq="15min",
+            ),
+            dtype="float64",
+        ),
+        check_names=False,
+        obj=(
+            "electric heater dispatch during cheap-electricity window on day 2; "
+            "expected 60 kW because dynamic electricity capacity limits the heater"
+        ),
+    )
+
+    pd.testing.assert_series_equal(
+        boiler_schedule.loc["2026-04-08T11:00:00+00:00":"2026-04-08T14:45:00+00:00"],
+        pd.Series(
+            0.0,
+            index=pd.date_range(
+                "2026-04-08T11:00:00+00:00",
+                "2026-04-08T14:45:00+00:00",
+                freq="15min",
+            ),
+            dtype="float64",
+        ),
+        check_names=False,
+        obj=(
+            "gas boiler dispatch during cheap-electricity window on day 2; "
+            "expected 0 kW because electricity is cheaper than gas"
+        ),
+    )
+
+    # Outside the cheap-electricity window, gas is cheaper than electricity.
+    # Therefore, the gas boiler should become the preferred heat source and run
+    # at full 100 kW capacity, while the electric heater should remain off.
+    assert boiler_schedule.loc["2026-04-07T15:00:00+00:00"] == pytest.approx(
+        100.0
+    ), "Gas boiler should run at full capacity after the cheap-electricity window on day 1."
+
+    assert heater_schedule.loc["2026-04-07T15:00:00+00:00"] == pytest.approx(
+        0.0
+    ), "Electric heater should be off after the cheap-electricity window because gas is cheaper."
+
+    assert boiler_schedule.loc["2026-04-08T15:00:00+00:00"] == pytest.approx(
+        100.0
+    ), "Gas boiler should run at full capacity after the cheap-electricity window on day 2."
+
+    assert heater_schedule.loc["2026-04-08T15:00:00+00:00"] == pytest.approx(
+        0.0
+    ), "Electric heater should be off after the cheap-electricity window on day 2 because gas is cheaper."
+
+    # Before the first cheap-electricity window, the optimizer uses a partial
+    # 80 kW electric-heater step to prepare the heat buffer. This is part of the
+    # expected optimal schedule and protects against accidental dispatch changes.
+    assert heater_schedule.loc["2026-04-07T08:00:00+00:00"] == pytest.approx(
+        80.0
+    ), "Electric heater should have one expected partial 80 kW dispatch step before the first cheap-electricity window."
