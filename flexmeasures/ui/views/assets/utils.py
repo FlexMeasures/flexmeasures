@@ -4,7 +4,7 @@ from flask import url_for
 from flask_security import current_user
 from werkzeug.exceptions import NotFound
 
-from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.policy import AuthModelMixin, check_access
 from flexmeasures.data import db
 from flexmeasures import Asset
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -32,25 +32,25 @@ def user_can_create_assets(account: Account | None = None) -> bool:
     return True
 
 
-def user_can_create_children(asset: GenericAsset) -> bool:
+def user_can_create_children(context: AuthModelMixin) -> bool:
     try:
-        check_access(asset, "create-children")
+        check_access(context, "create-children")
     except Exception:
         return False
     return True
 
 
-def user_can_delete(asset: GenericAsset) -> bool:
+def user_can_delete(context: AuthModelMixin) -> bool:
     try:
-        check_access(asset, "delete")
+        check_access(context, "delete")
     except Exception:
         return False
     return True
 
 
-def user_can_update(asset: GenericAsset) -> bool:
+def user_can_update(context: AuthModelMixin) -> bool:
     try:
-        check_access(asset, "update")
+        check_access(context, "update")
     except Exception:
         return False
     return True
