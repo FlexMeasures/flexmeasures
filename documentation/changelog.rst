@@ -31,6 +31,7 @@ Bugfixes
 * Fix account UI page exposing details to users from other accounts; any logged-in user could previously view the page [see `PR #2163 <https://www.github.com/FlexMeasures/flexmeasures/pull/2163>`_]
 * Fix forecasting regressor filtering to use only regressor beliefs known at the forecast ``belief_time`` [see `PR #2134 <https://www.github.com/FlexMeasures/flexmeasures/pull/2134>`_]
 * Check read permissions for sensors referenced in forecasting and scheduling config payloads, and return a clearer 403 error when a referenced sensor is not readable [see `PR #2096 <https://www.github.com/FlexMeasures/flexmeasures/pull/2096>`_ and `PR #2125 <https://www.github.com/FlexMeasures/flexmeasures/pull/2125>`_]
+* Corrected flex-config data format for Asset API updates to prevent JSON parsing failures. [see `PR #2162 <https://www.github.com/FlexMeasures/flexmeasures/pull/2162>`_]
 * Standardize resolution formatting across API endpoints for consistent response payloads [see `PR #2152 <https://www.github.com/FlexMeasures/flexmeasures/pull/2152>`_]
 * Make the auth check for CLI commands work with ``flask``, too, instead of only with the ``flexmeasures`` alias [see `PR #2169 <https://www.github.com/FlexMeasures/flexmeasures/pull/2169>`_]
 
