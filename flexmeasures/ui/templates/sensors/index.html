@@ -50,7 +50,9 @@
                                 </div>
                             </div>
                         </div>
+                      {% endif %}
 
+                      {% if user_can_create_children_sensor %}
                         <div class="sidepanel-container">
                             <div class="sidepanel-label">Upload data</div>
                             <div class="sidepanel-content" style="text-align: left;">
@@ -153,9 +155,6 @@ For the data, note the following:
                                 </fieldset>
                             </div>
                         </div>
-                      {% endif %}
-
-                      {% if user_can_create_children_sensor %}
                           <div class="sidepanel-container">
                               <div class="sidepanel-label">Forecast</div>
                           <div class="sidepanel-content" style="text-align: left;">
