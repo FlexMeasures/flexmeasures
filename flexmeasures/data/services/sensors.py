@@ -819,6 +819,9 @@ def _get_sensor_stats(
     # We pass it to aggregate FILTER clauses so that the planner can compute all aggregates in a single pass over the belief rows.
     not_nan = TimedBelief.event_value != float("nan")
 
+    def filtered_agg(func):
+        return func(TimedBelief.event_value).filter(not_nan)
+
     q = (
         sa.select(
             DataSource,
@@ -829,18 +832,10 @@ def _get_sensor_stats(
                 + sensor.event_resolution
                 - TimedBelief.belief_horizon
             ).label("max_belief_time"),
-            sa.func.min(TimedBelief.event_value)
-            .filter(not_nan)
-            .label("min_event_value"),
-            sa.func.max(TimedBelief.event_value)
-            .filter(not_nan)
-            .label("max_event_value"),
-            sa.func.avg(TimedBelief.event_value)
-            .filter(not_nan)
-            .label("avg_event_value"),
-            sa.func.sum(TimedBelief.event_value)
-            .filter(not_nan)
-            .label("sum_event_value"),
+            filtered_agg(sa.func.min).label("min_event_value"),
+            filtered_agg(sa.func.max).label("max_event_value"),
+            filtered_agg(sa.func.avg).label("avg_event_value"),
+            filtered_agg(sa.func.sum).label("sum_event_value"),
             sa.func.count(TimedBelief.event_value).label("count_event_value"),
         )
         .select_from(TimedBelief)
@@ -855,35 +850,27 @@ def _get_sensor_stats(
 
     raw_stats = db.session.execute(q.group_by(DataSource.id)).fetchall()
 
+    def to_local_iso(ts):
+        return pd.Timestamp(ts).tz_convert(sensor.timezone).isoformat()
+
     stats = dict()
-    for row in raw_stats:
-        (
-            data_source_obj,
-            min_event_start,
-            max_event_start,
-            max_belief_time,
-            min_value,
-            max_value,
-            mean_value,
-            sum_values,
-            count_values,
-        ) = row
-        first_event_start = (
-            pd.Timestamp(min_event_start).tz_convert(sensor.timezone).isoformat()
-        )
-        last_event_end = (
-            pd.Timestamp(max_event_start + sensor.event_resolution)
-            .tz_convert(sensor.timezone)
-            .isoformat()
-        )
-        last_belief_time = (
-            pd.Timestamp(max_belief_time).tz_convert(sensor.timezone).isoformat()
-        )
+    for (
+        data_source_obj,
+        min_event_start,
+        max_event_start,
+        max_belief_time,
+        min_value,
+        max_value,
+        mean_value,
+        sum_values,
+        count_values,
+    ) in raw_stats:
         data_source = f"{data_source_obj.description} (ID: {data_source_obj.id})"
+        last_event_end = max_event_start + sensor.event_resolution
         stats[data_source] = {
-            "First event start": first_event_start,
-            "Last event end": last_event_end,
-            "Last recorded": last_belief_time,
+            "First event start": to_local_iso(min_event_start),
+            "Last event end": to_local_iso(last_event_end),
+            "Last recorded": to_local_iso(max_belief_time),
             "Min value": min_value,
             "Max value": max_value,
             "Mean value": mean_value,
