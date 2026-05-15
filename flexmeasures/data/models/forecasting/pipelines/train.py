@@ -4,7 +4,7 @@ import os
 import pickle
 import warnings
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from darts import TimeSeries
 
@@ -126,6 +126,10 @@ class TrainPipeline(BasePipeline):
                 use_past_covariates=past_covariates_list is not None,
                 use_future_covariates=future_covariates_list is not None,
                 ensure_positive=self.ensure_positive,
+                seasonal_lag_steps=max(
+                    int(timedelta(days=1) / self.target_sensor.event_resolution), 1
+                ),
+                training_sample_count=len(y_train),
             )
         }
 
