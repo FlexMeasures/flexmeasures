@@ -18,9 +18,9 @@ New features
 * New ``GET /api/v3_0/sources`` endpoint to list accessible data sources and defined types, with ``only_latest=true`` by default to return only the most recent version per source [see `PR #2126 <https://www.github.com/FlexMeasures/flexmeasures/pull/2126>`_]
 * Add support for filtering sensor data GET requests by ``source-type`` on ``/api/v3_0/sensors/<id>/data`` [see `PR #2127 <https://www.github.com/FlexMeasures/flexmeasures/pull/2127>`_]
 * Making monitoring alerts more flexible: allow ``flexmeasures monitor`` alerts to target one or more user IDs or email addresses with ``--recipient``; ``flexmeasures monitor last-seen`` can now narrow monitored users to one or more accounts with ``--account`` or to client accounts with ``--consultancy`` [see `PR #2158 <https://www.github.com/FlexMeasures/flexmeasures/pull/2158>`_]
-* Add ``--timezone`` option to ``flexmeasures add holidays`` to store holiday annotations at local midnight instead of UTC midnight [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
-* Add new ``flexmeasures add holidays-by-package`` command backed by the ``holidays`` Python package, supporting more countries and school holidays [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
-* Add ``future-annotation-regressors`` field to the forecasting pipeline config schema, allowing annotation sources (e.g. holidays) to be used as binary future regressors [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
+* Add ``--timezone`` option to ``flexmeasures add holidays`` to store holiday annotations at local midnight; defaults to the ``FLEXMEASURES_TIMEZONE`` config setting (note: ``--year`` is now required) [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
+* Merge ``flexmeasures add holidays-by-package`` into ``flexmeasures add holidays``; use ``--subdiv`` or ``--category`` to automatically switch to the ``holidays`` Python package, or ``--calendar-class``/``--calendar-kwargs`` for specific workalendar classes such as ``NetherlandsWithSchoolHolidays`` [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
+* Add ``annotation-regressors`` field to the forecasting pipeline config schema (renamed from ``future-annotation-regressors``), with structured ``account``/``asset``/``sensor`` and ``annotation-type`` keys, and support for sensor annotations [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
 
 Infrastructure / Support
 ----------------------

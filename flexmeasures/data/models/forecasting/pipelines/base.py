@@ -120,6 +120,7 @@ class BasePipeline:
         self.missing_threshold = missing_threshold
         self.annotation_regressors = annotation_regressors or []
         # Build column names and proxy objects for annotation regressors
+        # Use `or` so that None or empty-string names fall back to the default.
         self.annotation_regressor_proxies = [
             _AnnotationRegressorProxy(
                 name=spec.get("name") or f"annotation_regressor_{i}",
