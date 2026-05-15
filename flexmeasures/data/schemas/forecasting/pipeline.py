@@ -74,6 +74,22 @@ class TrainPredictPipelineConfigSchema(Schema):
             },
         },
     )
+    future_annotation_regressors = fields.List(
+        fields.Dict(),
+        data_key="future-annotation-regressors",
+        load_default=[],
+        metadata={
+            "description": (
+                "Annotation sources to use as binary future regressors. "
+                "Each entry must specify 'account_id' or 'asset_id', and optionally "
+                "'annotation_type' (default: 'holiday') and 'name' (default: auto-generated). "
+                "Annotations are converted to a binary 0/1 time series: 1 during annotated periods."
+            ),
+            "example": [
+                {"account_id": 1, "annotation_type": "holiday", "name": "holidays"}
+            ],
+        },
+    )
     missing_threshold = fields.Float(
         data_key="missing-threshold",
         load_default=1.0,

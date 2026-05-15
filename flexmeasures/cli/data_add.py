@@ -29,6 +29,7 @@ from sqlalchemy import func, select
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
 from workalendar.registry import registry as workalendar_registry
+import holidays as hpkg
 
 from flexmeasures import Forecaster, Reporter
 from flexmeasures.cli.utils import (
@@ -953,15 +954,38 @@ def add_annotation(
     preferred="--account",
     help="Add annotations to this account. Follow up with the account's ID. This argument can be given multiple times.",
 )
+@click.option(
+    "--timezone",
+    "timezone",
+    type=click.STRING,
+    default=None,
+    help="Timezone for holiday annotations (e.g. 'Europe/Amsterdam'). Defaults to UTC. "
+    "Use this to ensure holidays appear at midnight local time in the UI.",
+)
 def add_holidays(
     year: int,
     countries: list[str],
     generic_asset_ids: list[int],
     account_ids: list[int],
+    timezone: str | None,
 ):
     """Add holiday annotations to accounts and/or assets."""
     calendars = workalendar_registry.get_calendars(countries)
     num_holidays = {}
+
+    if timezone:
+        try:
+            tz = pytz.timezone(timezone)
+        except pytz.exceptions.UnknownTimeZoneError:
+            click.secho(f"Unknown timezone: {timezone}", **MsgStyle.ERROR)
+            raise click.Abort()
+    else:
+        click.secho(
+            "No --timezone given; storing holidays at UTC midnight. "
+            "Pass --timezone (e.g. Europe/Amsterdam) to store at local midnight.",
+            **MsgStyle.WARN,
+        )
+        tz = None
 
     accounts = (
         db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
@@ -983,6 +1007,10 @@ def add_holidays(
         holidays = calendar().holidays(year)
         for holiday in holidays:
             start = pd.Timestamp(holiday[0])
+            if tz is not None:
+                start = start.tz_localize(tz)
+            else:
+                start = start.tz_localize("UTC")
             end = start + pd.offsets.DateOffset(days=1)
             annotation, _ = get_or_create_annotation(
                 Annotation(
@@ -1003,6 +1031,159 @@ def add_holidays(
     db.session.commit()
     click.secho(
         f"Successfully added holidays to {len(accounts)} {flexmeasures_inflection.pluralize('account', len(accounts))} and {len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}",
+        **MsgStyle.SUCCESS,
+    )
+
+
+@fm_add_data.command("holidays-by-package")
+@with_appcontext
+@click.option(
+    "--year",
+    type=click.INT,
+    required=True,
+    help="The year for which to look up holidays.",
+)
+@click.option(
+    "--country",
+    "country",
+    type=click.STRING,
+    required=True,
+    help="ISO 3166-1 alpha-2 country code (e.g. DE, AT, CH).",
+)
+@click.option(
+    "--subdiv",
+    "subdiv",
+    type=click.STRING,
+    default=None,
+    help="Subdivision code (state/province). Required for some countries (e.g. 'BY' for Bavaria, Germany).",
+)
+@click.option(
+    "--category",
+    "category",
+    type=click.STRING,
+    default="public",
+    help="Holiday category: 'public' (default), 'school', 'optional', etc. Availability depends on country.",
+)
+@click.option(
+    "--asset",
+    "generic_asset_ids",
+    type=click.INT,
+    multiple=True,
+    help="Add annotations to this asset. Follow up with the asset's ID. This argument can be given multiple times.",
+)
+@click.option(
+    "--account",
+    "account_ids",
+    type=click.INT,
+    multiple=True,
+    help="Add annotations to this account. Follow up with the account's ID. This argument can be given multiple times.",
+)
+@click.option(
+    "--timezone",
+    "timezone",
+    type=click.STRING,
+    default=None,
+    help="Timezone for holiday annotations (e.g. 'Europe/Amsterdam'). Defaults to UTC.",
+)
+def add_holidays_by_package(
+    year: int,
+    country: str,
+    subdiv: str | None,
+    category: str,
+    generic_asset_ids: list[int],
+    account_ids: list[int],
+    timezone: str | None,
+):
+    """Add holiday annotations from the 'holidays' Python package.
+
+    Supports more countries than workalendar and includes 'school' holidays for some countries
+    (e.g. Germany with --subdiv BY --category school).
+
+    \b
+    Examples:
+      flexmeasures add holidays-by-package --year 2024 --country DE --subdiv BY --category school --account 1
+      flexmeasures add holidays-by-package --year 2024 --country NL --account 1 --timezone Europe/Amsterdam
+    """
+    # Validate country
+    supported = hpkg.list_supported_countries()
+    if country not in supported:
+        click.secho(
+            f"Country '{country}' is not supported by the holidays package.",
+            **MsgStyle.ERROR,
+        )
+        click.secho(
+            f"Supported countries include: {', '.join(list(supported.keys())[:20])} ...",
+            **MsgStyle.WARN,
+        )
+        raise click.Abort()
+
+    # Validate timezone if given
+    tz = None
+    if timezone:
+        try:
+            tz = pytz.timezone(timezone)
+        except pytz.exceptions.UnknownTimeZoneError:
+            click.secho(f"Unknown timezone: {timezone}", **MsgStyle.ERROR)
+            raise click.Abort()
+
+    # Validate category and create holidays object
+    try:
+        h = hpkg.country_holidays(
+            country, subdiv=subdiv, years=year, categories=(category,)
+        )
+    except (ValueError, NotImplementedError) as e:
+        click.secho(f"Error creating holidays for {country}: {e}", **MsgStyle.ERROR)
+        raise click.Abort()
+
+    accounts = (
+        db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
+        if account_ids
+        else []
+    )
+    assets = (
+        db.session.scalars(
+            select(GenericAsset).filter(GenericAsset.id.in_(generic_asset_ids))
+        ).all()
+        if generic_asset_ids
+        else []
+    )
+
+    model_str = f"{country}/{subdiv}" if subdiv else country
+    _source = get_or_create_source(
+        "holidays", model=model_str, source_type="CLI script"
+    )
+
+    annotations = []
+    for date in sorted(h.keys()):
+        name = h[date]
+        start = pd.Timestamp(date)
+        if tz is not None:
+            start = start.tz_localize(tz)
+        else:
+            start = start.tz_localize("UTC")
+        end = start + pd.offsets.DateOffset(days=1)
+        annotation, _ = get_or_create_annotation(
+            Annotation(
+                content=name,
+                start=start,
+                end=end,
+                source=_source,
+                type="holiday",
+            )
+        )
+        annotations.append(annotation)
+
+    db.session.add_all(annotations)
+    for account in accounts:
+        account.annotations += annotations
+    for asset in assets:
+        asset.annotations += annotations
+    db.session.commit()
+    click.secho(
+        f"Successfully added {len(annotations)} holidays (category='{category}') "
+        f"for {model_str} in {year} to "
+        f"{len(accounts)} {flexmeasures_inflection.pluralize('account', len(accounts))} and "
+        f"{len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}.",
         **MsgStyle.SUCCESS,
     )
 

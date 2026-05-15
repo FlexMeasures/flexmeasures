@@ -38,6 +38,7 @@ dependencies = [
     "iso8601>=2.1.0",
     "xlrd>=2.0.2",
     "workalendar>=17.0.0",
+    "holidays>=0.57",
     "inflection>=0.5.1",
     "inflect>=7.5.0",
     "pydantic>=2.12.5",
