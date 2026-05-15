@@ -1132,7 +1132,16 @@ def add_holidays_by_package(
             country, subdiv=subdiv, years=year, categories=(category,)
         )
     except (ValueError, NotImplementedError) as e:
-        click.secho(f"Error creating holidays for {country}: {e}", **MsgStyle.ERROR)
+        click.secho(
+            f"Error creating holidays for {country}"
+            + (f"/{subdiv}" if subdiv else "")
+            + f" (category='{category}'): {e}",
+            **MsgStyle.ERROR,
+        )
+        click.secho(
+            "Check valid subdivisions and categories at https://python-holidays.readthedocs.io/",
+            **MsgStyle.WARN,
+        )
         raise click.Abort()
 
     accounts = (
