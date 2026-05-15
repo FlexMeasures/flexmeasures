@@ -15,25 +15,33 @@
           </div>
 
           <div class="form-group mb-3">
-            <label for="primary_color" class="control-label">Primary Color</label>
-            <input
-              type="text"
-              class="form-control"
-              id="primary_color"
-              name="primary_color"
-              placeholder="#1a3443"
-            />
+            <label for="primary_color" class="form-label">Primary Color</label>
+            <div class="input-group">
+              <!-- The visual picker -->
+              <input type="color" class="form-control form-control-color" id="primary_color_picker" value="#1a3443"
+                title="Choose your color" style="width: 60px; flex: none;">
+
+              <!-- The text input for pasting hex codes -->
+              <input type="text" class="form-control" id="primary_color" name="primary_color_code" value="#1a3443"
+                placeholder="#1a3443" maxlength="7">
+            </div>
+            <small class="text-muted">Pick a color or paste a hex code (e.g., #FFFFFF).</small>
           </div>
 
+
+
           <div class="form-group mb-3">
-            <label for="secondary_color" class="control-label">Secondary Color</label>
-            <input
-              type="text"
-              class="form-control"
-              id="secondary_color"
-              name="secondary_color"
-              placeholder="#f1a122"
-            />
+            <label for="secondary_color" class="form-label">Theme Color</label>
+            <div class="input-group">
+              <!-- The visual picker -->
+              <input type="color" class="form-control form-control-color" id="secondary_color_picker" value="#f1a122"
+                title="Choose your color" style="width: 60px; flex: none;">
+
+              <!-- The text input for pasting hex codes -->
+              <input type="text" class="form-control" id="secondary_color" name="secondary_color_code" value="#f1a122"
+                placeholder="#f1a122" maxlength="7">
+            </div>
+            <small class="text-muted">Pick a color or paste a hex code (e.g., #FFFFFF).</small>
           </div>
 
           <button type="submit" class="btn btn-success">Create account</button>
@@ -47,6 +55,52 @@
 
 <script>
   $(document).ready(function () {
+    const $primaryPicker = $('#primary_color_picker');
+    const $primaryTextInput = $('#primary_color');
+
+    const $secondaryPicker = $('#secondary_color_picker');
+    const $secondaryTextInput = $('#secondary_color');
+
+    // 1. When the visual picker changes, update the text field
+    $primaryPicker.on('input', function () {
+      $primaryTextInput.val($(this).val().toUpperCase());
+    });
+
+    $secondaryPicker.on('input', function () {
+      $secondaryTextInput.val($(this).val().toUpperCase());
+    });
+
+    // 2. When text is typed or pasted, update the visual picker
+    $primaryTextInput.on('input', function () {
+      let val = $(this).val();
+
+      // Ensure it starts with #
+      if (val.length > 0 && val[0] !== '#') {
+        val = '#' + val;
+        $(this).val(val);
+      }
+
+      // Only update the picker if it's a valid 6-digit hex code
+      if (/^#[0-9A-F]{6}$/i.test(val)) {
+        $primaryPicker.val(val);
+      }
+    });
+
+    $secondaryTextInput.on('input', function () {
+      let val = $(this).val();
+
+      // Ensure it starts with #
+      if (val.length > 0 && val[0] !== '#') {
+        val = '#' + val;
+        $(this).val(val);
+      }
+
+      // Only update the picker if it's a valid 6-digit hex code
+      if (/^#[0-9A-F]{6}$/i.test(val)) {
+        $secondaryPicker.val(val);
+      }
+    });
+
     $("#create-account-form").on("submit", function (event) {
       event.preventDefault();
 
