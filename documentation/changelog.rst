@@ -3,13 +3,16 @@
 FlexMeasures Changelog
 **********************
 
-v0.32.3 | May XX, 2026
+
+v0.32.3 | May 15, 2026
 ============================
 
 Bugfixes
 -----------
+* Fix account UI page exposing details to users from other accounts; any logged-in user could previously view the page and see account attributes (introduced in v0.32.0), but no user/asset/sensor details [see `PR #2163 <https://www.github.com/FlexMeasures/flexmeasures/pull/2163>`_]
 * Fix auth on asset creation: regular users can now create child assets (the permission check now targets the parent asset, not the current user's account), and account-admins can no longer nest assets under parents from other accounts [see `PR #2163 <https://www.github.com/FlexMeasures/flexmeasures/pull/2163>`_]
-* Fix account UI page exposing details to users from other accounts; any logged-in user could previously view the page [see `PR #2163 <https://www.github.com/FlexMeasures/flexmeasures/pull/2163>`_]
+* Fix off-by-one error on sensor data deletion (button on the sensor page), which lead to not deleting the last data point in the selected time window [see `PR #2175 <https://www.github.com/FlexMeasures/flexmeasures/pull/2175>`_]
+
 
 v0.32.2 | May 12, 2026
 ============================
