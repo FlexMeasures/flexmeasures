@@ -3,6 +3,7 @@
 FlexMeasures Changelog
 **********************
 
+
 v0.33.0 | May XX, 2026
 ============================
 
@@ -31,7 +32,6 @@ Bugfixes
 -----------
 * Fix forecasting regressor filtering to use only regressor beliefs known at the forecast ``belief_time`` [see `PR #2134 <https://www.github.com/FlexMeasures/flexmeasures/pull/2134>`_]
 * Check read permissions for sensors referenced in forecasting and scheduling config payloads, and return a clearer 403 error when a referenced sensor is not readable [see `PR #2096 <https://www.github.com/FlexMeasures/flexmeasures/pull/2096>`_ and `PR #2125 <https://www.github.com/FlexMeasures/flexmeasures/pull/2125>`_]
-* Corrected flex-config data format for Asset API updates to prevent JSON parsing failures. [see `PR #2162 <https://www.github.com/FlexMeasures/flexmeasures/pull/2162>`_]
 * Standardize resolution formatting across API endpoints for consistent response payloads [see `PR #2152 <https://www.github.com/FlexMeasures/flexmeasures/pull/2152>`_]
 * Make the auth check for CLI commands work with ``flask``, too, instead of only with the ``flexmeasures`` alias [see `PR #2169 <https://www.github.com/FlexMeasures/flexmeasures/pull/2169>`_]
 
@@ -44,6 +44,7 @@ Bugfixes
 * Fix account UI page exposing details to users from other accounts; any logged-in user could previously view the page and see account attributes (introduced in v0.32.0), but no user/asset/sensor details [see `PR #2163 <https://www.github.com/FlexMeasures/flexmeasures/pull/2163>`_]
 * Fix auth on asset creation: regular users can now create child assets (the permission check now targets the parent asset, not the current user's account), and account-admins can no longer nest assets under parents from other accounts [see `PR #2163 <https://www.github.com/FlexMeasures/flexmeasures/pull/2163>`_]
 * Fix off-by-one error on sensor data deletion (button on the sensor page), which lead to not deleting the last data point in the selected time window [see `PR #2175 <https://www.github.com/FlexMeasures/flexmeasures/pull/2175>`_]
+* Prevent JSON parsing failures when updating an asset's flex-config [see `PR #2162 <https://www.github.com/FlexMeasures/flexmeasures/pull/2162>`_]
 
 
 v0.32.2 | May 12, 2026
