@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.32.0"
+    "version": "0.33.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -321,23 +321,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "source": {
-                    "type": "integer",
-                    "description": "ID of the data source to delete data for. If not provided, data from all sources is deleted."
-                  },
-                  "start": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "Only delete data with event start at or after this datetime (ISO 8601)."
-                  },
-                  "until": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "Only delete data with event start before this datetime (ISO 8601)."
-                  }
-                }
+                "$ref": "#/components/schemas/DeleteSensorData"
               }
             }
           }
@@ -961,14 +945,14 @@
                     "description": "A successful response with sensor status data",
                     "value": [
                       {
-                        "staleness": "2 hours",
+                        "staleness": "PT2H",
                         "stale": true,
                         "staleness_since": "2024-01-15T14:30:00+00:00",
                         "reason": "data is outdated",
                         "source_type": "forecast",
                         "id": 64907,
                         "name": "temperature",
-                        "resolution": "5 minutes",
+                        "resolution": "PT5M",
                         "asset_name": "Building A",
                         "relation": "sensor belongs to this asset"
                       }
@@ -2578,7 +2562,7 @@
     "/api/v3_0/assets/{id}/sensors": {
       "get": {
         "summary": "Return all sensors under an asset.",
-        "description": "This endpoint returns all sensors under an asset.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n\n- If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.\n- If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\nThe response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data\n",
+        "description": "This endpoint returns all sensors under an asset.\n\nThe endpoint supports pagination of the sensor list using the `page` and `per_page` query parameters.\n\n- If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.\n- If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).\nThe response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2654,38 +2638,34 @@
             "content": {
               "application/json": {
                 "examples": {
-                  "single_asset": {
-                    "summary": "One asset being returned in the response",
+                  "single_sensor": {
+                    "summary": "One sensor being returned in the response",
                     "value": {
                       "data": [
                         {
                           "id": 1,
-                          "name": "Test battery",
-                          "latitude": 10,
-                          "longitude": 100,
-                          "account_id": 2,
-                          "generic_asset_type": {
-                            "id": 1,
-                            "name": "battery"
-                          }
+                          "name": "Test battery power",
+                          "unit": "kW",
+                          "event_resolution": "PT15M",
+                          "generic_asset_id": 1,
+                          "timezone": "Europe/Amsterdam",
+                          "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42"
                         }
                       ]
                     }
                   },
-                  "paginated_assets": {
-                    "summary": "A paginated list of assets being returned in the response",
+                  "paginated_sensors": {
+                    "summary": "A paginated list of sensors being returned in the response",
                     "value": {
                       "data": [
                         {
                           "id": 1,
-                          "name": "Test battery",
-                          "latitude": 10,
-                          "longitude": 100,
-                          "account_id": 2,
-                          "generic_asset_type": {
-                            "id": 1,
-                            "name": "battery"
-                          }
+                          "name": "Test battery power",
+                          "unit": "kW",
+                          "event_resolution": "PT15M",
+                          "generic_asset_id": 1,
+                          "timezone": "Europe/Amsterdam",
+                          "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42"
                         }
                       ],
                       "num-records": 1,
@@ -5235,6 +5215,26 @@
           "email",
           "password"
         ],
+        "additionalProperties": false
+      },
+      "DeleteSensorData": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "integer",
+            "description": "ID of the data source to delete data for. If not provided, data from all sources is deleted."
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Only delete data with event start at or after this datetime (ISO 8601)."
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Only delete data with event end at or before this datetime (ISO 8601)."
+          }
+        },
         "additionalProperties": false
       },
       "Sensor1": {

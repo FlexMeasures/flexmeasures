@@ -167,7 +167,7 @@ class GetSensorDataFilterSchemaMixin:
             example=42,
         ),
     )
-    account = AccountIdField(
+    source_account = AccountIdField(
         data_key="source-account",
         required=False,
         metadata=dict(
@@ -219,6 +219,20 @@ class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionS
                 f"The unit requested for this message type should be convertible from an energy price unit, got incompatible unit: {requested_unit}"
             )
 
+    @validates_schema
+    def source_type_must_exist_on_sensor(self, data, **kwargs):
+        source_type = data.get("source_type")
+        if not source_type:
+            return
+        sensor: Sensor = data["sensor"]
+        if not sensor.search_data_sources(
+            source_types=[source_type], check_exists=True
+        ):
+            raise ValidationError(
+                f"No data source with source-type '{source_type}' has recorded any data on this sensor.",
+                field_name="source_type",
+            )
+
     @staticmethod
     def load_data_and_make_response(sensor_data_description: dict) -> dict:
         """Turn the de-serialized and validated data description into a response.
@@ -237,7 +251,7 @@ class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionS
         unit = sensor_data_description["unit"]
         resolution = sensor_data_description.get("resolution")
         source = sensor_data_description.get("source")
-        account = sensor_data_description.get("account")
+        source_account = sensor_data_description.get("source_account")
         source_type = sensor_data_description.get("source_type")
 
         # Post-load configuration of event frequency
@@ -268,7 +282,7 @@ class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionS
                 horizons_at_least=horizons_at_least,
                 horizons_at_most=horizons_at_most,
                 source=source,
-                source_account_ids=account.id if account else None,
+                source_account_ids=source_account.id if source_account else None,
                 source_types=[source_type] if source_type else None,
                 beliefs_before=sensor_data_description.get("prior", None),
                 one_deterministic_belief_per_event=True,

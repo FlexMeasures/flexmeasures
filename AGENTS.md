@@ -629,6 +629,48 @@ When conducting work:
    - Run the CLI commands or API calls mentioned
    - Verify the implementation works end-to-end
 
+### Must Cover Auth Concerns with Tests, Not Code Inspection
+
+**When a reviewer raises an auth concern, add a failing test that reproduces the concern
+before claiming it is handled.**
+
+Inspecting source code to argue "the schema/decorator/validator already blocks this" is
+insufficient. Code paths can be bypassed in non-obvious ways (e.g., Marshmallow
+`@validates` is not called for missing/default field values; ACL helpers may silently
+no-op for `None` principals). Only a passing test proves the guard works.
+
+**Mandatory workflow for any auth concern:**
+
+1. **Write a test that reproduces the concern** (expect the HTTP response the reviewer
+   says should be returned, e.g. 403).
+2. **Run the test** — if it fails, the concern is real; fix the production code.
+3. **Run the test again** — it must now pass.
+4. **Include the test in the PR** so the regression cannot reappear.
+
+**Anti-patterns to avoid:**
+
+- ❌ "The schema already validates admin-only access for this path" — write a test to
+  prove it.
+- ❌ "The ACL produces `account:None` which no user can match" — write a test to prove
+  it.
+- ❌ Closing a comment by citing code without a green test.
+
+**Example lesson (session 2026-05-13):**
+
+Reviewer asked whether `check_access` was correctly skipped for `account_id=None`
+(public asset). Agent replied by citing `GenericAssetSchema.validate_account` — without
+a test. Reviewer manually verified via Swagger that a plain user could still create a
+public asset. Root cause: `@validates("account_id")` in Marshmallow is not called when
+`account_id` is absent from the request body (only user-supplied values trigger field
+validators). The inline check in the `post` handler had an `if account_id is not None:`
+guard that silently skipped the permission check for missing values.
+
+The fix required:
+- An explicit `Forbidden` raise for non-admins when `account_id is None` (no parent)
+- Two new regression tests:
+  `test_regular_user_cannot_create_public_asset`
+  `test_regular_user_cannot_create_child_of_public_asset`
+
 ### Must Validate the Whole Test Module After Any Test Change
 
 **When fixing or adding a test, always run the entire test module — not just the single test.**
@@ -1281,6 +1323,24 @@ Track and document when the Lead:
   4. **Delegation Verification** - Session close checklist item
   5. **Quick Navigation** - Prominent links to critical sections
 - **Verification**: Lead must now answer "Am I working solo?" before ANY execution
+
+**Specific lesson learned (2026-05-13)**:
+- **Session**: Auth fix for public asset creation (PR #2163)
+- **Failure**: Reviewer raised concern about `check_access` skip for `account_id=None`;
+  agent replied citing `GenericAssetSchema.validate_account` without writing a test.
+- **What went wrong**: Claimed the schema handler protected the endpoint without
+  verifying. Marshmallow's `@validates` is not invoked for fields absent from the
+  request body; when `account_id` was omitted, the inline `if account_id is not None:`
+  guard silently skipped the permission check.
+- **Impact**: Plain users could create public assets; reviewer had to confirm the bug
+  manually via Swagger.
+- **Fix**: Added explicit `Forbidden` raise for non-admins when `account_id is None`
+  and no parent; added tests `test_regular_user_cannot_create_public_asset` and
+  `test_regular_user_cannot_create_child_of_public_asset`.
+- **Prevention**: Added "Must Cover Auth Concerns with Tests, Not Code Inspection"
+  section above.
+- **Key insight**: "Inspecting code is not a substitute for a green test — write the
+  test first and let it prove or disprove the concern."
 
 Update this file to prevent repeating the same mistakes.
 

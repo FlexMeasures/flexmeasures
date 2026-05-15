@@ -25,7 +25,7 @@ from flexmeasures.data.services.users import (
 )
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
-from flexmeasures.utils.time_utils import server_now, naturalized_datetime_str
+from flexmeasures.utils.time_utils import server_now
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 
 
@@ -193,8 +193,16 @@ class UserAPI(FlaskView):
                     "flexmeasures_roles": [
                         role.name for role in user.flexmeasures_roles
                     ],
-                    "last_login_at": naturalized_datetime_str(user.last_login_at),
-                    "last_seen_at": naturalized_datetime_str(user.last_seen_at),
+                    "last_login_at": (
+                        user.last_login_at.isoformat()
+                        if user.last_login_at is not None
+                        else None
+                    ),
+                    "last_seen_at": (
+                        user.last_seen_at.isoformat()
+                        if user.last_seen_at is not None
+                        else None
+                    ),
                 }
                 for user in paginated_users.items
             ]
@@ -212,8 +220,16 @@ class UserAPI(FlaskView):
                     "flexmeasures_roles": [
                         role.name for role in user.flexmeasures_roles
                     ],
-                    "last_login_at": naturalized_datetime_str(user.last_login_at),
-                    "last_seen_at": naturalized_datetime_str(user.last_seen_at),
+                    "last_login_at": (
+                        user.last_login_at.isoformat()
+                        if user.last_login_at is not None
+                        else None
+                    ),
+                    "last_seen_at": (
+                        user.last_seen_at.isoformat()
+                        if user.last_seen_at is not None
+                        else None
+                    ),
                 }
                 for user in users
             ]
@@ -624,9 +640,7 @@ class UserAPI(FlaskView):
             response = [
                 {
                     "event": audit_log.event,
-                    "event_datetime": naturalized_datetime_str(
-                        audit_log.event_datetime
-                    ),
+                    "event_datetime": audit_log.event_datetime.isoformat(),
                     "active_user_name": audit_log.active_user_name,
                     "active_user_id": audit_log.active_user_id,
                 }
@@ -644,9 +658,7 @@ class UserAPI(FlaskView):
             audit_logs_response = [
                 {
                     "event": audit_log.event,
-                    "event_datetime": naturalized_datetime_str(
-                        audit_log.event_datetime
-                    ),
+                    "event_datetime": audit_log.event_datetime.isoformat(),
                     "active_user_name": audit_log.active_user_name,
                     "active_user_id": audit_log.active_user_id,
                 }
