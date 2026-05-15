@@ -12,7 +12,7 @@ from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required, current_user
-from marshmallow import fields, Schema, ValidationError
+from marshmallow import fields, Schema, ValidationError, validates_schema
 import marshmallow.validate as validate
 from rq.job import Job, JobStatus, NoSuchJobError
 import timely_beliefs as tb
@@ -152,6 +152,56 @@ forecasting_trigger_schema_openAPI = make_openapi_compatible(ForecastingTriggerS
     exclude=EXCLUDED_FORECASTING_FIELDS
     + ["sensor"],
 )
+
+
+class DeleteSensorDataSchema(Schema):
+    """Schema for the request body of the DELETE /sensors/<id>/data endpoint.
+
+    Validates that ``until`` is not before ``start``, and for non-instantaneous sensors,
+    that ``until`` is at least one sensor resolution later than ``start``.
+    The sensor must be provided via schema context (``context["sensor"]``).
+    """
+
+    source = SourceIdField(
+        required=False,
+        metadata=dict(
+            description="ID of the data source to delete data for. If not provided, data from all sources is deleted.",
+        ),
+    )
+    start = AwareDateTimeField(
+        required=False,
+        metadata=dict(
+            description="Only delete data with event start at or after this datetime (ISO 8601).",
+        ),
+    )
+    until = AwareDateTimeField(
+        required=False,
+        metadata=dict(
+            description="Only delete data with event end at or before this datetime (ISO 8601).",
+        ),
+    )
+
+    @validates_schema
+    def validate_time_window(self, data, **kwargs):
+        """Validate start/until consistency against each other and the sensor resolution."""
+        start = data.get("start")
+        until = data.get("until")
+        if start is None or until is None:
+            return
+        if until < start:
+            raise ValidationError({"until": ["'until' must not be before 'start'."]})
+        sensor = self.context.get("sensor")
+        if sensor is not None:
+            resolution = sensor.event_resolution
+            if resolution > timedelta(0) and until < start + resolution:
+                raise ValidationError(
+                    {
+                        "until": [
+                            f"For a sensor with resolution {resolution}, 'until' must be"
+                            f" at least one resolution step ({resolution}) after 'start'."
+                        ]
+                    }
+                )
 
 
 class SensorKwargsSchema(Schema):
@@ -1429,23 +1479,12 @@ class SensorAPI(FlaskView):
 
     @route("/<id>/data", methods=["DELETE"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @use_kwargs(
-        {
-            "source": SourceIdField(load_default=None),
-            "start": AwareDateTimeField(load_default=None),
-            "until": AwareDateTimeField(load_default=None),
-        },
-        location="json",
-    )
     @permission_required_for_context("delete", ctx_arg_name="sensor")
     @as_json
     def delete_data(
         self,
         id: int,
         sensor: Sensor,
-        source=None,
-        start=None,
-        until=None,
     ):
         """
         .. :quickref: Sensors; Delete sensor data
@@ -1468,20 +1507,7 @@ class SensorAPI(FlaskView):
             required: false
             content:
               application/json:
-                schema:
-                  type: object
-                  properties:
-                    source:
-                      type: integer
-                      description: ID of the data source to delete data for. If not provided, data from all sources is deleted.
-                    start:
-                      type: string
-                      format: date-time
-                      description: Only delete data with event start at or after this datetime (ISO 8601).
-                    until:
-                      type: string
-                      format: date-time
-                      description: Only delete data with event start before this datetime (ISO 8601).
+                schema: DeleteSensorDataSchema
           responses:
             204:
               description: SENSOR_DATA_DELETED
@@ -1496,13 +1522,30 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
+        schema = DeleteSensorDataSchema()
+        schema.context = {"sensor": sensor}
+        try:
+            body = schema.load(request.get_json(silent=True) or {})
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+
+        source = body.get("source")
+        start = body.get("start")
+        until = body.get("until")
+
         query = delete(TimedBelief).where(TimedBelief.sensor_id == sensor.id)
         if source is not None:
             query = query.where(TimedBelief.source_id == source.id)
         if start is not None:
             query = query.where(TimedBelief.event_start >= start)
         if until is not None:
-            query = query.where(TimedBelief.event_start < until)
+            # "until" means the event must end at or before this datetime.
+            # Event end = event_start + sensor.event_resolution, so the condition is:
+            #   event_start + resolution <= until  ⟺  event_start <= until - resolution
+            # For instantaneous sensors (resolution = 0) this becomes event_start <= until.
+            query = query.where(
+                TimedBelief.event_start <= until - sensor.event_resolution
+            )
         db.session.execute(query)
 
         audit_message = f"Deleted data for sensor '{sensor.name}': {sensor.id}"
@@ -1648,14 +1691,14 @@ class SensorAPI(FlaskView):
                       summary: Successful response
                       description: A successful response with sensor status data
                       value:
-                        - staleness: "2 hours"
+                        - staleness: "PT2H"
                           stale: true
                           staleness_since: "2024-01-15T14:30:00+00:00"
                           reason: "data is outdated"
                           source_type: "forecast"
                           id: 64907
                           name: "temperature"
-                          resolution: "5 minutes"
+                          resolution: "PT5M"
                           asset_name: "Building A"
                           relation: "sensor belongs to this asset"
             400:
