@@ -25,6 +25,14 @@ def as_admin(client):
     logout(client)
 
 
+@pytest.fixture(scope="function")
+def as_prosumer_account_admin(client):
+    """Login the prosumer account-admin (has the 'account-admin' role)."""
+    login(client, "test_prosumer_user_2@seita.nl", "testtest")
+    yield
+    logout(client)
+
+
 @pytest.fixture(scope="module", autouse=True)
 def setup_ui_test_data(
     db,
