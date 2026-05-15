@@ -661,3 +661,26 @@ If any agent hasn't self-improved, Lead must:
 - Test Specialist must cover all model classes that receive the new parameter
 
 **Additional gap**: `account_id` for non-user DataSources (reporters, schedulers, forecasters) remains `None`. The filter therefore only matches user-type sources. This architectural constraint (documented in Architecture Specialist) limits the feature's utility and should be prominently noted in documentation whenever `account_id` filtering is described.
+
+### Session 2025: Annotation Regressors Feature (PR #2176)
+
+**Context**: Feature adding `future-annotation-regressors` pipeline config, `holidays-by-package` CLI command, and `--timezone` to `add_holidays`. Reviewed post-session by Coordinator.
+
+**Delegation observation**: All 7 commits authored by `copilot-swe-agent[bot]` — single-agent execution. No specialist agents engaged. This is the recurring delegation failure pattern.
+
+**Code quality observation**: Despite single-agent execution, the implementation quality is high:
+- `query_account_annotations` correctly mirrors `query_asset_annotations`
+- `_AnnotationRegressorProxy` duck-type proxy is minimal and correct
+- Schema `data_key` kebab-case is consistent with existing fields
+- `_config.get("future_annotation_regressors")` correctly accesses Marshmallow-deserialized snake_case key
+- `holidays>=0.57` dependency has no known CVEs
+- Tests are meaningful with appropriately conservative assertion bounds
+
+**New patterns documented** (agent instructions updated):
+- Architecture Specialist: duck-type proxy pattern, annotation query parity, pipeline config key isolation, `_clean_parameters` retention decision
+- Data & Time Specialist: `--timezone` recommendation, UTC-naive convention for annotation-to-pipeline loading, DST boundary risk for full-day annotations
+- API Specialist: `load_default=[]` backward compatibility pattern, `data_key` as API surface (not Python attribute name)
+
+**Governance gap to monitor**: The `future-annotation-regressors` key is preserved in DataSource attributes (not cleaned out). This means repeated calls to `flexmeasures add forecasts` with the same config will produce DataSources with this key in their attributes. This is intentional for retraining but creates storage overhead at scale. No action needed now, but flag if this becomes a performance concern (see Performance Specialist).
+
+**One open question**: If both `account_id` and `asset_id` are omitted from an annotation regressor spec, the pipeline logs a warning and returns empty data — the forecast proceeds without that regressor. This is silent degradation. A future improvement could make this a validation error at schema load time. Not blocking for this PR.
