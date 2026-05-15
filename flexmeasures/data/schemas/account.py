@@ -113,3 +113,30 @@ class AccountIdField(fields.Int, MarshmallowClickMixin):
     def _serialize(self, value: Account, attr, obj, **kwargs):
         """Turn an Account into a source id."""
         return value.id
+
+
+class AccountIdOrListField(fields.Field):
+    """Field that accepts a single account ID or a non-empty list of account IDs.
+
+    Both ``42`` and ``[42, 99]`` are accepted.  Always deserializes to a list of
+    :class:`~flexmeasures.data.models.user.Account` instances.
+
+    The field is intentionally expressed as a union of ``integer`` and
+    ``array[integer]`` rather than always requiring a list, so that future
+    OpenAPI generation can emit a ``oneOf`` schema for it.
+    """
+
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> list[Account]:
+        _item_field = AccountIdField()
+        if isinstance(value, list):
+            if len(value) == 0:
+                raise FMValidationError("Must be a non-empty list of account IDs.")
+            return [_item_field._deserialize(v, attr, data, **kwargs) for v in value]
+        return [_item_field._deserialize(value, attr, data, **kwargs)]
+
+    def _serialize(self, value: Any, attr, obj, **kwargs):
+        if value is None:
+            return None
+        if isinstance(value, list):
+            return [a.id if hasattr(a, "id") else a for a in value]
+        return value.id if hasattr(value, "id") else value

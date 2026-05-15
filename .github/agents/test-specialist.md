@@ -149,30 +149,6 @@ If ANY test fails during full suite execution:
 - Compare against SensorIdField pattern
 - See Lead's Click context error pattern
 
-### Integration with Lead
-
-The Test Specialist MUST provide evidence of full test suite execution to Lead.
-
-**Required evidence format:**
-```
-Full test suite execution:
-- Command: pytest
-- Results: 2,847 tests passed (100%)
-- Duration: 145.3s
-- Warnings: None
-- Coverage: 87.2% (unchanged)
-```
-
-**Lead verification:**
-Lead's session close checklist includes:
-- [ ] Test Specialist confirmed full test suite execution
-- [ ] All tests pass (100%)
-- [ ] Test output captured and reviewed
-
-**Enforcement:**
-Lead cannot close session until Test Specialist provides evidence of full test suite execution with 100% pass rate.
-
-
 ### Testing Patterns for FlexMeasures
 
 FlexMeasures uses pytest with two main fixture patterns for database management:
@@ -239,18 +215,6 @@ def test_create_annotation(client, setup_api_fresh_test_data, fresh_db):
     annotation = Annotation.query.filter_by(content="New annotation").first()
     assert annotation is not None
 ```
-
-**Performance Impact**
-
-Module-scoped `db` fixture:
-- ✅ **Faster**: Database created once per test module
-- ✅ **Shared data**: All tests use same database state
-- ⚠️ **Limitation**: Tests must not modify data (read-only)
-
-Function-scoped `fresh_db` fixture:
-- ✅ **Isolation**: Each test gets fresh database
-- ✅ **Modifications OK**: Tests can create/update/delete freely
-- ⚠️ **Slower**: Database created/destroyed per test function
 
 **Decision Tree**
 
@@ -409,22 +373,6 @@ def test_annotation_post_invalid_entity_id(client, entity_type, invalid_id):
     assert "does not exist" in response.json["message"].lower()
 ```
 
-#### When You Get 404 vs 422
-
-```python
-# 404: Route doesn't exist
-response = client.get("/api/dev/nonexistent-endpoint")
-assert response.status_code == 404
-
-# 422: Field validation fails (route exists, data invalid)
-response = client.post("/api/dev/annotation/assets/99999", json={"content": "test"})
-assert response.status_code == 422
-
-# 201: Everything valid
-response = client.post("/api/dev/annotation/assets/1", json={"content": "test"})
-assert response.status_code == 201  # Created
-```
-
 **Related FlexMeasures patterns**: Marshmallow schema validation, webargs error handling, REST API conventions
 
 ### Installation and Setup
@@ -467,6 +415,55 @@ The workflow includes:
 - Keep tests focused on a single behavior or feature
 - Use f-strings for string formatting
 - Follow the project's code style (enforced by black, flake8)
+
+### Docstring Style Rules (ENFORCED — learned from PR #2163 review)
+
+#### 1. No historical context in test docstrings
+
+Test docstrings must describe **what the test currently verifies** — not why the
+bug existed or how behaviour changed.
+
+**Forbidden in docstrings:**
+```
+# Bug (on main): ...
+# Fix: ...
+# Expected: X on main, Y with fix
+```
+
+**Correct pattern** — describe the expected behaviour only:
+```python
+def test_forecast_horizon_is_preserved():
+    """Verify that the forecast horizon stored on each belief matches the sensor resolution."""
+```
+
+Historical context belongs in **commit messages** or **PR descriptions**, never
+in source code docstrings. It is scoped to the agent session only and must not
+be committed.
+
+#### 2. Minimal line-wrapping inside sentences
+
+Keep each sentence on as few lines as possible. Do **not** hard-wrap sentences
+mid-phrase to stay within 79 characters. A single long sentence is better than
+one broken across two lines.
+
+**Wrong** (sentence split mid-phrase):
+```python
+"""Verify that posting sensor data creates a data source whose account_id
+matches the posting user's account."""
+```
+
+**Correct** (sentence on one line):
+```python
+"""Verify that posting sensor data creates a data source whose account_id matches the posting user's account."""
+```
+
+#### 3. No double spaces after punctuation
+
+Use exactly **one** space after periods, commas, colons, and all other
+punctuation in docstrings, inline comments, and any documentation strings.
+
+**Wrong:** `"""Check asset.  A Prosumer asset is created."""`
+**Correct:** `"""Check asset. A Prosumer asset is created."""`
 
 ### Code Quality and Linting
 
@@ -571,45 +568,6 @@ containers are started automatically by the GitHub Actions runner environment. I
 environment you must have these running yourself before executing tests.
 
 If setup steps fail or are unclear, escalate to the Tooling & CI Specialist.
-
-### Test Execution Workflow (CRITICAL)
-
-Follow `.github/workflows/copilot-setup-steps.yml` for the authoritative environment setup. In summary:
-
-1. **PostgreSQL** must be running with user/db `flexmeasures_test` and password `flexmeasures_test`.
-2. **Redis** must be running on `localhost:6379`.
-3. **Install dependencies**: `uv sync --locked --group test`
-4. **Set env vars**: `FLEXMEASURES_ENV=testing`, `SQLALCHEMY_DATABASE_URI=postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test`, `FLEXMEASURES_REDIS_URL=redis://127.0.0.1:6379/0`
-5. **Run tests**: `uv run poe test` or `pytest`
-
-If setup fails, escalate to the Tooling & CI Specialist.
-
-❌ **Don't**: Assume PostgreSQL is running
-✅ **Do**: Check service status before running tests
-
-❌ **Don't**: Skip environment variable setup
-✅ **Do**: Export all required variables (FLEXMEASURES_ENV, SQLALCHEMY_DATABASE_URI, etc.)
-
-❌ **Don't**: Claim "tests pass" without showing pytest output
-✅ **Do**: Capture and verify actual test results (passed/failed counts)
-
-❌ **Don't**: Ignore connection errors and move on
-✅ **Do**: Debug and fix setup issues before proceeding
-
-### Running Tests in FlexMeasures Dev Environment
-
-```bash
-# Install test dependencies
-uv sync --locked --group test
-# Run all tests (canonical command)
-uv run poe test
-# Run specific file or function
-uv run pytest path/to/test_file.py::test_function_name -v
-# Check pre-commit before committing
-pre-commit run --all-files
-```
-
-**Key pitfalls**: Don't just suggest tests — run them and show output. Don't assume the environment is ready without checking. Don't commit without running pre-commit.
 
 ### Testing DataSource Properties After API Calls
 
@@ -828,3 +786,8 @@ After each assignment:
 
 - **Self-improvement failure**: Despite having explicit instructions to update this agent file after each assignment, no update was made during this PR session. This was caught by the Coordinator post-hoc. The agent must treat instruction updates as the LAST mandatory step of any assignment.
 - **DataSource property testing**: Added guidance in "Testing DataSource Properties After API Calls" above. When testing properties set by the API on a data source (like `account_id`), use `fresh_db`, query by user to avoid ambiguity, and assert both existence and the specific field value.
+
+**Session 2026-04 (PR #2065 — add account_id filter to search_beliefs)**:
+
+- **Model layer coverage gap**: The PR added `account_id` parameter to three model methods: `Sensor.search_beliefs`, `TimedBelief.search`, and `GenericAsset.search_beliefs`. Tests covered only the first two. When a parameter is added to multiple model-layer methods, each method must be tested independently — especially when they use different code paths (e.g., `GenericAsset.search_beliefs` delegates through `Sensor.search_beliefs` but may not if the delegation chain changes). Add a checklist item: "When a filter/param is added to `search_beliefs` across multiple models, ensure at least one test exercises each model class."
+- **Empty-list edge case**: `account_id=[]` is schema-valid but semantically means "match nothing" (SQL `IN ()` returns zero rows). Tests should include this edge case and assert the expected empty result rather than letting it pass as a valid no-op.

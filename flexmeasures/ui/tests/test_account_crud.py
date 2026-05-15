@@ -1,3 +1,5 @@
+import pytest
+
 from flask import url_for
 from flask_login import current_user
 import pytest
@@ -7,8 +9,18 @@ from flexmeasures.data.models.user import AccountRole
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.auth.policy import CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE
 
+from flexmeasures.ui.tests.utils import login, logout
+
 
 account_api_path = "http://localhost//api/v3_0/accounts"
+
+
+@pytest.fixture
+def as_dummy_user3(client):
+    """Login a plain user from the Dummy account (different from Prosumer or Supplier)."""
+    login(client, "test_dummy_user_3@seita.nl", "testtest")
+    yield
+    logout(client)
 
 
 def test_account_page(db, client, as_prosumer_user1):
@@ -110,3 +122,20 @@ def test_create_account_page_access_control(
 
     response = client.get(url_for("AccountCrudUI:new"), follow_redirects=True)
     assert response.status_code == expected_status_code
+    
+    
+def test_account_page_forbidden_for_different_account_user(
+    db, client, setup_accounts, as_dummy_user3
+):
+    """A user from the Dummy account must not be able to view the Prosumer account page.
+
+    ``AccountCrudUI.get`` calls ``check_access(account, "read")``, which blocks
+    users who are not members of the requested account.
+    """
+    prosumer_account = setup_accounts["Prosumer"]
+
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=prosumer_account.id),
+        follow_redirects=True,
+    )
+    assert account_page.status_code == 403

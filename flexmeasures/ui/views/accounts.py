@@ -54,6 +54,9 @@ class AccountCrudUI(FlaskView):
     def get(self, account_id: str):
         """/accounts/<account_id>"""
         account = db.session.execute(select(Account).filter_by(id=account_id)).scalar()
+        if account is None:
+            raise NotFound(f"Account with id {account_id} not found.")
+        check_access(account, "read")
         if account.consultancy_account_id:
             consultancy_account = db.session.execute(
                 select(Account).filter_by(id=account.consultancy_account_id)
