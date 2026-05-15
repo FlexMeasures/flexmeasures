@@ -181,8 +181,12 @@ def test_add_holidays_with_workalendar_school_holidays(
             DataSource.model == "NL-north",
         )
     )
+    # NetherlandsWithSchoolHolidays returns public + school holiday days; the primary
+    # assertion is an exact match, and the lower bound confirms the calendar is non-trivial.
     assert count == len(holidays)
-    assert count > 50, f"Expected >50 NL north school holidays in 2024, got {count}"
+    assert (
+        count > 90
+    ), f"Expected >90 NL north school+public holidays in 2024, got {count}"
 
 
 def test_add_holidays_by_package_german_school(
@@ -229,7 +233,9 @@ def test_add_holidays_by_package_german_school(
             DataSource.model == "DE/BY",
         )
     )
-    assert count > 50, f"Expected >50 DE/BY school holiday days in 2024, got {count}"
+    # Bavaria has ~91 school holiday days in 2024; use 80 as a conservative lower bound
+    # that will catch any significant regression without being brittle to minor calendar updates.
+    assert count > 80, f"Expected >80 DE/BY school holiday days in 2024, got {count}"
 
 
 def test_annotation_regressors_loaded_in_pipeline(
