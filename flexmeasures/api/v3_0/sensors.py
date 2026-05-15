@@ -227,6 +227,11 @@ class TriggerScheduleKwargsSchema(Schema):
 
 
 def floor_timed_event_datetimes(flex_model: dict, sensor: Sensor) -> dict:
+    """Floor timed-event datetimes in list-valued flex-model fields.
+
+    This only touches list entries that look like timed-event dictionaries,
+    such as ``soc-minima``, ``soc-maxima`` and ``soc-targets``.
+    """
     if sensor.event_resolution == timedelta(0) or not sensor.get_attribute(
         "round_datetimes_on_ingestion", True
     ):
