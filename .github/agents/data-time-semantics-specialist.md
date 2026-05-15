@@ -194,3 +194,11 @@ After each assignment:
    Change:
    - Added guidance on <topic>
    ```
+
+### Lessons Learned
+
+**Session 2025 (PR #2176 — annotation regressors, timezone-aware holiday import)**:
+
+- **Holiday CLI commands need `--timezone`**: Without `--timezone`, `flexmeasures add holidays` and `flexmeasures add holidays-by-package` store annotations at UTC midnight. In CET (UTC+1), this means a holiday appearing at 01:00 local time in charts — one hour off. Always recommend `--timezone Europe/Amsterdam` (or equivalent) when documenting holiday import. The warning message in the CLI also surfaces this, but documentation must reinforce it.
+- **Annotation-to-pipeline UTC-naive convention**: When loading annotation timestamps into the forecasting pipeline, convert tz-aware datetimes to UTC-naive using `.tz_convert("UTC").tz_localize(None)`. This matches the convention established in `load_data_all_beliefs`. Failure to do this causes merge/alignment failures when joining annotation data with sensor data that uses the same convention.
+- **DST boundary risk for full-day annotations**: Holiday annotations span exactly one calendar day (e.g., `start=2024-03-31T00:00 CET`, `end=2024-04-01T00:00 CEST`). If stored tz-aware, the `end - start` interval is 23 hours across the spring-forward transition. If stored at UTC midnight (no timezone), `end - start` is always exactly 24 hours. Validate this is handled consistently when querying multi-year ranges spanning DST transitions.
