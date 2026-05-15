@@ -69,6 +69,18 @@ class AccountCreateSchema(Schema):
     primary_color = fields.String(required=False, allow_none=True)
     secondary_color = fields.String(required=False, allow_none=True)
 
+    @validates("name")
+    def validate_name(self, value, **kwargs):
+        if not value.strip():
+            raise FMValidationError("Account name cannot be empty.")
+
+        # check if account with this name already exists
+        existing_account = db.session.execute(
+            db.select(Account).filter_by(name=value)
+        ).scalar_one_or_none()
+        if existing_account:
+            raise FMValidationError(f"An account with name '{value}' already exists.")
+
     @validates("primary_color")
     def validate_primary_color(self, value, **kwargs):
         try:

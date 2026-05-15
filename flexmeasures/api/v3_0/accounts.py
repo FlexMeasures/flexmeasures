@@ -242,7 +242,7 @@ class AccountAPI(FlaskView):
             db.session.commit()
         except IntegrityError:
             db.session.rollback()
-            return {"errors": ["An account with this name already exists."]}, 422
+            return {"errors": ["Database integrity error"]}, 400
 
         return account_schema.dump(account), 201
 
