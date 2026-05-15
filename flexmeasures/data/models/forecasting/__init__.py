@@ -6,9 +6,6 @@ from copy import deepcopy
 from typing import Any
 
 from flexmeasures.data.models.data_sources import DataGenerator
-from flexmeasures.data.models.forecasting.custom_models.base_model import (  # noqa: F401
-    BaseModel,
-)
 from flexmeasures.data.schemas.forecasting import ForecasterConfigSchema
 
 
@@ -103,3 +100,6 @@ class Forecaster(DataGenerator):
         for field in fields_to_remove:
             _parameters.pop(field, None)
         return _parameters
+
+
+# End of module.

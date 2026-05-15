@@ -452,8 +452,6 @@
                 validTypes = [String, Object];
             } else if (type === "typeFour") {
                 validTypes = [Array];
-            } else if (type === "typeFive") {
-                validTypes = [String];
             }
             FlexModelFieldValidTypes[key] = validTypes;
         }
@@ -671,13 +669,23 @@
 
             async function renderSelectInfoCards(modelKey, allowedUnits = []) {
                 if (modelKey) {
+                    const storageEfficiencyWarning = modelKey === "storage-efficiency"
+                        ? `
+                            <div class="pt-2 text-danger">
+                                <span class="fw-bold">Warning:</span> If you use a sensor, ensure its resolution matches the scheduling resolution. Currently there is no resampling using sensor resolution for this field.
+                            </div>
+                        `
+                        : "";
+
                     flexInfoContainer.innerHTML = `
                     <div>
                         <div class="alert alert-info" role="alert">
-                            <b> About ${getFlexFieldTitle(modelKey)}
+                            <strong>About ${getFlexFieldTitle(modelKey)}</strong>
                             <div class="pt-2 fw-normal">
                                 ${schemaSpecs[modelKey]["description"] || "No description available."}
                             </div>
+
+                            ${storageEfficiencyWarning}
 
                              <div class="pt-2 fw-bold"> 
                                 Possible types: <span class="fw-normal"> ${schemaSpecs[modelKey]["types"]["ui"] || "No types available."} </span> <br/>
