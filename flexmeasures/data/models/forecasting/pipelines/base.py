@@ -296,8 +296,9 @@ class BasePipeline:
             )
         else:
             logging.warning(
-                "Annotation regressor spec %r has no 'account_id' or 'asset_id'; skipping.",
+                "Annotation regressor spec %r (column: %s) has no 'account_id' or 'asset_id'; skipping.",
                 spec,
+                col_name,
             )
             return pd.DataFrame(columns=["event_start", "belief_time", col_name])
 
@@ -613,8 +614,7 @@ class BasePipeline:
 
                     future_covariates = self.detect_and_fill_missing_values(
                         df=future_df,
-                        sensors=list(self.future)
-                        + list(self.annotation_regressor_proxies),
+                        sensors=self.future + self.annotation_regressor_proxies,
                         sensor_names=self.future_regressors
                         + self.annotation_regressor_names,
                         start=target_start,
