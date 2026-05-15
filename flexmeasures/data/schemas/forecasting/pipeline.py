@@ -26,6 +26,36 @@ from flexmeasures.data.models.forecasting.utils import floor_to_resolution
 from flexmeasures.utils.time_utils import server_now
 
 
+class AnnotationRegressorSchema(Schema):
+    """Schema for a single annotation regressor in the forecasting pipeline config."""
+
+    account = fields.Int(
+        load_default=None,
+        metadata={"description": "Account ID whose annotations to use."},
+    )
+    asset = fields.Int(
+        load_default=None,
+        metadata={"description": "Asset ID whose annotations to use."},
+    )
+    sensor = fields.Int(
+        load_default=None,
+        metadata={"description": "Sensor ID whose annotations to use."},
+    )
+    annotation_type = fields.Str(
+        data_key="annotation-type",
+        load_default="holiday",
+        metadata={
+            "description": "Type of annotation to use (e.g. 'holiday', 'label', 'alert'). Defaults to 'holiday'."
+        },
+    )
+    name = fields.Str(
+        load_default=None,
+        metadata={
+            "description": "Human-readable column name for this regressor. Defaults to 'annotation_regressor_<index>'."
+        },
+    )
+
+
 class TrainPredictPipelineConfigSchema(Schema):
 
     model = fields.String(load_default="CustomLGBM")
@@ -72,6 +102,22 @@ class TrainPredictPipelineConfigSchema(Schema):
             "cli": {
                 "option": "--regressors",
             },
+        },
+    )
+    annotation_regressors = fields.List(
+        fields.Nested(AnnotationRegressorSchema()),
+        data_key="annotation-regressors",
+        load_default=[],
+        metadata={
+            "description": (
+                "Annotation sources to use as binary future regressors. "
+                "Each entry must specify 'account', 'asset', or 'sensor' (ID), and optionally "
+                "'annotation-type' (default: 'holiday') and 'name' (default: auto-generated). "
+                "Annotations are converted to a binary 0/1 time series: 1 during annotated periods."
+            ),
+            "example": [
+                {"account": 1, "annotation-type": "holiday", "name": "holidays"}
+            ],
         },
     )
     missing_threshold = fields.Float(

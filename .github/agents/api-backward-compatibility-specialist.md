@@ -494,3 +494,11 @@ After each assignment:
    Change:
    - Added guidance on <topic>
    ```
+
+### Lessons Learned
+
+**Session 2025 (PR #2176 — annotation regressors forecasting config)**:
+
+- **New pipeline config keys are additive (backward compatible)**: `future-annotation-regressors` uses `load_default=[]`, so existing configs without this key continue to work. This is the correct pattern for new optional pipeline features. When reviewing new schema fields, verify `load_default` (not `required=True`) is set for backward compatibility.
+- **Forecaster `_clean_parameters` is not a regression risk for new config keys**: New pipeline config keys left in `_clean_parameters` are preserved in DataSource attributes. New keys added to the removal list are dropped. Neither path is a breaking change for existing clients; both are intentional design choices. The API Specialist should verify only that the key naming (kebab-case via `data_key`) is consistent with existing keys — it is.
+- **`data_key` kebab-case is the API surface**: The external-facing key is the `data_key` value (`future-annotation-regressors`), not the Python attribute name (`future_annotation_regressors`). Clients sending JSON configs use the kebab-case form. Never check only the Python attribute name when reviewing API contracts for forecasting/reporting config fields.

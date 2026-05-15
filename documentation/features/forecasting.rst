@@ -143,3 +143,43 @@ If you want to take regressors into account, in addition to merely past measurem
 Including regressors can significantly improve forecasting accuracy, especially when they are highly correlated with the target variable. For example, using irradiation forecasts as regressors can substantially improve solar production predictions.
 In `this weather forecast plugin <https://github.com/flexmeasures/flexmeasures-weather>`_, we enable you to collect regressor data for ``["temperature", "wind speed", "cloud cover", "irradiance"]``, at a location you select.
 
+Annotation regressors
+~~~~~~~~~~~~~~~~~~~~~
+
+In addition to sensor-based regressors, you can use *annotation regressors* to let the forecasting model learn from binary signals derived from annotation data. Holiday flags, factory shutdowns, or any other event stored as an annotation can be passed as future covariates.
+
+Annotation regressors are configured in the ``annotation-regressors`` key of the forecasting config. Each entry is a dict with:
+
+- ``account``, ``asset``, or ``sensor`` (required): the database ID of the account, asset, or sensor whose annotations to use.
+- ``annotation-type`` (optional, default ``"holiday"``): filter to annotations of this type (``"holiday"``, ``"label"``, ``"alert"``, etc.).
+- ``name`` (optional): a human-readable column name for the regressor. Defaults to ``annotation_regressor_<index>``.
+
+The annotation data is converted to a binary 0/1 time series at the target sensor's resolution: **1** for every time step that falls within an annotation period, **0** otherwise. Since holidays and scheduled events are typically known in advance, annotation regressors are treated as *future* covariates.
+
+Example config (passed via ``--config`` file):
+
+.. code-block:: json
+
+    {
+      "annotation-regressors": [
+        {"account": 1, "annotation-type": "holiday", "name": "public_holidays"},
+        {"asset": 5, "annotation-type": "label", "name": "factory_shutdown"}
+      ]
+    }
+
+Usage:
+
+.. code-block:: bash
+
+    flexmeasures add forecasts \
+      --from-date 2024-01-01 --to-date 2024-12-31 \
+      --max-forecast-horizon 24 \
+      --sensor 42 \
+      --config '{"annotation-regressors": [{"account": 1, "annotation-type": "holiday"}]}'
+
+.. note::
+
+   Holiday annotations must be added to the account or asset before running the forecast.
+   Use ``flexmeasures add holidays`` to populate them (supports both workalendar and the ``holidays``
+   package). See :ref:`annotations` for details.
+
