@@ -134,38 +134,33 @@ def test_add_holidays_with_timezone(app, fresh_db, setup_roles_users_fresh_db):
 def test_add_holidays_with_workalendar_school_holidays(
     app, fresh_db, setup_roles_users_fresh_db
 ):
-    """Test adding NetherlandsWithSchoolHolidays (north region) for 2024 via workalendar."""
+    """Test adding NetherlandsWithSchoolHolidays (north region) for 2024 via the CLI."""
+    from flexmeasures.cli.data_add import add_holidays
     from workalendar.europe.netherlands import NetherlandsWithSchoolHolidays
-    from flexmeasures.data.services.data_sources import get_or_create_source
-    from flexmeasures.data.models.annotations import get_or_create_annotation
-    from flexmeasures.data.models.user import Account
-    import pandas as pd
+    import json
 
     db = fresh_db
+    runner = app.test_cli_runner()
 
-    cal = NetherlandsWithSchoolHolidays(region="north")
-    holidays = cal.holidays(2024)
-
-    source = get_or_create_source(
-        "workalendar", model="NL-north", source_type="CLI script"
+    result = runner.invoke(
+        add_holidays,
+        [
+            "--year",
+            "2024",
+            "--calendar-class",
+            "workalendar.europe.netherlands.NetherlandsWithSchoolHolidays",
+            "--calendar-kwargs",
+            json.dumps({"region": "north"}),
+            "--account",
+            "1",
+            "--timezone",
+            "Europe/Amsterdam",
+        ],
     )
+    check_command_ran_without_error(result)
 
-    annotations = []
-    for date, name in holidays:
-        start = pd.Timestamp(date).tz_localize("Europe/Amsterdam")
-        end = start + pd.offsets.DateOffset(days=1)
-        ann, _ = get_or_create_annotation(
-            Annotation(
-                content=name, start=start, end=end, source=source, type="holiday"
-            )
-        )
-        annotations.append(ann)
-
-    # Attach to account 1 (the first account created in fresh_db)
-    account = db.session.get(Account, 1)
-    account.annotations += annotations
-    db.session.commit()
-
+    # Verify count matches what the calendar directly produces
+    expected_count = len(NetherlandsWithSchoolHolidays(region="north").holidays(2024))
     count = db.session.scalar(
         select(func.count())
         .select_from(Annotation)
@@ -178,12 +173,11 @@ def test_add_holidays_with_workalendar_school_holidays(
         .filter(
             DataSource.id == Annotation.source_id,
             DataSource.name == "workalendar",
-            DataSource.model == "NL-north",
+            DataSource.model == "NetherlandsWithSchoolHolidays",
         )
     )
-    # NetherlandsWithSchoolHolidays returns public + school holiday days; the primary
-    # assertion is an exact match, and the lower bound confirms the calendar is non-trivial.
-    assert count == len(holidays)
+    assert count == expected_count
+    # NetherlandsWithSchoolHolidays returns public + school holiday days (a non-trivial set)
     assert (
         count > 90
     ), f"Expected >90 NL north school+public holidays in 2024, got {count}"
@@ -193,12 +187,12 @@ def test_add_holidays_by_package_german_school(
     app, fresh_db, setup_roles_users_fresh_db
 ):
     """Test adding German school holidays (Bavaria) for 2024 via the holidays package."""
-    from flexmeasures.cli.data_add import add_holidays_by_package
+    from flexmeasures.cli.data_add import add_holidays
 
     db = fresh_db
     runner = app.test_cli_runner()
     result = runner.invoke(
-        add_holidays_by_package,
+        add_holidays,
         [
             "--year",
             "2024",
@@ -289,7 +283,7 @@ def test_annotation_regressors_loaded_in_pipeline(
     db.session.commit()
 
     annotation_spec = {
-        "asset_id": factory_asset.id,
+        "asset": factory_asset.id,
         "annotation_type": "label",
         "name": "factory_shutdown",
     }

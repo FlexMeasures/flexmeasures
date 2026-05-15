@@ -34,8 +34,8 @@ Annotations are particularly useful for:
 
 **Forecasting and Scheduling**
     Holiday annotations help forecasting algorithms understand when energy consumption patterns deviate from normal patterns.
-    FlexMeasures can automatically import public holidays using ``flexmeasures add holidays`` (workalendar)
-    or ``flexmeasures add holidays-by-package`` (``holidays`` package, supports school holidays).
+    FlexMeasures can automatically import public holidays using ``flexmeasures add holidays`` (workalendar,
+    default) or the ``holidays`` package (supports school holidays for selected countries).
     These can then be used directly as annotation regressors in the forecasting pipeline — see :ref:`forecasting`.
 
 **Data Quality Tracking**
@@ -388,54 +388,67 @@ You can target accounts, assets, or sensors:
     flexmeasures add annotation --account-id 1 --content "..." --start "..." --end "..."
 
 
-**Holiday import (workalendar):**
+**Holiday import:**
 
-FlexMeasures can automatically import public holidays using the `workalendar <https://github.com/workalendar/workalendar>`_ library:
-
-.. code-block:: bash
-
-    # Add NL public holidays for 2025, stored at Amsterdam midnight (recommended)
-    flexmeasures add holidays --account 1 --year 2025 --country NL --timezone Europe/Amsterdam
-
-    # Add German public holidays (federal level)
-    flexmeasures add holidays --asset 5 --year 2025 --country DE --timezone Europe/Berlin
+The ``flexmeasures add holidays`` command supports both the `workalendar <https://github.com/workalendar/workalendar>`_ library (default) and the `holidays <https://python-holidays.readthedocs.io/>`_ package (for school holidays and additional subdivisions). Always pass ``--timezone`` matching the country's timezone so annotations are stored at local midnight rather than UTC midnight.
 
 .. tip::
 
-   Always pass ``--timezone`` matching the country's main timezone (e.g. ``Europe/Amsterdam`` for NL,
-   ``Europe/Berlin`` for DE). Without it, annotations are stored at UTC midnight — which may cause
-   holidays to appear at the wrong local hour in charts (1 AM or 2 AM instead of midnight in CET/CEST).
+   Omitting ``--timezone`` causes annotations to be stored at UTC midnight, which may make
+   holidays appear at the wrong local hour in charts (e.g. 1 AM or 2 AM in CET/CEST).
 
-See ``flexmeasures add holidays --help`` for available countries and options.
+.. tabs::
 
+    .. tab:: workalendar (public holidays)
 
-**Holiday import (holidays package):**
+        Uses the `workalendar <https://github.com/workalendar/workalendar>`_ library. The default
+        when no ``--subdiv`` or ``--category`` is specified.
 
-The ``holidays`` package is more widely maintained and supports school holidays for several countries:
+        .. code-block:: bash
 
-.. code-block:: bash
+            # Add NL public holidays for 2025, stored at Amsterdam midnight
+            flexmeasures add holidays --year 2025 --country NL --account 1 --timezone Europe/Amsterdam
 
-    # German Bavaria school holidays for 2024
-    flexmeasures add holidays-by-package \
-      --year 2024 --country DE --subdiv BY --category school \
-      --account 1 --timezone Europe/Berlin
+            # Add German public holidays (federal level)
+            flexmeasures add holidays --year 2025 --country DE --asset 5 --timezone Europe/Berlin
 
-    # Dutch public holidays (default category)
-    flexmeasures add holidays-by-package \
-      --year 2025 --country NL --account 1 --timezone Europe/Amsterdam
+    .. tab:: workalendar (specific calendar class)
 
-    # Austrian public holidays
-    flexmeasures add holidays-by-package \
-      --year 2025 --country AT --account 1 --timezone Europe/Vienna
+        Use ``--calendar-class`` to access a specific workalendar class not available via a plain
+        country code, such as regional school holiday calendars.
 
-Key options:
+        .. code-block:: bash
 
-- ``--country``: ISO 3166-1 alpha-2 code (e.g. ``DE``, ``NL``, ``AT``).
-- ``--subdiv``: State or province code (e.g. ``BY`` for Bavaria). Required for school holidays in some countries.
-- ``--category``: ``public`` (default), ``school``, ``optional``. Check `python-holidays docs <https://python-holidays.readthedocs.io/>`_ for country-specific categories.
-- ``--timezone``: Timezone for correct midnight storage (strongly recommended).
+            # Netherlands school holidays for the "north" region in 2024
+            flexmeasures add holidays --year 2024 \
+              --calendar-class workalendar.europe.netherlands.NetherlandsWithSchoolHolidays \
+              --calendar-kwargs '{"region": "north"}' \
+              --account 1 --timezone Europe/Amsterdam
 
-See ``flexmeasures add holidays-by-package --help`` for full options.
+    .. tab:: holidays package (school holidays)
+
+        Use ``--subdiv`` or ``--category school`` to automatically switch to the
+        `holidays <https://python-holidays.readthedocs.io/>`_ package, which supports school
+        holidays for selected countries.
+
+        .. code-block:: bash
+
+            # Bavaria school holidays for 2024
+            flexmeasures add holidays --year 2024 --country DE --subdiv BY --category school \
+              --account 1 --timezone Europe/Berlin
+
+            # Dutch public holidays via the holidays package
+            flexmeasures add holidays --year 2025 --country NL --package holidays \
+              --account 1 --timezone Europe/Amsterdam
+
+        Key options when using the holidays package:
+
+        - ``--country``: ISO 3166-1 alpha-2 code (e.g. ``DE``, ``NL``, ``AT``).
+        - ``--subdiv``: State/province code (e.g. ``BY`` for Bavaria).
+        - ``--category``: ``public`` (default), ``school``, ``optional``. Check
+          `python-holidays docs <https://python-holidays.readthedocs.io/>`_ for per-country options.
+
+See ``flexmeasures add holidays --help`` for all options.
 
 
 Viewing annotations

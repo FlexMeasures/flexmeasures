@@ -122,7 +122,7 @@ class BasePipeline:
         # Build column names and proxy objects for annotation regressors
         self.annotation_regressor_proxies = [
             _AnnotationRegressorProxy(
-                name=spec.get("name", f"annotation_regressor_{i}"),
+                name=spec.get("name") or f"annotation_regressor_{i}",
                 event_resolution=target_sensor.event_resolution,
             )
             for i, spec in enumerate(self.annotation_regressors)
@@ -255,7 +255,7 @@ class BasePipeline:
     ) -> pd.DataFrame:
         """Load an annotation regressor as a binary 0/1 time series DataFrame.
 
-        Queries annotations for the given account or asset, then marks each
+        Queries annotations for the given account, asset, or sensor, then marks each
         time step at the target sensor's resolution as 1 (if an annotation
         covers it) or 0 (otherwise).
 
@@ -263,7 +263,7 @@ class BasePipeline:
         making them suitable as future covariates for known future events like
         public holidays.
 
-        :param spec:      Dict with 'account_id' or 'asset_id', and optionally
+        :param spec:      Dict with 'account', 'asset', or 'sensor' (ID), and optionally
                           'annotation_type' (default: 'holiday') and 'name'.
         :param col_name:  Column name to use in the returned DataFrame.
         :param start:     Start of the time range (inclusive).
@@ -274,11 +274,13 @@ class BasePipeline:
         from flexmeasures.data.queries.annotations import (
             query_asset_annotations,
             query_account_annotations,
+            query_sensor_annotations,
         )
 
         annotation_type = spec.get("annotation_type", "holiday")
-        account_id = spec.get("account_id")
-        asset_id = spec.get("asset_id")
+        account_id = spec.get("account")
+        asset_id = spec.get("asset")
+        sensor_id = spec.get("sensor")
 
         if account_id is not None:
             query = query_account_annotations(
@@ -294,9 +296,16 @@ class BasePipeline:
                 annotations_before=end,
                 annotation_type=annotation_type,
             )
+        elif sensor_id is not None:
+            query = query_sensor_annotations(
+                sensor_id=sensor_id,
+                annotations_after=start,
+                annotations_before=end,
+                annotation_type=annotation_type,
+            )
         else:
             logging.warning(
-                "Annotation regressor spec %r (column: %s) has no 'account_id' or 'asset_id'; skipping.",
+                "Annotation regressor spec %r (column: %s) has no 'account', 'asset', or 'sensor'; skipping.",
                 spec,
                 col_name,
             )
