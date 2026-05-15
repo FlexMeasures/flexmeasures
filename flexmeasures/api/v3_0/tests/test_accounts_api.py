@@ -4,7 +4,10 @@ import json
 
 from flask import url_for
 import pytest
+from sqlalchemy import select
 
+from flexmeasures.data.models.user import Account, AccountRole
+from flexmeasures.auth.policy import CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE
 from flexmeasures.data.services.users import find_user_by_email
 
 
@@ -283,3 +286,66 @@ def test_patch_account_attributes_with_consultancy(
         response.json["consultancy_account_id"]
         == consultancy_client_account.consultancy_account_id
     )
+
+
+@pytest.mark.parametrize(
+    "requesting_user, status_code",
+    [
+        (None, 401),
+        ("test_prosumer_user@seita.nl", 403),
+        ("test_admin_user@seita.nl", 201),
+        ("test_consultant@seita.nl", 201),
+        ("test_consultancy_user_without_consultant_access@seita.nl", 403),
+    ],
+    indirect=["requesting_user"],
+)
+def test_post_account(client, setup_api_test_data, requesting_user, status_code, db):
+    payload = {
+        "name": f"Created Account {requesting_user.id if requesting_user else 'anon'}",
+        "primary_color": "#1a3443",
+        "secondary_color": "#f1a122",
+    }
+
+    response = client.post(url_for("AccountAPI:post"), json=payload)
+    assert response.status_code == status_code
+
+    if status_code == 201:
+        created = db.session.execute(
+            select(Account).filter_by(name=payload["name"])
+        ).scalar_one_or_none()
+        assert created is not None
+
+        if requesting_user.has_role("consultant"):
+            assert created.consultancy_account_id == requesting_user.account.id
+        else:
+            assert created.consultancy_account_id is None
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_consultant@seita.nl"],
+    indirect=["requesting_user"],
+)
+def test_post_account_consultant_without_required_account_role_forbidden(
+    client, setup_api_test_data, requesting_user, db
+):
+
+    role = db.session.execute(
+        select(AccountRole).filter_by(name=CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE)
+    ).scalar_one_or_none()
+    assert role is not None
+
+    requesting_user.account.account_roles = [
+        r
+        for r in requesting_user.account.account_roles
+        if r.name != CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE
+    ]
+    db.session.commit()
+
+    payload = {
+        "name": "Consultant Forbidden Account",
+        "primary_color": "#1a3443",
+        "secondary_color": "#f1a122",
+    }
+    response = client.post(url_for("AccountAPI:post"), json=payload)
+    assert response.status_code == 403
