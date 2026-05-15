@@ -720,7 +720,7 @@ wheels = [
 
 [[package]]
 name = "darts"
-version = "0.41.0"
+version = "0.44.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "holidays", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
@@ -744,9 +744,9 @@ dependencies = [
     { name = "xarray", version = "2025.6.1", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and os_name != 'nt' and sys_platform == 'darwin') or (python_full_version < '3.11' and os_name != 'nt' and sys_platform == 'linux') or (python_full_version < '3.11' and sys_platform == 'win32')" },
     { name = "xarray", version = "2026.4.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and os_name != 'nt' and sys_platform == 'darwin') or (python_full_version >= '3.11' and os_name != 'nt' and sys_platform == 'linux') or (python_full_version >= '3.11' and sys_platform == 'win32')" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e7/b5/0eed7c1c13c2d310d52f9cf3b6b21d477b3ea0f06a9a196830158e4d0163/darts-0.41.0.tar.gz", hash = "sha256:1d059a00f8d27dca753ac423b5165b32151d414f271ee67f742726381b83f92d", size = 635139, upload-time = "2026-02-10T18:23:07.033Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6c/78/3d603cf436208a343c89cb61aaea1d4a7e289de6fa0ef89996a31ec2c53d/darts-0.44.1.tar.gz", hash = "sha256:6d5bdcf1cfa98e29a0fa692e05c6c4660f998887b6c1c4fe6b6f3765808da883", size = 666262, upload-time = "2026-05-05T14:20:59.484Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8c/08/9353c92443cd1e9d7bce0d31adfa541b3ff58e988eff0d765803035698d7/darts-0.41.0-py3-none-any.whl", hash = "sha256:fade51d03515dcf031a688257adcac3e63aa54436cd92c977cd673a2a9891138", size = 744499, upload-time = "2026-02-10T18:23:05.571Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/c9/9596249ebe6c00ad717c74e010c282e5b3495bf583f21da32bb92768952e/darts-0.44.1-py3-none-any.whl", hash = "sha256:eb32897e9cd2833d98c6f33a9afbd160e234180332c9dabe74555d2786e8db2c", size = 780858, upload-time = "2026-05-05T14:20:57.462Z" },
 ]
 
 [[package]]
@@ -1157,6 +1157,7 @@ dependencies = [
     { name = "click", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "click-default-group", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "cryptography", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
+    { name = "darts", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "email-validator", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "flask", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "flask-classful", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
@@ -1205,7 +1206,6 @@ dependencies = [
     { name = "tabulate", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "timely-beliefs", extra = ["forecast"], marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "tldextract", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "u8darts", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "uniplot", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "urllib3", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "vl-convert-python", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
@@ -1278,6 +1278,7 @@ requires-dist = [
     { name = "click", specifier = "<8.2.0" },
     { name = "click-default-group", specifier = ">=1.2.4" },
     { name = "cryptography", specifier = ">=46.0.7" },
+    { name = "darts", specifier = ">=0.41.0" },
     { name = "email-validator", specifier = ">=2.3.0" },
     { name = "flask", specifier = ">=3.1.3" },
     { name = "flask-classful", specifier = ">=0.16" },
@@ -1325,7 +1326,6 @@ requires-dist = [
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "timely-beliefs", extras = ["forecast"], specifier = ">=3.5.5" },
     { name = "tldextract", specifier = ">=5.3.1" },
-    { name = "u8darts", specifier = ">=0.29.0" },
     { name = "uniplot", specifier = ">=0.12.1" },
     { name = "urllib3", specifier = ">=2.7.0" },
     { name = "vl-convert-python", specifier = ">=1.9.0.post1" },
@@ -4373,18 +4373,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ba/19/1b9b0e29f30c6d35cb345486df41110984ea67ae69dddbc0e8a100999493/tzdata-2026.2.tar.gz", hash = "sha256:9173fde7d80d9018e02a662e168e5a2d04f87c41ea174b139fbef642eda62d10", size = 198254, upload-time = "2026-04-24T15:22:08.651Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ce/e4/dccd7f47c4b64213ac01ef921a1337ee6e30e8c6466046018326977efd95/tzdata-2026.2-py2.py3-none-any.whl", hash = "sha256:bbe9af844f658da81a5f95019480da3a89415801f6cc966806612cc7169bffe7", size = 349321, upload-time = "2026-04-24T15:22:05.876Z" },
-]
-
-[[package]]
-name = "u8darts"
-version = "0.41.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "darts", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b9/cf/358dd4611c97c3f5c7530798ca264ebdacf22606ce2ddf944663507a83eb/u8darts-0.41.0.tar.gz", hash = "sha256:4555113548af56def9fea7616cdec2b7930c5966f45d19b2a78fb0a2293fd5c2", size = 31213, upload-time = "2026-02-10T18:23:19.028Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b2/4c/62efe09000d1787310d874268dbab5bff133803d4a54670a100ed57b2008/u8darts-0.41.0-py3-none-any.whl", hash = "sha256:8d04482f31536cd96ea5ab54f51c09155b90a98ed1f6cbae30f0b2c203016901", size = 14328, upload-time = "2026-02-10T18:23:17.788Z" },
 ]
 
 [[package]]
