@@ -123,6 +123,7 @@ class TrainPredictPipeline(Forecaster):
             probabilistic=self._parameters["probabilistic"],
             ensure_positive=self._config["ensure_positive"],
             missing_threshold=self._config.get("missing_threshold"),
+            annotation_regressors=self._config.get("future_annotation_regressors", []),
         )
 
         logging.info(f"Training cycle from {train_start} to {train_end} started ...")
@@ -164,6 +165,7 @@ class TrainPredictPipeline(Forecaster):
             sensor_to_save=self._parameters["sensor_to_save"],
             data_source=self.data_source,
             missing_threshold=self._config.get("missing_threshold"),
+            annotation_regressors=self._config.get("future_annotation_regressors", []),
         )
         logging.info(
             f"Prediction cycle from {predict_start} to {predict_end} started ..."
