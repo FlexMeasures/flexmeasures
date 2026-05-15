@@ -5,7 +5,24 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-31 | 2026-04-28
+v3.0-32 | 2026-05-xx
+""""""""""""""""""""
+
+- Introduced explicit ``inflexible-loads`` and ``inflexible-generators`` fields in the ``flex-context``, replacing the ambiguous ``inflexible-device-sensors`` field:
+
+  - ``inflexible-loads``: list of sensor IDs for inflexible consumers; sensor values are interpreted using the consumption-is-positive sign convention.
+  - ``inflexible-generators``: list of sensor IDs for inflexible generators; sensor values are interpreted using the production-is-positive sign convention (the FlexMeasures default).
+  - ``inflexible-device-sensors`` is deprecated and will be removed in a future version.
+    Use ``inflexible-loads`` for sensors with the consumption-is-positive convention and ``inflexible-generators`` for sensors with the production-is-positive convention.
+
+- Introduced explicit ``consumption`` and ``production`` fields in the per-sensor entry of the ``flex-model`` list (for asset-level scheduling), replacing the ambiguous ``sensor`` field:
+
+  - ``consumption``: sensor ID for the flexible consumer being scheduled; the scheduler applies the consumption-is-positive sign convention.
+  - ``production``: sensor ID for the flexible producer being scheduled; the scheduler applies the production-is-positive sign convention.
+  - ``sensor`` is deprecated for asset-level scheduling. Use ``consumption`` or ``production`` instead for unambiguous sign conventions.
+    The ``sensor`` fallback still works and falls back on the sensor's ``consumption_is_positive`` attribute to determine the sign convention.
+
+
 """"""""""""""""""""
 
 - Added a unified job status endpoint ``GET /api/v3_0/jobs/<uuid>`` that returns the current execution status and a human-readable result message for any background job (scheduling, forecasting, etc.) identified by its UUID.

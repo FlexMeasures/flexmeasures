@@ -35,7 +35,7 @@ docker exec -it flexmeasures-server-1 flexmeasures add beliefs --sensor 3 --sour
 echo "[TUTORIAL-RUNNER] Now running both battery and PV together, still using block price profiles ..."
 docker exec -it flexmeasures-server-1 flexmeasures add schedule --asset 2 \
   --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-  --flex-model '[{"sensor": 3, "consumption-capacity": "0 kW", "production-capacity": {"sensor": 3, "source": 4}}, {"sensor": 2, "soc-at-start": "225 kWh", "soc-min": "50 kWh"}]'\
+  --flex-model '[{"production": 3, "consumption-capacity": "0 kW", "production-capacity": {"sensor": 3, "source": 4}}, {"consumption": 2, "soc-at-start": "225 kWh", "soc-min": "50 kWh"}]'\
   --flex-context tutorial3-priceprofile-flex-context.json 
 
 echo "[TUTORIAL-RUNNER] showing PV and battery schedule ..."
@@ -47,7 +47,7 @@ docker exec -it flexmeasures-server-1 flexmeasures add beliefs --sensor 3 --sour
 echo "[TUTORIAL-RUNNER] Now running both battery and PV together, with realistic DA prices and larger battery ..."
 docker exec -it flexmeasures-server-1 flexmeasures add schedule --asset 2 \
   --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-  --flex-model '[{"sensor": 3, "consumption-capacity": "0 kW", "production-capacity": {"sensor": 3, "source": 4}}, {"sensor": 2, "soc-at-start": "225 kWh", "soc-min": "50 kWh", "soc-max": "900kWh"}]'
+  --flex-model '[{"production": 3, "consumption-capacity": "0 kW", "production-capacity": {"sensor": 3, "source": 4}}, {"consumption": 2, "soc-at-start": "225 kWh", "soc-min": "50 kWh", "soc-max": "900kWh"}]'
 
 echo "[TUTORIAL-RUNNER] showing PV and battery schedule ..."
 docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 3 --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
