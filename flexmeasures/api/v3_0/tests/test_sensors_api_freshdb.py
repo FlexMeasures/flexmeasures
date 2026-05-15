@@ -11,6 +11,20 @@ from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.api.v3_0.tests.utils import generate_csv_content
 
 
+TEST_BATTERY_SENSOR_NAMES = (
+    "power",
+    "power (kW)",
+    "energy (kWh)",
+    "state of charge",
+    "consumption sensor",
+    "cost sensor",
+)
+
+
+def assert_test_battery_sensor(sensor, sensor_index: int) -> None:
+    assert sensor.name == TEST_BATTERY_SENSOR_NAMES[sensor_index]
+
+
 @pytest.mark.parametrize(
     "requesting_user, sensor_index, data_unit, data_resolution, data_values, expected_event_values, expected_status",
     [
@@ -187,6 +201,7 @@ def test_upload_sensor_data_with_unit_conversion_success(
     )
     test_battery = add_battery_assets_fresh_db["Test battery"]
     sensor = test_battery.sensors[sensor_index]
+    assert_test_battery_sensor(sensor, sensor_index)
     num_test_intervals = len(data_values)
     print(
         f"Uploading data to sensor '{sensor.name}' with unit={sensor.unit} and resolution={sensor.event_resolution}."
@@ -290,6 +305,7 @@ def test_upload_sensor_data_floors_offclock_datetimes(
 ):
     test_battery = add_battery_assets_fresh_db["Test battery"]
     sensor = test_battery.sensors[sensor_index]
+    assert_test_battery_sensor(sensor, sensor_index)
 
     csv_content = generate_csv_content(
         start_time_str=start_date,
@@ -371,6 +387,7 @@ def test_upload_sensor_data_with_unit_conversion_failure(
     )
     test_battery = add_battery_assets_fresh_db["Test battery"]
     sensor = test_battery.sensors[sensor_index]
+    assert_test_battery_sensor(sensor, sensor_index)
     print(
         f"Uploading data to sensor '{sensor.name}' with unit={sensor.unit} and resolution={sensor.event_resolution}."
     )
