@@ -100,7 +100,7 @@ dependencies = [
     "vl-convert-python>=1.9.0.post1",
     # Forecaster: TrainPredictPipeline
     "lightgbm>=4.6.0",
-    "u8darts>=0.29.0",
+    "darts>=0.41.0",
     # LP solver. Required to test the function device_scheduler which is used by the StorageScheduler
     "highspy>=1.12",
     "rq-win>=0.4.2",

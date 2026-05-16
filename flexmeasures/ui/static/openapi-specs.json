@@ -321,23 +321,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "source": {
-                    "type": "integer",
-                    "description": "ID of the data source to delete data for. If not provided, data from all sources is deleted."
-                  },
-                  "start": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "Only delete data with event start at or after this datetime (ISO 8601)."
-                  },
-                  "until": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "Only delete data with event start before this datetime (ISO 8601)."
-                  }
-                }
+                "$ref": "#/components/schemas/DeleteSensorData"
               }
             }
           }
@@ -5243,6 +5227,26 @@
           "email",
           "password"
         ],
+        "additionalProperties": false
+      },
+      "DeleteSensorData": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "integer",
+            "description": "ID of the data source to delete data for. If not provided, data from all sources is deleted."
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Only delete data with event start at or after this datetime (ISO 8601)."
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Only delete data with event end at or before this datetime (ISO 8601)."
+          }
+        },
         "additionalProperties": false
       },
       "Sensor1": {
