@@ -28,6 +28,7 @@ Start to run one worker for each kind of job (in a separate terminal):
 
    $ flexmeasures jobs run-worker --queue forecasting
    $ flexmeasures jobs run-worker --queue scheduling
+   $ flexmeasures jobs run-worker --queue ingestion
 
 
 You can also clear the job queues:
@@ -36,6 +37,7 @@ You can also clear the job queues:
 
    $ flexmeasures jobs clear-queue --queue forecasting
    $ flexmeasures jobs clear-queue --queue scheduling
+   $ flexmeasures jobs clear-queue --queue ingestion
 
 
 When the main FlexMeasures process runs (e.g. by ``flexmeasures run``), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``, respectively (by admins).

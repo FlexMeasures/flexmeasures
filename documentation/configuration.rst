@@ -347,6 +347,14 @@ Set a negative value to persist forever.
 
 Default: ``3600``
 
+FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Maximum request body size for sensor data posted to the sensor data API, both for JSON data and file uploads.
+Set to ``None`` to disable this FlexMeasures-specific limit.
+
+Default: ``3 * 1024 * 1024``
+
 .. _datasource_config:
 
 FLEXMEASURES_DEFAULT_DATASOURCE

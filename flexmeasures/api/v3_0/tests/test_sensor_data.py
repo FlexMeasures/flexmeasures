@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from flask import url_for
+from flask import current_app, url_for
 import pytest
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -9,6 +9,10 @@ from sqlalchemy.engine import Engine
 from flexmeasures import Sensor, Source, User
 from flexmeasures.api.v3_0.tests.conftest import GAS_MEASUREMENTS_10MIN
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
+
+
+def _fake_ingestion_worker(queue):
+    return [object()]
 
 
 @pytest.mark.parametrize(
@@ -290,6 +294,64 @@ def test_post_sensor_data_bad_auth(
 
 
 @pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_sensor_data_returns_accepted_job(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        _fake_ingestion_worker,
+    )
+    current_app.queues["ingestion"].empty()
+    post_data = make_sensor_data_request_for_gas_sensor()
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        json=post_data,
+    )
+
+    assert response.status_code == 202
+    assert response.json["status"] == "ACCEPTED"
+    assert response.json["job_monitor_url"] == url_for(
+        "JobAPI:get_job_status", uuid=response.json["job_id"]
+    )
+    job = current_app.queues["ingestion"].fetch_job(response.json["job_id"])
+    assert job.kwargs["sensor_id"] == sensor.id
+    assert job.kwargs["sensor_data"] == post_data
+    assert "data" not in job.kwargs
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_sensor_data_rejects_large_json(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    monkeypatch,
+):
+    monkeypatch.setitem(
+        current_app.config,
+        "FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES",
+        1,
+    )
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        json=make_sensor_data_request_for_gas_sensor(),
+    )
+
+    assert response.status_code == 413
+    assert response.json["status"] == "PAYLOAD_TOO_LARGE"
+
+
+@pytest.mark.parametrize(
     "request_field, new_value, error_field, error_text",
     [
         ("start", "2021-06-07T00:00:00", "start", "Not a valid aware datetime"),
@@ -318,7 +380,13 @@ def test_post_invalid_sensor_data(
     error_field,
     error_text,
     requesting_user,
+    monkeypatch,
 ):
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        _fake_ingestion_worker,
+    )
+    current_app.queues["ingestion"].empty()
     post_data = make_sensor_data_request_for_gas_sensor()
     sensor = setup_api_test_data["some gas sensor"]
     post_data[request_field] = new_value
@@ -333,6 +401,30 @@ def test_post_invalid_sensor_data(
         error_text
         in response.json["message"]["combined_sensor_data_description"][error_field][0]
     )
+    assert current_app.queues["ingestion"].count == 0
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_sensor_data_rejects_unknown_sensor_before_queueing(
+    client,
+    requesting_user,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        _fake_ingestion_worker,
+    )
+    current_app.queues["ingestion"].empty()
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=999999),
+        json=make_sensor_data_request_for_gas_sensor(),
+    )
+
+    assert response.status_code == 404
+    assert current_app.queues["ingestion"].count == 0
 
 
 @pytest.mark.parametrize(

@@ -32,12 +32,14 @@ import pandas as pd
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.user import User
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
     with_appcontext_if_needed,
     convert_to_quantity,
 )
+from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.utils.time_utils import get_timezone
 from flexmeasures.utils.unit_utils import (
     is_valid_unit,
@@ -606,6 +608,10 @@ class SensorDataFileDescriptionSchema(Schema):
 class SensorDataFileSchema(SensorDataFileDescriptionSchema):
     sensor = SensorIdField(data_key="id")
 
+    def __init__(self, *args, source_user: User | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.source_user = source_user
+
     _valid_content_types = {
         "text/csv",
         "text/plain",
@@ -677,7 +683,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                 bdf = tb.read_csv(
                     file,
                     sensor,
-                    source=current_user.data_source[0],
+                    source=get_or_create_source(self.source_user or current_user),
                     belief_time=(
                         pd.Timestamp.utcnow()
                         if not belief_time_measured_instantly
@@ -728,9 +734,14 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                         is_stock_unit(from_unit)
                         for is_stock_unit in known_stock_unit_validators
                     ):
-                        bdf = bdf.resample_events(sensor.event_resolution, method="sum")
+                        bdf = bdf.resample_events(
+                            sensor.event_resolution,
+                            method="sum",
+                        )
                     else:
-                        bdf = bdf.resample_events(sensor.event_resolution)
+                        bdf = bdf.resample_events(
+                            sensor.event_resolution,
+                        )
                 dfs.append(bdf)
             except Exception as e:
                 error_message = (
@@ -743,6 +754,16 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         if errors:
             raise ValidationError(errors)
         fields["data"] = dfs
+        fields["filenames"] = [file.filename for file in files]
+        return fields
+
+
+class SensorDataFileRequestSchema(SensorDataFileSchema):
+    """Validate a sensor data upload without parsing or resampling its files."""
+
+    @post_load
+    def post_load(self, fields, **kwargs):
+        files: list[FileStorage] = fields["uploaded_files"]
         fields["filenames"] = [file.filename for file in files]
         return fields
 

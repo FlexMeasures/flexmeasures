@@ -12,6 +12,7 @@ import pandas as pd
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.user import User
 from flexmeasures.api.common.schemas.sensors import (
     SensorEntityAddressField,
     SensorIdField,
@@ -328,6 +329,10 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
     This schema includes data (values) and still describes it.
     """
 
+    def __init__(self, *args, source_user: User | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.source_user = source_user
+
     values = PolyField(
         deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
         serialization_schema_selector=select_schema_to_ensure_list_of_floats,
@@ -469,12 +474,11 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             )
         return data
 
-    @staticmethod
-    def load_bdf(sensor_data: dict) -> BeliefsDataFrame:
+    def load_bdf(self, sensor_data: dict) -> BeliefsDataFrame:
         """
         Turn the de-serialized and validated data into a BeliefsDataFrame.
         """
-        source = get_or_create_source(current_user)
+        source = get_or_create_source(self.source_user or current_user)
         num_values = len(sensor_data["values"])
         event_resolution = sensor_data["duration"] / num_values
         start = sensor_data["start"]
@@ -510,6 +514,29 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             sensor=sensor_data["sensor"],
             **belief_timing,
         )
+
+
+class PostSensorDataRequestSchema(PostSensorDataSchema):
+    """Validate posted sensor data without building a BeliefsDataFrame."""
+
+    @post_load()
+    def post_load_sequence(self, data: dict, **kwargs) -> dict:
+        sensor_data = {
+            "values": data["values"],
+            "start": datetime_isoformat(data["start"]),
+            "duration": duration_isoformat(data["duration"]),
+            "unit": data["unit"],
+        }
+        if "prior" in data:
+            sensor_data["prior"] = datetime_isoformat(data["prior"])
+        elif "horizon" in data:
+            sensor_data["horizon"] = duration_isoformat(data["horizon"])
+        else:
+            # Preserve request-time semantics when processing happens later in a worker.
+            sensor_data["prior"] = datetime_isoformat(server_now())
+        if "type" in data:
+            sensor_data["type"] = data["type"]
+        return dict(sensor=data["sensor"], sensor_data=sensor_data)
 
 
 class GetSensorDataSchemaEntityAddress(GetSensorDataSchema):

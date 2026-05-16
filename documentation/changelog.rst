@@ -7,6 +7,14 @@ FlexMeasures Changelog
 v0.33.0 | May XX, 2026
 ============================
 
+.. note:: It is recommended to assign a worker to the ``ingestion`` queue (or configure existing workers to handle it, as well),
+          so that sensor data posted via the API is processed asynchronously [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_].
+          For instance, using:
+
+          .. code-block:: bash
+
+             $ flexmeasures jobs run-worker --queue "forecasting|scheduling|ingestion"
+
 .. warning:: We are deprecating ``FLEXMEASURES_MONITORING_MAIL_RECIPIENTS`` in favor of ``FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS``.
 
 New features
@@ -21,6 +29,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Move sensor data ingestion to a job queue for improved performance when POSTing large amounts of data to the sensor data API, returning a ``202 Accepted`` response with a job status URL when queued [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_]
 * Remove legacy rolling viewpoint forecasting code and utilities after migrating to fixed-point forecasting [see `PR #2082 <https://www.github.com/FlexMeasures/flexmeasures/pull/2082>`_]
 * Upgraded dependencies [see `PR #2114 <https://www.github.com/FlexMeasures/flexmeasures/pull/2114>`_, `PR #2148 <https://www.github.com/FlexMeasures/flexmeasures/pull/2148>`_, `PR #2161 <https://www.github.com/FlexMeasures/flexmeasures/pull/2161>`_ and `PR #2177 <https://www.github.com/FlexMeasures/flexmeasures/pull/2177>`_]
 * Run ``flexmeasures jobs run-worker`` with RQ's embedded scheduler on by default so jobs created with ``enqueue_in`` are promoted from the scheduled registry when due; pass ``--without-scheduler`` to disable [see `PR #2112 <https://www.github.com/FlexMeasures/flexmeasures/pull/2112>`_]
@@ -32,6 +41,7 @@ Bugfixes
 -----------
 * Fix forecasting regressor filtering to use only regressor beliefs known at the forecast ``belief_time`` [see `PR #2134 <https://www.github.com/FlexMeasures/flexmeasures/pull/2134>`_]
 * Check read permissions for sensors referenced in forecasting and scheduling config payloads, and return a clearer 403 error when a referenced sensor is not readable [see `PR #2096 <https://www.github.com/FlexMeasures/flexmeasures/pull/2096>`_ and `PR #2125 <https://www.github.com/FlexMeasures/flexmeasures/pull/2125>`_]
+* Clean up stale sensor references from ``flex-config`` and ``sensors_to_show`` when deleting a sensor, using JSONB queries to find affected assets before pruning those references [see `PR #2106 <https://www.github.com/FlexMeasures/flexmeasures/pull/2106>`_]
 * Standardize resolution formatting across API endpoints for consistent response payloads [see `PR #2152 <https://www.github.com/FlexMeasures/flexmeasures/pull/2152>`_]
 * Make the auth check for CLI commands work with ``flask``, too, instead of only with the ``flexmeasures`` alias [see `PR #2169 <https://www.github.com/FlexMeasures/flexmeasures/pull/2169>`_]
 
@@ -93,7 +103,6 @@ New features
 * Separate the ``StorageScheduler``'s tie-breaking preference for a full :abbr:`SoC (state of charge)` from its reported energy costs [see `PR #2023 <https://www.github.com/FlexMeasures/flexmeasures/pull/2023>`_ and `PR #2108 <https://www.github.com/FlexMeasures/flexmeasures/pull/2108>`_]
 * Improve asset graph hover interaction with a vertical ruler across subcharts, while keeping hover dots for easier visual tracking [see `PR #2079 <https://www.github.com/FlexMeasures/flexmeasures/pull/2079>`_]
 * Improve asset audit log messages for JSON field edits (especially ``sensors_to_show`` and nested flex-config values) [see `PR #2055 <https://www.github.com/FlexMeasures/flexmeasures/pull/2055>`_]
-* Clean up stale sensor references from ``flex-config`` and ``sensors_to_show`` when deleting a sensor, using JSONB queries to find affected assets before pruning those references [see `PR #2106 <https://www.github.com/FlexMeasures/flexmeasures/pull/2106>`_]
 
 Infrastructure / Support
 ----------------------
