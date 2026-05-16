@@ -118,6 +118,9 @@ class TrainPredictPipelineConfigSchema(Schema):
             "example": [
                 {"account": 1, "annotation-type": "holiday", "name": "holidays"}
             ],
+            "cli": {
+                "option": "--annotation-regressors",
+            },
         },
     )
     missing_threshold = fields.Float(
