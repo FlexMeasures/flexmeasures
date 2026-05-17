@@ -32,6 +32,10 @@ def setup_capacity_sensor_on_asset_in_supplier_account(db, setup_generic_assets)
     return sensor
 
 
+def get_sensor_by_name(asset, name: str) -> Sensor:
+    return next(sensor for sensor in asset.sensors if sensor.name == name)
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
@@ -132,7 +136,9 @@ def test_trigger_schedule_floors_flex_model_datetimes(
     for field in ("soc-targets", "soc-minima", "soc-maxima"):
         message["flex-model"][field][0]["datetime"] = offclock_target
 
-    sensor = add_charging_station_assets["Test charging station"].sensors[0]
+    sensor = get_sensor_by_name(
+        add_charging_station_assets["Test charging station"], "power"
+    )
     with app.test_client() as client:
         trigger_schedule_response = client.post(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
@@ -150,6 +156,47 @@ def test_trigger_schedule_floors_flex_model_datetimes(
             assert parse_datetime(target["start"]) == parse_datetime(expected_target)
         if "end" in target:
             assert parse_datetime(target["end"]) == parse_datetime(expected_target)
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_schedule_keeps_flex_model_datetimes_when_flooring_disabled(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    battery_soc_sensor,
+    add_charging_station_assets,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    message = message_for_trigger_schedule(with_targets=True)
+    offclock_target = "2015-01-02T23:00:40+01:00"
+    for field in ("soc-targets", "soc-minima", "soc-maxima"):
+        message["flex-model"][field][0]["datetime"] = offclock_target
+
+    sensor = get_sensor_by_name(
+        add_charging_station_assets["Test charging station"], "power"
+    )
+    original_attributes = dict(sensor.attributes or {})
+    sensor.attributes = {
+        **original_attributes,
+        "floor_datetimes_to_resolution": False,
+    }
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+    sensor.attributes = original_attributes
+
+    assert trigger_schedule_response.status_code == 200
+    assert len(app.queues["scheduling"]) == 1
+
+    job = app.queues["scheduling"].jobs[0]
+    for field in ("soc-targets", "soc-minima", "soc-maxima"):
+        target = job.kwargs["flex_model"][field][0]
+        assert target["datetime"] == offclock_target
 
 
 @pytest.mark.parametrize(
@@ -321,7 +368,9 @@ def test_get_schedule_fallback(
 
     start = "2015-01-02T00:00:00+01:00"
     epex_da = get_test_sensor(db)
-    charging_station = add_charging_station_assets[charging_station_name].sensors[0]
+    charging_station = get_sensor_by_name(
+        add_charging_station_assets[charging_station_name], "power"
+    )
 
     capacity = charging_station.get_attribute(
         "capacity_in_mw",
@@ -479,7 +528,9 @@ def test_get_schedule_fallback_not_redirect(
 
     start = "2015-01-02T00:00:00+01:00"
     epex_da = get_test_sensor(db)
-    charging_station = add_charging_station_assets[charging_station_name].sensors[0]
+    charging_station = get_sensor_by_name(
+        add_charging_station_assets[charging_station_name], "power"
+    )
 
     capacity = charging_station.get_attribute(
         "capacity_in_mw",

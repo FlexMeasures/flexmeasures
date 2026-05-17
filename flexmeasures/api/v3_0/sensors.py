@@ -233,7 +233,7 @@ def floor_timed_event_datetimes(flex_model: dict, sensor: Sensor) -> dict:
     such as ``soc-minima``, ``soc-maxima`` and ``soc-targets``.
     """
     if sensor.event_resolution == timedelta(0) or not sensor.get_attribute(
-        "round_datetimes_on_ingestion", True
+        "floor_datetimes_to_resolution", True
     ):
         return flex_model
 
@@ -1251,6 +1251,8 @@ class SensorAPI(FlaskView):
                         timezone: Europe/Amsterdam
                         event_resolution: PT15M
                         entity_address: ea1.2021-01.io.flexmeasures:fm1.14
+                        attributes:
+                          floor_datetimes_to_resolution: true
                         generic_asset_id: 1
                     power_sensor:
                       summary: A power sensor recording average consumption every 5 minutes.
@@ -1314,6 +1316,7 @@ class SensorAPI(FlaskView):
                       "event_resolution": "PT1H"
                       "unit": "kWh"
                       "generic_asset_id": 1
+                      "attributes": '{"floor_datetimes_to_resolution": false}'
           responses:
             201:
               description: New Sensor
@@ -1330,6 +1333,7 @@ class SensorAPI(FlaskView):
                         "entity_address": "ea1.2023-08.localhost:fm1.1"
                         "event_resolution": "PT1H"
                         "generic_asset_id": 1
+                        "attributes": '{"floor_datetimes_to_resolution": false}'
                         "timezone": "UTC"
                         "id": 2
             400:
