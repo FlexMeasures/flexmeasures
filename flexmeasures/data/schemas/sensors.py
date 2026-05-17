@@ -235,8 +235,18 @@ class SensorSchemaMixin(Schema):
     attributes = JSON(
         required=False,
         metadata=dict(
-            description="JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values.",
-            example="{consumption_is_positive: True}",
+            description=(
+                "JSON serializable attributes to store arbitrary information on "
+                "the sensor. A few attributes lead to special behaviour, such as "
+                "`consumption_is_positive`, which informs the platform whether "
+                "consumption values should be saved (and shown in charts) as "
+                "positive or negative values, `floor_datetimes_to_resolution`, "
+                "which controls whether off-clock datetimes are floored to a "
+                "non-instantaneous sensor's resolution, and `frequency`, which "
+                "rounds incoming instantaneous measurements to a configured "
+                "Pandas frequency."
+            ),
+            example='{"consumption_is_positive": true, "floor_datetimes_to_resolution": true}',
         ),
     )
 
@@ -726,7 +736,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     pd.infer_freq(bdf.index.unique("event_start"))
 
                 if sensor.event_resolution != timedelta(0) and sensor.get_attribute(
-                    "round_datetimes_on_ingestion", True
+                    "floor_datetimes_to_resolution", True
                 ):
                     bdf = floor_bdf_event_starts(bdf, bdf.event_resolution)
 
@@ -771,15 +781,31 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
 def floor_bdf_event_starts(
     bdf: tb.BeliefsDataFrame, event_resolution: timedelta
 ) -> tb.BeliefsDataFrame:
-    floored_bdf = pd.DataFrame(bdf.reset_index())
-    floored_bdf["event_start"] = pd.DatetimeIndex(bdf.event_starts).floor(
+    floored_event_starts = bdf.index.get_level_values("event_start").floor(
         event_resolution
     )
-    return tb.BeliefsDataFrame(
-        floored_bdf,
-        sensor=bdf.sensor,
-        event_resolution=bdf.event_resolution,
+
+    new_index = pd.MultiIndex.from_arrays(
+        [
+            (
+                floored_event_starts
+                if name == "event_start"
+                else bdf.index.get_level_values(name)
+            )
+            for name in bdf.index.names
+        ],
+        names=bdf.index.names,
     )
+    if new_index.duplicated().any():
+        raise ValidationError(
+            "Flooring event_start would merge multiple beliefs with the same "
+            "source, belief_time and event_start. Please provide data already "
+            "aligned to the event resolution or use distinct belief/source metadata."
+        )
+
+    floored_bdf = bdf.copy()
+    floored_bdf.index = new_index
+    return floored_bdf
 
 
 class QuantitySchema(Schema):
