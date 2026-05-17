@@ -369,7 +369,8 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
 
         For a sensor recording instantaneous values, any event frequency is compatible.
         For a sensor recording non-instantaneous values, the event frequency must fit the sensor's event resolution.
-        Currently, only upsampling is supported (e.g. converting hourly events to 15-minute events).
+        Upsampling and downsampling are supported when the inferred resolution and
+        the sensor resolution are multiples of each other.
         """
         required_resolution = data["sensor"].event_resolution
 
@@ -380,7 +381,9 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         # The event frequency is inferred by assuming sequential, equidistant values within a time interval.
         # The event resolution is assumed to be equal to the event frequency.
         inferred_resolution = data["duration"] / len(data["values"])
-        if inferred_resolution % required_resolution != timedelta(hours=0):
+        if inferred_resolution % required_resolution != timedelta(
+            hours=0
+        ) and required_resolution % inferred_resolution != timedelta(hours=0):
             raise ValidationError(
                 f"Resolution of {inferred_resolution} is incompatible with the sensor's required resolution of {required_resolution}."
             )
@@ -407,6 +410,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         data = self.possibly_upsample_values(data)
         data = self.possibly_convert_units(data)
         bdf = self.load_bdf(data)
+        bdf = self.possibly_downsample_bdf(bdf, data["sensor"].event_resolution)
 
         # Post-load validation against message type
         _type = data.get("type", None)
@@ -429,7 +433,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             data["values"],
             from_unit=data["unit"],
             to_unit=data["sensor"].unit,
-            event_resolution=data["sensor"].event_resolution,
+            event_resolution=data["duration"] / len(data["values"]),
         )
         return data
 
@@ -458,6 +462,21 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         return data
 
     @staticmethod
+    def possibly_downsample_bdf(
+        bdf: BeliefsDataFrame, required_resolution: timedelta
+    ) -> BeliefsDataFrame:
+        """
+        Downsample the data if needed, to fit the sensor's resolution.
+        Marshmallow runs this after validation.
+        """
+        if required_resolution == timedelta(hours=0):
+            return bdf
+
+        if bdf.event_resolution < required_resolution:
+            bdf = bdf.resample_events(required_resolution)
+        return bdf
+
+    @staticmethod
     def load_bdf(sensor_data: dict) -> BeliefsDataFrame:
         """
         Turn the de-serialized and validated data into a BeliefsDataFrame.
@@ -469,7 +488,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         sensor = sensor_data["sensor"]
 
         if sensor.event_resolution != timedelta(0) and sensor.get_attribute(
-            "round_datetimes_on_ingestion", True
+            "floor_datetimes_to_resolution", True
         ):
             start = pd.Timestamp(start).floor(sensor.event_resolution)
         elif frequency := sensor.get_attribute("frequency"):
