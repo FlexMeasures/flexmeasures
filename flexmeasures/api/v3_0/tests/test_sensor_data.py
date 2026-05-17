@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from flask import url_for
+import pandas as pd
 import pytest
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -295,10 +296,10 @@ def test_post_sensor_data_bad_auth(
         ("start", "2021-06-07T00:00:00", "start", "Not a valid aware datetime"),
         (
             "duration",
-            "PT30M",
+            "PT25M",
             "_schema",
-            "Resolution of 0:05:00 is incompatible",
-        ),  # downsampling not supported
+            "Resolution of 0:04:10 is incompatible",
+        ),
         ("unit", "m", "_schema", "Required unit"),
         ("type", "GetSensorDataRequest", "type", "Must be one of"),
     ],
@@ -333,6 +334,69 @@ def test_post_invalid_sensor_data(
         error_text
         in response.json["message"]["combined_sensor_data_description"][error_field][0]
     )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize(
+    "offclock_start, precise_start, precise_end, values, expected_values",
+    [
+        (
+            "2021-06-08T00:00:40+02:00",
+            "2021-06-08T00:00:00+02:00",
+            "2021-06-08T01:00:00+02:00",
+            [-11.28] * 6,
+            [-11.28] * 6,
+        ),
+        (
+            "2021-06-09T00:00:40+02:00",
+            "2021-06-09T00:00:00+02:00",
+            "2021-06-09T01:00:00+02:00",
+            [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200],
+            [150, 350, 550, 750, 950, 1150],
+        ),
+    ],
+)
+def test_post_non_instantaneous_sensor_data_floor(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    offclock_start,
+    precise_start,
+    precise_end,
+    values,
+    expected_values,
+):
+    post_data = make_sensor_data_request_for_gas_sensor(
+        num_values=len(values), unit="m³/h"
+    )
+    post_data["start"] = offclock_start
+    post_data["values"] = values
+    sensor = setup_api_test_data["some gas sensor"]
+
+    assert (
+        len(sensor.search_beliefs(precise_start, precise_end)) == 0
+    ), "No beliefs were expected before we post our test data."
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        json=post_data,
+    )
+
+    assert response.status_code == 200
+
+    new_data = sensor.search_beliefs(precise_start, precise_end).reset_index()
+    assert len(new_data) == 6
+    assert list(new_data["event_start"]) == [
+        pd.Timestamp(precise_start),
+        pd.Timestamp(precise_start) + pd.Timedelta(minutes=10),
+        pd.Timestamp(precise_start) + pd.Timedelta(minutes=20),
+        pd.Timestamp(precise_start) + pd.Timedelta(minutes=30),
+        pd.Timestamp(precise_start) + pd.Timedelta(minutes=40),
+        pd.Timestamp(precise_start) + pd.Timedelta(minutes=50),
+    ]
+    assert new_data["event_value"].to_list() == expected_values
 
 
 @pytest.mark.parametrize(

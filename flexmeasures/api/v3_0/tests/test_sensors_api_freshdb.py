@@ -1,6 +1,7 @@
 import io
 import pytest
 from datetime import timedelta
+import pandas as pd
 
 from flask import url_for
 from sqlalchemy import select
@@ -8,6 +9,20 @@ from timely_beliefs import BeliefsDataFrame
 
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.api.v3_0.tests.utils import generate_csv_content
+
+
+TEST_BATTERY_SENSOR_NAMES = (
+    "power",
+    "power (kW)",
+    "energy (kWh)",
+    "state of charge",
+    "consumption sensor",
+    "cost sensor",
+)
+
+
+def assert_test_battery_sensor(sensor, sensor_index: int) -> None:
+    assert sensor.name == TEST_BATTERY_SENSOR_NAMES[sensor_index]
 
 
 @pytest.mark.parametrize(
@@ -186,6 +201,7 @@ def test_upload_sensor_data_with_unit_conversion_success(
     )
     test_battery = add_battery_assets_fresh_db["Test battery"]
     sensor = test_battery.sensors[sensor_index]
+    assert_test_battery_sensor(sensor, sensor_index)
     num_test_intervals = len(data_values)
     print(
         f"Uploading data to sensor '{sensor.name}' with unit={sensor.unit} and resolution={sensor.event_resolution}."
@@ -230,6 +246,88 @@ def test_upload_sensor_data_with_unit_conversion_success(
         ), f"Fetched {len(beliefs)} beliefs from the database, expecting {expected_num_beliefs}."
 
         assert [b.event_value for b in beliefs] == expected_event_values
+
+
+@pytest.mark.parametrize(
+    "requesting_user, sensor_index, start_date, data_resolution, data_values, expected_event_starts, expected_event_values",
+    [
+        (
+            "test_prosumer_user_2@seita.nl",
+            1,
+            "2025-01-01T10:00:40+00:00",
+            timedelta(minutes=15),
+            [2, 3, 4],
+            [
+                pd.Timestamp("2025-01-01T10:00:00+00:00"),
+                pd.Timestamp("2025-01-01T10:15:00+00:00"),
+                pd.Timestamp("2025-01-01T10:30:00+00:00"),
+            ],
+            [2, 3, 4],
+        ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            2,
+            "2025-01-01T10:00:40+00:00",
+            timedelta(minutes=30),
+            [10, 20, 20, 40],
+            [
+                pd.Timestamp("2025-01-01T10:00:00+00:00"),
+                pd.Timestamp("2025-01-01T11:00:00+00:00"),
+            ],
+            [30, 60],
+        ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            1,
+            "2025-01-01T10:00:40+00:00",
+            timedelta(minutes=5),
+            [10, 20, 30, 40],
+            [
+                pd.Timestamp("2025-01-01T10:00:00+00:00"),
+                pd.Timestamp("2025-01-01T10:15:00+00:00"),
+            ],
+            [20, 40],
+        ),
+    ],
+    indirect=["requesting_user"],
+)
+def test_upload_sensor_data_floors_offclock_datetimes(
+    fresh_db,
+    client,
+    add_battery_assets_fresh_db,
+    requesting_user,
+    sensor_index,
+    start_date,
+    data_resolution,
+    data_values,
+    expected_event_starts,
+    expected_event_values,
+):
+    test_battery = add_battery_assets_fresh_db["Test battery"]
+    sensor = test_battery.sensors[sensor_index]
+    assert_test_battery_sensor(sensor, sensor_index)
+
+    csv_content = generate_csv_content(
+        start_time_str=start_date,
+        interval=data_resolution,
+        values=data_values,
+    )
+    file_obj = io.BytesIO(csv_content.encode("utf-8"))
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": (file_obj, "data.csv"), "unit": sensor.unit},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
+
+    bdf = sensor.search_beliefs(
+        expected_event_starts[0], expected_event_starts[-1] + sensor.event_resolution
+    )
+    pd.testing.assert_index_equal(
+        bdf.event_starts, pd.DatetimeIndex(expected_event_starts, name="event_start")
+    )
+    assert bdf["event_value"].to_list() == expected_event_values
 
 
 @pytest.mark.parametrize(
@@ -289,6 +387,7 @@ def test_upload_sensor_data_with_unit_conversion_failure(
     )
     test_battery = add_battery_assets_fresh_db["Test battery"]
     sensor = test_battery.sensors[sensor_index]
+    assert_test_battery_sensor(sensor, sensor_index)
     print(
         f"Uploading data to sensor '{sensor.name}' with unit={sensor.unit} and resolution={sensor.event_resolution}."
     )

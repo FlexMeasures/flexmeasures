@@ -236,6 +236,12 @@ class StorageFlexModelSchema(Schema):
         self.start = start
         self.sensor = sensor
         self.timezone = sensor.timezone if sensor is not None else None
+        self.flooring_resolution = (
+            sensor.event_resolution
+            if sensor is not None
+            and sensor.get_attribute("floor_datetimes_to_resolution", True)
+            else None
+        )
 
         # guess default soc-unit
         if default_soc_unit is None:
@@ -250,6 +256,7 @@ class StorageFlexModelSchema(Schema):
             to_unit="MWh",
             default_src_unit=default_soc_unit,
             timezone=self.timezone,
+            event_resolution=self.flooring_resolution,
             data_key="soc-maxima",
         )
 
@@ -257,6 +264,7 @@ class StorageFlexModelSchema(Schema):
             to_unit="MWh",
             default_src_unit=default_soc_unit,
             timezone=self.timezone,
+            event_resolution=self.flooring_resolution,
             data_key="soc-minima",
             value_validator=validate.Range(min=0),
         )
@@ -264,6 +272,7 @@ class StorageFlexModelSchema(Schema):
             to_unit="MWh",
             default_src_unit=default_soc_unit,
             timezone=self.timezone,
+            event_resolution=self.flooring_resolution,
             data_key="soc-targets",
         )
 

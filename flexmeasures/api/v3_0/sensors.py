@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import isodate
+from copy import deepcopy
 from datetime import datetime, timedelta
+import pandas as pd
 
 from flexmeasures.data.services.sensors import (
     serialize_sensor_status_data,
@@ -272,6 +274,47 @@ class TriggerScheduleKwargsSchema(Schema):
             description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
         ),
     )
+
+
+def floor_timed_event_datetimes(flex_model: dict, sensor: Sensor) -> dict:
+    """Floor timed-event datetimes in list-valued flex-model fields.
+
+    This only touches list entries that look like timed-event dictionaries,
+    such as ``soc-minima``, ``soc-maxima`` and ``soc-targets``.
+    """
+    if sensor.event_resolution == timedelta(0) or not sensor.get_attribute(
+        "floor_datetimes_to_resolution", True
+    ):
+        return flex_model
+
+    floored_flex_model = deepcopy(flex_model)
+    for value_name, value in floored_flex_model.items():
+        if not isinstance(value, list):
+            continue
+        for index, timed_event in enumerate(value):
+            if not isinstance(timed_event, dict):
+                continue
+            for key in ("datetime", "start", "end"):
+                if key in timed_event:
+                    try:
+                        timed_event[key] = isodate.datetime_isoformat(
+                            pd.Timestamp(timed_event[key]).floor(
+                                sensor.event_resolution
+                            )
+                        )
+                    except (TypeError, ValueError) as exc:
+                        raise ValidationError(
+                            {
+                                value_name: {
+                                    index: {
+                                        key: [
+                                            f"Not a valid datetime: {timed_event[key]!r}."
+                                        ]
+                                    }
+                                }
+                            }
+                        ) from exc
+    return floored_flex_model
 
 
 class SensorAPI(FlaskView):
@@ -952,6 +995,12 @@ class SensorAPI(FlaskView):
                 f"Resolution of {resolution} is incompatible with the sensor's required resolution of {sensor.event_resolution}."
             )
 
+        if flex_model is not None:
+            try:
+                flex_model = floor_timed_event_datetimes(flex_model, sensor)
+            except ValidationError as err:
+                return unprocessable_entity(err.messages)
+
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(
             asset_or_sensor=sensor,
@@ -1253,6 +1302,8 @@ class SensorAPI(FlaskView):
                         timezone: Europe/Amsterdam
                         event_resolution: PT15M
                         entity_address: ea1.2021-01.io.flexmeasures:fm1.14
+                        attributes:
+                          floor_datetimes_to_resolution: true
                         generic_asset_id: 1
                     power_sensor:
                       summary: A power sensor recording average consumption every 5 minutes.
@@ -1316,6 +1367,7 @@ class SensorAPI(FlaskView):
                       "event_resolution": "PT1H"
                       "unit": "kWh"
                       "generic_asset_id": 1
+                      "attributes": '{"floor_datetimes_to_resolution": false}'
           responses:
             201:
               description: New Sensor
@@ -1332,6 +1384,7 @@ class SensorAPI(FlaskView):
                         "entity_address": "ea1.2023-08.localhost:fm1.1"
                         "event_resolution": "PT1H"
                         "generic_asset_id": 1
+                        "attributes": '{"floor_datetimes_to_resolution": false}'
                         "timezone": "UTC"
                         "id": 2
             400:
