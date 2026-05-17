@@ -177,6 +177,9 @@
                       "timezone": "Europe/Amsterdam",
                       "event_resolution": "PT15M",
                       "entity_address": "ea1.2021-01.io.flexmeasures:fm1.14",
+                      "attributes": {
+                        "floor_datetimes_to_resolution": true
+                      },
                       "generic_asset_id": 1
                     }
                   },
@@ -1189,7 +1192,8 @@
                     "name": "power",
                     "event_resolution": "PT1H",
                     "unit": "kWh",
-                    "generic_asset_id": 1
+                    "generic_asset_id": 1,
+                    "attributes": "{\"floor_datetimes_to_resolution\": false}"
                   }
                 }
               }
@@ -1214,6 +1218,7 @@
                       "entity_address": "ea1.2023-08.localhost:fm1.1",
                       "event_resolution": "PT1H",
                       "generic_asset_id": 1,
+                      "attributes": "{\"floor_datetimes_to_resolution\": false}",
                       "timezone": "UTC",
                       "id": 2
                     }
@@ -5699,8 +5704,8 @@
             "description": "Obsolete identifier from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/)."
           },
           "attributes": {
-            "description": "JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values.",
-            "example": "{consumption_is_positive: True}"
+            "description": "JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values, `floor_datetimes_to_resolution`, which controls whether off-clock datetimes are floored to a non-instantaneous sensor's resolution, and `frequency`, which rounds incoming instantaneous measurements to a configured Pandas frequency.",
+            "example": "{\"consumption_is_positive\": true, \"floor_datetimes_to_resolution\": true}"
           },
           "generic_asset_id": {
             "type": "integer",
