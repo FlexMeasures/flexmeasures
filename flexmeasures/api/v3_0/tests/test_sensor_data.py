@@ -85,7 +85,7 @@ def test_get_sensor_data(
         None,
         None,
     ]
-    assert all(a == b for a, b in zip(values, expected))
+    assert values == expected
 
 
 @pytest.mark.parametrize(
@@ -143,7 +143,7 @@ def test_get_sensor_data_filtered_by_source_account(
         "duration": "PT1H20M",
         "horizon": "PT0H",
         "unit": "m³/h",
-        "account": source_user.account_id,
+        "source-account": source_user.account_id,
         "resolution": "PT20M",
     }
     response = client.get(
@@ -165,6 +165,102 @@ def test_get_sensor_data_filtered_by_source_account(
         None,
     ]
     assert all(a == b for a, b in zip(values, expected))
+
+
+@pytest.mark.parametrize(
+    "source_type, expected_statuscode, expected_values",
+    [
+        (
+            "user",
+            200,
+            [
+                sum(GAS_MEASUREMENTS_10MIN[0:2]) / 2,  # 91.5
+                GAS_MEASUREMENTS_10MIN[2],  # 92.1
+                None,
+                None,
+            ],
+        ),
+        (
+            "demo script",
+            200,
+            [
+                GAS_MEASUREMENTS_10MIN[0],  # 91.3
+                GAS_MEASUREMENTS_10MIN[2],  # 92.1
+                None,
+                None,
+            ],
+        ),
+        ("scheduler", 422, [None, None, None, None]),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_sensor_data_filtered_by_source_type(
+    client,
+    setup_api_test_data: dict[str, Sensor],
+    requesting_user,
+    source_type,
+    expected_statuscode,
+    expected_values,
+):
+    """Check that GET /sensors/<id>/data can filter by source type."""
+    sensor = setup_api_test_data["some gas sensor"]
+    message = {
+        "start": "2021-05-02T00:00:00+02:00",
+        "duration": "PT1H20M",
+        "horizon": "PT0H",
+        "unit": "m³/h",
+        "source-type": source_type,
+        "resolution": "PT20M",
+    }
+    response = client.get(
+        url_for("SensorAPI:get_data", id=sensor.id),
+        query_string=message,
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == expected_statuscode
+    if expected_statuscode == 200:
+        assert response.json["values"] == expected_values
+    else:
+        assert (
+            f"No data source with source-type '{source_type}' has recorded any data on this sensor."
+            in response.json["message"]["combined_sensor_data_description"][
+                "source-type"
+            ]
+        )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_sensor_data_rejects_empty_source_type(
+    client,
+    setup_api_test_data: dict[str, Sensor],
+    requesting_user,
+):
+    """Check that GET /sensors/<id>/data rejects an empty source-type filter."""
+    sensor = setup_api_test_data["some gas sensor"]
+    message = {
+        "start": "2021-05-02T00:00:00+02:00",
+        "duration": "PT1H20M",
+        "horizon": "PT0H",
+        "unit": "m³/h",
+        "source-type": "",
+        "resolution": "PT20M",
+    }
+    response = client.get(
+        url_for("SensorAPI:get_data", id=sensor.id),
+        query_string=message,
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 422
+    assert (
+        "Shorter than minimum length 1."
+        in response.json["message"]["combined_sensor_data_description"]["source-type"][
+            0
+        ]
+    )
 
 
 @pytest.mark.parametrize(

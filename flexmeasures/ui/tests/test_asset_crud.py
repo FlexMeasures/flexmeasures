@@ -225,6 +225,67 @@ def test_delete_child_asset_redirects_to_parent(
     assert url_for("AssetCrudUI:context", id=parent.id) in response.location
 
 
+def test_breadcrumb_cross_account_parent(
+    db, client, setup_accounts, setup_generic_asset_types, as_prosumer_user1
+):
+    """
+    When a Prosumer user views a child asset whose parent belongs to the Supplier
+    account, the breadcrumb should show both the parent asset's name and the
+    parent asset's owning account name.
+
+    The breadcrumb logic in ``breadcrumb_utils.get_ancestry`` traverses up the
+    parent-asset chain regardless of account boundaries.  For a child asset with
+    a cross-account parent the ancestry is:
+
+        <Supplier account> → <Supplier parent asset> → <Prosumer child asset>
+
+    This is intentional and expected behaviour. The test acts as a regression
+    guard to ensure cross-account ancestry is rendered correctly in the UI.
+    """
+    supplier_account = setup_accounts["Supplier"]
+    prosumer_account = setup_accounts["Prosumer"]
+
+    # Create a parent asset that lives in the Supplier account.
+    supplier_parent = GenericAsset(
+        name="breadcrumb-cross-account-parent",
+        generic_asset_type=setup_generic_asset_types["wind"],
+        owner=supplier_account,
+        latitude=10.0,
+        longitude=100.0,
+    )
+    db.session.add(supplier_parent)
+    db.session.flush()
+
+    # Create a child asset owned by the Prosumer account that points to the
+    # Supplier-account parent. The validate_parent_asset schema validator only
+    # runs when *editing* an existing asset (context.asset is set), so creating
+    # this cross-account relationship directly in the DB is valid.
+    prosumer_child = GenericAsset(
+        name="breadcrumb-cross-account-child",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=prosumer_account,
+        latitude=10.0,
+        longitude=100.0,
+        parent_asset_id=supplier_parent.id,
+    )
+    db.session.add(prosumer_child)
+    db.session.commit()
+
+    page = client.get(
+        url_for("AssetCrudUI:context", id=prosumer_child.id),
+        follow_redirects=True,
+    )
+    assert page.status_code == 200
+
+    # The breadcrumb must surface the parent's account name and the parent's
+    # own name (note: clicking these links may not load if the user is not
+    # authorized to view the parent's account page).
+    assert supplier_account.name.encode() in page.data  # e.g. "Test Supplier Account"
+    assert (
+        supplier_parent.name.encode() in page.data
+    )  # "breadcrumb-cross-account-parent"
+
+
 # ---------------------------------------------------------------------------
 # Permission tests for the asset properties page
 #
