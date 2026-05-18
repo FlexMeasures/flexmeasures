@@ -235,12 +235,18 @@ def test_add_holidays_by_package_german_school(
 def test_annotation_regressors_loaded_in_pipeline(
     app, fresh_db, setup_roles_users_fresh_db
 ):
-    """Test that annotation regressors are loaded correctly by BasePipeline.
+    """Test that annotation regressors are loaded correctly by BasePipeline AND that
+    the CLI command accepts the --annotation-regressors argument without a marshmallow
+    validation error.
 
     This test simulates a factory logistics use case: custom operational schedule
     annotations (e.g. factory shutdown periods) stored as 'label' type annotations,
-    and verifies that the pipeline correctly loads them as a binary 0/1 future covariate.
+    and verifies that:
+    1. The pipeline correctly loads them as a binary 0/1 future covariate.
+    2. The CLI command parses both JSON and Python-literal dict strings for
+       --annotation-regressors without raising a marshmallow ValidationError.
     """
+    import json
     from datetime import timedelta
 
     import pandas as pd
@@ -249,6 +255,7 @@ def test_annotation_regressors_loaded_in_pipeline(
     from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
     from flexmeasures.data.models.time_series import Sensor
     from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
+    from flexmeasures.cli.data_add import add_forecast
 
     db = fresh_db
 
@@ -288,6 +295,7 @@ def test_annotation_regressors_loaded_in_pipeline(
         "name": "factory_shutdown",
     }
 
+    # --- Part 1: Test pipeline directly ---
     pipeline = BasePipeline(
         target_sensor=power_sensor,
         future_regressors=[],
@@ -325,3 +333,46 @@ def test_annotation_regressors_loaded_in_pipeline(
     assert (
         non_shutdown[col_name] == 0.0
     ).all(), "Non-shutdown period should be marked as 0.0"
+
+    # --- Part 2: Test CLI command parses --annotation-regressors without marshmallow error ---
+    # Both JSON (double-quoted) and Python-literal (single-quoted) forms must be accepted.
+    runner = app.test_cli_runner()
+    sensor_id = str(power_sensor.id)
+    asset_id = factory_asset.id
+
+    for arg_form, description in [
+        (
+            json.dumps({"asset": asset_id, "annotation-type": "label"}),
+            "JSON double-quoted form",
+        ),
+        (
+            str({"asset": asset_id, "annotation-type": "label"}),
+            "Python-literal single-quoted form",
+        ),
+    ]:
+        result = runner.invoke(
+            add_forecast,
+            [
+                "--sensor",
+                sensor_id,
+                "--train-start",
+                "2024-01-01T00:00+00:00",
+                "--start",
+                "2024-01-14T00:00+00:00",
+                "--end",
+                "2024-01-18T00:00+00:00",
+                "--annotation-regressors",
+                arg_form,
+            ],
+        )
+        assert "Invalid input type" not in result.output, (
+            f"CLI failed to parse --annotation-regressors with {description}: "
+            f"{result.output}"
+        )
+        assert result.exception is None or "ValidationError" not in str(
+            result.exception
+        ), (
+            f"CLI raised a marshmallow ValidationError with {description}: "
+            f"{result.exception}"
+        )
+

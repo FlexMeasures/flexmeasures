@@ -4,6 +4,7 @@ CLI commands for populating the database
 
 from __future__ import annotations
 
+import ast
 from datetime import datetime, timedelta
 from typing import Dict, Any
 from flexmeasures.data.schemas.forecasting.pipeline import (
@@ -17,7 +18,7 @@ from pathlib import Path
 from io import TextIOBase
 from string import Template
 
-from marshmallow import validate
+from marshmallow import validate, fields as marshmallow_fields
 import pandas as pd
 import pytz
 from flask import current_app as app
@@ -1350,6 +1351,22 @@ def add_forecast(  # noqa: C901
         config = yaml.safe_load(config_file)
     for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
         if field_value := kwargs.pop(field_name, None):
+            # For List(Nested(...)) fields the CLI yields a tuple of raw strings;
+            # parse each string as JSON (double-quoted) or a Python literal (single-quoted).
+            if isinstance(field, marshmallow_fields.List) and isinstance(
+                field.inner, marshmallow_fields.Nested
+            ):
+                parsed = []
+                for item in field_value:
+                    if isinstance(item, str):
+                        try:
+                            parsed.append(json.loads(item))
+                        except json.JSONDecodeError:
+                            # Fall back to Python literal syntax (e.g. single-quoted dict)
+                            parsed.append(ast.literal_eval(item))
+                    else:
+                        parsed.append(item)
+                field_value = parsed
             config[field.data_key] = field_value
 
     if edit_config:
