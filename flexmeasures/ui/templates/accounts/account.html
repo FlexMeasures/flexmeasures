@@ -53,14 +53,26 @@
                         data-bs-toggle="tooltip"
                         title="Primary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443)"
                       ></span>
-                      <input
-                        type="text"
-                        class="form-control"
-                        data-bs-placement="right"
-                        id="primary_color"
-                        name="primary_color"
-                        value="{{ account.primary_color or '' }}"
-                      />
+                      <div class="input-group">
+                        <input
+                          type="color"
+                          class="form-control form-control-color"
+                          id="primary_color_picker"
+                          {% if account.primary_color %}value="{{ account.primary_color }}"{% endif %}
+                          title="Choose primary color"
+                          style="width: 60px; flex: none;"
+                        />
+                        <input
+                          type="text"
+                          class="form-control"
+                          data-bs-placement="right"
+                          id="primary_color"
+                          name="primary_color"
+                          value="{{ account.primary_color or '' }}"
+                          placeholder="#RRGGBB"
+                          maxlength="7"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -78,13 +90,25 @@
                         data-bs-toggle="tooltip"
                         title="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' secondary color (#f1a122)"
                       ></span>
-                      <input
-                        type="text"
-                        class="form-control"
-                        id="secondary_color"
-                        name="secondary_color"
-                        value="{{ account.secondary_color or '' }}"
-                      />
+                      <div class="input-group">
+                        <input
+                          type="color"
+                          class="form-control form-control-color"
+                          id="secondary_color_picker"
+                          {% if account.secondary_color %}value="{{ account.secondary_color }}"{% endif %}
+                          title="Choose secondary color"
+                          style="width: 60px; flex: none;"
+                        />
+                        <input
+                          type="text"
+                          class="form-control"
+                          id="secondary_color"
+                          name="secondary_color"
+                          value="{{ account.secondary_color or '' }}"
+                          placeholder="#RRGGBB"
+                          maxlength="7"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -668,6 +692,32 @@ $(document).ready(function () {
 <script defer>
   const basePath = window.location.origin;
   const form = document.getElementById("editaccount");
+
+  function bindColorPicker(pickerId, textId) {
+    const picker = document.getElementById(pickerId);
+    const textInput = document.getElementById(textId);
+    if (!picker || !textInput) {
+      return;
+    }
+
+    picker.addEventListener("input", function () {
+      textInput.value = picker.value.toUpperCase();
+    });
+
+    textInput.addEventListener("input", function () {
+      let val = textInput.value;
+      if (val.length > 0 && val[0] !== "#") {
+        val = `#${val}`;
+        textInput.value = val;
+      }
+      if (/^#[0-9A-F]{6}$/i.test(val)) {
+        picker.value = val;
+      }
+    });
+  }
+
+  bindColorPicker("primary_color_picker", "primary_color");
+  bindColorPicker("secondary_color_picker", "secondary_color");
 
   form.addEventListener("submit", function (event) {
     event.preventDefault(); // Prevent the default form submission

@@ -66,6 +66,7 @@ class AccountCreateSchema(Schema):
     """Schema for creating an account via API."""
 
     name = fields.String(required=True)
+    consultancy_account_id = fields.Integer(required=False, allow_none=True)
     primary_color = fields.String(required=False, allow_none=True)
     secondary_color = fields.String(required=False, allow_none=True)
 

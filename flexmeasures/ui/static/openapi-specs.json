@@ -5008,6 +5008,12 @@
           "name": {
             "type": "string"
           },
+          "consultancy_account_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "primary_color": {
             "type": [
               "string",

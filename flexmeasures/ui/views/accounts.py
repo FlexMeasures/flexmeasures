@@ -48,7 +48,13 @@ class AccountCrudUI(FlaskView):
     def new(self):
         """/accounts/new"""
         check_access(FlexMeasuresPlatform.init(), "create-children")
-        return render_flexmeasures_template("accounts/account_create.html")
+        user_is_admin = user_has_admin_access(current_user, "read")
+        potential_consultant_accounts = get_accounts() if user_is_admin else []
+        return render_flexmeasures_template(
+            "accounts/account_create.html",
+            user_is_admin=user_is_admin,
+            accounts=potential_consultant_accounts,
+        )
 
     @login_required
     def get(self, account_id: str):
