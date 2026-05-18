@@ -682,13 +682,18 @@ Default: ``None``
 
 
 .. _monitoring_mail_recipients:
+.. _default_monitoring_mail_recipients:
 
-FLEXMEASURES_MONITORING_MAIL_RECIPIENTS
-^^^^^^^^^^^^^^^^^^^^^^^
+FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-E-mail addresses to send monitoring alerts to from the CLI task ``flexmeasures monitor tasks``. For example ``["fred@one.com", "wilma@two.com"]``
+E-mail addresses to send monitoring alerts to from the CLI tasks ``flexmeasures monitor latest-run`` and ``flexmeasures monitor last-seen`` if no explicit user recipients are given. For example ``["fred@one.com", "wilma@two.com"]``.
 
 Default: ``[]``
+
+.. deprecated:: 0.33
+
+    ``FLEXMEASURES_MONITORING_MAIL_RECIPIENTS`` is deprecated. Use ``FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS`` instead.
 
 
 .. _redis-config:

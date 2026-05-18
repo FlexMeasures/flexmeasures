@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta
 from http import HTTPStatus
-from humanize import naturaldelta
 
-from flask import request, current_app
+from flask import abort, request, current_app
+from werkzeug.exceptions import Forbidden
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
@@ -71,7 +71,8 @@ from flexmeasures.api.common.responses import (
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
-from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.policy import check_access, user_has_admin_access
+from flexmeasures.cli import is_running as running_as_cli
 from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
 from flexmeasures.data.schemas.sensors import (
     SensorSchema,
@@ -432,10 +433,10 @@ class AssetAPI(FlaskView):
           description: |
             This endpoint returns all sensors under an asset.
 
-            The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
+            The endpoint supports pagination of the sensor list using the `page` and `per_page` query parameters.
 
             - If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.
-            - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+            - If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).
             The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
           security:
             - ApiKeyAuth: []
@@ -453,30 +454,28 @@ class AssetAPI(FlaskView):
               content:
                 application/json:
                   examples:
-                    single_asset:
-                      summary: One asset being returned in the response
+                    single_sensor:
+                      summary: One sensor being returned in the response
                       value:
                         data:
                         - id: 1
-                          name: Test battery
-                          latitude: 10
-                          longitude: 100
-                          account_id: 2
-                          generic_asset_type:
-                            id: 1
-                            name: battery
-                    paginated_assets:
-                      summary: A paginated list of assets being returned in the response
+                          name: Test battery power
+                          unit: kW
+                          event_resolution: PT15M
+                          generic_asset_id: 1
+                          timezone: Europe/Amsterdam
+                          entity_address: "ea1.2021-01.io.flexmeasures.company:fm1.42"
+                    paginated_sensors:
+                      summary: A paginated list of sensors being returned in the response
                       value:
                         data:
                         - id: 1
-                          name: Test battery
-                          latitude: 10
-                          longitude: 100
-                          account_id: 2
-                          generic_asset_type:
-                            id: 1
-                            name: battery
+                          name: Test battery power
+                          unit: kW
+                          event_resolution: PT15M
+                          generic_asset_id: 1
+                          timezone: Europe/Amsterdam
+                          entity_address: "ea1.2021-01.io.flexmeasures.company:fm1.42"
                         num-records: 1
                         filtered-records: 1
             400:
@@ -500,12 +499,13 @@ class AssetAPI(FlaskView):
                 or_(*[Sensor.name.ilike(f"%{term}%") for term in search_terms])
             )
 
-        if sort_by is not None and sort_dir is not None:
+        if sort_by is not None:
             valid_sort_columns = {
                 "id": Sensor.id,
                 "name": Sensor.name,
                 "resolution": Sensor.event_resolution,
             }
+            sort_dir = sort_dir or "asc"
 
             query = query.order_by(
                 valid_sort_columns[sort_by].asc()
@@ -524,7 +524,6 @@ class AssetAPI(FlaskView):
         sensors_response: list = [
             {
                 **sensor_schema.dump(sensor),
-                "event_resolution": naturaldelta(sensor.event_resolution),
             }
             for sensor in select_pagination.items
         ]
@@ -579,9 +578,6 @@ class AssetAPI(FlaskView):
         return response_schema.dump(assets), 200
 
     @route("", methods=["POST"])
-    @permission_required_for_context(
-        "create-children", ctx_loader=AccountIdField.load_current
-    )
     @use_args(asset_schema)
     def post(self, asset_data: dict):
         """
@@ -653,6 +649,33 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        # When placing the new asset under a parent, check create-children on the
+        # parent asset (any account member may add children to an asset they can see).
+        # When creating a top-level asset (no parent), check create-children on the
+        # target account, which requires account-admin or consultant.
+        # This aligns with the copy_assets endpoint.
+        parent_asset_id = asset_data.get("parent_asset_id")
+        if parent_asset_id is not None:
+            parent_asset = db.session.get(GenericAsset, parent_asset_id)
+            if parent_asset is None:
+                abort(404, f"Parent asset with id {parent_asset_id} not found.")
+            check_access(parent_asset, "create-children")
+        else:
+            account_id = asset_data.get("account_id")
+            if account_id is not None:
+                account = db.session.get(Account, account_id)
+                check_access(account, "create-children")
+            elif not running_as_cli() and not user_has_admin_access(
+                current_user, "update"
+            ):
+                # Public asset (account_id is None). Only site admins and CLI may create
+                # public assets. Note: GenericAssetSchema.validate_account only runs for
+                # explicitly-provided account_id values; when account_id is absent from
+                # the request body, that validator is not called by Marshmallow.
+                raise Forbidden(
+                    "Only site admins may create public assets (account_id=None)."
+                )
+
         asset = create_asset(asset_data)
         db.session.commit()
 

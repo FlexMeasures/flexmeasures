@@ -116,6 +116,7 @@ def _generate_fixed_value_records(
     timestamps_ms = _fixed_value_timestamps_ms(
         event_starts_after, event_ends_before, resolution
     )
+    belief_time_ms = int(event_starts_after.timestamp() * 1000)
     sensor_meta = sensor.as_dict  # uses _as_dict_override for fixed-value sensors
     source_dict = _fixed_value_source_dict(flex_source)
 
@@ -123,6 +124,7 @@ def _generate_fixed_value_records(
         {
             "event_start": ts_ms,
             "event_value": constant_value,
+            "belief_time": belief_time_ms,
             "sensor": sensor_meta,
             "source": source_dict,
             "sensor_unit": sensor.unit,
@@ -160,12 +162,14 @@ def _generate_fixed_value_records_compressed(
     timestamps_ms = _fixed_value_timestamps_ms(
         event_starts_after, event_ends_before, resolution
     )
+    belief_time_ms = int(event_starts_after.timestamp() * 1000)
 
     return [
         {
             "ts": ts_ms,
             "sid": sensor.id,
             "val": constant_value,
+            "bt": belief_time_ms,
             "sf": 1.0,
             "src": source_id,
             "bh": 0,
@@ -430,7 +434,9 @@ class GenericAsset(db.Model, AuthModelMixin):
             extract_sensors_from_flex_config,
         )
 
-        sensors_to_show_schema = SensorsToShowSchema()
+        sensors_to_show_schema = SensorsToShowSchema(
+            allow_missing_asset_flex_field=True
+        )
 
         # Deserialize the sensor_ids_to_show using SensorsToShowSchema
         standardized_sensors_to_show = sensors_to_show_schema.deserialize(
@@ -534,14 +540,29 @@ class GenericAsset(db.Model, AuthModelMixin):
         self, plot, sensors_list, asset_refs_list, extract_utils, SensorClass
     ):
         """Helper to extract sensors and asset refs from a single plot configuration."""
+        from marshmallow import ValidationError
+
         if "sensor" in plot:
             sensors_list.append(plot["sensor"])
         if "sensors" in plot:
             sensors_list.extend(plot["sensors"])
         if "asset" in plot:
-            extracted_sensors, refs = extract_utils(plot)
+            try:
+                extracted_sensors, refs = extract_utils(plot)
+            except ValidationError as err:
+                # Keep chart rendering resilient when a previously saved flex reference
+                # is no longer configured on the referenced asset.
+                current_app.logger.warning(
+                    "Skipping invalid asset plot reference %s on asset %s: %s",
+                    plot,
+                    self.id,
+                    err,
+                )
+                return
             for sensor_id in extracted_sensors:
                 sensor = db.session.get(SensorClass, sensor_id)
+                if sensor is None:
+                    continue
                 flex_config_key = plot.get("flex-context") or plot.get("flex-model")
                 sensor.name = f"{sensor.name} ({flex_config_key})"
             sensors_list.extend(extracted_sensors)
@@ -1074,6 +1095,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         source: (
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
+        source_account_ids: int | list[int] | None = None,
         use_latest_version_per_event: bool = True,
         most_recent_beliefs_only: bool = True,
         most_recent_events_only: bool = False,
@@ -1093,6 +1115,7 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param horizons_at_least: only return beliefs with a belief horizon equal or greater than this timedelta (for example, use timedelta(0) to get ante knowledge time beliefs)
         :param horizons_at_most: only return beliefs with a belief horizon equal or less than this timedelta (for example, use timedelta(0) to get post knowledge time beliefs)
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
+        :param source_account_ids: Optional account ID (or list thereof) to query only sources linked to specific accounts
         :param use_latest_version_per_event: only return the belief from the latest version of a source, for each event
         :param most_recent_events_only: only return (post knowledge time) beliefs for the most recent event (maximum event start)
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
@@ -1117,6 +1140,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 horizons_at_least=horizons_at_least,
                 horizons_at_most=horizons_at_most,
                 source=source,
+                source_account_ids=source_account_ids,
                 use_latest_version_per_event=use_latest_version_per_event,
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 most_recent_events_only=most_recent_events_only,

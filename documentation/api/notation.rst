@@ -277,9 +277,8 @@ Data source IDs can be found by hovering over data in charts.
 For the ``GET /api/v3_0/sensors/<id>/data`` endpoint specifically, source filtering supports:
 
 - ``source``: filter by data source ID
-- ``account``: filter by the account ID linked to data sources
-
-Filtering that endpoint by source type is currently not supported.
+- ``source-account``: filter by the account ID linked to data sources
+- ``source-type``: filter by the type of data source (e.g. 'forecaster' or 'scheduler')
 
 .. _units:
 

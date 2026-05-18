@@ -4,12 +4,20 @@ import pytest
 
 import logging
 import pandas as pd
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from marshmallow import ValidationError
 
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
+from flexmeasures.data.models.generic_assets import (
+    GenericAsset as Asset,
+    GenericAssetType,
+)
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 
@@ -587,4 +595,319 @@ def test_prior_restricts_training_beliefs(
     assert mean_after > mean_before * 10, (
         f"Forecasts after anomaly ({mean_after:.1f}) should be at least 10x higher "
         f"than forecasts before anomaly ({mean_before:.1f})"
+    )
+
+
+def test_future_regressor_splits_use_only_beliefs_known_at_forecast_belief_time(
+    monkeypatch,
+):
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+    future_regressor = type(
+        "SensorStub",
+        (),
+        {"name": "weather", "id": 2, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[future_regressor],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 7, 23),
+        event_ends_before=datetime(2025, 1, 8, 1),
+        predict_start=datetime(2025, 1, 8),
+        predict_end=datetime(2025, 1, 8, 1),
+    )
+    forecast_belief_time = pd.Timestamp("2025-01-08T00:00:00")
+    future_col = pipeline.future_regressors[0]
+
+    df = pd.DataFrame(
+        [
+            # Historical forecast belief: known at forecast belief time, but not realized,
+            # so it should not be used for the past part of the regressor split.
+            {
+                "event_start": pd.Timestamp("2025-01-07T23:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(hours=2),
+                pipeline.target: None,
+                future_col: 88.0,
+            },
+            # Historical realized belief: known exactly at forecast belief time,
+            # so this is the admissible value for the past event.
+            {
+                "event_start": pd.Timestamp("2025-01-07T23:00:00"),
+                "belief_time": forecast_belief_time,
+                pipeline.target: 1.0,
+                future_col: 10.0,
+            },
+            # Historical realized belief: recorded after forecast belief time,
+            # so it must be rejected even though it is the latest realized value.
+            {
+                "event_start": pd.Timestamp("2025-01-07T23:00:00"),
+                "belief_time": forecast_belief_time + pd.Timedelta(minutes=30),
+                pipeline.target: 1.0,
+                future_col: 99.0,
+            },
+            # Future forecast belief: known at forecast belief time and still a forecast,
+            # so this is admissible for the future part of the split.
+            {
+                "event_start": pd.Timestamp("2025-01-08T00:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=5),
+                pipeline.target: None,
+                future_col: 20.0,
+            },
+            # Future forecast belief: not known at forecast belief time,
+            # so it must be excluded even though it is for the same event.
+            {
+                "event_start": pd.Timestamp("2025-01-08T00:00:00"),
+                "belief_time": forecast_belief_time + pd.Timedelta(minutes=5),
+                pipeline.target: None,
+                future_col: 77.0,
+            },
+            # Future forecast belief exactly known at forecast belief time,
+            # proving the forecast belief-time boundary itself remains admissible.
+            {
+                "event_start": pd.Timestamp("2025-01-08T01:00:00"),
+                "belief_time": forecast_belief_time,
+                pipeline.target: None,
+                future_col: 30.0,
+            },
+        ]
+    )
+
+    captured_future_frames = []
+
+    # Capture the future-regressor frame after split_data_all_beliefs has applied
+    # belief-time filtering, but before missing-value filling can alter its shape.
+    # This lets the assertions below inspect which beliefs survived the split.
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.future_regressors:
+            captured_future_frames.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+
+    pipeline.split_data_all_beliefs(df, is_predict_pipeline=True)
+
+    assert len(captured_future_frames) == 1
+    values_by_event = captured_future_frames[0].set_index("event_start")[future_col]
+    assert values_by_event.loc[pd.Timestamp("2025-01-07T23:00:00")] == 10.0
+    assert values_by_event.loc[pd.Timestamp("2025-01-08T00:00:00")] == 20.0
+    assert values_by_event.loc[pd.Timestamp("2025-01-08T01:00:00")] == 30.0
+    assert 88.0 not in set(values_by_event)
+    assert 99.0 not in set(values_by_event)
+    assert 77.0 not in set(values_by_event)
+
+
+def test_future_regressor_changes_forecasts_in_forecast_belief_time_window(
+    app, fresh_db, tmp_path
+):
+    """
+    Integration check for deterministic regressor behavior around belief-time splitting.
+
+    We build two target sensors with identical history, run one with a future regressor
+    and one without, and assert the future-regressor run is more accurate. The
+    target is constructed as a deterministic function of the weather regressor, so
+    admitting the regressor forecasts known at each forecast belief time should
+    improve the forecast.
+    """
+    db = fresh_db
+
+    asset_type = GenericAssetType(name="deterministic-regressor-asset-type")
+    asset = Asset(
+        name="Deterministic regressor test asset",
+        generic_asset_type=asset_type,
+        latitude=1.0,
+        longitude=1.0,
+    )
+    source_actual = DataSource(name="deterministic-regressor-actual", type="test")
+    source_forecaster = DataSource(name="deterministic-regressor-forecast", type="test")
+    db.session.add_all([asset_type, asset, source_actual, source_forecaster])
+    db.session.flush()
+
+    target_without_regressor = Sensor(
+        name="target-without-regressor",
+        generic_asset=asset,
+        unit="kW",
+        event_resolution=timedelta(hours=1),
+    )
+    target_with_regressor = Sensor(
+        name="target-with-regressor",
+        generic_asset=asset,
+        unit="kW",
+        event_resolution=timedelta(hours=1),
+    )
+    weather_regressor = Sensor(
+        name="weather-regressor",
+        generic_asset=asset,
+        unit="kW",
+        event_resolution=timedelta(hours=1),
+    )
+    db.session.add_all(
+        [target_without_regressor, target_with_regressor, weather_regressor]
+    )
+    db.session.flush()
+
+    history_index = pd.date_range(
+        datetime(2025, 1, 1),
+        datetime(2025, 1, 7, 23, 0),
+        freq="1h",
+        tz="UTC",
+    )
+    forecast_index = pd.date_range(
+        datetime(2025, 1, 8),
+        datetime(2025, 1, 8, 23, 0),
+        freq="1h",
+        tz="UTC",
+    )
+
+    # Deterministic but non-periodic-enough pattern so autoregressive-only models
+    # cannot trivially extrapolate future behavior from target history alone.
+    historical_regressor_values = [
+        ((37 * i + 13) % 97) + ((i % 5) * 0.1) for i in range(len(history_index))
+    ]
+    future_regressor_values = [
+        ((53 * i + 7) % 101) + 150 + ((i % 7) * 0.1) for i in range(len(forecast_index))
+    ]
+    target_historical_values = [3 * value + 5 for value in historical_regressor_values]
+    target_future_truth = [3 * value + 5 for value in future_regressor_values]
+
+    beliefs = []
+    for ts, reg_value, target_value in zip(
+        history_index,
+        historical_regressor_values,
+        target_historical_values,
+    ):
+        beliefs.extend(
+            [
+                TimedBelief(
+                    sensor=weather_regressor,
+                    event_start=ts,
+                    event_value=reg_value,
+                    source=source_actual,
+                    belief_horizon=timedelta(0),
+                ),
+                TimedBelief(
+                    sensor=target_with_regressor,
+                    event_start=ts,
+                    event_value=target_value,
+                    source=source_actual,
+                    belief_horizon=timedelta(0),
+                ),
+                TimedBelief(
+                    sensor=target_without_regressor,
+                    event_start=ts,
+                    event_value=target_value,
+                    source=source_actual,
+                    belief_horizon=timedelta(0),
+                ),
+            ]
+        )
+
+    for ts, reg_value in zip(forecast_index, future_regressor_values):
+        # Each weather-regressor forecast is issued five minutes before its
+        # hourly event starts. That makes it a 65-minute-horizon forecast for
+        # the full hourly event, while the pipeline issues target forecasts at
+        # the start of each event with a 60-minute max forecast horizon.
+        beliefs.append(
+            TimedBelief(
+                sensor=weather_regressor,
+                event_start=ts,
+                event_value=reg_value,
+                source=source_forecaster,
+                belief_time=ts - timedelta(minutes=5),
+            )
+        )
+
+    db.session.add_all(beliefs)
+    db.session.commit()
+
+    base_config = {"train-start": "2025-01-01T00:00+00:00"}
+    common_params = {
+        "model-save-dir": str(tmp_path / "models"),
+        "output-path": None,
+        "start": "2025-01-08T00:00+00:00",
+        "end": "2025-01-09T00:00+00:00",
+        "sensor-to-save": None,
+        "max-forecast-horizon": "PT1H",
+        "forecast-frequency": "PT1H",
+        "probabilistic": False,
+    }
+
+    pipeline_without_regressor = TrainPredictPipeline(config=base_config)
+    returns_without_regressor = pipeline_without_regressor.compute(
+        parameters={
+            **common_params,
+            "sensor": target_without_regressor.id,
+        }
+    )
+
+    pipeline_with_regressor = TrainPredictPipeline(
+        config={
+            **base_config,
+            "future-regressors": [weather_regressor.id],
+        }
+    )
+    returns_with_regressor = pipeline_with_regressor.compute(
+        parameters={
+            **common_params,
+            "sensor": target_with_regressor.id,
+        }
+    )
+
+    forecasts_without_regressor = simplify_index(returns_without_regressor[0]["data"])[
+        "event_value"
+    ].rename("without_regressor")
+    forecasts_with_regressor = simplify_index(returns_with_regressor[0]["data"])[
+        "event_value"
+    ].rename("with_regressor")
+    aligned_forecasts = pd.concat(
+        [forecasts_without_regressor, forecasts_with_regressor],
+        axis=1,
+        join="inner",
+    )
+
+    assert list(forecasts_without_regressor.index) == list(forecast_index)
+    assert list(forecasts_with_regressor.index) == list(forecast_index)
+    assert not aligned_forecasts.empty
+    assert aligned_forecasts.notna().all(axis=None)
+    # First confirm the admissible future covariates affect the forecast at all.
+    # The accuracy assertions below check that the effect is beneficial.
+    assert (
+        aligned_forecasts["without_regressor"]
+        .ne(aligned_forecasts["with_regressor"])
+        .any()
+    ), "Future-regressor run should produce a different forecast because it has admissible future covariates."
+
+    truth = pd.Series(target_future_truth, index=forecast_index, name="truth")
+    mae_without_regressor = (
+        aligned_forecasts["without_regressor"]
+        .reindex(truth.index)
+        .sub(truth)
+        .abs()
+        .mean()
+    )
+    mae_with_regressor = (
+        aligned_forecasts["with_regressor"].reindex(truth.index).sub(truth).abs().mean()
+    )
+    first_forecast_timestamp = forecast_index[0]
+    first_error_without_regressor = abs(
+        aligned_forecasts.loc[first_forecast_timestamp, "without_regressor"]
+        - truth.loc[first_forecast_timestamp]
+    )
+    first_error_with_regressor = abs(
+        aligned_forecasts.loc[first_forecast_timestamp, "with_regressor"]
+        - truth.loc[first_forecast_timestamp]
+    )
+    assert (
+        first_error_with_regressor < first_error_without_regressor
+    ), "At the forecast belief-time boundary, the future-regressor run should be more accurate."
+    assert mae_with_regressor < mae_without_regressor, (
+        "The future-regressor forecast is expected to be more accurate "
+        "on this deterministic synthetic dataset."
     )
