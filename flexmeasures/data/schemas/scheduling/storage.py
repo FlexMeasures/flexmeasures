@@ -18,7 +18,7 @@ from flexmeasures import Asset, Sensor
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata
-from flexmeasures.data.schemas.sensors import VariableQuantityField
+from flexmeasures.data.schemas.sensors import SensorIdField, VariableQuantityField
 from flexmeasures.utils.unit_utils import (
     ur,
     is_power_unit,
@@ -373,6 +373,10 @@ class DBStorageFlexModelSchema(Schema):
     """
     Schema for flex-models stored in the db. Supports fixed quantities and sensor references, while disallowing time series specs.
     """
+
+    sensor = SensorIdField(
+        required=False,
+    )
 
     soc_min = VariableQuantityField(
         to_unit="MWh",
