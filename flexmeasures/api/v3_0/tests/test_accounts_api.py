@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import select
 
 from flexmeasures.data.models.user import Account, AccountRole
-from flexmeasures.auth.policy import CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE
+from flexmeasures.auth.policy import CONSULTANCY_ACCOUNT_ROLE
 from flexmeasures.data.services.users import find_user_by_email
 
 
@@ -331,14 +331,14 @@ def test_post_account_consultant_without_required_account_role_forbidden(
 ):
 
     role = db.session.execute(
-        select(AccountRole).filter_by(name=CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE)
+        select(AccountRole).filter_by(name=CONSULTANCY_ACCOUNT_ROLE)
     ).scalar_one_or_none()
     assert role is not None
 
     requesting_user.account.account_roles = [
         r
         for r in requesting_user.account.account_roles
-        if r.name != CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE
+        if r.name != CONSULTANCY_ACCOUNT_ROLE
     ]
     db.session.commit()
 

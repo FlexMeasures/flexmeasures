@@ -1983,7 +1983,7 @@
       },
       "post": {
         "summary": "Create a new account.",
-        "description": "Create a new account with a required name and optional UI colors.\n\n- Admin users can create accounts.\n- Consultant users can create accounts only if their account has the\n  `CONSULTANT_WITH_OWN_CLIENTS` account role.\n- For consultant users, the newly created account is automatically\n  linked to their own account as consultancy account.\n",
+        "description": "Create a new account with a required name and optional UI colors.\n\n- Admin users can create accounts.\n- Consultant users can create accounts only if their account has the\n  `CONSULTANCY_ACCOUNT_ROLE` account role.\n- For consultant users, the newly created account is automatically\n  linked to their own account as consultancy account.\n",
         "security": [
           {
             "ApiKeyAuth": []

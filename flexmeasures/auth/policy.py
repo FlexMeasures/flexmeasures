@@ -11,11 +11,14 @@ from werkzeug.exceptions import Unauthorized, Forbidden
 
 PERMISSIONS = ["create-children", "read", "update", "delete"]
 
+# User Roles
 ADMIN_ROLE = "admin"
 ADMIN_READER_ROLE = "admin-reader"
 ACCOUNT_ADMIN_ROLE = "account-admin"
 CONSULTANT_ROLE = "consultant"
-CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE = "CONSULTANT_WITH_OWN_CLIENTS"
+
+# Account Roels
+CONSULTANCY_ACCOUNT_ROLE = "Consultancy"
 
 # constants to allow access to certain groups
 EVERY_LOGGED_IN_USER = "every-logged-in-user"
@@ -96,7 +99,7 @@ class FlexMeasuresPlatform(AuthModelMixin):
                 f"role:{ADMIN_ROLE}",
                 (
                     f"role:{CONSULTANT_ROLE}",
-                    f"account-role:{CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE}",
+                    f"account-role:{CONSULTANCY_ACCOUNT_ROLE}",
                 ),
             ]
         }

@@ -203,7 +203,7 @@ class AccountAPI(FlaskView):
 
             - Admin users can create accounts.
             - Consultant users can create accounts only if their account has the
-              `CONSULTANT_WITH_OWN_CLIENTS` account role.
+              `CONSULTANCY_ACCOUNT_ROLE` account role.
             - For consultant users, the newly created account is automatically
               linked to their own account as consultancy account.
 

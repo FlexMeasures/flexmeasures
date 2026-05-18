@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from flexmeasures.data.models.user import AccountRole
 from flexmeasures.data.services.users import find_user_by_email
-from flexmeasures.auth.policy import CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE
+from flexmeasures.auth.policy import CONSULTANCY_ACCOUNT_ROLE
 
 
 account_api_path = "http://localhost//api/v3_0/accounts"
@@ -38,24 +38,24 @@ def test_account_page_breadcrumb(db, client, as_prosumer_user1):
 def _set_consultant_account_role(db, enable: bool):
     consultant_account = find_user_by_email("test_consultant@seita.nl").account
     role = db.session.execute(
-        select(AccountRole).filter_by(name=CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE)
+        select(AccountRole).filter_by(name=CONSULTANCY_ACCOUNT_ROLE)
     ).scalar_one_or_none()
     if role is None:
         role = AccountRole(
-            name=CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE,
+            name=CONSULTANCY_ACCOUNT_ROLE,
             description="Consultancy account that can create own client accounts",
         )
         db.session.add(role)
         db.session.flush()
 
-    has_role = consultant_account.has_role(CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE)
+    has_role = consultant_account.has_role(CONSULTANCY_ACCOUNT_ROLE)
     if enable and not has_role:
         consultant_account.account_roles.append(role)
     if not enable and has_role:
         consultant_account.account_roles = [
             r
             for r in consultant_account.account_roles
-            if r.name != CONSULTANT_WITH_OWN_CLIENTS_ACCOUNT_ROLE
+            if r.name != CONSULTANCY_ACCOUNT_ROLE
         ]
     db.session.commit()
 
