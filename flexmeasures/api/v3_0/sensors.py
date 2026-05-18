@@ -278,7 +278,7 @@ class TriggerScheduleKwargsSchema(Schema):
     def support_legacy_field_name(self, data, **kwargs):
         """Accept old snake_case input for backwards compatibility."""
         if "force_new_job_creation" in data and "force-new-job-creation" not in data:
-            data["force-new-job-creation"] = data["force_new_job_creation"]
+            data["force-new-job-creation"] = data.pop("force_new_job_creation")
 
         return data
 
