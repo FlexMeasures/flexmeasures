@@ -67,8 +67,6 @@ class AccountCreateSchema(Schema):
 
     name = fields.String(required=True)
     consultancy_account_id = fields.Integer(required=False, allow_none=True)
-    primary_color = fields.String(required=False, allow_none=True)
-    secondary_color = fields.String(required=False, allow_none=True)
 
     @validates("name")
     def validate_name(self, value, **kwargs):
@@ -82,6 +80,18 @@ class AccountCreateSchema(Schema):
         if existing_account:
             raise FMValidationError(f"An account with name '{value}' already exists.")
 
+
+class AccountPatchSchema(Schema):
+    """Schema for updating an account via API."""
+
+    name = fields.String(required=False)
+    primary_color = fields.String(required=False, allow_none=True)
+    secondary_color = fields.String(required=False, allow_none=True)
+    logo_url = fields.String(required=False, allow_none=True)
+    consultancy_account_id = fields.Integer(required=False, allow_none=True)
+    attributes = JSON(required=False)
+    account_roles = fields.List(fields.Integer(), required=False)
+
     @validates("primary_color")
     def validate_primary_color(self, value, **kwargs):
         try:
@@ -93,6 +103,13 @@ class AccountCreateSchema(Schema):
     def validate_secondary_color(self, value, **kwargs):
         try:
             validate_color_hex(value)
+        except ValueError as e:
+            raise FMValidationError(str(e))
+
+    @validates("logo_url")
+    def validate_logo_url(self, value, **kwargs):
+        try:
+            validate_url(value)
         except ValueError as e:
             raise FMValidationError(str(e))
 

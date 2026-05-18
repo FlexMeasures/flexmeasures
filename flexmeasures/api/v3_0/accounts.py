@@ -17,11 +17,15 @@ from flexmeasures.auth.policy import (
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import Account, User
+from flexmeasures.data.models.user import Account, User, AccountRole
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
-from flexmeasures.data.schemas.account import AccountSchema, AccountCreateSchema
+from flexmeasures.data.schemas.account import (
+    AccountSchema,
+    AccountCreateSchema,
+    AccountPatchSchema,
+)
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.api.common.schemas.users import AccountAPIQuerySchema
@@ -35,7 +39,7 @@ DELETE is not accessible via the API, but as a CLI function.
 # Instantiate schemas outside of endpoint logic to minimize response time
 account_schema = AccountSchema()
 accounts_schema = AccountSchema(many=True)
-partial_account_schema = AccountSchema(partial=True)
+partial_account_schema = AccountPatchSchema()
 account_create_schema = AccountCreateSchema()
 annotation_schema = AnnotationSchema()
 
@@ -199,7 +203,7 @@ class AccountAPI(FlaskView):
         post:
           summary: Create a new account.
           description: |
-            Create a new account with a required name and optional UI colors.
+            Create a new account with a required name.
 
             - Admin users can create accounts.
             - Consultant users can create accounts only if their account has the
@@ -217,8 +221,7 @@ class AccountAPI(FlaskView):
                 schema: AccountCreateSchema
                 example:
                   name: New Customer Account
-                  primary_color: '#1a3443'
-                  secondary_color: '#f1a122'
+                  consultancy_account_id: 2
           responses:
             201:
               description: PROCESSED
@@ -327,9 +330,10 @@ class AccountAPI(FlaskView):
             required: true
             content:
               application/json:
-                schema: AccountSchema
+                schema: AccountPatchSchema
                 example:
                   name: Test Account Updated
+                  account_roles: [1, 3]
                   primary_color: '#1a3443'
                   secondary_color: '#f1a122'
                   logo_url: 'https://example.com/logo.png'
@@ -394,7 +398,31 @@ class AccountAPI(FlaskView):
             "logo_url",
             "consultancy_account_id",
             "attributes",
+            "account_roles",
         ]
+
+        if "account_roles" in account_data:
+            raw_roles = account_data["account_roles"]
+            if not isinstance(raw_roles, list) or any(
+                not isinstance(role_id, int) for role_id in raw_roles
+            ):
+                return {"errors": ["account_roles must be a list of integer IDs."]}, 422
+
+            resolved_roles = [
+                db.session.get(AccountRole, role_id) for role_id in raw_roles
+            ]
+            invalid_role_ids = [
+                role_id
+                for role_id, db_role in zip(raw_roles, resolved_roles)
+                if db_role is None
+            ]
+            if invalid_role_ids:
+                return {
+                    "errors": [f"Invalid account role ID(s): {invalid_role_ids}."]
+                }, 422
+
+            account_data["account_roles"] = resolved_roles
+
         modified_fields = {
             field: getattr(account, field)
             for field in fields_to_check

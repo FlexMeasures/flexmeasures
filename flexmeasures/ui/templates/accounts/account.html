@@ -139,6 +139,23 @@
                   {% if user_is_admin %}
                   <div class="form-group">
                     <div class="col-md-3">
+                      <label for="accountRoleInput" class="control-label">Account Roles</label>
+                      <div class="input-group">
+                        <select class="form-select" id="accountRoleInput" aria-label="Select account role">
+                          <option selected>Select Role</option>
+                          {% for role_name in account_role_options %}
+                          <option value="{{ role_name }}">{{ role_name }}</option>
+                          {% endfor %}
+                        </select>
+                        <button class="btn btn-outline-secondary" type="button" id="addAccountRoleBtn">Add</button>
+                      </div>
+                      <div id="accountRolesContainer" class="mt-2 d-flex flex-wrap gap-2"></div>
+                      <input type="hidden" name="account_roles" id="accountRolesHiddenInput">
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <div class="col-md-3">
                       <label for="consultant_account_id" class="control-label"
                         >Consultant Account</label
                       >
@@ -702,6 +719,9 @@ $(document).ready(function () {
 <script defer>
   const basePath = window.location.origin;
   const form = document.getElementById("editaccount");
+  const accountRoleOptions = JSON.parse('{{ account_role_options | tojson }}');
+  const selectedAccountRoles = JSON.parse('{{ selected_account_roles | tojson }}');
+  let currentAccountRoles = new Set();
 
   function bindColorPicker(pickerId, textId) {
     const picker = document.getElementById(pickerId);
@@ -729,21 +749,91 @@ $(document).ready(function () {
   bindColorPicker("primary_color_picker", "primary_color");
   bindColorPicker("secondary_color_picker", "secondary_color");
 
+  function renderAccountRoleTags() {
+    const accountRolesContainer = document.getElementById("accountRolesContainer");
+    const accountRolesHiddenInput = document.getElementById("accountRolesHiddenInput");
+    if (!accountRolesContainer || !accountRolesHiddenInput) {
+      return;
+    }
+
+    accountRolesContainer.innerHTML = "";
+    accountRolesHiddenInput.value = Array.from(currentAccountRoles).join(",");
+
+    currentAccountRoles.forEach((role) => {
+      const tagSpan = document.createElement("span");
+      tagSpan.className = "badge bg-primary-custom text-white d-flex align-items-center me-1";
+      tagSpan.style.padding = "0.5em 0.75em";
+      tagSpan.style.borderRadius = "0.25rem";
+
+      const tagName = document.createElement("span");
+      tagName.textContent = role;
+      tagSpan.appendChild(tagName);
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "btn-close btn-close-white ms-2";
+      removeBtn.setAttribute("aria-label", `Remove ${role}`);
+      removeBtn.onclick = () => {
+        currentAccountRoles.delete(role);
+        renderAccountRoleTags();
+      };
+      tagSpan.appendChild(removeBtn);
+      accountRolesContainer.appendChild(tagSpan);
+    });
+  }
+
+  function addAccountRole() {
+    const accountRoleInput = document.getElementById("accountRoleInput");
+    if (!accountRoleInput) {
+      return;
+    }
+    const roleName = accountRoleInput.value.trim();
+    if (!roleName || !accountRoleOptions[roleName] || currentAccountRoles.has(roleName)) {
+      return;
+    }
+    currentAccountRoles.add(roleName);
+    accountRoleInput.value = "Select Role";
+    renderAccountRoleTags();
+  }
+
+  const addAccountRoleBtn = document.getElementById("addAccountRoleBtn");
+  if (addAccountRoleBtn) {
+    addAccountRoleBtn.addEventListener("click", addAccountRole);
+  }
+
+  const accountRoleInput = document.getElementById("accountRoleInput");
+  if (accountRoleInput) {
+    accountRoleInput.addEventListener("keypress", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addAccountRole();
+      }
+    });
+  }
+
+  selectedAccountRoles.forEach((role) => currentAccountRoles.add(role));
+  renderAccountRoleTags();
+
   form.addEventListener("submit", function (event) {
     event.preventDefault(); // Prevent the default form submission
 
     // Collect form data
     const formData = new FormData(event.target);
     // create json payload from formData and set empty string to null
-    let payload;
-    payload = JSON.stringify(
-      Object.fromEntries(
-        Array.from(formData.entries()).map(([key, value]) => [
-          key,
-          value === "" ? null : value,
-        ])
-      )
+    let payloadObject = Object.fromEntries(
+      Array.from(formData.entries()).map(([key, value]) => [
+        key,
+        value === "" ? null : value,
+      ])
     );
+
+    if (document.getElementById("accountRolesHiddenInput")) {
+      payloadObject.account_roles = Array.from(currentAccountRoles).map(
+        (roleName) => accountRoleOptions[roleName]
+      );
+    }
+
+    const payload = JSON.stringify(payloadObject);
 
     // Make a PATCH request to the API
     fetch(basePath + "/api/v3_0/accounts/" + "{{account.id}}", {

@@ -17,7 +17,7 @@ from flexmeasures.auth.policy import (
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, ICON_MAPPING
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import Account
+from flexmeasures.data.models.user import Account, AccountRole
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.data import db
 from flexmeasures.ui.views import (
@@ -100,12 +100,19 @@ class AccountCrudUI(FlaskView):
             CONSULTANCY_ACCOUNT_ROLE
         )
 
+        account_role_options = {
+            role.name: role.id for role in db.session.scalars(select(AccountRole)).all()
+        }
+        selected_account_roles = [role.name for role in account.account_roles]
+
         return render_flexmeasures_template(
             "accounts/account.html",
             account=account,
             accounts=potential_consultant_accounts,
             user_is_admin=user_is_admin,
             can_add_client_account=can_add_client_account,
+            account_role_options=account_role_options,
+            selected_account_roles=selected_account_roles,
             user_can_update_account=user_can_update_account,
             user_can_create_children=user_can_create_children,
             can_view_account_auditlog=user_can_view_account_auditlog,
