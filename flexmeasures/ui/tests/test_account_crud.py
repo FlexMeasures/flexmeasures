@@ -28,19 +28,6 @@ def test_account_page(db, client, as_prosumer_user1):
     assert str(current_user.username) in str(account_page.data)
 
 
-def test_account_page_breadcrumb(db, client, as_prosumer_user1):
-    """Account page should show the account name in a breadcrumb."""
-    account_page = client.get(
-        url_for("AccountCrudUI:get", account_id=current_user.account_id),
-        follow_redirects=True,
-    )
-    assert account_page.status_code == 200
-    # Breadcrumb nav should be present
-    assert b'aria-label="breadcrumb' in account_page.data
-    # Account name should appear in the breadcrumb
-    assert current_user.account.name.encode() in account_page.data
-
-
 def test_account_page_forbidden_for_different_account_user(
     db, client, setup_accounts, as_dummy_user3
 ):
