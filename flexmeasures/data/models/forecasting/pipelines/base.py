@@ -178,13 +178,19 @@ class BasePipeline:
                 ),  # we exclude forecasters for target dataframe as to not use forecasts in target.
             )
             try:
-                # We resample regressors to the target sensor’s resolution so they align in time.
+                # We resample regressors to the target sensor's resolution so they align in time.
                 # This ensures the resulting DataFrame can be used directly for predictions.
-                df = tb_utils.replace_multi_index_level(
-                    df,
-                    "event_start",
-                    df.event_starts.floor(self.target_sensor.event_resolution),
-                )
+                event_starts = df.event_starts
+                try:
+                    floored = event_starts.floor(self.target_sensor.event_resolution)
+                except Exception:
+                    # DST ambiguity: convert to UTC, floor, convert back to original tz.
+                    floored = (
+                        event_starts.tz_convert("UTC")
+                        .floor(self.target_sensor.event_resolution)
+                        .tz_convert(event_starts.tz)
+                    )
+                df = tb_utils.replace_multi_index_level(df, "event_start", floored)
             except Exception as e:
                 logging.warning(f"Error during custom resample for {name}: {e}")
 
