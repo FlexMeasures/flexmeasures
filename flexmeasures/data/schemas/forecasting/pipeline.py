@@ -12,6 +12,7 @@ from marshmallow import (
     validates_schema,
     pre_load,
     post_load,
+    post_dump,
     ValidationError,
 )
 
@@ -54,6 +55,11 @@ class AnnotationRegressorSchema(Schema):
             "description": "Human-readable column name for this regressor. Defaults to 'annotation_regressor_<index>'."
         },
     )
+
+    @post_dump
+    def remove_none_values(self, data, **kwargs):
+        """Omit null fields from the serialised config to keep it clean."""
+        return {k: v for k, v in data.items() if v is not None}
 
 
 class TrainPredictPipelineConfigSchema(Schema):
