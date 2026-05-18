@@ -320,14 +320,25 @@ class BasePipeline:
 
         annotations = db.session.execute(query).scalars().all()
 
-        # Build the full time index at target resolution
+        # Build the full time index at target resolution.
+        # Normalise start/end to UTC first so pd.date_range never sees two
+        # tz-aware endpoints with different UTC offsets (e.g. CET vs CEST).
         resolution = self.target_sensor.event_resolution
+        start_utc = (
+            pd.Timestamp(start).tz_convert("UTC")
+            if pd.Timestamp(start).tzinfo
+            else pd.Timestamp(start, tz="UTC")
+        )
+        end_utc = (
+            pd.Timestamp(end).tz_convert("UTC")
+            if pd.Timestamp(end).tzinfo
+            else pd.Timestamp(end, tz="UTC")
+        )
         time_index = pd.date_range(
-            start=start, end=end, freq=resolution, inclusive="left"
+            start=start_utc, end=end_utc, freq=resolution, inclusive="left"
         )
         # Strip timezone info to match the convention in load_data_all_beliefs
-        if time_index.tz is not None:
-            time_index = time_index.tz_convert("UTC").tz_localize(None)
+        time_index = time_index.tz_localize(None)
 
         binary = pd.Series(0.0, index=time_index, name=col_name)
 
@@ -687,6 +698,42 @@ class BasePipeline:
             if self.future != [] or self.annotation_regressors
             else None
         )
+
+        # Annotation regressors are "always known" (holiday/shutdown calendars),
+        # but they inherit the target sensor's belief_time via the merge in
+        # load_data_all_beliefs.  The split logic needs two separate sets of rows
+        # for each annotation event so that:
+        #   - realized_slice (training window):  belief_time = event_start + resolution
+        #     satisfies the  `belief_time > event_start` ("realized_only") filter.
+        #   - fc_window (forecast window):       belief_time = epoch (1970-01-01)
+        #     satisfies  `belief_time <= event_start` and is always <= any current time.
+        # Without these extra rows annotation data is invisible to the model.
+        if self.annotation_regressors and X_future_regressors_df is not None:
+            resolution = self.target_sensor.event_resolution
+            ann_base = (
+                X_future_regressors_df[
+                    ["event_start"] + self.annotation_regressor_names
+                ]
+                .drop_duplicates("event_start")
+                .copy()
+            )
+            # Sensor-based future regressors carry no annotation info in these rows.
+            for col in self.future_regressors:
+                ann_base[col] = float("nan")
+
+            epoch_rows = ann_base.copy()
+            epoch_rows["belief_time"] = pd.Timestamp("1970-01-01")
+
+            post_rows = ann_base.copy()
+            post_rows["belief_time"] = ann_base["event_start"] + resolution
+
+            extra = pd.concat([epoch_rows, post_rows], ignore_index=True)
+            extra = extra[X_future_regressors_df.columns]
+            X_future_regressors_df = (
+                pd.concat([X_future_regressors_df, extra], ignore_index=True)
+                .sort_values(["event_start", "belief_time"])
+                .reset_index(drop=True)
+            )
         y = (
             df[["event_start", "belief_time", self.target]]
             .dropna()
