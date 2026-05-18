@@ -398,15 +398,8 @@ class NestedDictParamType(click.ParamType):
 
 
 class JSONOrFile(click.ParamType):
-    """
-    A Click parameter type that accepts either a JSON string or a file path
-    to a JSON file.
 
-    It attempts to load the input as a file first. If that fails, it assumes
-    the input is a JSON string and tries to parse it.
-    """
-
-    name = "json_or_file"
+    name = "JSON_OR_FILE"
 
     def convert(self, value, param, ctx):
         """

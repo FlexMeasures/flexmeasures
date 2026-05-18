@@ -169,10 +169,15 @@ class TrainPredictPipelineConfigSchema(Schema):
     )
     train_period = DurationField(
         data_key="train-period",
-        load_default=timedelta(days=30),
+        load_default=None,
         allow_none=True,
         metadata={
-            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from train_start and start if not set or defaults to P30D (30 days).",
+            "description": (
+                "Duration of the initial training period (ISO 8601 format, min 2 days). "
+                "If not set and --train-start is provided, the period is the difference "
+                "between --start and --train-start, capped to --max-training-period. "
+                "If neither is set, --max-training-period is used as the training window."
+            ),
             "example": "P7D",
             "cli": {
                 "cli-exclusive": True,
@@ -248,9 +253,16 @@ class TrainPredictPipelineConfigSchema(Schema):
         data["future_regressors"] = future_regressors
         data["past_regressors"] = past_regressors
 
-        train_period_in_hours = data["train_period"] // timedelta(hours=1)
+        train_period_in_hours = (
+            data["train_period"] // timedelta(hours=1)
+            if data.get("train_period") is not None
+            else None
+        )
         max_training_period = data["max_training_period"]
-        if train_period_in_hours > max_training_period // timedelta(hours=1):
+        if (
+            train_period_in_hours is not None
+            and train_period_in_hours > max_training_period // timedelta(hours=1)
+        ):
             train_period_in_hours = max_training_period // timedelta(hours=1)
             logging.warning(
                 f"train-period is greater than max-training-period ({max_training_period}), setting train-period to max-training-period",
