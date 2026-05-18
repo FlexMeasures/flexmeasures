@@ -975,6 +975,12 @@ class AssetTriggerSchema(Schema):
             description="If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previously scheduled assets as inflexible device.",
         ),
     )
+    force_new_job_creation = fields.Boolean(
+        required=False,
+        metadata=dict(
+            description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
+        ),
+    )
 
     @validates_schema
     def check_flex_model_sensors(self, data, **kwargs):
