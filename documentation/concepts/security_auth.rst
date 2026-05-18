@@ -100,9 +100,9 @@ These roles are natively supported and give users more rights:
 Consultancy
 ^^^^^^^^^^^
 
-A special case of authorization is consultancy - a consultancy account can read data from other accounts (usually their clients ― this is handy for servicing them).
-For this, accounts have an attribute called ``consultancy_account_id``. Users in the consultancy account with the role `consultant` can read data in their client accounts.
-We plan to introduce some editing/creation capabilities in the future.
+A special case of authorization is consultancy: a consultancy account can read data from other accounts (usually their clients, which is handy for servicing them).
+For this, accounts have an attribute called ``consultancy_account_id``. Users in the consultancy account with the user role ``consultant`` can read data in their client accounts.
 
-Setting an account as the consultancy account is something only admins can do. 
-It is possible via the ``/accounts`` PATCH endpoint, but also in the UI. You can also specify a consultancy account when creating a client account, which for now happens only in the CLI: ``flexmeasures add account --name "Account2" --consultancy 1`` makes account 1 the consultancy account for account 2.
+In addition, consultants can create client accounts through the API and UI, when their own account has the ``Consultancy`` account role. In that flow, the new account is automatically linked to the consultant's account as consultancy account.
+
+Setting or changing ``consultancy_account_id`` arbitrarily remains an admin capability. Admins can do this via the ``/accounts`` PATCH endpoint and in the UI.
