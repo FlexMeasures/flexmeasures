@@ -5,7 +5,11 @@ import pytest
 from marshmallow.validate import ValidationError
 import pandas as pd
 
-from flexmeasures.data.schemas.scheduling import FlexContextSchema, DBFlexContextSchema
+from flexmeasures.data.schemas.scheduling import (
+    FlexContextSchema,
+    DBFlexContextSchema,
+    MultiSensorFlexModelSchema,
+)
 from flexmeasures.data.schemas.scheduling.process import (
     ProcessSchedulerFlexModelSchema,
     ProcessType,
@@ -824,3 +828,102 @@ def test_db_flex_model_schema(db, app, setup_dummy_sensors, flex_model, fails):
                 )
     else:
         schema.load(flex_model)
+
+
+# --- Tests for FlexContextSchema: new inflexible-loads / inflexible-generators fields ---
+
+
+def test_flex_context_inflexible_loads(db, app, setup_dummy_sensors):
+    """inflexible-loads deserializes correctly to a list of sensors with power/energy units."""
+    # sensor1 has MWh unit (energy) and sensor4 has MW unit (power)
+    sensor_energy, _, _, sensor_power = setup_dummy_sensors
+    schema = FlexContextSchema()
+    result = schema.load({"inflexible-loads": [sensor_energy.id, sensor_power.id]})
+    assert "inflexible_loads" in result
+    assert len(result["inflexible_loads"]) == 2
+    assert result["inflexible_loads"][0].id == sensor_energy.id
+    assert result["inflexible_loads"][1].id == sensor_power.id
+
+
+def test_flex_context_inflexible_generators(db, app, setup_dummy_sensors):
+    """inflexible-generators deserializes correctly to a list of sensors with power/energy units."""
+    sensor_energy, _, _, sensor_power = setup_dummy_sensors
+    schema = FlexContextSchema()
+    result = schema.load({"inflexible-generators": [sensor_energy.id, sensor_power.id]})
+    assert "inflexible_generators" in result
+    assert len(result["inflexible_generators"]) == 2
+    assert result["inflexible_generators"][0].id == sensor_energy.id
+    assert result["inflexible_generators"][1].id == sensor_power.id
+
+
+def test_flex_context_inflexible_device_sensors_emits_warning(
+    db, app, setup_dummy_sensors
+):
+    """inflexible-device-sensors still deserializes correctly but emits a UserWarning."""
+    sensor_energy, _, _, sensor_power = setup_dummy_sensors
+    schema = FlexContextSchema()
+    with pytest.warns(UserWarning, match="inflexible-device-sensors.*deprecated"):
+        result = schema.load(
+            {"inflexible-device-sensors": [sensor_energy.id, sensor_power.id]}
+        )
+    assert "inflexible_device_sensors" in result
+    assert len(result["inflexible_device_sensors"]) == 2
+
+
+def test_flex_context_inflexible_device_sensors_invalid_unit(
+    db, app, setup_dummy_sensors
+):
+    """inflexible-device-sensors raises ValidationError for non-power/energy sensor units."""
+    # sensor3 has unit "EUR" — not a power or energy unit
+    _, _, sensor_price, _ = setup_dummy_sensors
+    schema = DBFlexContextSchema()
+    with pytest.raises(ValidationError) as exc_info:
+        schema.load({"inflexible-device-sensors": [sensor_price.id]})
+    assert "inflexible-device-sensors" in exc_info.value.messages
+
+
+# --- Tests for MultiSensorFlexModelSchema ---
+
+
+def test_multi_sensor_flex_model_consumption(db, app, setup_dummy_sensors):
+    """consumption key maps to sensor with is_consumption_sensor=True and wraps extra fields."""
+    sensor, _, _, _ = setup_dummy_sensors
+    schema = MultiSensorFlexModelSchema()
+    result = schema.load({"consumption": sensor.id, "soc-at-start": "10 kWh"})
+    assert result["sensor"].id == sensor.id
+    assert result["is_consumption_sensor"] is True
+    assert result["sensor_flex_model"] == {"soc-at-start": "10 kWh"}
+
+
+def test_multi_sensor_flex_model_production(db, app, setup_dummy_sensors):
+    """production key maps to sensor with is_consumption_sensor=False."""
+    sensor, _, _, _ = setup_dummy_sensors
+    schema = MultiSensorFlexModelSchema()
+    result = schema.load({"production": sensor.id})
+    assert result["sensor"].id == sensor.id
+    assert result["is_consumption_sensor"] is False
+    assert result["sensor_flex_model"] == {}
+
+
+def test_multi_sensor_flex_model_consumption_and_production_raises(
+    db, app, setup_dummy_sensors
+):
+    """Specifying both consumption and production raises ValidationError."""
+    sensor, _, _, _ = setup_dummy_sensors
+    schema = MultiSensorFlexModelSchema()
+    with pytest.raises(ValidationError) as exc_info:
+        schema.load({"consumption": sensor.id, "production": sensor.id})
+    # The pre_load hook raises ValidationError with a plain message
+    assert "consumption" in str(exc_info.value) or "production" in str(exc_info.value)
+
+
+def test_multi_sensor_flex_model_deprecated_sensor_field_emits_warning(
+    db, app, setup_dummy_sensors
+):
+    """Old sensor key still works but emits a UserWarning about the deprecated field."""
+    sensor, _, _, _ = setup_dummy_sensors
+    schema = MultiSensorFlexModelSchema()
+    with pytest.warns(UserWarning, match="`sensor`.*deprecated"):
+        result = schema.load({"sensor": sensor.id})
+    assert result["sensor"].id == sensor.id
+    assert result["is_consumption_sensor"] is None

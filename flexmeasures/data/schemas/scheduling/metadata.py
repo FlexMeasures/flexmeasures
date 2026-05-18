@@ -28,12 +28,27 @@ class MetaData:
 
 
 INFLEXIBLE_DEVICE_SENSORS = MetaData(
-    description="""Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
-For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.
-Their power demand cannot be adjusted but still matters for finding the best schedule for other devices.
+    description="""[Deprecated] Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
+Use ``inflexible-loads`` and ``inflexible-generators`` instead for an unambiguous sign convention.
 Must be a list of integers.
 """,
     example=[3, 4],
+)
+INFLEXIBLE_LOADS = MetaData(
+    description="""Power sensors representing inflexible loads (consumers) whose demand is relevant but cannot be adjusted.
+For example, a sensor recording power consumption of a building's HVAC system.
+Positive sensor values are interpreted as consumption (consumption-is-positive convention).
+Must be a list of integers.
+""",
+    example=[3],
+)
+INFLEXIBLE_GENERATORS = MetaData(
+    description="""Power sensors representing inflexible generators (producers) whose supply is relevant but cannot be adjusted.
+For example, a sensor recording rooftop solar power that is connected behind the main meter.
+Positive sensor values are interpreted as production (production-is-positive convention, which is the FlexMeasures default).
+Must be a list of integers.
+""",
+    example=[4],
 )
 AGGREGATE_POWER = MetaData(
     description="""Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.""",

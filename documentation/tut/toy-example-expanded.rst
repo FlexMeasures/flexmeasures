@@ -15,7 +15,7 @@ When solar production is high, less battery output can be send to the grid, as t
 
 How does it work?
 
-- We will tell FlexMeasures to take the solar production into account (using the ``inflexible-device-sensors`` flex-context field).
+- We will tell FlexMeasures to take the solar production into account (using the ``inflexible-generators`` flex-context field).
 - The battery's power capacity is not the limiting factor, but the `site-power-capacity` of the building (already a flex-context field, see :ref:`tut_toy_schedule`).
 - The flows of the building's child assets are summed up on building level, and that constraint now will play a role.
 
@@ -96,7 +96,7 @@ This will have an effect on the available headroom for the battery, given the ``
                 --start ${TOMORROW}T07:00+01:00 \
                 --duration PT12H \
                 --soc-at-start 50% \
-                --flex-context '{"inflexible-device-sensors": [3]}'
+                --flex-context '{"inflexible-generators": [3]}'
                 --flex-model '{"soc-min": "50 kWh"}' \
             New schedule is stored.
         
@@ -115,7 +115,7 @@ This will have an effect on the available headroom for the battery, given the ``
                     "soc-min": "50 kWh"
                 },
                 "flex-context": {
-                    "inflexible-device-sensors": [3]
+                    "inflexible-generators": [3]
                 }
             }
 
@@ -149,7 +149,7 @@ This will have an effect on the available headroom for the battery, given the ``
                         "soc-min": "50 kWh",
                     },
                     flex_context={
-                        "inflexible-device-sensors": [3],  # solar production (sensor ID)
+                        "inflexible-generators": [3],  # solar production (sensor ID)
                     },
                 )
                 print(schedule)

@@ -58,7 +58,13 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - Field
      - Example value
      - Description
-   * - ``inflexible-device-sensors``
+   * - ``inflexible-loads``
+     - |INFLEXIBLE_LOADS.example|
+     - .. include:: ../_autodoc/INFLEXIBLE_LOADS.rst
+   * - ``inflexible-generators``
+     - |INFLEXIBLE_GENERATORS.example|
+     - .. include:: ../_autodoc/INFLEXIBLE_GENERATORS.rst
+   * - ``inflexible-device-sensors`` *(deprecated)*
      - |INFLEXIBLE_DEVICE_SENSORS.example|
      - .. include:: ../_autodoc/INFLEXIBLE_DEVICE_SENSORS.rst
    * - ``aggregate-power``
@@ -119,6 +125,9 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
 .. [#old_consumption_price_field] This field replaced the ``consumption-price-sensor`` field, which only accepted an integer (sensor ID).
 
 .. [#old_production_price_field] This field replaced the ``production-price-sensor`` field, which only accepted an integer (sensor ID).
+
+.. [#old_inflexible_device_sensors_field] These fields replace the ``inflexible-device-sensors`` field, which did not distinguish between loads and generators.
+   Use ``inflexible-loads`` for sensors recording consumption (consumption-is-positive convention) and ``inflexible-generators`` for sensors recording production (production-is-positive convention, which is the FlexMeasures default).
 
 .. [#asymmetric] ``site-consumption-capacity`` and ``site-production-capacity`` allow defining asymmetric contracted transport capacities for each direction (i.e. production and consumption).
 

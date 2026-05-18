@@ -178,7 +178,7 @@ Note that we are still passing in the flex-context with block price profiles her
                 --asset 2 \
                 --start ${TOMORROW}T07:00+01:00 \
                 --duration PT12H \
-                --flex-model '[{"sensor": 3, "consumption-capacity": "0 kW", "production-capacity": {"sensor": 3, "source": 4}}, {"sensor": 2, "soc-at-start": "225 kWh", "soc-min": "50 kWh"}]'\
+                --flex-model '[{"production": 3, "consumption-capacity": "0 kW", "production-capacity": {"sensor": 3, "source": 4}}, {"consumption": 2, "soc-at-start": "225 kWh", "soc-min": "50 kWh"}]'\
                 --flex-context tutorial3-priceprofile-flex-context.json 
             New schedule is stored.
 
@@ -193,12 +193,12 @@ Note that we are still passing in the flex-context with block price profiles her
                 "duration": "PT12H",
                 "flex-model": [
                     {
-                        "sensor": 3,
+                        "production": 3,
                         "consumption-capacity": "0 kW",
                         "production-capacity": {"sensor": 3, "source": 4},
                     }
                     {
-                        "sensor": 2,
+                        "consumption": 2,
                         "soc-at-start": "225 kWh",
                         "soc-min": "50 kWh"
                     },
@@ -232,12 +232,12 @@ Note that we are still passing in the flex-context with block price profiles her
                 duration="PT12H",
                 flex_model=[
                     {
-                        "sensor": 3,  # solar production (sensor ID)
+                        "production": 3,  # solar production (sensor ID)
                         "consumption-capacity": "0 kW",
                         "production-capacity": {"sensor": 3, "source": 4},
                     },
                     {
-                        "sensor": 2,  # battery power (sensor ID)
+                        "consumption": 2,  # battery power (sensor ID)
                         "soc-at-start": "225 kWh",
                         "soc-min": "50 kWh",
                     },

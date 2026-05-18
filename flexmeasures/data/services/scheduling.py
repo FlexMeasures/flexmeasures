@@ -381,6 +381,9 @@ def create_sequential_scheduling_job(
     previous_job = depends_on
     for child_flex_model in flex_model:
         sensor = child_flex_model.pop("sensor")
+        # Extract the explicit sign convention if set via 'consumption' or 'production' fields.
+        # None means "fall back to the sensor's own `consumption_is_positive` attribute".
+        is_consumption_sensor = child_flex_model.pop("is_consumption_sensor", None)
 
         current_scheduler_kwargs = deepcopy(scheduler_kwargs)
 
@@ -393,6 +396,8 @@ def create_sequential_scheduling_job(
         if "resolution" not in current_scheduler_kwargs:
             current_scheduler_kwargs["resolution"] = sensor.event_resolution
         current_scheduler_kwargs["asset_or_sensor"] = sensor
+        if is_consumption_sensor is not None:
+            current_scheduler_kwargs["is_consumption_sensor"] = is_consumption_sensor
 
         job = create_scheduling_job(
             **current_scheduler_kwargs,
@@ -534,6 +539,7 @@ def make_schedule(  # noqa: C901
     flex_config_has_been_deserialized: bool = False,
     scheduler_specs: dict | None = None,
     dry_run: bool = False,
+    is_consumption_sensor: bool | None = None,
     **scheduler_kwargs: dict,
 ) -> bool:
     """
@@ -612,6 +618,7 @@ def make_schedule(  # noqa: C901
                 "name": "consumption_schedule",
                 "data": consumption_schedule,
                 "sensor": asset_or_sensor,
+                "is_consumption_sensor": is_consumption_sensor,
             }
         ]
 
@@ -639,10 +646,16 @@ def make_schedule(  # noqa: C901
 
         sign = 1
 
-        if result["sensor"].measures_power and not result["sensor"].get_attribute(
-            "consumption_is_positive", False
-        ):
-            sign = -1
+        if result["sensor"].measures_power:
+            # Use the explicit sign convention if set (via 'consumption' or 'production' field),
+            # otherwise fall back to the sensor's own `consumption_is_positive` attribute.
+            consumption_is_positive = result.get("is_consumption_sensor")
+            if consumption_is_positive is None:
+                consumption_is_positive = result["sensor"].get_attribute(
+                    "consumption_is_positive", False
+                )
+            if not consumption_is_positive:
+                sign = -1
 
         ts_value_schedule = [
             TimedBelief(
