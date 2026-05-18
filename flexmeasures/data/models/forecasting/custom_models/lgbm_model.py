@@ -35,6 +35,10 @@ class CustomLGBM(BaseModel):
         training_sample_count=None,
         min_samples_per_horizon=2,
     ):
+        if seasonal_lag_steps < 1:
+            raise ValueError("seasonal_lag_steps must be at least 1.")
+        if fallback_lag_steps < 1:
+            raise ValueError("fallback_lag_steps must be at least 1.")
 
         if models_params is None:
             self.models_params = {
@@ -82,7 +86,7 @@ class CustomLGBM(BaseModel):
             # Lag features are dynamically set based on the forecast horizon
             lag = (
                 self.seasonal_lag_steps
-                - (  # temporarily make the adaptation to the sensor resolution; To do: inlude a list of seasonal lags to include, given as pd.timedelta objects
+                - (  # todo: include a list of seasonal lags as pd.timedelta objects
                     horizon % self.seasonal_lag_steps
                 )
             )  # Adjust to repeat the lag structure every 24 hours
