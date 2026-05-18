@@ -12,7 +12,7 @@ from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required, current_user
-from marshmallow import fields, Schema, ValidationError, validates_schema
+from marshmallow import fields, pre_load, Schema, ValidationError, validates_schema
 import marshmallow.validate as validate
 from rq.job import Job, JobStatus, NoSuchJobError
 import timely_beliefs as tb
@@ -267,11 +267,20 @@ class TriggerScheduleKwargsSchema(Schema):
         ),
     )
     force_new_job_creation = fields.Boolean(
+        data_key="force-new-job-creation",
         required=False,
         metadata=dict(
             description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
         ),
     )
+
+    @pre_load
+    def support_legacy_field_name(self, data, **kwargs):
+        """Accept old snake_case input for backwards compatibility."""
+        if "force_new_job_creation" in data and "force-new-job-creation" not in data:
+            data["force-new-job-creation"] = data["force_new_job_creation"]
+
+        return data
 
 
 class SensorAPI(FlaskView):

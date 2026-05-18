@@ -976,6 +976,7 @@ class AssetTriggerSchema(Schema):
         ),
     )
     force_new_job_creation = fields.Boolean(
+        data_key="force-new-job-creation",
         required=False,
         metadata=dict(
             description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",

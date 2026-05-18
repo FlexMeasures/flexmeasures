@@ -5832,7 +5832,7 @@
             "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
             "additionalProperties": {}
           },
-          "force_new_job_creation": {
+          "force-new-job-creation": {
             "type": "boolean",
             "description": "If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered."
           }
@@ -6159,7 +6159,7 @@
             "default": false,
             "description": "If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previously scheduled assets as inflexible device."
           },
-          "force_new_job_creation": {
+          "force-new-job-creation": {
             "type": "boolean",
             "description": "If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered."
           }
