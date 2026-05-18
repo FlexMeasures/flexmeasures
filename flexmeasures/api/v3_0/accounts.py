@@ -191,8 +191,6 @@ class AccountAPI(FlaskView):
     @use_args(account_create_schema, arg_name="account_data")
     @permission_required_for_context(
         "create-children",
-        ctx_arg_name="account_data",
-        pass_ctx_to_loader=True,
         ctx_loader=FlexMeasuresPlatform.init,
     )
     @as_json
