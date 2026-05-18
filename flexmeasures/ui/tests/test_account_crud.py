@@ -110,3 +110,44 @@ def test_create_account_page_access_control(
 
     response = client.get(url_for("AccountCrudUI:new"), follow_redirects=True)
     assert response.status_code == expected_status_code
+
+
+def test_account_page_add_client_account_button_for_consultancy_account(
+    db, client, as_consultant
+):
+    _set_consultant_account_role(db, True)
+    consultancy_account_id = find_user_by_email("test_consultant@seita.nl").account.id
+
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=consultancy_account_id),
+        follow_redirects=True,
+    )
+    assert account_page.status_code == 200
+    assert b"Add client account" in account_page.data
+
+
+def test_account_page_no_add_client_account_button_for_non_consultancy_account(
+    db, client, as_consultant
+):
+    _set_consultant_account_role(db, True)
+    non_consultancy_account_id = find_user_by_email(
+        "test_prosumer_user@seita.nl"
+    ).account.id
+
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=non_consultancy_account_id),
+        follow_redirects=True,
+    )
+    assert account_page.status_code == 200
+    assert b"Add client account" not in account_page.data
+
+
+def test_account_page_add_client_account_button_for_site_admin(db, client, as_admin):
+    account_id = find_user_by_email("test_prosumer_user@seita.nl").account.id
+
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=account_id),
+        follow_redirects=True,
+    )
+    assert account_page.status_code == 200
+    assert b"Add client account" in account_page.data

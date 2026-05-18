@@ -302,8 +302,6 @@ def test_patch_account_attributes_with_consultancy(
 def test_post_account(client, setup_api_test_data, requesting_user, status_code, db):
     payload = {
         "name": f"Created Account {requesting_user.id if requesting_user else 'anon'}",
-        "primary_color": "#1a3443",
-        "secondary_color": "#f1a122",
     }
 
     response = client.post(url_for("AccountAPI:post"), json=payload)
@@ -344,8 +342,40 @@ def test_post_account_consultant_without_required_account_role_forbidden(
 
     payload = {
         "name": "Consultant Forbidden Account",
-        "primary_color": "#1a3443",
-        "secondary_color": "#f1a122",
     }
     response = client.post(url_for("AccountAPI:post"), json=payload)
     assert response.status_code == 403
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_account_roles(client, setup_api_test_data, requesting_user, db):
+    target_account = find_user_by_email("test_prosumer_user_2@seita.nl").account
+    prosumer_role = db.session.execute(
+        select(AccountRole).filter_by(name="Prosumer")
+    ).scalar_one()
+    supplier_role = db.session.execute(
+        select(AccountRole).filter_by(name="Supplier")
+    ).scalar_one()
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=target_account.id),
+        json={"account_roles": [prosumer_role.id, supplier_role.id]},
+    )
+
+    assert response.status_code == 200
+    role_names = {role["name"] for role in response.json["account_roles"]}
+    assert role_names == {"Prosumer", "Supplier"}
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_account_roles_invalid_role_id(
+    client, setup_api_test_data, requesting_user
+):
+    target_account = find_user_by_email("test_prosumer_user_2@seita.nl").account
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=target_account.id),
+        json={"account_roles": [999999]},
+    )
+
+    assert response.status_code == 422

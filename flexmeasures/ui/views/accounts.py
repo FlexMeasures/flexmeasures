@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from flask import request
 from sqlalchemy import select
 from werkzeug.exceptions import Forbidden, Unauthorized
 from flask_classful import FlaskView, route
@@ -10,6 +11,7 @@ from flexmeasures.auth.policy import (
     user_has_admin_access,
     check_access,
     FlexMeasuresPlatform,
+    CONSULTANCY_ACCOUNT_ROLE,
 )
 
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, ICON_MAPPING
@@ -50,10 +52,14 @@ class AccountCrudUI(FlaskView):
         check_access(FlexMeasuresPlatform.init(), "create-children")
         user_is_admin = user_has_admin_access(current_user, "read")
         potential_consultant_accounts = get_accounts() if user_is_admin else []
+        selected_consultancy_account_id = request.args.get(
+            "consultancy_account_id", default=None, type=int
+        )
         return render_flexmeasures_template(
             "accounts/account_create.html",
             user_is_admin=user_is_admin,
             accounts=potential_consultant_accounts,
+            selected_consultancy_account_id=selected_consultancy_account_id,
         )
 
     @login_required
@@ -89,10 +95,17 @@ class AccountCrudUI(FlaskView):
         except (Forbidden, Unauthorized):
             user_can_create_children = False
 
+        user_is_admin = user_has_admin_access(current_user, "read")
+        can_add_client_account = user_is_admin or account.has_role(
+            CONSULTANCY_ACCOUNT_ROLE
+        )
+
         return render_flexmeasures_template(
             "accounts/account.html",
             account=account,
             accounts=potential_consultant_accounts,
+            user_is_admin=user_is_admin,
+            can_add_client_account=can_add_client_account,
             user_can_update_account=user_can_update_account,
             user_can_create_children=user_can_create_children,
             can_view_account_auditlog=user_can_view_account_auditlog,
