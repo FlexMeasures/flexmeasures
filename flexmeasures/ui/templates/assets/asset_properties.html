@@ -452,6 +452,12 @@
                 validTypes = [String, Object];
             } else if (type === "typeFour") {
                 validTypes = [Array];
+            } else if (type === "typeFive") {
+                validTypes = [String];
+            } else {
+                // Raise error for unsupported type
+                showToast(`Unsupported type for field "${key}" in flex model schema.`, "error");
+                console.error(`Unsupported type "${type}" for field "${key}" in flex model schema.`);
             }
             FlexModelFieldValidTypes[key] = validTypes;
         }
