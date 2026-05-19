@@ -18,6 +18,7 @@ New features
 * New ``GET /api/v3_0/sources`` endpoint to list accessible data sources and defined types, with ``only_latest=true`` by default to return only the most recent version per source [see `PR #2126 <https://www.github.com/FlexMeasures/flexmeasures/pull/2126>`_]
 * Add support for filtering sensor data GET requests by ``source-type`` on ``/api/v3_0/sensors/<id>/data`` [see `PR #2127 <https://www.github.com/FlexMeasures/flexmeasures/pull/2127>`_]
 * Making monitoring alerts more flexible: allow ``flexmeasures monitor`` alerts to target one or more user IDs or email addresses with ``--recipient``; ``flexmeasures monitor last-seen`` can now narrow monitored users to one or more accounts with ``--account`` or to client accounts with ``--consultancy`` [see `PR #2158 <https://www.github.com/FlexMeasures/flexmeasures/pull/2158>`_]
+* Improve LightGBM daily seasonal lag handling for sub-hourly forecasting sensors [see `PR #2157 <https://www.github.com/FlexMeasures/flexmeasures/pull/2157>`_]
 
 Infrastructure / Support
 ----------------------
