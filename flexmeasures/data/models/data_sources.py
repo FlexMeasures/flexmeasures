@@ -465,9 +465,10 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         model_incl_version = self.model if self.model else ""
         if self.model and self.version:
             model_incl_version += f" (v{self.version})"
-        if "forecast" in self.type.lower():
+        raw_type = self.type or ""
+        if "forecast" in raw_type.lower():
             _type = "forecaster"  # e.g. 'forecaster' or 'forecasting script'
-        elif "schedul" in self.type.lower():  # e.g. 'scheduler' or 'scheduling script'
+        elif "schedul" in raw_type.lower():  # e.g. 'scheduler' or 'scheduling script'
             _type = "scheduler"
         else:
             _type = "other"
@@ -475,7 +476,10 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             id=self.id,
             name=self.name,
             model=model_incl_version,
+            version=self.version or "",
             type=_type,
+            raw_type=raw_type,
+            display_type=_type if _type != "other" else raw_type or "other",
             description=self.description,
         )
 
