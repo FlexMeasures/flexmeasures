@@ -54,6 +54,11 @@ FIELD_DEFINITIONS = {
         type="nominal",
         title="Type",
     ),
+    "source_display_type": dict(
+        field="source.display_type",
+        type="nominal",
+        title="Type",
+    ),
     "source_name": dict(
         field="source.name",
         type="nominal",
@@ -74,8 +79,8 @@ FIELD_DEFINITIONS = {
         type="nominal",
         title="Source",
     ),
-    "source_name_and_optional_id": dict(
-        field="source_name_and_optional_id",
+    "source_legend_label": dict(
+        field="source_legend_label",
         type="nominal",
         title="Source",
     ),

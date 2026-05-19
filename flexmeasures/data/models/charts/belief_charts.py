@@ -9,7 +9,7 @@ from flexmeasures.data.models.charts.defaults import (
     STROKE_WIDTH,
 )
 from flexmeasures.data.models.charts.utils import (
-    source_name_and_optional_id_transformation,
+    source_legend_label_transformation,
 )
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
@@ -106,9 +106,7 @@ def create_bar_chart_or_histogram_specs(
                     "stroke": {
                         "condition": {
                             "test": "datum.event_value === 0",
-                            "field": FIELD_DEFINITIONS["source_name_and_optional_id"][
-                                "field"
-                            ],
+                            "field": FIELD_DEFINITIONS["source_legend_label"]["field"],
                         },
                         "value": None,
                     },
@@ -119,7 +117,7 @@ def create_bar_chart_or_histogram_specs(
                         },
                         "value": 0,
                     },
-                    "color": FIELD_DEFINITIONS["source_name_and_optional_id"],
+                    "color": FIELD_DEFINITIONS["source_legend_label"],
                     "opacity": {"value": 0.7},
                     "tooltip": [
                         (
@@ -132,6 +130,7 @@ def create_bar_chart_or_histogram_specs(
                             **dict(title=f"{capitalize(sensor.sensor_type)}"),
                         },
                         FIELD_DEFINITIONS["source_name_and_id"],
+                        FIELD_DEFINITIONS["source_display_type"],
                         FIELD_DEFINITIONS["source_model"],
                     ],
                 },
@@ -140,7 +139,7 @@ def create_bar_chart_or_histogram_specs(
                         "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                         "as": "source_name_and_id",
                     },
-                    *source_name_and_optional_id_transformation,
+                    *source_legend_label_transformation,
                 ],
                 "selection": {
                     "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
@@ -586,7 +585,7 @@ def _setup_shared_tooltip(
         ),
         {**event_value_field_definition, **dict(title=f"{capitalize(sensor_type)}")},
         FIELD_DEFINITIONS["source_name_and_id"],
-        FIELD_DEFINITIONS["source_type"],
+        FIELD_DEFINITIONS["source_display_type"],
         FIELD_DEFINITIONS["source_model"],
     ]
 
