@@ -95,7 +95,7 @@ class FlexMeasuresPlatform(AuthModelMixin):
 
     def __acl__(self):
         return {
-            "create-children": [
+            "create-children": [  # this applies to accounts
                 f"role:{ADMIN_ROLE}",
                 (
                     f"role:{CONSULTANT_ROLE}",
