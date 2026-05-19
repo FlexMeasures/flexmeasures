@@ -183,6 +183,7 @@ def test_data_source_as_dict_keeps_raw_and_display_type(
 
     source_dict = source.as_dict
 
+    assert source_dict["model"] == "PandasReporter"
     assert source_dict["type"] == expected_type
     assert source_dict["raw_type"] == source_type
     assert source_dict["display_type"] == expected_display_type

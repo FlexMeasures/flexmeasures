@@ -366,6 +366,7 @@ def test_bar_chart_uses_source_legend_label_without_ids(battery_with_soc_flex_mo
     assert "source_name_and_id" in tooltip_fields
     assert "source.display_type" in tooltip_fields
     assert "source.model" in tooltip_fields
+    assert "source.version" in tooltip_fields
 
 
 def test_source_legend_label_transform_renders_short_non_id_labels():
@@ -678,12 +679,14 @@ def test_chart_data_json_preserves_display_source_type_for_labels(
     assert forecaster_metadata["type"] == "forecaster"
     assert forecaster_metadata["raw_type"] == "forecaster"
     assert forecaster_metadata["display_type"] == "forecaster"
+    assert forecaster_metadata["model"] == "TrainPredictPipeline"
     assert forecaster_metadata["version"] == "1"
 
     reporter_metadata = parsed["sources"][str(reporter_source.id)]
     assert reporter_metadata["type"] == "other"
     assert reporter_metadata["raw_type"] == "reporter"
     assert reporter_metadata["display_type"] == "reporter"
+    assert reporter_metadata["model"] == "PandasReporter"
     assert reporter_metadata["version"] == "1"
 
 
