@@ -210,6 +210,14 @@ def process_sensor_data_ingestion(
                 forecasting_job_ids=forecasting_job_ids,
                 save_changed_beliefs_only=save_changed_beliefs_only,
                 meta={"sensor_id": sensor_id},
+                ttl=current_app.config.get(
+                    "FLEXMEASURES_JOB_TTL", timedelta(-1)
+                ).total_seconds(),
+                result_ttl=int(
+                    current_app.config.get(
+                        "FLEXMEASURES_JOB_TTL", timedelta(-1)
+                    ).total_seconds()
+                ),
             )
             return request_accepted_for_processing(
                 job.id,
