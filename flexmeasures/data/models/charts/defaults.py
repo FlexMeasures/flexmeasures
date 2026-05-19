@@ -74,6 +74,11 @@ FIELD_DEFINITIONS = {
         type="nominal",
         title="Source",
     ),
+    "source_name_and_optional_id": dict(
+        field="source_name_and_optional_id",
+        type="nominal",
+        title="Source",
+    ),
 }
 REPLAY_RULER = {
     "data": {"name": "replay"},

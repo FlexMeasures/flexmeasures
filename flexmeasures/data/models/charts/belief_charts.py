@@ -8,6 +8,9 @@ from flexmeasures.data.models.charts.defaults import (
     REPLAY_RULER,
     STROKE_WIDTH,
 )
+from flexmeasures.data.models.charts.utils import (
+    source_name_and_optional_id_transformation,
+)
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
 )
@@ -103,7 +106,9 @@ def create_bar_chart_or_histogram_specs(
                     "stroke": {
                         "condition": {
                             "test": "datum.event_value === 0",
-                            "field": FIELD_DEFINITIONS["source_name"]["field"],
+                            "field": FIELD_DEFINITIONS["source_name_and_optional_id"][
+                                "field"
+                            ],
                         },
                         "value": None,
                     },
@@ -114,8 +119,7 @@ def create_bar_chart_or_histogram_specs(
                         },
                         "value": 0,
                     },
-                    "color": FIELD_DEFINITIONS["source_name"],
-                    "detail": FIELD_DEFINITIONS["source"],
+                    "color": FIELD_DEFINITIONS["source_name_and_optional_id"],
                     "opacity": {"value": 0.7},
                     "tooltip": [
                         (
@@ -136,6 +140,7 @@ def create_bar_chart_or_histogram_specs(
                         "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                         "as": "source_name_and_id",
                     },
+                    *source_name_and_optional_id_transformation,
                 ],
                 "selection": {
                     "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
