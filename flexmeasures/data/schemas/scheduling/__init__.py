@@ -667,8 +667,8 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "default": None,
         "description": rst_to_openapi(metadata.CHARGING_EFFICIENCY.description),
         "types": {
-            "backend": "typeFive",
-            "ui": "Fixed value only.",
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
         },
         "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
     },
@@ -676,8 +676,8 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "default": None,
         "description": rst_to_openapi(metadata.DISCHARGING_EFFICIENCY.description),
         "types": {
-            "backend": "typeFive",
-            "ui": "Fixed value only.",
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
         },
         "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
     },
@@ -685,8 +685,8 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "default": None,
         "description": rst_to_openapi(metadata.STORAGE_EFFICIENCY.description),
         "types": {
-            "backend": "typeFive",
-            "ui": "Fixed value only.",
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
         },
         "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
     },
