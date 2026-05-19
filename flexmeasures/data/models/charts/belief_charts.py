@@ -132,6 +132,7 @@ def create_bar_chart_or_histogram_specs(
                         FIELD_DEFINITIONS["source_name_and_id"],
                         FIELD_DEFINITIONS["source_display_type"],
                         FIELD_DEFINITIONS["source_model"],
+                        FIELD_DEFINITIONS["source_version"],
                     ],
                 },
                 "transform": [
@@ -333,6 +334,7 @@ def heatmap(
         },
         FIELD_DEFINITIONS["source_name_and_id"],
         FIELD_DEFINITIONS["source_model"],
+        FIELD_DEFINITIONS["source_version"],
     ]
     chart_specs = {
         "description": f"A {split} heatmap showing sensor data.",
@@ -587,6 +589,7 @@ def _setup_shared_tooltip(
         FIELD_DEFINITIONS["source_name_and_id"],
         FIELD_DEFINITIONS["source_display_type"],
         FIELD_DEFINITIONS["source_model"],
+        FIELD_DEFINITIONS["source_version"],
     ]
 
 

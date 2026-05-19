@@ -69,6 +69,11 @@ FIELD_DEFINITIONS = {
         type="nominal",
         title="Model",
     ),
+    "source_version": dict(
+        field="source.version",
+        type="nominal",
+        title="Version",
+    ),
     "full_date": dict(
         field="full_date",
         type="nominal",
