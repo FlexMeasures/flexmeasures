@@ -83,6 +83,8 @@ def test_trigger_forecast_panel_visible_for_account_member(
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert b"Trigger forecast" in response.data
+    assert b"firstAvailableEventStartForForecastTraining" in response.data
+    assert b'"train-start"' in response.data
 
 
 def test_trigger_forecast_panel_visible_for_admin(db, client, setup_assets, as_admin):
@@ -104,6 +106,7 @@ def test_trigger_forecast_panel_hidden_for_other_account(
     response = client.get(url_for("SensorUI:get", id=sensor.id), follow_redirects=True)
     assert response.status_code == 200
     assert b"Trigger forecast" not in response.data
+    assert b"firstAvailableEventStartForForecastTraining" not in response.data
 
 
 # ---------------------------------------------------------------------------
