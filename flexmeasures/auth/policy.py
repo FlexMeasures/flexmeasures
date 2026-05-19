@@ -97,7 +97,7 @@ class FlexMeasuresPlatform(AuthModelMixin):
         return {
             "create-children": [  # this applies to accounts
                 f"role:{ADMIN_ROLE}",
-                (
+                (  # FM makes sure they are clients
                     f"role:{CONSULTANT_ROLE}",
                     f"account-role:{CONSULTANCY_ACCOUNT_ROLE}",
                 ),
