@@ -647,6 +647,10 @@ For the data, note the following:
         }
     }
 
+    document.addEventListener('sensorDataRangeAvailable', function(e) {
+        firstAvailableEventStartForForecastTraining = e.detail.firstEventStart;
+    });
+
     document.getElementById('triggerForecastButton').addEventListener('click', triggerForecast);
     {% endif %}
 
@@ -696,7 +700,6 @@ For the data, note the following:
     document.addEventListener('sensorDataRangeAvailable', function(e) {
         allDataStart = e.detail.firstEventStart;
         allDataEnd   = e.detail.lastEventEnd;
-        firstAvailableEventStartForForecastTraining = e.detail.firstEventStart;
         selectAllDataLink.classList.remove('d-none');
     });
     if (selectAllDataLink) {
