@@ -139,9 +139,9 @@ def test_account_page_add_client_account_button_for_consultancy_account(
 def test_account_page_no_add_client_account_button_for_non_consultancy_account(
     db, client, as_consultant
 ):
-    _set_consultant_account_role(db, True)
+    _set_consultant_account_role(db, False)
     non_consultancy_account_id = find_user_by_email(
-        "test_prosumer_user@seita.nl"
+        "test_consultant@seita.nl"
     ).account.id
 
     account_page = client.get(
