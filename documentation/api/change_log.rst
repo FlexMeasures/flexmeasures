@@ -5,6 +5,11 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
+v3.0-31 | 2026-04-28
+""""""""""""""""""""
+
+- Added a unified job status endpoint ``GET /api/v3_0/jobs/<uuid>`` that returns the current execution status and a human-readable result message for any background job (scheduling, forecasting, etc.) identified by its UUID.
+
 v3.0-30 | 2026-04-15
 """"""""""""""""""""
 - Added ``unit`` field to the `/sensors/<id>/schedules/<uuid>` (GET) endpoint for fetching a schedule, to get the schedule in a different unit still compatible to the sensor unit.

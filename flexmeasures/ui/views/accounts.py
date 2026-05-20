@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import select
-from werkzeug.exceptions import Forbidden, Unauthorized
+from werkzeug.exceptions import Forbidden, NotFound, Unauthorized
 from flask_classful import FlaskView
 from flask_security import login_required
 from flask_security.core import current_user
@@ -9,11 +9,12 @@ from flask_security.core import current_user
 from flexmeasures.auth.policy import user_has_admin_access, check_access
 
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, ICON_MAPPING
+from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.data import db
-from flexmeasures.ui.views.assets.forms import (
+from flexmeasures.ui.views import (
     ATTRIBUTES_FIELD_LABEL,
     ATTRIBUTES_FIELD_DESCRIPTION,
 )
@@ -35,6 +36,9 @@ class AccountCrudUI(FlaskView):
     def get(self, account_id: str):
         """/accounts/<account_id>"""
         account = db.session.execute(select(Account).filter_by(id=account_id)).scalar()
+        if account is None:
+            raise NotFound(f"Account with id {account_id} not found.")
+        check_access(account, "read")
         if account.consultancy_account_id:
             consultancy_account = db.session.execute(
                 select(Account).filter_by(id=account.consultancy_account_id)
@@ -74,6 +78,7 @@ class AccountCrudUI(FlaskView):
             asset_icon_map=ICON_MAPPING,
             attributes_label=ATTRIBUTES_FIELD_LABEL,
             attributes_description=ATTRIBUTES_FIELD_DESCRIPTION,
+            breadcrumb_info=get_breadcrumb_info(account),
         )
 
     @login_required

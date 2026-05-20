@@ -5,6 +5,7 @@ import inspect
 import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
+from sqlalchemy import select
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -313,12 +314,25 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         nullable=True,
     )
 
-    sensors = db.relationship(
-        "Sensor",
-        secondary="timed_belief",
-        backref=db.backref("data_sources", lazy="select"),
-        viewonly=True,
-    )
+    @property
+    def sensors(self) -> list:
+        """Return all Sensor objects that have beliefs recorded by this data source.
+
+        Uses a two-step subquery (distinct sensor IDs → Sensor rows) so that
+        it scales to very large timed_belief tables without fetching every belief row.
+        Mirrors the approach of ``Sensor.data_sources``.
+        """
+        from flexmeasures.data.models.time_series import Sensor, TimedBelief
+
+        sensor_id_subq = (
+            select(TimedBelief.sensor_id)
+            .where(TimedBelief.source_id == self.id)
+            .distinct()
+            .subquery()
+        )
+        return db.session.scalars(
+            select(Sensor).where(Sensor.id.in_(select(sensor_id_subq)))
+        ).all()
 
     _data_generator: ClassVar[DataGenerator | None] = None
 
@@ -448,20 +462,21 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     @cached_property
     def as_dict(self) -> dict:
-        model_incl_version = self.model if self.model else ""
-        if self.model and self.version:
-            model_incl_version += f" (v{self.version})"
-        if "forecast" in self.type.lower():
+        raw_type = self.type or ""
+        if "forecast" in raw_type.lower():
             _type = "forecaster"  # e.g. 'forecaster' or 'forecasting script'
-        elif "schedul" in self.type.lower():  # e.g. 'scheduler' or 'scheduling script'
+        elif "schedul" in raw_type.lower():  # e.g. 'scheduler' or 'scheduling script'
             _type = "scheduler"
         else:
             _type = "other"
         return dict(
             id=self.id,
             name=self.name,
-            model=model_incl_version,
+            model=self.model or "",
+            version=self.version or "",
             type=_type,
+            raw_type=raw_type,
+            display_type=_type if _type != "other" else raw_type or "other",
             description=self.description,
         )
 

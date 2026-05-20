@@ -12,10 +12,9 @@ from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required, current_user
-from marshmallow import fields, Schema, ValidationError
+from marshmallow import fields, Schema, ValidationError, validates_schema
 import marshmallow.validate as validate
 from rq.job import Job, JobStatus, NoSuchJobError
-import timely_beliefs as tb
 from webargs.flaskparser import use_args, use_kwargs
 from sqlalchemy import delete, select, or_
 
@@ -31,16 +30,19 @@ from flexmeasures.api.common.schemas.utils import make_openapi_compatible
 from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
     SensorDataDescriptionSchema,
     GetSensorDataSchema,
+    GetSensorDataQuerySchema,
     PostSensorDataSchema,
+    PostSensorDataRequestSchema,
 )
 from flexmeasures.api.common.schemas.sensors import SensorId  # noqa F401
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import (
     job_status_description,
-    save_and_enqueue,
+    process_sensor_data_ingestion,
 )
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
+from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AssetAuditLog
@@ -53,6 +55,7 @@ from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorSchema,
     SensorIdField,
     SensorDataFileSchema,
+    SensorDataFileRequestSchema,
 )
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
@@ -64,6 +67,7 @@ from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.data.schemas.scheduling import GetScheduleSchema
 from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.data.services.sensors import get_sensor_stats
+from flexmeasures.data.services.sensors import delete_sensor as delete_sensor_and_data
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
@@ -83,6 +87,60 @@ sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 annotation_schema = AnnotationSchema()
 
+
+REGRESSOR_CONFIG_FIELDS = {
+    "future-regressors": {
+        "schema_field_name": "future_regressors",
+        "label": "{'json': {'config': 'future-regressors'}}",
+    },
+    "past-regressors": {
+        "schema_field_name": "past_regressors",
+        "label": "{'json': {'config': 'past-regressors'}}",
+    },
+    "regressors": {
+        "schema_field_name": "regressors",
+        "label": "{'json': {'config': 'regressors'}}",
+    },
+}
+
+
+def regressors_loader(config: dict | None) -> dict[str, list[Sensor]]:
+    """Extract regressor sensors from the forecasting config for permission checking.
+
+    :param config:  Deserialized forecasting config (output of TrainPredictPipelineConfigSchema),
+                    which already contains resolved Sensor objects for regressor fields.
+    :returns:       Mapping of request field name to referenced Sensor objects, or an empty
+                    dict if no config or no regressors are specified.
+    """
+    if not config:
+        return {}
+
+    sensors_by_id = {
+        sensor.id: sensor
+        for regressor_list in [
+            config.get("future_regressors", []),
+            config.get("past_regressors", []),
+        ]
+        for sensor in regressor_list
+    }
+    request_config = (request.get_json(silent=True) or {}).get("config", {})
+
+    regressors_by_field = {}
+    for request_field_name, field_info in REGRESSOR_CONFIG_FIELDS.items():
+        if request_config:
+            field_sensor_ids = request_config.get(request_field_name, [])
+            field_sensors = [
+                sensors_by_id[sensor_id]
+                for sensor_id in field_sensor_ids
+                if sensor_id in sensors_by_id
+            ]
+        else:
+            field_sensors = config.get(field_info["schema_field_name"], [])
+        if field_sensors:
+            regressors_by_field[field_info["label"]] = field_sensors
+    return regressors_by_field
+
+
 # Create ForecasterParametersSchema OpenAPI compatible schema
 EXCLUDED_FORECASTING_FIELDS = [
     # todo: hide these in the config schema instead
@@ -95,6 +153,56 @@ forecasting_trigger_schema_openAPI = make_openapi_compatible(ForecastingTriggerS
     exclude=EXCLUDED_FORECASTING_FIELDS
     + ["sensor"],
 )
+
+
+class DeleteSensorDataSchema(Schema):
+    """Schema for the request body of the DELETE /sensors/<id>/data endpoint.
+
+    Validates that ``until`` is not before ``start``, and for non-instantaneous sensors,
+    that ``until`` is at least one sensor resolution later than ``start``.
+    The sensor must be provided via schema context (``context["sensor"]``).
+    """
+
+    source = SourceIdField(
+        required=False,
+        metadata=dict(
+            description="ID of the data source to delete data for. If not provided, data from all sources is deleted.",
+        ),
+    )
+    start = AwareDateTimeField(
+        required=False,
+        metadata=dict(
+            description="Only delete data with event start at or after this datetime (ISO 8601).",
+        ),
+    )
+    until = AwareDateTimeField(
+        required=False,
+        metadata=dict(
+            description="Only delete data with event end at or before this datetime (ISO 8601).",
+        ),
+    )
+
+    @validates_schema
+    def validate_time_window(self, data, **kwargs):
+        """Validate start/until consistency against each other and the sensor resolution."""
+        start = data.get("start")
+        until = data.get("until")
+        if start is None or until is None:
+            return
+        if until < start:
+            raise ValidationError({"until": ["'until' must not be before 'start'."]})
+        sensor = self.context.get("sensor")
+        if sensor is not None:
+            resolution = sensor.event_resolution
+            if resolution > timedelta(0) and until < start + resolution:
+                raise ValidationError(
+                    {
+                        "until": [
+                            f"For a sensor with resolution {resolution}, 'until' must be"
+                            f" at least one resolution step ({resolution}) after 'start'."
+                        ]
+                    }
+                )
 
 
 class SensorKwargsSchema(Schema):
@@ -146,6 +254,7 @@ class TriggerScheduleKwargsSchema(Schema):
     )
     flex_model = fields.Dict(
         data_key="flex-model",
+        load_default={},
         metadata=dict(
             description="The flex-model is validated according to the scheduler's `FlexModelSchema`.",
         ),
@@ -153,6 +262,7 @@ class TriggerScheduleKwargsSchema(Schema):
     flex_context = fields.Dict(
         required=False,
         data_key="flex-context",
+        load_default={},
         metadata=dict(
             description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
         ),
@@ -388,19 +498,21 @@ class SensorAPI(FlaskView):
 
     @route("<id>/data/upload", methods=["POST"])
     @use_args(
-        SensorDataFileSchema(), location="combined_sensor_data_upload", as_kwargs=True
+        SensorDataFileRequestSchema(),
+        location="combined_sensor_data_upload",
+        as_kwargs=True,
     )
     @permission_required_for_context(
         "create-children",
-        ctx_arg_name="data",
-        ctx_loader=lambda data: data[0].sensor if data else None,
-        pass_ctx_to_loader=True,
+        ctx_arg_name="sensor",
     )
     def upload_data(
         self,
-        data: list[tb.BeliefsDataFrame],
+        sensor: Sensor,
+        uploaded_files: list,
         filenames: list[str],
         unit: str | None = None,
+        belief_time_measured_instantly: bool | None = None,
         **kwargs,
     ):
         """
@@ -417,6 +529,8 @@ class SensorAPI(FlaskView):
             The resolution of the data has to match the sensor's required resolution, but
             FlexMeasures will attempt to upsample lower resolutions.
             The list of values may include null values.
+            The request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
+            (3 MiB by default).
 
           security:
             - ApiKeyAuth: []
@@ -433,6 +547,8 @@ class SensorAPI(FlaskView):
                   uploaded-files:
                     contentType: application/octet-stream
           responses:
+            202:
+              description: ACCEPTED
             200:
               description: PROCESSED
               content:
@@ -487,33 +603,52 @@ class SensorAPI(FlaskView):
               description: UNAUTHORIZED
             403:
               description: INVALID_SENDER
+            413:
+              description: PAYLOAD_TOO_LARGE
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
             - Sensors
         """
-        sensor = data[0].sensor
-
         AssetAuditLog.add_record(
             sensor.generic_asset,
             f"Data from {join_words_into_a_list(filenames)} uploaded to sensor '{sensor.name}': {sensor.id}",
         )
-        response, code = save_and_enqueue(data)
+        files_for_job = []
+        for file in uploaded_files:
+            files_for_job.append(
+                dict(
+                    filename=file.filename,
+                    content_type=file.content_type,
+                    content=file.read(),
+                )
+            )
+        upload_data = {
+            "belief-time-measured-instantly": (
+                "on" if belief_time_measured_instantly else "off"
+            ),
+        }
+        if unit is not None:
+            upload_data["unit"] = unit
+        response, code = process_sensor_data_ingestion(
+            sensor_id=sensor.id,
+            user_id=current_user.id,
+            uploaded_files=files_for_job,
+            upload_data=upload_data,
+        )
         return response, code
 
     @route("/<id>/data", methods=["POST"])
     @use_args(
-        PostSensorDataSchema(),
+        PostSensorDataRequestSchema(),
         location="combined_sensor_data_description",
         as_kwargs=True,
     )
     @permission_required_for_context(
         "create-children",
-        ctx_arg_name="bdf",
-        ctx_loader=lambda bdf: bdf.sensor,
-        pass_ctx_to_loader=True,
+        ctx_arg_name="sensor",
     )
-    def post_data(self, id: int, bdf: tb.BeliefsDataFrame):
+    def post_data(self, id: int, sensor: Sensor, sensor_data: dict):
         """
         .. :quickref: Data; Post sensor data
         ---
@@ -530,6 +665,8 @@ class SensorAPI(FlaskView):
             The resolution of the data has to match the sensor's required resolution, but
             FlexMeasures will attempt to upsample lower resolutions.
             The list of values may include null values.
+            The request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
+            (3 MiB by default).
 
           security:
             - ApiAuthKey: []
@@ -551,6 +688,8 @@ class SensorAPI(FlaskView):
                       "duration": "PT1H"
                       "unit": "m³/h"
           responses:
+            202:
+              description: ACCEPTED
             200:
               description: PROCESSED
             400:
@@ -559,12 +698,18 @@ class SensorAPI(FlaskView):
               description: UNAUTHORIZED
             403:
               description: INVALID_SENDER
+            413:
+              description: PAYLOAD_TOO_LARGE
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
             - Sensors
         """
-        response, code = save_and_enqueue(bdf)
+        response, code = process_sensor_data_ingestion(
+            sensor_id=sensor.id,
+            user_id=current_user.id,
+            sensor_data=sensor_data,
+        )
         return response, code
 
     @route("/<id>/data", methods=["GET"])
@@ -588,7 +733,9 @@ class SensorAPI(FlaskView):
             - "resolution" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))
             - "horizon" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))
             - "prior" (the belief timing docs also apply here)
-            - "source" (read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))
+            - "source" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))
+            - "source-account" (filter by the account ID linked to data sources)
+            - "source-type" (filter by data source type)
 
             An example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m³/h:
 
@@ -605,7 +752,7 @@ class SensorAPI(FlaskView):
               required: true
               schema: SensorId
             - in: query
-              schema: SensorDataTimingDescriptionSchema
+              schema: GetSensorDataQuerySchema
 
           responses:
             200:
@@ -634,6 +781,18 @@ class SensorAPI(FlaskView):
     )
     @use_kwargs(TriggerScheduleKwargsSchema, location="json")
     @permission_required_for_context("create-children", ctx_arg_name="sensor")
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_model",
+        ctx_loader=flex_model_loader,
+        pass_ctx_to_loader=True,
+    )
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_context",
+        ctx_loader=flex_context_loader,
+        pass_ctx_to_loader=True,
+    )
     def trigger_schedule(
         self,
         sensor: Sensor,
@@ -1348,42 +1507,20 @@ class SensorAPI(FlaskView):
             - Sensors
         """
 
-        """Delete time series data."""
-        db.session.execute(delete(TimedBelief).filter_by(sensor_id=sensor.id))
-
-        AssetAuditLog.add_record(
-            sensor.generic_asset, f"Deleted sensor '{sensor.name}': {sensor.id}"
-        )
-
         sensor_name = sensor.name
-        AssetAuditLog.add_record(
-            sensor.generic_asset,
-            f"Deleted sensor '{sensor_name}': {id}",
-        )
-        db.session.execute(delete(Sensor).filter_by(id=sensor.id))
+        delete_sensor_and_data(sensor)
         db.session.commit()
         current_app.logger.info("Deleted sensor '%s'." % sensor_name)
         return {}, 204
 
     @route("/<id>/data", methods=["DELETE"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")
-    @use_kwargs(
-        {
-            "source": SourceIdField(load_default=None),
-            "start": AwareDateTimeField(load_default=None),
-            "until": AwareDateTimeField(load_default=None),
-        },
-        location="json",
-    )
     @permission_required_for_context("delete", ctx_arg_name="sensor")
     @as_json
     def delete_data(
         self,
         id: int,
         sensor: Sensor,
-        source=None,
-        start=None,
-        until=None,
     ):
         """
         .. :quickref: Sensors; Delete sensor data
@@ -1406,20 +1543,7 @@ class SensorAPI(FlaskView):
             required: false
             content:
               application/json:
-                schema:
-                  type: object
-                  properties:
-                    source:
-                      type: integer
-                      description: ID of the data source to delete data for. If not provided, data from all sources is deleted.
-                    start:
-                      type: string
-                      format: date-time
-                      description: Only delete data with event start at or after this datetime (ISO 8601).
-                    until:
-                      type: string
-                      format: date-time
-                      description: Only delete data with event start before this datetime (ISO 8601).
+                schema: DeleteSensorDataSchema
           responses:
             204:
               description: SENSOR_DATA_DELETED
@@ -1434,13 +1558,30 @@ class SensorAPI(FlaskView):
           tags:
             - Sensors
         """
+        schema = DeleteSensorDataSchema()
+        schema.context = {"sensor": sensor}
+        try:
+            body = schema.load(request.get_json(silent=True) or {})
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+
+        source = body.get("source")
+        start = body.get("start")
+        until = body.get("until")
+
         query = delete(TimedBelief).where(TimedBelief.sensor_id == sensor.id)
         if source is not None:
             query = query.where(TimedBelief.source_id == source.id)
         if start is not None:
             query = query.where(TimedBelief.event_start >= start)
         if until is not None:
-            query = query.where(TimedBelief.event_start < until)
+            # "until" means the event must end at or before this datetime.
+            # Event end = event_start + sensor.event_resolution, so the condition is:
+            #   event_start + resolution <= until  ⟺  event_start <= until - resolution
+            # For instantaneous sensors (resolution = 0) this becomes event_start <= until.
+            query = query.where(
+                TimedBelief.event_start <= until - sensor.event_resolution
+            )
         db.session.execute(query)
 
         audit_message = f"Deleted data for sensor '{sensor.name}': {sensor.id}"
@@ -1586,14 +1727,14 @@ class SensorAPI(FlaskView):
                       summary: Successful response
                       description: A successful response with sensor status data
                       value:
-                        - staleness: "2 hours"
+                        - staleness: "PT2H"
                           stale: true
                           staleness_since: "2024-01-15T14:30:00+00:00"
                           reason: "data is outdated"
                           source_type: "forecast"
                           id: 64907
                           name: "temperature"
-                          resolution: "5 minutes"
+                          resolution: "PT5M"
                           asset_name: "Building A"
                           relation: "sensor belongs to this asset"
             400:
@@ -1624,6 +1765,12 @@ class SensorAPI(FlaskView):
         as_kwargs=True,
     )
     @permission_required_for_context("create-children", ctx_arg_name="sensor_to_save")
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="config",
+        ctx_loader=regressors_loader,
+        pass_ctx_to_loader=True,
+    )
     def trigger_forecast(self, id: int, **params):
         """
         .. :quickref: Forecasts; Trigger forecasting job for one sensor
@@ -1927,7 +2074,6 @@ class SensorAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           requestBody:
             content:
               application/json:

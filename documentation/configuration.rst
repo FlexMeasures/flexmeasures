@@ -347,6 +347,14 @@ Set a negative value to persist forever.
 
 Default: ``3600``
 
+FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Maximum request body size for sensor data posted to the sensor data API, both for JSON data and file uploads.
+Set to ``None`` to disable this FlexMeasures-specific limit.
+
+Default: ``3 * 1024 * 1024``
+
 .. _datasource_config:
 
 FLEXMEASURES_DEFAULT_DATASOURCE
@@ -682,13 +690,18 @@ Default: ``None``
 
 
 .. _monitoring_mail_recipients:
+.. _default_monitoring_mail_recipients:
 
-FLEXMEASURES_MONITORING_MAIL_RECIPIENTS
-^^^^^^^^^^^^^^^^^^^^^^^
+FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-E-mail addresses to send monitoring alerts to from the CLI task ``flexmeasures monitor tasks``. For example ``["fred@one.com", "wilma@two.com"]``
+E-mail addresses to send monitoring alerts to from the CLI tasks ``flexmeasures monitor latest-run`` and ``flexmeasures monitor last-seen`` if no explicit user recipients are given. For example ``["fred@one.com", "wilma@two.com"]``.
 
 Default: ``[]``
+
+.. deprecated:: 0.33
+
+    ``FLEXMEASURES_MONITORING_MAIL_RECIPIENTS`` is deprecated. Use ``FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS`` instead.
 
 
 .. _redis-config:

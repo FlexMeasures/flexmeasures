@@ -3,23 +3,23 @@
 {% block title %} Your User Overview {% endblock %}
 {% block divs %}
 
-<div class="container-fluid">
-  <div class="row">
-    <div class="col-md-2 on-top-md">
+{% block breadcrumbs %} {{ super() }} {% endblock %}
+
+<div class="container-fluid px-0">
+  <div class="row gx-0">
+    <div class="col-md-2 col-action-left">
       <div class="header-action-button mt-3">
-        <div class="user-action-button">
-          <button class="btn btn-sm btn-responsive btn-info" type="submit">
-            <a href="/logout">Log Out</a>
-          </button>
+        <div>
+          <a href="/logout" class="btn btn-sm btn-responsive btn-info nav-button">Log out</a>
         </div>
-        <div class="user-action-button">
-          <button class="btn btn-sm btn-info" type="submit">
-            <a href="/users/reset_password_for/{{ logged_in_user.id }}" title="Reset the password and send instructions how to choose a new one.">Reset password</a>
-          </button>
+        <div>
+          <a href="/users/reset_password_for/{{ logged_in_user.id }}"
+             class="btn btn-sm btn-info delete-button"
+             title="Reset the password and send instructions how to choose a new one.">Reset password</a>
         </div>
       </div>
     </div>
-    <div class="col-md-8 mt-4">
+    <div class="col-md-8">
       <div class="card user-data-table">
         <h2>User Overview</h2>
         <small>Logged-in user: {{ logged_in_user.username }}</small>
@@ -75,19 +75,23 @@
       </div>
       </div>
     </div>
-    <div class="col-md-2">
-      {% if can_view_account_auditlog %}
-      <form action="/accounts/auditlog/{{ logged_in_user.account.id }}" method="get" class="bt-md-0 mb-3 mt-3">
-        <button class="btn btn-sm btn-responsive btn-info" type="submit"
-         title="View history of account actions.">Account audit log</button>
-      </form>
-      {% endif %}
-      {% if can_view_user_auditlog %}
-      <form action="/users/auditlog/{{ logged_in_user.id }}" method="get" class="mb-md-0 mb-3 mt-3">
-          <button class="btn btn-sm btn-responsive btn-info" type="submit"
-          title="View history of user actions.">User audit log</button>
-      </form>
-      {% endif %}
+    <div class="col-md-2 col-action-right">
+      <div class="header-action-button mt-3">
+        {% if can_view_account_auditlog %}
+        <div>
+          <a href="/accounts/auditlog/{{ logged_in_user.account.id }}"
+             class="btn btn-sm btn-responsive btn-info bt-md-0 mb-3 d-inline-block nav-button"
+             title="View history of account actions.">Account audit log</a>
+        </div>
+        {% endif %}
+        {% if can_view_user_auditlog %}
+        <div>
+          <a href="/users/auditlog/{{ logged_in_user.id }}"
+             class="btn btn-sm btn-responsive btn-info mb-md-0 mb-3 d-inline-block nav-button"
+             title="View history of user actions.">User audit log</a>
+        </div>
+        {% endif %}
+      </div>
     </div>
     
   </div>

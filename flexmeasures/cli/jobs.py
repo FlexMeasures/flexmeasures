@@ -104,7 +104,6 @@ def stats(window: int):
     L_i = []
     rows = []
     for queue_name, rq_queue in app.queues.items():
-
         # Lq = current queue length
         Lq = rq_queue.count
 
@@ -292,7 +291,7 @@ def run_job(job_id: str):
     "--queue",
     default=None,
     required=True,
-    help="State which queue(s) to work on (using '|' as separator), e.g. 'forecasting', 'scheduling' or 'forecasting|scheduling'.",
+    help="State which queue(s) to work on (using '|' as separator), e.g. 'forecasting', 'scheduling', 'ingestion' or 'forecasting|scheduling'.",
 )
 @click.option(
     "--name",
@@ -300,9 +299,18 @@ def run_job(job_id: str):
     required=False,
     help="Give your worker a recognizable name. Defaults to random string. Defaults to fm-worker-<randomstring>",
 )
-def run_worker(queue: str, name: str | None):
+@click.option(
+    "--with-scheduler/--without-scheduler",
+    "with_scheduler",
+    default=True,
+    help=(
+        "Enable RQ's embedded scheduler so jobs queued with enqueue_in run when due. "
+        "Default: enabled. Use --without-scheduler to disable."
+    ),
+)
+def run_worker(queue: str, name: str | None, with_scheduler: bool):
     """
-    Start a worker process for forecasting and/or scheduling jobs.
+    Start a worker process for forecasting, scheduling and/or ingestion jobs.
 
     We use the app context to find out which redis queues to use.
     """
@@ -358,9 +366,13 @@ def run_worker(queue: str, name: str | None):
     )
     for q in q_list:
         click.echo("Running against %s on %s" % (q, q.connection))
+    click.echo(
+        "RQ embedded scheduler: %s (enqueue_in jobs)"
+        % ("on" if with_scheduler else "off")
+    )
     click.echo("=========================================================\n")
 
-    worker.work()
+    worker.work(with_scheduler=with_scheduler)
 
 
 @fm_jobs.command("show-queues")
