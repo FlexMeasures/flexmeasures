@@ -484,7 +484,7 @@
       },
       "post": {
         "summary": "Post sensor data",
-        "description": "Send data values via JSON, where the duration and number of values determine the resolution.\n\nThe example request posts four values for a duration of one hour, where the first\nevent start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.\n\nThe sensor is the one with ID=1.\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to upsample lower resolutions.\nThe list of values may include null values.\n",
+        "description": "Send data values via JSON, where the duration and number of values determine the resolution.\n\nThe example request posts four values for a duration of one hour, where the first\nevent start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.\n\nThe sensor is the one with ID=1.\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to upsample lower resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
         "security": [
           {
             "ApiAuthKey": []
@@ -526,6 +526,9 @@
           }
         },
         "responses": {
+          "202": {
+            "description": "ACCEPTED"
+          },
           "200": {
             "description": "PROCESSED"
           },
@@ -537,6 +540,9 @@
           },
           "403": {
             "description": "INVALID_SENDER"
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE"
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
@@ -1521,7 +1527,7 @@
     "/api/v3_0/sensors/{id}/data/upload": {
       "post": {
         "summary": "Upload sensor data by file",
-        "description": "The file should have columns for a timestamp (event_start) and a value (event_value).\nThe timestamp should be in ISO 8601 format.\nThe value should be a numeric value.\n\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to upsample lower resolutions.\nThe list of values may include null values.\n",
+        "description": "The file should have columns for a timestamp (event_start) and a value (event_value).\nThe timestamp should be in ISO 8601 format.\nThe value should be a numeric value.\n\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to upsample lower resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1552,6 +1558,9 @@
           }
         },
         "responses": {
+          "202": {
+            "description": "ACCEPTED"
+          },
           "200": {
             "description": "PROCESSED",
             "content": {
@@ -1622,6 +1631,9 @@
           },
           "403": {
             "description": "INVALID_SENDER"
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE"
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
