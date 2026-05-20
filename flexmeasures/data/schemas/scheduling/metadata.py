@@ -186,11 +186,29 @@ The field may define (a sensor recording) contractual penalties, or a theoretica
 
 
 CONSUMPTION = MetaData(
-    description="Sensor used to record the scheduled consumption.",
+    description="""Sensor used to record the scheduled power as seen from a consumption perspective.
+
+The sign convention is determined by the key name, so the sensor itself does not need a ``consumption_is_positive`` attribute.
+
+Depending on which output sensors are defined:
+
+- **Only** ``consumption`` **defined**: the full power schedule is stored on this sensor using the
+  standard FlexMeasures sign convention (consumption positive, production negative).
+- **Only** ``production`` **defined**: the full power schedule is stored on the production sensor
+  with the sign inverted (production positive, consumption negative).
+- **Both defined**: only the non-negative part of the schedule is stored on this sensor (zero for
+  time steps with net production), and only the non-positive part (sign-flipped) is stored on the
+  production sensor.
+""",
     example={"sensor": 14},
 )
 PRODUCTION = MetaData(
-    description="Sensor used to record the scheduled production.",
+    description="""Sensor used to record the scheduled power as seen from a production perspective.
+
+The sign convention is determined by the key name, so the sensor itself does not need a ``consumption_is_positive`` attribute.
+
+See ``consumption`` for the full description of the split logic when both sensors are defined.
+""",
     example={"sensor": 15},
 )
 STATE_OF_CHARGE = MetaData(
