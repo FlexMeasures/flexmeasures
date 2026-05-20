@@ -737,10 +737,12 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                         bdf = bdf.resample_events(
                             sensor.event_resolution,
                             method="sum",
+                            keep_only_most_recent_belief=True,
                         )
                     else:
                         bdf = bdf.resample_events(
                             sensor.event_resolution,
+                            keep_only_most_recent_belief=True,
                         )
                 dfs.append(bdf)
             except Exception as e:
