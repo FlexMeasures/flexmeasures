@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from flask_login import current_user
 from isodate import datetime_isoformat
-from marshmallow import fields, post_load, validates_schema, ValidationError
+from marshmallow import fields, post_load, pre_load, validates_schema, ValidationError
 from marshmallow.validate import OneOf, Length
 from marshmallow_polyfield import PolyField
 from timely_beliefs import BeliefsDataFrame
@@ -185,6 +185,11 @@ class GetSensorDataFilterSchemaMixin:
             example="forecaster",
         ),
     )
+
+    @pre_load
+    def support_legacy_field_name(self, data, **kwargs):
+        """Accept old snake_case input for backwards compatibility."""
+        return {key.replace("_", "-"): value for key, value in data.items()}
 
 
 class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionSchema):
