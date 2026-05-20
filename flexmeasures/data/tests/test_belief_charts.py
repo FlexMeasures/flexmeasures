@@ -312,8 +312,10 @@ def test_fixed_value_sensor_unit_matches_flex_model(battery_with_soc_flex_model)
             )
 
 
-def test_bar_chart_uses_source_legend_label_without_ids(battery_with_soc_flex_model):
-    """Duplicate source-name labels should be distinguished without showing IDs."""
+def test_bar_chart_uses_source_legend_label_with_id_fallback(
+    battery_with_soc_flex_model,
+):
+    """Duplicate source-name labels should use IDs only as a last resort."""
     _, soc_sensor = battery_with_soc_flex_model
 
     start = datetime(2015, 1, 1, tzinfo=pytz.utc)
@@ -339,7 +341,7 @@ def test_bar_chart_uses_source_legend_label_without_ids(battery_with_soc_flex_mo
     assert "source.display_type" in display_type_transform["calculate"]
     assert "source.raw_type" in display_type_transform["calculate"]
     assert any(
-        transform.get("as") == "source_type_model_version_detail"
+        transform.get("as") == "source_version_detail"
         and "source.version" in transform["calculate"]
         for transform in transforms
     )
@@ -349,8 +351,8 @@ def test_bar_chart_uses_source_legend_label_without_ids(battery_with_soc_flex_mo
         for transform in transforms
         if transform.get("as") == "source_legend_label"
     )
-    assert "ID:" not in legend_label_transform["calculate"]
-    assert "source.id" not in legend_label_transform["calculate"]
+    assert "ID:" in legend_label_transform["calculate"]
+    assert "source.id" in legend_label_transform["calculate"]
 
     tooltip_id_transform = next(
         transform
@@ -394,10 +396,10 @@ def test_source_legend_label_transform_renders_short_non_id_labels():
         "Unique",
         "FlexMeasures (forecaster)",
         "FlexMeasures (reporter)",
-        "Seita (reporter ModelA)",
-        "Seita (reporter ModelB)",
-        "Acme (reporter Shared v1)",
-        "Acme (reporter Shared v2)",
+        "Seita (ModelA)",
+        "Seita (ModelB)",
+        "Acme (v1)",
+        "Acme (v2)",
     ]
     assert "(" not in texts[0]
     assert all("(" in text and ")" in text for text in texts[1:])
@@ -449,18 +451,18 @@ def test_source_legend_label_transform_handles_sparse_source_metadata():
     )
 
     assert texts == [
-        "NoModel (reporter v1)",
-        "NoModel (reporter v2)",
+        "NoModel (v1)",
+        "NoModel (v2)",
         "ModelOnly (ModelA)",
         "ModelOnly (ModelB)",
         "OldData (scheduler)",
         "OldData (other)",
-        "NoDetails",
-        "NoDetails",
+        "NoDetails (ID: 7)",
+        "NoDetails (ID: 8)",
     ]
     assert all("undefined" not in text for text in texts)
     assert all("()" not in text for text in texts)
-    assert all("ID:" not in text for text in texts)
+    assert all("ID:" not in text for text in texts[:-2])
 
 
 def test_chart_styling_still_uses_normalized_source_type(battery_with_soc_flex_model):
