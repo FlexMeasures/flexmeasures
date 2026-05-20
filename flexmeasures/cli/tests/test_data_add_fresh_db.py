@@ -533,4 +533,3 @@ def test_add_storage_schedule_uses_state_of_charge_sensor_for_soc_at_start(
         Sensor, consumption_output_sensor.id
     )
     assert len(consumption_output_sensor.search_beliefs()) == 48
-

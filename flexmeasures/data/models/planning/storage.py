@@ -1796,9 +1796,11 @@ class StorageScheduler(MetaStorageScheduler):
             }
             consumption_production_schedules = [
                 {
-                    "name": "consumption_schedule"
-                    if sensor in consumption_output_sensors
-                    else "production_schedule",
+                    "name": (
+                        "consumption_schedule"
+                        if sensor in consumption_output_sensors
+                        else "production_schedule"
+                    ),
                     "data": data,
                     "sensor": sensor,
                     "unit": sensor.unit,

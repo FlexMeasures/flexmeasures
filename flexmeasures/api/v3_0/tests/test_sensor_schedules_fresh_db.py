@@ -283,9 +283,7 @@ def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
     # Verify the production output sensor received schedule data.
     # Only the production sensor is defined (no consumption sensor), so the full power profile
     # is stored with inverted sign: production as positive, consumption as negative.
-    production_output_sensor = fresh_db.session.get(
-        Sensor, production_output_sensor.id
-    )
+    production_output_sensor = fresh_db.session.get(Sensor, production_output_sensor.id)
     production_beliefs = production_output_sensor.search_beliefs(
         event_starts_after=parse_datetime(message["start"])
     )
