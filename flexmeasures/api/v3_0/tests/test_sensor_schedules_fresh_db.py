@@ -203,6 +203,73 @@ def test_trigger_and_get_schedule(
 
 
 @pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    battery_soc_sensor_fresh_db,
+    setup_sources_fresh_db,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    message = message_for_trigger_schedule(resolution="PT1H")
+    message["flex-context"] = {
+        "consumption-price": {"sensor": add_market_prices_fresh_db["epex_da"].id},
+        "production-price": {"sensor": add_market_prices_fresh_db["epex_da"].id},
+        "site-power-capacity": "1 TW",
+    }
+    message["flex-model"]["state-of-charge"] = {
+        "sensor": battery_soc_sensor_fresh_db.id
+    }
+    message["flex-model"].pop("soc-at-start")
+
+    fresh_db.session.add(
+        TimedBelief(
+            sensor=battery_soc_sensor_fresh_db,
+            source=setup_sources_fresh_db["Seita"],
+            event_start=parse_datetime(message["start"]),
+            belief_horizon=timedelta(0),
+            event_value=50,
+        )
+    )
+    fresh_db.session.commit()
+
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == "Test battery")
+        .one_or_none()
+    )
+
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+        assert trigger_schedule_response.status_code == 200
+        job_id = trigger_schedule_response.json["schedule"]
+
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+    with app.test_client() as client:
+        get_soc_schedule_response = client.get(
+            url_for(
+                "SensorAPI:get_schedule", id=battery_soc_sensor_fresh_db.id, uuid=job_id
+            ),
+            query_string={"duration": "PT24H"},
+        )
+        assert get_soc_schedule_response.status_code == 200
+        assert get_soc_schedule_response.json["unit"] == "%"
+        assert get_soc_schedule_response.json["values"][0] == 50
+
+    sensor = fresh_db.session.get(Sensor, sensor.id)
+    assert sensor.generic_asset.get_attribute("soc_in_mwh") == pytest.approx(0.02)
+
+
+@pytest.mark.parametrize(
     "context_sensor, asset_sensor, parent_sensor, expect_sensor",
     [
         # Only context sensor present, use it

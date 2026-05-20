@@ -163,12 +163,12 @@ Code that bypasses pre-commit:
 
 **Who runs pre-commit:**
 - **During code changes**: Agent making changes runs pre-commit before committing
-- **Before PR close**: Review Lead verifies pre-commit execution
+- **Before PR close**: Lead verifies pre-commit execution
 - **In PR review**: Tooling & CI Specialist validates config matches CI
 
 **Enforcement:**
-- Review Lead's session close checklist includes pre-commit verification
-- Review Lead cannot close session without pre-commit evidence
+- Lead's session close checklist includes pre-commit verification
+- Lead cannot close session without pre-commit evidence
 - If pre-commit fails, agent must fix all issues before proceeding
 
 #### Common Failures and Fixes
@@ -206,9 +206,9 @@ black .
 ci/run_mypy.sh
 ```
 
-#### Integration with Review Lead
+#### Integration with Lead
 
-**Review Lead checklist items:**
+**Lead checklist items:**
 - [ ] Pre-commit hooks installed
 - [ ] All hooks pass: `pre-commit run --all-files`
 - [ ] Zero failures from flake8, black, mypy
@@ -219,7 +219,7 @@ ci/run_mypy.sh
 - Or confirm: "Pre-commit verified: all hooks passed"
 
 **Enforcement:**
-Review Lead MUST verify pre-commit execution before closing session.
+Lead MUST verify pre-commit execution before closing session.
 
 ### Agent Environment Setup
 
@@ -420,6 +420,15 @@ pytest -k test_auth_token  # Ensure auth setup runs
 - Document new CI patterns
 - Update checklist based on real issues
 - Refine guidance on caching and optimization
+
+### Lessons Learned
+
+#### `uv sync --locked` fails after `uv lock --upgrade` (PR #2148)
+
+- **Symptom**: `uv sync --locked` fails with "needs to be updated, but `--locked` was provided" even after running `uv lock`
+- **Root cause**: New packages (e.g. `numba`/`llvmlite`) introduce fork markers with impossible platform combos (e.g. `os_name == 'nt' AND sys_platform == 'darwin'`), causing coverage check to fail
+- **Fix**: Add `[tool.uv] environments` to `pyproject.toml` limiting resolution to actual target platforms, then regenerate `uv.lock`
+- **Verification**: After any significant `uv lock --upgrade`, run `uv sync --locked` locally and confirm exit code 0
 
 ### Continuous Improvement
 

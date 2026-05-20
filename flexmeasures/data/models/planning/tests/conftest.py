@@ -102,8 +102,7 @@ def building(db, setup_accounts, setup_markets) -> GenericAsset:
         select(GenericAssetType).filter_by(name="building")
     ).scalar_one_or_none()
     if not building_type:
-        # create_test_battery_assets might have created it already
-        building_type = GenericAssetType(name="battery")
+        building_type = GenericAssetType(name="building")
     db.session.add(building_type)
     building = GenericAsset(
         name="building",

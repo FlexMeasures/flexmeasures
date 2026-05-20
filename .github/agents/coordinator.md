@@ -99,6 +99,7 @@ This agent owns the creation, structure, and evolution of all other agents.
 6. **Documentation & Developer Experience Specialist** - Project understandability
 7. **Tooling & CI Specialist** - Automation reliability and maintainability
 8. **Lead** - Main entry point; orchestrates agents for reviews, development, and mixed tasks
+9. **UI Specialist** - Flask/Jinja2 templates, side-panel pattern, permission gating in views, JS fetch→poll→Toast→reload pattern, UI tests
 
 ### Standard Agent Template
 
@@ -173,98 +174,90 @@ The Coordinator has researched the FlexMeasures codebase and identified:
 
 #### Schema Migration Patterns
 
-**Context**: FlexMeasures uses Marshmallow schemas with `data_key` attributes to map Python attribute names to dictionary keys. When schemas change format (e.g., kebab-case migration), all code paths handling those dictionaries must be updated.
+**Context**: FlexMeasures uses Marshmallow schemas with `data_key` attributes to map Python attribute names to dictionary keys (e.g., `as_job` → `"as-job"`). When schemas change format, all code paths handling those dicts must be updated.
 
-**Pattern: Marshmallow data_key Format Changes**
+**Code paths to check**: parameter cleaning (`Forecaster._clean_parameters`), parameter access (`.get()`/`.pop()`), DataSource.attributes, RQ job.meta, OpenAPI specs.
 
-Example from PR #1953 (kebab-case migration):
-```python
-# Marshmallow schema definition
-class ForecasterParametersSchema(Schema):
-    as_job = fields.Boolean(data_key="as-job")  # Python: as_job, Dict: "as-job"
-    sensor_to_save = SensorIdField(data_key="sensor-to-save")
+**Checklist for Schema Format Migrations**:
+- [ ] Identify all `data_key` changes (old → new format)
+- [ ] Verify parameter cleaning uses new format (grep old keys)
+- [ ] Check data source attribute format and job metadata
+- [ ] Update OpenAPI specs if needed
+
+**Key Insight**: Tests comparing data sources are integration tests. When they fail, investigate production code for format mismatches before changing tests (see PR #1953 / `_clean_parameters` kebab-case bug).
+
+#### UI Development Patterns
+
+**Context**: FlexMeasures has a growing set of interactive sensor/asset page features. Each new UI feature typically involves a Python view guard, a Jinja2 side panel, and a JS interaction pattern. Consistency across features matters for UX and maintainability.
+
+**Pattern: Permission-Gated Side Panels (PR #1985)**
+
+Structure in `sensors/index.html`:
+```jinja2
+{% if user_can_<action>_sensor %}
+  <div class="sidepanel-container">
+    <div class="left-sidepanel-label">Panel label</div>
+    <div class="sidepanel left-sidepanel" style="text-align: left;">
+      <fieldset>
+        <h3>Panel heading</h3>
+        <small>Context: {{ sensor.name }}</small>
+        {% if sensor_has_enough_data_for_<feature> %}
+          <!-- enabled button + JS -->
+        {% else %}
+          <!-- explanatory message + disabled button -->
+        {% endif %}
+      </fieldset>
+    </div>
+  </div>
+{% endif %}
 ```
 
-When schemas output dictionaries:
+**Pattern: View-Level Data Guard (Short-Circuit)**
+
 ```python
-parameters = {
-    "as-job": True,           # kebab-case (from data_key)
-    "sensor-to-save": 2,      # kebab-case (from data_key)
-    # NOT "as_job" or "sensor_to_save"
+can_create_children = user_can_create_children(sensor)  # permission first
+has_enough_data = False
+if can_create_children:
+    earliest, latest = get_timerange([sensor.id])  # DB call only if permitted
+    has_enough_data = (latest - earliest) >= timedelta(days=2)
+```
+
+**Pattern: JS Fetch → Poll → Toast → Reload**
+
+```javascript
+async function triggerFeature() {
+    button.disabled = true;
+    spinner.classList.remove('d-none');
+    showToast("Queuing job...", "info");
+    try {
+        const r = await fetch(url, { method: "POST", body: JSON.stringify(payload) });
+        if (!r.ok) { showToast("Error: " + ..., "error"); return; }
+        const jobId = (await r.json()).<field>;
+        for (let i = 0; i < maxAttempts; i++) {
+            await delay(3000);
+            const s = await fetch(pollUrl + jobId);
+            if (s.status === 200) { showToast("Done!", "success"); window.location.reload(); return; }
+            if (s.status === 202) { showToast((await s.json()).status, "info"); continue; }
+            showToast("Failed: " + ..., "error"); break;
+        }
+        if (!finished) showToast("Timed out.", "error");
+    } catch (e) {
+        showToast("Error: " + e.message, "error");
+    } finally {
+        button.disabled = false;
+        spinner.classList.add('d-none');
+    }
 }
 ```
 
-**Code Paths Affected by Schema Format Changes**:
+**Agents responsible for UI patterns**:
 
-1. **Parameter Cleaning**: Code that removes fields from parameter dictionaries
-   - Example: `Forecaster._clean_parameters` (line 111)
-   - Bug pattern: Tries to remove `"as_job"` but dict has `"as-job"`
-
-2. **Parameter Access**: Code that reads from parameter dictionaries
-   - Use: `params.get("as-job")` not `params.get("as_job")`
-   - Check all `.get()`, `[]`, `.pop()` calls
-
-3. **Data Source Creation**: Parameters stored in DataSource.attributes
-   - Must match schema output format
-   - Affects data source comparison/deduplication
-
-4. **Job Metadata**: Parameters stored in RQ job.meta
-   - Must match schema output format
-   - Affects job retrieval and comparison
-
-5. **API Documentation**: OpenAPI specs and examples
-   - Must reflect actual key format
-   - Update generated specs after schema changes
-
-**Detection Methods**:
-
-1. **Grep for snake_case keys**:
-   ```bash
-   grep -r '"as_job"' flexmeasures/
-   grep -r "'sensor_to_save'" flexmeasures/
-   ```
-
-2. **Check schema definitions**:
-   - Find all `data_key=` declarations
-   - List actual dictionary keys used
-
-3. **Test data sources**:
-   - Query: `DataSource.query.all()`
-   - Inspect: `.attributes['data_generator']['parameters']`
-   - Compare keys across different creation paths
-
-**Agent Responsibilities**:
-
-| Agent | Responsibility | When to Check |
-|-------|----------------|---------------|
-| **Test Specialist** | Detect format mismatches in test failures | Test compares data sources |
-| **API Specialist** | Verify API documentation matches format | Schema changes |
-| **Architecture Specialist** | Enforce schema-as-source-of-truth invariant | Any dict parameter usage |
-| **Lead** | Coordinate format verification across agents | Schema PRs |
-| **Coordinator** | Track pattern, update template checklist | Schema migration PRs |
-
-**Checklist for Schema Format Migrations**:
-
-When reviewing PRs that change Marshmallow schemas:
-- [ ] Identify all `data_key` changes (old → new format)
-- [ ] Find all code paths accessing those parameters
-- [ ] Verify parameter cleaning uses new format
-- [ ] Check data source attribute format
-- [ ] Verify job metadata uses new format
-- [ ] Update OpenAPI specs if needed
-- [ ] Run tests that compare data sources
-- [ ] Grep for old format keys in codebase
-
-**Session 2026-02-08 Case Study**:
-
-- **PR #1953**: Migrated parameters to kebab-case
-- **Bug**: `_clean_parameters` still used snake_case keys
-- **Result**: Parameters like `"as-job"` not removed from data sources
-- **Impact**: API and direct computation created different data sources
-- **Test**: `test_trigger_and_fetch_forecasts` correctly detected this
-- **Fix**: Updated `_clean_parameters` to use kebab-case keys
-
-**Key Insight**: Tests comparing data sources are integration tests validating consistency across code paths. When they fail, investigate production code for format mismatches before changing tests.
+| Agent | Responsibility |
+|-------|----------------|
+| **UI Specialist** | Side panel, JS interaction, permission gating, Toast usage |
+| **Test Specialist** | UI test coverage, mock strategy for `get_timerange` |
+| **API Specialist** | Verify JS payload keys match Marshmallow `data_key` attributes |
+| **Architecture Specialist** | `AuthModelMixin` usage, view layer integrity |
 
 ## Interaction Rules
 
@@ -292,30 +285,30 @@ Agents should escalate to the Coordinator when:
 - Encourage agent autonomy and expertise
 - Provide actionable feedback via review comments
 
-### Review Lead Delegation Pattern Monitoring
+### Lead Delegation Pattern Monitoring
 
-**The Coordinator MUST verify Review Lead delegation patterns during governance reviews.**
+**The Coordinator MUST verify Lead delegation patterns during governance reviews.**
 
-**Context:** Review Lead has a recurring failure mode of working solo instead of delegating to specialists (observed in session 2026-02-08).
+**Context:** Lead has a recurring failure mode of working solo instead of delegating to specialists (observed in session 2026-02-08).
 
 **What to check:**
 
-When reviewing a session where Review Lead was involved:
+When reviewing a session where Lead was involved:
 
-- [ ] **Delegation occurred**: Did Review Lead invoke appropriate specialists?
-- [ ] **No solo execution**: Did Review Lead make code/API/docs changes itself?
-- [ ] **Git commit author check**: Are there Review Lead commits with production code?
-- [ ] **Request interpretation**: Did Review Lead parse user intent correctly?
+- [ ] **Delegation occurred**: Did Lead invoke appropriate specialists?
+- [ ] **No solo execution**: Did Lead make code/API/docs changes itself?
+- [ ] **Git commit author check**: Are there Lead commits with production code?
+- [ ] **Request interpretation**: Did Lead parse user intent correctly?
 - [ ] **Regression indicators**: Any signs of "too simple to delegate" thinking?
 
 **Red flags (immediate governance concern):**
 
-- 🚩 Review Lead commits containing code changes (should be specialist commits)
-- 🚩 Review Lead commits containing test changes (should be Test Specialist)
-- 🚩 Review Lead commits containing doc changes (should be Documentation Specialist)
+- 🚩 Lead commits containing code changes (should be specialist commits)
+- 🚩 Lead commits containing test changes (should be Test Specialist)
+- 🚩 Lead commits containing doc changes (should be Documentation Specialist)
 - 🚩 User says "You are regressing" or "You must handle requests as a team"
 - 🚩 Session closed without specialist involvement on implementation tasks
-- 🚩 Review Lead justifies solo work with "too simple to delegate"
+- 🚩 Lead justifies solo work with "too simple to delegate"
 
 **Verification commands:**
 
@@ -323,48 +316,27 @@ When reviewing a session where Review Lead was involved:
 # Check who made commits
 git log --oneline --all --since="1 day ago" --format="%h %an %s"
 
-# Check Review Lead commit types
-git log --author="Review Lead" --oneline -10
+# Check Lead commit types
+git log --author="Lead" --oneline -10
 
-# Look for code changes by Review Lead (should be empty or synthesis only)
-git log --author="Review Lead" --stat -5
+# Look for code changes by Lead (should be empty or synthesis only)
+git log --author="Lead" --stat -5
 ```
 
 **When delegation failure detected:**
 
-1. **Document in session review** - What was the failure?
-2. **Check Review Lead instructions** - Were they followed?
-3. **Identify gap** - What prevented proper delegation?
-4. **Recommend fix** - How to prevent recurrence?
-5. **Update Review Lead instructions** - Add enforcement mechanism
-6. **Verify fix works** - Test with hypothetical scenario
-
-**Escalation pattern:**
-
-If Review Lead repeatedly violates delegation requirements:
-- This is a systemic issue requiring Coordinator intervention
-- Review Lead instructions need stronger enforcement
-- Consider adding mandatory checkpoints before work execution
-- May need explicit blockers to prevent solo execution
-
-**Common patterns to track:**
-
-| Pattern | Indicator | Action |
-|---------|-----------|--------|
-| Solo execution | Review Lead makes code commits | Flag as regression |
-| "Too simple" trap | Review Lead justifies not delegating | Update instructions with example |
-| Request misinterpretation | Review Lead confirms instead of implements | Strengthen request parsing guidance |
-| Delegation omission | Specialists not invoked on implementation | Verify Session Close Checklist followed |
+1. Document in session review — what failed and what prevented proper delegation
+2. Check Lead instructions — were they followed?
+3. Recommend fix and update Lead instructions with enforcement mechanism
+4. Verify fix works with a hypothetical scenario
 
 **Success indicators:**
 
-- ✅ Review Lead invoked appropriate specialists
+- ✅ Lead invoked appropriate specialists
 - ✅ Specialists made the actual changes
-- ✅ Review Lead synthesized findings
+- ✅ Lead synthesized findings
 - ✅ Team-based execution pattern maintained
 - ✅ Session Close Checklist verified delegation
-
-**This monitoring ensures Review Lead maintains its orchestration role and doesn't regress to solo execution.**
 
 ## Self-Improvement Notes
 
@@ -551,25 +523,25 @@ Lead should now invoke Coordinator as subagent.
 - Governance process shown to be optional (dangerous precedent)
 
 **Solution implemented**:
-1. ✅ Added mandatory "Session Close Checklist" to Review Lead (commit 3ad8908)
+1. ✅ Added mandatory "Session Close Checklist" to Lead (commit 3ad8908)
 2. ✅ Added "Full Test Suite Requirement" to Test Specialist (commit 8d67f3c)
 3. ✅ Added "Pre-commit Hook Enforcement" to Tooling & CI Specialist (commit dfe67e8)
 4. ✅ Added "Session Close Verification" pattern to Coordinator (this commit)
 
 **Structural changes**:
-- Review Lead now has comprehensive checklist before closing any session
+- Lead now has comprehensive checklist before closing any session
 - Test Specialist must execute full suite, not just feature-specific tests
 - Tooling & CI Specialist must verify pre-commit execution
-- Coordinator enforces Review Lead checklist completion
+- Coordinator enforces Lead checklist completion
 
 **New Coordinator pattern (Pattern #7)**:
 When invoked for governance review, Coordinator must verify:
-- [ ] Review Lead followed session close checklist
+- [ ] Lead followed session close checklist
 - [ ] No checklist items were skipped without justification
 - [ ] Evidence provided for each checklist item
 
 **Enforcement escalation**:
-If Review Lead repeatedly closes sessions without completing checklist:
+If Lead repeatedly closes sessions without completing checklist:
 1. First occurrence: Document and update instructions (this session)
 2. Second occurrence: Require explicit justification for skips
 3. Third occurrence: Escalate to architectural solution (automated checks)
@@ -584,58 +556,74 @@ If Review Lead repeatedly closes sessions without completing checklist:
 
 These patterns must not repeat. Agent instructions have been updated to prevent recurrence.
 
+### Additional Pattern Discovered (2026-03-24)
+
+**Pattern**: Persistent self-improvement failure and missing API Specialist agent selection
+
+**Session**: PR #2058 — Add `account_id` to DataSource table
+
+**Observation**: After three sessions now, the same two failures recur:
+1. Coordinator is not invoked at end of session (despite MUST requirement in Lead instructions)
+2. No agent updates its own instructions (despite MUST requirement in all agents)
+
+**Root cause analysis**:
+- "Coordinator invocation" and "self-improvement" are both documented as mandatory last steps
+- But the session ends before they are reached — they are treated as optional epilogue, not gating requirements
+- The Lead agent selection is ad-hoc, with no explicit checklist forcing API Specialist engagement when endpoints change
+
+**What was missed in PR #2058**:
+- API Specialist not engaged: POST sensor data now sets `account_id` on the resulting data source — this is an endpoint behavior change that should be reviewed for backward compatibility
+- Zero agent instruction updates across all three participating agents (Architecture Specialist, Test Specialist, Lead)
+- No Coordinator invocation despite explicit user request in the original prompt
+
+**Solutions implemented**:
+- Architecture Specialist: Added Alembic migration checklist + DataSource domain invariants
+- Test Specialist: Added DataSource property testing pattern + lessons learned
+- Lead: Added Agent Selection Checklist mapping code change types to required agents; documented 3rd recurrence of these failures
+- Coordinator (this file): Documented case study
+
+**Governance escalation**: The Lead's "Must Always Run Coordinator" requirement has now been documented in three sessions without being followed. If it fails a fourth time, consider structural changes — e.g., making Coordinator invocation the FIRST step of a session rather than the last, so it sets context rather than being a forgotten epilogue.
+
+**Code observation from PR #2058 worth tracking**:
+- An early draft used `user.account_id or (user.account.id if user.account else None)` — the `or` pattern is fragile for `account_id=0` (unrealistic but worth noting). The final implementation correctly uses `if user.account_id is not None` (see `data_sources.py` lines 340-343) — this is the right pattern to follow.
+- Empty "Initial plan" commit adds git history noise. When orchestrating agents, the first commit should be functional code, not a planning marker.
+
+### Additional Pattern Discovered (2026-03-25)
+
+**Pattern**: No-FK columns for data lineage preservation
+
+**Session**: PR #2058 continued — Drop FK constraints on `data_source.user_id` and `data_source.account_id`
+
+**Design decision documented**:
+FlexMeasures now intentionally drops DB-level FK constraints on `DataSource.user_id` and `DataSource.account_id` so that historical lineage references survive user/account deletion. The ORM uses `passive_deletes="all"` to prevent auto-nullification.
+
+**Checklist implication for future PRs**:
+When reviewing schema changes that affect FK constraints:
+- [ ] If a FK is dropped intentionally for lineage: verify `passive_deletes="all"` on the ORM relationship AND its backref
+- [ ] Verify tests check that the orphaned column values are NOT nullified after parent deletion
+- [ ] Verify changelog describes the *behavior change* (lineage preservation), not just the schema change (column added)
+
+**Changelog completeness check** — lessons from this session:
+- The initial changelog entry for PR #2058 only described adding `account_id`; it omitted the FK drop and behavior change
+- When a migration both adds a column AND changes deletion semantics (e.g., drops a FK), the changelog must cover BOTH aspects
+- Coordinator caught this and updated the entry to read: "...also drop FK constraints on `data_source.user_id` and `data_source.account_id` to preserve data lineage (historical user/account IDs are no longer nullified when users or accounts are deleted)"
+
 ### Session 2026-02-10: Annotation API Implementation (#470)
 
-**Pattern**: Systemic self-improvement failure across all agents
+**Observation**: Five agents completed substantial work (Architecture, API, Test, Documentation, Lead) — **ZERO agents updated their instruction files** (100% failure rate).
 
-**Observation**: Five agents completed substantial work (Architecture, API, Test, Documentation, Review Lead):
-- Created new API endpoints (3 POST endpoints)
-- Wrote 17 comprehensive test functions
-- Created 494-line feature guide documentation
-- Fixed model functions and schemas
-- Orchestrated multi-specialist coordination
-- **ZERO agents updated their instruction files**
+**Root causes**: Self-improvement not enforced; unclear triggers; no Lead verification step; requirement not in completion checklist.
 
-**Metrics**:
-- Agents involved: 5
-- Lines of code/docs added: ~1,500
-- Test functions created: 17
-- Agent instruction updates: 0 (100% failure rate)
+**Secondary violations**: Temporary file committed then removed; non-atomic commits; test claims without execution evidence; Lead didn't invoke Coordinator despite governance request.
 
-**Root causes identified**:
-1. **Self-improvement not enforced**: No blocking requirement, agents treat as optional
-2. **Unclear triggers**: Agents don't know when to update instructions ("after completing work" too vague)
-3. **No verification**: Review Lead doesn't check if agents self-improved
-4. **Invisible requirement**: Self-improvement not in task completion checklist
-
-**Secondary violations observed**:
-- Temporary file committed (`API_REVIEW_ANNOTATIONS.md`, 575 lines) then removed
-- Non-atomic commits mixing multiple concerns
-- Test claims without execution evidence
-- Review Lead didn't invoke Coordinator despite governance request
-
-**Solution implemented**:
-1. Added self-improvement enforcement to Review Lead checklist (see below)
-2. Documented temporary file prevention patterns
-3. Added test execution evidence requirement
-4. Strengthened Coordinator invocation triggers
-
-**Why it matters**:
-- Without self-improvement, system knowledge doesn't accumulate
-- Each session repeats learning instead of building on past knowledge
-- Agent instructions become stale and lose relevance
-- System doesn't evolve despite agent work
-
-**Future sessions**: Monitor whether self-improvement enforcement works. If pattern recurs 3+ times, escalate to architectural solution (e.g., automated checks, mandatory prompts).
-
-**Session 2026-02-10 (Annotation API Tests)**: Pattern recurred despite Review Lead update. Test Specialist fixed 32 annotation API tests (100% passing), made excellent technical commits, but did NOT update instructions with learned lessons (permission semantics, fixture selection, error code expectations). Review Lead enforcement unclear—may not have been involved in session. **Status**: Pattern persists. Approaching threshold for architectural solution.
+**Solution**: Added self-improvement enforcement to Lead checklist; documented temporary file prevention; added test execution evidence requirement; strengthened Coordinator invocation triggers.
 
 ### Enforcement Mechanism Added
 
-**New requirement for Review Lead**: Before marking task complete, verify:
+**New requirement for Lead**: Before marking task complete, verify:
 
 ```markdown
-## Task Completion Checklist (Review Lead)
+## Task Completion Checklist (Lead)
 
 - [ ] Code review completed and feedback addressed
 - [ ] Security scan completed and alerts investigated  
@@ -645,10 +633,31 @@ These patterns must not repeat. Agent instructions have been updated to prevent 
 - [ ] No temporary analysis files committed
 ```
 
-If any agent hasn't self-improved, Review Lead must:
+If any agent hasn't self-improved, Lead must:
 1. Request agent update their instructions
 2. Wait for update
 3. Review update for quality
 4. Then mark task complete
 
 **This makes self-improvement blocking, not optional.**
+
+### Pattern: Schema Surface Parity (2026-04 — PR #2065)
+
+**Context**: PR #2065 adds `account_id` as a filter parameter to `Sensor.search_beliefs` / `TimedBelief.search` / `GenericAsset.search_beliefs`.
+
+**Gap discovered**: `account_id` was added to `BeliefsSearchConfigSchema` (used in `StatusSchema.staleness_search`) but NOT to `Input` in `flexmeasures/data/schemas/io.py` (used by reporters like `PandasReporter` and `AggregatorReporter` for their input parameter lists). The `reporting.rst` documentation stated reporters can filter by `account_id`, but users attempting to do so would receive a Marshmallow `ValidationError`.
+
+**Root cause**: Two Marshmallow schemas expose `Sensor.search_beliefs` parameters to users, but they are distinct classes maintained separately:
+- `Input` (io.py): used for reporter/forecaster `input` parameter list
+- `BeliefsSearchConfigSchema` (reporting/__init__.py): used for sensor status config
+
+**Coordinator rule added**: When any PR adds a parameter to `Sensor.search_beliefs`, the Coordinator should check that **all schemas exposing search_beliefs parameters** receive the same addition. Current list:
+- `flexmeasures/data/schemas/io.py` → `Input` (reporter parameters)
+- `flexmeasures/data/schemas/reporting/__init__.py` → `BeliefsSearchConfigSchema` (status config)
+
+**Agent coordination implication**: 
+- Architecture Specialist owns the schema parity checklist (added to its review checklist)
+- Documentation Specialist must verify documentation examples are exercisable via the actual available schemas
+- Test Specialist must cover all model classes that receive the new parameter
+
+**Additional gap**: `account_id` for non-user DataSources (reporters, schedulers, forecasters) remains `None`. The filter therefore only matches user-type sources. This architectural constraint (documented in Architecture Specialist) limits the feature's utility and should be prominently noted in documentation whenever `account_id` filtering is described.

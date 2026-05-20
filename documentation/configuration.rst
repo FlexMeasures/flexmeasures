@@ -195,6 +195,32 @@ The path can be a complete URL or a relative from the app root.
 Default: ``""``
 
 
+FLEXMEASURES_JSONEDITOR_THEME
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Visual theme for the in-app JSON attributes editor (used on the sensor, asset and account pages).
+The editor is rendered by `@json-editor/json-editor <https://github.com/json-editor/json-editor>`_
+and the theme value is passed directly to that library.
+
+Available values:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Value
+     - Appearance
+   * - ``"spectre"``
+     - Spectre CSS styling.
+   * - ``"bootstrap5"``
+     - Bootstrap 5 styling.
+   * - ``"barebones"``
+     - Minimal unstyled HTML.
+   * - ``"html"``
+     - Plain HTML elements only, no extra classes.
+
+Default: ``"spectre"``
+
+
 FLEXMEASURES_ROOT_VIEW
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -656,13 +682,18 @@ Default: ``None``
 
 
 .. _monitoring_mail_recipients:
+.. _default_monitoring_mail_recipients:
 
-FLEXMEASURES_MONITORING_MAIL_RECIPIENTS
-^^^^^^^^^^^^^^^^^^^^^^^
+FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-E-mail addresses to send monitoring alerts to from the CLI task ``flexmeasures monitor tasks``. For example ``["fred@one.com", "wilma@two.com"]``
+E-mail addresses to send monitoring alerts to from the CLI tasks ``flexmeasures monitor latest-run`` and ``flexmeasures monitor last-seen`` if no explicit user recipients are given. For example ``["fred@one.com", "wilma@two.com"]``.
 
 Default: ``[]``
+
+.. deprecated:: 0.33
+
+    ``FLEXMEASURES_MONITORING_MAIL_RECIPIENTS`` is deprecated. Use ``FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS`` instead.
 
 
 .. _redis-config:
@@ -742,6 +773,20 @@ FLEXMEASURES_API_SUNSET_LINK
 Allow to override the default sunset link for your clients.
 
 Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/v0.13.0/api/v2_0.html"`` for v2.0)
+
+.. _fallback-redirect-config:
+
+FLEXMEASURES_FALLBACK_REDIRECT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Control how the API handles a failed scheduling job when a fallback schedule has been computed.
+
+If ``True``, the API returns ``HTTP status 303 (See Other)`` with a ``Location`` header pointing to the fallback schedule endpoint.
+Clients must follow this redirect themselves to obtain the fallback schedule (see :ref:`api_see_other`).
+
+If ``False``, the API transparently follows the fallback job and returns the fallback schedule directly in the response.
+
+Default: ``False``
 
 .. _reporters-config:
 

@@ -516,13 +516,23 @@ def add_initial_structure():
     type=str,
     help=f"Type of source (free, but FlexMeasures has support for {DEFAULT_DATASOURCE_TYPES}).",
 )
-def add_source(name: str, model: str, version: str, source_type: str):
+@click.option(
+    "--account",
+    "account",
+    required=False,
+    type=AccountIdField(),
+    help="Organisation account associated with the source.",
+)
+def add_source(
+    name: str, model: str, version: str, source_type: str, account: Account | None
+):
     """Add a data source."""
     source = get_or_create_source(
         source=name,
         model=model,
         version=version,
         source_type=source_type,
+        account=account,
     )
     db.session.commit()
     click.secho(f"Added source {source.__repr__()}", **MsgStyle.SUCCESS)
@@ -1308,15 +1318,6 @@ def add_schedule(  # noqa C901
         scheduler_module = "flexmeasures.data.models.planning.process"
     elif scheduler_class == "StorageScheduler":
         scheduler_module = "flexmeasures.data.models.planning.storage"
-        if soc_at_start is None and (
-            "soc-min" in flex_model or "soc-max" in flex_model
-        ):
-            # for asset scheduling, soc at start should be part of the flex model
-            click.secho(
-                "For a storage device with SoC constraints, --soc-at-start is required.",
-                **MsgStyle.ERROR,
-            )
-            raise click.Abort()
         if soc_at_start:
             flex_model["soc-at-start"] = soc_at_start.to("%")
 

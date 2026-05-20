@@ -176,12 +176,13 @@ def invalid_role(requested_access_role: str) -> ResponseTuple:
 
 def invalid_sender(
     required_permissions: list[str] | None = None,
+    message: str | None = None,
 ) -> ResponseTuple:
     """
     Signify that the sender is invalid to perform the request. Fits well with 403 errors.
     Optionally tell the user which permissions they should have.
     """
-    message = FORBIDDEN_MSG
+    message = message or FORBIDDEN_MSG
     if required_permissions:
         message += f" It requires {p.join(required_permissions)} permission(s)."
     return (

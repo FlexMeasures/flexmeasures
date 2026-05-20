@@ -238,7 +238,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
 
 
 .. toctree::
-    :caption: Developing Plugins
+    :caption: Creating plugins
     :maxdepth: 1
 
     plugin/introduction
@@ -247,12 +247,13 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
 
 
 .. toctree::
-    :caption: Developing on FlexMeasures
+    :caption: For developers
     :maxdepth: 1
 
     dev/why
-    dev/setup-and-guidelines
+    dev/scripting
     dev/docker-compose
+    dev/setup-and-guidelines
     dev/ci
     dev/auth
     dev/dependency-management
