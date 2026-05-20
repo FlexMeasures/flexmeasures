@@ -185,7 +185,7 @@ For the data, note the following:
                                       <!-- Disabled button: shown when no data, hidden by JS when data arrives -->
                                       <span
                                           id="forecastButtonDisabled"
-                                          title="Queues a job to forecast the next few days, using a model trained on available historical data. Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
+                                          title="Queues a job to forecast the next few days, using a model trained on available historical data (max 1 year). Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
                                           class="{% if sensor_has_enough_data_for_forecast %}d-none{% endif %}">
                                           <button
                                               class="btn btn-sm btn-responsive btn-success create-button"
