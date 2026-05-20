@@ -1030,7 +1030,7 @@ class SensorAPI(FlaskView):
         d, s = request_processed()
         return dict(**response, **d), s
 
-    # mark endoint as deprecated
+    # mark endpoint as deprecated
     trigger_schedule.after_request = lambda response: add_deprecation_header(response)
 
     @route("/<id>/schedules/<uuid>", methods=["GET"])
