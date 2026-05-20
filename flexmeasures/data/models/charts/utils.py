@@ -1,3 +1,10 @@
+"""Shared Vega-Lite transforms for chart source labels.
+
+The source legend label transform keeps ``source.name`` visible and appends the
+shortest available metadata that distinguishes sources with duplicate names. It
+falls back to ``source.id`` only when non-ID source metadata is identical.
+"""
+
 source_legend_label_transformation = [
     {
         "calculate": "datum.source.display_type || datum.source.raw_type || datum.source.type || ''",
