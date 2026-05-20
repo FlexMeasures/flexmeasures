@@ -667,8 +667,8 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "default": None,
         "description": rst_to_openapi(metadata.CHARGING_EFFICIENCY.description),
         "types": {
-            "backend": "typeFive",
-            "ui": "Fixed value only.",
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
         },
         "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
     },
@@ -676,8 +676,8 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "default": None,
         "description": rst_to_openapi(metadata.DISCHARGING_EFFICIENCY.description),
         "types": {
-            "backend": "typeFive",
-            "ui": "Fixed value only.",
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
         },
         "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
     },
@@ -685,8 +685,8 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "default": None,
         "description": rst_to_openapi(metadata.STORAGE_EFFICIENCY.description),
         "types": {
-            "backend": "typeFive",
-            "ui": "Fixed value only.",
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
         },
         "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
     },
@@ -973,6 +973,13 @@ class AssetTriggerSchema(Schema):
         load_default=False,
         metadata=dict(
             description="If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previously scheduled assets as inflexible device.",
+        ),
+    )
+    force_new_job_creation = fields.Boolean(
+        data_key="force-new-job-creation",
+        required=False,
+        metadata=dict(
+            description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
         ),
     )
 

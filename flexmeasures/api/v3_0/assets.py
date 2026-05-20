@@ -1341,6 +1341,7 @@ class AssetAPI(FlaskView):
         flex_model: dict | None = None,
         flex_context: dict | None = None,
         sequential: bool = False,
+        force_new_job_creation: bool | None = False,
         **kwargs,
     ):
         """
@@ -1513,7 +1514,12 @@ class AssetAPI(FlaskView):
         else:
             f = create_simultaneous_scheduling_job
         try:
-            job = f(asset=asset, enqueue=True, **scheduler_kwargs)
+            job = f(
+                asset=asset,
+                enqueue=True,
+                force_new_job_creation=force_new_job_creation,
+                **scheduler_kwargs,
+            )
         except ValidationError as err:
             return unprocessable_entity(err.messages)
         except ValueError as err:
