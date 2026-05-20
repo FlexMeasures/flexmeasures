@@ -10,6 +10,7 @@ from darts import TimeSeries
 
 from flexmeasures import Sensor
 from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
+from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 
 warnings.filterwarnings("ignore")
@@ -82,11 +83,22 @@ class TrainPipeline(BasePipeline):
         """
         logging.debug(f"Training model {model.__class__.__name__}")
 
-        model.fit(
-            series=y_train,
-            past_covariates=past_covariates,
-            future_covariates=future_covariates,
-        )
+        try:
+            model.fit(
+                series=y_train,
+                past_covariates=past_covariates,
+                future_covariates=future_covariates,
+            )
+        except ValueError as e:
+            if (
+                "do not share any common times for which features can be created"
+                in str(e)
+            ):
+                raise NotEnoughDataException(
+                    "Not enough training data for the requested forecast horizon. "
+                    "Upload more historical data or choose a shorter forecast duration."
+                ) from e
+            raise
         logging.debug("Model trained successfully")
         return model
 

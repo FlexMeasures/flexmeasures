@@ -16,6 +16,7 @@ from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
 )
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+from flexmeasures.data.models.forecasting.pipelines.train import TrainPipeline
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.utils.job_utils import work_on_rq
@@ -466,6 +467,41 @@ def test_missing_data_logs_warning(
     assert "missing values" in str(
         excinfo.value
     ), "Expected NotEnoughDataException for missing data threshold"
+
+
+def test_train_pipeline_wraps_darts_value_error_with_not_enough_data_exception():
+    sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = TrainPipeline(
+        target_sensor=sensor,
+        future_regressors=[],
+        past_regressors=[],
+        model_save_dir=".",
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+    )
+
+    class FailingModel:
+        def fit(self, *args, **kwargs):
+            raise ValueError(
+                "Specified series do not share any common times for which features can be created."
+            )
+
+    with pytest.raises(NotEnoughDataException) as excinfo:
+        pipeline.train_model(
+            model=FailingModel(),
+            future_covariates=None,
+            past_covariates=None,
+            y_train=None,
+        )
+
+    assert "Not enough training data for the requested forecast horizon" in str(
+        excinfo.value
+    )
 
 
 # Test that max_training-period caps train-period and logs a warning
