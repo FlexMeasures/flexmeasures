@@ -85,6 +85,15 @@ class StorageFlexModelSchema(Schema):
         metadata=dict(description="ID of the asset that is requested to be scheduled."),
     )
 
+    consumption = fields.Nested(
+        SensorReferenceSchema,
+        metadata=metadata.CONSUMPTION.to_dict(),
+    )
+    production = fields.Nested(
+        SensorReferenceSchema,
+        metadata=metadata.PRODUCTION.to_dict(),
+    )
+
     soc_at_start = QuantityField(
         required=False,
         to_unit="MWh",
