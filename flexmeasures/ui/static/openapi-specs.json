@@ -3873,7 +3873,14 @@
                         "consumption-capacity": {
                           "sensor": 42
                         },
-                        "production-capacity": "30 kW"
+                        "production-capacity": "30 kW",
+                        "soc-minima": [
+                          {
+                            "start": "2015-06-02T12:00:00+00:00",
+                            "end": "2015-06-02T13:00:00+00:00",
+                            "value": "10 kWh"
+                          }
+                        ]
                       },
                       {
                         "sensor": 932,
@@ -6039,19 +6046,26 @@
           },
           "soc-maxima": {
             "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nIf a <code>soc-maxima-breach-price</code> is defined, the <code>soc-maxima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
-            "example": {
-              "value": "51 kWh",
-              "start": "2024-02-05T12:00:00+01:00",
-              "end": "2024-02-05T13:30:00+01:00"
-            },
+            "example": [
+              {
+                "value": "51 kWh",
+                "start": "2024-02-05T12:00:00+01:00",
+                "end": "2024-02-05T13:30:00+01:00"
+              }
+            ],
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima": {
-            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nIf a <code>soc-minima-breach-price</code> is defined, the <code>soc-minima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
+            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nIf a <code>soc-minima-breach-price</code> is defined, the <code>soc-minima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.. Both single points in time and ranges are possible, see example.",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",
                 "value": "8.2 kWh"
+              },
+              {
+                "value": "51 kWh",
+                "start": "2024-02-05T12:00:00+01:00",
+                "end": "2024-02-05T13:30:00+01:00"
               }
             ],
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
