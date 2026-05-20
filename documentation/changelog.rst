@@ -48,6 +48,7 @@ Bugfixes
 * Make the auth check for CLI commands work with ``flask``, too, instead of only with the ``flexmeasures`` alias [see `PR #2169 <https://www.github.com/FlexMeasures/flexmeasures/pull/2169>`_]
 * Distinguish data sources with duplicate names in chart legends without showing source IDs [see `PR #2185 <https://www.github.com/FlexMeasures/flexmeasures/pull/2185>`_]
 * Fix broken API endpoint links in Read the Docs output by post-processing both known API index layouts and rewriting ``(id)`` anchors [see `PR #1753 <https://www.github.com/FlexMeasures/flexmeasures/pull/1753>`_]
+* Preserve the requested forecasting period when ``max-forecast-horizon`` is smaller (no auto-shortening), and wrap Darts training ``ValueError`` about no common feature times as a clearer ``NotEnoughDataException`` [see `issue #2191 <https://www.github.com/FlexMeasures/flexmeasures/issues/2191>`_]
 
 
 v0.32.3 | May 15, 2026
