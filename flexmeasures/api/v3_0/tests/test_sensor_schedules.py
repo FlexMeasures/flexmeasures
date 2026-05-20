@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from flask import url_for
 import pytest
 from isodate import parse_datetime
@@ -10,10 +12,24 @@ from flexmeasures.api.common.responses import unknown_schedule, unrecognized_eve
 from flexmeasures.api.tests.utils import check_deprecation
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.tests.utils import get_test_sensor
 from flexmeasures.utils.unit_utils import ur
+
+
+@pytest.fixture(scope="module")
+def setup_capacity_sensor_on_asset_in_supplier_account(db, setup_generic_assets):
+    sensor = Sensor(
+        name="supplier account capacity sensor",
+        unit="MW",
+        event_resolution=timedelta(minutes=15),
+        generic_asset=setup_generic_assets["test_wind_turbine"],
+    )
+    db.session.add(sensor)
+    db.session.commit()
+    return sensor
 
 
 @pytest.mark.parametrize(
@@ -96,6 +112,53 @@ def test_trigger_schedule_with_invalid_flexmodel(
             assert (
                 err_msg in trigger_schedule_response.json["message"]["json"][field][0]
             )
+
+
+@pytest.mark.parametrize(
+    "flex_config, field",
+    [
+        ("flex-context", "site-consumption-capacity"),
+        ("flex-model", "consumption-capacity"),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_schedule_with_unreadable_flex_config_sensor(
+    app,
+    add_battery_assets,
+    setup_capacity_sensor_on_asset_in_supplier_account,
+    keep_scheduling_queue_empty,
+    flex_config,
+    field,
+    requesting_user,
+):
+    sensor = add_battery_assets["Test battery"].sensors[0]
+    message = message_for_trigger_schedule()
+    message.setdefault(flex_config, {})
+    message[flex_config][field] = {
+        "sensor": setup_capacity_sensor_on_asset_in_supplier_account.id
+    }
+
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+
+    print("Server responded with:\n%s" % trigger_schedule_response.json)
+    check_deprecation(trigger_schedule_response, deprecation=None, sunset=None)
+    assert trigger_schedule_response.status_code == 403
+    # Keep the field path in the error so API users can locate the bad reference.
+    assert (
+        str({"json": {flex_config: {field: "sensor"}}})
+        in trigger_schedule_response.json["message"]
+    )
+    # Do not leak metadata about a sensor the caller is not allowed to read.
+    assert (
+        setup_capacity_sensor_on_asset_in_supplier_account.name
+        not in trigger_schedule_response.json["message"]
+    )
 
 
 @pytest.mark.parametrize("message", [message_for_trigger_schedule(unknown_prices=True)])

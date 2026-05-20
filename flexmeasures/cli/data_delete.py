@@ -27,6 +27,7 @@ from flexmeasures.data.schemas import (
     SourceIdField,
 )
 from flexmeasures.data.services.users import find_user_by_email, delete_user
+from flexmeasures.data.services.sensors import delete_sensor as delete_sensor_and_data
 from flexmeasures.cli.utils import (
     abort,
     done,
@@ -539,18 +540,17 @@ def delete_sensor(
     sensors: list[Sensor],
 ):
     """Delete sensors and their (time series) data."""
-    n = delete(TimedBelief).where(
-        TimedBelief.sensor_id.in_(sensor.id for sensor in sensors)
-    )
-    statements = []
-    for sensor in sensors:
-        statements.append(delete(Sensor).filter_by(id=sensor.id))
+    n_beliefs = db.session.execute(
+        select(func.count())
+        .select_from(TimedBelief)
+        .where(TimedBelief.sensor_id.in_([sensor.id for sensor in sensors]))
+    ).scalar_one()
     click.confirm(
-        f"Delete {', '.join(sensor.__repr__() for sensor in sensors)}, along with {n} beliefs?",
+        f"Delete {', '.join(sensor.__repr__() for sensor in sensors)}, along with {n_beliefs} beliefs?",
         abort=True,
     )
-    for statement in statements:
-        db.session.execute(statement)
+    for sensor in sensors:
+        delete_sensor_and_data(sensor)
     db.session.commit()
 
 

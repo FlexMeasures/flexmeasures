@@ -144,7 +144,7 @@
                     {% endfor %}
                 </ul>
             </li>
-            <div class="row" style="margin-left: auto;">
+            <div class="row gx-0" style="margin-left: auto;">
                 <div class="col-auto form-check" title="Set this asset view as your default when visiting asset pages.">
                     <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView">
                     <label class="form-check-label" for="defaultAssetView">Set as default view</label>
