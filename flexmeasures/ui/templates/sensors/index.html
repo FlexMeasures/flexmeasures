@@ -177,7 +177,7 @@ For the data, note the following:
                                           id="triggerForecastButton"
                                           class="btn btn-sm btn-responsive btn-success create-button{% if not sensor_has_enough_data_for_forecast %} d-none{% endif %}"
                                           type="button"
-                                          title="Queues a job to forecast the next few days, using a model trained on available historical data. Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
+                                          title="Queues a job to forecast the next few days, using a model trained on available historical data (max 1 year). Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
                                           style="border: 1px solid var(--light-gray);">
                                           Trigger forecast
                                       </button>
