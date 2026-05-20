@@ -582,6 +582,24 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
 }
 
 UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
+    "consumption": {
+        "default": None,
+        "description": rst_to_openapi(metadata.CONSUMPTION.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor which records the scheduled consumption.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "production": {
+        "default": None,
+        "description": rst_to_openapi(metadata.PRODUCTION.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor which records the scheduled production.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
     "soc-min": {
         "default": None,
         "description": rst_to_openapi(metadata.SOC_MIN.description),
