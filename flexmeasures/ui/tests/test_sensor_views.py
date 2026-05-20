@@ -84,6 +84,10 @@ def test_trigger_forecast_panel_visible_for_account_member(
     assert response.status_code == 200
     assert b"Trigger forecast" in response.data
     assert b"firstAvailableEventStartForForecastTraining" in response.data
+    assert (
+        b"firstAvailableEventStartForForecastTraining = e.detail.firstEventStart"
+        in response.data
+    )
     assert b'"train-start"' in response.data
 
 
