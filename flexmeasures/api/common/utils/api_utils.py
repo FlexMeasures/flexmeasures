@@ -213,6 +213,7 @@ def process_sensor_data_ingestion(
                 ttl=current_app.config.get(
                     "FLEXMEASURES_JOB_TTL", timedelta(-1)
                 ).total_seconds(),
+                # No need to keep ingestion results for the FLEXMEASURES_PLANNING_TTL
                 result_ttl=int(
                     current_app.config.get(
                         "FLEXMEASURES_JOB_TTL", timedelta(-1)
