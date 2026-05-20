@@ -488,6 +488,17 @@ def test_add_storage_schedule_uses_state_of_charge_sensor_for_soc_at_start(
             belief_time=datetime.fromisoformat(start),
         )
     )
+
+    # Add a consumption output sensor to verify the full power profile is stored on it
+    # (only the consumption sensor is defined, so the sign convention is consumption positive,
+    # production negative).
+    consumption_output_sensor = Sensor(
+        name="consumption output",
+        generic_asset=charging_station,
+        unit="MW",
+        event_resolution=power_sensor.event_resolution,
+    )
+    fresh_db.session.add(consumption_output_sensor)
     fresh_db.session.commit()
 
     cli_input_params = {
@@ -504,6 +515,7 @@ def test_add_storage_schedule_uses_state_of_charge_sensor_for_soc_at_start(
                 "soc-min": "0 MWh",
                 "soc-max": "5 MWh",
                 "power-capacity": "2 MW",
+                "consumption": {"sensor": consumption_output_sensor.id},
             }
         ),
     }
@@ -513,3 +525,12 @@ def test_add_storage_schedule_uses_state_of_charge_sensor_for_soc_at_start(
     check_command_ran_without_error(result)
     assert len(power_sensor.search_beliefs()) == 48
     assert power_sensor.generic_asset.get_attribute("soc_in_mwh") == 2.5
+
+    # Verify the consumption output sensor received the full power schedule.
+    # A charging station is consumption-only (non-negative), so the full schedule
+    # is non-negative and equals what is stored on the power sensor.
+    consumption_output_sensor = fresh_db.session.get(
+        Sensor, consumption_output_sensor.id
+    )
+    assert len(consumption_output_sensor.search_beliefs()) == 48
+
