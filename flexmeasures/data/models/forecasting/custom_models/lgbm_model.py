@@ -93,12 +93,9 @@ class CustomLGBM(BaseModel):
         seasonal_lags_steps: list[int],
     ) -> list[int]:
         """Validate lag candidates and return them without duplicates."""
-        valid_lags_steps = []
-        for seasonal_lag_steps in dict.fromkeys(seasonal_lags_steps):
-            if seasonal_lag_steps < 1:
-                raise ValueError("seasonal_lags_steps values must be at least 1.")
-            valid_lags_steps.append(seasonal_lag_steps)
-        return valid_lags_steps
+        if any(seasonal_lag_steps < 1 for seasonal_lag_steps in seasonal_lags_steps):
+            raise ValueError("seasonal_lags_steps values must be at least 1.")
+        return list(dict.fromkeys(seasonal_lags_steps))
 
     def _filter_eligible_lags_for_horizon(self, horizon: int) -> list[int]:
         """Keep lag candidates that leave enough samples for this horizon."""
