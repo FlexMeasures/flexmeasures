@@ -582,7 +582,7 @@ class SensorAPI(FlaskView):
 
             The unit has to be convertible to the sensor's unit.
             The resolution of the data has to match the sensor's required resolution, but
-            FlexMeasures will attempt to upsample lower resolutions.
+            FlexMeasures will attempt to resample compatible resolutions.
             The list of values may include null values.
             The request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
             (3 MiB by default).
@@ -718,7 +718,7 @@ class SensorAPI(FlaskView):
             The sensor is the one with ID=1.
             The unit has to be convertible to the sensor's unit.
             The resolution of the data has to match the sensor's required resolution, but
-            FlexMeasures will attempt to upsample lower resolutions.
+            FlexMeasures will attempt to resample compatible resolutions.
             The list of values may include null values.
             The request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
             (3 MiB by default).
