@@ -159,6 +159,37 @@ def test_data_generator_save_parameters(
     assert dg2._parameters["start"].isoformat() == parameters_2["start"]
 
 
+@pytest.mark.parametrize(
+    "source_type, expected_type, expected_display_type",
+    [
+        ("forecaster", "forecaster", "forecaster"),
+        ("forecasting script", "forecaster", "forecaster"),
+        ("scheduler", "scheduler", "scheduler"),
+        ("scheduling script", "scheduler", "scheduler"),
+        ("reporter", "other", "reporter"),
+        ("demo script", "other", "demo script"),
+        ("", "other", "other"),
+    ],
+)
+def test_data_source_as_dict_keeps_raw_and_display_type(
+    source_type: str, expected_type: str, expected_display_type: str
+):
+    source = DataSource(
+        name="FlexMeasures",
+        type=source_type,
+        model="PandasReporter",
+        version="1",
+    )
+
+    source_dict = source.as_dict
+
+    assert source_dict["model"] == "PandasReporter"
+    assert source_dict["type"] == expected_type
+    assert source_dict["raw_type"] == source_type
+    assert source_dict["display_type"] == expected_display_type
+    assert source_dict["version"] == "1"
+
+
 def test_keep_last_version():
     s1 = DataSource(
         id=1, name="s1", model="model 1", type="forecaster", version="0.1.0"
