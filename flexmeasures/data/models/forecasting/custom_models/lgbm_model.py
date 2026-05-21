@@ -33,9 +33,7 @@ class CustomLGBM(BaseModel):
         use_past_covariates: bool = False,
         use_future_covariates: bool = False,
         ensure_positive: bool = False,
-        seasonal_lag_steps: int = DEFAULT_SEASONAL_LAGS_STEPS[0],
         seasonal_lags_steps: list[int] | None = None,
-        fallback_lag_steps: int = DEFAULT_SEASONAL_LAGS_STEPS[0],
         training_sample_count: int | None = None,
         min_samples_per_horizon: int = 2,
     ) -> None:
@@ -49,18 +47,10 @@ class CustomLGBM(BaseModel):
         :param use_past_covariates: Whether past covariates are used for fitting and prediction.
         :param use_future_covariates: Whether future covariates are used for fitting and prediction.
         :param ensure_positive: Whether negative predictions should be clipped to zero.
-        :param seasonal_lag_steps: Number of sensor-resolution steps in the preferred seasonal lag.
-            Used when ``seasonal_lags_steps`` is not provided.
         :param seasonal_lags_steps: Candidate seasonal lag steps to keep if enough training samples remain.
-        :param fallback_lag_steps: Seasonal lag steps to try when no preferred lag leaves enough training data.
         :param training_sample_count: Optional number of target training samples, used to decide whether fallback is needed.
         :param min_samples_per_horizon: Minimum training rows required for the farthest forecast horizon.
         """
-        if seasonal_lag_steps < 1:
-            raise ValueError("seasonal_lag_steps must be at least 1.")
-        if fallback_lag_steps < 1:
-            raise ValueError("fallback_lag_steps must be at least 1.")
-
         if models_params is None:
             self.models_params = {
                 "output_chunk_length": 1,
@@ -85,10 +75,8 @@ class CustomLGBM(BaseModel):
             raise ValueError("min_samples_per_horizon must be at least 1.")
 
         if seasonal_lags_steps is None:
-            seasonal_lags_steps = [seasonal_lag_steps]
+            seasonal_lags_steps = DEFAULT_SEASONAL_LAGS_STEPS
         self.seasonal_lags_steps = self._validate_lag_candidates(seasonal_lags_steps)
-        if fallback_lag_steps not in self.seasonal_lags_steps:
-            self.seasonal_lags_steps.append(fallback_lag_steps)
         self.training_sample_count = training_sample_count
         self.min_samples_per_horizon = min_samples_per_horizon
         super().__init__(
