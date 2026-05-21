@@ -48,8 +48,8 @@ class CustomLGBM(BaseModel):
         :param use_future_covariates: Whether future covariates are used for fitting and prediction.
         :param ensure_positive: Whether negative predictions should be clipped to zero.
         :param seasonal_lags_steps: Candidate seasonal lag steps to keep if enough training samples remain.
-        :param training_sample_count: Optional number of target training samples, used to decide whether fallback is needed.
-        :param min_samples_per_horizon: Minimum training rows required for the farthest forecast horizon.
+        :param training_sample_count: Optional number of target training samples, used to decide which lags are eligible.
+        :param min_samples_per_horizon: Minimum training rows required for each horizon model.
         """
         if models_params is None:
             self.models_params = {
@@ -93,7 +93,7 @@ class CustomLGBM(BaseModel):
         seasonal_lags_steps: list[int],
     ) -> list[int]:
         """Validate lag candidates and return them without duplicates."""
-        if any(seasonal_lag_steps < 1 for seasonal_lag_steps in seasonal_lags_steps):
+        if any(lag_steps < 1 for lag_steps in seasonal_lags_steps):
             raise ValueError("seasonal_lags_steps values must be at least 1.")
         return list(dict.fromkeys(seasonal_lags_steps))
 
@@ -103,9 +103,9 @@ class CustomLGBM(BaseModel):
             return self.seasonal_lags_steps
 
         eligible_lags_steps = [
-            seasonal_lag_steps
-            for seasonal_lag_steps in self.seasonal_lags_steps
-            if self.training_sample_count - seasonal_lag_steps - horizon
+            lag_steps
+            for lag_steps in self.seasonal_lags_steps
+            if self.training_sample_count - lag_steps - horizon
             >= self.min_samples_per_horizon
         ]
 
@@ -118,22 +118,22 @@ class CustomLGBM(BaseModel):
 
     @staticmethod
     def _lags_for_horizon(
-        horizon: int, max_forecast_horizon: int, seasonal_lag: int
+        horizon: int, max_forecast_horizon: int, seasonal_lag_steps: int
     ) -> list[int]:
-        """Return lags for one seasonal cycle at the given forecast horizon."""
-        lag = seasonal_lag - (horizon % seasonal_lag)
-        lags = [-lag, -lag - 1]
+        """Return Darts lags for one seasonal cycle at the given forecast horizon."""
+        lag_steps = seasonal_lag_steps - (horizon % seasonal_lag_steps)
+        darts_lags = [-lag_steps, -lag_steps - 1]
 
         if (
             horizon == 0
-            or horizon % seasonal_lag == 0
+            or horizon % seasonal_lag_steps == 0
             or horizon == max_forecast_horizon - 1
         ):
-            lags = [-seasonal_lag]
-        elif horizon % seasonal_lag == seasonal_lag - 1:
-            lags = [-2]
+            darts_lags = [-seasonal_lag_steps]
+        elif horizon % seasonal_lag_steps == seasonal_lag_steps - 1:
+            darts_lags = [-2]
 
-        return lags
+        return darts_lags
 
     def _setup(self) -> None:
         for horizon in range(self.max_forecast_horizon):
@@ -147,30 +147,30 @@ class CustomLGBM(BaseModel):
             eligible_seasonal_lags_steps = self._filter_eligible_lags_for_horizon(
                 horizon
             )
-            lags = sorted(
+            darts_lags = sorted(
                 {
                     -1,
                     *(
-                        lag
-                        for seasonal_lag in eligible_seasonal_lags_steps
-                        for lag in self._lags_for_horizon(
-                            horizon, self.max_forecast_horizon, seasonal_lag
+                        darts_lag
+                        for seasonal_lag_steps in eligible_seasonal_lags_steps
+                        for darts_lag in self._lags_for_horizon(
+                            horizon, self.max_forecast_horizon, seasonal_lag_steps
                         )
                     ),
                 }
             )
 
             # lags = list(range(-1, -25, -1))  # todo: consider letting the model figure out which lags are important
-            model_params["lags"] = lags
+            model_params["lags"] = darts_lags
             if self.use_past_covariates:
-                model_params["lags_past_covariates"] = lags
+                model_params["lags_past_covariates"] = darts_lags
 
             # The one future covariate lag that is probably the most important is the one at the `horizon`,
             # but here we pass all future lags up until `max_horizon`, and let the model figure it out.
             # One future covariate that is of considerable importance is the cyclic time encoder, which contains information about the time at the `horizon`,
             # i.e. the time of the event that we forecast, rather than the time at which the forecast is made, which would be at lag `0`.
 
-            model_params["lags_future_covariates"] = lags + [0]
+            model_params["lags_future_covariates"] = darts_lags + [0]
 
             model = LightGBMModel(**model_params)
             self.models.append(model)
