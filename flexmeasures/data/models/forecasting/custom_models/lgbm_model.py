@@ -3,6 +3,9 @@ from darts.models import LightGBMModel
 from flexmeasures.data.models.forecasting.custom_models.base_model import BaseModel
 
 
+DEFAULT_SEASONAL_LAGS_STEPS = [24]
+
+
 class CustomLGBM(BaseModel):
     """
     Multi-horizon forecasting model using LightGBM.
@@ -30,8 +33,9 @@ class CustomLGBM(BaseModel):
         use_past_covariates: bool = False,
         use_future_covariates: bool = False,
         ensure_positive: bool = False,
-        seasonal_lag_steps: int = 24,
-        fallback_lag_steps: int = 24,
+        seasonal_lag_steps: int = DEFAULT_SEASONAL_LAGS_STEPS[0],
+        seasonal_lags_steps: list[int] | None = None,
+        fallback_lag_steps: int = DEFAULT_SEASONAL_LAGS_STEPS[0],
         training_sample_count: int | None = None,
         min_samples_per_horizon: int = 2,
     ) -> None:
@@ -46,7 +50,9 @@ class CustomLGBM(BaseModel):
         :param use_future_covariates: Whether future covariates are used for fitting and prediction.
         :param ensure_positive: Whether negative predictions should be clipped to zero.
         :param seasonal_lag_steps: Number of sensor-resolution steps in the preferred seasonal lag.
-        :param fallback_lag_steps: Seasonal lag steps to use when the preferred lag leaves too little training data.
+            Used when ``seasonal_lags_steps`` is not provided.
+        :param seasonal_lags_steps: Candidate seasonal lag steps to keep if enough training samples remain.
+        :param fallback_lag_steps: Seasonal lag steps to try when no preferred lag leaves enough training data.
         :param training_sample_count: Optional number of target training samples, used to decide whether fallback is needed.
         :param min_samples_per_horizon: Minimum training rows required for the farthest forecast horizon.
         """
@@ -75,15 +81,25 @@ class CustomLGBM(BaseModel):
             }
         else:
             self.models_params = models_params
-        # The farthest horizon still needs rows after applying both the horizon
-        # shift and seasonal lag; otherwise the shorter fallback lag trains more robustly.
-        if (
-            training_sample_count is not None
-            and training_sample_count - seasonal_lag_steps - (max_forecast_horizon - 1)
-            < min_samples_per_horizon
-        ):
-            seasonal_lag_steps = fallback_lag_steps
-        self.seasonal_lag_steps = seasonal_lag_steps
+        if min_samples_per_horizon < 1:
+            raise ValueError("min_samples_per_horizon must be at least 1.")
+
+        if seasonal_lags_steps is None:
+            seasonal_lags_steps = [seasonal_lag_steps]
+        self.seasonal_lags_steps = self._filter_eligible_lags(
+            seasonal_lags_steps=seasonal_lags_steps,
+            training_sample_count=training_sample_count,
+            max_forecast_horizon=max_forecast_horizon,
+            min_samples_per_horizon=min_samples_per_horizon,
+        )
+
+        if not self.seasonal_lags_steps:
+            self.seasonal_lags_steps = self._filter_eligible_lags(
+                seasonal_lags_steps=[fallback_lag_steps],
+                training_sample_count=training_sample_count,
+                max_forecast_horizon=max_forecast_horizon,
+                min_samples_per_horizon=min_samples_per_horizon,
+            )
         super().__init__(
             max_forecast_horizon=max_forecast_horizon,
             probabilistic=probabilistic,
@@ -93,6 +109,50 @@ class CustomLGBM(BaseModel):
             ensure_positive=ensure_positive,
         )
 
+    @staticmethod
+    def _filter_eligible_lags(
+        seasonal_lags_steps: list[int],
+        training_sample_count: int | None,
+        max_forecast_horizon: int,
+        min_samples_per_horizon: int,
+    ) -> list[int]:
+        """Keep lag candidates that leave enough samples for the farthest horizon."""
+        eligible_lags_steps = []
+        for seasonal_lag_steps in dict.fromkeys(seasonal_lags_steps):
+            if seasonal_lag_steps < 1:
+                raise ValueError("seasonal_lags_steps values must be at least 1.")
+            if training_sample_count is None:
+                eligible_lags_steps.append(seasonal_lag_steps)
+                continue
+
+            # The farthest model uses output_chunk_shift=max_forecast_horizon - 1,
+            # so each lag also needs to leave enough rows at that horizon.
+            remaining_samples = (
+                training_sample_count - seasonal_lag_steps - (max_forecast_horizon - 1)
+            )
+            if remaining_samples >= min_samples_per_horizon:
+                eligible_lags_steps.append(seasonal_lag_steps)
+        return eligible_lags_steps
+
+    @staticmethod
+    def _lags_for_horizon(
+        horizon: int, max_forecast_horizon: int, seasonal_lag: int
+    ) -> list[int]:
+        """Return lags for one seasonal cycle at the given forecast horizon."""
+        lag = seasonal_lag - (horizon % seasonal_lag)
+        lags = [-lag, -lag - 1]
+
+        if (
+            horizon == 0
+            or horizon % seasonal_lag == 0
+            or horizon == max_forecast_horizon - 1
+        ):
+            lags = [-seasonal_lag]
+        elif horizon % seasonal_lag == seasonal_lag - 1:
+            lags = [-2]
+
+        return lags
+
     def _setup(self) -> None:
         for horizon in range(self.max_forecast_horizon):
             model_params = self.models_params.copy()
@@ -100,24 +160,20 @@ class CustomLGBM(BaseModel):
                 horizon  # Shift the output by i hours of each sub-model
             )
 
-            # Lag features are dynamically set based on the forecast horizon
-            lag = (
-                self.seasonal_lag_steps
-                - (  # todo: include a list of seasonal lags as pd.timedelta objects
-                    horizon % self.seasonal_lag_steps
-                )
-            )  # Adjust to repeat the lag structure every 24 hours
-            lags = [-1, -lag, -lag - 1]
-
-            # Special cases for lags
-            if (
-                horizon == 0
-                or horizon % self.seasonal_lag_steps == 0
-                or horizon == self.max_forecast_horizon - 1
-            ):
-                lags = [-1, -self.seasonal_lag_steps]
-            elif horizon % self.seasonal_lag_steps == self.seasonal_lag_steps - 1:
-                lags = [-1, -2]
+            # Lag features are dynamically set based on the forecast horizon.
+            # todo: include a list of seasonal lags as pd.timedelta objects
+            lags = sorted(
+                {
+                    -1,
+                    *(
+                        lag
+                        for seasonal_lag in self.seasonal_lags_steps
+                        for lag in self._lags_for_horizon(
+                            horizon, self.max_forecast_horizon, seasonal_lag
+                        )
+                    ),
+                }
+            )
 
             # lags = list(range(-1, -25, -1))  # todo: consider letting the model figure out which lags are important
             model_params["lags"] = lags

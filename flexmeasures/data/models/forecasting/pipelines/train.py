@@ -9,7 +9,10 @@ from datetime import datetime, timedelta
 from darts import TimeSeries
 
 from flexmeasures import Sensor
-from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
+from flexmeasures.data.models.forecasting.custom_models.lgbm_model import (
+    CustomLGBM,
+    DEFAULT_SEASONAL_LAGS_STEPS,
+)
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 
 warnings.filterwarnings("ignore")
@@ -142,9 +145,10 @@ class TrainPipeline(BasePipeline):
                 use_past_covariates=past_covariates_list is not None,
                 use_future_covariates=future_covariates_list is not None,
                 ensure_positive=self.ensure_positive,
-                seasonal_lag_steps=derive_daily_lag_steps(
-                    self.target_sensor.event_resolution
-                ),
+                seasonal_lags_steps=[
+                    derive_daily_lag_steps(self.target_sensor.event_resolution),
+                    *DEFAULT_SEASONAL_LAGS_STEPS,
+                ],
                 training_sample_count=len(y_train),
             )
         }
