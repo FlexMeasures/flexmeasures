@@ -29,19 +29,21 @@ def test_custom_lgbm_falls_back_when_daily_lag_is_under_sampled():
     under_sampled_model = CustomLGBM(
         max_forecast_horizon=192,
         probabilistic=False,
-        seasonal_lag_steps=96,
+        seasonal_lags_steps=[96, 24],
         training_sample_count=288,
     )
+    assert under_sampled_model.seasonal_lags_steps == [24]
     assert under_sampled_model.models[96].lags["target"] == [-24, -1]
     assert under_sampled_model.models[-1].lags["target"] == [-24, -1]
 
     sufficiently_sampled_model = CustomLGBM(
         max_forecast_horizon=192,
         probabilistic=False,
-        seasonal_lag_steps=96,
+        seasonal_lags_steps=[96, 24],
         training_sample_count=384,
     )
-    assert sufficiently_sampled_model.models[-1].lags["target"] == [-96, -1]
+    assert sufficiently_sampled_model.seasonal_lags_steps == [96, 24]
+    assert sufficiently_sampled_model.models[-1].lags["target"] == [-96, -24, -1]
 
 
 def test_custom_lgbm_rejects_invalid_lag_steps():
@@ -57,6 +59,13 @@ def test_custom_lgbm_rejects_invalid_lag_steps():
             max_forecast_horizon=1,
             probabilistic=False,
             fallback_lag_steps=0,
+        )
+
+    with pytest.raises(ValueError, match="seasonal_lags_steps values"):
+        CustomLGBM(
+            max_forecast_horizon=1,
+            probabilistic=False,
+            seasonal_lags_steps=[24, 0],
         )
 
 
