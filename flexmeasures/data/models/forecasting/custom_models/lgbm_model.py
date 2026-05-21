@@ -75,6 +75,8 @@ class CustomLGBM(BaseModel):
             }
         else:
             self.models_params = models_params
+        # The farthest horizon still needs rows after applying both the horizon
+        # shift and seasonal lag; otherwise the shorter fallback lag trains more robustly.
         if (
             training_sample_count is not None
             and training_sample_count - seasonal_lag_steps - (max_forecast_horizon - 1)
