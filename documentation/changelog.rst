@@ -37,6 +37,7 @@ Infrastructure / Support
 * Support filtering time series data by data source account [`PR #2065 <https://www.github.com/FlexMeasures/flexmeasures/pull/2065>`_]
 * Speed up finding the data sources associated with a sensor and the sensors associated with a data source [`PR #2151 <https://www.github.com/FlexMeasures/flexmeasures/pull/2151>`_]
 * Speed up sensor stats, especially potent when viewing sensors stats over a large sensor history [`PR #2173 <https://www.github.com/FlexMeasures/flexmeasures/pull/2173>`_]
+* Various smaller fixes in documenting scheduling endpoints and flex-model fields [`PR #2122 <https://www.github.com/FlexMeasures/flexmeasures/pull/2122>`_]
 
 Bugfixes
 -----------

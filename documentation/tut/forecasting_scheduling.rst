@@ -209,7 +209,7 @@ Run ``flexmeasures add schedule --help`` for more information.
 .. _scheduling_resolution:
 
 Scheduling resolution
-~~~~~~~~~~~~~~~~~~~~~
+---------------------
 
 The ``--resolution`` parameter (available in both the CLI and API) controls how often the scheduler is allowed to change power setpoints in the resulting schedule. This can be useful for several scenarios:
 
