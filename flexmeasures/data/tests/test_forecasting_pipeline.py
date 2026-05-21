@@ -469,36 +469,60 @@ def test_missing_data_logs_warning(
 
 
 def test_train_predict_pipeline_wraps_darts_value_error_with_not_enough_data_exception(
-    setup_fresh_test_forecast_data,
-    monkeypatch,
+    fresh_db,
+    tmp_path,
 ):
-    sensor = setup_fresh_test_forecast_data["solar-sensor"]
-
-    def failing_fit(*args, **kwargs):
-        raise ValueError(
-            "Specified series do not share any common times for which features can be created."
-        )
-
-    monkeypatch.setattr(
-        "flexmeasures.data.models.forecasting.custom_models.lgbm_model.CustomLGBM.fit",
-        failing_fit,
+    data_source = DataSource(name="short-history-source", type="test")
+    asset_type = GenericAssetType(name="short-history-asset-type")
+    asset = Asset(
+        name="Short history test asset",
+        generic_asset_type=asset_type,
+        latitude=1.0,
+        longitude=1.0,
     )
+    sensor = Sensor(
+        name="short-history-target",
+        generic_asset=asset,
+        unit="kW",
+        event_resolution=timedelta(minutes=15),
+    )
+    fresh_db.session.add_all([data_source, asset_type, asset, sensor])
+    fresh_db.session.flush()
+
+    history_index = pd.date_range(
+        datetime(2025, 1, 1),
+        datetime(2025, 1, 3, 23, 45),
+        freq="15min",
+        tz="UTC",
+    )
+    beliefs = [
+        TimedBelief(
+            sensor=sensor,
+            event_start=event_start,
+            event_value=float(i % 10),
+            source=data_source,
+            belief_horizon=timedelta(0),
+        )
+        for i, event_start in enumerate(history_index)
+    ]
+    fresh_db.session.add_all(beliefs)
+    fresh_db.session.commit()
 
     pipeline = TrainPredictPipeline(
-        config={"train-start": "2025-01-01T00:00+02:00"},
+        config={"train-start": "2025-01-01T00:00+00:00"},
     )
 
     with pytest.raises(NotEnoughDataException) as excinfo:
         pipeline.compute(
             parameters={
                 "sensor": sensor.id,
-                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "model-save-dir": str(tmp_path / "models"),
                 "output-path": None,
-                "start": "2025-01-08T00:00+02:00",
-                "end": "2025-01-09T00:00+02:00",
+                "start": "2025-01-04T00:00+00:00",
+                "end": "2025-01-08T00:00+00:00",
                 "sensor-to-save": None,
-                "max-forecast-horizon": "PT1H",
-                "forecast-frequency": "PT24H",
+                "max-forecast-horizon": "PT96H",
+                "forecast-frequency": "PT1H",
                 "probabilistic": False,
             }
         )
