@@ -16,7 +16,6 @@ from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
 )
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
-from flexmeasures.data.models.forecasting.pipelines.train import TrainPipeline
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.utils.job_utils import work_on_rq
@@ -469,34 +468,39 @@ def test_missing_data_logs_warning(
     ), "Expected NotEnoughDataException for missing data threshold"
 
 
-def test_train_pipeline_wraps_darts_value_error_with_not_enough_data_exception():
-    sensor = type(
-        "SensorStub",
-        (),
-        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
-    )()
+def test_train_predict_pipeline_wraps_darts_value_error_with_not_enough_data_exception(
+    setup_fresh_test_forecast_data,
+    monkeypatch,
+):
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
 
-    pipeline = TrainPipeline(
-        target_sensor=sensor,
-        future_regressors=[],
-        past_regressors=[],
-        model_save_dir=".",
-        n_steps_to_predict=1,
-        max_forecast_horizon=1,
+    def failing_fit(*args, **kwargs):
+        raise ValueError(
+            "Specified series do not share any common times for which features can be created."
+        )
+
+    monkeypatch.setattr(
+        "flexmeasures.data.models.forecasting.custom_models.lgbm_model.CustomLGBM.fit",
+        failing_fit,
     )
 
-    class FailingModel:
-        def fit(self, *args, **kwargs):
-            raise ValueError(
-                "Specified series do not share any common times for which features can be created."
-            )
+    pipeline = TrainPredictPipeline(
+        config={"train-start": "2025-01-01T00:00+02:00"},
+    )
 
     with pytest.raises(NotEnoughDataException) as excinfo:
-        pipeline.train_model(
-            model=FailingModel(),
-            future_covariates=None,
-            past_covariates=None,
-            y_train=None,
+        pipeline.compute(
+            parameters={
+                "sensor": sensor.id,
+                "model-save-dir": "flexmeasures/data/models/forecasting/artifacts/models",
+                "output-path": None,
+                "start": "2025-01-08T00:00+02:00",
+                "end": "2025-01-09T00:00+02:00",
+                "sensor-to-save": None,
+                "max-forecast-horizon": "PT1H",
+                "forecast-frequency": "PT24H",
+                "probabilistic": False,
+            }
         )
 
     assert "Not enough training data for the requested forecast horizon" in str(

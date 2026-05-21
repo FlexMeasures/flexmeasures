@@ -89,15 +89,14 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "m_viewpoints": 1,
             },
         ),
-        # Case 2: max-forecast-horizon = 12 hours
+        # Case 2: max-forecast-horizon = 12 hours  # here we have issue that predict period is defaulted to 48 hours, but max-forecast-horizon is set to 12 hours, which should be less than or equal to predict-period
         #
-        # User expects to keep the default predict-period (48 hours), but with a 12-hour
-        # forecast horizon and default forecast-frequency (12 hours).
+        # User expects to get forecasts for the next 12 hours from a single viewpoint (same as case 1).
         # Specifically, we expect:
-        #    - predict-period = FM planning horizon (48 hours)
+        #    - predict-period = 12 hours
         #    - forecast-frequency = max-forecast-horizon = 12 hours
         #    - retraining-period = FM planning horizon
-        #    - 4 cycles, 1 belief time
+        #    - 1 cycle, 1 belief time
         # These expectations are encoded in default 1 of ForecasterParametersSchema.resolve_config
         (
             {"max-forecast-horizon": "PT12H"},
@@ -114,7 +113,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 )
                 + pd.Timedelta(hours=48),
                 # "train_period_in_hours": 30 * 24,
-                "predict_period_in_hours": 48,
+                "predict_period_in_hours": 12,
                 "max_forecast_horizon": pd.Timedelta(hours=12),
                 "forecast_frequency": pd.Timedelta(hours=12),
                 # "retrain_frequency": 2 * 24,
@@ -122,7 +121,7 @@ from flexmeasures.data.schemas.utils import kebab_to_snake
                 "save_belief_time": pd.Timestamp(
                     "2025-01-15T12:23:58.387422+01", tz="Europe/Amsterdam"
                 ),
-                "m_viewpoints": 4,
+                "m_viewpoints": 1,
             },
         ),
         # Case 3: forecast-frequency = 12 hours
