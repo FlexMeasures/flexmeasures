@@ -23,18 +23,33 @@ class CustomLGBM(BaseModel):
 
     def __init__(
         self,
-        max_forecast_horizon=48,
-        probabilistic=True,
-        models_params=None,
-        auto_regressive=True,
-        use_past_covariates=False,
-        use_future_covariates=False,
-        ensure_positive=False,
-        seasonal_lag_steps=24,
-        fallback_lag_steps=24,
-        training_sample_count=None,
-        min_samples_per_horizon=2,
-    ):
+        max_forecast_horizon: int = 48,
+        probabilistic: bool = True,
+        models_params: dict | None = None,
+        auto_regressive: bool = True,
+        use_past_covariates: bool = False,
+        use_future_covariates: bool = False,
+        ensure_positive: bool = False,
+        seasonal_lag_steps: int = 24,
+        fallback_lag_steps: int = 24,
+        training_sample_count: int | None = None,
+        min_samples_per_horizon: int = 2,
+    ) -> None:
+        """
+        Initialize the LightGBM forecasting model.
+
+        :param max_forecast_horizon: Maximum number of sensor-resolution steps to forecast.
+        :param probabilistic: Whether to configure LightGBM for quantile predictions.
+        :param models_params: Optional LightGBM parameter overrides.
+        :param auto_regressive: Whether the target history should provide autoregressive features.
+        :param use_past_covariates: Whether past covariates are used for fitting and prediction.
+        :param use_future_covariates: Whether future covariates are used for fitting and prediction.
+        :param ensure_positive: Whether negative predictions should be clipped to zero.
+        :param seasonal_lag_steps: Number of sensor-resolution steps in the preferred seasonal lag.
+        :param fallback_lag_steps: Seasonal lag steps to use when the preferred lag leaves too little training data.
+        :param training_sample_count: Optional number of target training samples, used to decide whether fallback is needed.
+        :param min_samples_per_horizon: Minimum training rows required for the farthest forecast horizon.
+        """
         if seasonal_lag_steps < 1:
             raise ValueError("seasonal_lag_steps must be at least 1.")
         if fallback_lag_steps < 1:
