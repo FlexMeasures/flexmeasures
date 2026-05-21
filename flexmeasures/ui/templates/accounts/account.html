@@ -53,26 +53,14 @@
                         data-bs-toggle="tooltip"
                         title="Primary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443)"
                       ></span>
-                      <div class="input-group">
-                        <input
-                          type="color"
-                          class="form-control form-control-color"
-                          id="primary_color_picker"
-                          {% if account.primary_color %}value="{{ account.primary_color }}"{% endif %}
-                          title="Choose primary color"
-                          style="width: 60px; flex: none;"
-                        />
-                        <input
-                          type="text"
-                          class="form-control"
-                          data-bs-placement="right"
-                          id="primary_color"
-                          name="primary_color"
-                          value="{{ account.primary_color or '' }}"
-                          placeholder="#RRGGBB"
-                          maxlength="7"
-                        />
-                      </div>
+                      <input
+                        type="text"
+                        class="form-control"
+                        data-bs-placement="right"
+                        id="primary_color"
+                        name="primary_color"
+                        value="{{ account.primary_color or '' }}"
+                      />
                     </div>
                   </div>
 
@@ -90,25 +78,13 @@
                         data-bs-toggle="tooltip"
                         title="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' secondary color (#f1a122)"
                       ></span>
-                      <div class="input-group">
-                        <input
-                          type="color"
-                          class="form-control form-control-color"
-                          id="secondary_color_picker"
-                          {% if account.secondary_color %}value="{{ account.secondary_color }}"{% endif %}
-                          title="Choose secondary color"
-                          style="width: 60px; flex: none;"
-                        />
-                        <input
-                          type="text"
-                          class="form-control"
-                          id="secondary_color"
-                          name="secondary_color"
-                          value="{{ account.secondary_color or '' }}"
-                          placeholder="#RRGGBB"
-                          maxlength="7"
-                        />
-                      </div>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="secondary_color"
+                        name="secondary_color"
+                        value="{{ account.secondary_color or '' }}"
+                      />
                     </div>
                   </div>
 
@@ -137,23 +113,6 @@
                   </div>
 
                   {% if user_is_admin %}
-                  <div class="form-group">
-                    <div class="col-md-3">
-                      <label for="accountRoleInput" class="control-label">Account Roles</label>
-                      <div class="input-group">
-                        <select class="form-select" id="accountRoleInput" aria-label="Select account role">
-                          <option selected>Select Role</option>
-                          {% for role_name in account_role_options %}
-                          <option value="{{ role_name }}">{{ role_name }}</option>
-                          {% endfor %}
-                        </select>
-                        <button class="btn btn-outline-secondary" type="button" id="addAccountRoleBtn">Add</button>
-                      </div>
-                      <div id="accountRolesContainer" class="mt-2 d-flex flex-wrap gap-2"></div>
-                      <input type="hidden" name="account_roles" id="accountRolesHiddenInput">
-                    </div>
-                  </div>
-
                   <div class="form-group">
                     <div class="col-md-3">
                       <label for="consultant_account_id" class="control-label"
@@ -212,17 +171,7 @@
     </div>
     <div class="col-md-8">
       <div class="card">
-        <div class="d-flex justify-content-between align-items-center">
-          <h3>Account</h3>
-          {% if can_add_client_account %}
-          <a
-            href="{{ url_for('AccountCrudUI:new', consultancy_account_id=account.id) }}"
-            class="btn bg-primary-custom text-decoration-none text-light nav-button"
-          >
-            Add client account
-          </a>
-          {% endif %}
-        </div>
+        <h3>Account</h3>
         <small>Account: {{ account.name }}</small>
         <div class="row">
           <div class="col-md-7">
@@ -723,100 +672,6 @@ $(document).ready(function () {
 <script defer>
   const basePath = window.location.origin;
   const form = document.getElementById("editaccount");
-  const accountRoleOptions = JSON.parse('{{ account_role_options | tojson }}');
-  const selectedAccountRoles = JSON.parse('{{ selected_account_roles | tojson }}');
-  let currentAccountRoles = new Set();
-
-  function bindColorPicker(pickerId, textId) {
-    const picker = document.getElementById(pickerId);
-    const textInput = document.getElementById(textId);
-    if (!picker || !textInput) {
-      return;
-    }
-
-    picker.addEventListener("input", function () {
-      textInput.value = picker.value.toUpperCase();
-    });
-
-    textInput.addEventListener("input", function () {
-      let val = textInput.value;
-      if (val.length > 0 && val[0] !== "#") {
-        val = `#${val}`;
-        textInput.value = val;
-      }
-      if (/^#[0-9A-F]{6}$/i.test(val)) {
-        picker.value = val;
-      }
-    });
-  }
-
-  bindColorPicker("primary_color_picker", "primary_color");
-  bindColorPicker("secondary_color_picker", "secondary_color");
-
-  function renderAccountRoleTags() {
-    const accountRolesContainer = document.getElementById("accountRolesContainer");
-    const accountRolesHiddenInput = document.getElementById("accountRolesHiddenInput");
-    if (!accountRolesContainer || !accountRolesHiddenInput) {
-      return;
-    }
-
-    accountRolesContainer.innerHTML = "";
-    accountRolesHiddenInput.value = Array.from(currentAccountRoles).join(",");
-
-    currentAccountRoles.forEach((role) => {
-      const tagSpan = document.createElement("span");
-      tagSpan.className = "badge bg-primary-custom text-white d-flex align-items-center me-1";
-      tagSpan.style.padding = "0.5em 0.75em";
-      tagSpan.style.borderRadius = "0.25rem";
-
-      const tagName = document.createElement("span");
-      tagName.textContent = role;
-      tagSpan.appendChild(tagName);
-
-      const removeBtn = document.createElement("button");
-      removeBtn.type = "button";
-      removeBtn.className = "btn-close btn-close-white ms-2";
-      removeBtn.setAttribute("aria-label", `Remove ${role}`);
-      removeBtn.onclick = () => {
-        currentAccountRoles.delete(role);
-        renderAccountRoleTags();
-      };
-      tagSpan.appendChild(removeBtn);
-      accountRolesContainer.appendChild(tagSpan);
-    });
-  }
-
-  function addAccountRole() {
-    const accountRoleInput = document.getElementById("accountRoleInput");
-    if (!accountRoleInput) {
-      return;
-    }
-    const roleName = accountRoleInput.value.trim();
-    if (!roleName || !accountRoleOptions[roleName] || currentAccountRoles.has(roleName)) {
-      return;
-    }
-    currentAccountRoles.add(roleName);
-    accountRoleInput.value = "Select Role";
-    renderAccountRoleTags();
-  }
-
-  const addAccountRoleBtn = document.getElementById("addAccountRoleBtn");
-  if (addAccountRoleBtn) {
-    addAccountRoleBtn.addEventListener("click", addAccountRole);
-  }
-
-  const accountRoleInput = document.getElementById("accountRoleInput");
-  if (accountRoleInput) {
-    accountRoleInput.addEventListener("keypress", function (event) {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        addAccountRole();
-      }
-    });
-  }
-
-  selectedAccountRoles.forEach((role) => currentAccountRoles.add(role));
-  renderAccountRoleTags();
 
   form.addEventListener("submit", function (event) {
     event.preventDefault(); // Prevent the default form submission
@@ -824,20 +679,15 @@ $(document).ready(function () {
     // Collect form data
     const formData = new FormData(event.target);
     // create json payload from formData and set empty string to null
-    let payloadObject = Object.fromEntries(
-      Array.from(formData.entries()).map(([key, value]) => [
-        key,
-        value === "" ? null : value,
-      ])
+    let payload;
+    payload = JSON.stringify(
+      Object.fromEntries(
+        Array.from(formData.entries()).map(([key, value]) => [
+          key,
+          value === "" ? null : value,
+        ])
+      )
     );
-
-    if (document.getElementById("accountRolesHiddenInput")) {
-      payloadObject.account_roles = Array.from(currentAccountRoles).map(
-        (roleName) => accountRoleOptions[roleName]
-      );
-    }
-
-    const payload = JSON.stringify(payloadObject);
 
     // Make a PATCH request to the API
     fetch(basePath + "/api/v3_0/accounts/" + "{{account.id}}", {
