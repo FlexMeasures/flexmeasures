@@ -25,15 +25,16 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
 
 
 def test_custom_lgbm_falls_back_when_daily_lag_is_under_sampled():
-    """Short histories should keep the old lag pattern instead of failing."""
+    """Short histories should drop daily lags only where they are under-sampled."""
     under_sampled_model = CustomLGBM(
         max_forecast_horizon=192,
         probabilistic=False,
         seasonal_lags_steps=[96, 24],
         training_sample_count=288,
     )
-    assert under_sampled_model.seasonal_lags_steps == [24]
-    assert under_sampled_model.models[96].lags["target"] == [-24, -1]
+    assert under_sampled_model.seasonal_lags_steps == [96, 24]
+    assert under_sampled_model.models[0].lags["target"] == [-96, -24, -1]
+    assert under_sampled_model.models[48].lags["target"] == [-49, -48, -24, -1]
     assert under_sampled_model.models[-1].lags["target"] == [-24, -1]
 
     sufficiently_sampled_model = CustomLGBM(
