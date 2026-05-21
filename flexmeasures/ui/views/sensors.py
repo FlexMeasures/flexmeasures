@@ -10,15 +10,15 @@ from flexmeasures.data import db
 from flexmeasures.data.schemas import StartEndTimeSchema
 from flexmeasures.data.services.timerange import get_timerange
 from flexmeasures import Sensor
-from flexmeasures.ui.utils.view_utils import (
-    render_flexmeasures_template,
-    available_units,
-)
-from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
-from flexmeasures.ui.views.assets.utils import (
+from flexmeasures.ui.utils.auth_utils import (
     user_can_create_children,
     user_can_delete,
     user_can_update,
+)
+from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
+from flexmeasures.ui.utils.view_utils import (
+    render_flexmeasures_template,
+    available_units,
 )
 from flexmeasures.ui.views import (
     ATTRIBUTES_FIELD_LABEL,

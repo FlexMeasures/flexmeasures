@@ -5,10 +5,12 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-31 | 2026-04-28
+v3.0-31 | 2026-05-20
 """"""""""""""""""""
 
 - Added a unified job status endpoint ``GET /api/v3_0/jobs/<uuid>`` that returns the current execution status and a human-readable result message for any background job (scheduling, forecasting, etc.) identified by its UUID.
+- Switched from ``force_new_job_creation`` to ``force-new-job-creation`` (maintaining backwards compatibility) and added the field to `/assets/(id)/schedules/trigger` (POST) endpoint, too.
+- Support both snake_case and kebab-case fields in `/sensors/<id>/data` (GET), while only documenting the kebab-case ones.
 
 v3.0-30 | 2026-04-15
 """"""""""""""""""""

@@ -782,15 +782,48 @@ def test_get_variable_quantity_unit(
             {"soc-usage": ["3500 kW", {"sensor": "power-sensor"}]},
             False,
         ),
+        (
+            {"roundtrip-efficiency": "90%"},
+            False,
+        ),
+        (
+            {"roundtrip-efficiency": "12 MW"},
+            {"roundtrip-efficiency": "Cannot convert value `12 MW` to '%'"},
+        ),
+        (
+            {"storage-efficiency": {"sensor": "efficiency-sensor"}},
+            False,
+        ),
+        (
+            {"storage-efficiency": {"sensor": "power-sensor"}},
+            {"storage-efficiency": "Cannot convert MW to %"},
+        ),
     ],
 )
-def test_db_flex_model_schema(db, app, setup_dummy_sensors, flex_model, fails):
+def test_db_flex_model_schema(
+    db, app, setup_dummy_sensors, setup_efficiency_sensors, flex_model, fails
+):
+    """Validate DBStorageFlexModelSchema for accepted and rejected flex-model inputs.
+
+    Input under test:
+    - ``flex_model`` payloads with fixed quantities, sensor references, and list fields
+        (for example ``soc-min``, ``soc-minima``, ``soc-gain``,
+        ``roundtrip-efficiency``, ``storage-efficiency``).
+    - Sensor placeholders in parametrized payloads are replaced with fixture-backed
+        sensor IDs before schema loading.
+
+    Expected outcomes:
+    - When ``fails`` is ``False``, schema loading succeeds.
+    - When ``fails`` is a field-to-message mapping, schema loading raises
+        ``ValidationError`` and contains the expected field-specific error message(s).
+    """
     schema = DBStorageFlexModelSchema()
 
     sensors = {
         "energy-sensor": setup_dummy_sensors[0],
         "price-sensor": setup_dummy_sensors[1],
         "power-sensor": setup_dummy_sensors[3],
+        "efficiency-sensor": setup_efficiency_sensors,
     }
 
     for field_name, field_value in flex_model.items():
