@@ -103,6 +103,6 @@ Consultancy
 A special case of authorization is consultancy: a consultancy account can read data from other accounts (usually their clients, which is handy for servicing them).
 For this, accounts have an attribute called ``consultancy_account_id``. Users in the consultancy account with the user role ``consultant`` can read data in their client accounts.
 
-In addition, consultants can create client accounts through the API and UI, when their own account has the ``Consultancy`` account role. In that flow, the new account is automatically linked to the consultant's account as consultancy account.
+In addition, consultants can create/edit client accounts through the API and UI, when their own account has the Consultancy account role. When they create a client account, it is automatically linked to the consultancy account as client account.
 
 Setting or changing ``consultancy_account_id`` arbitrarily remains an admin capability. Admins can do this via the ``/accounts`` PATCH endpoint and in the UI.
