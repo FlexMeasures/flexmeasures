@@ -55,6 +55,14 @@ def test_custom_lgbm_rejects_invalid_lag_steps():
             seasonal_lags_steps=[24, 0],
         )
 
+    with pytest.raises(ValueError, match="None of the seasonal_lags_steps"):
+        CustomLGBM(
+            max_forecast_horizon=2,
+            probabilistic=False,
+            seasonal_lags_steps=[24],
+            training_sample_count=2,
+        )
+
 
 def test_derive_daily_lag_steps_requires_divisible_resolution(caplog):
     assert derive_daily_lag_steps(timedelta(minutes=15)) == 96

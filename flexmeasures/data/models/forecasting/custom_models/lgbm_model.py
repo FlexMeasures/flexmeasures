@@ -111,7 +111,10 @@ class CustomLGBM(BaseModel):
 
         if eligible_lags_steps:
             return eligible_lags_steps
-        return [self.seasonal_lags_steps[-1]]
+        raise ValueError(
+            "None of the seasonal_lags_steps values leave enough training samples "
+            f"for forecast horizon {horizon}."
+        )
 
     @staticmethod
     def _lags_for_horizon(
