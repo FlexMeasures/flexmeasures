@@ -101,6 +101,39 @@ This agent owns the creation, structure, and evolution of all other agents.
 8. **Lead** - Main entry point; orchestrates agents for reviews, development, and mixed tasks
 9. **UI Specialist** - Flask/Jinja2 templates, side-panel pattern, permission gating in views, JS fetch→poll→Toast→reload pattern, UI tests
 
+### `.github/instructions/` Structure
+
+In addition to per-agent knowledge in `.github/agents/*.md`, the repository contains **GitHub Copilot instruction files** in `.github/instructions/`. These files carry project-wide conventions that appear in two or more agent files and are surfaced automatically by GitHub Copilot during inline code suggestions.
+
+#### Purpose
+
+- Reduce duplication between agent files — agents link out instead of repeating shared rules
+- Provide context to Copilot even when no agent is running
+- Each file has a YAML frontmatter `applyTo:` glob that scopes it to relevant files
+
+#### Current Instruction Files
+
+| File | `applyTo:` | Topic |
+|------|-----------|-------|
+| `atomic-commits.instructions.md` | `**` | One logical change per commit; standard message format |
+| `pre-commit-hooks.instructions.md` | `**` | Run pre-commit before pushing; required hooks |
+| `docstrings.instructions.md` | `**/*.py` | RST docstring format; doctests for utility functions |
+| `changelog.instructions.md` | `**` | Changelog entry location, format, and required fields |
+| `error-handling.instructions.md` | `**/*.py` | HTTP error codes, user-facing messages, exception patterns |
+| `ui-terminology.instructions.md` | `flexmeasures/ui/**` | "organisation" (not "account"), standard UI vocabulary |
+| `marshmallow-schemas.instructions.md` | `flexmeasures/data/schemas/**/*.py` | `data_key`, `load_default`, field naming, dump vs load |
+| `timezone-awareness.instructions.md` | `**/*.py` | `pytz`/`timely_beliefs` patterns; never store naive datetimes |
+| `testing.instructions.md` | `flexmeasures/**/tests/**/*.py` | Full suite, `db` vs `fresh_db`, `requesting_user` fixture |
+
+#### Coordinator Checklist for `.github/instructions/`
+
+When a new cross-cutting pattern is discovered (appearing in 2+ agent files):
+
+- [ ] Create `.github/instructions/<topic>.instructions.md` with correct `applyTo:` glob
+- [ ] Include concrete examples showing correct and incorrect code
+- [ ] Add a reference note (blockquote) in all affected agent files
+- [ ] Commit the instruction file alone; commit agent file updates in a separate commit
+
 ### Standard Agent Template
 
 All agents must follow this structure:
