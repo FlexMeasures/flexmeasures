@@ -44,6 +44,7 @@ from flexmeasures.utils.unit_utils import ur, convert_units
 
 
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
+SOC_TIMED_EVENT_FIELDS = ("soc-targets", "soc-minima", "soc-maxima")
 
 
 class MetaStorageScheduler(Scheduler):
@@ -1043,6 +1044,7 @@ class MetaStorageScheduler(Scheduler):
             self.flex_model = {}
 
         self.collect_flex_config()
+        self.enable_relax_soc_constraints_for_off_tick_soc_constraints()
         self.flex_context = FlexContextSchema().load(self.flex_context)
 
         if isinstance(self.flex_model, dict):
@@ -1095,6 +1097,33 @@ class MetaStorageScheduler(Scheduler):
             )
 
         return self.flex_model
+
+    def enable_relax_soc_constraints_for_off_tick_soc_constraints(self) -> None:
+        """Relax SoC constraints when off-tick SoC events require grid projection."""
+        if self.flex_context is None:
+            self.flex_context = {}
+        if not self.flex_model_has_off_tick_soc_constraints():
+            return
+        self.flex_context["relax-soc-constraints"] = True
+
+    def flex_model_has_off_tick_soc_constraints(self) -> bool:
+        if isinstance(self.flex_model, dict):
+            resolution = self.resolution
+            if self.sensor is not None:
+                if not self.sensor.get_attribute("floor_datetimes_to_resolution", True):
+                    return False
+                resolution = resolution or self.sensor.event_resolution
+            return flex_model_has_off_tick_soc_constraints(
+                self.flex_model, resolution=resolution
+            )
+        if isinstance(self.flex_model, list):
+            return any(
+                flex_model_has_off_tick_soc_constraints(
+                    flex_model, resolution=self.resolution
+                )
+                for flex_model in self.flex_model
+            )
+        return False
 
     def has_soc_at_start(self) -> bool:
         return (
@@ -1747,6 +1776,34 @@ def create_constraint_violations_message(constraint_violations: list) -> str:
 def _is_on_schedule_tick(dt: datetime, resolution: timedelta) -> bool:
     timestamp = pd.Timestamp(dt)
     return timestamp == timestamp.floor(resolution)
+
+
+def flex_model_has_off_tick_soc_constraints(
+    flex_model: dict,
+    resolution: timedelta | None,
+) -> bool:
+    if resolution in (None, timedelta(0)):
+        return False
+
+    for field_name in SOC_TIMED_EVENT_FIELDS:
+        field_value = flex_model.get(field_name)
+        if not isinstance(field_value, list):
+            continue
+        for soc_event in field_value:
+            if not isinstance(soc_event, dict):
+                continue
+            for timing_field in ("datetime", "start", "end"):
+                if soc_event.get(timing_field) is None:
+                    continue
+                try:
+                    is_on_tick = _is_on_schedule_tick(
+                        soc_event[timing_field], resolution
+                    )
+                except (TypeError, ValueError):
+                    continue
+                if not is_on_tick:
+                    return True
+    return False
 
 
 def _soc_value_in_mwh(value: ur.Quantity | float | int) -> float:
