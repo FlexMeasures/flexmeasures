@@ -297,6 +297,46 @@ def test_off_tick_soc_target_is_projected_to_storage_grid(add_battery_assets, db
     assert storage_constraints.loc[start + resolution, "equals"] == pytest.approx(4)
 
 
+def test_off_tick_soc_constraints_enable_relax_soc_constraints(add_battery_assets, db):
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1, 16, 45))
+    end = tz.localize(datetime(2015, 1, 1, 17, 15))
+    resolution = timedelta(minutes=15)
+
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": "0 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "0.04 MW",
+            "soc-targets": [
+                {
+                    "datetime": "2015-01-01T17:12:00+01:00",
+                    "value": "1 MWh",
+                }
+            ],
+        },
+        flex_context={
+            "consumption-price": "0 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "relax-soc-constraints": False,
+        },
+    )
+
+    scheduler.deserialize_config()
+
+    assert scheduler.flex_context["relax_soc_constraints"] is True
+    assert scheduler.flex_context["soc_minima_breach_price"] is not None
+    assert scheduler.flex_context["soc_maxima_breach_price"] is not None
+
+
 def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(
     add_charging_station_assets, setup_markets, setup_sources, db
 ):
