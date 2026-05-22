@@ -803,11 +803,7 @@ class MetaStorageScheduler(Scheduler):
                     device_constraints[d]["derivative max"] = consumption_capacity_d
 
             if soc_at_start[d] is not None:
-                if (
-                    sensor_d is not None
-                    and sensor_d.event_resolution != timedelta(0)
-                    and sensor_d.get_attribute("floor_datetimes_to_resolution", True)
-                ):
+                if _should_normalize_off_tick_soc_constraints(sensor_d):
                     (
                         soc_targets[d],
                         soc_maxima[d],
@@ -1108,18 +1104,20 @@ class MetaStorageScheduler(Scheduler):
 
     def flex_model_has_off_tick_soc_constraints(self) -> bool:
         if isinstance(self.flex_model, dict):
-            resolution = self.resolution
-            if self.sensor is not None:
-                if not self.sensor.get_attribute("floor_datetimes_to_resolution", True):
-                    return False
-                resolution = resolution or self.sensor.event_resolution
+            if not _should_normalize_off_tick_soc_constraints(self.sensor):
+                return False
+            resolution = _get_soc_constraint_resolution(
+                self.resolution, self.sensor, self.default_resolution
+            )
             return flex_model_has_off_tick_soc_constraints(
                 self.flex_model, resolution=resolution
             )
         if isinstance(self.flex_model, list):
+            resolution = self.resolution or self.default_resolution
             return any(
                 flex_model_has_off_tick_soc_constraints(
-                    flex_model, resolution=self.resolution
+                    flex_model.get("sensor-flex-model", flex_model),
+                    resolution=resolution,
                 )
                 for flex_model in self.flex_model
             )
@@ -1776,6 +1774,22 @@ def create_constraint_violations_message(constraint_violations: list) -> str:
 def _is_on_schedule_tick(dt: datetime, resolution: timedelta) -> bool:
     timestamp = pd.Timestamp(dt)
     return timestamp == timestamp.floor(resolution)
+
+
+def _get_soc_constraint_resolution(
+    schedule_resolution: timedelta | None,
+    sensor: Sensor | None,
+    default_resolution: timedelta,
+) -> timedelta | None:
+    if schedule_resolution not in (None, timedelta(0)):
+        return schedule_resolution
+    if sensor is not None and sensor.event_resolution != timedelta(0):
+        return sensor.event_resolution
+    return default_resolution
+
+
+def _should_normalize_off_tick_soc_constraints(sensor: Sensor | None) -> bool:
+    return sensor is None or sensor.get_attribute("floor_datetimes_to_resolution", True)
 
 
 def flex_model_has_off_tick_soc_constraints(
