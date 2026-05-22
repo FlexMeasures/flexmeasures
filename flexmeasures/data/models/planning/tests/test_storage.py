@@ -252,6 +252,51 @@ def test_battery_relaxation(add_battery_assets, db):
     )  # 100 EUR/(kW*h) * 0.025 MW * 1000 kW/MW * 4 hours
 
 
+def test_off_tick_soc_target_is_projected_to_storage_grid(add_battery_assets, db):
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1, 16, 45))
+    end = tz.localize(datetime(2015, 1, 1, 17, 15))
+    resolution = timedelta(minutes=15)
+
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": "0 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "0.04 MW",
+            "consumption-capacity": "0.04 MW",
+            "production-capacity": "0 MW",
+            "roundtrip-efficiency": 1,
+            "storage-efficiency": 1,
+            "soc-targets": [
+                {
+                    "datetime": "2015-01-01T17:12:00+01:00",
+                    "value": "1 MWh",
+                }
+            ],
+        },
+        flex_context={
+            "consumption-price": "0 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "1 MW",
+        },
+    )
+
+    _, _, _, _, _, device_constraints, _, _ = scheduler._prepare(skip_validation=True)
+    storage_constraints = device_constraints[0].tz_convert(tz)
+
+    assert pd.isna(storage_constraints.loc[start, "equals"])
+    assert storage_constraints.loc[start, "min"] == pytest.approx(0.992 * 4)
+    assert storage_constraints.loc[start + resolution, "equals"] == pytest.approx(4)
+
+
 def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(
     add_charging_station_assets, setup_markets, setup_sources, db
 ):
