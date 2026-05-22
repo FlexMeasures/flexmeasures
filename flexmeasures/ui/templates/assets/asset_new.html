@@ -161,6 +161,13 @@
             </div>
 
             <div id="copyAssetsResults" class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-1 my-2"></div>
+            <div id="copyAssetsStatus" class="small text-muted my-1"></div>
+            <div id="copyAssetsBottomSpinner" class="justify-content-center my-2 d-none">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Loading more…</span>
+                </div>
+            </div>
+            <div id="copyAssetsSentinel" class="w-100 py-2"></div>
 
         </div><!-- end #copy-asset tab pane -->
 
@@ -233,72 +240,178 @@
 </script>
 
 <script type="module">
-        import {getAccount} from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
-
+import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
 (function () {
-    var parentAssetId = "{{ parent_asset_id }}";
+    const parentAssetId = "{{ parent_asset_id }}";
+    const perPage = 100;
+    let currentPage = 1;
+    let loadedAssetCount = 0;
+    let hasMore = true;
+    let isLoading = false;
+    let hasInitializedCopyTab = false;
+    let searchDebounceTimer = null;
+    let totalFilteredRecords = null;
+    let observer = null;
+    let activeSearchToken = 0;
+    const renderedAssetIds = new Set();
+    const accountNameCache = new Map();
 
-    async function searchAssetsForCopy() {
-        var filter = document.getElementById("copySearchInput").value;
-        var assetTypeId = document.getElementById("copyAssetTypeSelect").value;
-        var includePublic = document.getElementById("copyIncludePublic").checked;
+    const spinner = document.getElementById("copyAssetsSpinner");
+    const bottomSpinner = document.getElementById("copyAssetsBottomSpinner");
+    const results = document.getElementById("copyAssetsResults");
+    const status = document.getElementById("copyAssetsStatus");
+    const sentinel = document.getElementById("copyAssetsSentinel");
 
-        var params = new URLSearchParams({ page: 1, per_page: 100 });
-        if (filter) params.set("filter", filter);
-        if (assetTypeId) params.set("generic_asset_type_id", assetTypeId);
-        if (includePublic) params.set("include_public_assets", "true");
-
-        var spinner = document.getElementById("copyAssetsSpinner");
-        var results = document.getElementById("copyAssetsResults");
-        spinner.classList.remove("d-none");
-        spinner.classList.add("d-flex");
-        results.innerHTML = "";
-
-        try {
-            var response = await fetch("/api/v3_0/assets?" + params.toString(), {
-                credentials: "same-origin",
-            });
-            if (!response.ok) throw new Error(response.statusText || "Request failed");
-            var data = await response.json();
-            renderCopyResults(data.data || []);
-        } catch (err) {
-            showToast("Failed to search assets: " + err.message, "error");
-        } finally {
+    function toggleSpinner(show) {
+        if (show) {
+            spinner.classList.remove("d-none");
+            spinner.classList.add("d-flex");
+        } else {
             spinner.classList.remove("d-flex");
             spinner.classList.add("d-none");
         }
     }
 
-    function renderCopyResults(assets) {
-        var container = document.getElementById("copyAssetsResults");
-        container.innerHTML = "";
-        if (!assets.length) {
-            container.innerHTML = '<p class="text-muted">No assets found.</p>';
+    function toggleBottomSpinner(show) {
+        if (show) {
+            bottomSpinner.classList.remove("d-none");
+            bottomSpinner.classList.add("d-flex");
+        } else {
+            bottomSpinner.classList.remove("d-flex");
+            bottomSpinner.classList.add("d-none");
+        }
+    }
+
+    function setStatusMessage(message) {
+        status.textContent = message || "";
+    }
+
+    function resetSearchState() {
+        activeSearchToken += 1;
+        currentPage = 1;
+        loadedAssetCount = 0;
+        hasMore = true;
+        isLoading = false;
+        totalFilteredRecords = null;
+        renderedAssetIds.clear();
+        results.innerHTML = "";
+        setStatusMessage("");
+        toggleBottomSpinner(false);
+    }
+
+    function getSearchParams(page) {
+        const filter = document.getElementById("copySearchInput").value;
+        const assetTypeId = document.getElementById("copyAssetTypeSelect").value;
+        const includePublic = document.getElementById("copyIncludePublic").checked;
+
+        const params = new URLSearchParams({ page: page, per_page: perPage });
+        if (filter) params.set("filter", filter);
+        if (assetTypeId) params.set("generic_asset_type_id", assetTypeId);
+        if (includePublic) params.set("include_public_assets", "true");
+        // Ensure stable ordering across pages to avoid page-overlap duplicates.
+        params.set("sort_by", "id");
+        params.set("sort_dir", "asc");
+        return params;
+    }
+
+    async function searchAssetsForCopy(reset) {
+        if (reset) {
+            resetSearchState();
+        }
+        if (isLoading || !hasMore) {
             return;
         }
-        assets.forEach(async function (asset) {
-            const account = asset.account_id ? await getAccount(asset.account_id) : null;
-            var col = document.createElement("div");
+
+        isLoading = true;
+        if (reset) {
+            toggleSpinner(true);
+            toggleBottomSpinner(false);
+        } else {
+            toggleBottomSpinner(true);
+        }
+        const requestToken = activeSearchToken;
+        const params = getSearchParams(currentPage);
+
+        try {
+            const response = await fetch("/api/v3_0/assets?" + params.toString(), {
+                credentials: "same-origin",
+            });
+            if (!response.ok) throw new Error(response.statusText || "Request failed");
+            const data = await response.json();
+            if (requestToken !== activeSearchToken) {
+                return;
+            }
+            const assets = data.data || [];
+            totalFilteredRecords = data["filtered-records"];
+
+            if (!assets.length && currentPage === 1) {
+                setStatusMessage("No assets found.");
+                hasMore = false;
+                return;
+            }
+
+            renderCopyResults(assets);
+            loadedAssetCount += assets.length;
+
+            if (
+                assets.length < perPage ||
+                (typeof totalFilteredRecords === "number" &&
+                    loadedAssetCount >= totalFilteredRecords)
+            ) {
+                hasMore = false;
+                setStatusMessage("Nothing more to load.");
+            } else {
+                currentPage += 1;
+                setStatusMessage("Scroll down to load more.");
+            }
+        } catch (err) {
+            showToast("Failed to search assets: " + err.message, "error");
+            setStatusMessage("Failed to load assets.");
+        } finally {
+            isLoading = false;
+            toggleSpinner(false);
+            toggleBottomSpinner(false);
+        }
+    }
+
+    function renderCopyResults(assets) {
+        const container = document.getElementById("copyAssetsResults");
+        assets.forEach(function (asset) {
+            if (renderedAssetIds.has(asset.id)) {
+                return;
+            }
+            renderedAssetIds.add(asset.id);
+            const col = document.createElement("div");
             col.className = "col";
-            var accountLabel = account
-                ? account.name + " (Acct ID: " + account.id + ")"
+            const accountLabel = asset.account_id
+                ? "Organisation #" + asset.account_id
                 : "Public";
             col.innerHTML =
                 '<div class="d-flex justify-content-between align-items-center border rounded px-2 py-1">' +
                 '<div class="me-2 text-truncate">' +
-                '<div class="fw-semibold text-truncate">' + escapeHtml(asset.name) + '</div>' +
-                '<div class="text-muted small text-truncate">' + accountLabel + '</div>' +
+                '<div class="fw-semibold text-truncate">' + escapeHtml(asset.name) + ' (ID:' + asset.id + ')</div>' +
+                '<div class="text-muted small text-truncate js-account-label">' + accountLabel + '</div>' +
                 '</div>' +
                 '<button class="btn btn-sm btn-primary js-copy-from-tab-btn"' +
                 ' data-asset-id="' + asset.id + '">Copy</button>' +
                 '</div>';
             container.appendChild(col);
+
+            if (asset.account_id) {
+                getAccountLabel(asset.account_id).then(function (label) {
+                    const accountLabelEl = col.querySelector(".js-account-label");
+                    if (accountLabelEl) {
+                        accountLabelEl.textContent = label;
+                    }
+                });
+            }
+
             // Attach listener after button is added to DOM
-            var btn = col.querySelector(".js-copy-from-tab-btn");
+            const btn = col.querySelector(".js-copy-from-tab-btn");
             btn.addEventListener("click", function () {
-                var assetId = btn.dataset.assetId;
-                var url = "/api/v3_0/assets/" + assetId + "/copy";
+                const assetId = btn.dataset.assetId;
+                let url = "/api/v3_0/assets/" + assetId + "/copy";
                 if (parentAssetId) url += "?parent_id=" + parentAssetId;
                 btn.disabled = true;
                 showToast("Creating asset from template…", "info");
@@ -321,20 +434,69 @@
         });
     }
 
+    function initInfiniteScroll() {
+        if (observer) {
+            observer.disconnect();
+        }
+        observer = new IntersectionObserver(
+            function (entries) {
+                entries.forEach(function (entry) {
+                    if (entry.isIntersecting) {
+                        searchAssetsForCopy(false);
+                    }
+                });
+            },
+            {
+                root: null,
+                rootMargin: "200px 0px",
+                threshold: 0,
+            },
+        );
+        observer.observe(sentinel);
+    }
+
+    function triggerNewSearch() {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(function () {
+            searchAssetsForCopy(true);
+        }, 250);
+    }
+
+    async function getAccountLabel(accountId) {
+        if (!accountId) {
+            return "Public";
+        }
+        if (accountNameCache.has(accountId)) {
+            return accountNameCache.get(accountId);
+        }
+        try {
+            const account = await getAccount(accountId);
+            const label = account && account.name
+                ? account.name + " (ID:" + account.id + ")"
+                : "Organisation (ID:" + accountId + ")";
+            accountNameCache.set(accountId, label);
+            return label;
+        } catch (e) {
+            return "Organisation (ID:" + accountId + ")";
+        }
+    }
+
     function escapeHtml(text) {
-        var d = document.createElement("div");
+        const d = document.createElement("div");
         d.appendChild(document.createTextNode(text));
         return d.innerHTML;
     }
 
-    document.getElementById("copySearchInput").addEventListener("input", searchAssetsForCopy);
-    document.getElementById("copyAssetTypeSelect").addEventListener("change", searchAssetsForCopy);
-    document.getElementById("copyIncludePublic").addEventListener("change", searchAssetsForCopy);
+    document.getElementById("copySearchInput").addEventListener("input", triggerNewSearch);
+    document.getElementById("copyAssetTypeSelect").addEventListener("change", triggerNewSearch);
+    document.getElementById("copyIncludePublic").addEventListener("change", triggerNewSearch);
 
     // Run initial search when the tab is first shown
     document.getElementById("copy-asset-tab").addEventListener("shown.bs.tab", function () {
-        if (document.getElementById("copyAssetsResults").innerHTML === "") {
-            searchAssetsForCopy();
+        if (!hasInitializedCopyTab) {
+            hasInitializedCopyTab = true;
+            initInfiniteScroll();
+            searchAssetsForCopy(true);
         }
     });
 }());
