@@ -9,6 +9,8 @@ description: Reviews GitHub Actions workflows, pre-commit hooks, and CI/CD pipel
 
 Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actions workflows, pre-commit hooks, linters, build scripts, and CI/CD pipelines. Ensure tests run efficiently, caching works correctly, and agents are used properly in workflows. This agent owns the reliability of the development and deployment infrastructure.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review

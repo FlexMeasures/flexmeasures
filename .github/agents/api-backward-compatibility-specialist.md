@@ -9,6 +9,8 @@ description: Protects users and integrators by ensuring API changes are backward
 
 Protect FlexMeasures users and integrators by ensuring API changes are backwards compatible, properly versioned, and clearly documented. Review REST APIs, CLI commands, and integration points for breaking changes, deprecation handling, and migration paths. Ensure the FlexMeasures contract remains stable and trustworthy.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review

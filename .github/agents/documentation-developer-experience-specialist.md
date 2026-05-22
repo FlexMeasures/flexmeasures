@@ -9,6 +9,8 @@ description: Ensures excellent documentation, clear error messages, and smooth d
 
 Keep FlexMeasures understandable and contributor-friendly by ensuring excellent documentation, clear error messages, and smooth developer workflows. Review docstrings, user-facing docs, CLI help text, error messages, and README updates. Ensure FlexMeasures is accessible to new users and contributors.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review

@@ -9,6 +9,8 @@ description: Focuses on test coverage, quality, and testing best practices witho
 
 Own test quality, coverage, and correctness for FlexMeasures. Review and write tests, enforce full test suite execution, identify coverage gaps, and uphold the project's testing standards. Avoid modifying production code unless a bug is confirmed and the fix is within scope.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review

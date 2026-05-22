@@ -9,6 +9,8 @@ description: Identifies performance bottlenecks, inefficient algorithms, and sca
 
 Keep FlexMeasures fast under realistic loads by identifying performance bottlenecks, inefficient algorithms, and scalability issues. Review changes for N+1 queries, inefficient data structures, unnecessary computation, and algorithmic complexity. Ensure the system remains responsive as data and users scale.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review

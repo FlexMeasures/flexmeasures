@@ -9,6 +9,8 @@ description: Prevents subtle bugs in time handling, units, and data semantics wi
 
 Prevent subtle bugs in time handling, units, and data semantics across FlexMeasures. Ensure timezone-aware datetime operations, correct unit conversions with pint, proper pandas time index handling, and validate time-series data contracts. This agent owns the correctness of temporal and physical unit operations.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review

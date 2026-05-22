@@ -11,6 +11,8 @@ Guard FlexMeasures' domain model, invariants, and long-term architecture.
 Ensure PR changes respect domain boundaries, maintain model clarity, and prevent erosion of core architectural principles.
 This agent owns the integrity of models (e.g. assets, sensors, data sources, schedulers, forecasters, reporters) and their relationships.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review
