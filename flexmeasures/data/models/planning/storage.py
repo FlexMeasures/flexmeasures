@@ -1875,32 +1875,58 @@ def _add_soc_bound(
     soc_events.append(soc_event)
 
 
+def _normalized_soc_events_or_original(
+    original_soc_events: (
+        list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None
+    ),
+    normalized_soc_events: list[dict[str, datetime | float]],
+) -> list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None:
+    if isinstance(original_soc_events, list):
+        return normalized_soc_events
+    if original_soc_events is None and normalized_soc_events:
+        return normalized_soc_events
+    return original_soc_events
+
+
 def normalize_off_tick_soc_constraints(
-    soc_targets: list[dict[str, datetime | float]] | Sensor | None,
-    soc_maxima: list[dict[str, datetime | float]] | Sensor | None,
-    soc_minima: list[dict[str, datetime | float]] | Sensor | None,
+    soc_targets: (
+        list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None
+    ),
+    soc_maxima: (
+        list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None
+    ),
+    soc_minima: (
+        list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None
+    ),
     consumption_capacity: pd.Series,
     production_capacity: pd.Series,
     resolution: timedelta,
     soc_min: ur.Quantity | float,
     soc_max: ur.Quantity | float,
 ) -> tuple[
-    list[dict[str, datetime | float]] | Sensor | None,
-    list[dict[str, datetime | float]] | Sensor | None,
-    list[dict[str, datetime | float]] | Sensor | None,
+    list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
+    list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
+    list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
 ]:
     """Project off-tick point-like SoC constraints onto the scheduling grid."""
 
-    if isinstance(soc_minima, Sensor) or isinstance(soc_maxima, Sensor):
+    if not any(
+        isinstance(soc_events, list) and soc_events
+        for soc_events in (soc_targets, soc_maxima, soc_minima)
+    ):
         return soc_targets, soc_maxima, soc_minima
 
-    normalized_minima = copy.deepcopy(soc_minima or [])
-    normalized_maxima = copy.deepcopy(soc_maxima or [])
+    normalized_minima = (
+        copy.deepcopy(soc_minima) if isinstance(soc_minima, list) else []
+    )
+    normalized_maxima = (
+        copy.deepcopy(soc_maxima) if isinstance(soc_maxima, list) else []
+    )
 
     soc_min_value = _soc_value_in_mwh(soc_min)
     soc_max_value = _soc_value_in_mwh(soc_max)
 
-    if not isinstance(soc_targets, Sensor) and soc_targets is not None:
+    if isinstance(soc_targets, list):
         normalized_targets = []
         for soc_target in soc_targets:
             if soc_target["start"] != soc_target["end"] or _is_on_schedule_tick(
@@ -1945,7 +1971,11 @@ def normalize_off_tick_soc_constraints(
     else:
         normalized_targets = soc_targets
 
-    for soc_minimum in copy.deepcopy(soc_minima or []):
+    if isinstance(soc_minima, list):
+        soc_minimum_events = copy.deepcopy(soc_minima)
+    else:
+        soc_minimum_events = []
+    for soc_minimum in soc_minimum_events:
         if soc_minimum["start"] != soc_minimum["end"] or _is_on_schedule_tick(
             soc_minimum["end"], resolution
         ):
@@ -1986,7 +2016,11 @@ def normalize_off_tick_soc_constraints(
             bound_type="min",
         )
 
-    for soc_maximum in copy.deepcopy(soc_maxima or []):
+    if isinstance(soc_maxima, list):
+        soc_maximum_events = copy.deepcopy(soc_maxima)
+    else:
+        soc_maximum_events = []
+    for soc_maximum in soc_maximum_events:
         if soc_maximum["start"] != soc_maximum["end"] or _is_on_schedule_tick(
             soc_maximum["end"], resolution
         ):
@@ -2027,7 +2061,11 @@ def normalize_off_tick_soc_constraints(
             bound_type="max",
         )
 
-    return normalized_targets, normalized_maxima or None, normalized_minima or None
+    return (
+        normalized_targets,
+        _normalized_soc_events_or_original(soc_maxima, normalized_maxima),
+        _normalized_soc_events_or_original(soc_minima, normalized_minima),
+    )
 
 
 def build_device_soc_values(
