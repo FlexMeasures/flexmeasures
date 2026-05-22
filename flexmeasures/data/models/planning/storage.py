@@ -648,22 +648,6 @@ class MetaStorageScheduler(Scheduler):
                 # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
                 soc_maxima[d] = None
 
-            if soc_at_start[d] is not None:
-                device_constraints[d] = add_storage_constraints(
-                    start,
-                    end,
-                    resolution,
-                    soc_at_start[d],
-                    soc_targets[d],
-                    soc_maxima[d],
-                    soc_minima[d],
-                    soc_max[d],
-                    soc_min[d],
-                )
-            else:
-                # No need to validate non-existing storage constraints
-                skip_validation = True
-
             power_capacity_in_mw[d] = get_continuous_series_sensor_or_quantity(
                 variable_quantity=power_capacity_in_mw[d],
                 unit="MW",
@@ -679,6 +663,9 @@ class MetaStorageScheduler(Scheduler):
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_positive"
             ):
+                production_capacity_d = pd.Series(
+                    0, index=power_capacity_in_mw[d].index
+                )
                 device_constraints[d]["derivative min"] = 0
             else:
                 production_capacity_d = get_continuous_series_sensor_or_quantity(
@@ -747,6 +734,9 @@ class MetaStorageScheduler(Scheduler):
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_negative"
             ):
+                consumption_capacity_d = pd.Series(
+                    0, index=power_capacity_in_mw[d].index
+                )
                 device_constraints[d]["derivative max"] = 0
             else:
                 consumption_capacity_d = get_continuous_series_sensor_or_quantity(
@@ -810,6 +800,44 @@ class MetaStorageScheduler(Scheduler):
                 else:
                     # consumption-capacity will become a hard constraint
                     device_constraints[d]["derivative max"] = consumption_capacity_d
+
+            if soc_at_start[d] is not None:
+                if (
+                    sensor_d is not None
+                    and sensor_d.event_resolution != timedelta(0)
+                    and sensor_d.get_attribute("floor_datetimes_to_resolution", True)
+                ):
+                    (
+                        soc_targets[d],
+                        soc_maxima[d],
+                        soc_minima[d],
+                    ) = normalize_off_tick_soc_constraints(
+                        soc_targets[d],
+                        soc_maxima[d],
+                        soc_minima[d],
+                        consumption_capacity_d,
+                        production_capacity_d,
+                        resolution,
+                        soc_min[d],
+                        soc_max[d],
+                    )
+
+                storage_constraints = add_storage_constraints(
+                    start,
+                    end,
+                    resolution,
+                    soc_at_start[d],
+                    soc_targets[d],
+                    soc_maxima[d],
+                    soc_minima[d],
+                    soc_max[d],
+                    soc_min[d],
+                )
+                for column in ("equals", "min", "max"):
+                    device_constraints[d][column] = storage_constraints[column]
+            else:
+                # No need to validate non-existing storage constraints
+                skip_validation = True
 
             all_stock_delta = []
 
@@ -1714,6 +1742,235 @@ def create_constraint_violations_message(constraint_violations: list) -> str:
         message = message[:-1]
 
     return message
+
+
+def _is_on_schedule_tick(dt: datetime, resolution: timedelta) -> bool:
+    timestamp = pd.Timestamp(dt)
+    return timestamp == timestamp.floor(resolution)
+
+
+def _soc_value_in_mwh(value: ur.Quantity | float | int) -> float:
+    if isinstance(value, ur.Quantity):
+        return value.to("MWh").magnitude
+    return float(value)
+
+
+def _soc_event_at(
+    soc_event: dict[str, datetime | float],
+    dt: pd.Timestamp,
+    value: float,
+) -> dict[str, datetime | float]:
+    shifted_event = copy.copy(soc_event)
+    shifted_event["value"] = value
+    shifted_event["start"] = dt.to_pydatetime()
+    shifted_event["end"] = dt.to_pydatetime()
+    if "datetime" in shifted_event:
+        shifted_event["datetime"] = dt.to_pydatetime()
+    shifted_event.pop("duration", None)
+    return shifted_event
+
+
+def _energy_capacity_between(
+    capacity: pd.Series,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    resolution: timedelta,
+) -> float:
+    if end <= start:
+        return 0
+
+    if capacity.index.tz is not None:
+        start = start.tz_convert(capacity.index.tz)
+        end = end.tz_convert(capacity.index.tz)
+
+    capacity = capacity.astype(float).fillna(0)
+    tick = start.floor(resolution)
+    energy = 0.0
+    while tick < end:
+        next_tick = tick + resolution
+        overlap_start = max(start, tick)
+        overlap_end = min(end, next_tick)
+        if overlap_end > overlap_start and tick in capacity.index:
+            energy += float(capacity.loc[tick]) * (
+                (overlap_end - overlap_start) / pd.Timedelta(hours=1)
+            )
+        tick = next_tick
+    return energy
+
+
+def _add_soc_bound(
+    soc_events: list[dict[str, datetime | float]],
+    soc_event: dict[str, datetime | float],
+    bound_type: str,
+) -> None:
+    for existing_event in soc_events:
+        if existing_event.get("start") == soc_event.get("start") and existing_event.get(
+            "end"
+        ) == soc_event.get("end"):
+            existing_value = _soc_value_in_mwh(existing_event["value"])
+            soc_value = _soc_value_in_mwh(soc_event["value"])
+            existing_event["value"] = (
+                max(existing_value, soc_value)
+                if bound_type == "min"
+                else min(existing_value, soc_value)
+            )
+            return
+    soc_events.append(soc_event)
+
+
+def normalize_off_tick_soc_constraints(
+    soc_targets: list[dict[str, datetime | float]] | Sensor | None,
+    soc_maxima: list[dict[str, datetime | float]] | Sensor | None,
+    soc_minima: list[dict[str, datetime | float]] | Sensor | None,
+    consumption_capacity: pd.Series,
+    production_capacity: pd.Series,
+    resolution: timedelta,
+    soc_min: ur.Quantity | float,
+    soc_max: ur.Quantity | float,
+) -> tuple[
+    list[dict[str, datetime | float]] | Sensor | None,
+    list[dict[str, datetime | float]] | Sensor | None,
+    list[dict[str, datetime | float]] | Sensor | None,
+]:
+    """Project off-tick point-like SoC constraints onto the scheduling grid."""
+
+    if isinstance(soc_minima, Sensor) or isinstance(soc_maxima, Sensor):
+        return soc_targets, soc_maxima, soc_minima
+
+    normalized_minima = copy.deepcopy(soc_minima or [])
+    normalized_maxima = copy.deepcopy(soc_maxima or [])
+
+    soc_min_value = _soc_value_in_mwh(soc_min)
+    soc_max_value = _soc_value_in_mwh(soc_max)
+
+    if not isinstance(soc_targets, Sensor) and soc_targets is not None:
+        normalized_targets = []
+        for soc_target in soc_targets:
+            if soc_target["start"] != soc_target["end"] or _is_on_schedule_tick(
+                soc_target["end"], resolution
+            ):
+                normalized_targets.append(copy.copy(soc_target))
+                continue
+
+            target_time = pd.Timestamp(soc_target["end"])
+            previous_tick = target_time.floor(resolution)
+            next_tick = target_time.ceil(resolution)
+            target_value = _soc_value_in_mwh(soc_target["value"])
+
+            charge_before_target = _energy_capacity_between(
+                consumption_capacity, previous_tick, target_time, resolution
+            )
+            discharge_before_target = _energy_capacity_between(
+                production_capacity, previous_tick, target_time, resolution
+            )
+
+            normalized_targets.append(
+                _soc_event_at(soc_target, next_tick, target_value)
+            )
+            _add_soc_bound(
+                normalized_minima,
+                _soc_event_at(
+                    soc_target,
+                    previous_tick,
+                    max(soc_min_value, target_value - charge_before_target),
+                ),
+                bound_type="min",
+            )
+            _add_soc_bound(
+                normalized_maxima,
+                _soc_event_at(
+                    soc_target,
+                    previous_tick,
+                    min(soc_max_value, target_value + discharge_before_target),
+                ),
+                bound_type="max",
+            )
+    else:
+        normalized_targets = soc_targets
+
+    for soc_minimum in copy.deepcopy(soc_minima or []):
+        if soc_minimum["start"] != soc_minimum["end"] or _is_on_schedule_tick(
+            soc_minimum["end"], resolution
+        ):
+            continue
+
+        minimum_time = pd.Timestamp(soc_minimum["end"])
+        previous_tick = minimum_time.floor(resolution)
+        next_tick = minimum_time.ceil(resolution)
+        minimum_value = _soc_value_in_mwh(soc_minimum["value"])
+        _add_soc_bound(
+            normalized_minima,
+            _soc_event_at(
+                soc_minimum,
+                previous_tick,
+                max(
+                    soc_min_value,
+                    minimum_value
+                    - _energy_capacity_between(
+                        consumption_capacity, previous_tick, minimum_time, resolution
+                    ),
+                ),
+            ),
+            bound_type="min",
+        )
+        _add_soc_bound(
+            normalized_minima,
+            _soc_event_at(
+                soc_minimum,
+                next_tick,
+                max(
+                    soc_min_value,
+                    minimum_value
+                    - _energy_capacity_between(
+                        production_capacity, minimum_time, next_tick, resolution
+                    ),
+                ),
+            ),
+            bound_type="min",
+        )
+
+    for soc_maximum in copy.deepcopy(soc_maxima or []):
+        if soc_maximum["start"] != soc_maximum["end"] or _is_on_schedule_tick(
+            soc_maximum["end"], resolution
+        ):
+            continue
+
+        maximum_time = pd.Timestamp(soc_maximum["end"])
+        previous_tick = maximum_time.floor(resolution)
+        next_tick = maximum_time.ceil(resolution)
+        maximum_value = _soc_value_in_mwh(soc_maximum["value"])
+        _add_soc_bound(
+            normalized_maxima,
+            _soc_event_at(
+                soc_maximum,
+                previous_tick,
+                min(
+                    soc_max_value,
+                    maximum_value
+                    + _energy_capacity_between(
+                        production_capacity, previous_tick, maximum_time, resolution
+                    ),
+                ),
+            ),
+            bound_type="max",
+        )
+        _add_soc_bound(
+            normalized_maxima,
+            _soc_event_at(
+                soc_maximum,
+                next_tick,
+                min(
+                    soc_max_value,
+                    maximum_value
+                    + _energy_capacity_between(
+                        consumption_capacity, maximum_time, next_tick, resolution
+                    ),
+                ),
+            ),
+            bound_type="max",
+        )
+
+    return normalized_targets, normalized_maxima or None, normalized_minima or None
 
 
 def build_device_soc_values(
