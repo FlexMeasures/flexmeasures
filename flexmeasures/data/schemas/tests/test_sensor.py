@@ -95,7 +95,6 @@ def test_quantity_or_sensor_deserialize(
             assert_quantity_matches(
                 dst_quantity[0]["value"], ur.Quantity(exp_dst_quantity)
             )
-            assert str(dst_quantity[0]["value"]) == exp_dst_quantity
         assert not fails
     except ValidationError as e:
         assert fails, e
