@@ -1717,7 +1717,7 @@ def create_constraint_violations_message(constraint_violations: list) -> str:
 
 
 def build_device_soc_values(
-    soc_values: list[dict[str, datetime | float]] | pd.Series,
+    soc_values: ur.Quantity | list[dict[str, datetime | float]] | pd.Series | None,
     soc_at_start: float,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
@@ -1743,6 +1743,22 @@ def build_device_soc_values(
     """
     if isinstance(soc_values, pd.Series):  # some tests prepare it this way
         device_values = soc_values
+    elif isinstance(soc_values, ur.Quantity):
+        device_values = initialize_series(
+            soc_values.magnitude,
+            start=start_of_schedule,
+            end=end_of_schedule,
+            resolution=resolution,
+            inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
+        )
+    elif soc_values is None:
+        device_values = initialize_series(
+            np.nan,
+            start=start_of_schedule,
+            end=end_of_schedule,
+            resolution=resolution,
+            inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
+        )
     else:
         device_values = initialize_series(
             np.nan,

@@ -383,8 +383,8 @@ export function extractApiErrorMessage(errorData, fallbackMessage) {
   return fallbackMessage || "Unknown error";
 }
 
-/**  
-  * Optionally show a confirmation dialog, then perform a fetch request.
+/**
+ * Optionally show a confirmation dialog, then perform a fetch request.
  *
  * Error responses are normalised: a JSON body's `message` field is used
  * when available, otherwise the HTTP status text is used. Network errors
@@ -399,20 +399,22 @@ export function extractApiErrorMessage(errorData, fallbackMessage) {
  * @param {string}   errorPrefix    - Prefix for the showToast error message.
  */
 function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
-    if (confirmMessage && !confirm(confirmMessage)) return;
-    fetch(url, options)
-        .then(response => {
-            if (response.ok) return response;
-            const contentType = response.headers.get("content-type");
-            if (contentType && contentType.includes("application/json")) {
-                return response.json().then(err => {
-                    throw new Error(err.message || response.statusText || "Request failed");
-                });
-            }
-            throw new Error(response.statusText || "Request failed");
-        })
-        .then(onSuccess)
-        .catch(err => showToast(errorPrefix + ": " + err.message, "error"));
+  if (confirmMessage && !confirm(confirmMessage)) return;
+  fetch(url, options)
+    .then((response) => {
+      if (response.ok) return response;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        return response.json().then((err) => {
+          throw new Error(
+            err.message || response.statusText || "Request failed",
+          );
+        });
+      }
+      throw new Error(response.statusText || "Request failed");
+    })
+    .then(onSuccess)
+    .catch((err) => showToast(errorPrefix + ": " + err.message, "error"));
 }
 
 /**
@@ -428,54 +430,156 @@ function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
  * responsible for pruning unwanted copies.
  */
 export function initCopyAssetButtons() {
-    document.querySelectorAll(".js-copy-asset-btn").forEach(btn => {
-        const assetId = btn.dataset.assetId;
-        // Present on the "copy to my account" button; absent on the sibling-copy button.
-        const targetAccountId = btn.dataset.targetAccountId || null;
+  document.querySelectorAll(".js-copy-asset-btn").forEach((btn) => {
+    const assetId = btn.dataset.assetId;
+    // Present on the "copy to my account" button; absent on the sibling-copy button.
+    const targetAccountId = btn.dataset.targetAccountId || null;
 
-        btn.addEventListener("click", function (event) {
-            const openInNewTab = event.ctrlKey || event.metaKey;
-            const url = targetAccountId
-                ? "/api/v3_0/assets/" + assetId + "/copy?account=" + targetAccountId
-                : "/api/v3_0/assets/" + assetId + "/copy";
-            confirmAndFetch(
-                null,
-                url,
-                {method: "POST", headers: {"Content-Type": "application/json"}, credentials: "same-origin"},
-                response => response.json().then(data => {
-                    showToast("Asset copied successfully.", "success");
-                    setTimeout(() => {
-                        const dest = "/assets/" + data.asset + "/properties";
-                        if (openInNewTab) {
-                            window.open(dest, "_blank");
-                        } else {
-                            window.location.href = dest;
-                        }
-                    }, 1500);
-                }),
-                "Failed to copy asset"
-            );
-        });
+    btn.addEventListener("click", function (event) {
+      const openInNewTab = event.ctrlKey || event.metaKey;
+      const url = targetAccountId
+        ? "/api/v3_0/assets/" + assetId + "/copy?account=" + targetAccountId
+        : "/api/v3_0/assets/" + assetId + "/copy";
+      confirmAndFetch(
+        null,
+        url,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+        },
+        (response) =>
+          response.json().then((data) => {
+            showToast("Asset copied successfully.", "success");
+            setTimeout(() => {
+              const dest = "/assets/" + data.asset + "/properties";
+              if (openInNewTab) {
+                window.open(dest, "_blank");
+              } else {
+                window.location.href = dest;
+              }
+            }, 1500);
+          }),
+        "Failed to copy asset",
+      );
     });
+  });
 }
 
 export function initDeleteAssetButton() {
-    const btn = document.getElementById("delete-asset-button");
-    if (!btn) return;
-    const assetId = btn.dataset.assetId;
+  const btn = document.getElementById("delete-asset-button");
+  if (!btn) return;
+  const assetId = btn.dataset.assetId;
 
-    btn.addEventListener("click", function () {
-        confirmAndFetch(
-            "Are you sure you want to delete this asset and all time series data associated with it?",
-            "/assets/delete_with_data/" + assetId,
-            {method: "GET", credentials: "same-origin"},
-            response => {
-                showToast("Asset deleted successfully.", "success");
-                setTimeout(() => {
-                    window.location.href = response.url;
-                }, 1500);
-            },
-            "Failed to delete asset"
-        );
-    });
+  btn.addEventListener("click", function () {
+    confirmAndFetch(
+      "Are you sure you want to delete this asset and all time series data associated with it?",
+      "/assets/delete_with_data/" + assetId,
+      { method: "GET", credentials: "same-origin" },
+      (response) => {
+        showToast("Asset deleted successfully.", "success");
+        setTimeout(() => {
+          window.location.href = response.url;
+        }, 1500);
+      },
+      "Failed to delete asset",
+    );
+  });
+}
+
+/**
+ * Poll a background job until it reaches a terminal state (finished or failed).
+ *
+ * Calls GET /api/v3_0/jobs/<uuid> every `intervalMs` milliseconds and updates
+ * a toast notification as the status changes.  Polling stops automatically on
+ * success, failure, or network error, and also when the optional AbortSignal
+ * fires (useful for component/page teardown).
+ *
+ * @param {string}      jobUuid     - UUID returned by the upload endpoint.
+ * @param {object}      [options]
+ * @param {number}      [options.intervalMs=3000]      - Polling interval in ms.
+ * @param {string}      [options.processingMessage="Processing…"] - Toast text while queued/started.
+ * @param {string}      [options.successMessage="Job completed successfully."] - Toast text on finish.
+ * @param {string}      [options.errorMessage]         - Override toast text on failure (defaults to the
+ *                                                       server message when absent).
+ * @param {AbortSignal} [options.signal]               - Abort polling externally (e.g. page unload).
+ * @param {function}    [options.onStatus]             - Called with the full response JSON on each poll.
+ * @param {function}    [options.onFinished]           - Called with the full response JSON on finish.
+ * @param {function}    [options.onFailed]             - Called with the full response JSON on failure.
+ * @returns {function} stopPolling - Call to cancel polling manually.
+ */
+export function pollJobStatus(jobUuid, options = {}) {
+    const {
+        intervalMs = 3000,
+        processingMessage = "Processing\u2026",
+        successMessage = "Job completed successfully.",
+        errorMessage = null,
+        signal = null,
+        onStatus = null,
+        onFinished = null,
+        onFailed = null,
+    } = options;
+
+    const url = `${apiBasePath}/api/v3_0/jobs/${encodeURIComponent(jobUuid)}`;
+
+    // Show an initial "processing" info toast right away.
+    showToast(processingMessage, "info");
+
+    let stopped = false;
+
+    function stop() {
+        stopped = true;
+        clearInterval(intervalId);
+    }
+
+    // Honour an external AbortSignal (e.g. page navigation / component unmount).
+    if (signal) {
+        signal.addEventListener("abort", stop, { once: true });
+    }
+
+    async function poll() {
+        if (stopped) return;
+
+        let data;
+        try {
+            const response = await fetch(url, { credentials: "same-origin" });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            data = await response.json();
+        } catch (err) {
+            stop();
+            showToast("Could not reach job status endpoint: " + err.message, "error");
+            if (onFailed) onFailed(null);
+            return;
+        }
+
+        const status = (data.status || "").toUpperCase();
+        if (onStatus) onStatus(data);
+
+        if (status === "FINISHED") {
+            stop();
+            showToast(successMessage, "success");
+            if (onFinished) onFinished(data);
+        } else if (status === "FAILED" || status === "STOPPED" || status === "CANCELED") {
+            stop();
+            const msg = errorMessage || data.message || "Job failed.";
+            showToast(msg, "error");
+            if (onFailed) onFailed(data);
+        } else if (status === "STARTED") { // This is the shown status when ingestion is in progress
+              // show a inprogress message
+              const inProgressMessage = data.message || "Job is in progress.";
+              showToast(inProgressMessage, "info");
+        } else {
+            // QUEUED / STARTED / DEFERRED / SCHEDULED → keep polling, show status updates
+            const statusToast = data.message || `Job status: ${status}`;
+            console.log(`[pollJobStatus] Still processing: ${statusToast}`);
+        }
+    }
+
+    // Poll immediately on first tick, then on each interval.
+    const intervalId = setInterval(poll, intervalMs);
+    poll();
+
+    return stop;
 }

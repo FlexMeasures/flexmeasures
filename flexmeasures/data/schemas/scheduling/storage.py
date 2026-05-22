@@ -40,7 +40,8 @@ SoCTarget = TypedDict(
 
 
 class EfficiencyField(QuantityField):
-    """Field that deserializes to a Quantity with % units. Must be greater than 0% and less than or equal to 100%.
+    """Field that deserializes to a Quantity with % units.
+    Fixed values must be greater than 0% and less than or equal to 100%.
 
     Examples:
 
@@ -455,7 +456,8 @@ class DBStorageFlexModelSchema(Schema):
         metadata={"deprecated field": "discharging-efficiency"},
     )
 
-    storage_efficiency = EfficiencyField(
+    storage_efficiency = VariableQuantityField(
+        "%",
         data_key="storage-efficiency",
         required=False,
         metadata={"deprecated field": "storage_efficiency"},

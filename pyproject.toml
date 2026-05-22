@@ -100,12 +100,12 @@ dependencies = [
     "vl-convert-python>=1.9.0.post1",
     # Forecaster: TrainPredictPipeline
     "lightgbm>=4.6.0",
-    "u8darts>=0.29.0",
+    "darts>=0.41.0",
     # LP solver. Required to test the function device_scheduler which is used by the StorageScheduler
     "highspy>=1.12",
     "rq-win>=0.4.2",
     # Below: minimum requirements solely here for security reasons
-    "urllib3>=2.6.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/508
+    "urllib3>=2.7.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/602 (and 603)
     "cryptography>=46.0.7",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/598
     "pyopenssl>=26.0.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/590
     "werkzeug>=3.1.6",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/587

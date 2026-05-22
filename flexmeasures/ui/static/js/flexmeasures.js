@@ -480,6 +480,11 @@ const dateFormatter = new Intl.DateTimeFormat(
   [], {"year": "numeric", "month": "long", "day": "numeric"}
 )
 
+// Renders a compact date in the local timezone without a time component.
+const shortDateFormatter = new Intl.DateTimeFormat(
+    [], {"year": "numeric", "month": "short", "day": "2-digit"}
+)
+
 // Renders an HH:MM time in the local timezone, including timezone info.
 // e.g. "12:17 BST"
 const timeFormatter = new Intl.DateTimeFormat(
@@ -523,7 +528,8 @@ function getHumanFriendlyDateString(iso8601_date_string) {
  * 
  * If longer ago than 24 hours, let getHumanFriendlyDateString take over.
  */
-function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string) {
+function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string, options = {}) {
+    const dateOnlyForOlder = options.dateOnlyForOlder === true;
   const date = new Date(Date.parse(iso8601_date_string));
   const now = new Date();
 
@@ -583,9 +589,48 @@ function getHumanFriendlyDeltaOrTimeStr(iso8601_date_string) {
 
   // 3. Fallback: Too far in the past or future
   else {
-    // If the difference is 7 days or more, return the full date string.
-    return getHumanFriendlyDateString(iso8601_date_string);
+        // For table views, optionally hide time for older moments.
+        if (dateOnlyForOlder) {
+            return shortDateFormatter.format(date);
+        }
+
+        // If the difference is 7 days or more, return the full date string.
+        return getHumanFriendlyDateString(iso8601_date_string);
   }
+}
+
+function humanizeIsoDuration(isoDuration) {
+  if (typeof isoDuration !== "string") {
+    return isoDuration;
+  }
+
+  const match = isoDuration.match(
+    /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/,
+  );
+
+  if (!match) {
+    return isoDuration;
+  }
+
+  const units = [
+    { value: match[1], label: "year" },
+    { value: match[2], label: "month" },
+    { value: match[3], label: "week" },
+    { value: match[4], label: "day" },
+    { value: match[5], label: "hour" },
+    { value: match[6], label: "minute" },
+    { value: match[7], label: "second" },
+  ];
+
+  const parts = units
+    .filter((unit) => unit.value !== undefined)
+    .map((unit) => {
+      const num = Number(unit.value);
+      const suffix = num === 1 ? "" : "s";
+      return `${unit.value} ${unit.label}${suffix}`;
+    });
+
+  return parts.length > 0 ? parts.join(" ") : isoDuration;
 }
 
 // Function to return a loading row for a table
@@ -738,15 +783,19 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fres
                 });
             }
 
-            // Notify the "Delete data" panel of the overall first/last event times
-            // across all sources so the "Select all data" link can populate the inputs.
+            // Notify the "Delete data" panel only when the stats cover all sensor data.
+            // The selected-duration stats should not redefine "all sensor data".
             const firstEventDates = Object.values(data)
                 .map(d => new Date(d["First event start"]))
                 .filter(d => !isNaN(d.getTime()));
             const lastEventDates = Object.values(data)
                 .map(d => new Date(d["Last event end"]))
                 .filter(d => !isNaN(d.getTime()));
-            if (firstEventDates.length > 0 && lastEventDates.length > 0) {
+            if (
+                !toggleStatsCheckbox.checked
+                && firstEventDates.length > 0
+                && lastEventDates.length > 0
+            ) {
                 document.dispatchEvent(new CustomEvent('sensorDataRangeAvailable', {
                     detail: {
                         firstEventStart: new Date(Math.min(...firstEventDates)),
