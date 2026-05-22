@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import isodate
-from copy import deepcopy
 from datetime import datetime, timedelta
-import pandas as pd
 
 from flexmeasures.data.services.sensors import (
     serialize_sensor_status_data,
@@ -287,47 +285,6 @@ class TriggerScheduleKwargsSchema(Schema):
             data["force-new-job-creation"] = data.pop("force_new_job_creation")
 
         return data
-
-
-def floor_timed_event_datetimes(flex_model: dict, sensor: Sensor) -> dict:
-    """Floor timed-event datetimes in list-valued flex-model fields.
-
-    This only touches list entries that look like timed-event dictionaries,
-    such as ``soc-minima``, ``soc-maxima`` and ``soc-targets``.
-    """
-    if sensor.event_resolution == timedelta(0) or not sensor.get_attribute(
-        "floor_datetimes_to_resolution", True
-    ):
-        return flex_model
-
-    floored_flex_model = deepcopy(flex_model)
-    for value_name, value in floored_flex_model.items():
-        if not isinstance(value, list):
-            continue
-        for index, timed_event in enumerate(value):
-            if not isinstance(timed_event, dict):
-                continue
-            for key in ("datetime", "start", "end"):
-                if key in timed_event:
-                    try:
-                        timed_event[key] = isodate.datetime_isoformat(
-                            pd.Timestamp(timed_event[key]).floor(
-                                sensor.event_resolution
-                            )
-                        )
-                    except (TypeError, ValueError) as exc:
-                        raise ValidationError(
-                            {
-                                value_name: {
-                                    index: {
-                                        key: [
-                                            f"Not a valid datetime: {timed_event[key]!r}."
-                                        ]
-                                    }
-                                }
-                            }
-                        ) from exc
-    return floored_flex_model
 
 
 class SensorAPI(FlaskView):
@@ -1044,12 +1001,6 @@ class SensorAPI(FlaskView):
             raise ValidationError(
                 f"Resolution of {resolution} is incompatible with the sensor's required resolution of {sensor.event_resolution}."
             )
-
-        if flex_model is not None:
-            try:
-                flex_model = floor_timed_event_datetimes(flex_model, sensor)
-            except ValidationError as err:
-                return unprocessable_entity(err.messages)
 
         end_of_schedule = start_of_schedule + duration
         scheduler_kwargs = dict(

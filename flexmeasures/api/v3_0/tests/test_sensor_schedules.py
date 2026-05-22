@@ -121,7 +121,7 @@ def test_trigger_schedule_with_invalid_flexmodel(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_trigger_schedule_floors_flex_model_datetimes(
+def test_trigger_schedule_preserves_flex_model_datetimes_in_job_kwargs(
     app,
     add_market_prices,
     add_battery_assets,
@@ -132,7 +132,6 @@ def test_trigger_schedule_floors_flex_model_datetimes(
 ):
     message = message_for_trigger_schedule(with_targets=True)
     offclock_target = "2015-01-02T23:00:40+01:00"
-    expected_target = "2015-01-02T23:00:00+01:00"
     for field in ("soc-targets", "soc-minima", "soc-maxima"):
         message["flex-model"][field][0]["datetime"] = offclock_target
 
@@ -151,17 +150,13 @@ def test_trigger_schedule_floors_flex_model_datetimes(
     job = app.queues["scheduling"].jobs[0]
     for field in ("soc-targets", "soc-minima", "soc-maxima"):
         target = job.kwargs["flex_model"][field][0]
-        assert target["datetime"] == expected_target
-        if "start" in target:
-            assert parse_datetime(target["start"]) == parse_datetime(expected_target)
-        if "end" in target:
-            assert parse_datetime(target["end"]) == parse_datetime(expected_target)
+        assert target["datetime"] == offclock_target
 
 
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_trigger_schedule_keeps_flex_model_datetimes_when_flooring_disabled(
+def test_trigger_schedule_preserves_flex_model_datetimes_when_flooring_disabled(
     app,
     add_market_prices,
     add_battery_assets,
