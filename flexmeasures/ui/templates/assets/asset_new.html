@@ -7,9 +7,28 @@
 {% block divs %}
 
 <div class="container-fluid">
-    
+
     <h3>Creating a new asset {% if parent_asset_name %} under asset <a href="/assets/{{parent_asset_id}}">{{ parent_asset_name }}</a> {% endif %}</h3>
-    
+
+    <!-- Tab navigation -->
+    <ul class="nav nav-tabs mb-3" id="newAssetTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="create-new-tab" data-bs-toggle="tab"
+                data-bs-target="#create-new" type="button" role="tab"
+                aria-controls="create-new" aria-selected="true">Create new</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="copy-asset-tab" data-bs-toggle="tab"
+                data-bs-target="#copy-asset" type="button" role="tab"
+                aria-controls="copy-asset" aria-selected="false">Copy an existing</button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="newAssetTabContent">
+
+        <!-- Tab 1: Create new asset form -->
+        <div class="tab-pane fade show active" id="create-new" role="tabpanel" aria-labelledby="create-new-tab">
+
     <form class="new-asset-form form-horizontal" method="POST" action="/assets/create">
         {{ asset_form.csrf_token }}
         {{ asset_form.hidden_tag() }}
@@ -108,6 +127,45 @@
             </div>
         </fieldset>
     </form>
+
+        </div><!-- end #create-new tab pane -->
+
+        <!-- Tab 2: Copy an existing asset -->
+        <div class="tab-pane fade" id="copy-asset" role="tabpanel" aria-labelledby="copy-asset-tab">
+
+            <div class="row mb-3 mt-3">
+                <div class="col-md-5">
+                    <input type="text" id="copySearchInput" class="form-control"
+                        placeholder="Search assets…">
+                </div>
+                <div class="col-md-3">
+                    <select id="copyAssetTypeSelect" class="form-select">
+                        <option value="">All types</option>
+                        {% for at in asset_types %}
+                        <option value="{{ at.id }}">{{ at.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-center">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="copyIncludePublic" checked>
+                        <label class="form-check-label" for="copyIncludePublic">Include public assets</label>
+                    </div>
+                </div>
+            </div>
+
+            <div id="copyAssetsSpinner" class="justify-content-center my-4 d-none">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading…</span>
+                </div>
+            </div>
+
+            <div id="copyAssetsResults" class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-1 my-2"></div>
+
+        </div><!-- end #copy-asset tab pane -->
+
+    </div><!-- end .tab-content -->
+
 </div>
 
 <!-- Initialise the map -->
@@ -172,6 +230,114 @@
         marker.setLatLng(e.latlng);
     });
 
+</script>
+
+<script type="module">
+        import {getAccount} from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+
+
+(function () {
+    var parentAssetId = "{{ parent_asset_id }}";
+
+    async function searchAssetsForCopy() {
+        var filter = document.getElementById("copySearchInput").value;
+        var assetTypeId = document.getElementById("copyAssetTypeSelect").value;
+        var includePublic = document.getElementById("copyIncludePublic").checked;
+
+        var params = new URLSearchParams({ page: 1, per_page: 100 });
+        if (filter) params.set("filter", filter);
+        if (assetTypeId) params.set("generic_asset_type_id", assetTypeId);
+        if (includePublic) params.set("include_public_assets", "true");
+
+        var spinner = document.getElementById("copyAssetsSpinner");
+        var results = document.getElementById("copyAssetsResults");
+        spinner.classList.remove("d-none");
+        spinner.classList.add("d-flex");
+        results.innerHTML = "";
+
+        try {
+            var response = await fetch("/api/v3_0/assets?" + params.toString(), {
+                credentials: "same-origin",
+            });
+            if (!response.ok) throw new Error(response.statusText || "Request failed");
+            var data = await response.json();
+            renderCopyResults(data.data || []);
+        } catch (err) {
+            showToast("Failed to search assets: " + err.message, "error");
+        } finally {
+            spinner.classList.remove("d-flex");
+            spinner.classList.add("d-none");
+        }
+    }
+
+    function renderCopyResults(assets) {
+        var container = document.getElementById("copyAssetsResults");
+        container.innerHTML = "";
+        if (!assets.length) {
+            container.innerHTML = '<p class="text-muted">No assets found.</p>';
+            return;
+        }
+        assets.forEach(async function (asset) {
+            const account = asset.account_id ? await getAccount(asset.account_id) : null;
+            var col = document.createElement("div");
+            col.className = "col";
+            var accountLabel = account
+                ? account.name + " (Acct ID: " + account.id + ")"
+                : "Public";
+            col.innerHTML =
+                '<div class="d-flex justify-content-between align-items-center border rounded px-2 py-1">' +
+                '<div class="me-2 text-truncate">' +
+                '<div class="fw-semibold text-truncate">' + escapeHtml(asset.name) + '</div>' +
+                '<div class="text-muted small text-truncate">' + accountLabel + '</div>' +
+                '</div>' +
+                '<button class="btn btn-sm btn-primary js-copy-from-tab-btn"' +
+                ' data-asset-id="' + asset.id + '">Copy</button>' +
+                '</div>';
+            container.appendChild(col);
+            // Attach listener after button is added to DOM
+            var btn = col.querySelector(".js-copy-from-tab-btn");
+            btn.addEventListener("click", function () {
+                var assetId = btn.dataset.assetId;
+                var url = "/api/v3_0/assets/" + assetId + "/copy";
+                if (parentAssetId) url += "?parent_id=" + parentAssetId;
+                btn.disabled = true;
+                showToast("Creating asset from template…", "info");
+                fetch(url, { method: "POST", credentials: "same-origin" })
+                    .then(function (r) {
+                        if (!r.ok) return r.json().then(function (e) { throw new Error(e.message || r.statusText); });
+                        return r.json();
+                    })
+                    .then(function (data) {
+                        showToast("Asset created successfully.", "success");
+                        setTimeout(function () {
+                            window.location.href = "/assets/" + data.asset + "/properties";
+                        }, 2000);
+                    })
+                    .catch(function (err) {
+                        showToast("Failed to create asset: " + err.message, "error");
+                        btn.disabled = false;
+                    });
+            });
+        });
+    }
+
+    function escapeHtml(text) {
+        var d = document.createElement("div");
+        d.appendChild(document.createTextNode(text));
+        return d.innerHTML;
+    }
+
+    document.getElementById("copySearchInput").addEventListener("input", searchAssetsForCopy);
+    document.getElementById("copyAssetTypeSelect").addEventListener("change", searchAssetsForCopy);
+    document.getElementById("copyIncludePublic").addEventListener("change", searchAssetsForCopy);
+
+    // Run initial search when the tab is first shown
+    document.getElementById("copy-asset-tab").addEventListener("shown.bs.tab", function () {
+        if (document.getElementById("copyAssetsResults").innerHTML === "") {
+            searchAssetsForCopy();
+        }
+    });
+}());
 </script>
 
 {% endblock %}

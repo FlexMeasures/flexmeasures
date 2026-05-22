@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from sqlalchemy import select
 from flask import redirect, url_for, current_app, request, session
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
@@ -18,6 +19,7 @@ from flexmeasures.data.services.generic_assets import (
 )
 from flexmeasures.data.models.generic_assets import (
     GenericAsset,
+    GenericAssetType,
     get_bounding_box_of_assets,
 )
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
@@ -147,6 +149,10 @@ class AssetCrudUI(FlaskView):
             if account:  # Pre-set account
                 asset_form.account_id.data = str(account.id)
 
+            asset_types = db.session.scalars(
+                select(GenericAssetType).order_by(GenericAssetType.name)
+            ).all()
+
             return render_flexmeasures_template(
                 "assets/asset_new.html",
                 asset_form=asset_form,
@@ -157,6 +163,7 @@ class AssetCrudUI(FlaskView):
                 parent_asset_name=parent_asset_name,
                 parent_asset_id=parent_asset_id,
                 account=account,
+                asset_types=asset_types,
             )
 
         # otherwise, redirect to the default asset view
