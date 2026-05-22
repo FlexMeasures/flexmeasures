@@ -6,7 +6,6 @@ from webargs.flaskparser import use_kwargs, use_args
 from flask_security import current_user, auth_required
 from flask_json import as_json
 from sqlalchemy import or_, select, func
-from sqlalchemy.exc import IntegrityError
 from flask_sqlalchemy.pagination import SelectPagination
 
 from flexmeasures.auth.policy import (
@@ -238,12 +237,7 @@ class AccountAPI(FlaskView):
 
         account = Account(**account_data)
         db.session.add(account)
-
-        try:
-            db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
-            return {"errors": ["Database integrity error"]}, 400
+        db.session.commit()
 
         return account_schema.dump(account), 201
 
