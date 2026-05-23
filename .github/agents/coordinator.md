@@ -422,32 +422,11 @@ This is not optional. Agents that don't self-improve will:
 - Miss opportunities to encode knowledge
 - Fail to evolve with the project
 
-### 2. Atomic Commit Discipline
+### 2. Atomic Commits and No Temporary Files
 
-**Never mix different types of changes in a single commit.**
+See `.github/instructions/atomic-commits.instructions.md`. Never mix different types of changes in one commit; never commit temporary planning or analysis files.
 
-Examples of what to separate:
-
-- Code changes from tests
-- Code changes from documentation
-- Documentation from agent instructions
-- Multiple unrelated changes
-
-Each commit should tell one clear story about one logical change.
-
-### 3. No Temporary Analysis Files
-
-**Never commit temporary planning or analysis files.**
-Forbidden files that slip into commits:
-- `ARCHITECTURE_ANALYSIS.md`
-- `TASK_SUMMARY.md`
-- `TEST_PLAN.md`
-- `DOCUMENTATION_CHANGES.md`
-- Any `.md` files created for understanding/planning
-
-These should stay in working memory or `/tmp/`, never in git.
-
-### 4. Verify Claims Before Stating
+### 3. Verify Claims Before Stating
 
 **All claims must be backed by actual verification.**
 
@@ -465,7 +444,7 @@ Required verification:
 - Test exact bug scenarios end-to-end
 - Use FlexMeasures dev environment to verify behavior
 
-### 5. Use FlexMeasures Dev Environment
+### 4. Use FlexMeasures Dev Environment
 
 **Agents must make successful use of working FlexMeasures dev environment.**
 Key capabilities:
@@ -473,22 +452,11 @@ Key capabilities:
 - Set up environment: `uv sync --group dev --group test`
 - Run tests: `uv run poe test`
 - Test CLI: `flexmeasures <command> <args>`
-- Run pre-commit: `pre-commit run --all-files`
+- Run pre-commit: `pre-commit run --all-files` (see `.github/instructions/pre-commit-hooks.instructions.md`)
 - Build docs: `make update-docs`
 - Profile performance: `export FLEXMEASURES_PROFILE_REQUESTS=true`
 
 Agents should not just suggest actions—they should execute them.
-
-### 6. Commit Message Format
-
-Standard format for all agent commits:
-```
-<area or agent>: <concise lesson or improvement>
-Context:
-- What triggered the change
-Change:
-- What was adjusted and why
-```
 
 ### Common Failures from Recent Session
 
