@@ -540,28 +540,13 @@ When reviewing or implementing domain model fixes:
 
 ### Must Make Atomic Commits
 
-**Never mix code changes with documentation or analysis files.**
-Examples of non-atomic commits to avoid:
-- Code fix + `ARCHITECTURE_ANALYSIS.md` in same commit
-- Multiple unrelated model changes
-- Production code + test code (should be separate)
+See `.github/instructions/atomic-commits.instructions.md`. Never mix code changes with documentation or analysis files.
+
 Good commit practice:
 1. Code change (single logical unit)
 2. Test for that change (separate commit)
 3. Documentation update (separate commit)
 4. Agent instruction update (separate commit)
-
-### Must Avoid Committing Analysis Files
-
-**Never commit temporary analysis or planning files:**
-Files to never commit:
-- `ARCHITECTURE_ANALYSIS.md`
-- `DOMAIN_MODEL_ANALYSIS.md`
-- Any `.md` files created for understanding/planning
-These should:
-- Stay in working memory only
-- Be written to `/tmp/` if needed for reference
-- Never be added to git
 
 ### Must Verify Claims Before Stating Them
 

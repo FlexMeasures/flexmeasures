@@ -116,50 +116,7 @@ git diff flexmeasures/ui/static/openapi-specs.json | grep -c '"Asia/'
 
 ### Pre-commit Hook Execution (CRITICAL)
 
-**Every commit MUST pass pre-commit hooks BEFORE being committed.**
-
-This is mandatory. Committing code that fails pre-commit hooks is a process failure.
-
-#### Why This Matters
-
-Pre-commit hooks enforce code quality standards:
-- **Flake8**: Catches linting errors (unused imports, complexity, style violations)
-- **Black**: Ensures consistent code formatting
-- **Mypy**: Validates type annotations
-
-Code that bypasses pre-commit:
-- Fails in CI (wastes resources)
-- Forces maintainers to fix formatting
-- Creates noisy review feedback
-- Delays PR merge
-
-#### Execution Requirements
-
-**Before ANY commit:**
-
-1. **Install pre-commit**:
-   ```bash
-   pip install pre-commit
-   pre-commit install  # Install git hooks (optional but recommended)
-   ```
-
-2. **Run all hooks**:
-   ```bash
-   pre-commit run --all-files
-   ```
-
-3. **Verify zero failures**:
-   - ✅ All hooks pass
-   - ✅ No files modified by hooks (or modifications committed)
-   - ✅ No errors from flake8, black, or mypy
-
-4. **Document execution**:
-   ```
-   Pre-commit verification:
-   - Command: pre-commit run --all-files
-   - Result: All hooks passed
-   - Modified files: None (or included in commit)
-   ```
+**Every commit MUST pass `pre-commit run --all-files` BEFORE being committed.** See `.github/instructions/pre-commit-hooks.instructions.md` for setup and hook details. Committing code that fails pre-commit hooks is a process failure.
 
 #### Responsibility Assignment
 

@@ -463,13 +463,12 @@ response.headers["X-API-Stability"] = "experimental"
 
 ### Must Make Atomic Commits
 
-When making API changes:
+See `.github/instructions/atomic-commits.instructions.md`. When making API changes:
 
-- **Separate API changes from tests** - One logical unit per commit
-- **Separate documentation updates** - API docs in separate commit
-- **Separate schema changes** - Don't mix multiple schema updates
-- **Never commit analysis files** - No `API_ANALYSIS.md` or similar
-- **Update agent instructions separately** - Own file, own commit
+- **Separate API changes from tests** — one logical unit per commit
+- **Separate documentation updates** — API docs in separate commit
+- **Separate schema changes** — don't mix multiple schema updates
+- **Update agent instructions separately** — own file, own commit
 
 ### Must Verify Backward Compatibility Claims
 

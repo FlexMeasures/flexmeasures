@@ -164,12 +164,11 @@ Critical conversions require duration or capacity parameters.
 
 ### Must Make Atomic Commits
 
-When making time/unit fixes:
+See `.github/instructions/atomic-commits.instructions.md`. When making time/unit fixes:
 
-- **Separate code changes from tests** - One commit per logical unit
-- **Separate documentation updates** - Don't mix with code
-- **Never commit analysis files** - No `TIME_ANALYSIS.md` or similar
-- **Update agent instructions separately** - Own file, own commit
+- **Separate code changes from tests** — one commit per logical unit
+- **Separate documentation updates** — don't mix with code
+- **Update agent instructions separately** — own file, own commit
 
 ### Must Verify Claims
 

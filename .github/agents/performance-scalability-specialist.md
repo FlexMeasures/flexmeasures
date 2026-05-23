@@ -315,12 +315,11 @@ FlexMeasures provides built-in request profiling capabilities for performance an
 
 ### Must Make Atomic Commits
 
-When making performance changes:
+See `.github/instructions/atomic-commits.instructions.md`. When making performance changes:
 
-- **Separate performance fix from tests** - One optimization per commit
-- **Separate benchmarks** - Performance tests in separate commit
-- **Never commit analysis files** - No `PERFORMANCE_ANALYSIS.md` or similar
-- **Update agent instructions separately** - Own file, own commit
+- **Separate performance fix from tests** — one optimization per commit
+- **Separate benchmarks** — performance tests in separate commit
+- **Update agent instructions separately** — own file, own commit
 
 ### Must Verify Performance Claims with Benchmarks
 
