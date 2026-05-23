@@ -5,14 +5,14 @@ applyTo: "flexmeasures/**/tests/**/*.py"
 
 ## Run the full test suite
 
-Before finishing a session and requesting a review, run the complete test suite:
+Before finishing a session and requesting a review, run the complete test suite — partial test runs are insufficient because FlexMeasures has interconnected systems where changes in one area affect others:
 
 ```bash
 uv sync --group test
 uv run poe test
 ```
 
-Intermediate full test runs are encouraged when appropriate (e.g., after a significant refactor). During active development, targeted runs (`pytest path/to/test_module.py`) are acceptable.
+Intermediate full test runs are encouraged when appropriate (e.g., after a significant refactor). During active development, targeted runs (`pytest path/to/test_module.py`) are acceptable for quick iteration but must not substitute for the full suite at session close.
 
 ## Run the full module after changing any test
 

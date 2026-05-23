@@ -64,5 +64,5 @@ Each PR generally requires an entry. Examples of what warrants one:
 
 - Internal refactoring with no user-visible effect
 - Test-only changes
-- Small agent instruction updates
+- Small agent instruction updates (typo fixes, minor wording changes)
 - Pure documentation typo fixes

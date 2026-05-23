@@ -418,7 +418,12 @@ The workflow includes:
 - Use f-strings for string formatting
 - Follow the project's code style (enforced by black, flake8)
 
-For test docstrings specifically: describe **what the test currently verifies** — not why a bug existed or how behaviour changed. Historical context belongs in commit messages or PR descriptions, never in source code docstrings.
+For test docstrings specifically: describe **what the test currently verifies** — not why a bug existed or how behaviour changed. Historical context belongs in commit messages or PR descriptions, never in source code docstrings. Forbidden pattern:
+```
+# Bug (on main): ...
+# Fix: ...
+# Expected: X on main, Y with fix
+```
 
 ### Code Quality and Linting
 
