@@ -413,125 +413,16 @@ The workflow includes:
 ### Code Style
 
 - Use descriptive test names that explain what is being tested
-- Add RST-format docstrings for complex tests
+- Add RST-format docstrings for complex tests; see `.github/instructions/docstrings.instructions.md`
 - Keep tests focused on a single behavior or feature
 - Use f-strings for string formatting
 - Follow the project's code style (enforced by black, flake8)
 
-### Docstring Style Rules (ENFORCED — learned from PR #2163 review)
-
-#### 1. No historical context in test docstrings
-
-Test docstrings must describe **what the test currently verifies** — not why the
-bug existed or how behaviour changed.
-
-**Forbidden in docstrings:**
-```
-# Bug (on main): ...
-# Fix: ...
-# Expected: X on main, Y with fix
-```
-
-**Correct pattern** — describe the expected behaviour only:
-```python
-def test_forecast_horizon_is_preserved():
-    """Verify that the forecast horizon stored on each belief matches the sensor resolution."""
-```
-
-Historical context belongs in **commit messages** or **PR descriptions**, never
-in source code docstrings. It is scoped to the agent session only and must not
-be committed.
-
-#### 2. Minimal line-wrapping inside sentences
-
-Keep each sentence on as few lines as possible. Do **not** hard-wrap sentences
-mid-phrase to stay within 79 characters. A single long sentence is better than
-one broken across two lines.
-
-**Wrong** (sentence split mid-phrase):
-```python
-"""Verify that posting sensor data creates a data source whose account_id
-matches the posting user's account."""
-```
-
-**Correct** (sentence on one line):
-```python
-"""Verify that posting sensor data creates a data source whose account_id matches the posting user's account."""
-```
-
-#### 3. No double spaces after punctuation
-
-Use exactly **one** space after periods, commas, colons, and all other
-punctuation in docstrings, inline comments, and any documentation strings.
-
-**Wrong:** `"""Check asset.  A Prosumer asset is created."""`
-**Correct:** `"""Check asset. A Prosumer asset is created."""`
+For test docstrings specifically: describe **what the test currently verifies** — not why a bug existed or how behaviour changed. Historical context belongs in commit messages or PR descriptions, never in source code docstrings.
 
 ### Code Quality and Linting
 
-Before finalizing tests, always apply the project's code quality checks:
-
-### Running Pre-commit Hooks
-
-The project uses `.pre-commit-config.yaml` to enforce code quality standards. Always run pre-commit hooks before committing:
-
-```bash
-# Install pre-commit (if not already installed)
-uv tool install pre-commit
-
-# Run all pre-commit hooks on all files
-pre-commit run --all-files
-
-# Or run on specific files
-pre-commit run --files path/to/test_file.py
-```
-
-### Pre-commit Hooks in This Project
-
-The following hooks are configured in FlexMeasures:
-
-- **flake8**: Checks Python code style and quality (linting)
-  - Configured in `setup.cfg` with max-line-length: 160, max-complexity: 13
-  - Ignores: E501 (line too long), W503 (line break before binary operator), E203 (whitespace before ':')
-  
-- **black**: Formats Python code automatically (line length, style)
-  - Auto-fixes code formatting issues
-  
-- **mypy**: Performs static type checking
-  - Task: `uv run poe type-check`
-  - Checks type hints and type safety
-
-- **generate-openapi-specs**: Generates OpenAPI specifications (local only, skipped in GitHub Actions)
-
-**Note**: The template mentions hooks like trailing-whitespace, end-of-file-fixer, check-ast, check-json, check-yaml, debug-statements, and isort, but these are NOT currently configured in FlexMeasures. Consider opening follow-up issues to:
-- Add standard pre-commit hooks for trailing whitespace, EOF, and file validation
-- Add isort for import sorting
-- Add more comprehensive linting hooks
-
-### Fixing Linting Issues
-
-When pre-commit hooks fail:
-
-1. **Review the output** to understand what failed
-2. **Auto-fix issues**: Many hooks auto-fix issues (black) - re-run to verify:
-   ```bash
-   pre-commit run --all-files
-   ```
-3. **Manual fixes** for flake8 errors:
-   - Address unused imports, undefined names, line too long, etc.
-   - Run pre-commit again to verify fixes
-4. **For mypy type errors**:
-   - Add type hints where needed
-   - Use `# type: ignore` comments sparingly for known issues
-
-### Best Practices
-
-- Run pre-commit hooks frequently during development
-- Fix linting issues before requesting code review
-- Keep test code clean and well-formatted like production code
-- Ensure all hooks pass before pushing changes
-- Ensure all tests pass before asking for a review
-- Update these agent instructions with learnings from each assignment
+Before finalizing tests, run `pre-commit run --all-files`. See `.github/instructions/pre-commit-hooks.instructions.md` for setup and hook details.
 
 ### Environment Setup
 
@@ -720,50 +611,14 @@ When fixing failing tests, ALWAYS follow this test-driven approach:
 
 When updating tests or this agent file:
 
-### Small, Atomic Commits
+### Atomic Commits and Commit Format
+
+See `.github/instructions/atomic-commits.instructions.md`. For test-specific commits, use the prefix `tests/<area>:`.
 
 - **One test file per commit** when adding new tests
-- **Separate test changes from production code** - Never mix in the same commit
-- **Separate agent instruction updates** - Commit this file separately from test changes
-
-### Commit Message Format
-
-```
-tests/<area>: <what was learned or improved>
-Context:
-- What bug or issue triggered this test
-- What scenario is being covered
-Change:
-- What test was added
-- Why this test matters
-```
-
-Example:
-
-```
-tests/utils: add timezone handling test for duration parsing
-Context:
-- Bug #1234 reported PT2H being parsed incorrectly in CET timezone
-- Existing tests only covered UTC timezone
-Change:
-- Added parametrized test covering CET, EST, and UTC timezones
-- Verifies duration parsing respects timezone during DST transitions
-```
-
-### Avoiding Temporary Files
-
-**Never commit temporary analysis files** such as:
-
-- `ARCHITECTURE_ANALYSIS.md`
-- `TASK_SUMMARY.md`
-- `TEST_PLAN.md`
-- Any `.md` files created for planning/analysis
-
-These should either:
-
-- Stay in working memory only
-- Be written to `/tmp/` if needed for reference
-- Be added to `.gitignore` if they're recurring
+- **Separate test changes from production code** — never mix in the same commit
+- **Separate agent instruction updates** — commit this file separately from test changes
+- **Never commit temporary analysis files** — keep them in working memory or `/tmp/`
 
 ### Self-Improvement Loop
 
