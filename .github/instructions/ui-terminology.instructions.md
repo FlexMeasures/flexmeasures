@@ -41,4 +41,4 @@ Never expose internal role names (e.g. `account-admin`, `admin`) in UI text. Use
 | Background job progress | `showToast("...", "info")` |
 | Persistent field description users need while interacting | `<div class="alert alert-info">` |
 
-Do not migrate inline `alert-info` divs showing persistent information to toasts — they would disappear before the user reads them.
+Do not migrate inline `alert-info` divs showing persistent information to toasts — they could disappear before the user reads them.

@@ -27,3 +27,4 @@ When a convention appears in two or more agent files or is frequently missed, ex
 3. Write concise, actionable instructions in natural language Markdown.
 4. Update the table above.
 5. Reference the new file from the relevant agent files in `.github/agents/`.
+6. Go through the agent files to remove sections that have been made redundant by the new file.

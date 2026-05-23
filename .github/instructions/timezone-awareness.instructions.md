@@ -65,4 +65,4 @@ from datetime import datetime, timezone
 start_time = datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc)
 ```
 
-Never show a naive `datetime(...)` call in user-facing documentation.
+Never show a naive `datetime(...)` call in user-facing documentation or in log statements.

@@ -3,7 +3,7 @@ applyTo: "**"
 ---
 # Changelog Entries
 
-Every PR that introduces a user-visible change, new feature, infrastructure improvement, or bug fix must include a changelog entry.
+Each PR generally requires a changelog entry.
 
 ## Changelogs
 
@@ -15,17 +15,27 @@ Every PR that introduces a user-visible change, new feature, infrastructure impr
 
 ## Entry format
 
+Always follow the formatting convention already present in the target changelog file — the style may evolve over time. The canonical guide is the file itself.
+
+Current conventions:
+- **Main changelog**: one sentence, no period at the end, written for end users (abstract away technical details when possible)
+- **API and CLI changelogs**: slightly more technical audience; use a period at the end
+
+Example for the main changelog:
+
 ```rst
-* Brief description of the change, written for the intended audience. [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* Add cross-cutting Copilot instruction files to `.github/instructions/` [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 ```
 
 Replace `XXXX` with the actual PR number. If the PR number is not yet known, alert the maintainer.
 
 ## Sections in `documentation/changelog.rst`
 
+Always use this order:
+
 - **New features** — new capabilities visible to API/CLI/UI users
-- **Bugfixes** — corrections to incorrect behavior
 - **Infrastructure / Support** — changes targeting plugin developers and hosts
+- **Bugfixes** — corrections to incorrect behavior
 
 ## PR description checkbox
 
@@ -39,6 +49,8 @@ Tick it once the changelog entry is committed.
 
 ## What requires a changelog entry
 
+Each PR generally requires an entry. Examples of what warrants one:
+
 - New API endpoints or parameters
 - Changed or removed API behavior
 - New CLI commands or options
@@ -46,10 +58,11 @@ Tick it once the changelog entry is committed.
 - Performance improvements that affect users
 - Breaking changes (always require a changelog entry, plus migration notes)
 - Changes to plugin interfaces
+- Significant changes to the repo's AI infrastructure
 
 ## What does not require a changelog entry
 
 - Internal refactoring with no user-visible effect
 - Test-only changes
-- Agent instruction updates
+- Small agent instruction updates
 - Pure documentation typo fixes
