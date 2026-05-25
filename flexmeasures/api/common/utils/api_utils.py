@@ -640,6 +640,9 @@ def copy_asset(
                 "Invalid copy target parent: cannot copy an asset to itself or any of its descendants."
             )
 
+        # set external_id to None to avoid conflicts with unique constraint on (account_id, external_id)
+        asset.external_id = None
+
         copied_root, sensor_id_map = _copy_asset_subtree(
             source_asset=asset,
             destination_account_id=target_account_id,
