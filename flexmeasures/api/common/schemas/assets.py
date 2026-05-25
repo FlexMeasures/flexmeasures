@@ -92,6 +92,15 @@ class AssetAPIQuerySchema(PaginationSchema):
             example=False,
         ),
     )
+    asset_type = fields.Int(
+        data_key="asset_type",
+        required=False,
+        validate=validate.Range(min=1),
+        metadata=dict(
+            description="Filter assets by generic asset type ID.",
+            example=2,
+        ),
+    )
 
 
 class PublicAssetAPISchema(Schema):

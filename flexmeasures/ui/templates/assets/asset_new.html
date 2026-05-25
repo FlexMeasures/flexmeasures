@@ -307,11 +307,12 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
 
         const params = new URLSearchParams({ page: page, per_page: perPage });
         if (filter) params.set("filter", filter);
-        if (assetTypeId) params.set("generic_asset_type_id", assetTypeId);
-        if (includePublic) params.set("include_public_assets", "true");
+        if (assetTypeId) params.set("asset_type", assetTypeId);
+        if (includePublic) params.set("include_public", "true");
         // Ensure stable ordering across pages to avoid page-overlap duplicates.
         params.set("sort_by", "id");
         params.set("sort_dir", "asc");
+        params.set("all_accessible", "true");
         return params;
     }
 

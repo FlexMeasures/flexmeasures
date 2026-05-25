@@ -267,6 +267,7 @@ class AssetAPI(FlaskView):
         fields_in_response: list[str] | None,
         all_accessible: bool,
         include_public: bool,
+        asset_type: int | None = None,
         account: Account | None = None,
         root_asset: GenericAsset | None = None,
         max_depth: int | None = None,
@@ -287,6 +288,7 @@ class AssetAPI(FlaskView):
               - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
               - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
+              - The `asset_type` query parameter can be used to filter by generic asset type ID.
               - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).
               - The `depth` query parameter can be used to search only a max number of descendant generations from the root.
 
@@ -363,6 +365,10 @@ class AssetAPI(FlaskView):
         filter_statement = GenericAsset.account_id.in_(account_ids)
         if include_public:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
+        if asset_type is not None:
+            filter_statement = filter_statement & (
+                GenericAsset.generic_asset_type_id == asset_type
+            )
 
         query = query_assets_by_search_terms(
             search_terms=filter,
