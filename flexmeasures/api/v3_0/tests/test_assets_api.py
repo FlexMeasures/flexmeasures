@@ -170,19 +170,17 @@ def test_get_assets(
         assert turbine["account_id"] == setup_accounts["Supplier"].id
 
 
-@pytest.mark.parametrize(
-    "requesting_user", ["test_admin_user@seita.nl"], indirect=True
-)
-def test_get_assets_filtered_by_asset_type(
-    client, setup_accounts, requesting_user
-):
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_filtered_by_asset_type(client, setup_accounts, requesting_user):
     supplier_account = setup_accounts["Supplier"]
     supplier_account_id = supplier_account.id
     supplier_assets = supplier_account.generic_assets
 
     requested_type_id = supplier_assets[0].generic_asset_type_id
     expected_assets = [
-        asset for asset in supplier_assets if asset.generic_asset_type_id == requested_type_id
+        asset
+        for asset in supplier_assets
+        if asset.generic_asset_type_id == requested_type_id
     ]
 
     response = client.get(
@@ -195,7 +193,10 @@ def test_get_assets_filtered_by_asset_type(
 
     assert response.status_code == 200
     assert len(response.json) == len(expected_assets)
-    assert all(asset["generic_asset_type"]["id"] == requested_type_id for asset in response.json)
+    assert all(
+        asset["generic_asset_type"]["id"] == requested_type_id
+        for asset in response.json
+    )
 
 
 @pytest.mark.parametrize(
