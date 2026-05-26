@@ -104,12 +104,14 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
             description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
         ),
     )
-    flex_model = fields.Nested(
-        storage_flex_model_schema_openAPI(exclude=["asset"]),
-        required=True,
-        data_key="flex-model",
-        metadata=dict(
-            description="The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
+    flex_model = fields.List(
+        fields.Nested(
+            storage_flex_model_schema_openAPI(exclude=["asset"]),
+            required=True,
+            data_key="flex-model",
+            metadata=dict(
+                description="Flex-model per device (identified by `sensor`). The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
+            ),
         ),
     )
 
@@ -1418,6 +1420,8 @@ class AssetAPI(FlaskView):
                               power-capacity: 25 kW
                               consumption-capacity: {sensor: 42}
                               production-capacity: 30 kW
+                              soc-minima:
+                                - {start: "2015-06-02T12:00:00+00:00", end: "2015-06-02T13:00:00+00:00", value: 10 kWh}
                             - sensor: 932
                               consumption-capacity: 0 kW
                               production-capacity: {sensor: 760}

@@ -38,10 +38,14 @@ Infrastructure / Support
 * Support filtering time series data by data source account [`PR #2065 <https://www.github.com/FlexMeasures/flexmeasures/pull/2065>`_]
 * Speed up finding the data sources associated with a sensor and the sensors associated with a data source [`PR #2151 <https://www.github.com/FlexMeasures/flexmeasures/pull/2151>`_]
 * Speed up sensor stats, especially potent when viewing sensors stats over a large sensor history [`PR #2173 <https://www.github.com/FlexMeasures/flexmeasures/pull/2173>`_]
+* Various smaller fixes in documenting scheduling endpoints and flex-model fields [`PR #2122 <https://www.github.com/FlexMeasures/flexmeasures/pull/2122>`_]
+* Add cross-cutting Copilot instruction files to ``.github/instructions/`` covering atomic commits, changelog format, docstrings, error handling, Marshmallow schemas, pre-commit hooks, testing, timezone awareness, and UI terminology [see `PR #2198 <https://www.github.com/FlexMeasures/flexmeasures/pull/2198>`_]
 
 Bugfixes
 -----------
+* Fix DST transition handling by supporting both native Python ``datetime`` and pandas ``Timestamp`` objects in time series segment processing, preventing ``AttributeError`` when processing segments with differing UTC offsets [see `PR #2197 <https://github.com/FlexMeasures/flexmeasures/pull/2197>`_]
 * Fix forecasting regressor filtering to use only regressor beliefs known at the forecast ``belief_time`` [see `PR #2134 <https://www.github.com/FlexMeasures/flexmeasures/pull/2134>`_]
+* Make the sensor page forecast button train from available sensor history instead of the default 30-day window [see `PR #2187 <https://www.github.com/FlexMeasures/flexmeasures/pull/2187>`_]
 * Check read permissions for sensors referenced in forecasting and scheduling config payloads, and return a clearer 403 error when a referenced sensor is not readable [see `PR #2096 <https://www.github.com/FlexMeasures/flexmeasures/pull/2096>`_ and `PR #2125 <https://www.github.com/FlexMeasures/flexmeasures/pull/2125>`_]
 * Add the missing ``force-new-job-creation`` field for triggering a schedule on an asset (tree) [see `PR #2182 <https://www.github.com/FlexMeasures/flexmeasures/pull/2182>`_]
 * Clean up stale sensor references from ``flex-config`` and ``sensors_to_show`` when deleting a sensor, using JSONB queries to find affected assets before pruning those references [see `PR #2106 <https://www.github.com/FlexMeasures/flexmeasures/pull/2106>`_]
