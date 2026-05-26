@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 import pytest
 
@@ -14,6 +14,7 @@ from flexmeasures.data.schemas.scheduling.storage import (
     StorageFlexModelSchema,
     DBStorageFlexModelSchema,
 )
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.sensors import TimedEventSchema, VariableQuantityField
 
 
@@ -160,6 +161,26 @@ def test_process_scheduler_flex_model_process_type(db, app, setup_dummy_sensors)
     )
 
     assert process_scheduler_flex_model["process_type"] == ProcessType.SHIFTABLE
+
+
+def test_storage_flex_model_schema_does_not_floor_instantaneous_sensor(
+    db, app, dummy_asset
+):
+    sensor = Sensor(
+        "instantaneous power sensor",
+        generic_asset=dummy_asset,
+        event_resolution=timedelta(0),
+        unit="MW",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+
+    schema = StorageFlexModelSchema(
+        sensor=sensor,
+        start=datetime(2023, 1, 1, tzinfo=pytz.UTC),
+    )
+
+    assert schema.flooring_resolution is None
 
 
 @pytest.mark.parametrize(

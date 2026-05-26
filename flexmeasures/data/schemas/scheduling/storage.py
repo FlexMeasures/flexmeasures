@@ -240,6 +240,7 @@ class StorageFlexModelSchema(Schema):
         self.flooring_resolution = (
             sensor.event_resolution
             if sensor is not None
+            and sensor.event_resolution != timedelta(0)
             and sensor.get_attribute("floor_datetimes_to_resolution", True)
             else None
         )
