@@ -111,6 +111,9 @@ class MetaStorageScheduler(Scheduler):
                 "commodity": "gas",
                 "consumption_price": self.flex_context.get("gas_price"),
                 "production_price": self.flex_context.get("gas_price"),
+                "inflexible_device_sensors": self.flex_context.get(
+                    "inflexible_device_sensors", []
+                ),
             }
 
         return commodity_contexts
