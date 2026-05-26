@@ -639,8 +639,20 @@ def make_schedule(  # noqa: C901
 
         sign = 1
 
-        if result["sensor"].measures_power and not result["sensor"].get_attribute(
-            "consumption_is_positive", False
+        # Skip sign logic for consumption/production output schedules, as their sign
+        # convention is already handled by the scheduler (defined by the field name --
+        # "consumption" means consumption positive; "production" means production positive).
+        # Only apply sign logic to the main power schedules ("storage_schedule", etc).
+        result_name = result.get("name", "")
+        is_consumption_production_output = result_name in (
+            "consumption_schedule",
+            "production_schedule",
+        )
+
+        if (
+            not is_consumption_production_output
+            and result["sensor"].measures_power
+            and not result["sensor"].get_attribute("consumption_is_positive", False)
         ):
             sign = -1
 
