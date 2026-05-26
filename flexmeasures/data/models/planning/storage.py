@@ -97,44 +97,10 @@ class MetaStorageScheduler(Scheduler):
 
         # Backwards-compatible electricity defaults from old top-level fields.
         if "electricity" not in commodity_contexts:
-            commodity_contexts["electricity"] = {
-                "commodity": "electricity",
-                "consumption_price": self.flex_context.get(
-                    "consumption_price",
-                    self.flex_context.get("consumption_price_sensor"),
-                ),
-                "production_price": self.flex_context.get(
-                    "production_price",
-                    self.flex_context.get("production_price_sensor"),
-                ),
-                "ems_power_capacity_in_mw": self.flex_context.get(
-                    "ems_power_capacity_in_mw"
-                ),
-                "ems_consumption_capacity_in_mw": self.flex_context.get(
-                    "ems_consumption_capacity_in_mw"
-                ),
-                "ems_production_capacity_in_mw": self.flex_context.get(
-                    "ems_production_capacity_in_mw"
-                ),
-                "ems_consumption_breach_price": self.flex_context.get(
-                    "ems_consumption_breach_price"
-                ),
-                "ems_production_breach_price": self.flex_context.get(
-                    "ems_production_breach_price"
-                ),
-                "ems_peak_consumption_in_mw": self.flex_context.get(
-                    "ems_peak_consumption_in_mw"
-                ),
-                "ems_peak_consumption_price": self.flex_context.get(
-                    "ems_peak_consumption_price"
-                ),
-                "ems_peak_production_in_mw": self.flex_context.get(
-                    "ems_peak_production_in_mw"
-                ),
-                "ems_peak_production_price": self.flex_context.get(
-                    "ems_peak_production_price"
-                ),
-            }
+            commodity_contexts["electricity"] = {}
+            for key, value in self.flex_context.items():
+                if key not in ("gas_price", "relax_constraints"):
+                    commodity_contexts["electricity"][key] = value
 
         # Backwards-compatible gas defaults from old `gas-price`.
         if (
