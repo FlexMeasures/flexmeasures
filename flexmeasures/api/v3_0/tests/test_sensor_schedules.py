@@ -10,7 +10,10 @@ from sqlalchemy import select
 
 from flexmeasures.api.common.responses import unknown_schedule, unrecognized_event
 from flexmeasures.api.tests.utils import check_deprecation
-from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
+from flexmeasures.api.v3_0.tests.utils import (
+    get_sensor_by_name,
+    message_for_trigger_schedule,
+)
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.job_utils import work_on_rq
@@ -30,10 +33,6 @@ def setup_capacity_sensor_on_asset_in_supplier_account(db, setup_generic_assets)
     db.session.add(sensor)
     db.session.commit()
     return sensor
-
-
-def get_sensor_by_name(asset, name: str) -> Sensor:
-    return next(sensor for sensor in asset.sensors if sensor.name == name)
 
 
 @pytest.mark.parametrize(
