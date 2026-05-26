@@ -1195,6 +1195,7 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
                 "site-production-capacity": "100 kW",
                 "site-consumption-breach-price": "100000 EUR/kW",
                 "site-production-breach-price": "100000 EUR/kW",
+                "inflexible-device-sensors": [building_raw_power.id],
             },
             {
                 "commodity": "gas",
@@ -1206,10 +1207,10 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
                 },
                 # No electricity dynamic capacity here.
                 "site-consumption-capacity": "100000 kW",
+                "inflexible-device-sensors": [building_raw_power.id],
             },
         ],
         "relax-constraints": True,
-        "inflexible-device-sensors": [building_raw_power.id],
     }
 
     scheduler = StorageScheduler(
@@ -1223,7 +1224,6 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
         return_multiple=True,
     )
 
-    pd.set_option("display.max_rows", None)
     schedules = scheduler.compute(skip_validation=True)
 
     heater_schedule = next(
