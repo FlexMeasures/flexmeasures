@@ -1062,16 +1062,14 @@ def test_two_devices_shared_stock(app, db):
     ), "SOC must increase during the charging phase."
 
     # ---- energy cost checks
-    assert costs_data["electricity energy 0"] == pytest.approx(-17.0, rel=1e-2), (
-        "Electricity energy 0 corresponds to inverter 1 energy cost. "
-        "Negative value indicates net production/discharge value: "
-        "inverter 1 discharges ~340 kWh at 0.95 efficiency = -17 EUR."
-    )
-
-    assert costs_data["electricity energy 1"] == pytest.approx(17.07, rel=1e-2), (
-        "Electricity energy 1 corresponds to inverter 2 charging cost, "
-        "which should dominate since it performs most charging: "
-        "~682.8 kWh at 0.99 efficiency * 100 EUR/MWh ≈ 17.07 EUR."
+    electricity_net_energy_cost = costs_data.get("electricity net energy", 0)
+    assert electricity_net_energy_cost == pytest.approx(0.0657, rel=1e-2), (
+        "Inverter 1 (discharge efficiency 0.95) discharges ~340 kWh (20 kW for ~40 periods) "
+        "from 189 kWh down to 10 kWh (soc-min), incurring discharge losses. "
+        "Inverter 2 (charge efficiency 0.99) charges continuously at 20 kW from start until "
+        "reaching the soc-target of 189 kWh at 07:30, incurring minimal charge losses. "
+        "Net electricity cost of ~0.0657 EUR at 100 EUR/MWh reflects the efficiency difference "
+        "between the two inverters specializing in their respective operations."
     )
 
 
