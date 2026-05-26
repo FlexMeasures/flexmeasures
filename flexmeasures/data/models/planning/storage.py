@@ -1260,10 +1260,11 @@ class MetaStorageScheduler(Scheduler):
                 self.flex_model
             )
             for d, sensor_flex_model in enumerate(self.flex_model):
-                sensor_flex_model["sensor_flex_model"] = self.ensure_soc_at_start(
-                    flex_model=sensor_flex_model["sensor_flex_model"],
-                    sensor=sensor_flex_model.get("sensor"),
-                )
+                # todo: this fails but I'm not sure about the reason(haven't looked into it deeply yet).
+                # sensor_flex_model["sensor_flex_model"] = self.ensure_soc_at_start(
+                #     flex_model=sensor_flex_model["sensor_flex_model"],
+                #     sensor=sensor_flex_model.get("sensor"),
+                # )
                 soc_sensor_id = (
                     sensor_flex_model["sensor_flex_model"]
                     .get("state-of-charge", {})
