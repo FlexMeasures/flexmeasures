@@ -315,8 +315,10 @@ STORAGE_EFFICIENCY = MetaData(
 As a result, each time step the energy is held longer leads to higher losses.
 This setting is crucial to some sorts of energy storage, e.g. thermal buffers.
 To give an example, when this setting is at 95% (or 0.95), this means a loss of 5% per time step. Defaults to 100% (no storage loss over time).
-Note that the storage efficiency used by the scheduler is applied over each time step equal to the sensor resolution.
+Note that the storage efficiency used by the scheduler is applied over each time step equal to the scheduling resolution.
 For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
+Alternatively, to let FlexMeasures handle the conversion for you, record the storage-efficiency on a dedicated sensor (in this example, with a 24-hour event resolution).
+Then reference that sensor in the storage-efficiency field.
 """,
     example="99.9%",
 )
