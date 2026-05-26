@@ -325,19 +325,6 @@ class StorageFlexModelSchema(Schema):
         if self.sensor is not None and self.sensor.asset != asset:
             raise ValidationError("Sensor does not belong to asset.")
 
-    @validates("storage_efficiency")
-    def validate_storage_efficiency_resolution(
-        self, unit: Sensor | ur.Quantity, **kwargs
-    ):
-        if (
-            self.sensor is not None
-            and isinstance(unit, Sensor)
-            and unit.event_resolution != self.sensor.event_resolution
-        ):
-            raise ValidationError(
-                "Event resolution of the storage efficiency and the power sensor don't match. Resampling the storage efficiency is not supported."
-            )
-
     @validates_schema
     def check_redundant_efficiencies(self, data: dict, **kwargs):
         """
