@@ -144,6 +144,8 @@ class MetaStorageScheduler(Scheduler):
         ]
         soc_gain = [flex_model_d.get("soc_gain") for flex_model_d in flex_model]
         soc_usage = [flex_model_d.get("soc_usage") for flex_model_d in flex_model]
+        consumption = [flex_model_d.get("consumption") for flex_model_d in flex_model]
+        production = [flex_model_d.get("production") for flex_model_d in flex_model]
         consumption_capacity = [
             flex_model_d.get("consumption_capacity") for flex_model_d in flex_model
         ]
@@ -915,6 +917,20 @@ class MetaStorageScheduler(Scheduler):
                 # Resample from the resolution of the power sensor
                 device_constraints[d]["efficiency"] **= (
                     resolution / sensor_d.event_resolution
+                )
+            elif isinstance(consumption[d], Sensor) and consumption[
+                d
+            ].event_resolution != timedelta(0):
+                # Resample from the resolution of the consumption sensor
+                device_constraints[d]["efficiency"] **= (
+                    resolution / consumption[d].event_resolution
+                )
+            elif isinstance(production[d], Sensor) and production[
+                d
+            ].event_resolution != timedelta(0):
+                # Resample from the resolution of the production sensor
+                device_constraints[d]["efficiency"] **= (
+                    resolution / production[d].event_resolution
                 )
 
             # check that storage constraints are fulfilled
