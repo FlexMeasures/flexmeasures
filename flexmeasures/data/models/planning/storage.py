@@ -511,7 +511,7 @@ class MetaStorageScheduler(Scheduler):
                 )
 
             # Set up capacity breach commitments and EMS capacity constraints
-            ems_consumption_breach_price = self.commodity_context.get(
+            ems_consumption_breach_price = commodity_context.get(
                 "ems_consumption_breach_price"
             )
             ems_production_breach_price = commodity_context.get(
