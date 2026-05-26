@@ -1,12 +1,16 @@
 from typing import Any
 
-from flask.cli import with_appcontext
 from flexmeasures.data import ma
 from marshmallow import fields, validates
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole
-from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
+from flexmeasures.data.schemas.attributes import JSON
+from flexmeasures.data.schemas.utils import (
+    FMValidationError,
+    MarshmallowClickMixin,
+    with_appcontext_if_needed,
+)
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 
 
@@ -32,6 +36,7 @@ class AccountSchema(ma.SQLAlchemySchema):
     primary_color = ma.auto_field(required=False)
     secondary_color = ma.auto_field(required=False)
     logo_url = ma.auto_field(required=False)
+    attributes = JSON(required=False, load_default={})
     account_roles = fields.Nested("AccountRoleSchema", exclude=("accounts",), many=True)
     consultancy_account_id = ma.auto_field()
 
@@ -60,7 +65,7 @@ class AccountSchema(ma.SQLAlchemySchema):
 class AccountIdField(fields.Int, MarshmallowClickMixin):
     """Field that deserializes to an Account and serializes back to an integer."""
 
-    @with_appcontext
+    @with_appcontext_if_needed()
     def _deserialize(self, value: Any, attr, data, **kwargs) -> Account:
         """Turn an account id into an Account."""
         account_id: int = super()._deserialize(value, attr, data, **kwargs)

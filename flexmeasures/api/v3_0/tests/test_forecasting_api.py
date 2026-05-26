@@ -65,7 +65,7 @@ def test_trigger_and_fetch_forecasts(
         fetch_url = url_for("SensorAPI:get_forecast", id=sensor_0.id, uuid=job_id)
         res = client.get(fetch_url, headers={"Authorization": token})
         assert res.status_code == 202, "expected a 202 (Accepted) status"
-        assert res.json["status"] == job.get_status().name
+        assert res.json["status"].upper() == job.get_status().upper()
 
     # Run forecasting queue
     work_on_rq(
