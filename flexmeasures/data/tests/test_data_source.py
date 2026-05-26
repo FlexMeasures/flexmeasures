@@ -262,3 +262,44 @@ def test_keep_latest_version_preserves_probabilistic_splits():
     probs = set(kept.index.get_level_values("cumulative_probability").tolist())
     assert probs == {0.1, 0.5, 0.7, 0.9}  # no more 0.3
     assert len(kept) == 4
+
+
+def test_get_or_create_source_stable_under_key_order(db, app):
+    """get_or_create_source must return the same row regardless of dict key insertion order.
+
+    PostgreSQL JSONB normalises JSON object keys to alphabetical order on every
+    round-trip, so a dict like ``{"z": 1, "a": 2}`` comes back as ``{"a": 2, "z": 1}``.
+    Before the fix, ``hash_attributes`` used ``json.dumps`` *without* ``sort_keys``,
+    meaning the hash of the original dict and the hash of the JSONB-reloaded dict
+    differed.  ``get_or_create_source`` then failed to find the existing row and
+    silently inserted a duplicate, giving the new row a different ID.  The forecasting
+    pipeline stored beliefs under the new ID while the job meta still held the original
+    ID, so ``GET /sensors/{id}/forecasts/{uuid}`` returned 400 even though the
+    forecasts were present in the database.
+    """
+    from flexmeasures.data.services.data_sources import get_or_create_source
+
+    # Insert with keys in non-alphabetical insertion order
+    attrs_python_order = {"z_last": "value_z", "a_first": "value_a"}
+    source_original = get_or_create_source(
+        "test-hash-stability",
+        source_type="forecaster",
+        attributes=attrs_python_order,
+    )
+    original_id = source_original.id
+
+    # Simulate a JSONB round-trip: PostgreSQL returns keys in alphabetical order
+    attrs_jsonb_order = {"a_first": "value_a", "z_last": "value_z"}
+
+    # Before the fix this would create a *new* DataSource with a different ID
+    source_via_jsonb = get_or_create_source(
+        "test-hash-stability",
+        source_type="forecaster",
+        attributes=attrs_jsonb_order,
+    )
+
+    assert source_via_jsonb.id == original_id, (
+        "get_or_create_source created a duplicate DataSource when the same "
+        "attributes were supplied in a different key order (as PostgreSQL JSONB "
+        "would return them).  Ensure DataSource.hash_attributes uses sort_keys=True."
+    )

@@ -324,3 +324,100 @@ export function moveArrayItem(array, index, direction) {
 
   return newArray;
 }
+
+/**
+ * Optionally show a confirmation dialog, then perform a fetch request.
+ *
+ * Error responses are normalised: a JSON body's `message` field is used
+ * when available, otherwise the HTTP status text is used. Network errors
+ * bubble up unchanged. The raw Response is passed to onSuccess so each
+ * caller can decide how to consume it (e.g. parse JSON or read response.url).
+ *
+ * @param {string|null} confirmMessage - Text shown in the confirm dialog, or
+ *                                       null/undefined to skip confirmation.
+ * @param {string}   url            - URL to fetch.
+ * @param {object}   options        - fetch() options (method, headers, …).
+ * @param {function} onSuccess      - Called with the Response on success.
+ * @param {string}   errorPrefix    - Prefix for the showToast error message.
+ */
+function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
+    if (confirmMessage && !confirm(confirmMessage)) return;
+    fetch(url, options)
+        .then(response => {
+            if (response.ok) return response;
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                return response.json().then(err => {
+                    throw new Error(err.message || response.statusText || "Request failed");
+                });
+            }
+            throw new Error(response.statusText || "Request failed");
+        })
+        .then(onSuccess)
+        .catch(err => showToast(errorPrefix + ": " + err.message, "error"));
+}
+
+/**
+ * Attach click handlers to all elements with the "js-copy-asset-btn" class.
+ * Each button must carry a data-asset-id attribute.
+ * An optional data-target-account-id attribute causes the copy to land in that
+ * account instead of creating a sibling under the same parent/account.
+ * Ctrl/Cmd-click opens the resulting asset page in a new tab.
+ *
+ * Note: plain account members can create copies indefinitely (GenericAsset
+ * create-children is open to all account members) but cannot delete the
+ * resulting assets (deletion requires account-admin). Account admins are
+ * responsible for pruning unwanted copies.
+ */
+export function initCopyAssetButtons() {
+    document.querySelectorAll(".js-copy-asset-btn").forEach(btn => {
+        const assetId = btn.dataset.assetId;
+        // Present on the "copy to my account" button; absent on the sibling-copy button.
+        const targetAccountId = btn.dataset.targetAccountId || null;
+
+        btn.addEventListener("click", function (event) {
+            const openInNewTab = event.ctrlKey || event.metaKey;
+            const url = targetAccountId
+                ? "/api/v3_0/assets/" + assetId + "/copy?account=" + targetAccountId
+                : "/api/v3_0/assets/" + assetId + "/copy";
+            confirmAndFetch(
+                null,
+                url,
+                {method: "POST", headers: {"Content-Type": "application/json"}, credentials: "same-origin"},
+                response => response.json().then(data => {
+                    showToast("Asset copied successfully.", "success");
+                    setTimeout(() => {
+                        const dest = "/assets/" + data.asset + "/properties";
+                        if (openInNewTab) {
+                            window.open(dest, "_blank");
+                        } else {
+                            window.location.href = dest;
+                        }
+                    }, 1500);
+                }),
+                "Failed to copy asset"
+            );
+        });
+    });
+}
+
+export function initDeleteAssetButton() {
+    const btn = document.getElementById("delete-asset-button");
+    if (!btn) return;
+    const assetId = btn.dataset.assetId;
+
+    btn.addEventListener("click", function () {
+        confirmAndFetch(
+            "Are you sure you want to delete this asset and all time series data associated with it?",
+            "/assets/delete_with_data/" + assetId,
+            {method: "GET", credentials: "same-origin"},
+            response => {
+                showToast("Asset deleted successfully.", "success");
+                setTimeout(() => {
+                    window.location.href = response.url;
+                }, 1500);
+            },
+            "Failed to delete asset"
+        );
+    });
+}

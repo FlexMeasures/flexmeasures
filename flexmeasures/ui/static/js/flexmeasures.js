@@ -649,7 +649,7 @@ function updateStatsTable(stats, tableBody) {
     });
 }
 
-function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
+function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fresh=false) {
     const spinner = document.getElementById('spinner-run-simulation');
     const dropdownContainer = document.getElementById('sourceKeyDropdownContainer');
     const tableBody = document.getElementById('statsTableBody');
@@ -664,7 +664,11 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
     if (toggleStatsCheckbox.checked) {
         queryParams = `?sort=false&event_start_time=${event_start_time}&event_end_time=${event_end_time}`
     }
-    
+    //add a cache buster to ensure we get the latest data after an upload
+    if (fresh === true) {
+        queryParams += `&fresh=true`;
+    }
+
     // Enable all the default behaviors on every API call.
     dropdownMenu.innerHTML = '';
     noDataWarning.classList.add('d-none');
@@ -677,6 +681,9 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
         // Remove 'status' sourceKey
         delete data['status'];
         data = unpackData(data);
+
+        // Preset forecastStart to latest "Last event end"
+        presetForecastStartToLatest(data);
 
         if (Object.keys(data).length > 0) {
             // Show the header and dropdown container
@@ -705,6 +712,39 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
             const firstSourceKey = getLatestBeliefName(data);
             dropdownButton.textContent = firstSourceKey;
             updateStatsTable(data[firstSourceKey], tableBody);
+
+            // Populate the "Delete data" source dropdown if it exists on the page,
+            // re-using the stats data already fetched to avoid a duplicate API call.
+            const deleteSourceSelect = document.getElementById('deleteDataSource');
+            if (deleteSourceSelect) {
+                // Keep only the "All sources" placeholder option, then add sources from stats
+                deleteSourceSelect.innerHTML = '<option value="">All sources</option>';
+                Object.keys(data).forEach(sourceKey => {
+                    const idMatch = sourceKey.match(/\(ID:\s*(\d+)\)$/);
+                    if (!idMatch) { return; }
+                    const option = document.createElement('option');
+                    option.value = idMatch[1];
+                    option.textContent = sourceKey;
+                    deleteSourceSelect.appendChild(option);
+                });
+            }
+
+            // Notify the "Delete data" panel of the overall first/last event times
+            // across all sources so the "Select all data" link can populate the inputs.
+            const firstEventDates = Object.values(data)
+                .map(d => new Date(d["First event start"]))
+                .filter(d => !isNaN(d.getTime()));
+            const lastEventDates = Object.values(data)
+                .map(d => new Date(d["Last event end"]))
+                .filter(d => !isNaN(d.getTime()));
+            if (firstEventDates.length > 0 && lastEventDates.length > 0) {
+                document.dispatchEvent(new CustomEvent('sensorDataRangeAvailable', {
+                    detail: {
+                        firstEventStart: new Date(Math.min(...firstEventDates)),
+                        lastEventEnd: new Date(Math.max(...lastEventDates))
+                    }
+                }));
+            }
         } else {
             // If the stats table is empty, make the properties table full width
             noDataWarning.classList.remove('d-none');
@@ -726,4 +766,37 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="") {
         spinner.classList.add('d-none');
     });
 
+}
+
+function presetForecastStartToLatest(data) {
+    const forecastStartInput = document.getElementById("forecastStart");
+    if (!forecastStartInput) return; // panel not rendered (user has no permission)
+
+    // Extract all "Last event end" values as Date objects
+    const lastEventDates = Object.values(data)
+        .map(d => new Date(d["Last event end"]))
+        .filter(d => !isNaN(d)); // remove any invalid dates just in case
+
+    if (lastEventDates.length === 0) return;
+
+    // Find the latest date
+    const latestDate = new Date(Math.max(...lastEventDates));
+
+    // Format as yyyy-MM-ddTHH:mm for datetime-local input
+    const pad = n => String(n).padStart(2, "0");
+    const localDatetimeValue = `${latestDate.getFullYear()}-${pad(latestDate.getMonth()+1)}-${pad(latestDate.getDate())}T${pad(latestDate.getHours())}:${pad(latestDate.getMinutes())}`;
+
+    // Set the input value
+    forecastStartInput.value = localDatetimeValue;
+
+    // If the forecast panel was in the "no data" state, switch it to the enabled state.
+    // This handles the case where a user uploads data after the page has loaded.
+    const forecastStartContainer = document.getElementById("forecastStartContainer");
+    const forecastNoDataMessage = document.getElementById("forecastNoDataMessage");
+    const triggerForecastButton = document.getElementById("triggerForecastButton");
+    const forecastButtonDisabled = document.getElementById("forecastButtonDisabled");
+    if (forecastStartContainer) forecastStartContainer.classList.remove("d-none");
+    if (forecastNoDataMessage) forecastNoDataMessage.classList.add("d-none");
+    if (triggerForecastButton) triggerForecastButton.classList.remove("d-none");
+    if (forecastButtonDisabled) forecastButtonDisabled.classList.add("d-none");
 }

@@ -2,7 +2,7 @@
 
 {% set active_page = "assets" %}
 
-{% block title %} {{ asset.name }} - Scenario {% endblock %}
+{% block title %} {{ asset.name }} {% endblock %}
 
 {% block divs %}
 
@@ -19,10 +19,10 @@
                             Asset: {{ asset.name }}
                         </h1>
                         <div class="d-flex">
-                            <button class="btn btn-sm btn-primary me-2" onclick='openSensorsModal()'>
+                            <button class="btn btn-sm btn-primary me-2 nav-button" onclick='openSensorsModal()'>
                                 Show sensors
                             </button>
-                            <button class="btn btn-sm btn-primary me-2" data-bs-toggle="modal"
+                            <button class="btn btn-sm btn-primary me-2 nav-button" data-bs-toggle="modal"
                                 data-bs-target="#flexContextModal">
                                 Edit flex-context
                             </button>
@@ -31,10 +31,6 @@
                     <p>Type: {{ asset.generic_asset_type.name.split('.')[-1] | title }}</p>
                 </div>
                 <div class="col-sm-3">
-                    {% if can_delete %}
-                    <button type="button" class="btn delete-button"
-                        onClick="delete_asset(event, {{ asset.id }}, '{{ asset.name }}')">Delete Scenario</button>
-                    {% endif %}
                     <!-- Tabs for toggling content -->
                     <div class="tabs-container">
                         <ul class="nav nav-tabs">
@@ -94,9 +90,10 @@
                     </div>
                     <div class="modal-body">
                         {% if user_can_create_children %}
-                        <button class="btn btn-sm btn-success mb-2 create-button" type="submit">
-                            <a href="/assets/{{asset.id}}/sensors/new">Create sensor</a>
-                        </button>
+                        <a href="/assets/{{asset.id}}/sensors/new"
+                            class="btn bg-primary-custom text-decoration-none text-light create-button">
+                            Create sensor
+                        </a>
                         {% endif %}
                         <table id="modalTable" class="table table-bordered">
                             <thead id="modalTableHead"></thead>
@@ -153,7 +150,7 @@
                     </div>
 
                    <div class="d-flex ms-auto align-items-center gap-2">
-                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto">Save</button>
+                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto create-button">Save</button>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                 </div>
@@ -212,7 +209,7 @@
 <script>
     function openSensorsModal() {
         const sensors = {{ current_asset_sensors | safe }};
-        document.getElementById("modalTitle").innerText = "Sensors for " + '{{ asset.name }}';
+        document.getElementById("modalTitle").innerText = "Sensors for " + {{ asset.name | tojson }};
         let tableHead = document.getElementById("modalTableHead");
         let tableBody = document.getElementById("modalTableBody");
 

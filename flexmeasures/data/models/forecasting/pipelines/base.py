@@ -65,6 +65,7 @@ class BasePipeline:
         event_starts_after: datetime | None = None,
         event_ends_before: datetime | None = None,
         save_belief_time: datetime | None = None,
+        beliefs_before: datetime | None = None,
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
         missing_threshold: float = 1.0,
@@ -81,6 +82,9 @@ class BasePipeline:
         self.event_ends_before = event_ends_before
         self.save_belief_time = (
             save_belief_time  # non floored belief time to save forecasts with
+        )
+        self.beliefs_before = (
+            beliefs_before  # restrict input data to beliefs recorded before this time
         )
         self.target_sensor = target_sensor
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
@@ -141,6 +145,7 @@ class BasePipeline:
                 event_starts_after=sensor_event_starts_after,
                 event_ends_before=sensor_event_ends_before,
                 most_recent_beliefs_only=most_recent_beliefs_only,
+                beliefs_before=self.beliefs_before,
                 exclude_source_types=(
                     ["forecaster"] if name == self.target else []
                 ),  # we exclude forecasters for target dataframe as to not use forecasts in target.
@@ -707,16 +712,8 @@ class BasePipeline:
         if len(dfs) == 1:
             data_darts = dfs[0]
         else:
-            # When using future_covariate, the last day in its sensor_df extends beyond
-            # the target and past regressors by "max_forecast_horizon."
-            # To ensure we retain these additional future regressor records,
-            # we use an outer join to merge all sensor_dfs DataFrames on the "event_start" and "belief_time" columns.
-
             data_darts = reduce(
-                lambda left, right: left.concatenate(right),
+                lambda left, right: left.stack(right),
                 dfs,
-            )
-            data_darts = data_darts.sort_values(by=["event_start"]).reset_index(
-                drop=True
             )
         return data_darts

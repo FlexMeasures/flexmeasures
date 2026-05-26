@@ -55,11 +55,13 @@ def aggregate_values(bdf_dict: dict[Any, tb.BeliefsDataFrame]) -> tb.BeliefsData
 
 
 def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
-    """Drop beliefs that are already stored in the database with an earlier belief time.
+    """Drop beliefs that are already stored in the database with an earlier or equal belief time.
 
     Also drop beliefs that are already in the data with an earlier belief time.
 
-    Quite useful function to prevent cluttering up your database with beliefs that remain unchanged over time.
+    Quite useful function to prevent cluttering up your database with beliefs that remain
+    unchanged over time, and to prevent duplicate key violations when re-running forecasters
+    or reporters with identical data.
     """
     if bdf.empty:
         return bdf
@@ -111,6 +113,7 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     )
     if bdf_db.empty:
         return bdf
+
     return (
         bdf.convert_index_from_belief_horizon_to_time()
         .groupby(
@@ -126,10 +129,19 @@ def _drop_unchanged_beliefs_compared_to_db(
     bdf: tb.BeliefsDataFrame,
     bdf_db: tb.BeliefsDataFrame,
 ) -> tb.BeliefsDataFrame:
-    """Drop beliefs that are already stored in the database with an earlier belief time.
+    """Drop beliefs that are already stored in the database with an earlier or equal belief time.
 
     Assumes a BeliefsDataFrame with a unique belief time and unique source,
     and either all ex-ante beliefs or all ex-post beliefs.
+
+    Handles two cases:
+
+    1. **Unchanged belief** — the candidate value matches the most recent prior belief in the DB
+       (belief_time strictly earlier than the candidate): the candidate is dropped to avoid
+       cluttering the database with redundant history.
+    2. **Exact duplicate** — a belief with the exact same belief_time already exists in the DB
+       with the same value: the candidate is dropped to prevent duplicate key violations, which
+       is particularly useful when re-running forecasters or reporters with identical data.
 
     It is preferable to call the public function drop_unchanged_beliefs instead.
     """
@@ -138,16 +150,17 @@ def _drop_unchanged_beliefs_compared_to_db(
     bdf_db_from_source = bdf_db[bdf_db.sources == source]
     if bdf_db_from_source.empty:
         return bdf
-    cutoff_idx = bdf_db_from_source.belief_times.searchsorted(belief_time, side="right")
-    if cutoff_idx == 0:
+    # Use .max() rather than searchsorted: the result is correct regardless of
+    # whether bdf_db happens to be sorted ascending or descending by belief_time.
+    most_recent_bt = bdf_db_from_source.belief_times[
+        bdf_db_from_source.belief_times <= belief_time
+    ].max()
+    if pd.isna(most_recent_bt):
         # No earlier belief time in db
         return bdf
-    most_recent_bt = bdf_db_from_source.belief_times[cutoff_idx - 1]
     previous_most_recent_beliefs = bdf_db_from_source[
         bdf_db_from_source.belief_times == most_recent_bt
     ]
-    if previous_most_recent_beliefs.empty:
-        return bdf
     compare_fields = ["event_start", "source", "cumulative_probability", "event_value"]
     a = bdf.reset_index().set_index(compare_fields)
     b = previous_most_recent_beliefs.reset_index().set_index(compare_fields)

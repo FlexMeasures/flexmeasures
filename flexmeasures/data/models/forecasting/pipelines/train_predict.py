@@ -61,13 +61,13 @@ class TrainPredictPipeline(Forecaster):
             return db.session.merge(obj)
         return obj
 
-    def run_wrap_up(self, cycle_job_ids: list[str]):
+    def run_wrap_up(self, cycle_job_ids: list[str], queue: str = "forecasting"):
         """Log the status of all cycle jobs after completion."""
-        connection = current_app.queues["forecasting"].connection
+        connection = current_app.queues[queue].connection
 
         for index, job_id in enumerate(cycle_job_ids):
             status = Job.fetch(job_id, connection=connection).get_status()
-            logging.info(f"forecasting job-{index}: {job_id} status: {status}")
+            logging.info(f"{queue} job-{index}: {job_id} status: {status}")
 
     def run_cycle(
         self,
@@ -118,6 +118,8 @@ class TrainPredictPipeline(Forecaster):
             // self._parameters["sensor"].event_resolution,
             event_starts_after=train_start,
             event_ends_before=train_end,
+            save_belief_time=self._parameters["save_belief_time"],
+            beliefs_before=self._parameters.get("beliefs_before"),
             probabilistic=self._parameters["probabilistic"],
             ensure_positive=self._config["ensure_positive"],
             missing_threshold=self._config.get("missing_threshold"),
@@ -156,6 +158,7 @@ class TrainPredictPipeline(Forecaster):
             event_starts_after=train_start,  # use beliefs about events before the start of the predict period
             event_ends_before=predict_end,  # ignore any beliefs about events beyond the end of the predict period
             save_belief_time=self._parameters["save_belief_time"],
+            beliefs_before=self._parameters.get("beliefs_before"),
             predict_start=predict_start,
             predict_end=predict_end,
             sensor_to_save=self._parameters["sensor_to_save"],
@@ -236,6 +239,7 @@ class TrainPredictPipeline(Forecaster):
         logging.info(
             f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
         )
+        connection = current_app.queues[queue].connection
         # How much to move forward to the next cycle one prediction period later
         cycle_frequency = max(
             self._config["retrain_frequency"],
@@ -316,7 +320,7 @@ class TrainPredictPipeline(Forecaster):
                     self.run_cycle,
                     # Some cycle job params override job kwargs
                     kwargs={**job_kwargs, **cycle_params},
-                    connection=current_app.queues[queue].connection,
+                    connection=connection,
                     ttl=int(
                         current_app.config.get(
                             "FLEXMEASURES_JOB_TTL", timedelta(-1)
@@ -344,14 +348,22 @@ class TrainPredictPipeline(Forecaster):
 
             wrap_up_job = Job.create(
                 self.run_wrap_up,
-                kwargs={"cycle_job_ids": cycle_job_ids},  # cycles jobs IDs to wait for
-                connection=current_app.queues[queue].connection,
+                kwargs={
+                    "cycle_job_ids": cycle_job_ids,  # cycles jobs IDs to wait for
+                    "queue": queue,
+                },
+                connection=connection,
                 depends_on=cycle_job_ids,  # wrap-up job depends on all cycle jobs
                 ttl=int(
                     current_app.config.get(
                         "FLEXMEASURES_JOB_TTL", timedelta(-1)
                     ).total_seconds()
                 ),
+                result_ttl=int(
+                    current_app.config.get(
+                        "FLEXMEASURES_PLANNING_TTL", timedelta(-1)
+                    ).total_seconds()
+                ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
                 meta=job_metadata,
             )
             current_app.queues[queue].enqueue_job(wrap_up_job)

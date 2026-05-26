@@ -47,14 +47,28 @@ class FMValidationError(ma.exceptions.ValidationError):
 def with_appcontext_if_needed():
     """Execute within the script's application context, in case there is one.
 
-    An exception is `flexmeasures run`, which has a click context at the time the decorator is called,
+    An exception is any server ``run`` command (e.g. ``flexmeasures run`` or ``flask run``),
+    which has a click context at the time the decorator is called,
     but no longer has a click context at the time the decorated function is called,
     which, typically, is a request to the running FlexMeasures server.
+
+    The check walks up the entire context chain so it handles both:
+    - ``flask run``: modules are imported while the ``run`` subcommand context is *current*
+      (``ctx.info_name == "run"``, ``ctx.invoked_subcommand is None``).
+    - ``flexmeasures run``: modules are imported at group level, where the parent context
+      has ``invoked_subcommand == "run"``.
     """
 
     def decorator(f):
         ctx = get_current_context(silent=True)
-        if ctx and not ctx.invoked_subcommand == "run":
+        # Walk up the context chain: if any level is a "run" command we are serving HTTP
+        # requests and must NOT wrap with the CLI app-context decorator.
+        check = ctx
+        while check is not None:
+            if check.info_name == "run" or check.invoked_subcommand == "run":
+                return f
+            check = check.parent
+        if ctx is not None:
             return with_cli_appcontext(f)
         return f
 

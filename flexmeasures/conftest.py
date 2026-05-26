@@ -594,6 +594,37 @@ def create_assets(
     return {asset.name: asset for asset in assets}
 
 
+@pytest.fixture(scope="function")
+def setup_probabilistic_beliefs(db, setup_markets, setup_sources) -> dict[str, dict]:
+    """
+    Make some probabilistic beliefs.
+
+    :returns: the number of beliefs set up per sensor
+    """
+    sensor = setup_markets["epex_da"]
+    source = setup_sources["ENTSO-E"]
+    beliefs = [
+        TimedBelief(
+            sensor=sensor,
+            source=source,
+            event_value=19,
+            event_start="2026-03-25 17:00+01",
+            belief_horizon=timedelta(hours=0),
+            cp=0.19,
+        ),
+        TimedBelief(
+            sensor=sensor,
+            source=source,
+            event_value=50,
+            event_start="2026-03-25 17:00+01",
+            belief_horizon=timedelta(hours=0),
+            cp=0.4,
+        ),
+    ]
+    db.session.add_all(beliefs)
+    return {sensor.name: {"sensor": sensor, "n_beliefs": len(beliefs)}}
+
+
 @pytest.fixture(scope="module")
 def setup_beliefs(db, setup_markets, setup_sources) -> int:
     """
@@ -1853,6 +1884,103 @@ def add_test_solar_sensor_and_irradiance_with_forecasts(
 
     db.session.commit()
     return sensors
+
+
+@pytest.fixture(scope="function")
+def setup_fresh_test_forecast_data_with_anomalous_beliefs(
+    fresh_db,
+    app,
+) -> dict[str, Sensor]:
+    return add_test_sensor_with_anomalous_beliefs(fresh_db)
+
+
+def add_test_sensor_with_anomalous_beliefs(
+    db: SQLAlchemy,
+) -> dict[str, Sensor]:
+    """Sensor with two layers of beliefs: normal values recorded early, anomalous values recorded later.
+
+    This fixture is designed for testing that the 'prior' parameter correctly restricts
+    which beliefs are used by the forecasting pipeline.
+
+    The sensor has 7 days of hourly data (Jan 1–7, 2025):
+    - Phase 1 (normal): values = 50, belief_time = Dec 31, 2024 (known in advance)
+    - Phase 2 (anomalous): values = 5000, belief_time = Jan 10, 2025 (late revision)
+
+    When the forecasting pipeline is run with ``prior`` before Jan 10,
+    only the normal beliefs (Phase 1) are used as input data.
+    When run with ``prior`` after Jan 10, the anomalous beliefs (Phase 2)
+    are selected as the most recent belief per event.
+    """
+    data_source = db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one_or_none()
+    if not data_source:
+        data_source = DataSource(name="Seita", type="demo script")
+        db.session.add(data_source)
+
+    asset_type = db.session.execute(
+        select(GenericAssetType).filter_by(name="Site")
+    ).scalar_one_or_none()
+    if not asset_type:
+        asset_type = GenericAssetType(name="Site")
+        db.session.add(asset_type)
+
+    db.session.flush()
+
+    asset = Asset(
+        name="Test station anomaly",
+        generic_asset_type=asset_type,
+        latitude=10,
+        longitude=10,
+    )
+    db.session.add(asset)
+
+    sensor = Sensor(
+        name="anomaly-sensor",
+        generic_asset=asset,
+        unit="kW",
+        event_resolution=timedelta(hours=1),
+    )
+    db.session.add(sensor)
+    db.session.flush()
+
+    time_slots = pd.date_range(
+        datetime(2025, 1, 1), datetime(2025, 1, 7, 23, 0), freq="60min"
+    )
+
+    normal_value = 50.0
+    anomalous_value = 5000.0
+
+    # Phase 1: normal beliefs, recorded well before the events (Dec 31)
+    early_belief_time = as_server_time(datetime(2024, 12, 31, 0, 0))
+    phase1_beliefs = [
+        TimedBelief(
+            sensor=sensor,
+            event_start=as_server_time(dt),
+            event_value=normal_value,
+            belief_time=early_belief_time,
+            source=data_source,
+        )
+        for dt in time_slots
+    ]
+    db.session.add_all(phase1_beliefs)
+
+    # Phase 2: anomalous beliefs, recorded after the events (Jan 10)
+    late_belief_time = as_server_time(datetime(2025, 1, 10, 0, 0))
+    phase2_beliefs = [
+        TimedBelief(
+            sensor=sensor,
+            event_start=as_server_time(dt),
+            event_value=anomalous_value,
+            belief_time=late_belief_time,
+            source=data_source,
+        )
+        for dt in time_slots
+    ]
+    db.session.add_all(phase2_beliefs)
+
+    db.session.commit()
+    return {"anomaly-sensor": sensor}
 
 
 @pytest.fixture
