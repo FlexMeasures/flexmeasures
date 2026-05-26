@@ -710,6 +710,23 @@ def make_schedule(  # noqa: C901
 
         if not dry_run:
             save_to_db(bdf)
+
+            # For consumption/production output sensors, explicitly set the consumption_is_positive
+            # attribute so that future get_schedule calls on these sensors apply the correct sign
+            # convention. This is necessary because the job has a TTL and won't be available forever.
+            result_name = result.get("name", "")
+            result_sensor = result["sensor"]
+            is_main_power_schedule = result_sensor == asset_or_sensor or (
+                hasattr(asset_or_sensor, "generic_asset")
+                and result_sensor.generic_asset == asset_or_sensor
+            )
+
+            if result_name == "consumption_schedule" and not is_main_power_schedule:
+                # Consumption sensor: consumption is stored as positive
+                result_sensor.set_attribute("consumption_is_positive", True)
+            elif result_name == "production_schedule" and not is_main_power_schedule:
+                # Production sensor: production is stored as positive (consumption negative)
+                result_sensor.set_attribute("consumption_is_positive", False)
         else:
             print(
                 f"\nNot saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"
