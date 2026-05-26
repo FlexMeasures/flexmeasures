@@ -642,11 +642,18 @@ def make_schedule(  # noqa: C901
         # Skip sign logic for consumption/production output schedules, as their sign
         # convention is already handled by the scheduler (defined by the field name --
         # "consumption" means consumption positive; "production" means production positive).
-        # Only apply sign logic to the main power schedules ("storage_schedule", etc).
+        # These are identified by having a result name of "consumption_schedule" or
+        # "production_schedule" AND being stored on a sensor that is not the main asset_or_sensor.
+        # The main power schedules (backwards compat, "storage_schedule", etc) use the main sensor.
         result_name = result.get("name", "")
-        is_consumption_production_output = result_name in (
-            "consumption_schedule",
-            "production_schedule",
+        result_sensor = result["sensor"]
+        is_main_power_schedule = result_sensor == asset_or_sensor or (
+            hasattr(asset_or_sensor, "generic_asset")
+            and result_sensor.generic_asset == asset_or_sensor
+        )
+        is_consumption_production_output = (
+            result_name in ("consumption_schedule", "production_schedule")
+            and not is_main_power_schedule
         )
 
         if (
