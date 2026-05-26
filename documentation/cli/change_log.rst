@@ -18,6 +18,7 @@ since v0.31.0 | February 28, 2026
 * Streamlines option names for ``flexmeasures add forecasts`` with API usage (preserving backwards compatibility).
 * Return validation errors instead of database errors for fields that map to database objects.
 * Mutate job state when running ``flexmeasures jobs run-job <job ID>``, including updating metadata and moving between registries
+* Add ``flexmeasures jobs inspect-job`` to show the same job status and metadata information as the unified job status API.
 * Rename ``flexmeasures add sources`` to ``flexmeasures add sources-for-generators`` to better reflect its purpose.
 * Add ``flexmeasures jobs stats``, which shows queueing statistics to help evaluate the health of the queueing system.
 

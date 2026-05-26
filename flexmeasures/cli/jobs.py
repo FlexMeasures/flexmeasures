@@ -4,6 +4,7 @@ CLI commands for controlling jobs
 
 from __future__ import annotations
 
+import json
 import os
 import random
 import string
@@ -16,7 +17,7 @@ import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 from rq import Queue, Worker, SimpleWorker
-from rq.job import Job
+from rq.job import Job, JobStatus, NoSuchJobError
 from rq.registry import (
     BaseRegistry,
     CanceledJobRegistry,
@@ -37,6 +38,7 @@ from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.cli.utils import MsgStyle
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
 
 
 REGISTRY_MAP = dict(
@@ -283,6 +285,52 @@ def run_job(job_id: str):
     work_on_rq(app.queues["scheduling"], exc_handler=handle_worker_exception, job=job)
     result = job.perform()
     click.echo(f"Job {job_id} finished with: {result}")
+
+
+@fm_jobs.command("inspect-job")
+@with_appcontext
+@click.option(
+    "--job",
+    "job_id",
+    required=True,
+    help="Job UUID of the job you want to inspect.",
+)
+def inspect_job(job_id: str):
+    """
+    Inspect a background job and print its current status and metadata.
+
+    This command mirrors the unified job status endpoint ``GET /api/v3_0/jobs/<uuid>``.
+    """
+    try:
+        job = Job.fetch(job_id, connection=app.redis_connection)
+    except NoSuchJobError:
+        click.secho(f"Job {job_id} not found.", fg="red")
+        raise click.Abort()
+
+    job_status = job.get_status()
+    status_name = (
+        job_status.name
+        if isinstance(job_status, JobStatus)
+        else str(job_status).upper()
+    )
+    try:
+        result = job.return_value()
+    except Exception:  # noqa: BLE001
+        result = None
+
+    info = {
+        "status": status_name,
+        "message": job_status_description(job),
+        "result": result,
+        "func_name": job.func_name,
+        "origin": job.origin,
+        "enqueued_at": job.enqueued_at.isoformat() if job.enqueued_at else None,
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "ended_at": job.ended_at.isoformat() if job.ended_at else None,
+        "exc_info": failed_job_exc_info(job),
+    }
+
+    click.echo(json.dumps(info, indent=2, default=str))
 
 
 @fm_jobs.command("run-worker")
