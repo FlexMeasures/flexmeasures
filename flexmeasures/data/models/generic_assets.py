@@ -59,7 +59,10 @@ def _fixed_value_source_dict(
         id=_FLEX_SOURCE_IDS[flex_source],
         name=flex_source,
         model="",
+        version="",
         type="other",
+        raw_type=flex_source,
+        display_type=flex_source,
         description=f"Configured in the asset's {flex_source}",
     )
 
@@ -1244,7 +1247,12 @@ class GenericAsset(db.Model, AuthModelMixin):
                         sources_metadata[source_obj.id] = {
                             "name": source_dict.get("name", ""),
                             "model": source_dict.get("model", ""),
+                            "version": source_dict.get("version", ""),
                             "type": source_dict.get("type", "other"),
+                            "raw_type": source_dict.get("raw_type", ""),
+                            "display_type": source_dict.get(
+                                "display_type", source_dict.get("type", "other")
+                            ),
                             "description": source_dict.get("description", ""),
                         }
 
