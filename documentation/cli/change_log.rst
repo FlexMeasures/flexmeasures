@@ -4,6 +4,10 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v0.33.0 | May 27, 2026
+=================================
+* Add ``flexmeasures jobs inspect-job`` to show the job status and metadata information.
+
 since v0.31.1 | March 6, 2026
 =================================
 
@@ -14,11 +18,10 @@ since v0.31.0 | February 28, 2026
 
 * Fix ``delete-beliefs`` CLI command ignoring the ``--source`` filter during deletion, preventing unintended removal of beliefs from other sources.
 * Allow ``flexmeasures add schedule`` to create schedules with only information known prior to some time using the ``prior`` option.
-* New ``-dry-run`` flag for ``flexmeasures add schedule`` to avoid saving anything (printing out the results instead).
+* New ``--dry-run`` flag for ``flexmeasures add schedule`` to avoid saving anything (printing out the results instead).
 * Streamlines option names for ``flexmeasures add forecasts`` with API usage (preserving backwards compatibility).
 * Return validation errors instead of database errors for fields that map to database objects.
 * Mutate job state when running ``flexmeasures jobs run-job <job ID>``, including updating metadata and moving between registries
-* Add ``flexmeasures jobs inspect-job`` to show the same job status and metadata information as the unified job status API.
 * Rename ``flexmeasures add sources`` to ``flexmeasures add sources-for-generators`` to better reflect its purpose.
 * Add ``flexmeasures jobs stats``, which shows queueing statistics to help evaluate the health of the queueing system.
 
