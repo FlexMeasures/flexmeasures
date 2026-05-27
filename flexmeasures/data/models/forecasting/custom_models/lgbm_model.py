@@ -118,22 +118,100 @@ class CustomLGBM(BaseModel):
 
     @staticmethod
     def _lags_for_horizon(
-        horizon: int, max_forecast_horizon: int, seasonal_lag_steps: int
+        horizon: int,
+        max_forecast_horizon: int,
+        seasonal_lag_steps: int,
     ) -> list[int]:
-        """Return Darts lags for one seasonal cycle at the given forecast horizon."""
-        lag_steps = seasonal_lag_steps - (horizon % seasonal_lag_steps)
-        darts_lags = [-lag_steps, -lag_steps - 1]
+        """Build Darts target lags for a forecasting horizon.
 
-        if (
-            horizon == 0
-            or horizon % seasonal_lag_steps == 0
-            or horizon == max_forecast_horizon - 1
-        ):
-            darts_lags = [-seasonal_lag_steps]
-        elif horizon % seasonal_lag_steps == seasonal_lag_steps - 1:
-            darts_lags = [-2]
+        For a forecast target at horizon ``h`` and a seasonal period ``s``, the aligned seasonal reference point is:
 
-        return darts_lags
+            (t + h) - s
+
+        expressed relative to prediction origin ``t``.
+
+        The corresponding aligned Darts lag ``l`` is therefore:
+
+            l = -(s - (h % s))
+
+        where the modulo wraps the horizon within the seasonal cycle.
+
+        Returned lags
+        -------------
+        The returned lag list always contains:
+
+        - ``l``:
+            the lag corresponding to the aligned seasonal position
+
+        In most cases, it additionally contains:
+
+        - ``l - 1``:
+            the observation immediately preceding the aligned seasonal position
+
+        Including both lags helps the model capture short-term local dynamics around the seasonal reference point,
+        rather than relying on a single aligned observation.
+
+        Example
+        -------
+        
+        .. mermaid::
+
+            timeline
+                title Seasonal alignment example for h=3 and s=24
+
+                section  Model lags
+                    t-25
+                    t-24 : seasonal anchor for s=24
+                    t-23
+                    t-22 : preceding point (second Darts lag)
+                section Δ24h seasonal offset
+                    t-21 : aligned seasonal point for t+3 (first Darts lag)
+                    ... t+l ...
+                    t-1
+                    t : prediction origin (belief time)
+                    t+1
+                    t+2
+                section Forecast horizons
+                    t+3 : forecast target at h=3 (event start)
+                    t+4
+                    ... t+H : max forecast horizon
+
+        For:
+
+            horizon = 3
+            seasonal_lag_steps = 24
+
+        we obtain:
+
+            l = -(24 - (3 % 24))
+              = -21
+
+        yielding:
+
+            [-21, -22]
+
+        corresponding to:
+
+            t-21 : aligned seasonal position for target t+3
+            t-22 : observation immediately preceding it
+
+        Edge case near maximum forecast horizon
+        ---------------------------------------
+        For horizons near the maximum forecast horizon, only ``l`` is returned.
+
+        This avoids generating additional lag references that are not guaranteed to exist consistently during recursive multi-horizon prediction.
+    """
+    offset = horizon % seasonal_lag_steps
+    aligned_darts_lag = -(seasonal_lag_steps - offset)
+
+    # The preceding lag is omitted for the final forecast horizon,
+    # because it is not guaranteed to exist consistently during recursive inference.
+    if horizon != max_forecast_horizon - 1:
+        darts_lags = [aligned_darts_lag, aligned_darts_lag - 1]
+    else:
+        darts_lags = [aligned_darts_lag]
+
+    return darts_lags
 
     def _setup(self) -> None:
         for horizon in range(self.max_forecast_horizon):
