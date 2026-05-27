@@ -29,22 +29,36 @@ def test_custom_lgbm_falls_back_when_daily_lag_is_under_sampled():
     under_sampled_model = CustomLGBM(
         max_forecast_horizon=192,
         probabilistic=False,
-        seasonal_lags_steps=[96, 24],
+        seasonal_lags_steps=[96, 1, 24],
         training_sample_count=288,
     )
-    assert under_sampled_model.seasonal_lags_steps == [96, 24]
-    assert under_sampled_model.models[0].lags["target"] == [-96, -24, -1]
-    assert under_sampled_model.models[48].lags["target"] == [-49, -48, -24, -1]
-    assert under_sampled_model.models[-1].lags["target"] == [-24, -1]
+    assert under_sampled_model.seasonal_lags_steps == [96, 1, 24]
+    assert under_sampled_model.models[0].lags["target"] == [
+        -97,
+        -96,
+        -25,
+        -24,
+        -2,
+        -1,
+    ]
+    assert under_sampled_model.models[48].lags["target"] == [
+        -49,
+        -48,
+        -25,
+        -24,
+        -2,
+        -1,
+    ]
+    assert under_sampled_model.models[-1].lags["target"] == [-1]
 
     sufficiently_sampled_model = CustomLGBM(
         max_forecast_horizon=192,
         probabilistic=False,
-        seasonal_lags_steps=[96, 24],
+        seasonal_lags_steps=[96, 1, 24],
         training_sample_count=384,
     )
-    assert sufficiently_sampled_model.seasonal_lags_steps == [96, 24]
-    assert sufficiently_sampled_model.models[-1].lags["target"] == [-96, -24, -1]
+    assert sufficiently_sampled_model.seasonal_lags_steps == [96, 1, 24]
+    assert sufficiently_sampled_model.models[-1].lags["target"] == [-1]
 
 
 def test_custom_lgbm_rejects_invalid_lag_steps():
