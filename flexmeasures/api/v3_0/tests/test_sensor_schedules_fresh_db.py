@@ -300,6 +300,99 @@ def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
 
 
 @pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_conflicting_consumption_is_positive_attribute_prevents_data_save(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    battery_soc_sensor_fresh_db,
+    setup_sources_fresh_db,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    """Scheduling must fail before persisting any data when consumption_is_positive is already
+    set to a value that conflicts with the flex-model field used for the sensor.
+
+    Here a sensor that already has ``consumption_is_positive=True`` (consumption sensor) is
+    mistakenly referenced under the ``production`` flex-model field.  The scheduler should raise a
+    ``ValueError`` and leave the sensor's belief table empty.
+
+    ``force-new-job-creation`` is set to bypass the job-cache, which would otherwise serve the
+    cached result of a prior test that ran against the same battery sensor and time window
+    (``fresh_db`` resets sensor IDs to the same values each test, producing the same cache key).
+    """
+    message = message_for_trigger_schedule(resolution="PT1H")
+    message["force-new-job-creation"] = True
+    message["flex-context"] = {
+        "consumption-price": {"sensor": add_market_prices_fresh_db["epex_da"].id},
+        "production-price": {"sensor": add_market_prices_fresh_db["epex_da"].id},
+        "site-power-capacity": "1 TW",
+    }
+    message["flex-model"].pop("soc-at-start")
+    message["flex-model"]["state-of-charge"] = {
+        "sensor": battery_soc_sensor_fresh_db.id
+    }
+
+    # Find the main power sensor for the battery.
+    power_sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == "Test battery")
+        .one_or_none()
+    )
+
+    # Create an output sensor that is pre-marked as a *consumption* sensor.
+    # We will then (wrongly) pass it as the `production` field in the flex-model.
+    mismatched_sensor = Sensor(
+        name="consumption output (misused as production)",
+        generic_asset=power_sensor.generic_asset,
+        unit="MW",
+        event_resolution=power_sensor.event_resolution,
+        attributes={"consumption_is_positive": True},  # consumption sensor
+    )
+    fresh_db.session.add(mismatched_sensor)
+    fresh_db.session.add(
+        TimedBelief(
+            sensor=battery_soc_sensor_fresh_db,
+            source=setup_sources_fresh_db["Seita"],
+            event_start=parse_datetime(message["start"]),
+            belief_horizon=timedelta(0),
+            event_value=50,
+        )
+    )
+    fresh_db.session.commit()
+
+    # Reference the consumption-marked sensor under the `production` field — a mismatch.
+    message["flex-model"]["production"] = {"sensor": mismatched_sensor.id}
+
+    with app.test_client() as client:
+        trigger_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=power_sensor.id),
+            json=message,
+        )
+        assert trigger_response.status_code == 200
+        job_id = trigger_response.json["schedule"]
+
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+    # The job should have failed due to the attribute conflict.
+    job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+    assert job.is_failed, "Expected the scheduling job to fail on attribute conflict"
+    assert "consumption_is_positive" in str(job.meta.get("exception", ""))
+
+    # No beliefs should have been written for the mismatched sensor.
+    mismatched_sensor = fresh_db.session.get(Sensor, mismatched_sensor.id)
+    saved_beliefs = mismatched_sensor.search_beliefs(
+        event_starts_after=parse_datetime(message["start"])
+    )
+    assert (
+        len(saved_beliefs) == 0
+    ), "No data should be saved when the attribute conflict is detected before save_to_db"
+
+
+@pytest.mark.parametrize(
     "context_sensor, asset_sensor, parent_sensor, expect_sensor",
     [
         # Only context sensor present, use it
