@@ -24,6 +24,7 @@ from rq.job import Job
 import timely_beliefs as tb
 import pandas as pd
 from sqlalchemy import select
+from sqlalchemy.orm.attributes import flag_modified
 
 from flexmeasures.data import db
 from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
@@ -741,8 +742,6 @@ def make_schedule(  # noqa: C901
             "output_sensor_roles": output_sensor_roles,
         }
         # Flag the attributes column as modified so SQLAlchemy persists the change
-        from sqlalchemy.orm.attributes import flag_modified
-
         flag_modified(data_source, "attributes")
 
     if not dry_run:
