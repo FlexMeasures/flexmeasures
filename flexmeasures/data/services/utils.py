@@ -60,6 +60,22 @@ def failed_job_exc_info(job: Job) -> str | None:
     return latest_result.exc_string
 
 
+def failed_job_reason(job: Job) -> str | None:
+    """Return a short failure reason for failed RQ jobs when available."""
+    exception = job.meta.get("exception")
+    if exception is not None:
+        return f"{type(exception).__name__}: {exception}"
+
+    exc_info = failed_job_exc_info(job)
+    if exc_info is None:
+        return None
+
+    return next(
+        (line.strip() for line in reversed(exc_info.splitlines()) if line.strip()),
+        None,
+    )
+
+
 def job_status_description(job: Job, extra_message: str | None = None):
     """Return a matching description for the job's status."""
 
@@ -70,17 +86,16 @@ def job_status_description(job: Job, extra_message: str | None = None):
     elif job_status == JobStatus.FINISHED:
         description = f"{capitalize(queue_name)} job has finished."
     elif job_status == JobStatus.FAILED:
-        e = job.meta.get(
-            "exception",
-            Exception(
-                "The job does not state why it failed. "
-                "The worker may be missing an exception handler, "
-                "or its exception handler is not storing the exception as job meta data."
-            ),
-        )
-        description = (
-            f"{capitalize(queue_name)} job failed with {type(e).__name__}: {e}."
-        )
+        reason = failed_job_reason(job)
+        if reason:
+            description = (
+                f"{capitalize(queue_name)} job failed with {reason.rstrip('.')}."
+            )
+        else:
+            description = (
+                f"{capitalize(queue_name)} job failed, "
+                "but no exception information was stored."
+            )
     elif job_status == JobStatus.STARTED:
         description = f"{capitalize(queue_name)} job in progress."
     elif job_status == JobStatus.DEFERRED:
