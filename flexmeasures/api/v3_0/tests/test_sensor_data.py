@@ -360,6 +360,7 @@ def test_post_sensor_data_rejects_large_json(
             "duration",
             "PT25M",
             "_schema",
+            # PT25M / 6 values = 4m10s
             "Resolution of 0:04:10 is incompatible",
         ),
         ("unit", "m", "_schema", "Required unit"),
