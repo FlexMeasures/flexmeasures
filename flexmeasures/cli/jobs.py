@@ -4,7 +4,6 @@ CLI commands for controlling jobs
 
 from __future__ import annotations
 
-import json
 import os
 import random
 import string
@@ -318,19 +317,38 @@ def inspect_job(job_id: str):
     except Exception:  # noqa: BLE001
         result = None
 
-    info = {
-        "status": status_name,
-        "message": job_status_description(job),
-        "result": result,
-        "func_name": job.func_name,
-        "origin": job.origin,
-        "enqueued_at": job.enqueued_at.isoformat() if job.enqueued_at else None,
-        "started_at": job.started_at.isoformat() if job.started_at else None,
-        "ended_at": job.ended_at.isoformat() if job.ended_at else None,
-        "exc_info": failed_job_exc_info(job),
-    }
+    exc_info = failed_job_exc_info(job)
 
-    click.echo(json.dumps(info, indent=2, default=str))
+    # Determine color for status based on job state
+    if status_name == "FINISHED":
+        status_style = MsgStyle.SUCCESS
+    elif status_name == "FAILED":
+        status_style = MsgStyle.ERROR
+    elif status_name in ("QUEUED", "DEFERRED", "SCHEDULED", "STARTED"):
+        status_style = MsgStyle.WARN
+    elif status_name in ("STOPPED", "CANCELED"):
+        status_style = MsgStyle.ERROR
+    else:
+        status_style = {}
+
+    colored_status = click.style(status_name, **status_style)
+
+    info_data = [
+        ["Status", colored_status],
+        ["Message", job_status_description(job)],
+        ["Result", result],
+        ["Function", job.func_name],
+        ["Queue", job.origin],
+        ["Enqueued At", job.enqueued_at.isoformat() if job.enqueued_at else "—"],
+        ["Started At", job.started_at.isoformat() if job.started_at else "—"],
+        ["Ended At", job.ended_at.isoformat() if job.ended_at else "—"],
+    ]
+
+    click.echo(tabulate(info_data, headers=["Field", "Value"]))
+
+    if exc_info:
+        click.echo("\nException Info:")
+        click.echo(exc_info)
 
 
 @fm_jobs.command("run-worker")
