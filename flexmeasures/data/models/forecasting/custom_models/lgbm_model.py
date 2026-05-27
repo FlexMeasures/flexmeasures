@@ -149,13 +149,10 @@ class CustomLGBM(BaseModel):
             )
             darts_lags = sorted(
                 {
-                    -1,
-                    *(
-                        darts_lag
-                        for seasonal_lag_steps in eligible_seasonal_lags_steps
-                        for darts_lag in self._lags_for_horizon(
-                            horizon, self.max_forecast_horizon, seasonal_lag_steps
-                        )
+                    darts_lag
+                    for seasonal_lag_steps in eligible_seasonal_lags_steps
+                    for darts_lag in self._lags_for_horizon(
+                        horizon, self.max_forecast_horizon, seasonal_lag_steps
                     ),
                 }
             )
