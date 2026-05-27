@@ -1139,12 +1139,25 @@ class SensorAPI(FlaskView):
                         description: Human-readable message about request processing.
                   examples:
                     schedule:
-                      summary: Schedule response
+                      summary: Schedule response (consumption sensor)
                       description: |
                         This message contains a schedule indicating to consume at various power
                         rates from 10am UTC onward for a duration of 45 minutes.
+                        By default, values follow the **consumption-positive** convention:
+                        positive values denote consumption; negative values denote production.
                       value:
                         values: [2.15, 3, 2]
+                        start: "2015-06-02T10:00:00+00:00"
+                        duration: "PT45M"
+                        unit: "MW"
+                    production_schedule:
+                      summary: Schedule response (production output sensor)
+                      description: |
+                        When retrieving a schedule from a dedicated **production** output sensor,
+                        values follow the **production-positive** convention:
+                        positive values denote production; negative values denote consumption.
+                      value:
+                        values: [-2.15, -3, -2]
                         start: "2015-06-02T10:00:00+00:00"
                         duration: "PT45M"
                         unit: "MW"
@@ -1223,7 +1236,20 @@ class SensorAPI(FlaskView):
         )
 
         sign = 1
-        if sensor.measures_power and not sensor.get_attribute(
+        # Check data source config for dedicated output sensors
+        # (consumption/production output sensors already store values in their
+        # own sign convention and should not be flipped).
+        ds_config = (
+            (data_source.attributes or {}).get("data_generator", {}).get("config", {})
+        )
+        output_sensor_roles = ds_config.get("output_sensor_roles", {})
+        sensor_role = output_sensor_roles.get(str(sensor.id))
+
+        if sensor_role is not None:
+            # Dedicated output sensor — values are already stored in the correct
+            # convention (consumption-positive or production-positive), no flip.
+            sign = 1
+        elif sensor.measures_power and not sensor.get_attribute(
             "consumption_is_positive", False
         ):
             sign = -1
