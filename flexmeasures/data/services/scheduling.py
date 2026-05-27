@@ -522,6 +522,34 @@ def create_simultaneous_scheduling_job(
     return job
 
 
+def _is_consumption_production_output(
+    result: dict, asset_or_sensor: Asset | Sensor
+) -> bool:
+    """Return True when *result* is a dedicated consumption or production output schedule.
+
+    A dedicated output schedule is one whose sensor is different from the main asset_or_sensor being scheduled,
+    and whose name is ``"consumption_schedule"`` or ``"production_schedule"``.
+    The main power schedule (including the backwards-compat wrapper for custom schedulers that return a plain Series)
+    uses the same sensor as *asset_or_sensor* and is therefore not considered an output schedule.
+
+    :param result:          Schedule output result dict with keys 'name', 'sensor', 'data'.
+    :param asset_or_sensor: The Asset or Sensor being scheduled (main power sensor).
+    :return:                True when the result targets a dedicated output sensor.
+    """
+    result_name = result.get("name", "")
+    if result_name not in ("consumption_schedule", "production_schedule"):
+        return False
+
+    result_sensor = result["sensor"]
+    # The main power schedule uses the same object as asset_or_sensor,
+    # or – when asset_or_sensor is an Asset – one of its sensors.
+    is_main = result_sensor == asset_or_sensor or (
+        hasattr(asset_or_sensor, "generic_asset")
+        and result_sensor.generic_asset == asset_or_sensor
+    )
+    return not is_main
+
+
 def _resolve_schedule_output_sign(
     result: dict,
     asset_or_sensor: Asset | Sensor,
@@ -540,31 +568,18 @@ def _resolve_schedule_output_sign(
     :param asset_or_sensor: The Asset or Sensor being scheduled (main power sensor).
     :return:                Sign multiplier: 1 (keep sign) or -1 (invert sign).
     """
-    # Check if this is a consumption/production output schedule (dedicated sensor)
-    # vs. main power schedule (same as asset_or_sensor).
-    result_name = result.get("name", "")
     result_sensor = result["sensor"]
-
-    # Identify if the result uses the main power sensor
-    is_main_power_schedule = result_sensor == asset_or_sensor or (
-        hasattr(asset_or_sensor, "generic_asset")
-        and result_sensor.generic_asset == asset_or_sensor
-    )
 
     # Consumption/production output schedules have their sign convention already
     # encoded in the field name ("consumption" = consumption positive;
     # "production" = production positive). Only main power schedules need conversion.
-    is_consumption_production_output = (
-        result_name in ("consumption_schedule", "production_schedule")
-        and not is_main_power_schedule
-    )
+    if _is_consumption_production_output(result, asset_or_sensor):
+        return 1
 
     # Apply standard sign inversion only for main power schedules that measure power
     # and don't have the consumption_is_positive attribute.
-    if (
-        not is_consumption_production_output
-        and result_sensor.measures_power
-        and not result_sensor.get_attribute("consumption_is_positive", False)
+    if result_sensor.measures_power and not result_sensor.get_attribute(
+        "consumption_is_positive", False
     ):
         return -1
 
@@ -714,19 +729,16 @@ def make_schedule(  # noqa: C901
             # For consumption/production output sensors, explicitly set the consumption_is_positive
             # attribute so that future get_schedule calls on these sensors apply the correct sign
             # convention. This is necessary because the job has a TTL and won't be available forever.
-            result_name = result.get("name", "")
-            result_sensor = result["sensor"]
-            is_main_power_schedule = result_sensor == asset_or_sensor or (
-                hasattr(asset_or_sensor, "generic_asset")
-                and result_sensor.generic_asset == asset_or_sensor
-            )
-
-            if result_name == "consumption_schedule" and not is_main_power_schedule:
-                # Consumption sensor: consumption is stored as positive
-                result_sensor.set_attribute("consumption_is_positive", True)
-            elif result_name == "production_schedule" and not is_main_power_schedule:
-                # Production sensor: production is stored as positive (consumption negative)
-                result_sensor.set_attribute("consumption_is_positive", False)
+            if _is_consumption_production_output(result, asset_or_sensor):
+                result_sensor = result["sensor"]
+                result_name = result.get("name", "")
+                # Consumption sensor stores consumption as positive; production sensor stores
+                # production as positive (i.e. consumption_is_positive is False).
+                intended = result_name == "consumption_schedule"
+                # Direct attribute assignment works for both new and existing attributes.
+                # set_attribute() is intentionally not used here because it silently
+                # no-ops when the attribute does not yet exist.
+                result_sensor.attributes["consumption_is_positive"] = intended
         else:
             print(
                 f"\nNot saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"
