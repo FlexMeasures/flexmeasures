@@ -215,7 +215,8 @@ def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
     keep_scheduling_queue_empty,
     requesting_user,
 ):
-    message = message_for_trigger_schedule(resolution="PT1H")
+    scheduling_resolution = "PT1H"
+    message = message_for_trigger_schedule(resolution=scheduling_resolution)
     message["flex-context"] = {
         "consumption-price": {"sensor": add_market_prices_fresh_db["epex_da"].id},
         "production-price": {"sensor": add_market_prices_fresh_db["epex_da"].id},
@@ -235,14 +236,26 @@ def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
             event_value=50,
         )
     )
-    fresh_db.session.commit()
 
+    # Also add a production output sensor to verify the production schedule is stored.
+    # (Using only a production sensor means the full power profile is stored with sign inverted:
+    # production positive, consumption negative.)
     sensor = (
         Sensor.query.filter(Sensor.name == "power")
         .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
         .filter(GenericAsset.name == "Test battery")
         .one_or_none()
     )
+    production_output_sensor = Sensor(
+        name="production output",
+        generic_asset=sensor.generic_asset,
+        unit="MW",
+        event_resolution=sensor.event_resolution,
+    )
+    fresh_db.session.add(production_output_sensor)
+    fresh_db.session.commit()
+
+    message["flex-model"]["production"] = {"sensor": production_output_sensor.id}
 
     with app.test_client() as client:
         trigger_schedule_response = client.post(
@@ -263,10 +276,27 @@ def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
         )
         assert get_soc_schedule_response.status_code == 200
         assert get_soc_schedule_response.json["unit"] == "%"
-        assert get_soc_schedule_response.json["values"][0] == 50
+        soc_values = get_soc_schedule_response.json["values"]
+        assert soc_values[0] == 50
 
     sensor = fresh_db.session.get(Sensor, sensor.id)
     assert sensor.generic_asset.get_attribute("soc_in_mwh") == pytest.approx(0.02)
+
+    # Verify the production output sensor received schedule data.
+    # Only the production sensor is defined (no consumption sensor), so the full power profile
+    # is stored with inverted sign: production as positive, consumption as negative.
+    production_output_sensor = fresh_db.session.get(Sensor, production_output_sensor.id)
+    production_beliefs = production_output_sensor.search_beliefs(
+        event_starts_after=parse_datetime(message["start"])
+    )
+    assert len(production_beliefs) == 96  # 24h at 15-min resolution
+    assert (
+        soc_values[1] - soc_values[0] == -50
+    ), "expected SoC to go down in the first hour"
+    assert (
+        production_beliefs.resample_events(scheduling_resolution).iloc[0].event_value
+        > 0
+    ), "expected first hour to show positive production"
 
 
 @pytest.mark.parametrize(

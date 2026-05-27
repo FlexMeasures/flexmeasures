@@ -522,6 +522,55 @@ def create_simultaneous_scheduling_job(
     return job
 
 
+def _resolve_schedule_output_sign(
+    result: dict,
+    asset_or_sensor: Asset | Sensor,
+) -> int:
+    """Determine the sign multiplier for a schedule output result.
+
+    Returns 1 (no sign change) or -1 (invert sign) depending on whether the result
+    is a power schedule that needs sign conversion to match FlexMeasures convention
+    (consumption positive, production negative).
+
+    For consumption/production output schedules (identified by result name and sensor),
+    the sign is already correct per the scheduler, so no conversion is applied.
+    For other power schedules (main power sensors), the standard conversion is applied.
+
+    :param result:          Schedule output result dict with keys 'name', 'sensor', 'data'.
+    :param asset_or_sensor: The Asset or Sensor being scheduled (main power sensor).
+    :return:                Sign multiplier: 1 (keep sign) or -1 (invert sign).
+    """
+    # Check if this is a consumption/production output schedule (dedicated sensor)
+    # vs. main power schedule (same as asset_or_sensor).
+    result_name = result.get("name", "")
+    result_sensor = result["sensor"]
+
+    # Identify if the result uses the main power sensor
+    is_main_power_schedule = result_sensor == asset_or_sensor or (
+        hasattr(asset_or_sensor, "generic_asset")
+        and result_sensor.generic_asset == asset_or_sensor
+    )
+
+    # Consumption/production output schedules have their sign convention already
+    # encoded in the field name ("consumption" = consumption positive;
+    # "production" = production positive). Only main power schedules need conversion.
+    is_consumption_production_output = (
+        result_name in ("consumption_schedule", "production_schedule")
+        and not is_main_power_schedule
+    )
+
+    # Apply standard sign inversion only for main power schedules that measure power
+    # and don't have the consumption_is_positive attribute.
+    if (
+        not is_consumption_production_output
+        and result_sensor.measures_power
+        and not result_sensor.get_attribute("consumption_is_positive", False)
+    ):
+        return -1
+
+    return 1
+
+
 def make_schedule(  # noqa: C901
     sensor_id: int | None = None,
     start: datetime | None = None,
@@ -637,12 +686,7 @@ def make_schedule(  # noqa: C901
         if "sensor" not in result:
             continue
 
-        sign = 1
-
-        if result["sensor"].measures_power and not result["sensor"].get_attribute(
-            "consumption_is_positive", False
-        ):
-            sign = -1
+        sign = _resolve_schedule_output_sign(result, asset_or_sensor)
 
         ts_value_schedule = [
             TimedBelief(
@@ -666,6 +710,23 @@ def make_schedule(  # noqa: C901
 
         if not dry_run:
             save_to_db(bdf)
+
+            # For consumption/production output sensors, explicitly set the consumption_is_positive
+            # attribute so that future get_schedule calls on these sensors apply the correct sign
+            # convention. This is necessary because the job has a TTL and won't be available forever.
+            result_name = result.get("name", "")
+            result_sensor = result["sensor"]
+            is_main_power_schedule = result_sensor == asset_or_sensor or (
+                hasattr(asset_or_sensor, "generic_asset")
+                and result_sensor.generic_asset == asset_or_sensor
+            )
+
+            if result_name == "consumption_schedule" and not is_main_power_schedule:
+                # Consumption sensor: consumption is stored as positive
+                result_sensor.set_attribute("consumption_is_positive", True)
+            elif result_name == "production_schedule" and not is_main_power_schedule:
+                # Production sensor: production is stored as positive (consumption negative)
+                result_sensor.set_attribute("consumption_is_positive", False)
         else:
             print(
                 f"\nNot saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"

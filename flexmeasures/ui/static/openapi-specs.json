@@ -5999,6 +5999,20 @@
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",
         "properties": {
+          "consumption": {
+            "description": "Sensor used to record the scheduled consumption.",
+            "example": {
+              "sensor": 14
+            },
+            "$ref": "#/components/schemas/SensorReference"
+          },
+          "production": {
+            "description": "Sensor used to record the scheduled production.",
+            "example": {
+              "sensor": 15
+            },
+            "$ref": "#/components/schemas/SensorReference"
+          },
           "soc-at-start": {
             "type": "string",
             "description": "The (estimated) state of charge at the beginning of the schedule (for storage devices, this defaults to 0).\nUsually added to each scheduling request.\n",
