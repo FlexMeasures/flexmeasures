@@ -1223,7 +1223,20 @@ class SensorAPI(FlaskView):
         )
 
         sign = 1
-        if sensor.measures_power and not sensor.get_attribute(
+        # Check data source config for dedicated output sensors
+        # (consumption/production output sensors already store values in their
+        # own sign convention and should not be flipped).
+        ds_config = (
+            (data_source.attributes or {}).get("data_generator", {}).get("config", {})
+        )
+        output_sensor_roles = ds_config.get("output_sensor_roles", {})
+        sensor_role = output_sensor_roles.get(str(sensor.id))
+
+        if sensor_role is not None:
+            # Dedicated output sensor — values are already stored in the correct
+            # convention (consumption-positive or production-positive), no flip.
+            sign = 1
+        elif sensor.measures_power and not sensor.get_attribute(
             "consumption_is_positive", False
         ):
             sign = -1

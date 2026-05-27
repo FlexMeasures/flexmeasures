@@ -640,6 +640,251 @@ def test_multiple_contracts(
         )
 
 
+@pytest.mark.parametrize(
+    "output_type",
+    ["consumption", "production"],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_schedule_sign_convention_json_flex_model(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    battery_soc_sensor_fresh_db,
+    keep_scheduling_queue_empty,
+    output_type,
+    requesting_user,
+):
+    """Test that get_schedule returns correct sign conventions for consumption/production
+    output sensors when the flex-model is passed via JSON body.
+
+    Consumption output sensor: consumption positive, production negative.
+    Production output sensor: production positive, consumption negative.
+    """
+    battery_asset = add_battery_assets_fresh_db["Test battery"]
+
+    # Create a dedicated output sensor on the battery asset
+    output_sensor = Sensor(
+        name=f"{output_type} output",
+        generic_asset=battery_asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    fresh_db.session.add(output_sensor)
+    fresh_db.session.flush()
+
+    # Build the trigger message with the output sensor in the flex-model
+    message = message_for_trigger_schedule(resolution="PT1H")
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    message["flex-context"] = {
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
+        "site-power-capacity": "1 TW",
+    }
+    message["flex-model"][output_type] = {"sensor": output_sensor.id}
+
+    # Find the main power sensor to trigger the schedule on
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == "Test battery")
+        .one_or_none()
+    )
+
+    with app.test_client() as client:
+        trigger_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+        assert trigger_response.status_code == 200
+        job_id = trigger_response.json["schedule"]
+
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+    job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+    assert job.is_finished
+
+    # Retrieve the schedule from the output sensor
+    with app.test_client() as client:
+        get_response = client.get(
+            url_for("SensorAPI:get_schedule", id=output_sensor.id, uuid=job_id),
+            query_string={"duration": "PT24H"},
+        )
+        assert get_response.status_code == 200
+        values = get_response.json["values"]
+
+    # The battery schedule should have non-zero values (charging and/or discharging)
+    assert len(values) > 0
+    assert any(v != 0 for v in values), "Schedule should have non-zero values"
+
+    # Get the main power sensor schedule for comparison (consumption positive convention)
+    with app.test_client() as client:
+        main_response = client.get(
+            url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+            query_string={"duration": "PT24H"},
+        )
+        assert main_response.status_code == 200
+        main_values = main_response.json["values"]
+
+    if output_type == "consumption":
+        # Consumption sensor returns the full schedule in consumption-positive convention
+        # (same sign as main power sensor schedule)
+        # Both should have the same absolute pattern, consumption positive
+        for main_val, out_val in zip(main_values, values):
+            if main_val > 0:
+                # Charging (consumption) should be positive on consumption sensor
+                assert (
+                    out_val >= 0
+                ), f"Consumption sensor should show positive for charging: main={main_val}, output={out_val}"
+            elif main_val < 0:
+                # Discharging (production) should be negative on consumption sensor
+                assert (
+                    out_val <= 0
+                ), f"Consumption sensor should show negative for discharging: main={main_val}, output={out_val}"
+    elif output_type == "production":
+        # Production sensor returns the full schedule in production-positive convention
+        # (inverted sign relative to main power sensor schedule)
+        for main_val, out_val in zip(main_values, values):
+            if main_val < 0:
+                # Discharging (production) should be positive on production sensor
+                assert (
+                    out_val >= 0
+                ), f"Production sensor should show positive for discharging: main={main_val}, output={out_val}"
+            elif main_val > 0:
+                # Charging (consumption) should be negative on production sensor
+                assert (
+                    out_val <= 0
+                ), f"Production sensor should show negative for charging: main={main_val}, output={out_val}"
+
+
+@pytest.mark.parametrize(
+    "output_type",
+    ["consumption", "production"],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_schedule_sign_convention_db_flex_model(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    battery_soc_sensor_fresh_db,
+    keep_scheduling_queue_empty,
+    output_type,
+    requesting_user,
+):
+    """Test that get_schedule returns correct sign conventions for consumption/production
+    output sensors when the flex-model is stored in the DB (asset attributes).
+
+    Consumption output sensor: consumption positive, production negative.
+    Production output sensor: production positive, consumption negative.
+    """
+    battery_asset = add_battery_assets_fresh_db["Test battery"]
+
+    # Create a dedicated output sensor on the battery asset
+    output_sensor = Sensor(
+        name=f"{output_type} output db",
+        generic_asset=battery_asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    fresh_db.session.add(output_sensor)
+    fresh_db.session.flush()
+
+    # Store the output sensor reference in the asset's flex_model (DB flex-model)
+    battery_asset.flex_model = battery_asset.flex_model or {}
+    battery_asset.flex_model[output_type] = {"sensor": output_sensor.id}
+    fresh_db.session.add(battery_asset)
+    fresh_db.session.flush()
+
+    # Build the trigger message without consumption/production in JSON flex-model
+    # (it will be read from the asset's DB flex-model)
+    message = message_for_trigger_schedule(resolution="PT1H")
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    message["flex-context"] = {
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
+        "site-power-capacity": "1 TW",
+    }
+
+    # Find the main power sensor to trigger the schedule on
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == "Test battery")
+        .one_or_none()
+    )
+
+    # Flush Redis to clear any job dedup cache from prior parametrized runs
+    app.redis_connection.flushdb()
+
+    with app.test_client() as client:
+        trigger_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+        assert trigger_response.status_code == 200
+        job_id = trigger_response.json["schedule"]
+
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+    job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+    assert job.is_finished
+
+    # Retrieve the schedule from the output sensor
+    with app.test_client() as client:
+        get_response = client.get(
+            url_for("SensorAPI:get_schedule", id=output_sensor.id, uuid=job_id),
+            query_string={"duration": "PT24H"},
+        )
+        assert (
+            get_response.status_code == 200
+        ), f"GET schedule failed: {get_response.json}"
+        values = get_response.json["values"]
+
+    # The battery schedule should have non-zero values
+    assert len(values) > 0
+    assert any(v != 0 for v in values), "Schedule should have non-zero values"
+
+    # Get the main power sensor schedule for comparison
+    with app.test_client() as client:
+        main_response = client.get(
+            url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+            query_string={"duration": "PT24H"},
+        )
+        assert main_response.status_code == 200
+        main_values = main_response.json["values"]
+
+    if output_type == "consumption":
+        for main_val, out_val in zip(main_values, values):
+            if main_val > 0:
+                assert (
+                    out_val >= 0
+                ), f"Consumption sensor should show positive for charging: main={main_val}, output={out_val}"
+            elif main_val < 0:
+                assert (
+                    out_val <= 0
+                ), f"Consumption sensor should show negative for discharging: main={main_val}, output={out_val}"
+    elif output_type == "production":
+        for main_val, out_val in zip(main_values, values):
+            if main_val < 0:
+                assert (
+                    out_val >= 0
+                ), f"Production sensor should show positive for discharging: main={main_val}, output={out_val}"
+            elif main_val > 0:
+                assert (
+                    out_val <= 0
+                ), f"Production sensor should show negative for charging: main={main_val}, output={out_val}"
+
+    # Clean up: remove the flex_model entry so it doesn't affect other tests
+    del battery_asset.flex_model[output_type]
+    fresh_db.session.add(battery_asset)
+    fresh_db.session.flush()
+
+
 def setup_inflexible_device_sensors(fresh_db, asset, sensor_name, sensor_num):
     """Test helper function to add sensor_num sensors to an asset"""
     sensors = list()

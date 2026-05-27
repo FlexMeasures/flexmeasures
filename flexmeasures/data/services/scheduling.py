@@ -681,6 +681,9 @@ def make_schedule(  # noqa: C901
         rq_job.meta["data_source_info"] = data_source_info
         rq_job.save_meta()
 
+    # Collect output sensor roles (consumption/production) for the data source config
+    output_sensor_roles: dict[str, str] = {}
+
     # Save any result that specifies a sensor to save it to
     for result in consumption_schedule:
         if "sensor" not in result:
@@ -711,9 +714,7 @@ def make_schedule(  # noqa: C901
         if not dry_run:
             save_to_db(bdf)
 
-            # For consumption/production output sensors, explicitly set the consumption_is_positive
-            # attribute so that future get_schedule calls on these sensors apply the correct sign
-            # convention. This is necessary because the job has a TTL and won't be available forever.
+            # Track consumption/production output sensors for the data source config
             result_name = result.get("name", "")
             result_sensor = result["sensor"]
             is_main_power_schedule = result_sensor == asset_or_sensor or (
@@ -722,15 +723,27 @@ def make_schedule(  # noqa: C901
             )
 
             if result_name == "consumption_schedule" and not is_main_power_schedule:
-                # Consumption sensor: consumption is stored as positive
-                result_sensor.set_attribute("consumption_is_positive", True)
+                output_sensor_roles[str(result_sensor.id)] = "consumption"
             elif result_name == "production_schedule" and not is_main_power_schedule:
-                # Production sensor: production is stored as positive (consumption negative)
-                result_sensor.set_attribute("consumption_is_positive", False)
+                output_sensor_roles[str(result_sensor.id)] = "production"
         else:
             print(
                 f"\nNot saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"
             )
+
+    # Store output sensor roles in data source attributes so that get_schedule
+    # can determine the sign convention without relying on sensor attributes.
+    if output_sensor_roles:
+        if data_source.attributes is None:
+            data_source.attributes = {}
+        data_source.attributes.setdefault("data_generator", {})
+        data_source.attributes["data_generator"]["config"] = {
+            "output_sensor_roles": output_sensor_roles,
+        }
+        # Flag the attributes column as modified so SQLAlchemy persists the change
+        from sqlalchemy.orm.attributes import flag_modified
+
+        flag_modified(data_source, "attributes")
 
     if not dry_run:
         scheduler.persist_flex_model()
