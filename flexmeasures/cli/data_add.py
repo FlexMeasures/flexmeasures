@@ -29,6 +29,7 @@ from sqlalchemy import func, select
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
 from workalendar.registry import registry as workalendar_registry
+import holidays as hpkg
 
 from flexmeasures import Forecaster, Reporter
 from flexmeasures.cli.utils import (
@@ -917,11 +918,138 @@ def add_annotation(
     click.secho("Successfully added annotation.", **MsgStyle.SUCCESS)
 
 
+def _make_holiday_annotation(content, date, timezone, source):
+    """Create (or look up) a single holiday Annotation at local midnight."""
+    start = pd.Timestamp(date).tz_localize(timezone)
+    end = start + pd.offsets.DateOffset(days=1)
+    annotation, _ = get_or_create_annotation(
+        Annotation(content=content, start=start, end=end, source=source, type="holiday")
+    )
+    return annotation
+
+
+def _holidays_from_workalendar_class(year, calendar_class, calendar_kwargs, timezone):
+    """Load holidays via a specific workalendar class path.
+
+    :returns: (annotations, num_holidays_dict)
+    """
+    import importlib
+
+    try:
+        module_path, class_name = calendar_class.rsplit(".", 1)
+        module = importlib.import_module(module_path)
+        cls = getattr(module, class_name)
+    except (ValueError, ImportError, AttributeError) as e:
+        click.secho(
+            f"Could not import calendar class '{calendar_class}': {e}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    kwargs = {}
+    if calendar_kwargs:
+        try:
+            kwargs = json.loads(calendar_kwargs)
+        except json.JSONDecodeError as e:
+            click.secho(
+                f"Invalid JSON for --calendar-kwargs: {e}",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
+
+    source = get_or_create_source(
+        "workalendar", model=class_name, source_type="CLI script"
+    )
+    calendar = cls(**kwargs)
+    holidays_list = calendar.holidays(year)
+    annotations = [
+        _make_holiday_annotation(h[1], h[0], timezone, source) for h in holidays_list
+    ]
+    return annotations, {class_name: len(holidays_list)}
+
+
+def _holidays_from_package(year, countries, subdiv, category, timezone):
+    """Load holidays via the holidays Python package.
+
+    :returns: (annotations, num_holidays_dict, effective_category, model_str)
+    """
+    if len(countries) != 1:
+        click.secho(
+            "Exactly one --country is required when using the holidays package.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    country = countries[0]
+
+    supported = hpkg.list_supported_countries()
+    if country not in supported:
+        click.secho(
+            f"Country '{country}' is not supported by the holidays package.",
+            **MsgStyle.ERROR,
+        )
+        click.secho(
+            f"Supported countries include: {', '.join(list(supported.keys())[:20])} ...",
+            **MsgStyle.WARN,
+        )
+        raise click.Abort()
+
+    effective_category = category or "public"
+    try:
+        h = hpkg.country_holidays(
+            country,
+            subdiv=subdiv,
+            years=year,
+            categories=(effective_category,),
+        )
+    except (ValueError, NotImplementedError) as e:
+        click.secho(
+            f"Error creating holidays for {country}"
+            + (f"/{subdiv}" if subdiv else "")
+            + f" (category='{effective_category}'): {e}",
+            **MsgStyle.ERROR,
+        )
+        click.secho(
+            "Check valid subdivisions and categories at https://python-holidays.readthedocs.io/",
+            **MsgStyle.WARN,
+        )
+        raise click.Abort()
+
+    model_str = f"{country}/{subdiv}" if subdiv else country
+    source = get_or_create_source("holidays", model=model_str, source_type="CLI script")
+    annotations = [
+        _make_holiday_annotation(h[date], date, timezone, source)
+        for date in sorted(h.keys())
+    ]
+    return annotations, {model_str: len(h)}, effective_category, model_str
+
+
+def _holidays_from_workalendar_registry(year, countries, timezone):
+    """Load holidays via workalendar's ISO registry.
+
+    :returns: (annotations, num_holidays_dict)
+    """
+    calendars = workalendar_registry.get_calendars(countries)
+    annotations = []
+    num_holidays = {}
+    for country, calendar in calendars.items():
+        source = get_or_create_source(
+            "workalendar", model=country, source_type="CLI script"
+        )
+        holidays_list = calendar().holidays(year)
+        for holiday in holidays_list:
+            annotations.append(
+                _make_holiday_annotation(holiday[1], holiday[0], timezone, source)
+            )
+        num_holidays[country] = len(holidays_list)
+    return annotations, num_holidays
+
+
 @fm_add_data.command("holidays", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
     "--year",
     type=click.INT,
+    required=True,
     help="The year for which to look up holidays",
 )
 @click.option(
@@ -929,7 +1057,49 @@ def add_annotation(
     "countries",
     type=click.STRING,
     multiple=True,
-    help="The ISO 3166-1 country/region or ISO 3166-2 sub-region for which to look up holidays (such as US, BR and DE). This argument can be given multiple times.",
+    help="The ISO 3166-1 country/region or ISO 3166-2 sub-region for which to look up holidays (such as US, BR and DE). This argument can be given multiple times. When using the holidays package, exactly one country is required.",
+)
+@click.option(
+    "--calendar-class",
+    "calendar_class",
+    type=click.STRING,
+    default=None,
+    help="Full dotted path to a workalendar calendar class "
+    "(e.g. 'workalendar.europe.netherlands.NetherlandsWithSchoolHolidays'). "
+    "Use this for calendars not accessible via a simple country code.",
+)
+@click.option(
+    "--calendar-kwargs",
+    "calendar_kwargs",
+    type=click.STRING,
+    default=None,
+    help="JSON string of keyword arguments to pass to the workalendar calendar constructor "
+    '(e.g. \'{"region": "north"}\').',
+)
+@click.option(
+    "--subdiv",
+    "subdiv",
+    type=click.STRING,
+    default=None,
+    help="Subdivision (state/province) code for the holidays package (e.g. 'BY' for Bavaria). "
+    "If provided, the holidays package is used automatically.",
+)
+@click.option(
+    "--category",
+    "category",
+    type=click.STRING,
+    default=None,
+    help="Holiday category for the holidays package (e.g. 'school', 'optional'). "
+    "Defaults to 'public' when the holidays package is used. "
+    "If provided, the holidays package is used automatically.",
+)
+@click.option(
+    "--package",
+    "package",
+    type=click.Choice(["workalendar", "holidays"]),
+    default=None,
+    help="Which package to use: 'workalendar' (default) or 'holidays'. "
+    "Auto-detected from --subdiv/--category when not specified.",
 )
 @click.option(
     "--asset",
@@ -953,15 +1123,67 @@ def add_annotation(
     preferred="--account",
     help="Add annotations to this account. Follow up with the account's ID. This argument can be given multiple times.",
 )
+@click.option(
+    "--timezone",
+    "timezone",
+    type=click.STRING,
+    default=None,
+    help="Timezone for holiday annotations (e.g. 'Europe/Amsterdam'). "
+    "Defaults to the FLEXMEASURES_TIMEZONE config setting. "
+    "Use this to ensure holidays appear at midnight local time in the UI.",
+)
 def add_holidays(
     year: int,
     countries: list[str],
+    calendar_class: str | None,
+    calendar_kwargs: str | None,
+    subdiv: str | None,
+    category: str | None,
+    package: str | None,
     generic_asset_ids: list[int],
     account_ids: list[int],
+    timezone: str | None,
 ):
-    """Add holiday annotations to accounts and/or assets."""
-    calendars = workalendar_registry.get_calendars(countries)
-    num_holidays = {}
+    """Add holiday annotations to accounts and/or assets.
+
+    Uses the workalendar package by default. Switch to the holidays package with
+    --package holidays (or automatically by passing --subdiv or --category).
+    Use --calendar-class to specify a specific workalendar calendar class (e.g.
+    NetherlandsWithSchoolHolidays) along with --calendar-kwargs for its constructor.
+
+    \b
+    Examples:
+      # NL public holidays via workalendar (default)
+      flexmeasures add holidays --year 2024 --country NL --account 1 --timezone Europe/Amsterdam
+
+      # Bavaria school holidays via holidays package
+      flexmeasures add holidays --year 2024 --country DE --subdiv BY --category school --account 1
+
+      # Netherlands school holidays (north region) via workalendar class
+      flexmeasures add holidays --year 2024 \\
+        --calendar-class workalendar.europe.netherlands.NetherlandsWithSchoolHolidays \\
+        --calendar-kwargs '{"region": "north"}' --account 1 --timezone Europe/Amsterdam
+    """
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    # Resolve timezone: default to FLEXMEASURES_TIMEZONE config setting
+    if timezone is None:
+        timezone = app.config.get("FLEXMEASURES_TIMEZONE", "UTC")
+        click.secho(
+            f"No --timezone given; using FLEXMEASURES_TIMEZONE setting ({timezone!r}). "
+            "Pass --timezone explicitly to override.",
+            **MsgStyle.WARN,
+        )
+    try:
+        ZoneInfo(timezone)
+    except (ZoneInfoNotFoundError, KeyError):
+        click.secho(f"Unknown timezone: {timezone!r}", **MsgStyle.ERROR)
+        raise click.Abort()
+
+    # Determine which package to use
+    use_holidays_pkg = package == "holidays" or (
+        package is None and (subdiv is not None or category is not None)
+    )
 
     accounts = (
         db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
@@ -975,36 +1197,42 @@ def add_holidays(
         if generic_asset_ids
         else []
     )
-    annotations = []
-    for country, calendar in calendars.items():
-        _source = get_or_create_source(
-            "workalendar", model=country, source_type="CLI script"
+
+    if calendar_class and not use_holidays_pkg:
+        annotations, num_holidays = _holidays_from_workalendar_class(
+            year, calendar_class, calendar_kwargs, timezone
         )
-        holidays = calendar().holidays(year)
-        for holiday in holidays:
-            start = pd.Timestamp(holiday[0])
-            end = start + pd.offsets.DateOffset(days=1)
-            annotation, _ = get_or_create_annotation(
-                Annotation(
-                    content=holiday[1],
-                    start=start,
-                    end=end,
-                    source=_source,
-                    type="holiday",
-                )
-            )
-            annotations.append(annotation)
-        num_holidays[country] = len(holidays)
+    elif use_holidays_pkg:
+        annotations, num_holidays, effective_category, model_str = (
+            _holidays_from_package(year, countries, subdiv, category, timezone)
+        )
+    else:
+        annotations, num_holidays = _holidays_from_workalendar_registry(
+            year, countries, timezone
+        )
+
     db.session.add_all(annotations)
     for account in accounts:
         account.annotations += annotations
     for asset in assets:
         asset.annotations += annotations
     db.session.commit()
-    click.secho(
-        f"Successfully added holidays to {len(accounts)} {flexmeasures_inflection.pluralize('account', len(accounts))} and {len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}",
-        **MsgStyle.SUCCESS,
-    )
+
+    if use_holidays_pkg:
+        click.secho(
+            f"Successfully added {len(annotations)} holidays (category='{effective_category}') "
+            f"for {model_str} in {year} to "
+            f"{len(accounts)} {flexmeasures_inflection.pluralize('account', len(accounts))} and "
+            f"{len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}.",
+            **MsgStyle.SUCCESS,
+        )
+    else:
+        click.secho(
+            f"Successfully added holidays to "
+            f"{len(accounts)} {flexmeasures_inflection.pluralize('account', len(accounts))} and "
+            f"{len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}",
+            **MsgStyle.SUCCESS,
+        )
 
 
 @fm_add_data.command("forecasts")

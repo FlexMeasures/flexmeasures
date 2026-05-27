@@ -12,6 +12,7 @@ from marshmallow import (
     validates_schema,
     pre_load,
     post_load,
+    post_dump,
     ValidationError,
 )
 
@@ -24,6 +25,41 @@ from flexmeasures.data.schemas.times import (
 )
 from flexmeasures.data.models.forecasting.utils import floor_to_resolution
 from flexmeasures.utils.time_utils import server_now
+
+
+class AnnotationRegressorSchema(Schema):
+    """Schema for a single annotation regressor in the forecasting pipeline config."""
+
+    account = fields.Int(
+        load_default=None,
+        metadata={"description": "Account ID whose annotations to use."},
+    )
+    asset = fields.Int(
+        load_default=None,
+        metadata={"description": "Asset ID whose annotations to use."},
+    )
+    sensor = fields.Int(
+        load_default=None,
+        metadata={"description": "Sensor ID whose annotations to use."},
+    )
+    annotation_type = fields.Str(
+        data_key="annotation-type",
+        load_default="holiday",
+        metadata={
+            "description": "Type of annotation to use (e.g. 'holiday', 'label', 'alert'). Defaults to 'holiday'."
+        },
+    )
+    name = fields.Str(
+        load_default=None,
+        metadata={
+            "description": "Human-readable column name for this regressor. Defaults to 'annotation_regressor_<index>'."
+        },
+    )
+
+    @post_dump
+    def remove_none_values(self, data, **kwargs):
+        """Omit null fields from the serialised config to keep it clean."""
+        return {k: v for k, v in data.items() if v is not None}
 
 
 class TrainPredictPipelineConfigSchema(Schema):
@@ -74,6 +110,25 @@ class TrainPredictPipelineConfigSchema(Schema):
             },
         },
     )
+    annotation_regressors = fields.List(
+        fields.Nested(AnnotationRegressorSchema()),
+        data_key="annotation-regressors",
+        load_default=[],
+        metadata={
+            "description": (
+                "Annotation sources to use as binary future regressors. "
+                "Each entry must specify 'account', 'asset', or 'sensor' (ID), and optionally "
+                "'annotation-type' (default: 'holiday') and 'name' (default: auto-generated). "
+                "Annotations are converted to a binary 0/1 time series: 1 during annotated periods."
+            ),
+            "example": [
+                {"account": 1, "annotation-type": "holiday", "name": "holidays"}
+            ],
+            "cli": {
+                "option": "--annotation-regressors",
+            },
+        },
+    )
     missing_threshold = fields.Float(
         data_key="missing-threshold",
         load_default=1.0,
@@ -114,10 +169,15 @@ class TrainPredictPipelineConfigSchema(Schema):
     )
     train_period = DurationField(
         data_key="train-period",
-        load_default=timedelta(days=30),
+        load_default=None,
         allow_none=True,
         metadata={
-            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from train_start and start if not set or defaults to P30D (30 days).",
+            "description": (
+                "Duration of the initial training period (ISO 8601 format, min 2 days). "
+                "If not set and --train-start is provided, the period is the difference "
+                "between --start and --train-start, capped to --max-training-period. "
+                "If neither is set, --max-training-period is used as the training window."
+            ),
             "example": "P7D",
             "cli": {
                 "cli-exclusive": True,
@@ -193,9 +253,16 @@ class TrainPredictPipelineConfigSchema(Schema):
         data["future_regressors"] = future_regressors
         data["past_regressors"] = past_regressors
 
-        train_period_in_hours = data["train_period"] // timedelta(hours=1)
+        train_period_in_hours = (
+            data["train_period"] // timedelta(hours=1)
+            if data.get("train_period") is not None
+            else None
+        )
         max_training_period = data["max_training_period"]
-        if train_period_in_hours > max_training_period // timedelta(hours=1):
+        if (
+            train_period_in_hours is not None
+            and train_period_in_hours > max_training_period // timedelta(hours=1)
+        ):
             train_period_in_hours = max_training_period // timedelta(hours=1)
             logging.warning(
                 f"train-period is greater than max-training-period ({max_training_period}), setting train-period to max-training-period",

@@ -14,6 +14,18 @@ from timely_beliefs import utils as tb_utils
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 
 
+class _AnnotationRegressorProxy:
+    """Minimal proxy so annotation regressors can reuse sensor-based pipeline utilities.
+
+    Provides event_resolution and basic attributes expected by detect_and_fill_missing_values.
+    """
+
+    def __init__(self, name: str, event_resolution):
+        self.name = name
+        self.id = f"annotation:{name}"
+        self.event_resolution = event_resolution
+
+
 class BasePipeline:
     """
     Base class for Train and Predict pipelines.
@@ -69,6 +81,7 @@ class BasePipeline:
         predict_start: datetime | None = None,
         predict_end: datetime | None = None,
         missing_threshold: float = 1.0,
+        annotation_regressors: list[dict] | None = None,
     ) -> None:
         self.future = future_regressors
         self.past = past_regressors
@@ -105,6 +118,20 @@ class BasePipeline:
         )  # convert max_forecast_horizon to hours
         self.forecast_frequency = forecast_frequency
         self.missing_threshold = missing_threshold
+        self.annotation_regressors = annotation_regressors or []
+        # Build column names and proxy objects for annotation regressors
+        # Use `or` so that None or empty-string names fall back to the default.
+        self.annotation_regressor_proxies = [
+            _AnnotationRegressorProxy(
+                name=spec.get("name") or f"annotation_regressor_{i}",
+                event_resolution=target_sensor.event_resolution,
+            )
+            for i, spec in enumerate(self.annotation_regressors)
+        ]
+        self.annotation_regressor_names = [
+            f"{proxy.name} (annotation)_AR-{i}"
+            for i, proxy in enumerate(self.annotation_regressor_proxies)
+        ]
 
     def load_data_all_beliefs(self) -> pd.DataFrame:
         """
@@ -151,13 +178,19 @@ class BasePipeline:
                 ),  # we exclude forecasters for target dataframe as to not use forecasts in target.
             )
             try:
-                # We resample regressors to the target sensor’s resolution so they align in time.
+                # We resample regressors to the target sensor's resolution so they align in time.
                 # This ensures the resulting DataFrame can be used directly for predictions.
-                df = tb_utils.replace_multi_index_level(
-                    df,
-                    "event_start",
-                    df.event_starts.floor(self.target_sensor.event_resolution),
-                )
+                event_starts = df.event_starts
+                try:
+                    floored = event_starts.floor(self.target_sensor.event_resolution)
+                except Exception:
+                    # DST ambiguity: convert to UTC, floor, convert back to original tz.
+                    floored = (
+                        event_starts.tz_convert("UTC")
+                        .floor(self.target_sensor.event_resolution)
+                        .tz_convert(event_starts.tz)
+                    )
+                df = tb_utils.replace_multi_index_level(df, "event_start", floored)
             except Exception as e:
                 logging.warning(f"Error during custom resample for {name}: {e}")
 
@@ -191,7 +224,144 @@ class BasePipeline:
             data_pd["belief_time"], utc=True
         ).dt.tz_localize(None)
 
+        # Append annotation regressors as future covariates
+        if self.annotation_regressors:
+            ann_end = self.event_ends_before + pd.Timedelta(
+                hours=self.max_forecast_horizon_in_hours
+            )
+            for spec, col_name in zip(
+                self.annotation_regressors, self.annotation_regressor_names
+            ):
+                ann_df = self._load_annotation_regressor_df(
+                    spec=spec,
+                    col_name=col_name,
+                    start=self.event_starts_after,
+                    end=ann_end,
+                )
+                if not ann_df.empty:
+                    data_pd = data_pd.merge(
+                        ann_df[["event_start", col_name]],
+                        on="event_start",
+                        how="left",
+                    )
+                    data_pd[col_name] = data_pd[col_name].fillna(0.0)
+            logging.debug(
+                "Added %d annotation regressor(s) to data: %s",
+                len(self.annotation_regressors),
+                self.annotation_regressor_names,
+            )
+
         return data_pd
+
+    def _load_annotation_regressor_df(
+        self,
+        spec: dict,
+        col_name: str,
+        start: datetime,
+        end: datetime,
+    ) -> pd.DataFrame:
+        """Load an annotation regressor as a binary 0/1 time series DataFrame.
+
+        Queries annotations for the given account, asset, or sensor, then marks each
+        time step at the target sensor's resolution as 1 (if an annotation
+        covers it) or 0 (otherwise).
+
+        Annotations are treated as "always known" (belief_time = epoch start),
+        making them suitable as future covariates for known future events like
+        public holidays.
+
+        :param spec:      Dict with 'account', 'asset', or 'sensor' (ID), and optionally
+                          'annotation_type' (default: 'holiday') and 'name'.
+        :param col_name:  Column name to use in the returned DataFrame.
+        :param start:     Start of the time range (inclusive).
+        :param end:       End of the time range (exclusive).
+        :returns:         DataFrame with columns [event_start, belief_time, col_name].
+        """
+        from flexmeasures.data import db
+        from flexmeasures.data.queries.annotations import (
+            query_asset_annotations,
+            query_account_annotations,
+            query_sensor_annotations,
+        )
+
+        annotation_type = spec.get("annotation_type", "holiday")
+        account_id = spec.get("account")
+        asset_id = spec.get("asset")
+        sensor_id = spec.get("sensor")
+
+        if account_id is not None:
+            query = query_account_annotations(
+                account_id=account_id,
+                annotations_after=start,
+                annotations_before=end,
+                annotation_type=annotation_type,
+            )
+        elif asset_id is not None:
+            query = query_asset_annotations(
+                asset_id=asset_id,
+                annotations_after=start,
+                annotations_before=end,
+                annotation_type=annotation_type,
+            )
+        elif sensor_id is not None:
+            query = query_sensor_annotations(
+                sensor_id=sensor_id,
+                annotations_after=start,
+                annotations_before=end,
+                annotation_type=annotation_type,
+            )
+        else:
+            logging.warning(
+                "Annotation regressor spec %r (column: %s) has no 'account', 'asset', or 'sensor'; skipping.",
+                spec,
+                col_name,
+            )
+            return pd.DataFrame(columns=["event_start", "belief_time", col_name])
+
+        annotations = db.session.execute(query).scalars().all()
+
+        # Build the full time index at target resolution.
+        # Normalise start/end to UTC first so pd.date_range never sees two
+        # tz-aware endpoints with different UTC offsets (e.g. CET vs CEST).
+        resolution = self.target_sensor.event_resolution
+        start_utc = (
+            pd.Timestamp(start).tz_convert("UTC")
+            if pd.Timestamp(start).tzinfo
+            else pd.Timestamp(start, tz="UTC")
+        )
+        end_utc = (
+            pd.Timestamp(end).tz_convert("UTC")
+            if pd.Timestamp(end).tzinfo
+            else pd.Timestamp(end, tz="UTC")
+        )
+        time_index = pd.date_range(
+            start=start_utc, end=end_utc, freq=resolution, inclusive="left"
+        )
+        # Strip timezone info to match the convention in load_data_all_beliefs
+        time_index = time_index.tz_localize(None)
+
+        binary = pd.Series(0.0, index=time_index, name=col_name)
+
+        for ann in annotations:
+            ann_start = pd.Timestamp(ann.start)
+            ann_end = pd.Timestamp(ann.end)
+            if ann_start.tzinfo is not None:
+                ann_start = ann_start.tz_convert("UTC").tz_localize(None)
+            if ann_end.tzinfo is not None:
+                ann_end = ann_end.tz_convert("UTC").tz_localize(None)
+            mask = (binary.index >= ann_start) & (binary.index < ann_end)
+            binary.loc[mask] = 1.0
+
+        # Use epoch as belief_time so annotations are always considered "known"
+        belief_time = pd.Timestamp("1970-01-01")
+        df = pd.DataFrame(
+            {
+                "event_start": time_index,
+                "belief_time": belief_time,
+                col_name: binary.values,
+            }
+        )
+        return df
 
     def split_data_all_beliefs(  # noqa: C901
         self, df: pd.DataFrame, is_predict_pipeline: bool = False
@@ -471,8 +641,9 @@ class BasePipeline:
 
                     future_covariates = self.detect_and_fill_missing_values(
                         df=future_df,
-                        sensors=self.future,
-                        sensor_names=self.future_regressors,
+                        sensors=self.future + self.annotation_regressor_proxies,
+                        sensor_names=self.future_regressors
+                        + self.annotation_regressor_names,
                         start=target_start,
                         end=forecast_end + self.target_sensor.event_resolution,
                     )
@@ -502,7 +673,7 @@ class BasePipeline:
             )
 
         # Autoregressive-only case
-        if not self.past and not self.future:
+        if not self.past and not self.future and not self.annotation_regressors:
             logging.info("Using autoregressive forecasting.")
 
             y = df[["event_start", "belief_time", self.target]].copy()
@@ -519,10 +690,50 @@ class BasePipeline:
             else None
         )
         X_future_regressors_df = (
-            df[["event_start", "belief_time"] + self.future_regressors]
-            if self.future != []
+            df[
+                ["event_start", "belief_time"]
+                + self.future_regressors
+                + self.annotation_regressor_names
+            ]
+            if self.future != [] or self.annotation_regressors
             else None
         )
+
+        # Annotation regressors are "always known" (holiday/shutdown calendars),
+        # but they inherit the target sensor's belief_time via the merge in
+        # load_data_all_beliefs.  The split logic needs two separate sets of rows
+        # for each annotation event so that:
+        #   - realized_slice (training window):  belief_time = event_start + resolution
+        #     satisfies the  `belief_time > event_start` ("realized_only") filter.
+        #   - fc_window (forecast window):       belief_time = epoch (1970-01-01)
+        #     satisfies  `belief_time <= event_start` and is always <= any current time.
+        # Without these extra rows annotation data is invisible to the model.
+        if self.annotation_regressors and X_future_regressors_df is not None:
+            resolution = self.target_sensor.event_resolution
+            ann_base = (
+                X_future_regressors_df[
+                    ["event_start"] + self.annotation_regressor_names
+                ]
+                .drop_duplicates("event_start")
+                .copy()
+            )
+            # Sensor-based future regressors carry no annotation info in these rows.
+            for col in self.future_regressors:
+                ann_base[col] = float("nan")
+
+            epoch_rows = ann_base.copy()
+            epoch_rows["belief_time"] = pd.Timestamp("1970-01-01")
+
+            post_rows = ann_base.copy()
+            post_rows["belief_time"] = ann_base["event_start"] + resolution
+
+            extra = pd.concat([epoch_rows, post_rows], ignore_index=True)
+            extra = extra[X_future_regressors_df.columns]
+            X_future_regressors_df = (
+                pd.concat([X_future_regressors_df, extra], ignore_index=True)
+                .sort_values(["event_start", "belief_time"])
+                .reset_index(drop=True)
+            )
         y = (
             df[["event_start", "belief_time", self.target]]
             .dropna()

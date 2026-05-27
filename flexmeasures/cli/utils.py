@@ -4,6 +4,7 @@ Utils for FlexMeasures CLI
 
 from __future__ import annotations
 
+import ast
 from typing import Any
 from datetime import datetime, timedelta
 
@@ -370,16 +371,35 @@ def tabulate_account_assets(assets):
     )
 
 
+class NestedDictParamType(click.ParamType):
+    """Click parameter type that parses a JSON object or a Python-literal dict string.
+
+    Accepts both JSON double-quoted syntax (``{"key": "value"}``) and Python-literal
+    single-quoted syntax (``{'key': 'value'}``).  Used for CLI options whose Marshmallow
+    field type is ``fields.List(fields.Nested(...))``.
+    """
+
+    name = "DICT"
+
+    def convert(self, value, param, ctx):
+        if isinstance(value, dict):
+            return value
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            try:
+                return ast.literal_eval(value)
+            except (ValueError, SyntaxError):
+                self.fail(
+                    f"Cannot parse as a JSON object or Python-literal dict: {value!r}",
+                    param,
+                    ctx,
+                )
+
+
 class JSONOrFile(click.ParamType):
-    """
-    A Click parameter type that accepts either a JSON string or a file path
-    to a JSON file.
 
-    It attempts to load the input as a file first. If that fails, it assumes
-    the input is a JSON string and tries to parse it.
-    """
-
-    name = "json_or_file"
+    name = "JSON_OR_FILE"
 
     def convert(self, value, param, ctx):
         """
@@ -477,7 +497,11 @@ def add_cli_options_from_schema(schema):
                 kwargs["type"] = str
             elif isinstance(field, fields.List):
                 kwargs["multiple"] = True
-                kwargs["type"] = str
+                if isinstance(field.inner, fields.Nested):
+                    # Each value is a dict string; parse it at the Click level.
+                    kwargs["type"] = NestedDictParamType()
+                else:
+                    kwargs["type"] = str
 
             command = click.option(*options, **kwargs)(command)
 
