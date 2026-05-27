@@ -550,6 +550,50 @@ def _is_consumption_production_output(
     return not is_main
 
 
+def _set_output_sensor_consumption_is_positive(
+    result: dict, asset_or_sensor: Asset | Sensor
+) -> None:
+    """Set the ``consumption_is_positive`` attribute on a dedicated output sensor.
+
+    For consumption output sensors the attribute is set to ``True`` (consumption is stored as
+    positive values).  For production output sensors it is set to ``False`` (production is stored
+    as positive values, consumption as negative).
+
+    The function is a no-op when *result* is not a dedicated consumption/production output
+    schedule (as determined by :func:`_is_consumption_production_output`).
+
+    A ``ValueError`` is raised when the attribute is already present on the sensor but points
+    in the wrong direction for the flex-model field being used.  This check runs *before* any
+    data are written so that the error surfaces as early as possible.
+
+    :param result:          Schedule output result dict with keys ``'name'``, ``'sensor'``,
+                            ``'data'``.
+    :param asset_or_sensor: The Asset or Sensor being scheduled (main power sensor).
+    :raises ValueError:     When ``consumption_is_positive`` is already set to the wrong value
+                            for the given flex-model field.
+    """
+    if not _is_consumption_production_output(result, asset_or_sensor):
+        return
+
+    result_sensor = result["sensor"]
+    result_name = result.get("name", "")
+    # consumption_schedule → True (consumption positive)
+    # production_schedule  → False (production positive, i.e. consumption negative)
+    intended = result_name == "consumption_schedule"
+    existing = result_sensor.attributes.get("consumption_is_positive")
+    if existing is not None and existing != intended:
+        raise ValueError(
+            f"Sensor {result_sensor} already has `consumption_is_positive={existing}`, "
+            f"which conflicts with the '{result_name}' output schedule "
+            f"(expected `consumption_is_positive={intended}`). "
+            f"Remove or correct the attribute before re-running the scheduler."
+        )
+    # Direct attribute assignment works for both new and existing attributes.
+    # set_attribute() is intentionally not used here because it silently
+    # no-ops when the attribute does not yet exist.
+    result_sensor.attributes["consumption_is_positive"] = intended
+
+
 def _resolve_schedule_output_sign(
     result: dict,
     asset_or_sensor: Asset | Sensor,
@@ -724,29 +768,10 @@ def make_schedule(  # noqa: C901
             bdf = bdf.resample_events(bdf.sensor.event_resolution)
 
         if not dry_run:
+            # Validate and set the consumption_is_positive attribute before writing data so
+            # that a conflict raises an error early, before any beliefs are persisted.
+            _set_output_sensor_consumption_is_positive(result, asset_or_sensor)
             save_to_db(bdf)
-
-            # For consumption/production output sensors, explicitly set the consumption_is_positive
-            # attribute so that future get_schedule calls on these sensors apply the correct sign
-            # convention. This is necessary because the job has a TTL and won't be available forever.
-            if _is_consumption_production_output(result, asset_or_sensor):
-                result_sensor = result["sensor"]
-                result_name = result.get("name", "")
-                # Consumption sensor stores consumption as positive; production sensor stores
-                # production as positive (i.e. consumption_is_positive is False).
-                intended = result_name == "consumption_schedule"
-                existing = result_sensor.attributes.get("consumption_is_positive")
-                if existing is not None and existing != intended:
-                    raise ValueError(
-                        f"Sensor {result_sensor} already has `consumption_is_positive={existing}`, "
-                        f"which conflicts with the '{result_name}' output schedule "
-                        f"(expected `consumption_is_positive={intended}`). "
-                        f"Remove or correct the attribute before re-running the scheduler."
-                    )
-                # Direct attribute assignment works for both new and existing attributes.
-                # set_attribute() is intentionally not used here because it silently
-                # no-ops when the attribute does not yet exist.
-                result_sensor.attributes["consumption_is_positive"] = intended
         else:
             print(
                 f"\nNot saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"
