@@ -1139,12 +1139,25 @@ class SensorAPI(FlaskView):
                         description: Human-readable message about request processing.
                   examples:
                     schedule:
-                      summary: Schedule response
+                      summary: Schedule response (consumption sensor)
                       description: |
                         This message contains a schedule indicating to consume at various power
                         rates from 10am UTC onward for a duration of 45 minutes.
+                        By default, values follow the **consumption-positive** convention:
+                        positive values denote consumption; negative values denote production.
                       value:
                         values: [2.15, 3, 2]
+                        start: "2015-06-02T10:00:00+00:00"
+                        duration: "PT45M"
+                        unit: "MW"
+                    production_schedule:
+                      summary: Schedule response (production output sensor)
+                      description: |
+                        When retrieving a schedule from a dedicated **production** output sensor,
+                        values follow the **production-positive** convention:
+                        positive values denote production; negative values denote consumption.
+                      value:
+                        values: [-2.15, -3, -2]
                         start: "2015-06-02T10:00:00+00:00"
                         duration: "PT45M"
                         unit: "MW"

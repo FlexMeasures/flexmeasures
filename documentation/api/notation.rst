@@ -302,3 +302,9 @@ We'd recommend to use positive power values to indicate consumption and negative
 
 Read more at :ref:`signs_of_power_beliefs` about our treatment of data, which includes data you send in, or you get from forecasts and schedules
 (hint: you are free to define the sign for your data, but it might affect how you receive your schedules).
+
+**Sign convention for schedules returned by get_schedule:**
+
+- By default (and for the main power sensor), the ``get_schedule`` endpoint returns values in the **consumption-positive** convention: positive values denote consumption, negative values denote production.
+- When retrieving a schedule from a dedicated **consumption** output sensor, values also follow the consumption-positive convention (positive = consumption, negative = production).
+- When retrieving a schedule from a dedicated **production** output sensor, values follow the **production-positive** convention (positive = production, negative = consumption).
