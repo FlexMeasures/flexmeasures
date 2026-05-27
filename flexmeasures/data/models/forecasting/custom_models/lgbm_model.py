@@ -153,7 +153,7 @@ class CustomLGBM(BaseModel):
 
         Example
         -------
-        
+
         .. mermaid::
 
             timeline
@@ -200,18 +200,19 @@ class CustomLGBM(BaseModel):
         For horizons near the maximum forecast horizon, only ``l`` is returned.
 
         This avoids generating additional lag references that are not guaranteed to exist consistently during recursive multi-horizon prediction.
-    """
-    offset = horizon % seasonal_lag_steps
-    aligned_darts_lag = -(seasonal_lag_steps - offset)
+        """
 
-    # The preceding lag is omitted for the final forecast horizon,
-    # because it is not guaranteed to exist consistently during recursive inference.
-    if horizon != max_forecast_horizon - 1:
-        darts_lags = [aligned_darts_lag, aligned_darts_lag - 1]
-    else:
-        darts_lags = [aligned_darts_lag]
+        offset = horizon % seasonal_lag_steps
+        aligned_darts_lag = -(seasonal_lag_steps - offset)
 
-    return darts_lags
+        # The preceding lag is omitted for the final forecast horizon,
+        # because it is not guaranteed to exist consistently during recursive inference.
+        if horizon != max_forecast_horizon - 1:
+            darts_lags = [aligned_darts_lag, aligned_darts_lag - 1]
+        else:
+            darts_lags = [aligned_darts_lag]
+
+        return darts_lags
 
     def _setup(self) -> None:
         for horizon in range(self.max_forecast_horizon):
@@ -231,7 +232,7 @@ class CustomLGBM(BaseModel):
                     for seasonal_lag_steps in eligible_seasonal_lags_steps
                     for darts_lag in self._lags_for_horizon(
                         horizon, self.max_forecast_horizon, seasonal_lag_steps
-                    ),
+                    )
                 }
             )
 
