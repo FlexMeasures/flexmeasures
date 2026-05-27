@@ -3,7 +3,7 @@ from darts.models import LightGBMModel
 from flexmeasures.data.models.forecasting.custom_models.base_model import BaseModel
 
 
-DEFAULT_SEASONAL_LAGS_STEPS = [24]
+DEFAULT_SEASONAL_LAGS_STEPS = [1, 24]
 
 
 class CustomLGBM(BaseModel):
