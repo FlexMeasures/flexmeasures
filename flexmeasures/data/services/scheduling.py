@@ -735,6 +735,14 @@ def make_schedule(  # noqa: C901
                 # Consumption sensor stores consumption as positive; production sensor stores
                 # production as positive (i.e. consumption_is_positive is False).
                 intended = result_name == "consumption_schedule"
+                existing = result_sensor.attributes.get("consumption_is_positive")
+                if existing is not None and existing != intended:
+                    raise ValueError(
+                        f"Sensor {result_sensor} already has `consumption_is_positive={existing}`, "
+                        f"which conflicts with the '{result_name}' output schedule "
+                        f"(expected `consumption_is_positive={intended}`). "
+                        f"Remove or correct the attribute before re-running the scheduler."
+                    )
                 # Direct attribute assignment works for both new and existing attributes.
                 # set_attribute() is intentionally not used here because it silently
                 # no-ops when the attribute does not yet exist.
