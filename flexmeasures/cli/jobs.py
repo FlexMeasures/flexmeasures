@@ -296,9 +296,8 @@ def run_job(job_id: str):
 )
 def inspect_job(job_id: str):
     """
-    Inspect a background job and print its current status and metadata.
+    Inspect a background job and print its current status, result and metadata.
 
-    This command mirrors the unified job status endpoint ``GET /api/v3_0/jobs/<uuid>``.
     """
     try:
         job = Job.fetch(job_id, connection=app.redis_connection)
