@@ -47,7 +47,7 @@ class CustomLGBM(BaseModel):
         :param use_past_covariates: Whether past covariates are used for fitting and prediction.
         :param use_future_covariates: Whether future covariates are used for fitting and prediction.
         :param ensure_positive: Whether negative predictions should be clipped to zero.
-        :param seasonal_lags_steps: Candidate seasonal lag steps to keep if enough training samples remain.
+        :param seasonal_lags_steps: Candidate seasonal lag steps to keep if enough training samples remain. Include 1 in the list to account for the most recent observation (recommended).
         :param training_sample_count: Optional number of target training samples, used to decide which lags are eligible.
         :param min_samples_per_horizon: Minimum training rows required for each horizon model.
         """
