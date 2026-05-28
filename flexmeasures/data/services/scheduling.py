@@ -565,11 +565,11 @@ def _set_flex_model_output_sensors_consumption_is_positive(
         production sensor  → consumption_is_positive = False
 
     A ``ValueError`` is raised immediately when the attribute is already present on a sensor
-    but has the wrong value for the flex-model field that references it.  Calling this function
+    but has the wrong value for the flex-model field that references it. Calling this function
     at job-creation time lets the API surface conflicts before any work is queued.
 
     :param flex_model: Deserialized flex model — either a single-device ``dict`` or a
-                       ``list`` of per-device dicts.  Consumption/production fields are
+                       ``list`` of per-device dicts. Consumption/production fields are
                        expected to be dicts with a ``"sensor"`` key.
     :raises ValueError: When ``consumption_is_positive`` is already set to the wrong value
                         for the given flex-model field.
@@ -612,14 +612,14 @@ def _set_output_sensor_consumption_is_positive(
     """Set the ``consumption_is_positive`` attribute on a dedicated output sensor.
 
     For consumption output sensors the attribute is set to ``True`` (consumption is stored as
-    positive values).  For production output sensors it is set to ``False`` (production is stored
+    positive values). For production output sensors it is set to ``False`` (production is stored
     as positive values, consumption as negative).
 
     The function is a no-op when *result* is not a dedicated consumption/production output
     schedule (as determined by :func:`_is_consumption_production_output`).
 
     A ``ValueError`` is raised when the attribute is already present on the sensor but points
-    in the wrong direction for the flex-model field being used.  This check runs *before* any
+    in the wrong direction for the flex-model field being used. This check runs *before* any
     data are written so that the error surfaces as early as possible.
 
     :param result:          Schedule output result dict with keys ``'name'``, ``'sensor'``,
@@ -660,14 +660,14 @@ def _resolve_schedule_output_sign(
     is a power schedule that needs sign conversion so that production is stored as positive
     values in the database.
 
-    The scheduler always produces consumption-positive values.  For sensors that carry
+    The scheduler always produces consumption-positive values. For sensors that carry
     ``consumption_is_positive=True`` (including consumption output sensors) no conversion
-    is needed.  For sensors with ``consumption_is_positive=False`` (production output sensors
+    is needed. For sensors with ``consumption_is_positive=False`` (production output sensors
     and the default convention for main power sensors) the sign is inverted.
 
     .. note::
         For consumption/production output sensors the ``consumption_is_positive`` attribute
-        must be set before this function is called.  It is set eagerly at job-creation time
+        must be set before this function is called. It is set eagerly at job-creation time
         by :func:`_set_flex_model_output_sensors_consumption_is_positive`, and again (as a
         safety-net for direct :func:`make_schedule` calls) by
         :func:`_set_output_sensor_consumption_is_positive` earlier in the same loop iteration.

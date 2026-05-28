@@ -317,7 +317,7 @@ def test_conflicting_consumption_is_positive_attribute_prevents_job_creation(
     to a value that conflicts with the flex-model field used for the sensor.
 
     Here a sensor that already has ``consumption_is_positive=True`` (consumption sensor) is
-    mistakenly referenced under the ``production`` flex-model field.  The trigger API should
+    mistakenly referenced under the ``production`` flex-model field. The trigger API should
     raise a ``ValueError`` and return a 422 response, so the job is never created and the
     sensor's belief table remains empty.
 
@@ -817,9 +817,9 @@ def test_get_schedule_sign_convention_json_flex_model(
     when the schedule was triggered with a consumption/production sensor in the JSON flex-model.
 
     The main power sensor is used as a reference (always fetched with the default
-    ``consumption-positive`` convention).  The expected sign of the output sensor values
-    relative to that reference depends on ``output_type`` × ``sign_convention``; see
-    :func:`_assert_schedule_sign_convention` for the full decision table.
+    ``consumption-positive`` convention). The expected sign of the output sensor values
+    relative to that reference depends on ``output_type`` × ``sign_convention``;
+    see :func:`_assert_schedule_sign_convention` for the full decision table.
     """
     battery_asset = add_battery_assets_fresh_db["Test battery"]
 

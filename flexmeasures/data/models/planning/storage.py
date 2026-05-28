@@ -1601,19 +1601,19 @@ class StorageScheduler(MetaStorageScheduler):
 
         - **Only** ``consumption`` **sensor defined**: the full power schedule is written to that
           sensor using the scheduler's native sign convention (consumption positive, production
-          negative).  ``make_schedule`` applies no further sign change because the sensor already
+          negative). ``make_schedule`` applies no further sign change because the sensor already
           has ``consumption_is_positive=True``.
         - **Only** ``production`` **sensor defined**: the full power schedule is written to that
           sensor in the scheduler's native sign convention (consumption positive, production
-          negative).  ``make_schedule`` inverts the sign based on the sensor's
+          negative). ``make_schedule`` inverts the sign based on the sensor's
           ``consumption_is_positive=False`` attribute so that production is stored as positive values.
         - **Both** ``consumption`` **and** ``production`` **sensors defined**: only the non-negative
           part of the schedule (charging / consuming) is written to the consumption sensor, and only
           the non-positive part (discharging / producing, still as negative values) is written to
-          the production sensor.  ``make_schedule`` inverts the sign for the production sensor.
+          the production sensor. ``make_schedule`` inverts the sign for the production sensor.
 
         The ``consumption_is_positive`` attribute is set on each output sensor when the scheduling
-        job is created (see ``create_scheduling_job``), not here.  This method only clips the
+        job is created (see ``create_scheduling_job``), not here. This method only clips the
         series; sign handling is left entirely to ``make_schedule``.
 
         Unit conversion from MW to each sensor's unit is applied.
