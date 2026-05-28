@@ -360,6 +360,7 @@ def test_post_sensor_data_rejects_large_json(
             "duration",
             "PT25M",
             "_schema",
+            # PT25M / 6 values = 4m10s
             "Resolution of 0:04:10 is incompatible",
         ),
         ("unit", "m", "_schema", "Required unit"),
@@ -442,7 +443,7 @@ def test_post_sensor_data_rejects_unknown_sensor_before_queueing(
             [-11.28] * 6,
         ),
         (
-            "2021-06-09T00:00:40+02:00",
+            "2021-06-09T00:04:40+02:00",  # floor rather than ceil to 5-min
             "2021-06-09T00:00:00+02:00",
             "2021-06-09T01:00:00+02:00",
             [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200],
