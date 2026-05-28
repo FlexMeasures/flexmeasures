@@ -1020,11 +1020,49 @@ class AssetTriggerSchema(Schema):
         return data
 
 
+class ScheduleSignConvention:
+    """Named constants for the three sign-convention modes of the get_schedule endpoint.
+
+    :cvar CONSUMPTION_POSITIVE: Always return schedules with consumption as positive values
+                                and production as negative values.  This is the default and
+                                matches the view a *consumer* has of their device.
+    :cvar PRODUCTION_POSITIVE: Always return schedules with production as positive values
+                               and consumption as negative values.  This matches the view a
+                               *producer* (or generator) has of their device.
+    :cvar WYSIWYG: Return the raw values from the database without any sign inversion,
+                   regardless of the sensor's ``consumption_is_positive`` attribute.
+                   Useful when you want to see exactly what was stored.
+    """
+
+    CONSUMPTION_POSITIVE = "consumption-positive"
+    PRODUCTION_POSITIVE = "production-positive"
+    WYSIWYG = "wysiwyg"
+
+    ALL = (CONSUMPTION_POSITIVE, PRODUCTION_POSITIVE, WYSIWYG)
+
+
 class GetScheduleSchema(Schema):
     sensor = SensorIdField(required=True, data_key="id")
     job_id = fields.Str(required=True, data_key="uuid")
     duration = DurationField(load_default=timedelta(hours=6))
     unit = UnitField(load_default=None)
+    sign_convention = fields.Str(
+        data_key="sign-convention",
+        load_default=ScheduleSignConvention.CONSUMPTION_POSITIVE,
+        validate=validate.OneOf(ScheduleSignConvention.ALL),
+        metadata=dict(
+            description=(
+                "Controls the sign convention applied to schedule values in the response. "
+                f"``{ScheduleSignConvention.CONSUMPTION_POSITIVE}`` (default): consumption is always returned as positive values "
+                f"and production as negative values. "
+                f"``{ScheduleSignConvention.PRODUCTION_POSITIVE}``: production is always returned as positive values "
+                f"and consumption as negative values. "
+                f"``{ScheduleSignConvention.WYSIWYG}``: the raw database values are returned without "
+                "any sign adjustment, regardless of the sensor's ``consumption_is_positive`` attribute."
+            ),
+            example=ScheduleSignConvention.CONSUMPTION_POSITIVE,
+        ),
+    )
 
     @post_load
     def finalize_unit_and_duration(self, data, **kwargs):

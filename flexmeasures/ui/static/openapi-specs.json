@@ -690,7 +690,7 @@
     "/api/v3_0/sensors/{id}/schedules/{uuid}": {
       "get": {
         "summary": "Get schedule for one device",
-        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n- \"unit\" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)\n",
+        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n- \"unit\" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)\n- \"sign-convention\" (controls how power values are signed in the response; see below)\n\n<strong>Sign convention</strong>\n\nBy default (<code>sign-convention: consumption-positive</code>), the endpoint always returns schedules where\nconsumption is positive and production is negative, regardless of how the values are stored in the\ndatabase. This is the most common convention and matches the perspective of a consumer.\n\nSet <code>sign-convention: production-positive</code> to flip the sign so that production is returned as\npositive and consumption as negative. This matches the perspective of a producer.\n\nSet <code>sign-convention: wysiwyg</code> (<em>what-you-see-is-what-you-get</em>) to return the raw database values\nwithout any sign adjustment. The values will reflect exactly what is stored, which is determined\nby the sensor's <code>consumption_is_positive</code> attribute (if set) or by the scheduler's default\nstorage convention (production positive in the database).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -735,6 +735,21 @@
             "example": "kW",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sign-convention",
+            "required": false,
+            "description": "Sign convention applied to power values in the response.\n- <code>consumption-positive</code> (default): consumption is positive, production is negative.\n- <code>production-positive</code>: production is positive, consumption is negative.\n- <code>wysiwyg</code>: raw database values returned without sign adjustment.\n",
+            "example": "consumption-positive",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "consumption-positive",
+                "production-positive",
+                "wysiwyg"
+              ]
             }
           }
         ],
