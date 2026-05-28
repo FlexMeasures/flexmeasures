@@ -254,6 +254,10 @@ def create_scheduling_job(
     scheduler_kwargs["flex_model"] = scheduler.flex_model
     scheduler.deserialize_config()
 
+    # Set consumption_is_positive on output sensors now (at trigger time) so that any
+    # attribute conflict raises an error immediately, before the job is enqueued.
+    _set_flex_model_output_sensors_consumption_is_positive(scheduler.flex_model)
+
     asset_or_sensor = get_asset_or_sensor_ref(asset_or_sensor)
     job = Job.create(
         make_schedule,
@@ -550,6 +554,58 @@ def _is_consumption_production_output(
     return not is_main
 
 
+def _set_flex_model_output_sensors_consumption_is_positive(
+    flex_model: dict | list,
+) -> None:
+    """Set the ``consumption_is_positive`` attribute on consumption and production output sensors.
+
+    Iterates over every device in *flex_model* and assigns::
+
+        consumption sensor → consumption_is_positive = True
+        production sensor  → consumption_is_positive = False
+
+    A ``ValueError`` is raised immediately when the attribute is already present on a sensor
+    but has the wrong value for the flex-model field that references it.  Calling this function
+    at job-creation time lets the API surface conflicts before any work is queued.
+
+    :param flex_model: Deserialized flex model — either a single-device ``dict`` or a
+                       ``list`` of per-device dicts.  Consumption/production fields are
+                       expected to be dicts with a ``"sensor"`` key.
+    :raises ValueError: When ``consumption_is_positive`` is already set to the wrong value
+                        for the given flex-model field.
+    """
+    models = flex_model if isinstance(flex_model, list) else [flex_model]
+    for flex_model_d in models:
+        consumption_field = flex_model_d.get("consumption")
+        production_field = flex_model_d.get("production")
+        consumption_sensor = (
+            consumption_field.get("sensor")
+            if isinstance(consumption_field, dict)
+            else None
+        )
+        production_sensor = (
+            production_field.get("sensor")
+            if isinstance(production_field, dict)
+            else None
+        )
+        for sensor, intended in [
+            (consumption_sensor, True),
+            (production_sensor, False),
+        ]:
+            if sensor is None:
+                continue
+            field_name = "consumption_schedule" if intended else "production_schedule"
+            existing = sensor.attributes.get("consumption_is_positive")
+            if existing is not None and existing != intended:
+                raise ValueError(
+                    f"Sensor {sensor} already has `consumption_is_positive={existing}`, "
+                    f"which conflicts with the '{field_name}' output schedule "
+                    f"(expected `consumption_is_positive={intended}`). "
+                    f"Remove or correct the attribute before running the scheduler."
+                )
+            sensor.attributes["consumption_is_positive"] = intended
+
+
 def _set_output_sensor_consumption_is_positive(
     result: dict, asset_or_sensor: Asset | Sensor
 ) -> None:
@@ -601,13 +657,20 @@ def _resolve_schedule_output_sign(
     """Determine the sign multiplier for a schedule output result.
 
     Returns 1 (no sign change) or -1 (invert sign) depending on whether the result
-    is a power schedule that needs sign conversion to match FlexMeasures' default
-    of recording production as positive values in the database.
-    The power schedule itself denotes consumption as positive values, hence the flip.
+    is a power schedule that needs sign conversion so that production is stored as positive
+    values in the database.
 
-    For consumption/production output schedules (identified by result name and sensor),
-    the sign is already correct per the scheduler, so no conversion is applied.
-    For other power schedules (main power sensors), the standard conversion is applied.
+    The scheduler always produces consumption-positive values.  For sensors that carry
+    ``consumption_is_positive=True`` (including consumption output sensors) no conversion
+    is needed.  For sensors with ``consumption_is_positive=False`` (production output sensors
+    and the default convention for main power sensors) the sign is inverted.
+
+    .. note::
+        For consumption/production output sensors the ``consumption_is_positive`` attribute
+        must be set before this function is called.  It is set eagerly at job-creation time
+        by :func:`_set_flex_model_output_sensors_consumption_is_positive`, and again (as a
+        safety-net for direct :func:`make_schedule` calls) by
+        :func:`_set_output_sensor_consumption_is_positive` earlier in the same loop iteration.
 
     :param result:          Schedule output result dict with keys 'name', 'sensor', 'data'.
     :param asset_or_sensor: The Asset or Sensor being scheduled (main power sensor).
@@ -615,14 +678,8 @@ def _resolve_schedule_output_sign(
     """
     result_sensor = result["sensor"]
 
-    # Consumption/production output schedules have their sign convention already
-    # encoded in the field name ("consumption" = consumption positive;
-    # "production" = production positive). Only main power schedules need conversion.
-    if _is_consumption_production_output(result, asset_or_sensor):
-        return 1
-
-    # Apply standard sign inversion only for main power schedules that measure power
-    # and don't have the consumption_is_positive attribute.
+    # Apply sign inversion for power sensors that record production as positive values
+    # (i.e. those that do not carry consumption_is_positive=True).
     if result_sensor.measures_power and not result_sensor.get_attribute(
         "consumption_is_positive", False
     ):
@@ -746,6 +803,12 @@ def make_schedule(  # noqa: C901
         if "sensor" not in result:
             continue
 
+        # Ensure consumption_is_positive is set before resolving the sign.
+        # At job-creation time this is already done eagerly; calling it here again
+        # acts as a safety net for direct make_schedule invocations and raises a
+        # ValueError on attribute conflicts before any data are written.
+        _set_output_sensor_consumption_is_positive(result, asset_or_sensor)
+
         sign = _resolve_schedule_output_sign(result, asset_or_sensor)
 
         ts_value_schedule = [
@@ -769,9 +832,6 @@ def make_schedule(  # noqa: C901
             bdf = bdf.resample_events(bdf.sensor.event_resolution)
 
         if not dry_run:
-            # Validate and set the consumption_is_positive attribute before writing data so
-            # that a conflict raises an error early, before any beliefs are persisted.
-            _set_output_sensor_consumption_is_positive(result, asset_or_sensor)
             save_to_db(bdf)
         else:
             print(
