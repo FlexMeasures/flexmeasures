@@ -1065,16 +1065,16 @@ class SensorAPI(FlaskView):
             **Sign convention**
 
             By default (``sign-convention: consumption-positive``), the endpoint always returns schedules where
-            consumption is positive and production is negative, regardless of how the values are stored in the
-            database. This is the most common convention and matches the perspective of a consumer.
+            consumption is positive and production is negative, regardless of how the values are stored in the database.
+            This is the most common convention and matches the perspective of a consumer.
 
             Set ``sign-convention: production-positive`` to flip the sign so that production is returned as
             positive and consumption as negative. This matches the perspective of a producer.
 
-            Set ``sign-convention: wysiwyg`` (*what-you-see-is-what-you-get*) to return the raw database values
-            without any sign adjustment. The values will reflect exactly what is stored, which is determined
-            by the sensor's ``consumption_is_positive`` attribute (if set) or by the scheduler's default
-            storage convention (production positive in the database).
+            Set ``sign-convention: wysiwyg`` (*what-you-see-is-what-you-get*) to return the values with the same sign
+            as database values and what is seen in UI charts. The values will indicate exactly what is stored,
+            which is itself determined by the sensor's ``consumption_is_positive`` attribute (if set)
+            or by the scheduler's default storage convention (production positive in the database).
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1123,7 +1123,7 @@ class SensorAPI(FlaskView):
                 Sign convention applied to power values in the response.
                 - ``consumption-positive`` (default): consumption is positive, production is negative.
                 - ``production-positive``: production is positive, consumption is negative.
-                - ``wysiwyg`` (*what-you-see-is-what-you-get*): raw database values returned without sign adjustment.
+                - ``wysiwyg`` (*what-you-see-is-what-you-get*): sign of database values and as seen in UI charts.
               example: consumption-positive
               schema:
                 type: string
@@ -1258,8 +1258,8 @@ class SensorAPI(FlaskView):
 
         sign = 1
         if sign_convention == ScheduleSignConvention.WYSIWYG:
-            # Return raw database values without sign adjustment.
-            # No sign inversion: what's in the DB is what the caller receives.
+            # Return values without adjusting the sign of database values.
+            # No sign inversion: what's in the DB and what is seen in UI charts is what the caller receives.
             pass
         elif sensor.measures_power:
             # Determine whether the database stores consumption as positive or negative.

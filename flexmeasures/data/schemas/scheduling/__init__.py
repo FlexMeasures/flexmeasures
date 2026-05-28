@@ -1057,8 +1057,8 @@ class GetScheduleSchema(Schema):
                 f"and production as negative values. "
                 f"``{ScheduleSignConvention.PRODUCTION_POSITIVE}``: production is always returned as positive values "
                 f"and consumption as negative values. "
-                f"``{ScheduleSignConvention.WYSIWYG}``: the raw database values are returned without "
-                "any sign adjustment, regardless of the sensor's ``consumption_is_positive`` attribute."
+                f"``{ScheduleSignConvention.WYSIWYG}``: returns values with the same sign as database values and as seen in the UI charts, "
+                "without adjusting their sign for the sensor's ``consumption_is_positive`` attribute."
             ),
             example=ScheduleSignConvention.CONSUMPTION_POSITIVE,
         ),
