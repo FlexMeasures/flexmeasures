@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 from flask import current_app, url_for
 import pytest
+from redis.exceptions import ConnectionError as RedisConnectionError
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
@@ -324,6 +325,36 @@ def test_post_sensor_data_returns_accepted_job(
     assert job.kwargs["sensor_id"] == sensor.id
     assert job.kwargs["sensor_data"] == post_data
     assert "data" not in job.kwargs
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_sensor_data_falls_back_when_redis_unavailable(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    monkeypatch,
+):
+    def raise_connection_error(queue):
+        raise RedisConnectionError("Connection refused")
+
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        raise_connection_error,
+    )
+    current_app.queues["ingestion"].empty()
+    post_data = make_sensor_data_request_for_gas_sensor()
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        json=post_data,
+    )
+
+    assert response.status_code == 200
+    assert response.json["status"] == "PROCESSED"
+    assert current_app.queues["ingestion"].count == 0
 
 
 @pytest.mark.parametrize(
