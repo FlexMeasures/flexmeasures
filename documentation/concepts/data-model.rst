@@ -170,7 +170,9 @@ We assume that this is what users send in.
 
 Note that, if forecasts are created, they will have the same sign as original data.
 
-For schedules, the sign of resulting power data (beliefs) is being switched when data is stored (assuming consumption , and you can prevent that by setting ``sensor.attributes["consumption_is_positive"] = True``.
+For schedules, the sign of resulting power data (beliefs) is being switched when data is stored (assuming production is positive), and you can prevent that by setting ``sensor.attributes["consumption_is_positive"] = True``.
+On sensors that have been referenced in a flex-model under the ``consumption`` or ``production`` field, this attribute is automatically set.
+The ``GET /api/v3_0/sensors/<id>/schedules/<uuid>`` endpoint always returns schedules with consumption as positive values and production as negative values.
 
 
 .. note:: We will soon document better what the scheduler does in detail, and how the attribute works.

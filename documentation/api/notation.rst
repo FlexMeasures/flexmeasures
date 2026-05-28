@@ -302,3 +302,5 @@ We'd recommend to use positive power values to indicate consumption and negative
 
 Read more at :ref:`signs_of_power_beliefs` about our treatment of data, which includes data you send in, or you get from forecasts and schedules
 (hint: you are free to define the sign for your data, but it might affect how you receive your schedules).
+
+Note that the ``GET /api/v3_0/sensors/<id>/schedules/<uuid>`` endpoint always returns schedules with consumption as positive values and production as negative values.
