@@ -1123,7 +1123,7 @@ class SensorAPI(FlaskView):
                 Sign convention applied to power values in the response.
                 - ``consumption-positive`` (default): consumption is positive, production is negative.
                 - ``production-positive``: production is positive, consumption is negative.
-                - ``wysiwyg``: raw database values returned without sign adjustment.
+                - ``wysiwyg`` (*what-you-see-is-what-you-get*): raw database values returned without sign adjustment.
               example: consumption-positive
               schema:
                 type: string

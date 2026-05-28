@@ -308,4 +308,4 @@ The ``GET /api/v3_0/sensors/<id>/schedules/<uuid>`` endpoint supports three sign
 - ``consumption-positive`` (**default**): schedules are returned with consumption as positive values and production as negative values, regardless of how they are stored in the database.
 - ``production-positive``: schedules are returned with production as positive values and consumption as negative values.
 - ``wysiwyg`` (*what-you-see-is-what-you-get*): the raw database values are returned without any sign adjustment.
-  The values reflect exactly what is stored, which is governed by the sensor's ``consumption_is_positive`` attribute (if present) or the scheduler's default convention (production positive in the database).
+  The values reflect exactly what is stored, which is itself governed by the sensor's ``consumption_is_positive`` attribute (if present) or the scheduler's default convention (production positive in the database).

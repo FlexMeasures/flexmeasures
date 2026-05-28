@@ -741,7 +741,7 @@
             "in": "query",
             "name": "sign-convention",
             "required": false,
-            "description": "Sign convention applied to power values in the response.\n- <code>consumption-positive</code> (default): consumption is positive, production is negative.\n- <code>production-positive</code>: production is positive, consumption is negative.\n- <code>wysiwyg</code>: raw database values returned without sign adjustment.\n",
+            "description": "Sign convention applied to power values in the response.\n- <code>consumption-positive</code> (default): consumption is positive, production is negative.\n- <code>production-positive</code>: production is positive, consumption is negative.\n- <code>wysiwyg</code> (<em>what-you-see-is-what-you-get</em>): raw database values returned without sign adjustment.\n",
             "example": "consumption-positive",
             "schema": {
               "type": "string",
