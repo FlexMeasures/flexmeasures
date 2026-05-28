@@ -601,8 +601,9 @@ def _resolve_schedule_output_sign(
     """Determine the sign multiplier for a schedule output result.
 
     Returns 1 (no sign change) or -1 (invert sign) depending on whether the result
-    is a power schedule that needs sign conversion to match FlexMeasures convention
-    (consumption positive, production negative).
+    is a power schedule that needs sign conversion to match FlexMeasures' default
+    of recording production as positive values in the database.
+    The power schedule itself denotes consumption as positive values, hence the flip.
 
     For consumption/production output schedules (identified by result name and sensor),
     the sign is already correct per the scheduler, so no conversion is applied.

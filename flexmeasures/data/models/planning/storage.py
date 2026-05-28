@@ -1600,16 +1600,17 @@ class StorageScheduler(MetaStorageScheduler):
         The schedule stored on each sensor depends on which sensors are defined:
 
         - **Only** ``consumption`` **sensor defined**: the full power schedule is written to that
-          sensor using the standard FlexMeasures sign convention (consumption positive, production
-          negative).
+          sensor using the consumption-positive sign convention (consumption positive, production
+          negative), which already corresponds to the sign convention of the scheduler.
         - **Only** ``production`` **sensor defined**: the full power schedule is written to that
-          sensor with the sign inverted (production positive, consumption negative).
+          sensor with production-positive convention (production positive, consumption negative).
+          The sign is inverted with respect to the sign convention of the scheduler.
         - **Both** ``consumption`` **and** ``production`` **sensors defined**: only the non-negative
           part of the schedule is written to the consumption sensor, and only the non-positive part
           (sign-flipped to positive values) is written to the production sensor.
 
-        Because the sign convention is encoded in the sensor key name (``consumption`` vs.
-        ``production``), these sensors do not need a ``consumption_is_positive`` attribute.
+        The sign convention is determined by the key name,
+        and is stored on the sensor itself using the ``consumption_is_positive`` attribute.
 
         Unit conversion from MW to each sensor's unit is applied.
 
