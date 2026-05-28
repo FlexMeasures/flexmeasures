@@ -754,7 +754,7 @@ def test_get_schedule_sign_convention_json_flex_model(
     output sensors when the flex-model is passed via JSON body.
 
     Consumption output sensor: consumption positive, production negative.
-    Production output sensor: production positive, consumption negative.
+    Production output sensor: consumption positive, production negative.
     """
     battery_asset = add_battery_assets_fresh_db["Test battery"]
 
@@ -837,19 +837,19 @@ def test_get_schedule_sign_convention_json_flex_model(
                     out_val <= 0
                 ), f"Consumption sensor should show negative for discharging: main={main_val}, output={out_val}"
     elif output_type == "production":
-        # Production sensor returns the full schedule in production-positive convention
-        # (inverted sign relative to main power sensor schedule)
+        # Production sensor returns the full schedule in consumption-positive convention
+        # (same sign as main power sensor schedule)
         for main_val, out_val in zip(main_values, values):
-            if main_val < 0:
-                # Discharging (production) should be positive on production sensor
+            if main_val > 0:
+                # Charging (consumption) should be positive on production sensor
                 assert (
                     out_val >= 0
-                ), f"Production sensor should show positive for discharging: main={main_val}, output={out_val}"
-            elif main_val > 0:
-                # Charging (consumption) should be negative on production sensor
+                ), f"Production sensor should show positive for charging: main={main_val}, output={out_val}"
+            elif main_val < 0:
+                # Discharging (production) should be negative on production sensor
                 assert (
                     out_val <= 0
-                ), f"Production sensor should show negative for charging: main={main_val}, output={out_val}"
+                ), f"Production sensor should show negative for discharging: main={main_val}, output={out_val}"
 
 
 @pytest.mark.parametrize(
@@ -963,14 +963,14 @@ def test_get_schedule_sign_convention_db_flex_model(
                 ), f"Consumption sensor should show negative for discharging: main={main_val}, output={out_val}"
     elif output_type == "production":
         for main_val, out_val in zip(main_values, values):
-            if main_val < 0:
+            if main_val > 0:
                 assert (
                     out_val >= 0
-                ), f"Production sensor should show positive for discharging: main={main_val}, output={out_val}"
-            elif main_val > 0:
+                ), f"Production sensor should show positive for charging: main={main_val}, output={out_val}"
+            elif main_val < 0:
                 assert (
                     out_val <= 0
-                ), f"Production sensor should show negative for charging: main={main_val}, output={out_val}"
+                ), f"Production sensor should show negative for discharging: main={main_val}, output={out_val}"
 
     # Clean up: remove the flex_model entry so it doesn't affect other tests
     del battery_asset.flex_model[output_type]
