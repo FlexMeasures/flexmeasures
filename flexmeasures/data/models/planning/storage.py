@@ -1600,17 +1600,21 @@ class StorageScheduler(MetaStorageScheduler):
         The schedule stored on each sensor depends on which sensors are defined:
 
         - **Only** ``consumption`` **sensor defined**: the full power schedule is written to that
-          sensor using the consumption-positive sign convention (consumption positive, production
-          negative), which already corresponds to the sign convention of the scheduler.
+          sensor using the scheduler's native sign convention (consumption positive, production
+          negative).  ``make_schedule`` applies no further sign change because the sensor already
+          has ``consumption_is_positive=True``.
         - **Only** ``production`` **sensor defined**: the full power schedule is written to that
-          sensor with production-positive convention (production positive, consumption negative).
-          The sign is inverted with respect to the sign convention of the scheduler.
+          sensor in the scheduler's native sign convention (consumption positive, production
+          negative).  ``make_schedule`` inverts the sign based on the sensor's
+          ``consumption_is_positive=False`` attribute so that production is stored as positive values.
         - **Both** ``consumption`` **and** ``production`` **sensors defined**: only the non-negative
-          part of the schedule is written to the consumption sensor, and only the non-positive part
-          (sign-flipped to positive values) is written to the production sensor.
+          part of the schedule (charging / consuming) is written to the consumption sensor, and only
+          the non-positive part (discharging / producing, still as negative values) is written to
+          the production sensor.  ``make_schedule`` inverts the sign for the production sensor.
 
-        The sign convention is determined by the key name,
-        and is stored on the sensor itself using the ``consumption_is_positive`` attribute.
+        The ``consumption_is_positive`` attribute is set on each output sensor when the scheduling
+        job is created (see ``create_scheduling_job``), not here.  This method only clips the
+        series; sign handling is left entirely to ``make_schedule``.
 
         Unit conversion from MW to each sensor's unit is applied.
 
@@ -1644,15 +1648,17 @@ class StorageScheduler(MetaStorageScheduler):
                     event_resolution=consumption_sensor.event_resolution,
                 )
             elif production_sensor is not None and consumption_sensor is None:
-                # Full power profile on the production sensor (production positive, consumption negative).
+                # Full power profile on the production sensor in native scheduler convention.
+                # make_schedule inverts the sign via consumption_is_positive=False on the sensor.
                 schedules[production_sensor] = convert_units(
-                    -power_series,
+                    power_series,
                     "MW",
                     production_sensor.unit,
                     event_resolution=production_sensor.event_resolution,
                 )
             else:
-                # Both sensors defined: split into non-negative (consumption) and non-positive (production) parts.
+                # Both sensors defined: clip to non-negative (consumption) and non-positive (production) parts.
+                # make_schedule inverts the sign for the production sensor via consumption_is_positive=False.
                 schedules[consumption_sensor] = convert_units(
                     power_series.clip(lower=0),
                     "MW",
@@ -1660,7 +1666,7 @@ class StorageScheduler(MetaStorageScheduler):
                     event_resolution=consumption_sensor.event_resolution,
                 )
                 schedules[production_sensor] = convert_units(
-                    (-power_series).clip(lower=0),
+                    power_series.clip(upper=0),
                     "MW",
                     production_sensor.unit,
                     event_resolution=production_sensor.event_resolution,
