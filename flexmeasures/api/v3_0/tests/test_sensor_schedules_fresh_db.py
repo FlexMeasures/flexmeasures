@@ -303,7 +303,7 @@ def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_conflicting_consumption_is_positive_attribute_prevents_data_save(
+def test_conflicting_consumption_is_positive_attribute_prevents_job_creation(
     app,
     fresh_db,
     add_market_prices_fresh_db,
@@ -313,12 +313,13 @@ def test_conflicting_consumption_is_positive_attribute_prevents_data_save(
     keep_scheduling_queue_empty,
     requesting_user,
 ):
-    """Scheduling must fail before persisting any data when consumption_is_positive is already
-    set to a value that conflicts with the flex-model field used for the sensor.
+    """Scheduling must be rejected immediately when consumption_is_positive is already set
+    to a value that conflicts with the flex-model field used for the sensor.
 
     Here a sensor that already has ``consumption_is_positive=True`` (consumption sensor) is
-    mistakenly referenced under the ``production`` flex-model field.  The scheduler should raise a
-    ``ValueError`` and leave the sensor's belief table empty.
+    mistakenly referenced under the ``production`` flex-model field.  The trigger API should
+    raise a ``ValueError`` and return a 422 response, so the job is never created and the
+    sensor's belief table remains empty.
 
     ``force-new-job-creation`` is set to bypass the job-cache, which would otherwise serve the
     cached result of a prior test that ran against the same battery sensor and time window
@@ -373,15 +374,12 @@ def test_conflicting_consumption_is_positive_attribute_prevents_data_save(
             url_for("SensorAPI:trigger_schedule", id=power_sensor.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
-        job_id = trigger_response.json["schedule"]
-
-    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
-
-    # The job should have failed due to the attribute conflict.
-    job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
-    assert job.is_failed, "Expected the scheduling job to fail on attribute conflict"
-    assert "consumption_is_positive" in str(job.meta.get("exception", ""))
+        # The conflict is detected at trigger time: the API returns 422 immediately,
+        # without creating a job.
+        assert trigger_response.status_code == 422
+        assert "consumption_is_positive" in str(
+            trigger_response.json.get("message", "")
+        )
 
     # No beliefs should have been written for the mismatched sensor.
     mismatched_sensor = fresh_db.session.get(Sensor, mismatched_sensor.id)
@@ -390,7 +388,7 @@ def test_conflicting_consumption_is_positive_attribute_prevents_data_save(
     )
     assert (
         len(saved_beliefs) == 0
-    ), "No data should be saved when the attribute conflict is detected before save_to_db"
+    ), "No data should be saved when the attribute conflict is detected at job-creation time"
 
 
 @pytest.mark.parametrize(
