@@ -16,6 +16,7 @@ from flexmeasures.data.services.scheduling import (
     handle_scheduling_exception,
     get_data_source_for_job,
 )
+from flexmeasures.data.schemas.scheduling import ScheduleSignConvention
 from flexmeasures.utils.calculations import integrate_time_series
 
 
@@ -733,6 +734,69 @@ def test_multiple_contracts(
         )
 
 
+def _assert_schedule_sign_convention(
+    output_type: str,
+    sign_convention: str,
+    main_values: list,
+    output_values: list,
+) -> None:
+    """Assert that *output_values* satisfy the expected sign convention relative to *main_values*.
+
+    *main_values* are always fetched with the default ``consumption-positive`` convention so that
+    positive values represent charging and negative values represent discharging.
+
+    The expected sign of *output_values* depends on both ``output_type`` and ``sign_convention``:
+
+    - ``consumption`` output sensor stores consumption as positive (``consumption_is_positive=True``):
+      - ``consumption-positive``: same as DB → same sign as main.
+      - ``production-positive``: inverts DB → opposite sign from main.
+      - ``wysiwyg``: raw DB (consumption positive) → same sign as main.
+    - ``production`` output sensor stores production as positive (``consumption_is_positive=False``):
+      - ``consumption-positive``: inverts DB → same sign as main.
+      - ``production-positive``: raw DB (production positive) → opposite sign from main.
+      - ``wysiwyg``: raw DB (production positive) → opposite sign from main.
+    """
+    same_sign_as_main = (
+        sign_convention == ScheduleSignConvention.CONSUMPTION_POSITIVE
+        or (
+            output_type == "consumption"
+            and sign_convention == ScheduleSignConvention.WYSIWYG
+        )
+    )
+
+    for main_val, out_val in zip(main_values, output_values):
+        if main_val > 0:
+            if same_sign_as_main:
+                assert out_val >= 0, (
+                    f"[output_type={output_type}, sign_convention={sign_convention}] "
+                    f"Expected output >= 0 for charging (main={main_val}), got {out_val}"
+                )
+            else:
+                assert out_val <= 0, (
+                    f"[output_type={output_type}, sign_convention={sign_convention}] "
+                    f"Expected output <= 0 for charging (main={main_val}), got {out_val}"
+                )
+        elif main_val < 0:
+            if same_sign_as_main:
+                assert out_val <= 0, (
+                    f"[output_type={output_type}, sign_convention={sign_convention}] "
+                    f"Expected output <= 0 for discharging (main={main_val}), got {out_val}"
+                )
+            else:
+                assert out_val >= 0, (
+                    f"[output_type={output_type}, sign_convention={sign_convention}] "
+                    f"Expected output >= 0 for discharging (main={main_val}), got {out_val}"
+                )
+
+
+@pytest.mark.parametrize(
+    "sign_convention",
+    [
+        ScheduleSignConvention.CONSUMPTION_POSITIVE,
+        ScheduleSignConvention.PRODUCTION_POSITIVE,
+        ScheduleSignConvention.WYSIWYG,
+    ],
+)
 @pytest.mark.parametrize(
     "output_type",
     ["consumption", "production"],
@@ -748,13 +812,16 @@ def test_get_schedule_sign_convention_json_flex_model(
     battery_soc_sensor_fresh_db,
     keep_scheduling_queue_empty,
     output_type,
+    sign_convention,
     requesting_user,
 ):
-    """Test that get_schedule returns correct sign conventions for consumption/production
-    output sensors when the flex-model is passed via JSON body.
+    """Test that get_schedule returns correct values for all three sign-convention modes
+    when the schedule was triggered with a consumption/production sensor in the JSON flex-model.
 
-    Consumption output sensor: consumption positive, production negative.
-    Production output sensor: consumption positive, production negative.
+    The main power sensor is used as a reference (always fetched with the default
+    ``consumption-positive`` convention).  The expected sign of the output sensor values
+    relative to that reference depends on ``output_type`` × ``sign_convention``; see
+    :func:`_assert_schedule_sign_convention` for the full decision table.
     """
     battery_asset = add_battery_assets_fresh_db["Test battery"]
 
@@ -768,8 +835,12 @@ def test_get_schedule_sign_convention_json_flex_model(
     fresh_db.session.add(output_sensor)
     fresh_db.session.flush()
 
-    # Build the trigger message with the output sensor in the flex-model
+    # Build the trigger message with the output sensor in the flex-model.
+    # force-new-job-creation bypasses the Redis job cache, which would otherwise return a cached
+    # job_id from the previous parametrized run (fresh_db resets sensor IDs to the same values
+    # each function, producing the same trigger hash).
     message = message_for_trigger_schedule(resolution="PT1H")
+    message["force-new-job-creation"] = True
     price_sensor_id = add_market_prices_fresh_db["epex_da"].id
     message["flex-context"] = {
         "consumption-price": {"sensor": price_sensor_id},
@@ -799,20 +870,19 @@ def test_get_schedule_sign_convention_json_flex_model(
     job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
     assert job.is_finished
 
-    # Retrieve the schedule from the output sensor
+    # Retrieve the schedule from the output sensor using the requested sign convention
     with app.test_client() as client:
         get_response = client.get(
             url_for("SensorAPI:get_schedule", id=output_sensor.id, uuid=job_id),
-            query_string={"duration": "PT24H"},
+            query_string={"duration": "PT24H", "sign-convention": sign_convention},
         )
         assert get_response.status_code == 200
         values = get_response.json["values"]
 
-    # The battery schedule should have non-zero values (charging and/or discharging)
     assert len(values) > 0
     assert any(v != 0 for v in values), "Schedule should have non-zero values"
 
-    # Get the main power sensor schedule for comparison (consumption positive convention)
+    # Get the main power sensor schedule using the default convention as reference
     with app.test_client() as client:
         main_response = client.get(
             url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
@@ -821,37 +891,17 @@ def test_get_schedule_sign_convention_json_flex_model(
         assert main_response.status_code == 200
         main_values = main_response.json["values"]
 
-    if output_type == "consumption":
-        # Consumption sensor returns the full schedule in consumption-positive convention
-        # (same sign as main power sensor schedule)
-        # Both should have the same absolute pattern, consumption positive
-        for main_val, out_val in zip(main_values, values):
-            if main_val > 0:
-                # Charging (consumption) should be positive on consumption sensor
-                assert (
-                    out_val >= 0
-                ), f"Consumption sensor should show positive for charging: main={main_val}, output={out_val}"
-            elif main_val < 0:
-                # Discharging (production) should be negative on consumption sensor
-                assert (
-                    out_val <= 0
-                ), f"Consumption sensor should show negative for discharging: main={main_val}, output={out_val}"
-    elif output_type == "production":
-        # Production sensor returns the full schedule in consumption-positive convention
-        # (same sign as main power sensor schedule)
-        for main_val, out_val in zip(main_values, values):
-            if main_val > 0:
-                # Charging (consumption) should be positive on production sensor
-                assert (
-                    out_val >= 0
-                ), f"Production sensor should show positive for charging: main={main_val}, output={out_val}"
-            elif main_val < 0:
-                # Discharging (production) should be negative on production sensor
-                assert (
-                    out_val <= 0
-                ), f"Production sensor should show negative for discharging: main={main_val}, output={out_val}"
+    _assert_schedule_sign_convention(output_type, sign_convention, main_values, values)
 
 
+@pytest.mark.parametrize(
+    "sign_convention",
+    [
+        ScheduleSignConvention.CONSUMPTION_POSITIVE,
+        ScheduleSignConvention.PRODUCTION_POSITIVE,
+        ScheduleSignConvention.WYSIWYG,
+    ],
+)
 @pytest.mark.parametrize(
     "output_type",
     ["consumption", "production"],
@@ -867,13 +917,13 @@ def test_get_schedule_sign_convention_db_flex_model(
     battery_soc_sensor_fresh_db,
     keep_scheduling_queue_empty,
     output_type,
+    sign_convention,
     requesting_user,
 ):
-    """Test that get_schedule returns correct sign conventions for consumption/production
-    output sensors when the flex-model is stored in the DB (asset attributes).
+    """Test that get_schedule returns correct values for all three sign-convention modes
+    when the consumption/production sensor is stored in the DB flex-model (asset attributes).
 
-    Consumption output sensor: consumption positive, production negative.
-    Production output sensor: production positive, consumption negative.
+    See :func:`_assert_schedule_sign_convention` for the full decision table.
     """
     battery_asset = add_battery_assets_fresh_db["Test battery"]
 
@@ -927,22 +977,21 @@ def test_get_schedule_sign_convention_db_flex_model(
     job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
     assert job.is_finished
 
-    # Retrieve the schedule from the output sensor
+    # Retrieve the schedule from the output sensor using the requested sign convention
     with app.test_client() as client:
         get_response = client.get(
             url_for("SensorAPI:get_schedule", id=output_sensor.id, uuid=job_id),
-            query_string={"duration": "PT24H"},
+            query_string={"duration": "PT24H", "sign-convention": sign_convention},
         )
         assert (
             get_response.status_code == 200
         ), f"GET schedule failed: {get_response.json}"
         values = get_response.json["values"]
 
-    # The battery schedule should have non-zero values
     assert len(values) > 0
     assert any(v != 0 for v in values), "Schedule should have non-zero values"
 
-    # Get the main power sensor schedule for comparison
+    # Get the main power sensor schedule using the default convention as reference
     with app.test_client() as client:
         main_response = client.get(
             url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
@@ -951,26 +1000,7 @@ def test_get_schedule_sign_convention_db_flex_model(
         assert main_response.status_code == 200
         main_values = main_response.json["values"]
 
-    if output_type == "consumption":
-        for main_val, out_val in zip(main_values, values):
-            if main_val > 0:
-                assert (
-                    out_val >= 0
-                ), f"Consumption sensor should show positive for charging: main={main_val}, output={out_val}"
-            elif main_val < 0:
-                assert (
-                    out_val <= 0
-                ), f"Consumption sensor should show negative for discharging: main={main_val}, output={out_val}"
-    elif output_type == "production":
-        for main_val, out_val in zip(main_values, values):
-            if main_val > 0:
-                assert (
-                    out_val >= 0
-                ), f"Production sensor should show positive for charging: main={main_val}, output={out_val}"
-            elif main_val < 0:
-                assert (
-                    out_val <= 0
-                ), f"Production sensor should show negative for discharging: main={main_val}, output={out_val}"
+    _assert_schedule_sign_convention(output_type, sign_convention, main_values, values)
 
     # Clean up: remove the flex_model entry so it doesn't affect other tests
     del battery_asset.flex_model[output_type]
