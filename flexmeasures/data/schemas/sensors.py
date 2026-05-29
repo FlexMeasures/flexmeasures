@@ -36,7 +36,7 @@ import pandas as pd
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.models.user import User
+from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
@@ -56,6 +56,7 @@ from flexmeasures.utils.unit_utils import (
 from flexmeasures.data.schemas.attributes import JSON
 from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
+from flexmeasures.data.schemas.account import AccountIdField
 from flexmeasures.data.schemas.sources import DataSourceIdField
 
 
@@ -419,37 +420,17 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                 f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
             )
 
-    def _deserialize_dict(self, value: dict[str, Any]) -> Sensor | SensorReference:
-        """Deserialize a sensor reference to a Sensor or SensorReference.
+    _SOURCE_FILTER_KEYS = frozenset(
+        {"source-types", "exclude-source-types", "sources", "source-account"}
+    )
 
-        Returns a plain :class:`Sensor` when no source filter keys are present
-        (backward compatible), and a :class:`SensorReference` when any of
-        ``source-types``, ``exclude-source-types`` or ``sources`` are provided.
+    def _deserialize_source_filters(
+        self, value: dict[str, Any]
+    ) -> tuple[list[str] | None, list[str] | None, list | None, list | None]:
+        """Deserialize and validate source filter fields from a sensor-reference dict.
+
+        Returns ``(source_types, exclude_source_types, sources, source_account)``.
         """
-        if "sensor" not in value:
-            raise FMValidationError("Dictionary provided but `sensor` key not found.")
-        if self.additional_sensor_units:
-            # With additional allowed units, bypass the built-in unit check and perform our own
-            sensor = SensorIdField(unit=None).deserialize(value["sensor"], None, None)
-            if self.to_unit and not self.to_unit.startswith("/"):
-                if (
-                    not units_are_convertible(sensor.unit, self.to_unit)
-                    and sensor.unit not in self.additional_sensor_units
-                ):
-                    raise FMValidationError(
-                        f"Cannot convert {sensor.unit} to {self.to_unit}"
-                    )
-        else:
-            sensor = SensorIdField(
-                unit=self.to_unit if not self.to_unit.startswith("/") else None
-            ).deserialize(value["sensor"], None, None)
-
-        # If source filter keys are present, return a SensorReference instead of a plain Sensor.
-        _source_filter_keys = {"source-types", "exclude-source-types", "sources"}
-        if _source_filter_keys.isdisjoint(value.keys()):
-            return sensor  # backward compat: no filters → plain Sensor
-
-        # Validate and deserialize source filter fields.
         source_types = value.get("source-types")
         if source_types is not None:
             if not isinstance(source_types, list) or not all(
@@ -477,11 +458,60 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                 for src_id in raw_sources
             ]
 
+        source_account = None
+        raw_source_account = value.get("source-account")
+        if raw_source_account is not None:
+            if not isinstance(raw_source_account, list):
+                raise FMValidationError(
+                    "`source-account` must be a list of account IDs."
+                )
+            account_id_field = AccountIdField()
+            source_account = [
+                account_id_field.deserialize(acc_id, None, None)
+                for acc_id in raw_source_account
+            ]
+
+        return source_types, exclude_source_types, sources, source_account
+
+    def _deserialize_dict(self, value: dict[str, Any]) -> Sensor | SensorReference:
+        """Deserialize a sensor reference to a Sensor or SensorReference.
+
+        Returns a plain :class:`Sensor` when no source filter keys are present
+        (backward compatible), and a :class:`SensorReference` when any of
+        ``source-types``, ``exclude-source-types``, ``sources``, or
+        ``source-account`` are provided.
+        """
+        if "sensor" not in value:
+            raise FMValidationError("Dictionary provided but `sensor` key not found.")
+        if self.additional_sensor_units:
+            # With additional allowed units, bypass the built-in unit check and perform our own
+            sensor = SensorIdField(unit=None).deserialize(value["sensor"], None, None)
+            if self.to_unit and not self.to_unit.startswith("/"):
+                if (
+                    not units_are_convertible(sensor.unit, self.to_unit)
+                    and sensor.unit not in self.additional_sensor_units
+                ):
+                    raise FMValidationError(
+                        f"Cannot convert {sensor.unit} to {self.to_unit}"
+                    )
+        else:
+            sensor = SensorIdField(
+                unit=self.to_unit if not self.to_unit.startswith("/") else None
+            ).deserialize(value["sensor"], None, None)
+
+        # If source filter keys are present, return a SensorReference instead of a plain Sensor.
+        if self._SOURCE_FILTER_KEYS.isdisjoint(value.keys()):
+            return sensor  # backward compat: no filters → plain Sensor
+
+        source_types, exclude_source_types, sources, source_account = (
+            self._deserialize_source_filters(value)
+        )
         return SensorReference(
             sensor=sensor,
             source_types=source_types,
             exclude_source_types=exclude_source_types,
             sources=sources,
+            source_account=source_account,
         )
 
     def _deserialize_list(self, value: list[dict]) -> list[dict]:
@@ -856,6 +886,7 @@ class SensorReference:
     source_types: list[str] | None = field(default=None)
     exclude_source_types: list[str] | None = field(default=None)
     sources: list[DataSource] | None = field(default=None)
+    source_account: list[Account] | None = field(default=None)
 
     @property
     def unit(self) -> str:
@@ -906,6 +937,14 @@ class SensorReferenceSchema(Schema):
         load_default=None,
         metadata=dict(
             description="Only use beliefs from these data source IDs.",
+        ),
+    )
+    source_account = fields.List(
+        AccountIdField(),
+        load_default=None,
+        data_key="source-account",
+        metadata=dict(
+            description="Only use beliefs from data sources linked to these account IDs.",
         ),
     )
 
