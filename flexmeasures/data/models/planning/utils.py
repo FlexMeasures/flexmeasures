@@ -360,6 +360,11 @@ def get_series_from_quantity_or_sensor(
             source_types=variable_quantity.source_types,
             exclude_source_types=variable_quantity.exclude_source_types,
             source=variable_quantity.sources,
+            source_account_ids=(
+                [a.id for a in variable_quantity.source_account]
+                if variable_quantity.source_account
+                else None
+            ),
         )
         if as_instantaneous_events:
             bdf = bdf.resample_events(
