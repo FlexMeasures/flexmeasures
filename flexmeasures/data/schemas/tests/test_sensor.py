@@ -2,6 +2,7 @@ import pytest
 from flexmeasures import Sensor
 from flexmeasures.data.schemas.sensors import (
     QuantityOrSensor,
+    SensorReference,
     VariableQuantityField,
 )
 from flexmeasures.utils.unit_utils import ur
@@ -175,3 +176,128 @@ def test_time_series_field(input_param, dst_unit, fails, db):
         assert not fails
     except Exception as e:
         assert fails, e
+
+
+def test_sensor_reference_backward_compatible(setup_dummy_sensors):
+    """Plain ``{"sensor": <id>}`` deserializes to a :class:`Sensor`, not a :class:`SensorReference`.
+
+    This verifies backward compatibility: existing flex-model/flex-context payloads that carry
+    only a sensor ID must continue to produce a plain Sensor object so that no calling code
+    needs to change.
+    """
+    sensor1, _, _, _ = setup_dummy_sensors
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    result = field.deserialize({"sensor": sensor1.id})
+
+    assert isinstance(result, Sensor)
+    assert result.id == sensor1.id
+
+
+def test_sensor_reference_with_source_types(setup_dummy_sensors):
+    """``{"sensor": <id>, "source-types": [...]}`` deserializes to a :class:`SensorReference`.
+
+    The deserialized object exposes the same ``unit``, ``id``, and ``event_resolution``
+    properties as the underlying sensor, and carries the requested ``source_types`` filter.
+    """
+    sensor1, _, _, _ = setup_dummy_sensors
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    result = field.deserialize(
+        {"sensor": sensor1.id, "source-types": ["scheduler", "forecaster"]}
+    )
+
+    assert isinstance(result, SensorReference)
+    assert result.sensor == sensor1
+    assert result.id == sensor1.id
+    assert result.unit == sensor1.unit
+    assert result.event_resolution == sensor1.event_resolution
+    assert result.source_types == ["scheduler", "forecaster"]
+    assert result.exclude_source_types is None
+    assert result.sources is None
+
+
+def test_sensor_reference_with_exclude_source_types(setup_dummy_sensors):
+    """``{"sensor": <id>, "exclude-source-types": [...]}`` deserializes to a :class:`SensorReference`.
+
+    The ``exclude_source_types`` attribute is populated and ``source_types`` remains ``None``.
+    """
+    sensor1, _, _, _ = setup_dummy_sensors
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    result = field.deserialize(
+        {"sensor": sensor1.id, "exclude-source-types": ["forecaster"]}
+    )
+
+    assert isinstance(result, SensorReference)
+    assert result.sensor == sensor1
+    assert result.source_types is None
+    assert result.exclude_source_types == ["forecaster"]
+    assert result.sources is None
+
+
+def test_sensor_reference_with_sources(setup_dummy_sensors, setup_sources, db):
+    """``{"sensor": <id>, "sources": [<source_id>]}`` deserializes to a :class:`SensorReference`.
+
+    Each integer source ID in the list is resolved to a :class:`DataSource` instance via
+    :class:`~flexmeasures.data.schemas.sources.DataSourceIdField`.
+    """
+    sensor1, _, _, _ = setup_dummy_sensors
+    seita_source = setup_sources["Seita"]
+    # Flush so that DataSources created by setup_sources get their DB-assigned primary keys.
+    # create_sources() adds objects to the session without committing; without an explicit flush
+    # the id column stays None whenever sensor1.id is already cached and no auto-flush fires.
+    db.session.flush()
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    result = field.deserialize({"sensor": sensor1.id, "sources": [seita_source.id]})
+
+    assert isinstance(result, SensorReference)
+    assert result.sensor == sensor1
+    assert result.source_types is None
+    assert result.exclude_source_types is None
+    assert result.sources is not None
+    assert len(result.sources) == 1
+    assert result.sources[0].id == seita_source.id
+
+
+@pytest.mark.parametrize(
+    "invalid_payload, expected_fragment",
+    [
+        (
+            {"sensor": 1, "source-types": "scheduler"},
+            "list of strings",
+        ),
+        (
+            {"sensor": 1, "source-types": [1, 2]},
+            "list of strings",
+        ),
+        (
+            {"sensor": 1, "exclude-source-types": "forecaster"},
+            "list of strings",
+        ),
+        (
+            {"sensor": 1, "sources": 42},
+            "list of data source IDs",
+        ),
+    ],
+)
+def test_sensor_reference_invalid_source_filter(
+    setup_dummy_sensors, invalid_payload, expected_fragment
+):
+    """Malformed source filter values raise a :class:`~marshmallow.ValidationError`.
+
+    The error message must contain the relevant fragment so callers get actionable feedback.
+    """
+    sensor1, _, _, _ = setup_dummy_sensors
+    # Replace the placeholder sensor ID 1 with the real fixture ID so the sensor lookup
+    # succeeds and the validation error comes from the source-filter branch, not the sensor lookup.
+    payload = dict(invalid_payload)
+    payload["sensor"] = sensor1.id
+
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    with pytest.raises(ValidationError) as exc_info:
+        field.deserialize(payload)
+
+    assert expected_fragment in str(exc_info.value)
