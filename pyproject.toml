@@ -54,7 +54,7 @@ dependencies = [
     "email-validator>=2.3.0",
     "rq>=2.6.1",
     # sort order
-    "rq-dashboard>=0.8.0.2",
+    "rq-dashboard>=0.8.7",
     # the following uses environment markers (see PEP 496)
     "rq-win; os_name == 'nt' or os_name == 'win'",
     # Note: we sometimes limit redis due to our use of fakeredis (check their pyproject.toml)
