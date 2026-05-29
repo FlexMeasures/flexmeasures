@@ -69,7 +69,7 @@ def test_custom_lgbm_rejects_invalid_lag_steps():
             seasonal_lags_steps=[24, 0],
         )
 
-    with pytest.raises(ValueError, match="None of the seasonal_lags_steps"):
+    with pytest.raises(NotEnoughDataException, match="Not enough training data"):
         CustomLGBM(
             max_forecast_horizon=2,
             probabilistic=False,
@@ -533,6 +533,70 @@ def test_missing_data_logs_warning(
     assert "missing values" in str(
         excinfo.value
     ), "Expected NotEnoughDataException for missing data threshold"
+
+
+def test_train_predict_pipeline_wraps_darts_value_error_with_not_enough_data_exception(
+    fresh_db,
+    tmp_path,
+):
+    data_source = DataSource(name="short-history-source", type="test")
+    asset_type = GenericAssetType(name="short-history-asset-type")
+    asset = Asset(
+        name="Short history test asset",
+        generic_asset_type=asset_type,
+        latitude=1.0,
+        longitude=1.0,
+    )
+    sensor = Sensor(
+        name="short-history-target",
+        generic_asset=asset,
+        unit="kW",
+        event_resolution=timedelta(minutes=15),
+    )
+    fresh_db.session.add_all([data_source, asset_type, asset, sensor])
+    fresh_db.session.flush()
+
+    history_index = pd.date_range(
+        datetime(2025, 1, 1),
+        datetime(2025, 1, 3, 23, 45),
+        freq="15min",
+        tz="UTC",
+    )
+    beliefs = [
+        TimedBelief(
+            sensor=sensor,
+            event_start=event_start,
+            event_value=float(i % 10),
+            source=data_source,
+            belief_horizon=timedelta(0),
+        )
+        for i, event_start in enumerate(history_index)
+    ]
+    fresh_db.session.add_all(beliefs)
+    fresh_db.session.commit()
+
+    pipeline = TrainPredictPipeline(
+        config={"train-start": "2025-01-01T00:00+00:00"},
+    )
+
+    with pytest.raises(NotEnoughDataException) as excinfo:
+        pipeline.compute(
+            parameters={
+                "sensor": sensor.id,
+                "model-save-dir": str(tmp_path / "models"),
+                "output-path": None,
+                "start": "2025-01-04T00:00+00:00",
+                "end": "2025-01-08T00:00+00:00",
+                "sensor-to-save": None,
+                "max-forecast-horizon": "PT96H",
+                "forecast-frequency": "PT1H",
+                "probabilistic": False,
+            }
+        )
+
+    assert "Not enough training data for the requested forecast horizon" in str(
+        excinfo.value
+    )
 
 
 # Test that max_training-period caps train-period and logs a warning
