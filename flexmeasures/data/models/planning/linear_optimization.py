@@ -42,6 +42,7 @@ def device_scheduler(  # noqa C901
     commitments: list[pd.DataFrame] | list[Commitment] | None = None,
     initial_stock: float | list[float] = 0,
     stock_groups: dict[int, list[int]] | None = None,
+    coupling_groups: dict[str, list[tuple[int, float]]] | None = None,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -72,6 +73,14 @@ def device_scheduler(  # noqa C901
                                     device:                     0 (corresponds to device d; if not set, commitment is on an EMS level)
     :param initial_stock:       initial stock for each device. Use a list with the same number of devices as device_constraints,
                                 or use a single value to set the initial stock to be the same for all devices.
+    :param coupling_groups:     Hard flow-coupling constraints between devices.  Each entry maps a group name to a list of
+                                ``(device_index, coefficient)`` tuples.  For every pair of devices in a group the constraint
+                                ``coeff_ref * P[d_ref, j] == coeff_i * P[d_i, j]`` is enforced for every time step ``j``,
+                                using the first member of the list as the reference device.
+                                Example — a CHP with gas input (d=0, coeff 1.0), heat output (d=1, coeff −0.5) and
+                                power output (d=2, coeff −0.3)::
+
+                                    coupling_groups={"chp": [(0, 1.0), (1, -0.5), (2, -0.3)]}
 
     Potentially deprecated arguments:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
@@ -116,6 +125,18 @@ def device_scheduler(  # noqa C901
     else:
         for d in range(len(device_constraints)):
             device_to_group[d] = d
+
+    # Build flat list of pairwise flow-coupling constraints from coupling_groups.
+    # Each entry is (d_ref, coeff_ref, d_i, coeff_i) and enforces:
+    #   coeff_ref * ems_power[d_ref, j] == coeff_i * ems_power[d_i, j]
+    coupling_pairs: list[tuple[int, float, int, float]] = []
+    if coupling_groups:
+        for _group_name, members in coupling_groups.items():
+            if len(members) < 2:
+                continue
+            d_ref, coeff_ref = members[0]
+            for d_i, coeff_i in members[1:]:
+                coupling_pairs.append((d_ref, coeff_ref, d_i, coeff_i))
 
     # Move commitments from old structure to new
     if commitments is None:
@@ -737,6 +758,27 @@ def device_scheduler(  # noqa C901
     model.device_power_equalities = Constraint(
         model.d, model.j, rule=device_derivative_equalities
     )
+
+    if coupling_pairs:
+
+        def flow_coupling_rule(m, p, j):
+            """Enforce a fixed ratio between the flows of two coupled devices.
+
+            For coupling pair ``p`` at time ``j`` the constraint is:
+                coeff_ref * ems_power[d_ref, j] == coeff_i * ems_power[d_i, j]
+            which is stored as the Pyomo equality (0, lhs - rhs, 0).
+            """
+            d_ref, coeff_ref, d_i, coeff_i = coupling_pairs[p]
+            return (
+                0,
+                coeff_ref * m.ems_power[d_ref, j] - coeff_i * m.ems_power[d_i, j],
+                0,
+            )
+
+        model.coupling_pair = RangeSet(0, len(coupling_pairs) - 1)
+        model.flow_coupling_constraints = Constraint(
+            model.coupling_pair, model.j, rule=flow_coupling_rule
+        )
 
     # Add objective
     def cost_function(m):

@@ -1543,3 +1543,145 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
     assert heater_schedule.loc["2026-04-07T08:00:00+00:00"] == pytest.approx(
         80.0
     ), "Electric heater should have one expected partial 80 kW dispatch step before the first cheap-electricity window."
+
+
+def test_chp_coupling():
+    """Test that coupling_groups enforces fixed flow ratios between CHP devices.
+
+    Models a Combined Heat and Power unit with three flow devices:
+
+    - d=0  gas input:    can only consume gas          (derivative_min=0)
+    - d=1  heat output:  can only produce heat          (derivative_max=0)
+    - d=2  power output: can only produce electricity   (derivative_max=0)
+
+    The coupling group ``"chp"`` is specified with coefficients
+    ``[(0, 1.0), (1, -0.5), (2, -0.3)]``.  This generates two hard equality
+    constraints for every time step ``j``:
+
+        1.0 * P_gas[j]  ==  -0.5 * P_heat[j]   →  P_gas  == -0.5 * P_heat
+        1.0 * P_gas[j]  ==  -0.3 * P_power[j]  →  P_gas  == -0.3 * P_power
+
+    Heat production is forced to exactly 10 kW via ``derivative equals = -10``
+    on device 1.  Substituting into the coupling constraints gives the expected
+    solution:
+
+        P_gas   =  5 kW          (gas consumed)
+        P_heat  = -10 kW         (heat produced, forced)
+        P_power = -50/3 ≈ -16.67 kW  (electricity produced)
+
+    Note: the coefficients above do not represent a physically realisable CHP
+    (total output exceeds input).  They are chosen to exercise the constraint
+    arithmetic with non-trivial numbers that are easy to verify by hand.
+    """
+    start = pd.Timestamp("2026-01-01T00:00+01:00")
+    end = pd.Timestamp("2026-01-01T04:00+01:00")
+    resolution = pd.Timedelta("1h")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    # d=0: gas input — can only consume (derivative_min=0), capacity 100 kW.
+    # NaN stock bounds mean no cumulative-stock constraint (pure flow device).
+    gas_constraints = pd.DataFrame(
+        {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": 0.0,
+            "derivative max": 100.0,
+            "derivative equals": np.nan,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+        },
+        index=index,
+    )
+
+    # d=1: heat output — can only produce (derivative_max=0).
+    # Forced to exactly -10 kW via derivative equals.
+    heat_constraints = pd.DataFrame(
+        {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": -100.0,
+            "derivative max": 0.0,
+            "derivative equals": -10.0,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+        },
+        index=index,
+    )
+
+    # d=2: power output — can only produce (derivative_max=0), capacity 100 kW.
+    # Flow is free; the coupling constraint will determine its value.
+    power_constraints = pd.DataFrame(
+        {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": -100.0,
+            "derivative max": 0.0,
+            "derivative equals": np.nan,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+        },
+        index=index,
+    )
+
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -200.0, "derivative max": 200.0},
+        index=index,
+    )
+
+    # Coupling group: one reference device (gas, coeff 1.0) and two coupled
+    # devices (heat with coeff -0.5, power with coeff -0.3).
+    coupling_groups = {"chp": [(0, 1.0), (1, -0.5), (2, -0.3)]}
+
+    # Gas-price commitment gives the objective a finite value and models the
+    # cost of consuming gas.  With quantity=0 and both prices set the
+    # commitment acts as a two-sided soft equality: any upward deviation
+    # (gas consumption) incurs a cost of 1 EUR/kW.
+    gas_price_commitment = FlowCommitment(
+        name="gas cost",
+        index=index,
+        quantity=pd.Series(0.0, index=index),
+        upwards_deviation_price=pd.Series(1.0, index=index),
+        downwards_deviation_price=pd.Series(0.0, index=index),
+        device=pd.Series(0, index=index),
+    )
+
+    schedules, planned_costs, results, model = device_scheduler(
+        device_constraints=[gas_constraints, heat_constraints, power_constraints],
+        ems_constraints=ems_constraints,
+        commitments=[gas_price_commitment],
+        coupling_groups=coupling_groups,
+    )
+
+    assert (
+        results.solver.termination_condition == "optimal"
+    ), "Solver did not find an optimal solution."
+
+    # Heat is fixed to -10 kW by derivative_equals.
+    pd.testing.assert_series_equal(
+        schedules[1],
+        pd.Series(-10.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="heat output forced to -10 kW by derivative_equals",
+    )
+
+    # Coupling: 1.0 * P_gas == -0.5 * P_heat  →  P_gas = -0.5 * (-10) = 5 kW
+    pd.testing.assert_series_equal(
+        schedules[0],
+        pd.Series(5.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="gas consumption determined by coupling (5 kW from 10 kW heat at coeff -0.5)",
+    )
+
+    # Coupling: 1.0 * P_gas == -0.3 * P_power  →  P_power = -5 / 0.3 = -50/3 kW
+    pd.testing.assert_series_equal(
+        schedules[2],
+        pd.Series(-50.0 / 3.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="power output determined by coupling (-50/3 kW from 5 kW gas at coeff -0.3)",
+    )
