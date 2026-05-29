@@ -53,6 +53,7 @@ Bugfixes
 * Check read permissions for sensors referenced in forecasting and scheduling config payloads, and return a clearer 403 error when a referenced sensor is not readable [see `PR #2096 <https://www.github.com/FlexMeasures/flexmeasures/pull/2096>`_ and `PR #2125 <https://www.github.com/FlexMeasures/flexmeasures/pull/2125>`_]
 * Add the missing ``force-new-job-creation`` field for triggering a schedule on an asset (tree) [see `PR #2182 <https://www.github.com/FlexMeasures/flexmeasures/pull/2182>`_]
 * Clean up stale sensor references from ``flex-config`` and ``sensors_to_show`` when deleting a sensor, using JSONB queries to find affected assets before pruning those references [see `PR #2106 <https://www.github.com/FlexMeasures/flexmeasures/pull/2106>`_]
+* Ignore stale asset references in ``sensors_to_show`` so chart endpoints and the graph editor remain usable, and automatically prune those references when deleting assets [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 * Standardize resolution formatting across API endpoints for consistent response payloads [see `PR #2152 <https://www.github.com/FlexMeasures/flexmeasures/pull/2152>`_]
 * Make the auth check for CLI commands work with ``flask``, too, instead of only with the ``flexmeasures`` alias [see `PR #2169 <https://www.github.com/FlexMeasures/flexmeasures/pull/2169>`_]
 * Distinguish data sources with duplicate names in chart legends without showing source IDs [see `PR #2185 <https://www.github.com/FlexMeasures/flexmeasures/pull/2185>`_]

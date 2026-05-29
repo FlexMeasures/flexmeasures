@@ -29,6 +29,22 @@ export async function getAsset(assetId, useCache = true) {
 
   const apiUrl = apiBasePath + "/api/v3_0/assets/" + assetId;
   const response = await fetch(apiUrl);
+
+  if (!response.ok) {
+    let errorDetail = `HTTP ${response.status}`;
+    try {
+      const errorBody = await response.json();
+      if (errorBody?.message) {
+        errorDetail = Array.isArray(errorBody.message)
+          ? errorBody.message.join(", ")
+          : errorBody.message;
+      }
+    } catch (_err) {
+      // Keep the generic HTTP fallback when the response body is not JSON.
+    }
+    throw new Error(`Failed to fetch asset ${assetId}: ${errorDetail}`);
+  }
+
   const asset = await response.json();
 
   localStorage.setItem(cacheKey, JSON.stringify(asset));
@@ -383,8 +399,8 @@ export function extractApiErrorMessage(errorData, fallbackMessage) {
   return fallbackMessage || "Unknown error";
 }
 
-/**
- * Optionally show a confirmation dialog, then perform a fetch request.
+/**  
+  * Optionally show a confirmation dialog, then perform a fetch request.
  *
  * Error responses are normalised: a JSON body's `message` field is used
  * when available, otherwise the HTTP status text is used. Network errors
@@ -399,22 +415,20 @@ export function extractApiErrorMessage(errorData, fallbackMessage) {
  * @param {string}   errorPrefix    - Prefix for the showToast error message.
  */
 function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
-  if (confirmMessage && !confirm(confirmMessage)) return;
-  fetch(url, options)
-    .then((response) => {
-      if (response.ok) return response;
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        return response.json().then((err) => {
-          throw new Error(
-            err.message || response.statusText || "Request failed",
-          );
-        });
-      }
-      throw new Error(response.statusText || "Request failed");
-    })
-    .then(onSuccess)
-    .catch((err) => showToast(errorPrefix + ": " + err.message, "error"));
+    if (confirmMessage && !confirm(confirmMessage)) return;
+    fetch(url, options)
+        .then(response => {
+            if (response.ok) return response;
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                return response.json().then(err => {
+                    throw new Error(err.message || response.statusText || "Request failed");
+                });
+            }
+            throw new Error(response.statusText || "Request failed");
+        })
+        .then(onSuccess)
+        .catch(err => showToast(errorPrefix + ": " + err.message, "error"));
 }
 
 /**
@@ -430,61 +444,56 @@ function confirmAndFetch(confirmMessage, url, options, onSuccess, errorPrefix) {
  * responsible for pruning unwanted copies.
  */
 export function initCopyAssetButtons() {
-  document.querySelectorAll(".js-copy-asset-btn").forEach((btn) => {
-    const assetId = btn.dataset.assetId;
-    // Present on the "copy to my account" button; absent on the sibling-copy button.
-    const targetAccountId = btn.dataset.targetAccountId || null;
+    document.querySelectorAll(".js-copy-asset-btn").forEach(btn => {
+        const assetId = btn.dataset.assetId;
+        // Present on the "copy to my account" button; absent on the sibling-copy button.
+        const targetAccountId = btn.dataset.targetAccountId || null;
 
-    btn.addEventListener("click", function (event) {
-      const openInNewTab = event.ctrlKey || event.metaKey;
-      const url = targetAccountId
-        ? "/api/v3_0/assets/" + assetId + "/copy?account=" + targetAccountId
-        : "/api/v3_0/assets/" + assetId + "/copy";
-      confirmAndFetch(
-        null,
-        url,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-        },
-        (response) =>
-          response.json().then((data) => {
-            showToast("Asset copied successfully.", "success");
-            setTimeout(() => {
-              const dest = "/assets/" + data.asset + "/properties";
-              if (openInNewTab) {
-                window.open(dest, "_blank");
-              } else {
-                window.location.href = dest;
-              }
-            }, 1500);
-          }),
-        "Failed to copy asset",
-      );
+        btn.addEventListener("click", function (event) {
+            const openInNewTab = event.ctrlKey || event.metaKey;
+            const url = targetAccountId
+                ? "/api/v3_0/assets/" + assetId + "/copy?account=" + targetAccountId
+                : "/api/v3_0/assets/" + assetId + "/copy";
+            confirmAndFetch(
+                null,
+                url,
+                {method: "POST", headers: {"Content-Type": "application/json"}, credentials: "same-origin"},
+                response => response.json().then(data => {
+                    showToast("Asset copied successfully.", "success");
+                    setTimeout(() => {
+                        const dest = "/assets/" + data.asset + "/properties";
+                        if (openInNewTab) {
+                            window.open(dest, "_blank");
+                        } else {
+                            window.location.href = dest;
+                        }
+                    }, 1500);
+                }),
+                "Failed to copy asset"
+            );
+        });
     });
-  });
 }
 
 export function initDeleteAssetButton() {
-  const btn = document.getElementById("delete-asset-button");
-  if (!btn) return;
-  const assetId = btn.dataset.assetId;
+    const btn = document.getElementById("delete-asset-button");
+    if (!btn) return;
+    const assetId = btn.dataset.assetId;
 
-  btn.addEventListener("click", function () {
-    confirmAndFetch(
-      "Are you sure you want to delete this asset and all time series data associated with it?",
-      "/assets/delete_with_data/" + assetId,
-      { method: "GET", credentials: "same-origin" },
-      (response) => {
-        showToast("Asset deleted successfully.", "success");
-        setTimeout(() => {
-          window.location.href = response.url;
-        }, 1500);
-      },
-      "Failed to delete asset",
-    );
-  });
+    btn.addEventListener("click", function () {
+        confirmAndFetch(
+            "Are you sure you want to delete this asset and all time series data associated with it?",
+            "/assets/delete_with_data/" + assetId,
+            {method: "GET", credentials: "same-origin"},
+            response => {
+                showToast("Asset deleted successfully.", "success");
+                setTimeout(() => {
+                    window.location.href = response.url;
+                }, 1500);
+            },
+            "Failed to delete asset"
+        );
+    });
 }
 
 /**
@@ -503,7 +512,6 @@ export function initDeleteAssetButton() {
  * @param {string}      [options.errorMessage]         - Override toast text on failure (defaults to the
  *                                                       server message when absent).
  * @param {AbortSignal} [options.signal]               - Abort polling externally (e.g. page unload).
- * @param {function}    [options.onStatus]             - Called with the full response JSON on each poll.
  * @param {function}    [options.onFinished]           - Called with the full response JSON on finish.
  * @param {function}    [options.onFailed]             - Called with the full response JSON on failure.
  * @returns {function} stopPolling - Call to cancel polling manually.
@@ -515,7 +523,6 @@ export function pollJobStatus(jobUuid, options = {}) {
         successMessage = "Job completed successfully.",
         errorMessage = null,
         signal = null,
-        onStatus = null,
         onFinished = null,
         onFailed = null,
     } = options;
@@ -555,7 +562,6 @@ export function pollJobStatus(jobUuid, options = {}) {
         }
 
         const status = (data.status || "").toUpperCase();
-        if (onStatus) onStatus(data);
 
         if (status === "FINISHED") {
             stop();

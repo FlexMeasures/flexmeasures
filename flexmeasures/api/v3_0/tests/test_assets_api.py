@@ -538,6 +538,47 @@ def test_delete_an_asset(client, setup_api_test_data, requesting_user, db):
     assert audit_log.affected_asset_id is None
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_delete_asset_cleans_stale_asset_references_in_sensors_to_show(
+    client, setup_api_test_data, requesting_user, db
+):
+    deleted_asset = setup_api_test_data["some gas sensor"].generic_asset
+    deleted_asset_id = deleted_asset.id
+
+    referencing_asset = setup_api_test_data["some temperature sensor"].generic_asset
+    referenced_sensor = setup_api_test_data["some temperature sensor"]
+
+    referencing_asset.sensors_to_show = [
+        {
+            "title": "Mixed graph",
+            "plots": [
+                {"sensor": referenced_sensor.id},
+                {"asset": deleted_asset_id, "flex-model": "soc-min"},
+            ],
+        }
+    ]
+    db.session.add(referencing_asset)
+    db.session.commit()
+
+    delete_asset_response = client.delete(
+        url_for("AssetAPI:delete", id=deleted_asset_id),
+    )
+    assert delete_asset_response.status_code == 204
+
+    updated_referencing_asset = db.session.get(GenericAsset, referencing_asset.id)
+    assert updated_referencing_asset is not None
+    assert str(deleted_asset_id) not in json.dumps(
+        updated_referencing_asset.sensors_to_show
+    )
+
+    check_audit_log_event(
+        db=db,
+        event=f"Removed asset reference '{deleted_asset.name}': {deleted_asset_id} from sensors-to-show (because asset has been deleted).",
+        user=requesting_user,
+        asset=updated_referencing_asset,
+    )
+
+
 @pytest.mark.parametrize(
     "requesting_user",
     ["test_consultant@seita.nl"],

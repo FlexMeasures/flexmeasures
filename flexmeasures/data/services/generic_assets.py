@@ -2,6 +2,7 @@ from typing import Any
 
 from flask import current_app
 from sqlalchemy import delete
+import sqlalchemy as sa
 
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -208,6 +209,105 @@ def _describe_sensors_to_show_changes(old_value, new_value) -> str:
 
 
 _MISSING = object()
+_REMOVE = object()
+
+
+def _prune_sensors_to_show_asset_refs(
+    value: list[Any] | None, asset_id: int
+) -> tuple[list[Any] | None, bool]:
+    """Remove references to a deleted asset from sensors_to_show."""
+    if not isinstance(value, list):
+        return value, False
+
+    changed = False
+    cleaned: list[Any] = []
+
+    for entry in value:
+        if not isinstance(entry, dict):
+            cleaned.append(entry)
+            continue
+
+        pruned_entry, entry_changed = _prune_sensors_to_show_asset_entry(
+            entry, asset_id
+        )
+        changed = changed or entry_changed
+
+        if pruned_entry is _REMOVE:
+            continue
+        cleaned.append(pruned_entry)
+
+    return cleaned, changed
+
+
+def _prune_sensors_to_show_asset_entry(
+    entry: dict[str, Any], asset_id: int
+) -> tuple[dict[str, Any] | object, bool]:
+    """Prune one sensors_to_show entry for deleted asset references."""
+    if entry.get("asset") == asset_id:
+        return _REMOVE, True
+
+    if "plots" not in entry or not isinstance(entry["plots"], list):
+        return entry, False
+
+    changed = False
+    new_plots: list[Any] = []
+    for plot in entry["plots"]:
+        if isinstance(plot, dict) and plot.get("asset") == asset_id:
+            changed = True
+            continue
+        new_plots.append(plot)
+
+    if not changed:
+        return entry, False
+
+    if not new_plots:
+        return _REMOVE, True
+
+    copied = dict(entry)
+    copied["plots"] = new_plots
+    return copied, True
+
+
+def cleanup_asset_references_in_assets(
+    asset_id: int, asset_name: str | None = None
+) -> int:
+    """Remove references to a deleted asset in sensors_to_show across assets."""
+    vars_json = sa.func.jsonb_build_object("aid", asset_id)
+    candidates = db.session.scalars(
+        sa.select(GenericAsset).where(
+            sa.and_(
+                GenericAsset.id != asset_id,
+                sa.func.jsonb_path_exists(
+                    GenericAsset.sensors_to_show,
+                    "$.**.asset ? (@ == $aid)",
+                    vars_json,
+                ),
+            )
+        )
+    ).all()
+
+    changed_assets = 0
+    for affected_asset in candidates:
+        sensors_to_show, sensors_to_show_was_updated = (
+            _prune_sensors_to_show_asset_refs(
+                affected_asset.sensors_to_show,
+                asset_id,
+            )
+        )
+        if not sensors_to_show_was_updated:
+            continue
+
+        asset_label = f"'{asset_name}': {asset_id}" if asset_name else str(asset_id)
+        AssetAuditLog.add_record(
+            affected_asset,
+            f"Removed asset reference {asset_label} from sensors-to-show (because asset has been deleted).",
+        )
+
+        affected_asset.sensors_to_show = sensors_to_show
+        db.session.add(affected_asset)
+        changed_assets += 1
+
+    return changed_assets
 
 
 def _format_json_path(path: str, key) -> str:
@@ -406,6 +506,7 @@ def delete_asset(asset: GenericAsset):
     Creates an audit log.
     """
     asset_name, asset_id = asset.name, asset.id
+    cleanup_asset_references_in_assets(asset_id, asset_name)
     AssetAuditLog.add_record(asset, f"Deleted asset '{asset_name}': {asset_id}")
 
     db.session.execute(delete(GenericAsset).filter_by(id=asset.id))
