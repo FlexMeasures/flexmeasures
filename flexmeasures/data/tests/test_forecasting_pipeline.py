@@ -689,13 +689,31 @@ def test_future_regressor_split_selects_latest_known_value_per_regressor(monkeyp
 
     pipeline.split_data_all_beliefs(df)
 
-    assert len(captured_future_frames) == 1
+    assert len(captured_future_frames) == 1, (
+        "Expected one future-covariate frame because this one-step pipeline "
+        "prepares exactly one split."
+    )
     selected = captured_future_frames[0].set_index("event_start")
-    assert selected.loc[pd.Timestamp("2025-01-08T09:00:00"), regressor_a] == 4.0
-    assert selected.loc[pd.Timestamp("2025-01-08T10:00:00"), regressor_a] == 5.0
-    assert selected.loc[pd.Timestamp("2025-01-08T10:00:00"), regressor_b] == 8.0
-    assert 50.0 not in set(selected[regressor_a].dropna())
-    assert 80.0 not in set(selected[regressor_b].dropna())
+    assert selected.loc[pd.Timestamp("2025-01-08T09:00:00"), regressor_a] == 4.0, (
+        "Expected regressor A's latest known realized value for the historical "
+        "event, because it has the latest non-null belief by forecast time."
+    )
+    assert selected.loc[pd.Timestamp("2025-01-08T10:00:00"), regressor_a] == 5.0, (
+        "Expected regressor A's available forecast value to survive even though "
+        "regressor B has a later belief on a different joined row."
+    )
+    assert selected.loc[pd.Timestamp("2025-01-08T10:00:00"), regressor_b] == 8.0, (
+        "Expected regressor B's latest known forecast value, because selection "
+        "happens independently per regressor."
+    )
+    assert 50.0 not in set(selected[regressor_a].dropna()), (
+        "Expected regressor A's future belief recorded after the forecast "
+        "belief_time to be excluded."
+    )
+    assert 80.0 not in set(selected[regressor_b].dropna()), (
+        "Expected regressor B's future belief recorded after the forecast "
+        "belief_time to be excluded."
+    )
 
 
 def test_past_regressor_split_selects_latest_known_value_per_regressor(monkeypatch):
@@ -768,10 +786,19 @@ def test_past_regressor_split_selects_latest_known_value_per_regressor(monkeypat
 
     pipeline.split_data_all_beliefs(df)
 
-    assert len(captured_past_frames) == 1
+    assert len(captured_past_frames) == 1, (
+        "Expected one past-covariate frame because this one-step pipeline "
+        "prepares exactly one split."
+    )
     selected = captured_past_frames[0].set_index("event_start")
-    assert selected.loc[pd.Timestamp("2025-01-08T09:00:00"), regressor_a] == 5.0
-    assert selected.loc[pd.Timestamp("2025-01-08T09:00:00"), regressor_b] == 7.0
+    assert selected.loc[pd.Timestamp("2025-01-08T09:00:00"), regressor_a] == 5.0, (
+        "Expected past regressor A's value to survive even though past "
+        "regressor B is known on a different joined row."
+    )
+    assert selected.loc[pd.Timestamp("2025-01-08T09:00:00"), regressor_b] == 7.0, (
+        "Expected past regressor B's value to survive because selection happens "
+        "independently per regressor."
+    )
 
 
 def test_future_regressor_splits_use_only_beliefs_known_at_forecast_belief_time(
@@ -981,15 +1008,30 @@ def test_realized_future_regressors_use_latest_known_per_regressor_per_step(
 
     pipeline.split_data_all_beliefs(df, is_predict_pipeline=True)
 
-    assert len(captured_future_frames) == 2
+    assert len(captured_future_frames) == 2, (
+        "Expected two future-covariate frames because the predict pipeline "
+        "simulates two forecast belief_time steps."
+    )
     first_step = captured_future_frames[0].set_index("event_start")
     second_step = captured_future_frames[1].set_index("event_start")
     event_start = pd.Timestamp("2025-01-08T09:00:00")
 
-    assert first_step.loc[event_start, regressor_a] == 2.0
-    assert first_step.loc[event_start, regressor_b] == 20.0
-    assert second_step.loc[event_start, regressor_a] == 3.0
-    assert second_step.loc[event_start, regressor_b] == 30.0
+    assert first_step.loc[event_start, regressor_a] == 2.0, (
+        "Expected the first forecast step to use regressor A's latest realized "
+        "belief known by 10:00, not the older 09:10 belief."
+    )
+    assert first_step.loc[event_start, regressor_b] == 20.0, (
+        "Expected the first forecast step to exclude regressor B's 10:45 belief "
+        "because it is not known yet at 10:00."
+    )
+    assert second_step.loc[event_start, regressor_a] == 3.0, (
+        "Expected the second forecast step to use regressor A's 10:30 belief "
+        "because it is known by 11:00."
+    )
+    assert second_step.loc[event_start, regressor_b] == 30.0, (
+        "Expected the second forecast step to use regressor B's 10:45 belief "
+        "because it is known by 11:00."
+    )
 
 
 def test_future_regressor_changes_forecasts_in_forecast_belief_time_window(
