@@ -14,6 +14,7 @@ from flexmeasures.data.models.planning.exceptions import UnknownPricesException
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning import StockCommitment
 from flexmeasures.data.queries.utils import simplify_index
+from flexmeasures.data.schemas.sensors import SensorReference
 
 from flexmeasures.utils.flexmeasures_inflection import capitalize, pluralize
 from flexmeasures.utils.unit_utils import ur, convert_units
@@ -99,11 +100,11 @@ def add_tiny_price_slope(
 
 def ensure_prices_are_not_empty(
     prices: pd.DataFrame,
-    price_variable_quantity: Sensor | list[dict] | ur.Quantity | None,
+    price_variable_quantity: Sensor | SensorReference | list[dict] | ur.Quantity | None,
 ):
     if prices.isnull().values.all() or prices.empty:
         error_message = "Prices unknown for planning window."
-        if isinstance(price_variable_quantity, Sensor):
+        if isinstance(price_variable_quantity, (Sensor, SensorReference)):
             error_message += f" (sensor {price_variable_quantity.id})"
         raise UnknownPricesException(error_message)
 
@@ -297,7 +298,7 @@ def idle_after_reaching_target(
 
 
 def get_series_from_quantity_or_sensor(
-    variable_quantity: Sensor | list[dict] | ur.Quantity,
+    variable_quantity: Sensor | SensorReference | list[dict] | ur.Quantity,
     unit: ur.Quantity | str,
     query_window: tuple[datetime, datetime],
     resolution: timedelta,
@@ -312,6 +313,8 @@ def get_series_from_quantity_or_sensor(
     :param variable_quantity:       Variable quantity measuring e.g. power capacity or efficiency.
                                     One of the following types:
                                     - a timely-beliefs Sensor recording the data
+                                    - a :class:`~flexmeasures.data.schemas.sensors.SensorReference`
+                                      wrapping a Sensor with optional source filters
                                     - a list of dictionaries representing a time series specification
                                     - a pint Quantity representing a fixed quantity
     :param unit:                    Unit of the output data.
@@ -344,6 +347,30 @@ def get_series_from_quantity_or_sensor(
                 resolution,
             )
         time_series = pd.Series(magnitude, index=index, name="event_value")
+    elif isinstance(variable_quantity, SensorReference):
+        # Sensor reference with optional source filters
+        bdf: tb.BeliefsDataFrame = TimedBelief.search(
+            variable_quantity.sensor,
+            event_starts_after=query_window[0],
+            event_ends_before=query_window[1],
+            resolution=resolution,
+            beliefs_before=beliefs_before,
+            most_recent_beliefs_only=True,
+            one_deterministic_belief_per_event=True,
+            source_types=variable_quantity.source_types,
+            exclude_source_types=variable_quantity.exclude_source_types,
+            source=variable_quantity.sources,
+        )
+        if as_instantaneous_events:
+            bdf = bdf.resample_events(
+                timedelta(0),
+                boundary_policy=resolve_overlaps,
+                keep_only_most_recent_belief=True,
+            )
+        time_series = simplify_index(bdf).reindex(index).squeeze(axis=1)
+        time_series = convert_units(
+            time_series, variable_quantity.unit, unit, resolution
+        )
     elif isinstance(variable_quantity, Sensor):
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
             variable_quantity,

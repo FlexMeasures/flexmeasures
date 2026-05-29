@@ -18,7 +18,7 @@ from flexmeasures import Asset, Sensor
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata
-from flexmeasures.data.schemas.sensors import VariableQuantityField
+from flexmeasures.data.schemas.sensors import VariableQuantityField, SensorReference
 from flexmeasures.utils.unit_utils import (
     ur,
     is_power_unit,
@@ -281,7 +281,7 @@ class StorageFlexModelSchema(Schema):
             return
         soc_targets: list[SoCTarget] | Sensor | None = data.get("soc_targets")
         # skip check if the SOC targets are not provided or if they are defined as sensors
-        if not soc_targets or isinstance(soc_targets, Sensor):
+        if not soc_targets or isinstance(soc_targets, (Sensor, SensorReference)):
             return
         max_target_datetime = max([target["end"] for target in soc_targets])
         max_server_horizon = current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")
@@ -296,14 +296,16 @@ class StorageFlexModelSchema(Schema):
             )
 
     @validates("state_of_charge")
-    def validate_state_of_charge(self, state_of_charge: Sensor | list[dict], **kwargs):
+    def validate_state_of_charge(
+        self, state_of_charge: Sensor | SensorReference | list[dict], **kwargs
+    ):
         if isinstance(
-            state_of_charge, Sensor
+            state_of_charge, (Sensor, SensorReference)
         ) and state_of_charge.event_resolution != timedelta(0):
             raise ValidationError(
                 "The field `state-of-charge` points to a sensor with a non-instantaneous event resolution. Please, use an instantaneous sensor."
             )
-        if not isinstance(state_of_charge, (Sensor, list)):
+        if not isinstance(state_of_charge, (Sensor, SensorReference, list)):
             raise ValidationError(
                 "The `state-of-charge` field can only be a Sensor or a time series."
             )
@@ -315,11 +317,11 @@ class StorageFlexModelSchema(Schema):
 
     @validates("storage_efficiency")
     def validate_storage_efficiency_resolution(
-        self, unit: Sensor | ur.Quantity, **kwargs
+        self, unit: Sensor | SensorReference | ur.Quantity, **kwargs
     ):
         if (
             self.sensor is not None
-            and isinstance(unit, Sensor)
+            and isinstance(unit, (Sensor, SensorReference))
             and unit.event_resolution != self.sensor.event_resolution
         ):
             raise ValidationError(
@@ -586,7 +588,7 @@ class DBStorageFlexModelSchema(Schema):
                                 f"Field '{self.mapped_schema_keys[field]}' must have a power unit.",
                                 field_name=self.mapped_schema_keys[field],
                             )
-                    elif isinstance(item, Sensor):
+                    elif isinstance(item, (Sensor, SensorReference)):
                         if not is_power_unit(item.unit):
                             raise ValidationError(
                                 f"Field '{self.mapped_schema_keys[field]}' must have a power unit.",
@@ -612,7 +614,7 @@ class DBStorageFlexModelSchema(Schema):
                     f"Field '{self.mapped_schema_keys[field]}' failed unit validation by {unit_validator.__name__}.",
                     field_name=self.mapped_schema_keys[field],
                 )
-        elif isinstance(data[field], Sensor):
+        elif isinstance(data[field], (Sensor, SensorReference)):
             if not unit_validator(data[field].unit):
                 raise ValidationError(
                     f"Field '{self.mapped_schema_keys[field]}' failed unit validation by {unit_validator.__name__}.",
