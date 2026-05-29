@@ -9,10 +9,11 @@ from typing import Sequence
 from datetime import timedelta
 
 from flask import current_app
+from redis.exceptions import ConnectionError as RedisConnectionError
 from werkzeug.exceptions import Forbidden, Unauthorized
 from numpy import array
 from psycopg2.errors import UniqueViolation
-from rq import Worker
+from rq import Queue, Worker
 from rq.job import Job
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -118,6 +119,14 @@ def save_and_enqueue(
     return invalid_replacement()
 
 
+def queue_has_connected_workers(queue: Queue) -> bool:
+    """Return True when an RQ queue is reachable and has connected workers."""
+    try:
+        return bool(Worker.all(queue=queue))
+    except RedisConnectionError:
+        return False
+
+
 def process_sensor_data_ingestion(
     sensor_id: int,
     user_id: int,
@@ -138,14 +147,13 @@ def process_sensor_data_ingestion(
         current_app.logger.warning(
             "No ingestion queue configured. Processing sensor data directly."
         )
-    else:
-        workers = Worker.all(queue=ingestion_queue)
-        if workers:
-            forecasting_job_ids = (
-                [job.id for job in forecasting_jobs]
-                if forecasting_jobs is not None
-                else None
-            )
+    elif queue_has_connected_workers(ingestion_queue):
+        forecasting_job_ids = (
+            [job.id for job in forecasting_jobs]
+            if forecasting_jobs is not None
+            else None
+        )
+        try:
             job = ingestion_queue.enqueue(
                 add_beliefs_to_db_and_enqueue_forecasting_jobs,
                 sensor_id=sensor_id,
@@ -166,14 +174,21 @@ def process_sensor_data_ingestion(
                     ).total_seconds()
                 ),
             )
+        except RedisConnectionError as error:
+            current_app.logger.warning(
+                "Unable to enqueue ingestion job in Redis queue %s: %s. Processing synchronously instead.",
+                getattr(ingestion_queue, "name", "<unknown>"),
+                error,
+            )
+        else:
             return request_accepted_for_processing(
                 job.id,
                 "Sensor data has been accepted for processing.",
             )
-        else:
-            current_app.logger.warning(
-                "No workers connected to the ingestion queue. Processing sensor data directly."
-            )
+    else:
+        current_app.logger.warning(
+            "No workers connected to the ingestion queue. Processing sensor data directly."
+        )
 
     status = add_beliefs_to_db_and_enqueue_forecasting_jobs(
         sensor_id=sensor_id,
