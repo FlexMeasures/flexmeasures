@@ -677,6 +677,9 @@ def test_future_regressor_split_selects_latest_known_value_per_regressor(monkeyp
 
     captured_future_frames = []
 
+    # Capture the covariate frame before missing-value filling converts it
+    # to a Darts TimeSeries. This keeps the test focused on in-memory belief
+    # selection instead of requiring database-backed sensor data.
     def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
         if sensor_names == self.future_regressors:
             captured_future_frames.append(df.copy())
@@ -753,6 +756,9 @@ def test_past_regressor_split_selects_latest_known_value_per_regressor(monkeypat
 
     captured_past_frames = []
 
+    # Capture the covariate frame before missing-value filling converts it
+    # to a Darts TimeSeries. This keeps the test focused on in-memory belief
+    # selection instead of requiring database-backed sensor data.
     def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
         if sensor_names == self.past_regressors:
             captured_past_frames.append(df.copy())
@@ -963,6 +969,9 @@ def test_realized_future_regressors_use_latest_known_per_regressor_per_step(
 
     captured_future_frames = []
 
+    # Capture the covariate frame before missing-value filling converts it
+    # to a Darts TimeSeries. This keeps the test focused on in-memory belief
+    # selection instead of requiring database-backed sensor data.
     def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
         if sensor_names == self.future_regressors:
             captured_future_frames.append(df.copy())
