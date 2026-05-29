@@ -389,35 +389,7 @@ Depending on assignment, the Lead may:
 
 ### Must Run Pre-commit Hooks With Every Commit
 
-**The Lead MUST run pre-commit hooks before every commit.**
-
-Before committing any code changes:
-
-1. **Install pre-commit** (if not already installed):
-   ```bash
-   uv tool install pre-commit
-   ```
-
-2. **Run hooks on all files**:
-   ```bash
-   pre-commit run --all-files
-   ```
-
-3. **Fix any issues** reported by the hooks:
-   - Flake8 violations (linting)
-   - Black formatting issues (automatically fixed)
-   - Mypy type checking errors
-   - Any custom hooks
-
-4. **Re-run hooks** after fixing issues to confirm they pass
-
-5. **Then commit** - Only commit after all hooks pass
-
-**Why this matters:**
-- Prevents formatting/linting issues in PR
-- Catches type errors early
-- Maintains code quality standards
-- Avoids extra "fix formatting" commits
+**The Lead MUST run `pre-commit run --all-files` before every commit.** See `.github/instructions/pre-commit-hooks.instructions.md` for setup and hook details. Only commit after all hooks pass.
 
 ### Must Always Run Coordinator
 
@@ -581,30 +553,7 @@ When a PR already exists and you are continuing work on it:
 
 ### Must Add Changelog Entry
 
-**Every PR or task MUST include a changelog entry.**
-
-Before closing a session:
-
-1. **Find the changelog** - Located at `documentation/changelog.rst`
-
-2. **Add entry in appropriate section**:
-   - New features → "New features"
-   - Infrastructure changes → "Infrastructure / Support"  
-   - Bug fixes → "Bugfixes"
-
-3. **Follow the format**:
-   ```rst
-   * Brief description of change [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
-   ```
-
-4. **Replace XXXX** with actual PR number. If the PR number is not known, alert the maintainer with a suggestion on how the PR number can be made available to the agent context.
-
-5. **Be concise** - One line describing user-visible impact
-
-**Why this matters:**
-- Users need to know what changed
-- Release notes are generated from changelog
-- Maintains project transparency
+**Every PR or task MUST include a changelog entry.** See `.github/instructions/changelog.instructions.md` for format, section order, and what qualifies.
 
 ### Must Actually Execute Tests
 
@@ -717,40 +666,7 @@ python -m pytest path/to/test_module.py -v
 
 ### Must Make Atomic Commits
 
-**Never mix different types of changes in a single commit.**
-
-Bad (non-atomic):
-
-- Code change + documentation file + agent instructions
-- Multiple unrelated code changes
-- Production code + test code
-
-Good (atomic):
-
-- Single code change with focused purpose
-- Documentation update separate from code
-- Agent instructions updated separately
-- Each commit tells one clear story
-
-### Commit Message Format
-
-```
-<area>: <concise lesson or improvement>
-Context:
-- What triggered this change
-Change:
-- What was adjusted and why
-```
-Example:
-```
-utils/time: fix duration parsing to respect timezone
-Context:
-- Bug #1234: PT2H parsed incorrectly in CET timezone
-- Existing code assumed UTC
-Change:
-- Pass timezone through to isodate.parse_duration
-- Ensures duration calculations respect local time
-```
+**Never mix different types of changes in a single commit.** See `.github/instructions/atomic-commits.instructions.md` for what belongs in separate commits and the commit message format.
 
 ### Must Understand Test Design Intent Before Changing Tests
 
@@ -933,21 +849,7 @@ Recommendation:
 
 ### Must Avoid Temporary Files
 
-**Never commit temporary analysis files.**
-
-Files to avoid:
-
-- `ARCHITECTURE_ANALYSIS.md`
-- `TASK_SUMMARY.md`  
-- `TEST_PLAN.md`
-- `DOCUMENTATION_CHANGES.md`
-- Any planning/analysis `.md` files
-
-These should either:
-
-- Stay in working memory only
-- Be written to `/tmp/` if needed
-- Be cleaned up before final commits
+**Never commit temporary analysis files** (e.g. `ARCHITECTURE_ANALYSIS.md`, `TEST_PLAN.md`, or any `.md` created for planning). Keep them in working memory or `/tmp/`. See `.github/instructions/atomic-commits.instructions.md`.
 
 ### Must Preserve Existing Inline Comments
 
@@ -963,21 +865,11 @@ or constraints that are not apparent from the code alone. When refactoring:
 
 ### Must Avoid Double Spaces After Punctuation
 
-**Use exactly one space after periods, commas, colons, and other punctuation in
-docstrings, inline comments, and documentation.**
-
-Double spaces (two spaces after a period) are a holdover from typewriter
-conventions and should not appear in Python source code or docs.
+See `.github/instructions/docstrings.instructions.md` — use exactly one space after punctuation in docstrings, inline comments, and documentation.
 
 ### UI Terminology: Organisation not Account
 
-In all **user-visible** text (button labels, tooltips, flash messages, template
-strings, user-facing docs), use **"organisation"** instead of **"account"**.
-The backend model is still named `Account`; only the language shown to end users
-changes. Similarly, never expose internal role names (e.g. `account-admin`) in
-UI text — use plain language ("organisation admin") instead.
-
-Delegate enforcement of this rule to the Documentation Specialist.
+See `.github/instructions/ui-terminology.instructions.md`. Delegate enforcement to the Documentation Specialist.
 
 ### Must Actually Run Coordinator When Requested
 
@@ -1404,36 +1296,21 @@ This is a regression (see Regression Prevention section). You MUST:
 
 ### Pre-Commit Verification
 
-- [ ] **Pre-commit hooks installed**: `pip install pre-commit` executed
-- [ ] **All hooks pass**: `pre-commit run --all-files` completed successfully
-- [ ] **Zero failures**: No linting errors (flake8), formatting issues (black), or type errors (mypy)
+- [ ] **All hooks pass**: `pre-commit run --all-files` (see `.github/instructions/pre-commit-hooks.instructions.md`)
 - [ ] **Changes committed**: If hooks modified files, changes included in commit
-
-**Evidence required**: Show pre-commit output or confirm "all hooks passed"
 
 ### Test Verification
 
-- [ ] **Full test suite executed**: `make test` or `pytest` run (NOT just feature-specific tests)
+- [ ] **Full test suite executed**: `uv run poe test` (NOT just feature-specific tests)
 - [ ] **ALL tests pass**: 100% pass rate (not 99%, not "mostly passing")
 - [ ] **Test output captured**: Number of tests, execution time, any warnings
-- [ ] **Failures investigated**: Any failures analyzed and resolved or documented
 - [ ] **Regression verified**: No new test failures introduced
 
 **Evidence required**: Show test count (e.g., "2,847 tests passed") and execution summary
 
-**FORBIDDEN:**
-- ❌ "Annotation API tests pass" (only tested one module)
-- ❌ "Tests pass locally" (didn't actually run them)
-- ❌ "Quick smoke test" (cherry-picked test files)
-
-**REQUIRED:**
-- ✅ "All 2,847 tests passed (100%)"
-- ✅ Full test suite execution confirmed by Test Specialist
-
 ### Documentation Verification
 
-- [ ] **Changelog entry added**: Entry in `documentation/changelog.rst`
-- [ ] **Appropriate section**: New features / Infrastructure / Bugfixes
+- [ ] **Changelog entry added**: Entry in `documentation/changelog.rst` (see `.github/instructions/changelog.instructions.md`)
 - [ ] **PR title clear**: References issue number and describes user-facing value
 - [ ] **PR description complete**: Explains changes and testing approach
 - [ ] **Code comments present**: Complex logic has explanatory comments
@@ -1452,10 +1329,9 @@ This is a regression (see Regression Prevention section). You MUST:
 
 ### Commit Quality
 
-- [ ] **Commits are atomic**: Each commit has single clear purpose
+- [ ] **Commits are atomic**: Each commit has single clear purpose (see `.github/instructions/atomic-commits.instructions.md`)
 - [ ] **No mixed changes**: Code, tests, docs, agent instructions in separate commits
 - [ ] **No temporary files**: Analysis/planning files not committed (use /tmp)
-- [ ] **Messages follow format**: Standard commit message structure used
 - [ ] **Agent updates separate**: Instruction updates not mixed with code changes
 
 **Evidence required**: Review commit history for atomicity

@@ -186,7 +186,7 @@ The field may define (a sensor recording) contractual penalties, or a theoretica
 
 
 STATE_OF_CHARGE = MetaData(
-    description="Sensor used to record the scheduled state of charge. If ``soc-at-start`` is omitted, FlexMeasures will also use this field to infer the starting state of charge. For this use case, the field may also contain a time series specification instead. When a sensor is used, its unit may be an energy unit (e.g. MWh or kWh) or a percentage (%). For sensors with a % unit, the ``soc-max`` flex-model field must be set to a non-zero value to allow converting between the energy-based schedule and a percentage.",
+    description="Sensor used to record the scheduled state of charge. If ``soc-at-start`` is omitted, FlexMeasures will also use this field to infer the starting state of charge. For this use case, the field may also contain a time series specification instead. When a sensor is used, its unit may be an energy unit (e.g. MWh or kWh) or a percentage (%). For sensors with a % unit, the ``soc-max`` flex-model field must be set to a non-zero value to allow converting between the energy-based schedule and a percentage. Also, the state-of-charge sensor's resolution should be instantaneous (i.e. `PT0M`).",
     example={"sensor": 12},
 )
 SOC_AT_START = MetaData(
@@ -219,18 +219,27 @@ To set softer boundaries, use the ``soc-maxima`` flex-model field instead togeth
 SOC_MINIMA = MetaData(
     description="""Set points that form lower boundaries, e.g. to target a full car battery in the morning.
 If a ``soc-minima-breach-price`` is defined, the ``soc-minima`` become soft constraints in the optimization problem.
-Otherwise, they become hard constraints. [#maximum_overlap]_""",
-    example=[{"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"}],
+Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points in time and ranges are possible, see example.""",
+    example=[
+        {"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"},
+        {
+            "value": "51 kWh",
+            "start": "2024-02-05T12:00:00+01:00",
+            "end": "2024-02-05T13:30:00+01:00",
+        },
+    ],
 )
 SOC_MAXIMA = MetaData(
     description="""Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.
 If a ``soc-maxima-breach-price`` is defined, the ``soc-maxima`` become soft constraints in the optimization problem.
 Otherwise, they become hard constraints. [#minimum_overlap]_""",
-    example={
-        "value": "51 kWh",
-        "start": "2024-02-05T12:00:00+01:00",
-        "end": "2024-02-05T13:30:00+01:00",
-    },
+    example=[
+        {
+            "value": "51 kWh",
+            "start": "2024-02-05T12:00:00+01:00",
+            "end": "2024-02-05T13:30:00+01:00",
+        }
+    ],
 )
 SOC_TARGETS = MetaData(
     description="""

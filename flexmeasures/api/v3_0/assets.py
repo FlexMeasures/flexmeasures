@@ -104,12 +104,14 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
             description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
         ),
     )
-    flex_model = fields.Nested(
-        storage_flex_model_schema_openAPI(exclude=["asset"]),
-        required=True,
-        data_key="flex-model",
-        metadata=dict(
-            description="The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
+    flex_model = fields.List(
+        fields.Nested(
+            storage_flex_model_schema_openAPI(exclude=["asset"]),
+            required=True,
+            data_key="flex-model",
+            metadata=dict(
+                description="Flex-model per device (identified by `sensor`). The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
+            ),
         ),
     )
 
@@ -1418,6 +1420,8 @@ class AssetAPI(FlaskView):
                               power-capacity: 25 kW
                               consumption-capacity: {sensor: 42}
                               production-capacity: 30 kW
+                              soc-minima:
+                                - {start: "2015-06-02T12:00:00+00:00", end: "2015-06-02T13:00:00+00:00", value: 10 kWh}
                             - sensor: 932
                               consumption-capacity: 0 kW
                               production-capacity: {sensor: 760}
@@ -1714,12 +1718,16 @@ class AssetAPI(FlaskView):
         post:
           summary: Copy an asset to a target account and/or parent.
           description: |
-            This endpoint creates a copy of an existing asset and optionally places it
-            under a `target` account and/or `parent` asset.
+            This endpoint creates a copy of an existing asset.
+
+            The asset copy will also have copies of child assets, including sensors and flex-configuration.
+            No beliefs will be copied.
+
+            The new asset can optionally be placed under a `target` account and/or `parent` asset.
 
             Resolution rules:
 
-            - If both are omitted, the copy remains in the same account and keeps the same parent.
+            - If both `target` and `account` are omitted, the copy remains in the same account and keeps the same parent as the original.
             - If `account` is provided and `parent` is omitted, parent defaults to `null`.
             - If `parent` is provided and `account` is omitted, account is derived from that parent.
             - If both are provided, it is possible to assign the copied asset to a different account than the parent.

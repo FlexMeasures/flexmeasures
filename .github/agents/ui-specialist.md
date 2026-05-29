@@ -9,6 +9,8 @@ description: Guards UI consistency, permission patterns, JavaScript interaction 
 
 Owns the quality, consistency, and correctness of all FlexMeasures UI work: Flask/Jinja2 templates, Python view logic, JavaScript interaction patterns (fetch → poll → Toast → reload), CSS, and UI-focused tests. Ensures new UI features follow established side-panel patterns, permission-gate correctly, and do not introduce security regressions. Accumulated from the "Create Forecast" button PR (#1985) session.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review

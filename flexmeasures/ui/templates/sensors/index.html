@@ -181,7 +181,7 @@ For the data, note the following:
                                           id="triggerForecastButton"
                                           class="btn btn-sm btn-responsive btn-success create-button{% if not sensor_has_enough_data_for_forecast %} d-none{% endif %}"
                                           type="button"
-                                          title="Queues a job to forecast the next few days, using a model trained on the last 30 days. Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
+                                          title="Queues a job to forecast the next few days, using a model trained on available historical data (max 1 year). Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
                                           style="border: 1px solid var(--light-gray);">
                                           Trigger forecast
                                       </button>
@@ -189,7 +189,7 @@ For the data, note the following:
                                       <!-- Disabled button: shown when no data, hidden by JS when data arrives -->
                                       <span
                                           id="forecastButtonDisabled"
-                                          title="Queues a job to forecast the next few days, using a model trained on the last 30 days. Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
+                                          title="Queues a job to forecast the next few days, using a model trained on available historical data (max 1 year). Requires at least two days of historical data. The forecast is saved back to this sensor. Progress is reported via status messages."
                                           class="{% if sensor_has_enough_data_for_forecast %}d-none{% endif %}">
                                           <button
                                               class="btn btn-sm btn-responsive btn-success create-button"
@@ -549,6 +549,8 @@ For the data, note the following:
     });
 
     {% if user_can_create_children_sensor %}
+    let firstAvailableEventStartForForecastTraining = null;
+
     async function triggerForecast() {
         const button = document.getElementById('triggerForecastButton');
         const spinner = document.getElementById('spinner-forecast');
@@ -575,6 +577,11 @@ For the data, note the following:
         let params = { duration: durationIso };
         if (forecastStart) {
             params.start = new Date(forecastStart).toISOString();
+        }
+        if (firstAvailableEventStartForForecastTraining) {
+            params.config = {
+                "train-start": firstAvailableEventStartForForecastTraining.toISOString(),
+            };
         }
 
         button.classList.add('d-none');
@@ -643,6 +650,10 @@ For the data, note the following:
             spinner.classList.add('d-none');
         }
     }
+
+    document.addEventListener('sensorDataRangeAvailable', function(e) {
+        firstAvailableEventStartForForecastTraining = e.detail.firstEventStart;
+    });
 
     document.getElementById('triggerForecastButton').addEventListener('click', triggerForecast);
     {% endif %}
