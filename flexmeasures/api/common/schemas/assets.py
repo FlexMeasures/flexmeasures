@@ -3,7 +3,7 @@ from marshmallow import Schema, fields, validate
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas import AssetIdField
-from flexmeasures.data.schemas.generic_assets import GenericAssetSchema
+from flexmeasures.data.schemas.generic_assets import AssetTypeIdField, GenericAssetSchema
 
 
 default_response_fields = ["id", "name", "account_id", "generic_asset_type"]
@@ -92,10 +92,9 @@ class AssetAPIQuerySchema(PaginationSchema):
             example=False,
         ),
     )
-    asset_type = fields.Int(
+    asset_type = AssetTypeIdField(
         data_key="asset_type",
         required=False,
-        validate=validate.Range(min=1),
         metadata=dict(
             description="Filter assets by generic asset type ID.",
             example=2,

@@ -267,7 +267,7 @@ class AssetAPI(FlaskView):
         fields_in_response: list[str] | None,
         all_accessible: bool,
         include_public: bool,
-        asset_type: int | None = None,
+        asset_type: GenericAssetType | None = None,
         account: Account | None = None,
         root_asset: GenericAsset | None = None,
         max_depth: int | None = None,
@@ -367,7 +367,7 @@ class AssetAPI(FlaskView):
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
         if asset_type is not None:
             filter_statement = filter_statement & (
-                GenericAsset.generic_asset_type_id == asset_type
+                GenericAsset.generic_asset_type_id == asset_type.id
             )
 
         query = query_assets_by_search_terms(

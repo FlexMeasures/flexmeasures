@@ -171,7 +171,9 @@ def test_get_assets(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_get_assets_filtered_by_asset_type(client, setup_accounts, requesting_user):
+def test_get_assets_filtered_by_asset_type(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
     supplier_account = setup_accounts["Supplier"]
     supplier_account_id = supplier_account.id
     supplier_assets = supplier_account.generic_assets
