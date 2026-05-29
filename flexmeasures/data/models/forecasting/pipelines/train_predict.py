@@ -415,9 +415,7 @@ class TrainPredictPipeline(Forecaster):
 
                 job = Job.create(
                     run_train_predict_cycle_job,
-                    # Some cycle job params override job kwargs
                     kwargs={
-                        **job_kwargs,
                         "config": job_config,
                         "parameters": job_parameters,
                         "data_source_id": data_source_id,
