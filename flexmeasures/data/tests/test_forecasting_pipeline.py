@@ -69,7 +69,7 @@ def test_custom_lgbm_rejects_invalid_lag_steps():
             seasonal_lags_steps=[24, 0],
         )
 
-    with pytest.raises(ValueError, match="None of the seasonal_lags_steps"):
+    with pytest.raises(NotEnoughDataException, match="Not enough training data"):
         CustomLGBM(
             max_forecast_horizon=2,
             probabilistic=False,
