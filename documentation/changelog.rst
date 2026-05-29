@@ -2,6 +2,7 @@
 **********************
 FlexMeasures Changelog
 **********************
+* Sensor references in flex-model and flex-context support various ways of filtering by source [see `PR #2209 <https://www.github.com/FlexMeasures/flexmeasures/pull/2209>`_]
 
 
 v0.33.0 | May XX, 2026
