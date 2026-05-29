@@ -3,7 +3,10 @@ from marshmallow import Schema, fields, validate
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas import AssetIdField
-from flexmeasures.data.schemas.generic_assets import AssetTypeIdField, GenericAssetSchema
+from flexmeasures.data.schemas.generic_assets import (
+    AssetTypeIdField,
+    GenericAssetSchema,
+)
 
 
 default_response_fields = ["id", "name", "account_id", "generic_asset_type"]
