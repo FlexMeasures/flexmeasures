@@ -89,6 +89,40 @@ def fresh_db(app):
         yield test_db
 
 
+@pytest.fixture(scope="function")
+def transactional_db(db):
+    """Function-scoped DB fixture that uses transaction rollback for test isolation.
+
+    Faster than fresh_db because it avoids recreating the DB schema for each test.
+    Instead, each test is wrapped in a transaction (with savepoints for commits)
+    that is rolled back at teardown, leaving the DB in its pre-test state.
+
+    All DB operations within a test — including setup fixtures, HTTP requests through
+    the Flask test client, and in-process RQ workers — share the same session and
+    therefore the same transaction, so the rollback undoes all of them.
+
+    Requires a module-scoped ``db`` fixture to ensure the schema already exists.
+    Tests that need a truly empty database (e.g. DDL-manipulating migration tests)
+    should continue to use ``fresh_db`` instead.
+    """
+    from sqlalchemy.orm import Session as SASession
+
+    connection = db.engine.connect()
+    transaction = connection.begin()
+    # join_transaction_mode="create_savepoint" means session.commit() creates a
+    # SAVEPOINT and releases it rather than committing the outer transaction, so
+    # the outer transaction.rollback() in teardown can undo everything.
+    session = SASession(bind=connection, join_transaction_mode="create_savepoint")
+    db.session.registry.set(session)
+
+    yield db
+
+    session.close()
+    db.session.registry.clear()
+    transaction.rollback()
+    connection.close()
+
+
 @contextmanager
 def create_test_db(app: Flask):
     """
@@ -121,6 +155,11 @@ def setup_accounts(db) -> dict[str, Account]:
 @pytest.fixture(scope="function")
 def setup_accounts_fresh_db(fresh_db) -> dict[str, Account]:
     return create_test_accounts(fresh_db)
+
+
+@pytest.fixture(scope="function")
+def setup_accounts_transactional_db(transactional_db) -> dict[str, Account]:
+    return create_test_accounts(transactional_db)
 
 
 def create_test_accounts(db) -> dict[str, Account]:
@@ -197,6 +236,13 @@ def setup_roles_users(db, setup_accounts) -> dict[str, User]:
 @pytest.fixture(scope="function")
 def setup_roles_users_fresh_db(fresh_db, setup_accounts_fresh_db) -> dict[str, User]:
     return create_roles_users(fresh_db, setup_accounts_fresh_db)
+
+
+@pytest.fixture(scope="function")
+def setup_roles_users_transactional_db(
+    transactional_db, setup_accounts_transactional_db
+) -> dict[str, User]:
+    return create_roles_users(transactional_db, setup_accounts_transactional_db)
 
 
 def create_roles_users(db, test_accounts) -> dict[str, User]:
@@ -325,6 +371,11 @@ def setup_markets_fresh_db(fresh_db) -> dict[str, Sensor]:
     return create_test_markets(fresh_db)
 
 
+@pytest.fixture(scope="function")
+def setup_markets_transactional_db(transactional_db) -> dict[str, Sensor]:
+    return create_test_markets(transactional_db)
+
+
 def create_test_markets(db) -> dict[str, Sensor]:
     """Create the epex_da market."""
 
@@ -368,6 +419,11 @@ def setup_sources_fresh_db(fresh_db) -> dict[str, DataSource]:
     return create_sources(fresh_db)
 
 
+@pytest.fixture(scope="function")
+def setup_sources_transactional_db(transactional_db) -> dict[str, DataSource]:
+    return create_sources(transactional_db)
+
+
 def create_sources(db) -> dict[str, DataSource]:
     seita_source = DataSource(name="Seita", type="demo script")
     db.session.add(seita_source)
@@ -403,6 +459,20 @@ def setup_generic_assets_fresh_db(
     """Make some generic assets used throughout."""
     return create_generic_assets(
         fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
+    )
+
+
+@pytest.fixture(scope="function")
+def setup_generic_assets_transactional_db(
+    transactional_db,
+    setup_generic_asset_types_transactional_db,
+    setup_accounts_transactional_db,
+) -> dict[str, GenericAsset]:
+    """Make some generic assets used throughout."""
+    return create_generic_assets(
+        transactional_db,
+        setup_generic_asset_types_transactional_db,
+        setup_accounts_transactional_db,
     )
 
 
@@ -451,6 +521,14 @@ def setup_generic_asset_types(db) -> dict[str, GenericAssetType]:
 def setup_generic_asset_types_fresh_db(fresh_db) -> dict[str, GenericAssetType]:
     """Make some generic asset types used throughout."""
     return create_generic_asset_types(fresh_db)
+
+
+@pytest.fixture(scope="function")
+def setup_generic_asset_types_transactional_db(
+    transactional_db,
+) -> dict[str, GenericAssetType]:
+    """Make some generic asset types used throughout."""
+    return create_generic_asset_types(transactional_db)
 
 
 def create_generic_asset_types(db) -> dict[str, GenericAssetType]:
@@ -504,6 +582,23 @@ def setup_assets_fresh_db(
         setup_markets_fresh_db,
         setup_sources_fresh_db,
         setup_generic_asset_types_fresh_db,
+    )
+
+
+@pytest.fixture(scope="function")
+def setup_assets_transactional_db(
+    transactional_db,
+    setup_accounts_transactional_db,
+    setup_markets_transactional_db,
+    setup_sources_transactional_db,
+    setup_generic_asset_types_transactional_db,
+) -> dict[str, GenericAsset]:
+    return create_assets(
+        transactional_db,
+        setup_accounts_transactional_db,
+        setup_markets_transactional_db,
+        setup_sources_transactional_db,
+        setup_generic_asset_types_transactional_db,
     )
 
 
@@ -709,6 +804,21 @@ def add_market_prices_fresh_db(
     )
 
 
+@pytest.fixture(scope="function")
+def add_market_prices_transactional_db(
+    transactional_db: SQLAlchemy,
+    setup_assets_transactional_db,
+    setup_markets_transactional_db,
+    setup_sources_transactional_db,
+) -> dict[str, Sensor]:
+    return add_market_prices_common(
+        transactional_db,
+        setup_assets_transactional_db,
+        setup_markets_transactional_db,
+        setup_sources_transactional_db,
+    )
+
+
 def add_market_prices_common(
     db: SQLAlchemy, setup_assets, setup_markets, setup_sources
 ) -> dict[str, Sensor]:
@@ -858,6 +968,22 @@ def add_battery_assets_fresh_db(
         setup_accounts_fresh_db,
         setup_markets_fresh_db,
         setup_generic_asset_types_fresh_db,
+    )
+
+
+@pytest.fixture(scope="function")
+def add_battery_assets_transactional_db(
+    transactional_db,
+    setup_roles_users_transactional_db,
+    setup_accounts_transactional_db,
+    setup_markets_transactional_db,
+    setup_generic_asset_types_transactional_db,
+) -> dict[str, GenericAsset]:
+    return create_test_battery_assets(
+        transactional_db,
+        setup_accounts_transactional_db,
+        setup_markets_transactional_db,
+        setup_generic_asset_types_transactional_db,
     )
 
 
@@ -1249,6 +1375,19 @@ def add_charging_station_assets_fresh_db(
     )
 
 
+@pytest.fixture(scope="function")
+def add_charging_station_assets_transactional_db(
+    transactional_db: SQLAlchemy,
+    setup_accounts_transactional_db,
+    setup_markets_transactional_db,
+) -> dict[str, GenericAsset]:
+    return create_charging_station_assets(
+        transactional_db,
+        setup_accounts_transactional_db,
+        setup_markets_transactional_db,
+    )
+
+
 def create_charging_station_assets(
     db: SQLAlchemy, setup_accounts, setup_markets
 ) -> dict[str, GenericAsset]:
@@ -1480,6 +1619,16 @@ def battery_soc_sensor(db: SQLAlchemy, setup_generic_assets):
 def battery_soc_sensor_fresh_db(fresh_db: SQLAlchemy, setup_generic_assets_fresh_db):
     """Add a battery SOC sensor to the fresh db."""
     return create_battery_soc_sensor(fresh_db, setup_generic_assets_fresh_db)
+
+
+@pytest.fixture(scope="function")
+def battery_soc_sensor_transactional_db(
+    transactional_db: SQLAlchemy, setup_generic_assets_transactional_db
+):
+    """Add a battery SOC sensor to the transactional db."""
+    return create_battery_soc_sensor(
+        transactional_db, setup_generic_assets_transactional_db
+    )
 
 
 def create_battery_soc_sensor(db: SQLAlchemy, setup_generic_assets):
