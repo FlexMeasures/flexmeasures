@@ -667,8 +667,8 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "default": None,
         "description": rst_to_openapi(metadata.CHARGING_EFFICIENCY.description),
         "types": {
-            "backend": "typeFive",
-            "ui": "Fixed value only.",
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
         },
         "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
     },
@@ -676,8 +676,8 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "default": None,
         "description": rst_to_openapi(metadata.DISCHARGING_EFFICIENCY.description),
         "types": {
-            "backend": "typeFive",
-            "ui": "Fixed value only.",
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
         },
         "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
     },
@@ -685,8 +685,8 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "default": None,
         "description": rst_to_openapi(metadata.STORAGE_EFFICIENCY.description),
         "types": {
-            "backend": "typeFive",
-            "ui": "Fixed value only.",
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
         },
         "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
     },
@@ -962,15 +962,24 @@ class AssetTriggerSchema(Schema):
     flex_model = fields.List(
         fields.Nested(MultiSensorFlexModelSchema()),
         data_key="flex-model",
+        load_default=[],
     )
     flex_context = fields.Dict(
         required=False,
         data_key="flex-context",
+        load_default={},
     )
     sequential = fields.Bool(
         load_default=False,
         metadata=dict(
             description="If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previously scheduled assets as inflexible device.",
+        ),
+    )
+    force_new_job_creation = fields.Boolean(
+        data_key="force-new-job-creation",
+        required=False,
+        metadata=dict(
+            description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
         ),
     )
 
@@ -1006,7 +1015,11 @@ class GetScheduleSchema(Schema):
 
         if unit is None:
             data["unit"] = sensor.unit
-        elif unit != sensor.unit and not units_are_convertible(sensor.unit, unit):
+        elif unit != sensor.unit and not units_are_convertible(
+            sensor.unit,
+            unit,
+            duration_known=True if sensor.event_resolution != timedelta(0) else False,
+        ):
             raise ValidationError(
                 f"Incompatible units: {sensor.unit} cannot be converted to {unit}.",
                 field_name="unit",

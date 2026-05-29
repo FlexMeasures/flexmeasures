@@ -1,5 +1,7 @@
 from importlib_metadata import version, PackageNotFoundError
 
+import numpy as np
+
 from flexmeasures.data.models.annotations import Annotation
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import (
@@ -20,6 +22,9 @@ from flexmeasures.data.models.time_series import Sensor
 
 
 __version__ = "Unknown"
+
+# https://github.com/sqlalchemy/sqlalchemy/discussions/11712
+np.set_printoptions(legacy="1.25")
 
 # This uses importlib.metadata behaviour added in Python 3.8
 # and relies on setuptools_scm.

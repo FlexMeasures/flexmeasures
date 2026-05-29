@@ -15,6 +15,7 @@ from sqlalchemy import select, Select
 from flexmeasures.data.config import db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.user import Account
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
@@ -84,13 +85,16 @@ def potentially_limit_assets_query_to_accounts(
 
 def get_source_criteria(
     cls: "Type[ts.TimedValue] | Type[ts.TimedBelief]",
-    user_source_ids: int | list[int],
-    source_types: list[str],
-    exclude_source_types: list[str],
+    user_source_ids: int | list[int] | None = None,
+    source_account_ids: int | list[int] | None = None,
+    source_types: list[str] | None = None,
+    exclude_source_types: list[str] | None = None,
 ) -> list[BinaryExpression]:
     source_criteria: list[BinaryExpression] = []
     if user_source_ids is not None:
         source_criteria.append(user_source_criterion(cls, user_source_ids))
+    if source_account_ids is not None:
+        source_criteria.append(source_account_criterion(source_account_ids))
     if source_types is not None:
         if user_source_ids and "user" not in source_types:
             source_types.append("user")
@@ -129,6 +133,22 @@ def user_source_criterion(
     if hasattr(cls, "data_source_id"):
         return cls.data_source_id.not_in(ignorable_user_source_ids)
     return cls.source_id.not_in(ignorable_user_source_ids)
+
+
+def source_account_criterion(
+    source_account_ids: int | list[int] | Account | list[Account],
+) -> BinaryExpression:
+    """Criterion to collect only data from sources belonging to the given account(s).
+
+    Accepts account IDs as integers or Account model instances (or a list of either).
+    """
+    if not isinstance(source_account_ids, list):
+        source_account_ids = [source_account_ids]
+    # Support both integer IDs and Account model instances
+    source_account_ids = [
+        a.id if not isinstance(a, int) else a for a in source_account_ids
+    ]
+    return DataSource.account_id.in_(source_account_ids)
 
 
 def source_type_criterion(source_types: list[str]) -> BinaryExpression:

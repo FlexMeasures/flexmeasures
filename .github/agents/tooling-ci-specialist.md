@@ -9,6 +9,8 @@ description: Reviews GitHub Actions workflows, pre-commit hooks, and CI/CD pipel
 
 Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actions workflows, pre-commit hooks, linters, build scripts, and CI/CD pipelines. Ensure tests run efficiently, caching works correctly, and agents are used properly in workflows. This agent owns the reliability of the development and deployment infrastructure.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review
@@ -111,6 +113,72 @@ git diff flexmeasures/ui/static/openapi-specs.json | grep -c '"Asia/'
 - [ ] **OS matrix**: Ubuntu latest (add others if needed)
 - [ ] **Fail-fast**: Usually false for comprehensive testing
 - [ ] **Coverage**: One Python version runs coverage
+
+### Pre-commit Hook Execution (CRITICAL)
+
+**Every commit MUST pass `pre-commit run --all-files` BEFORE being committed.** See `.github/instructions/pre-commit-hooks.instructions.md` for setup and hook details. Committing code that fails pre-commit hooks is a process failure.
+
+#### Responsibility Assignment
+
+**Who runs pre-commit:**
+- **During code changes**: Agent making changes runs pre-commit before committing
+- **Before PR close**: Lead verifies pre-commit execution
+- **In PR review**: Tooling & CI Specialist validates config matches CI
+
+**Enforcement:**
+- Lead's session close checklist includes pre-commit verification
+- Lead cannot close session without pre-commit evidence
+- If pre-commit fails, agent must fix all issues before proceeding
+
+#### Common Failures and Fixes
+
+**Flake8 failures:**
+```bash
+# Common issues:
+# - E501: Line too long (black should handle this)
+# - F401: Unused import (remove import)
+# - C901: Function too complex (refactor)
+# - W503: Line break before binary operator (ignore, conflicts with black)
+
+# Quick check:
+flake8 path/to/file.py
+```
+
+**Black failures:**
+```bash
+# Auto-fix formatting:
+black path/to/file.py
+
+# Or format entire codebase:
+black .
+```
+
+**Mypy failures:**
+```bash
+# Type annotation required
+# Manual fix needed:
+# - Add type hints to function signatures
+# - Fix type mismatches
+# - Add # type: ignore comments with justification
+
+# Run mypy:
+ci/run_mypy.sh
+```
+
+#### Integration with Lead
+
+**Lead checklist items:**
+- [ ] Pre-commit hooks installed
+- [ ] All hooks pass: `pre-commit run --all-files`
+- [ ] Zero failures from flake8, black, mypy
+- [ ] If hooks modified files, changes committed
+
+**Evidence required:**
+- Show pre-commit output confirming all hooks passed
+- Or confirm: "Pre-commit verified: all hooks passed"
+
+**Enforcement:**
+Lead MUST verify pre-commit execution before closing session.
 
 ### Agent Environment Setup
 
@@ -311,6 +379,15 @@ pytest -k test_auth_token  # Ensure auth setup runs
 - Document new CI patterns
 - Update checklist based on real issues
 - Refine guidance on caching and optimization
+
+### Lessons Learned
+
+#### `uv sync --locked` fails after `uv lock --upgrade` (PR #2148)
+
+- **Symptom**: `uv sync --locked` fails with "needs to be updated, but `--locked` was provided" even after running `uv lock`
+- **Root cause**: New packages (e.g. `numba`/`llvmlite`) introduce fork markers with impossible platform combos (e.g. `os_name == 'nt' AND sys_platform == 'darwin'`), causing coverage check to fail
+- **Fix**: Add `[tool.uv] environments` to `pyproject.toml` limiting resolution to actual target platforms, then regenerate `uv.lock`
+- **Verification**: After any significant `uv lock --upgrade`, run `uv sync --locked` locally and confirm exit code 0
 
 ### Continuous Improvement
 

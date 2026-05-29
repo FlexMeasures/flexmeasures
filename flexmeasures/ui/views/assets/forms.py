@@ -41,11 +41,6 @@ class AssetForm(FlaskForm):
         "Parent Asset Id",
         validators=[optional()],
     )
-    attributes = StringField(
-        "Other attributes (JSON)",
-        default="{}",
-        description="Custom attributes as JSON, for custom functionality, e.g. used in plugins.",
-    )
     sensors_to_show_as_kpis = StringField(
         "Sensors to show as KPIs (JSON)",
         default="[]",

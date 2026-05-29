@@ -56,6 +56,10 @@ class SensorsToShowSchema(fields.Field):
     - `[{"title": "Test", "plots": [{"sensors": [1, 2]}]}, {"title": None, "plots": [{"sensors": [3, 4]}]}, {"title": None, "plots": [{"sensor": 5}]}]`
     """
 
+    def __init__(self, *args, allow_missing_asset_flex_field: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.allow_missing_asset_flex_field = allow_missing_asset_flex_field
+
     def deserialize(self, value, **kwargs) -> list:
         """
         Validate and deserialize the input value.
@@ -201,6 +205,8 @@ class SensorsToShowSchema(fields.Field):
                 raise ValidationError(f"The value for '{field_name}' must be a string.")
 
             if value not in valid_collection:
+                if self.allow_missing_asset_flex_field:
+                    return
                 raise ValidationError(f"'{field_name}' value '{value}' is not valid.")
 
             attr_to_check = (
@@ -209,6 +215,8 @@ class SensorsToShowSchema(fields.Field):
             asset_flex_config = getattr(asset, attr_to_check, {})
 
             if value not in asset_flex_config:
+                if self.allow_missing_asset_flex_field:
+                    return
                 raise ValidationError(
                     f"The asset with ID '{asset_id}' does not have a '{value}' set in its '{attr_to_check}'."
                 )

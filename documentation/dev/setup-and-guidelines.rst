@@ -63,7 +63,7 @@ On Linux and Windows, everything will be installed using Python packages.
 On MacOS, this will install all test dependencies, and locally install the HiGHS solver.
 For this to work, make sure you have `Homebrew <https://brew.sh/>`_ installed.
 
-Besides the HiGHS solver (as the current default), the CBC solver is required for tests as well. See `The install instructions <https://github.com/coin-or/Cbc?tab=readme-ov-file#binaries`_ for more information.
+Besides the HiGHS solver (as the current default), the CBC solver is required for tests as well. See `The install instructions <https://github.com/coin-or/Cbc?tab=readme-ov-file#binaries>`_ for more information.
 
 Configuration
 ^^^^^^^^^^^^^

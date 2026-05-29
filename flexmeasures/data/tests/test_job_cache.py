@@ -11,34 +11,35 @@ from redis.exceptions import ConnectionError
 from rq.job import NoSuchJobError
 
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 from flexmeasures.data.services.job_cache import JobCache, NoRedisConfigured
-from flexmeasures.data.services.forecasting import create_forecasting_jobs
 from flexmeasures.data.services.scheduling import create_scheduling_job
 from flexmeasures.utils.time_utils import as_server_time
-
-
-def custom_model_params():
-    """little training as we have little data, turn off transformations until they let this test run (TODO)"""
-    return dict(
-        training_and_testing_period=timedelta(hours=2),
-        outcome_var_transformation=None,
-        regressor_transformation={},
-    )
 
 
 def test_cache_on_create_forecasting_jobs(db, run_as_cli, app, setup_test_data):
     """Test we add job to cache on creating forecasting job + get job from cache"""
     wind_device_1: Sensor = setup_test_data["wind-asset-1"].sensors[0]
 
-    job = create_forecasting_jobs(
-        start_of_roll=as_server_time(datetime(2015, 1, 1, 6)),
-        end_of_roll=as_server_time(datetime(2015, 1, 1, 7)),
-        horizons=[timedelta(hours=1)],
-        sensor_id=wind_device_1.id,
-        custom_model_params=custom_model_params(),
+    pipeline = TrainPredictPipeline(
+        config={
+            "train-start": "2015-01-01T00:00:00+00:00",
+            "retrain-frequency": "PT1H",
+        }
     )
+    pipeline_returns = pipeline.compute(
+        as_job=True,
+        parameters={
+            "sensor": wind_device_1.id,
+            "start": as_server_time(datetime(2015, 1, 1, 6)).isoformat(),
+            "end": as_server_time(datetime(2015, 1, 1, 7)).isoformat(),
+            "max-forecast-horizon": "PT1H",
+            "forecast-frequency": "PT1H",
+        },
+    )
+    job = app.queues["forecasting"].fetch_job(pipeline_returns["job_id"])
 
-    assert app.job_cache.get(wind_device_1.id, "forecasting", "sensor") == [job[0]]
+    assert app.job_cache.get(wind_device_1.id, "forecasting", "sensor") == [job]
 
 
 def test_cache_on_create_scheduling_jobs(db, app, add_battery_assets, setup_test_data):
