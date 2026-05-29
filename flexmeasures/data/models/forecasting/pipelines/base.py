@@ -277,6 +277,48 @@ class BasePipeline:
             belief_timestamps_list : list[pd.Timestamp]
             """
 
+            def _select_latest_per_regressor(
+                data: pd.DataFrame,
+                regressor_columns: list[str],
+            ) -> pd.DataFrame:
+                """Select latest non-null values per event and regressor.
+
+                :param data:                Frame with ``event_start``, ``belief_time``,
+                                            and regressor columns.
+                :param regressor_columns:   Regressor columns to select independently.
+                :return:                    Wide frame with one row per ``event_start``
+                                            and one selected value per regressor.
+                """
+                keep = ["event_start", *regressor_columns]
+                if data.empty:
+                    return data.iloc[0:0][keep].copy()
+                selected = (
+                    data[["event_start"]]
+                    .drop_duplicates()
+                    .sort_values("event_start")
+                    .reset_index(drop=True)
+                )
+
+                for regressor in regressor_columns:
+                    regressor_data = data[
+                        ["event_start", "belief_time", regressor]
+                    ].dropna(subset=[regressor])
+                    if regressor_data.empty:
+                        selected[regressor] = np.nan
+                        continue
+
+                    idx = regressor_data.groupby("event_start")["belief_time"].idxmax()
+                    selected_values = regressor_data.loc[
+                        idx, ["event_start", regressor]
+                    ]
+                    selected = selected.merge(
+                        selected_values,
+                        on="event_start",
+                        how="left",
+                    )
+
+                return selected[keep]
+
             target_sensor_resolution = self.target_sensor.event_resolution
 
             # target_start is the timestamp of the event_start of the first event in realizations
@@ -347,27 +389,26 @@ class BasePipeline:
                     out.loc[:, "event_start"] = es.iloc[lo:hi].to_numpy()
                 return out
 
-            def _latest_known_by_event_start(
+            def _latest_known_per_regressor(
                 df_: pd.DataFrame,
+                regressor_columns: list[str],
                 forecast_belief_time: pd.Timestamp,
                 realized_only: bool = False,
             ) -> pd.DataFrame:
-                """Select one row per event using beliefs known at forecast belief time."""
-                keep = [c for c in df_.columns if c not in ("belief_time")]
+                """Select latest regressor values known at forecast belief time."""
+                keep = ["event_start", *regressor_columns]
                 if df_.empty:
                     return df_.iloc[0:0][keep].copy()
 
                 known = df_.loc[df_["belief_time"] <= forecast_belief_time].copy()
                 if realized_only:
                     known = known.loc[known["belief_time"] > known["event_start"]]
+                else:
+                    known = known.loc[known["belief_time"] <= known["event_start"]]
                 if known.empty:
                     return df_.iloc[0:0][keep].copy()
 
-                idx = known.groupby("event_start")["belief_time"].idxmax()
-                latest = (
-                    known.loc[idx].sort_values("event_start").reset_index(drop=True)
-                )
-                return latest[keep]
+                return _select_latest_per_regressor(known, regressor_columns)
 
             target_list = []
             past_covariates_list = []
@@ -408,8 +449,11 @@ class BasePipeline:
 
                 # Past covariates split
                 if X_past_regressors_df is not None:
-                    past_known = _latest_known_by_event_start(
-                        X_past_regressors_df, belief_time, realized_only=True
+                    past_known = _latest_known_per_regressor(
+                        X_past_regressors_df,
+                        self.past_regressors,
+                        belief_time,
+                        realized_only=True,
                     )
                     past_slice = _slice_closed(past_known, target_start, target_end)
                     past_covariates = self.detect_and_fill_missing_values(
@@ -424,8 +468,11 @@ class BasePipeline:
 
                 # Future covariates (realized up to target_end + forecasts up to forecast_end) split
                 if X_future_regressors_df is not None:
-                    future_known = _latest_known_by_event_start(
-                        X_future_regressors_df, belief_time, realized_only=True
+                    future_known = _latest_known_per_regressor(
+                        X_future_regressors_df,
+                        self.future_regressors,
+                        belief_time,
+                        realized_only=True,
                     )
                     realized_slice = _slice_closed(
                         future_known, target_start, target_end
@@ -444,23 +491,14 @@ class BasePipeline:
                         )
                     ].copy()
 
-                    keep_fc = [
-                        c for c in X_future_regressors_df.columns if c != "belief_time"
-                    ]
-                    if fc_window.empty:
-                        forecast_slice = fc_window.iloc[0:0][keep_fc].copy()
-                    else:
-                        # For each future event_start, pick the latest belief known
-                        # at the simulated forecast belief time.
-                        idx_fc = fc_window.groupby("event_start")[
-                            "belief_time"
-                        ].idxmax()
-                        forecast_slice = (
-                            fc_window.loc[idx_fc]
-                            .sort_values("event_start")
-                            .reset_index(drop=True)
-                        )
-                        forecast_slice = forecast_slice[keep_fc]
+                    # For each future event_start, pick the latest forecast belief known
+                    # at the simulated forecast belief time.
+                    forecast_slice = _latest_known_per_regressor(
+                        fc_window,
+                        self.future_regressors,
+                        belief_time,
+                        realized_only=False,
+                    )
 
                     future_df = (
                         pd.concat([realized_slice, forecast_slice], ignore_index=True)

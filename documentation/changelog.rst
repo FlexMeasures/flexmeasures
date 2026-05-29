@@ -45,6 +45,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix forecasting covariate assembly to retain the latest known value per regressor when regressors have different belief times for the same event [see `PR #2155 <https://www.github.com/FlexMeasures/flexmeasures/pull/2155>`_]
 * Fix ``StorageScheduler`` crash (``AttributeError: 'NoneType' object has no attribute 'event_resolution'``) when scheduling a site whose asset tree contains non-storage devices with only a ``power-capacity`` in their ``flex-model`` (no ``sensor`` key) [see `PR #2085 <https://github.com/FlexMeasures/flexmeasures/issues/2085>`_]
 * Fix DST transition handling by supporting both native Python ``datetime`` and pandas ``Timestamp`` objects in time series segment processing, preventing ``AttributeError`` when processing segments with differing UTC offsets [see `PR #2197 <https://github.com/FlexMeasures/flexmeasures/pull/2197>`_]
 * Fix forecasting regressor filtering to use only regressor beliefs known at the forecast ``belief_time`` [see `PR #2134 <https://www.github.com/FlexMeasures/flexmeasures/pull/2134>`_]
