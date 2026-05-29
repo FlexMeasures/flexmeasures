@@ -1151,26 +1151,48 @@ class MetaStorageScheduler(Scheduler):
 
     def _resolve_soc_at_start_from_sensor(
         self,
-        state_of_charge_sensor: Sensor,
+        state_of_charge_sensor: Sensor | SensorReference,
         flex_model: dict,
         sensor: Sensor | None = None,
     ) -> float:
         """Resolve ``soc-at-start`` from a ``state-of-charge`` sensor.
 
-        :param state_of_charge_sensor: Instantaneous SoC sensor.
+        :param state_of_charge_sensor: Instantaneous SoC sensor or sensor reference (with optional source filters).
         :param flex_model:             Flex model containing the SoC configuration.
         :param sensor:                 Optional scheduled power sensor.
         :returns:                      Starting SoC in MWh.
         """
+        # Unpack SensorReference to extract the underlying sensor and any source filters.
+        if isinstance(state_of_charge_sensor, SensorReference):
+            source_types = state_of_charge_sensor.source_types
+            exclude_source_types = state_of_charge_sensor.exclude_source_types
+            sources = state_of_charge_sensor.sources
+            source_account_ids = (
+                [a.id for a in state_of_charge_sensor.source_account]
+                if state_of_charge_sensor.source_account
+                else None
+            )
+            soc_sensor = state_of_charge_sensor.sensor
+        else:
+            source_types = None
+            exclude_source_types = None
+            sources = None
+            source_account_ids = None
+            soc_sensor = state_of_charge_sensor
+
         lookup_radius = self._get_soc_lookup_radius(sensor)
-        beliefs = state_of_charge_sensor.search_beliefs(
+        beliefs = soc_sensor.search_beliefs(
             event_starts_after=self.start - lookup_radius,
             event_ends_before=self.start + lookup_radius,
             one_deterministic_belief_per_event=True,
+            source_types=source_types,
+            exclude_source_types=exclude_source_types,
+            source=sources,
+            source_account_ids=source_account_ids,
         )
         if beliefs.empty:
             raise ValueError(
-                f"No recent state-of-charge value found for sensor {state_of_charge_sensor.id} "
+                f"No recent state-of-charge value found for sensor {soc_sensor.id} "
                 f"within {lookup_radius} of schedule start {self.start.isoformat()}."
             )
 
@@ -1185,7 +1207,7 @@ class MetaStorageScheduler(Scheduler):
 
         return self._convert_soc_value_to_mwh(
             value=nearest_belief["event_value"],
-            from_unit=state_of_charge_sensor.unit,
+            from_unit=soc_sensor.unit,
             flex_model=flex_model,
             sensor=sensor,
         )
@@ -1248,7 +1270,7 @@ class MetaStorageScheduler(Scheduler):
         state_of_charge = flex_model.get("state-of-charge")
         if isinstance(state_of_charge, SensorReference):
             return self._resolve_soc_at_start_from_sensor(
-                state_of_charge.sensor, flex_model, sensor
+                state_of_charge, flex_model, sensor
             )
         if isinstance(state_of_charge, Sensor):
             return self._resolve_soc_at_start_from_sensor(
