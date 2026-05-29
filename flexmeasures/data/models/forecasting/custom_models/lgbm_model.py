@@ -1,6 +1,7 @@
 from darts.models import LightGBMModel
 
 from flexmeasures.data.models.forecasting.custom_models.base_model import BaseModel
+from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 
 
 DEFAULT_SEASONAL_LAGS_STEPS = [1, 24]
@@ -111,9 +112,9 @@ class CustomLGBM(BaseModel):
 
         if eligible_lags_steps:
             return eligible_lags_steps
-        raise ValueError(
-            "None of the seasonal_lags_steps values leave enough training samples "
-            f"for forecast horizon {horizon}."
+        raise NotEnoughDataException(
+            "Not enough training data for the requested forecast horizon. "
+            "Upload more historical data or choose a shorter forecast duration."
         )
 
     @staticmethod

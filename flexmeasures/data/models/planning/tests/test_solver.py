@@ -80,6 +80,7 @@ def test_storage_loss_function(
 @pytest.mark.parametrize("use_inflexible_device", [False, True])
 @pytest.mark.parametrize("battery_name", ["Test battery", "Test small battery"])
 def test_battery_solver_day_1(
+    setup_planning_test_data,
     add_battery_assets,
     add_inflexible_device_forecasts,
     use_inflexible_device,
@@ -126,7 +127,11 @@ def test_battery_solver_day_1(
     ],
 )
 def test_battery_solver_day_2(
-    add_battery_assets, roundtrip_efficiency: float, storage_efficiency: float, db
+    setup_planning_test_data,
+    add_battery_assets,
+    roundtrip_efficiency: float,
+    storage_efficiency: float,
+    db,
 ):
     """Check battery scheduling results for day 2, which is set up with
     8 expensive, then 8 cheap, then again 8 expensive hours.
@@ -306,7 +311,9 @@ def run_test_charge_discharge_sign(
     return schedule.tz_convert(tz), soc_schedule.tz_convert(tz)
 
 
-def test_battery_solver_day_3(add_battery_assets, add_inflexible_device_forecasts, db):
+def test_battery_solver_day_3(
+    setup_planning_test_data, add_battery_assets, add_inflexible_device_forecasts, db
+):
     """Check battery scheduling results for day 3, which is set up with
     8 hours with negative prices, followed by 16 expensive hours.
 

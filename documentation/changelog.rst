@@ -25,6 +25,7 @@ New features
 * Support sensor references for efficiency fields in storage flex-models [see `PR #2142 <https://www.github.com/FlexMeasures/flexmeasures/pull/2142>`_]
 * Introduce the ``consumption`` and ``production`` flex-model fields for the ``StorageScheduler`` to save schedules to [see `PR #2190 <https://www.github.com/FlexMeasures/flexmeasures/pull/2190>`_]
 * Added a unified job status endpoint ``GET /api/v3_0/jobs/<uuid>`` to retrieve the current execution status and result message for any background job [see `PR #2141 <https://www.github.com/FlexMeasures/flexmeasures/pull/2141>`_]
+* Add ``flexmeasures jobs inspect-job`` CLI command to show job status and metadata information (similar to the job status endpoint in the API) [see `PR #2202 <https://www.github.com/FlexMeasures/flexmeasures/pull/2202>`_]
 * New ``GET /api/v3_0/sources`` endpoint to list accessible data sources and defined types, with ``only_latest=true`` by default to return only the most recent version per source [see `PR #2126 <https://www.github.com/FlexMeasures/flexmeasures/pull/2126>`_]
 * Add support for filtering sensor data GET requests by ``source-type`` on ``/api/v3_0/sensors/<id>/data`` [see `PR #2127 <https://www.github.com/FlexMeasures/flexmeasures/pull/2127>`_]
 * Making monitoring alerts more flexible: allow ``flexmeasures monitor`` alerts to target one or more user IDs or email addresses with ``--recipient``; ``flexmeasures monitor last-seen`` can now narrow monitored users to one or more accounts with ``--account`` or to client accounts with ``--consultancy`` [see `PR #2158 <https://www.github.com/FlexMeasures/flexmeasures/pull/2158>`_]
@@ -32,7 +33,7 @@ New features
 
 Infrastructure / Support
 ----------------------
-* Move sensor data ingestion to a job queue for improved performance when POSTing large amounts of data to the sensor data API, returning a ``202 Accepted`` response with a job status URL when queued [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_]
+* Move sensor data ingestion to a job queue for improved performance when POSTing large amounts of data to the sensor data API, returning a ``202 Accepted`` response with a job status URL when queued [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_ and `PR #2207 <https://www.github.com/FlexMeasures/flexmeasures/pull/2207>`_]
 * Remove legacy rolling viewpoint forecasting code and utilities after migrating to fixed-point forecasting [see `PR #2082 <https://www.github.com/FlexMeasures/flexmeasures/pull/2082>`_]
 * Upgraded dependencies [see `PR #2114 <https://www.github.com/FlexMeasures/flexmeasures/pull/2114>`_, `PR #2148 <https://www.github.com/FlexMeasures/flexmeasures/pull/2148>`_, `PR #2161 <https://www.github.com/FlexMeasures/flexmeasures/pull/2161>`_ and `PR #2177 <https://www.github.com/FlexMeasures/flexmeasures/pull/2177>`_]
 * Let RQ Dashboard job page load even when job data includes non-JSON-serializable values [see `PR #2200 <https://www.github.com/FlexMeasures/flexmeasures/pull/2200>`_]
@@ -45,6 +46,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix forecasting covariate assembly to retain the latest known value per regressor when regressors have different belief times for the same event [see `PR #2155 <https://www.github.com/FlexMeasures/flexmeasures/pull/2155>`_]
 * Fix ``StorageScheduler`` crash (``AttributeError: 'NoneType' object has no attribute 'event_resolution'``) when scheduling a site whose asset tree contains non-storage devices with only a ``power-capacity`` in their ``flex-model`` (no ``sensor`` key) [see `PR #2085 <https://github.com/FlexMeasures/flexmeasures/issues/2085>`_]
 * Fix DST transition handling by supporting both native Python ``datetime`` and pandas ``Timestamp`` objects in time series segment processing, preventing ``AttributeError`` when processing segments with differing UTC offsets [see `PR #2197 <https://github.com/FlexMeasures/flexmeasures/pull/2197>`_]
 * Fix forecasting regressor filtering to use only regressor beliefs known at the forecast ``belief_time`` [see `PR #2134 <https://www.github.com/FlexMeasures/flexmeasures/pull/2134>`_]
@@ -54,8 +56,10 @@ Bugfixes
 * Clean up stale sensor references from ``flex-config`` and ``sensors_to_show`` when deleting a sensor, using JSONB queries to find affected assets before pruning those references [see `PR #2106 <https://www.github.com/FlexMeasures/flexmeasures/pull/2106>`_]
 * Standardize resolution formatting across API endpoints for consistent response payloads [see `PR #2152 <https://www.github.com/FlexMeasures/flexmeasures/pull/2152>`_]
 * Make the auth check for CLI commands work with ``flask``, too, instead of only with the ``flexmeasures`` alias [see `PR #2169 <https://www.github.com/FlexMeasures/flexmeasures/pull/2169>`_]
+* Fix ``flexmeasures show asset`` for assets whose ``sensors_to_show`` uses the standardized ``plots`` schema [see `PR #2189 <https://www.github.com/FlexMeasures/flexmeasures/pull/2189>`_]
 * Distinguish data sources with duplicate names in chart legends without showing source IDs [see `PR #2185 <https://www.github.com/FlexMeasures/flexmeasures/pull/2185>`_]
 * Fix broken API endpoint links in Read the Docs output by post-processing both known API index layouts and rewriting ``(id)`` anchors [see `PR #1753 <https://www.github.com/FlexMeasures/flexmeasures/pull/1753>`_]
+* Wrap Darts training ``ValueError`` about no common feature times as a clearer ``NotEnoughDataException`` when there is insufficient history for the requested forecast horizon [see `PR #2192 <https://www.github.com/FlexMeasures/flexmeasures/pull/2192>`_]
 
 
 v0.32.3 | May 15, 2026
