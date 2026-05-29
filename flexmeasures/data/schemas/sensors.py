@@ -424,9 +424,12 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         {"source-types", "exclude-source-types", "sources", "source-account"}
     )
 
-    def _deserialize_source_filters(
-        self, value: dict[str, Any]
-    ) -> tuple[list[str] | None, list[str] | None, list | None, list | None]:
+    def _deserialize_source_filters(self, value: dict[str, Any]) -> tuple[
+        list[str] | None,
+        list[str] | None,
+        list[DataSource] | None,
+        list[Account] | None,
+    ]:
         """Deserialize and validate source filter fields from a sensor-reference dict.
 
         Returns ``(source_types, exclude_source_types, sources, source_account)``.
