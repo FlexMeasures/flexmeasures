@@ -8,7 +8,6 @@ from datetime import timedelta
 
 from marshmallow import ValidationError
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy.exc import NoInspectionAvailable
 
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
@@ -20,11 +19,8 @@ from flexmeasures.data.services.forecasting import handle_forecasting_exception
 
 
 def _contains_orm_instance(value) -> bool:
-    try:
-        sa_inspect(value)
-    except NoInspectionAvailable:
-        pass
-    else:
+    inspection = sa_inspect(value, raiseerr=False)
+    if inspection is not None and hasattr(inspection, "object"):
         return True
 
     if isinstance(value, dict):
