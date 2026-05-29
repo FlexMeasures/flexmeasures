@@ -261,6 +261,32 @@ def test_sensor_reference_with_sources(setup_dummy_sensors, setup_sources, db):
     assert result.sources[0].id == seita_source.id
 
 
+def test_sensor_reference_with_source_account(setup_dummy_sensors, setup_accounts, db):
+    """``{"sensor": <id>, "source-account": [<account_id>]}`` deserializes to a :class:`SensorReference`.
+
+    The ``source_account`` attribute is populated with a list of :class:`~flexmeasures.data.models.user.Account`
+    objects resolved from the given account IDs.
+    """
+    sensor1, _, _, _ = setup_dummy_sensors
+    prosumer_account = setup_accounts["Prosumer"]
+    # Flush so that Account objects created by setup_accounts get their DB-assigned primary keys.
+    db.session.flush()
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    result = field.deserialize(
+        {"sensor": sensor1.id, "source-account": [prosumer_account.id]}
+    )
+
+    assert isinstance(result, SensorReference)
+    assert result.sensor == sensor1
+    assert result.source_account is not None
+    assert len(result.source_account) == 1
+    assert result.source_account[0].id == prosumer_account.id
+    assert result.source_types is None
+    assert result.exclude_source_types is None
+    assert result.sources is None
+
+
 @pytest.mark.parametrize(
     "invalid_payload, expected_fragment",
     [
@@ -279,6 +305,10 @@ def test_sensor_reference_with_sources(setup_dummy_sensors, setup_sources, db):
         (
             {"sensor": 1, "sources": 42},
             "list of data source IDs",
+        ),
+        (
+            {"sensor": 1, "source-account": 42},
+            "list of account IDs",
         ),
     ],
 )

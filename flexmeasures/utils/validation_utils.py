@@ -4,7 +4,6 @@ from typing import Callable
 import re
 
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.utils.unit_utils import ur
 
 
@@ -73,6 +72,8 @@ def validate_variable_quantity(
     :param unit_validator:      The validation function used to validate the value's unit.
     :param data_key:            User-facing data-key of the field that is being validated.
     """
+
+    from flexmeasures.data.schemas.sensors import SensorReference
 
     if isinstance(variable_quantity, ur.Quantity):
         if not unit_validator(str(variable_quantity.units)):

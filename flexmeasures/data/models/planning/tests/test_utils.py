@@ -193,3 +193,74 @@ def test_get_series_from_sensor_reference_sources_filter_integration(fresh_db):
     )
     assert isinstance(result, pd.Series)
     assert result.iloc[0] == pytest.approx(55.0)
+
+
+def test_get_series_from_sensor_reference_source_account_filter_integration(fresh_db):
+    """A :class:`SensorReference` with ``source_account`` returns only beliefs from the specified account's sources.
+
+    Two beliefs are stored for the same event: one from a source linked to account A,
+    and one from a source linked to account B. Querying with ``source_account=[account_a]``
+    returns only the value associated with account A.
+    """
+    from flexmeasures.data.models.user import Account
+
+    query_window = (
+        pd.Timestamp("2025-06-01 14:00:00+02:00"),
+        pd.Timestamp("2025-06-01 14:15:00+02:00"),
+    )
+    account_a = Account(name="test-account-a-src-acct")
+    fresh_db.session.add(account_a)
+    account_b = Account(name="test-account-b-src-acct")
+    fresh_db.session.add(account_b)
+    fresh_db.session.flush()
+
+    source_a = DataSource(
+        name="test-source-acct-a", type="demo script", account_id=account_a.id
+    )
+    fresh_db.session.add(source_a)
+    source_b = DataSource(
+        name="test-source-acct-b", type="demo script", account_id=account_b.id
+    )
+    fresh_db.session.add(source_b)
+
+    asset_type = GenericAssetType(name="test-asset-type-src-acct")
+    fresh_db.session.add(asset_type)
+    asset = GenericAsset(name="test-asset-src-acct", generic_asset_type=asset_type)
+    fresh_db.session.add(asset)
+    sensor = Sensor(
+        name="test-sensor-src-acct",
+        generic_asset=asset,
+        event_resolution=timedelta(minutes=15),
+        unit="kW",
+    )
+    fresh_db.session.add(sensor)
+    fresh_db.session.flush()
+
+    belief_a = TimedBelief(
+        event_start=query_window[0],
+        belief_horizon=timedelta(0),
+        event_value=33.0,
+        source=source_a,
+        sensor=sensor,
+    )
+    fresh_db.session.add(belief_a)
+    belief_b = TimedBelief(
+        event_start=query_window[0],
+        belief_horizon=timedelta(0),
+        event_value=66.0,
+        source=source_b,
+        sensor=sensor,
+    )
+    fresh_db.session.add(belief_b)
+    fresh_db.session.commit()
+
+    ref = SensorReference(sensor=sensor, source_account=[account_a])
+    result = get_series_from_quantity_or_sensor(
+        variable_quantity=ref,
+        query_window=query_window,
+        resolution=sensor.event_resolution,
+        unit="kW",
+        as_instantaneous_events=False,
+    )
+    assert isinstance(result, pd.Series)
+    assert result.iloc[0] == pytest.approx(33.0)
