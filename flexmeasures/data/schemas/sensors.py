@@ -880,7 +880,7 @@ class SensorReference:
 
     Exposes the same ``unit``, ``id``, and ``event_resolution`` properties as a plain
     :class:`~flexmeasures.data.models.time_series.Sensor`, so code that reads those
-    properties works without modification.  The source filters are passed through to
+    properties works without modification. The source filters are passed through to
     :meth:`TimedBelief.search <flexmeasures.data.models.time_series.TimedBelief.search>`
     in :func:`~flexmeasures.data.models.planning.utils.get_series_from_quantity_or_sensor`.
     """

@@ -64,7 +64,7 @@ def test_get_series_from_sensor_reference_source_filter_integration(fresh_db):
     """A :class:`SensorReference` with ``source_types`` returns only beliefs from matching sources.
 
     Two beliefs are stored for the same event: one from a "scheduler" source and one from a
-    "forecaster" source.  Querying via a :class:`SensorReference` with
+    "forecaster" source. Querying via a :class:`SensorReference` with
     ``source_types=["scheduler"]`` returns only the scheduler value, while
     ``exclude_source_types=["scheduler"]`` returns only the forecaster value.
     """
@@ -139,7 +139,7 @@ def test_get_series_from_sensor_reference_source_filter_integration(fresh_db):
 def test_get_series_from_sensor_reference_sources_filter_integration(fresh_db):
     """A :class:`SensorReference` with ``sources`` returns only beliefs from the specified source.
 
-    Two beliefs are stored for the same event from two different data sources.  Querying via a
+    Two beliefs are stored for the same event from two different data sources. Querying via a
     :class:`SensorReference` with ``sources=[<one_source>]`` returns only the value associated
     with that source.
     """
