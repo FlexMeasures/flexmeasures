@@ -1162,7 +1162,7 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
 
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 2))
-    end = tz.localize(datetime(2015, 1, 3))
+    end = start + timedelta(hours=4)
     resolution = timedelta(minutes=5)
 
     duration_until_next_target = timedelta(hours=1)
