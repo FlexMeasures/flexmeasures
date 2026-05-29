@@ -281,21 +281,13 @@ class BasePipeline:
                 data: pd.DataFrame,
                 regressor_columns: list[str],
             ) -> pd.DataFrame:
-                """
-                Select the latest non-null value per `(event_start, regressor)`.
+                """Select latest non-null values per event and regressor.
 
-                Parameters
-                ----------
-                data : pd.DataFrame
-                    Input frame with `event_start`, `belief_time`, and regressor columns.
-                regressor_columns : list[str]
-                    Regressor columns to select values for independently.
-
-                Returns
-                -------
-                pd.DataFrame
-                    Wide frame with one row per event_start and one selected value
-                    per regressor column.
+                :param data:                Frame with ``event_start``, ``belief_time``,
+                                            and regressor columns.
+                :param regressor_columns:   Regressor columns to select independently.
+                :return:                    Wide frame with one row per ``event_start``
+                                            and one selected value per regressor.
                 """
                 keep = ["event_start", *regressor_columns]
                 if data.empty:
