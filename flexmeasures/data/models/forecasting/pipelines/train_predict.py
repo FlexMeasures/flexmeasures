@@ -8,7 +8,6 @@ import logging
 from datetime import datetime, timedelta
 
 from rq.job import Job
-from sqlalchemy import inspect as sa_inspect
 
 from flask import current_app
 
@@ -25,6 +24,112 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
 from flexmeasures.utils.flexmeasures_inflection import p
 
 
+def _sensor_id(sensor: Sensor | int | None) -> int | None:
+    if sensor is None:
+        return None
+    return sensor.id if isinstance(sensor, Sensor) else sensor
+
+
+def _get_attached_sensor(sensor_id: int | None) -> Sensor | None:
+    if sensor_id is None:
+        return None
+    attached_sensor = db.session.get(Sensor, sensor_id)
+    if attached_sensor is None:
+        raise ValueError(f"Could not load sensor with id {sensor_id}.")
+    return attached_sensor
+
+
+def _get_attached_data_source(data_source_id: int | None) -> DataSource | None:
+    if data_source_id is None:
+        return None
+    attached_source = db.session.get(DataSource, data_source_id)
+    if attached_source is None:
+        raise ValueError(f"Could not load data source with id {data_source_id}.")
+    return attached_source
+
+
+def _make_job_config_payload(config: dict[str, Any]) -> dict[str, Any]:
+    """Build the worker config payload without ORM objects."""
+    return {
+        "model": config["model"],
+        "future_regressor_ids": [
+            _sensor_id(sensor) for sensor in config["future_regressors"]
+        ],
+        "past_regressor_ids": [
+            _sensor_id(sensor) for sensor in config["past_regressors"]
+        ],
+        "missing_threshold": config["missing_threshold"],
+        "ensure_positive": config["ensure_positive"],
+        "train_start": config.get("train_start"),
+        "train_period": config["train_period"],
+        "max_training_period": config["max_training_period"],
+        "retrain_frequency": config["retrain_frequency"],
+        "train_period_in_hours": config["train_period_in_hours"],
+    }
+
+
+def _load_job_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Load the worker config through the active worker session."""
+    return {
+        "model": payload["model"],
+        "future_regressors": [
+            _get_attached_sensor(sensor_id)
+            for sensor_id in payload["future_regressor_ids"]
+        ],
+        "past_regressors": [
+            _get_attached_sensor(sensor_id)
+            for sensor_id in payload["past_regressor_ids"]
+        ],
+        "missing_threshold": payload["missing_threshold"],
+        "ensure_positive": payload["ensure_positive"],
+        "train_start": payload["train_start"],
+        "train_period": payload["train_period"],
+        "max_training_period": payload["max_training_period"],
+        "retrain_frequency": payload["retrain_frequency"],
+        "train_period_in_hours": payload["train_period_in_hours"],
+    }
+
+
+def _make_job_parameters_payload(parameters: dict[str, Any]) -> dict[str, Any]:
+    """Build the worker parameter payload without ORM objects."""
+    sensor_id = _sensor_id(parameters["sensor"])
+    sensor_to_save_id = _sensor_id(parameters.get("sensor_to_save"))
+    if sensor_id is None:
+        raise ValueError("Cannot enqueue a forecasting job without a target sensor.")
+    return {
+        "sensor_id": sensor_id,
+        "sensor_to_save_id": sensor_to_save_id or sensor_id,
+        "model_save_dir": parameters["model_save_dir"],
+        "output_path": parameters["output_path"],
+        "end_date": parameters["end_date"],
+        "predict_start": parameters["predict_start"],
+        "predict_period_in_hours": parameters["predict_period_in_hours"],
+        "max_forecast_horizon": parameters["max_forecast_horizon"],
+        "forecast_frequency": parameters["forecast_frequency"],
+        "probabilistic": parameters["probabilistic"],
+        "save_belief_time": parameters["save_belief_time"],
+        "m_viewpoints": parameters["m_viewpoints"],
+    }
+
+
+def _load_job_parameters_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Load the worker parameters through the active worker session."""
+    return {
+        "sensor": _get_attached_sensor(payload["sensor_id"]),
+        "sensor_to_save": _get_attached_sensor(payload["sensor_to_save_id"]),
+        "model_save_dir": payload["model_save_dir"],
+        "output_path": payload["output_path"],
+        "end_date": payload["end_date"],
+        "predict_start": payload["predict_start"],
+        "predict_period_in_hours": payload["predict_period_in_hours"],
+        "max_forecast_horizon": payload["max_forecast_horizon"],
+        "forecast_frequency": payload["forecast_frequency"],
+        "probabilistic": payload["probabilistic"],
+        "save_belief_time": payload["save_belief_time"],
+        "m_viewpoints": payload["m_viewpoints"],
+    }
+
+
 def run_train_predict_cycle_job(
     config: dict,
     parameters: dict,
@@ -33,15 +138,20 @@ def run_train_predict_cycle_job(
     **cycle_params,
 ):
     """Reconstruct pipeline state inside the worker to avoid pickling ORM objects."""
-    pipeline = TrainPredictPipeline(config=config, delete_model=delete_model)
-    pipeline._parameters = pipeline._parameters_schema.load(parameters)
-    pipeline._data_source = db.session.get(DataSource, data_source_id)
+    pipeline = TrainPredictPipeline(delete_model=delete_model)
+    pipeline._config = _load_job_config_payload(config)
+    for key, value in pipeline._config.items():
+        setattr(pipeline, key, value)
+    pipeline._parameters = _load_job_parameters_payload(parameters)
+    pipeline._data_source = _get_attached_data_source(data_source_id)
     return pipeline.run_cycle(**cycle_params)
 
 
-def run_train_predict_wrap_up_job(cycle_job_ids: list[str]):
+def run_train_predict_wrap_up_job(
+    cycle_job_ids: list[str], queue: str = "forecasting"
+):
     """Log the status of all cycle jobs after completion."""
-    connection = current_app.queues["forecasting"].connection
+    connection = current_app.queues[queue].connection
 
     for index, job_id in enumerate(cycle_job_ids):
         status = Job.fetch(job_id, connection=connection).get_status()
@@ -71,21 +181,6 @@ class TrainPredictPipeline(Forecaster):
         self.delete_model = delete_model
         self.return_values = []  # To store forecasts and jobs
 
-    @staticmethod
-    def _reattach_if_needed(obj):
-        """Re-merge a SQLAlchemy object into the current session if it is detached or expired.
-
-        After ``db.session.commit()``, all objects in the session are expired.
-        When RQ pickles ``self.run_cycle`` for a worker, expired or detached
-        objects may raise ``DetachedInstanceError`` on attribute access.  This
-        helper merges such objects back into the active session so they are
-        usable when the worker executes the job.
-        """
-        insp = sa_inspect(obj)
-        if insp.detached or insp.expired:
-            return db.session.merge(obj)
-        return obj
-
     def run_wrap_up(self, cycle_job_ids: list[str]):
         """Log the status of all cycle jobs after completion."""
         run_train_predict_wrap_up_job(cycle_job_ids)
@@ -103,29 +198,9 @@ class TrainPredictPipeline(Forecaster):
         """
         Runs a single training and prediction cycle.
         """
-        self._reattach_worker_state()
         logging.info(
             f"Starting Train-Predict cycle from {train_start} to {predict_end}"
         )
-
-        # Re-attach sensor objects if they are detached after RQ pickles/unpickles self
-        # (this can happen when a commit expires objects before RQ serializes the job).
-        self._parameters["sensor"] = self._reattach_if_needed(
-            self._parameters["sensor"]
-        )
-        sensor_to_save = self._parameters.get("sensor_to_save")
-        if sensor_to_save is not None:
-            self._parameters["sensor_to_save"] = self._reattach_if_needed(
-                sensor_to_save
-            )
-        # Also re-attach regressor sensors stored in _config
-        self._config["future_regressors"] = [
-            self._reattach_if_needed(s)
-            for s in self._config.get("future_regressors", [])
-        ]
-        self._config["past_regressors"] = [
-            self._reattach_if_needed(s) for s in self._config.get("past_regressors", [])
-        ]
 
         # Train model
         train_pipeline = TrainPipeline(
@@ -204,46 +279,6 @@ class TrainPredictPipeline(Forecaster):
             {"data": forecasts, "sensor": self._parameters["sensor"]}
         )
         return total_runtime
-
-    @staticmethod
-    def _get_attached_sensor(sensor: Sensor | int) -> Sensor:
-        sensor_id = sensor.id if isinstance(sensor, Sensor) else sensor
-        attached_sensor = db.session.get(Sensor, sensor_id)
-        if attached_sensor is None:
-            raise ValueError(f"Could not load sensor with id {sensor_id}.")
-        return attached_sensor
-
-    @staticmethod
-    def _get_attached_data_source(
-        data_source: DataSource | int | None,
-    ) -> DataSource | None:
-        if data_source is None:
-            return None
-        source_id = (
-            data_source.id if isinstance(data_source, DataSource) else data_source
-        )
-        attached_source = db.session.get(DataSource, source_id)
-        if attached_source is None:
-            raise ValueError(f"Could not load data source with id {source_id}.")
-        return attached_source
-
-    def _reattach_worker_state(self) -> None:
-        """Reload ORM objects through the worker's active session."""
-        self._config["future_regressors"] = [
-            self._get_attached_sensor(sensor)
-            for sensor in self._config["future_regressors"]
-        ]
-        self._config["past_regressors"] = [
-            self._get_attached_sensor(sensor)
-            for sensor in self._config["past_regressors"]
-        ]
-        self._parameters["sensor"] = self._get_attached_sensor(
-            self._parameters["sensor"]
-        )
-        self._parameters["sensor_to_save"] = self._get_attached_sensor(
-            self._parameters["sensor_to_save"]
-        )
-        self._data_source = self._get_attached_data_source(self.data_source)
 
     def _compute_forecast(self, as_job: bool = False, **kwargs) -> list[dict[str, Any]]:
         # Run the train-and-predict pipeline
@@ -343,7 +378,6 @@ class TrainPredictPipeline(Forecaster):
                 cycle_runtime = self.run_cycle(**train_predict_params)
                 cumulative_cycles_runtime += cycle_runtime
             else:
-                train_predict_params["target_sensor_id"] = self._parameters["sensor"].id
                 cycles_job_params.append(train_predict_params)
 
             train_end += cycle_frequency
@@ -357,20 +391,25 @@ class TrainPredictPipeline(Forecaster):
         if as_job:
             cycle_job_ids = []
 
+            job_config = _make_job_config_payload(self._config)
+            job_parameters = _make_job_parameters_payload(self._parameters)
+            sensor_id = job_parameters["sensor_id"]
+            sensor_to_save_id = job_parameters["sensor_to_save_id"]
+
             # Ensure the data source ID is available in the database when the job runs.
             self._data_source = db.session.merge(self.data_source)
+            db.session.flush()
+            data_source_id = self._data_source.id
             db.session.commit()
-            serialized_config = self._config_schema.dump(self._config)
-            serialized_parameters = self._parameters_schema.dump(self._parameters)
 
             # job metadata for tracking
             # Serialize start and end to ISO format strings
             # Workaround for https://github.com/Parallels/rq-dashboard/issues/510
             job_metadata = {
-                "data_source_info": {"id": self.data_source.id},
+                "data_source_info": {"id": data_source_id},
                 "start": self._parameters["predict_start"].isoformat(),
                 "end": self._parameters["end_date"].isoformat(),
-                "sensor_id": self._parameters["sensor_to_save"].id,
+                "sensor_id": sensor_to_save_id,
             }
             for cycle_params in cycles_job_params:
 
@@ -379,9 +418,9 @@ class TrainPredictPipeline(Forecaster):
                     # Some cycle job params override job kwargs
                     kwargs={
                         **job_kwargs,
-                        "config": serialized_config,
-                        "parameters": serialized_parameters,
-                        "data_source_id": self.data_source.id,
+                        "config": job_config,
+                        "parameters": job_parameters,
+                        "data_source_id": data_source_id,
                         "delete_model": self.delete_model,
                         **cycle_params,
                     },
@@ -405,7 +444,7 @@ class TrainPredictPipeline(Forecaster):
 
                 current_app.queues[queue].enqueue_job(job)
                 current_app.job_cache.add(
-                    self._parameters["sensor"].id,
+                    sensor_id,
                     job_id=job.id,
                     queue=queue,
                     asset_or_sensor_type="sensor",
@@ -413,7 +452,10 @@ class TrainPredictPipeline(Forecaster):
 
             wrap_up_job = Job.create(
                 run_train_predict_wrap_up_job,
-                kwargs={"cycle_job_ids": cycle_job_ids},  # cycles jobs IDs to wait for
+                kwargs={
+                    "cycle_job_ids": cycle_job_ids,
+                    "queue": queue,
+                },  # cycles jobs IDs to wait for
                 connection=current_app.queues[queue].connection,
                 depends_on=cycle_job_ids,  # wrap-up job depends on all cycle jobs
                 ttl=int(
@@ -428,15 +470,8 @@ class TrainPredictPipeline(Forecaster):
             if len(cycle_job_ids) > 1:
                 # Return the wrap-up job ID if multiple cycle jobs are queued
                 return {"job_id": wrap_up_job.id, "n_jobs": len(cycle_job_ids)}
-                return {"job_id": wrap_up_job.id, "n_jobs": len(cycle_job_ids)}
             else:
                 # Return the single cycle job ID if only one job is queued
-                return {
-                    "job_id": (
-                        cycle_job_ids[0] if len(cycle_job_ids) == 1 else wrap_up_job.id
-                    ),
-                    "n_jobs": 1,
-                }
                 return {
                     "job_id": (
                         cycle_job_ids[0] if len(cycle_job_ids) == 1 else wrap_up_job.id
