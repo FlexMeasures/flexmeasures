@@ -147,9 +147,7 @@ def run_train_predict_cycle_job(
     return pipeline.run_cycle(**cycle_params)
 
 
-def run_train_predict_wrap_up_job(
-    cycle_job_ids: list[str], queue: str = "forecasting"
-):
+def run_train_predict_wrap_up_job(cycle_job_ids: list[str], queue: str = "forecasting"):
     """Log the status of all cycle jobs after completion."""
     connection = current_app.queues[queue].connection
 
