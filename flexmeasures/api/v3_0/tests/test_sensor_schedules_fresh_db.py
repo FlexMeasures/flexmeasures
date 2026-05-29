@@ -40,17 +40,17 @@ from flexmeasures.utils.calculations import integrate_time_series
 )
 def test_trigger_and_get_schedule(
     app,
-    add_market_prices_fresh_db,
-    add_battery_assets_fresh_db,
-    battery_soc_sensor_fresh_db,
-    add_charging_station_assets_fresh_db,
+    add_market_prices_transactional_db,
+    add_battery_assets_transactional_db,
+    battery_soc_sensor_transactional_db,
+    add_charging_station_assets_transactional_db,
     keep_scheduling_queue_empty,
     message,
     asset_name,
     requesting_user,
 ):  # noqa: C901
     # Include the price sensor and site-power-capacity in the flex-context explicitly, to test deserialization
-    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    price_sensor_id = add_market_prices_transactional_db["epex_da"].id
     message["flex-context"] = {
         "consumption-price": {"sensor": price_sensor_id},
         "production-price": {"sensor": price_sensor_id},
@@ -207,35 +207,39 @@ def test_trigger_and_get_schedule(
 )
 def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
     app,
-    fresh_db,
-    add_market_prices_fresh_db,
-    add_battery_assets_fresh_db,
-    battery_soc_sensor_fresh_db,
-    setup_sources_fresh_db,
+    transactional_db,
+    add_market_prices_transactional_db,
+    add_battery_assets_transactional_db,
+    battery_soc_sensor_transactional_db,
+    setup_sources_transactional_db,
     keep_scheduling_queue_empty,
     requesting_user,
 ):
     message = message_for_trigger_schedule(resolution="PT1H")
     message["flex-context"] = {
-        "consumption-price": {"sensor": add_market_prices_fresh_db["epex_da"].id},
-        "production-price": {"sensor": add_market_prices_fresh_db["epex_da"].id},
+        "consumption-price": {
+            "sensor": add_market_prices_transactional_db["epex_da"].id
+        },
+        "production-price": {
+            "sensor": add_market_prices_transactional_db["epex_da"].id
+        },
         "site-power-capacity": "1 TW",
     }
     message["flex-model"]["state-of-charge"] = {
-        "sensor": battery_soc_sensor_fresh_db.id
+        "sensor": battery_soc_sensor_transactional_db.id
     }
     message["flex-model"].pop("soc-at-start")
 
-    fresh_db.session.add(
+    transactional_db.session.add(
         TimedBelief(
-            sensor=battery_soc_sensor_fresh_db,
-            source=setup_sources_fresh_db["Seita"],
+            sensor=battery_soc_sensor_transactional_db,
+            source=setup_sources_transactional_db["Seita"],
             event_start=parse_datetime(message["start"]),
             belief_horizon=timedelta(0),
             event_value=50,
         )
     )
-    fresh_db.session.commit()
+    transactional_db.session.commit()
 
     sensor = (
         Sensor.query.filter(Sensor.name == "power")
@@ -257,7 +261,9 @@ def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
     with app.test_client() as client:
         get_soc_schedule_response = client.get(
             url_for(
-                "SensorAPI:get_schedule", id=battery_soc_sensor_fresh_db.id, uuid=job_id
+                "SensorAPI:get_schedule",
+                id=battery_soc_sensor_transactional_db.id,
+                uuid=job_id,
             ),
             query_string={"duration": "PT24H"},
         )
@@ -265,7 +271,7 @@ def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
         assert get_soc_schedule_response.json["unit"] == "%"
         assert get_soc_schedule_response.json["values"][0] == 50
 
-    sensor = fresh_db.session.get(Sensor, sensor.id)
+    sensor = transactional_db.session.get(Sensor, sensor.id)
     assert sensor.generic_asset.get_attribute("soc_in_mwh") == pytest.approx(0.02)
 
 
@@ -296,11 +302,11 @@ def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
 )
 def test_price_sensor_priority(
     app,
-    fresh_db,
-    add_market_prices_fresh_db,
-    add_battery_assets_fresh_db,
-    battery_soc_sensor_fresh_db,
-    add_charging_station_assets_fresh_db,
+    transactional_db,
+    add_market_prices_transactional_db,
+    add_battery_assets_transactional_db,
+    battery_soc_sensor_transactional_db,
+    add_charging_station_assets_transactional_db,
     keep_scheduling_queue_empty,
     context_sensor,
     asset_sensor,
@@ -325,23 +331,23 @@ def test_price_sensor_priority(
     sensor_attribute = f"{sensor_type}-price"
     # preparation: ensure the asset actually has the price sensor set in its flex_context
     if asset_sensor:
-        price_sensor_id = add_market_prices_fresh_db[asset_sensor].id
-        battery_asset = add_battery_assets_fresh_db[asset_name]
+        price_sensor_id = add_market_prices_transactional_db[asset_sensor].id
+        battery_asset = add_battery_assets_transactional_db[asset_name]
         battery_asset.flex_context[sensor_attribute] = {"sensor": price_sensor_id}
-        fresh_db.session.add(battery_asset)
+        transactional_db.session.add(battery_asset)
     if parent_sensor:
-        price_sensor_id = add_market_prices_fresh_db[parent_sensor].id
-        building_asset = add_battery_assets_fresh_db["Test building"]
+        price_sensor_id = add_market_prices_transactional_db[parent_sensor].id
+        building_asset = add_battery_assets_transactional_db["Test building"]
         building_asset.flex_context[sensor_attribute] = {"sensor": price_sensor_id}
-        fresh_db.session.add(building_asset)
+        transactional_db.session.add(building_asset)
 
     # Adding unused sensor to context (e.g. consumption price sensor if we test production sensor)
     message["flex-context"] = {
-        unused_sensor: {"sensor": add_market_prices_fresh_db["epex_da"].id},
+        unused_sensor: {"sensor": add_market_prices_transactional_db["epex_da"].id},
         "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
     }
     if context_sensor:
-        price_sensor_id = add_market_prices_fresh_db[context_sensor].id
+        price_sensor_id = add_market_prices_transactional_db[context_sensor].id
         message["flex-context"][used_sensor] = {"sensor": price_sensor_id}
 
     # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
@@ -367,7 +373,7 @@ def test_price_sensor_priority(
     ) as patched_search_beliefs:
         work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
 
-        expect_price_sensor_id = add_market_prices_fresh_db[expect_sensor].id
+        expect_price_sensor_id = add_market_prices_transactional_db[expect_sensor].id
         # TimedBelief.search is called twice for a price sensor: 1st call has consumption price sensor, 2nd call has production price sensor
         call_num = 0 if sensor_type == "consumption" else 1
         call_args = patched_search_beliefs.call_args_list[call_num]
@@ -393,11 +399,11 @@ def test_price_sensor_priority(
 )
 def test_inflexible_device_sensors_priority(
     app,
-    fresh_db,
-    add_market_prices_fresh_db,
-    add_battery_assets_fresh_db,
-    battery_soc_sensor_fresh_db,
-    add_charging_station_assets_fresh_db,
+    transactional_db,
+    add_market_prices_transactional_db,
+    add_battery_assets_transactional_db,
+    battery_soc_sensor_transactional_db,
+    add_charging_station_assets_transactional_db,
     keep_scheduling_queue_empty,
     context_sensor_num,
     asset_sensor_num,
@@ -408,32 +414,35 @@ def test_inflexible_device_sensors_priority(
     message, asset_name = message_for_trigger_schedule(), "Test battery"
     message["force_new_job_creation"] = True
 
-    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    price_sensor_id = add_market_prices_transactional_db["epex_da"].id
     message["flex-context"] = {
         "consumption-price": {"sensor": price_sensor_id},
         "production-price": {"sensor": price_sensor_id},
         "site-power-capacity": "1 TW",  # should be big enough to avoid any infeasibilities
     }
     if context_sensor_num:
-        other_asset = add_battery_assets_fresh_db["Test small battery"]
+        other_asset = add_battery_assets_transactional_db["Test small battery"]
         context_sensors = setup_inflexible_device_sensors(
-            fresh_db, other_asset, "other asset sensors", context_sensor_num
+            transactional_db, other_asset, "other asset sensors", context_sensor_num
         )
         message["flex-context"]["inflexible-device-sensors"] = [
             sensor.id for sensor in context_sensors
         ]
     if asset_sensor_num:
-        battery_asset = add_battery_assets_fresh_db[asset_name]
+        battery_asset = add_battery_assets_transactional_db[asset_name]
         battery_sensors = setup_inflexible_device_sensors(
-            fresh_db, battery_asset, "battery asset sensors", asset_sensor_num
+            transactional_db, battery_asset, "battery asset sensors", asset_sensor_num
         )
-        link_sensors(fresh_db, battery_asset, battery_sensors)
+        link_sensors(transactional_db, battery_asset, battery_sensors)
     if parent_sensor_num:
-        building_asset = add_battery_assets_fresh_db["Test building"]
+        building_asset = add_battery_assets_transactional_db["Test building"]
         building_sensors = setup_inflexible_device_sensors(
-            fresh_db, building_asset, "building asset sensors", parent_sensor_num
+            transactional_db,
+            building_asset,
+            "building asset sensors",
+            parent_sensor_num,
         )
-        link_sensors(fresh_db, building_asset, building_sensors)
+        link_sensors(transactional_db, building_asset, building_sensors)
 
     # trigger a schedule through the /sensors/<id>/schedules/trigger [POST] api endpoint
     assert len(app.queues["scheduling"]) == 0
@@ -475,10 +484,10 @@ def test_inflexible_device_sensors_priority(
 )
 def test_multiple_contracts(
     app,
-    fresh_db,
-    add_market_prices_fresh_db,
-    add_battery_assets_fresh_db,
-    battery_soc_sensor_fresh_db,
+    transactional_db,
+    add_market_prices_transactional_db,
+    add_battery_assets_transactional_db,
+    battery_soc_sensor_transactional_db,
     include_consumption_breach,
     requesting_user,
 ):
@@ -504,7 +513,7 @@ def test_multiple_contracts(
         # we won't need to breach this site_consumption_capacity to reach the target
         site_consumption_capacity = 1
 
-    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    price_sensor_id = add_market_prices_transactional_db["epex_da"].id
     message["flex-context"] = {
         "consumption-price": {"sensor": price_sensor_id},
         "production-price": {"sensor": price_sensor_id},
@@ -610,7 +619,7 @@ def test_multiple_contracts(
         )
 
 
-def setup_inflexible_device_sensors(fresh_db, asset, sensor_name, sensor_num):
+def setup_inflexible_device_sensors(db, asset, sensor_name, sensor_num):
     """Test helper function to add sensor_num sensors to an asset"""
     sensors = list()
     for i in range(sensor_num):
@@ -621,16 +630,16 @@ def setup_inflexible_device_sensors(fresh_db, asset, sensor_name, sensor_num):
             unit="MW",
             attributes={"capacity_in_mw": 2},
         )
-        fresh_db.session.add(sensor)
+        db.session.add(sensor)
         sensors.append(sensor)
-    fresh_db.session.flush()
+    db.session.flush()
 
     return sensors
 
 
-def link_sensors(fresh_db, asset, sensors):
+def link_sensors(db, asset, sensors):
     asset.flex_context.setdefault("inflexible-device-sensors", list())
     asset.flex_context["inflexible-device-sensors"].extend(
         [sensor.id for sensor in sensors]
     )
-    fresh_db.session.add(asset)
+    db.session.add(asset)
