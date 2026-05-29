@@ -55,6 +55,7 @@ Bugfixes
 * Clean up stale sensor references from ``flex-config`` and ``sensors_to_show`` when deleting a sensor, using JSONB queries to find affected assets before pruning those references [see `PR #2106 <https://www.github.com/FlexMeasures/flexmeasures/pull/2106>`_]
 * Standardize resolution formatting across API endpoints for consistent response payloads [see `PR #2152 <https://www.github.com/FlexMeasures/flexmeasures/pull/2152>`_]
 * Make the auth check for CLI commands work with ``flask``, too, instead of only with the ``flexmeasures`` alias [see `PR #2169 <https://www.github.com/FlexMeasures/flexmeasures/pull/2169>`_]
+* Fix ``flexmeasures show asset`` for assets whose ``sensors_to_show`` uses the standardized ``plots`` schema [see `PR #2189 <https://www.github.com/FlexMeasures/flexmeasures/pull/2189>`_]
 * Distinguish data sources with duplicate names in chart legends without showing source IDs [see `PR #2185 <https://www.github.com/FlexMeasures/flexmeasures/pull/2185>`_]
 * Fix broken API endpoint links in Read the Docs output by post-processing both known API index layouts and rewriting ``(id)`` anchors [see `PR #1753 <https://www.github.com/FlexMeasures/flexmeasures/pull/1753>`_]
 * Wrap Darts training ``ValueError`` about no common feature times as a clearer ``NotEnoughDataException`` when there is insufficient history for the requested forecast horizon [see `PR #2192 <https://www.github.com/FlexMeasures/flexmeasures/pull/2192>`_]
