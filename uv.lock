@@ -1318,7 +1318,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "redis", specifier = ">4.5" },
     { name = "rq", specifier = ">=2.6.1" },
-    { name = "rq-dashboard", specifier = ">=0.8.0.2" },
+    { name = "rq-dashboard", specifier = ">=0.8.7" },
     { name = "rq-win", specifier = ">=0.4.2" },
     { name = "rq-win", marker = "os_name == 'nt' or os_name == 'win'" },
     { name = "sentry-sdk", extras = ["flask"], specifier = ">=2.52.0" },
@@ -3311,7 +3311,7 @@ wheels = [
 
 [[package]]
 name = "rq-dashboard"
-version = "0.8.6"
+version = "0.8.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "arrow", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
@@ -3320,9 +3320,9 @@ dependencies = [
     { name = "redis-sentinel-url", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "rq", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5a/74/01ad052d8aec0e0d31a9575bd4e19a0aa62235c0e8a259cf7fab12b1fda5/rq_dashboard-0.8.6.tar.gz", hash = "sha256:36a3182a6ea854642d444f8691bb4e692afb36394429cd8c2c4963fbc8cbb572", size = 210231, upload-time = "2025-12-02T08:36:01.354Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/51/73/2e4347593d50bed8dcf0ba89ac180133f04de056fc9f7c701cfd56988f9a/rq_dashboard-0.8.7.tar.gz", hash = "sha256:068964cd677787586724ae71d051c4c963fdd5ea86515f1b42357bf983253951", size = 210994, upload-time = "2026-05-26T05:06:08.925Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/11/5e/8b92e99341fd81f7349a5614756c3e3bfc1ec8cae6dbc4b45649ec07fac3/rq_dashboard-0.8.6-py2.py3-none-any.whl", hash = "sha256:dc7b3517538bfe95e4ac9fe3a3017af939f940da88a79edd5cf40f26dca4ce67", size = 213580, upload-time = "2025-12-02T08:35:59.942Z" },
+    { url = "https://files.pythonhosted.org/packages/60/f8/c77dec616466b33b62240a89e1a71f5d88df3ebfe0ace6be2403b55a492a/rq_dashboard-0.8.7-py2.py3-none-any.whl", hash = "sha256:889e9c302251f7e95720360acff515a40a274d340675c74189bfa4ffbcd8c63f", size = 213975, upload-time = "2026-05-26T05:06:07.2Z" },
 ]
 
 [[package]]

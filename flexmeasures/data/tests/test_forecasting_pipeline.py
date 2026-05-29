@@ -8,9 +8,11 @@ from datetime import datetime, timedelta
 
 from marshmallow import ValidationError
 
+from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
+from flexmeasures.data.models.forecasting.pipelines.train import derive_daily_lag_steps
 from flexmeasures.data.models.generic_assets import (
     GenericAsset as Asset,
     GenericAssetType,
@@ -20,6 +22,71 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
+
+
+def test_custom_lgbm_falls_back_when_daily_lag_is_under_sampled():
+    """Short histories should drop daily lags only where they are under-sampled."""
+    under_sampled_model = CustomLGBM(
+        max_forecast_horizon=192,
+        probabilistic=False,
+        seasonal_lags_steps=[96, 1, 24],
+        training_sample_count=288,
+    )
+    assert under_sampled_model.seasonal_lags_steps == [96, 1, 24]
+    assert under_sampled_model.models[0].lags["target"] == [
+        -97,
+        -96,
+        -25,
+        -24,
+        -2,
+        -1,
+    ]
+    assert under_sampled_model.models[48].lags["target"] == [
+        -49,
+        -48,
+        -25,
+        -24,
+        -2,
+        -1,
+    ]
+    assert under_sampled_model.models[-1].lags["target"] == [-1]
+
+    sufficiently_sampled_model = CustomLGBM(
+        max_forecast_horizon=192,
+        probabilistic=False,
+        seasonal_lags_steps=[96, 1, 24],
+        training_sample_count=384,
+    )
+    assert sufficiently_sampled_model.seasonal_lags_steps == [96, 1, 24]
+    assert sufficiently_sampled_model.models[-1].lags["target"] == [-1]
+
+
+def test_custom_lgbm_rejects_invalid_lag_steps():
+    with pytest.raises(ValueError, match="seasonal_lags_steps values"):
+        CustomLGBM(
+            max_forecast_horizon=1,
+            probabilistic=False,
+            seasonal_lags_steps=[24, 0],
+        )
+
+    with pytest.raises(ValueError, match="None of the seasonal_lags_steps"):
+        CustomLGBM(
+            max_forecast_horizon=2,
+            probabilistic=False,
+            seasonal_lags_steps=[24],
+            training_sample_count=2,
+        )
+
+
+def test_derive_daily_lag_steps_requires_divisible_resolution(caplog):
+    assert derive_daily_lag_steps(timedelta(minutes=15)) == 96
+
+    with caplog.at_level(logging.WARNING):
+        assert derive_daily_lag_steps(timedelta(minutes=35)) == 24
+
+    assert any(
+        "does not evenly divide one day" in message for message in caplog.messages
+    )
 
 
 @pytest.mark.parametrize(
