@@ -175,8 +175,10 @@ Note that, if forecasts are created, they will have the same sign as the origina
 For schedules, the sign of the power schedule (as :ref:`beliefs <beliefs>`) recorded in the database, and as seen in UI charts, is determined as follows:
 
 - If the flex-model contains the ``sensor`` field, and that sensor has power units (e.g. kW), the ``"consumption_is_positive"`` attribute of the sensor is used to decide the sign of the recorded data.
-  If the attribute is not defined, **by default, scheduled power is recorded with production as positive values** (and consumption as negative values).
-  To record scheduled power data with consumption as positive values, set ``sensor.attributes["consumption_is_positive"] = True``.
+  If `True`, consumption will be saved as positive, otherwise not. To clarify:
+  - If the attribute is not defined, **by default, scheduled power is recorded with production as positive values** (and consumption as negative values).
+  - To record scheduled power data with consumption as positive values, set ``sensor.attributes["consumption_is_positive"] = True``.
+  - To record scheduled power data with production as positive values (already the default, but this makes it explicit), set ``sensor.attributes["consumption_is_positive"] = False``.
 - If the flex-model contains the ``consumption`` field, scheduled power is recorded with consumption as positive values.
   The ``"consumption_is_positive"`` attribute of the referenced sensor is set automatically to ``True``.
 - If the flex-model contains the ``production`` field, scheduled power is recorded with production as positive values.
