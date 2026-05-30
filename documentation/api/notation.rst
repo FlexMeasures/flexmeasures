@@ -302,3 +302,10 @@ We'd recommend to use positive power values to indicate consumption and negative
 
 Read more at :ref:`signs_of_power_beliefs` about our treatment of data, which includes data you send in, or you get from forecasts and schedules
 (hint: you are free to define the sign for your data, but it might affect how you receive your schedules).
+
+The ``GET /api/v3_0/sensors/<id>/schedules/<uuid>`` endpoint supports three sign conventions via the ``sign-convention`` query parameter:
+
+- ``consumption-positive`` (**default**): schedules are returned with consumption as positive values and production as negative values, regardless of how they are stored in the database.
+- ``production-positive``: schedules are returned with production as positive values and consumption as negative values.
+- ``wysiwyg`` (*what-you-see-is-what-you-get*): schedules are returned with the same sign as database values and as seen in the UI charts.
+  The values indicate exactly what was stored, which was itself governed by the sensor's ``consumption_is_positive`` attribute (if present) or the scheduler's default convention (which stored production as positive values in the database).

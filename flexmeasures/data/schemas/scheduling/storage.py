@@ -18,7 +18,10 @@ from flexmeasures import Asset, Sensor
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata
-from flexmeasures.data.schemas.sensors import VariableQuantityField
+from flexmeasures.data.schemas.sensors import (
+    SensorReferenceSchema,
+    VariableQuantityField,
+)
 from flexmeasures.utils.unit_utils import (
     ur,
     is_power_unit,
@@ -80,6 +83,15 @@ class StorageFlexModelSchema(Schema):
     asset = GenericAssetIdField(
         required=False,
         metadata=dict(description="ID of the asset that is requested to be scheduled."),
+    )
+
+    consumption = fields.Nested(
+        SensorReferenceSchema,
+        metadata=metadata.CONSUMPTION.to_dict(),
+    )
+    production = fields.Nested(
+        SensorReferenceSchema,
+        metadata=metadata.PRODUCTION.to_dict(),
     )
 
     soc_at_start = QuantityField(
@@ -313,19 +325,6 @@ class StorageFlexModelSchema(Schema):
         if self.sensor is not None and self.sensor.asset != asset:
             raise ValidationError("Sensor does not belong to asset.")
 
-    @validates("storage_efficiency")
-    def validate_storage_efficiency_resolution(
-        self, unit: Sensor | ur.Quantity, **kwargs
-    ):
-        if (
-            self.sensor is not None
-            and isinstance(unit, Sensor)
-            and unit.event_resolution != self.sensor.event_resolution
-        ):
-            raise ValidationError(
-                "Event resolution of the storage efficiency and the power sensor don't match. Resampling the storage efficiency is not supported."
-            )
-
     @validates_schema
     def check_redundant_efficiencies(self, data: dict, **kwargs):
         """
@@ -374,6 +373,9 @@ class DBStorageFlexModelSchema(Schema):
     """
     Schema for flex-models stored in the db. Supports fixed quantities and sensor references, while disallowing time series specs.
     """
+
+    consumption = fields.Nested(SensorReferenceSchema)
+    production = fields.Nested(SensorReferenceSchema)
 
     soc_min = VariableQuantityField(
         to_unit="MWh",
@@ -506,6 +508,22 @@ class DBStorageFlexModelSchema(Schema):
             field: (self.declared_fields[field].data_key or field)
             for field in self.declared_fields
         }
+
+    @validates("storage_efficiency")
+    def validate_storage_efficiency_resolution(
+        self, unit: Sensor | ur.Quantity, **kwargs
+    ):
+        if (
+            isinstance(unit, ur.Quantity)
+            and not isinstance(self.consumption, Sensor)
+            and not isinstance(self.production, Sensor)
+        ):
+            raise ValidationError(
+                "The storage-efficiency cannot be interpreted without a resolution. "
+                "Record the storage-efficiency on a sensor instead (with a non-zero resolution) and then reference that sensor in the flex-model. "
+                "Alternatively, set the consumption or production field in the flex-model to reference a sensor, "
+                "and the scheduler will assume their resolution is the one to use."
+            )
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
