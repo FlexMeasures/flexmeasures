@@ -304,6 +304,12 @@ class FlexContextSchema(Schema):
         metadata=metadata.AGGREGATE_POWER.to_dict(),
     )
 
+    curtailable_device_sensors = fields.List(
+        SensorIdField(),
+        data_key="curtailable-device-sensors",
+        metadata=metadata.CURTAILABLE_DEVICE_SENSORS.to_dict(),
+    )
+
     def set_default_breach_prices(
         self, data: dict, fields: list[str], price: ur.Quantity
     ):
