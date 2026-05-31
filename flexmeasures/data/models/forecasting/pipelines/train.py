@@ -4,15 +4,35 @@ import os
 import pickle
 import warnings
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from darts import TimeSeries
 
 from flexmeasures import Sensor
-from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
+from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+from flexmeasures.data.models.forecasting.custom_models.lgbm_model import (
+    CustomLGBM,
+    DEFAULT_SEASONAL_LAGS_STEPS,
+)
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 
 warnings.filterwarnings("ignore")
+
+
+def derive_daily_lag_steps(
+    sensor_resolution: timedelta, fallback_lag_steps: int = 24
+) -> int:
+    """Return a daily lag in sensor-resolution steps, if one exists."""
+    one_day = timedelta(days=1)
+    if one_day % sensor_resolution == timedelta(0):
+        return max(int(one_day / sensor_resolution), 1)
+    logging.warning(
+        "Sensor resolution %s does not evenly divide one day. Falling back to "
+        "%s seasonal lag steps.",
+        sensor_resolution,
+        fallback_lag_steps,
+    )
+    return fallback_lag_steps
 
 
 class TrainPipeline(BasePipeline):
@@ -82,11 +102,22 @@ class TrainPipeline(BasePipeline):
         """
         logging.debug(f"Training model {model.__class__.__name__}")
 
-        model.fit(
-            series=y_train,
-            past_covariates=past_covariates,
-            future_covariates=future_covariates,
-        )
+        try:
+            model.fit(
+                series=y_train,
+                past_covariates=past_covariates,
+                future_covariates=future_covariates,
+            )
+        except ValueError as e:
+            if (
+                "do not share any common times for which features can be created"
+                in str(e)
+            ):
+                raise NotEnoughDataException(
+                    "Not enough training data for the requested forecast horizon. "
+                    "Upload more historical data or choose a shorter forecast duration."
+                ) from e
+            raise
         logging.debug("Model trained successfully")
         return model
 
@@ -126,6 +157,11 @@ class TrainPipeline(BasePipeline):
                 use_past_covariates=past_covariates_list is not None,
                 use_future_covariates=future_covariates_list is not None,
                 ensure_positive=self.ensure_positive,
+                seasonal_lags_steps=[
+                    derive_daily_lag_steps(self.target_sensor.event_resolution),
+                    *DEFAULT_SEASONAL_LAGS_STEPS,
+                ],
+                training_sample_count=len(y_train),
             )
         }
 

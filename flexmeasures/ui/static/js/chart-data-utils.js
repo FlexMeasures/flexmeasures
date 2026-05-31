@@ -51,10 +51,15 @@ export function decompressChartData(responseData) {
           asset_description: sensor.asset_description || "",
         },
         source: {
+          ...source,
           id: belief.src,
           name: source.name || "",
           model: source.model || "",
+          version: source.version || "",
           type: source.type || "other",
+          raw_type: source.raw_type || "",
+          display_type:
+            source.display_type || source.raw_type || source.type || "other",
           description: source.description || "",
         },
 

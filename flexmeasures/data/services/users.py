@@ -235,7 +235,7 @@ def delete_user(user: User):
         event=f"User {user.username} deleted",
         active_user_id=active_user_id,
         active_user_name=active_user_name,
-        affected_user_id=None,  # add the audit log record even if the user is gone
+        affected_user_id=user.id,  # add the audit log record even if the user will be gone
         affected_account_id=user.account_id,
     )
     db.session.add(user_audit_log)

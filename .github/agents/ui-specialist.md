@@ -9,6 +9,8 @@ description: Guards UI consistency, permission patterns, JavaScript interaction 
 
 Owns the quality, consistency, and correctness of all FlexMeasures UI work: Flask/Jinja2 templates, Python view logic, JavaScript interaction patterns (fetch → poll → Toast → reload), CSS, and UI-focused tests. Ensures new UI features follow established side-panel patterns, permission-gate correctly, and do not introduce security regressions. Accumulated from the "Create Forecast" button PR (#1985) session.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review
@@ -205,3 +207,30 @@ window.showToast(message, type, { highlightDuplicates = true, showDuplicateCount
 - **Boundary test value**: Use `timedelta(days=2) - timedelta(seconds=1)` to test the boundary, not `timedelta(days=1)` — the test should be tight around the actual threshold.
 - **JS guarded by Jinja2**: Wrap the event listener registration in `{% if permission_var and data_var %}` to prevent `getElementById` returning null for the disabled-button path.
 - **Test fixture for cross-account user**: Create a `scope="function"` fixture that logs in a user from a different account; this makes negative-permission tests readable and reusable.
+
+### Toast vs. alert-info — When to Use Which (PR #2119 / #2120)
+
+**Rule**: Use toast notifications for transient action results (success, failure, progress). Use inline `alert-info` divs only for persistent contextual information that the user needs to read while interacting with the page.
+
+| Use case | Pattern | Example |
+|---|---|---|
+| Action succeeded (save, delete, copy) | `showToast("...", "success")` | "Asset deleted", "Asset copied successfully" |
+| Action failed | `showToast("...", "error")` | "Copy failed: ..." |
+| Background job progress | `showToast("...", "info")` | "Queuing job..." |
+| Inline help about a field | `<div class="alert alert-info">` | Flex model field descriptions |
+
+**Post-redirect toast (server-side)**:
+Use `session["toast_msg"] = "message"` before redirecting in a view, then in the redirect target pass `toast_msg=session.pop("toast_msg", None)` to the template, and render it in the template:
+```html
+{% if toast_msg %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        showToast("{{ toast_msg | e }}", "success");
+    });
+</script>
+{% endif %}
+```
+
+**Client-side fetch toast**: Call `showToast(...)` directly in JS after a `fetch()` resolves.
+
+**Do NOT migrate** inline `alert-info` divs that display persistent informational content (e.g., field descriptions in a modal) to toasts — they would disappear before the user reads them.

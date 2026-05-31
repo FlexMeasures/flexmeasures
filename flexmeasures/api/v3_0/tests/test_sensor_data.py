@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from flask import url_for
+from flask import current_app, url_for
 import pytest
+from redis.exceptions import ConnectionError as RedisConnectionError
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 from flexmeasures import Sensor, Source, User
+from flexmeasures.api.v3_0.tests.conftest import GAS_MEASUREMENTS_10MIN
 from flexmeasures.api.v3_0.tests.utils import make_sensor_data_request_for_gas_sensor
+
+
+def _fake_ingestion_worker(queue):
+    return [object()]
 
 
 @pytest.mark.parametrize(
@@ -73,9 +79,17 @@ def test_get_sensor_data(
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 200
     values = response.json["values"]
-    # We expect two data points (from conftest) followed by 2 null values (which are converted to None by .json)
-    # The first data point averages [91.3, 91.7], and the second data point averages [92.1, None].
-    assert all(a == b for a, b in zip(values, [91.5, 92.1, None, None]))
+    # GAS_MEASUREMENTS_10MIN stores 10-minute values; resampled to 20-minute resolution:
+    #   - 1st interval: average of [91.3, 91.7] = 91.5
+    #   - 2nd interval: average of [92.1, None] = 92.1 (only one value present)
+    #   - 3rd and 4th intervals: no data → None
+    expected = [
+        sum(GAS_MEASUREMENTS_10MIN[0:2]) / 2,  # 91.5
+        GAS_MEASUREMENTS_10MIN[2],  # 92.1
+        None,
+        None,
+    ]
+    assert values == expected
 
 
 @pytest.mark.parametrize(
@@ -115,6 +129,145 @@ def test_get_instantaneous_sensor_data(
 
 
 @pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_sensor_data_filtered_by_source_account(
+    client,
+    setup_api_test_data: dict[str, Sensor],
+    setup_roles_users: dict[str, User],
+    requesting_user,
+    db,
+):
+    """Check that GET /sensors/<id>/data can filter by the account linked to a source."""
+    sensor = setup_api_test_data["some gas sensor"]
+    source_user = db.session.get(User, setup_roles_users["Test Supplier User"])
+    assert source_user.account_id is not None
+    message = {
+        "start": "2021-05-02T00:00:00+02:00",
+        "duration": "PT1H20M",
+        "horizon": "PT0H",
+        "unit": "m³/h",
+        "source-account": source_user.account_id,
+        "resolution": "PT20M",
+    }
+    response = client.get(
+        url_for("SensorAPI:get_data", id=sensor.id),
+        query_string=message,
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    values = response.json["values"]
+    # The fixture also stores data from an accountless "Other source".
+    # Filtering by the user account should exclude those points.
+    # GAS_MEASUREMENTS_10MIN stores 10-minute values; resampled to 20-minute resolution:
+    #   - 1st interval: average of [91.3, 91.7] = 91.5
+    #   - 2nd interval: average of [92.1, None] = 92.1 (only one value present)
+    expected = [
+        sum(GAS_MEASUREMENTS_10MIN[0:2]) / 2,  # 91.5
+        GAS_MEASUREMENTS_10MIN[2],  # 92.1
+        None,
+        None,
+    ]
+    assert all(a == b for a, b in zip(values, expected))
+
+
+@pytest.mark.parametrize(
+    "source_type, expected_statuscode, expected_values",
+    [
+        (
+            "user",
+            200,
+            [
+                sum(GAS_MEASUREMENTS_10MIN[0:2]) / 2,  # 91.5
+                GAS_MEASUREMENTS_10MIN[2],  # 92.1
+                None,
+                None,
+            ],
+        ),
+        (
+            "demo script",
+            200,
+            [
+                GAS_MEASUREMENTS_10MIN[0],  # 91.3
+                GAS_MEASUREMENTS_10MIN[2],  # 92.1
+                None,
+                None,
+            ],
+        ),
+        ("scheduler", 422, [None, None, None, None]),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_sensor_data_filtered_by_source_type(
+    client,
+    setup_api_test_data: dict[str, Sensor],
+    requesting_user,
+    source_type,
+    expected_statuscode,
+    expected_values,
+):
+    """Check that GET /sensors/<id>/data can filter by source type."""
+    sensor = setup_api_test_data["some gas sensor"]
+    message = {
+        "start": "2021-05-02T00:00:00+02:00",
+        "duration": "PT1H20M",
+        "horizon": "PT0H",
+        "unit": "m³/h",
+        "source-type": source_type,
+        "resolution": "PT20M",
+    }
+    response = client.get(
+        url_for("SensorAPI:get_data", id=sensor.id),
+        query_string=message,
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == expected_statuscode
+    if expected_statuscode == 200:
+        assert response.json["values"] == expected_values
+    else:
+        assert (
+            f"No data source with source-type '{source_type}' has recorded any data on this sensor."
+            in response.json["message"]["combined_sensor_data_description"][
+                "source-type"
+            ]
+        )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_sensor_data_rejects_empty_source_type(
+    client,
+    setup_api_test_data: dict[str, Sensor],
+    requesting_user,
+):
+    """Check that GET /sensors/<id>/data rejects an empty source-type filter."""
+    sensor = setup_api_test_data["some gas sensor"]
+    message = {
+        "start": "2021-05-02T00:00:00+02:00",
+        "duration": "PT1H20M",
+        "horizon": "PT0H",
+        "unit": "m³/h",
+        "source-type": "",
+        "resolution": "PT20M",
+    }
+    response = client.get(
+        url_for("SensorAPI:get_data", id=sensor.id),
+        query_string=message,
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 422
+    assert (
+        "Shorter than minimum length 1."
+        in response.json["message"]["combined_sensor_data_description"]["source-type"][
+            0
+        ]
+    )
+
+
+@pytest.mark.parametrize(
     "requesting_user, status_code",
     [
         (None, 401),  # the case without auth: authentication will fail
@@ -139,6 +292,94 @@ def test_post_sensor_data_bad_auth(
     )
     print("Server responded with:\n%s" % post_data_response.data)
     assert post_data_response.status_code == status_code
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_sensor_data_returns_accepted_job(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        _fake_ingestion_worker,
+    )
+    current_app.queues["ingestion"].empty()
+    post_data = make_sensor_data_request_for_gas_sensor()
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        json=post_data,
+    )
+
+    assert response.status_code == 202
+    assert response.json["status"] == "ACCEPTED"
+    assert response.json["job_monitor_url"] == url_for(
+        "JobAPI:get_job_status", uuid=response.json["job_id"]
+    )
+    job = current_app.queues["ingestion"].fetch_job(response.json["job_id"])
+    assert job.kwargs["sensor_id"] == sensor.id
+    assert job.kwargs["sensor_data"] == post_data
+    assert "data" not in job.kwargs
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_sensor_data_falls_back_when_redis_unavailable(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    monkeypatch,
+):
+    def raise_connection_error(queue):
+        raise RedisConnectionError("Connection refused")
+
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        raise_connection_error,
+    )
+    current_app.queues["ingestion"].empty()
+    post_data = make_sensor_data_request_for_gas_sensor()
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        json=post_data,
+    )
+
+    assert response.status_code == 200
+    assert response.json["status"] == "PROCESSED"
+    assert current_app.queues["ingestion"].count == 0
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_sensor_data_rejects_large_json(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    monkeypatch,
+):
+    monkeypatch.setitem(
+        current_app.config,
+        "FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES",
+        1,
+    )
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        json=make_sensor_data_request_for_gas_sensor(),
+    )
+
+    assert response.status_code == 413
+    assert response.json["status"] == "PAYLOAD_TOO_LARGE"
 
 
 @pytest.mark.parametrize(
@@ -170,7 +411,13 @@ def test_post_invalid_sensor_data(
     error_field,
     error_text,
     requesting_user,
+    monkeypatch,
 ):
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        _fake_ingestion_worker,
+    )
+    current_app.queues["ingestion"].empty()
     post_data = make_sensor_data_request_for_gas_sensor()
     sensor = setup_api_test_data["some gas sensor"]
     post_data[request_field] = new_value
@@ -184,6 +431,55 @@ def test_post_invalid_sensor_data(
     assert (
         error_text
         in response.json["message"]["combined_sensor_data_description"][error_field][0]
+    )
+    assert current_app.queues["ingestion"].count == 0
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_sensor_data_rejects_unknown_sensor_before_queueing(
+    client,
+    requesting_user,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        _fake_ingestion_worker,
+    )
+    current_app.queues["ingestion"].empty()
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=999999),
+        json=make_sensor_data_request_for_gas_sensor(),
+    )
+
+    assert response.status_code == 404
+    assert current_app.queues["ingestion"].count == 0
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_post_non_instantaneous_sensor_data_with_zero_duration_single_value(
+    client, setup_api_test_data, requesting_user
+):
+    post_data = make_sensor_data_request_for_gas_sensor(
+        num_values=1,
+        duration="PT0M",
+        unit="m³/h",
+    )
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.post(
+        url_for("SensorAPI:post_data", id=sensor.id),
+        json=post_data,
+    )
+
+    assert response.status_code == 422
+    assert (
+        "Cannot infer a non-zero resolution from one value over zero duration"
+        in response.json["message"]["combined_sensor_data_description"]["_schema"][0]
     )
 
 

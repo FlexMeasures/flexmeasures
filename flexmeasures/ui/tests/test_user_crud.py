@@ -34,6 +34,20 @@ def test_user_page(client, as_admin, setup_accounts):
     assert user2.email.encode() in user_page.data
 
 
+def test_user_page_breadcrumb(client, as_admin, setup_accounts):
+    """User page should show account name and username in a breadcrumb."""
+    user2 = find_user_by_email("test_prosumer_user_2@seita.nl")
+    user_page = client.get(
+        url_for("UserCrudUI:get", id=user2.id), follow_redirects=True
+    )
+    assert user_page.status_code == 200
+    # Breadcrumb nav should be present
+    assert b'aria-label="breadcrumb' in user_page.data
+    # Both account name and username should appear in the breadcrumb ancestors
+    assert user2.account.name.encode() in user_page.data
+    assert user2.username.encode() in user_page.data
+
+
 def test_reset_password(client, as_admin):
     """Test it does not fail (logic is tested in API tests) and displays an answer."""
     user2 = find_user_by_email("test_prosumer_user_2@seita.nl", keep_in_session=False)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from packaging import version
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 
 from flask import current_app
@@ -428,8 +428,14 @@ def process_time_series_segments(
         # If start and end have different UTC offsets (like crossing DST),
         # normalize them by converting to UTC.
         if not same_offset:
-            start = start.tz_convert("UTC")
-            end = end.tz_convert("UTC")
+            if isinstance(start, datetime):
+                start = start.astimezone(timezone.utc)
+            else:
+                start = start.tz_convert("UTC")
+            if isinstance(end, datetime):
+                end = end.astimezone(timezone.utc)
+            else:
+                end = end.tz_convert("UTC")
         # Assign the value to the corresponding segment in the DataFrame
         time_series_segments.loc[start : end - resolution, segment] = value
 

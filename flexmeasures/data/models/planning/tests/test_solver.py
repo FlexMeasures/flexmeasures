@@ -80,6 +80,7 @@ def test_storage_loss_function(
 @pytest.mark.parametrize("use_inflexible_device", [False, True])
 @pytest.mark.parametrize("battery_name", ["Test battery", "Test small battery"])
 def test_battery_solver_day_1(
+    setup_planning_test_data,
     add_battery_assets,
     add_inflexible_device_forecasts,
     use_inflexible_device,
@@ -126,7 +127,11 @@ def test_battery_solver_day_1(
     ],
 )
 def test_battery_solver_day_2(
-    add_battery_assets, roundtrip_efficiency: float, storage_efficiency: float, db
+    setup_planning_test_data,
+    add_battery_assets,
+    roundtrip_efficiency: float,
+    storage_efficiency: float,
+    db,
 ):
     """Check battery scheduling results for day 2, which is set up with
     8 expensive, then 8 cheap, then again 8 expensive hours.
@@ -307,7 +312,9 @@ def run_test_charge_discharge_sign(
     return schedule.tz_convert(tz), soc_schedule.tz_convert(tz)
 
 
-def test_battery_solver_day_3(add_battery_assets, add_inflexible_device_forecasts, db):
+def test_battery_solver_day_3(
+    setup_planning_test_data, add_battery_assets, add_inflexible_device_forecasts, db
+):
     """Check battery scheduling results for day 3, which is set up with
     8 hours with negative prices, followed by 16 expensive hours.
 
@@ -2892,6 +2899,74 @@ def test_multiple_devices_simultaneous_scheduler():
         device == d and pytest.approx(cost, 0.01) == expected_individual_costs[d][1]
         for d, (device, cost) in enumerate(individual_costs)
     ), "Individual costs mismatch: Costs for one or more devices are not calculated as expected."
+
+
+def test_prefer_full_storage_skips_non_storage_devices(db, building):
+    """Do not apply SoC-based storage preferences to non-storage devices such as PV."""
+
+    battery = Sensor(
+        name="mixed battery power sensor",
+        generic_asset=building,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+    )
+    pv = Sensor(
+        name="mixed pv power sensor",
+        generic_asset=building,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+        attributes={"is_strictly_non_positive": True},
+    )
+    db.session.add_all([battery, pv])
+    db.session.commit()
+
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + timedelta(hours=4)
+    resolution = timedelta(hours=1)
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=building,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=[
+            {
+                "sensor": battery,
+                "soc_at_start": 1.0,
+                "soc_min": 0.0,
+                "soc_max": 2.0,
+                "power_capacity_in_mw": ur.Quantity("1 MW"),
+                "consumption_capacity": ur.Quantity("1 MW"),
+                "production_capacity": ur.Quantity("1 MW"),
+                "prefer_charging_sooner": True,
+                "prefer_curtailing_later": True,
+            },
+            {
+                "sensor": pv,
+                "power_capacity_in_mw": ur.Quantity("1 MW"),
+                "consumption_capacity": ur.Quantity("0 MW"),
+                "production_capacity": ur.Quantity("1 MW"),
+                "prefer_charging_sooner": True,
+                "prefer_curtailing_later": True,
+            },
+        ],
+        flex_context={
+            "consumption_price": ur.Quantity("100 EUR/MWh"),
+            "production_price": ur.Quantity("100 EUR/MWh"),
+            "shared_currency_unit": "EUR",
+            "ems_power_capacity_in_mw": ur.Quantity("2 MW"),
+        },
+        return_multiple=True,
+    )
+    scheduler.config_deserialized = True
+
+    schedule = scheduler.compute()
+
+    assert isinstance(schedule, list)
+    assert any(
+        result.get("name") == "storage_schedule" and result.get("sensor") == battery
+        for result in schedule
+    )
 
 
 def test_multiple_devices_sequential_scheduler():

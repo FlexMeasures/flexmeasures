@@ -29,6 +29,24 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
     index = initialize_index(start=start, end=end, resolution=resolution)
     production_prices = pd.Series(90, index=index)
     consumption_prices = pd.Series(100, index=index)
+
+    # Add consumption and production output sensors to the battery asset
+    consumption_output_sensor = Sensor(
+        name="consumption output",
+        generic_asset=battery.generic_asset,
+        unit="kW",
+        event_resolution=resolution,
+    )
+    production_output_sensor = Sensor(
+        name="production output",
+        generic_asset=battery.generic_asset,
+        unit="kW",
+        event_resolution=resolution,
+    )
+    db.session.add(consumption_output_sensor)
+    db.session.add(production_output_sensor)
+    db.session.flush()
+
     scheduler: Scheduler = StorageScheduler(
         battery,
         start,
@@ -37,6 +55,8 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
         flex_model={
             "soc-at-start": f"{soc_at_start} MWh",
             "soc-min": "0 MWh",
+            "consumption": {"sensor": consumption_output_sensor.id},
+            "production": {"sensor": production_output_sensor.id},
             "soc-max": "1 MWh",
             "power-capacity": "1 MVA",
             "soc-minima": [
@@ -130,6 +150,24 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
     np.testing.assert_almost_equal(
         costs["a sample commitment penalizing demand/supply"], 1 * (1 - 0.4)
     )
+
+    # Check consumption/production output sensor schedules.
+    # The battery charges at a constant rate (all positive values), so the consumption schedule
+    # should match the power schedule in kW, and the production schedule should be all zeros.
+    consumption_result = next(
+        r for r in results if r.get("name") == "consumption_schedule"
+    )
+    production_result = next(
+        r for r in results if r.get("name") == "production_schedule"
+    )
+    assert consumption_result["sensor"] is consumption_output_sensor
+    assert consumption_result["unit"] == "kW"
+    assert production_result["sensor"] is production_output_sensor
+    assert production_result["unit"] == "kW"
+    # Both sensors have the same resolution as the power sensor, so no resampling occurs.
+    expected_kw = (1 - 0.4) / 24 * 1000  # MW -> kW
+    np.testing.assert_allclose(consumption_result["data"], expected_kw)
+    np.testing.assert_allclose(production_result["data"], 0)
 
 
 def test_battery_relaxation(add_battery_assets, db):

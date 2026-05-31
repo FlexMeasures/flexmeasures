@@ -246,12 +246,7 @@ def show_generic_asset(asset):
         (
             asset.generic_asset_type.name,
             asset.location,
-            "".join(
-                [
-                    f"{graph['title']}: {graph['sensors']} \n"
-                    for graph in standardized_sensors_to_show
-                ]
-            ),
+            _format_sensors_to_show(standardized_sensors_to_show),
             "".join([f"{k}: {v}\n" for k, v in asset.attributes.items()]),
             asset.external_id,
         )
@@ -328,6 +323,42 @@ def show_generic_asset(asset):
             headers=["ID", "Name", "Unit", "Resolution", "Timezone", "Attributes"],
         )
     )
+
+
+def _format_sensors_to_show(standardized_sensors_to_show: list[dict]) -> str:
+    formatted_graphs = []
+    for graph in standardized_sensors_to_show:
+        if not isinstance(graph, dict):
+            formatted_graphs.append(f"{graph} \n")
+            continue
+        title = graph.get("title") or "No Title"
+        formatted_plots = [_format_sensor_plot(plot) for plot in graph.get("plots", [])]
+        if not formatted_plots:
+            formatted_plots = ["[]"]
+        formatted_graphs.append(f"{title}: {', '.join(formatted_plots)} \n")
+    return "".join(formatted_graphs)
+
+
+def _format_sensor_plot(plot: dict) -> str:
+    if not isinstance(plot, dict):
+        return str(plot)
+    if "sensor" in plot:
+        return str(plot["sensor"])
+    if "sensors" in plot:
+        return str(plot["sensors"])
+    if "asset" in plot:
+        asset_text = f"asset={plot['asset']}"
+        reference_keys = [
+            f"{key}={plot[key]}"
+            for key in ("flex-model", "flex-context")
+            if key in plot
+        ]
+        return (
+            f"{asset_text} ({', '.join(reference_keys)})"
+            if reference_keys
+            else asset_text
+        )
+    return str(plot)
 
 
 @fm_show_data.command("data-sources")
