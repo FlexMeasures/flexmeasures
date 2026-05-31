@@ -653,3 +653,7 @@ After each assignment:
 
 - **Model layer coverage gap**: The PR added `account_id` parameter to three model methods: `Sensor.search_beliefs`, `TimedBelief.search`, and `GenericAsset.search_beliefs`. Tests covered only the first two. When a parameter is added to multiple model-layer methods, each method must be tested independently — especially when they use different code paths (e.g., `GenericAsset.search_beliefs` delegates through `Sensor.search_beliefs` but may not if the delegation chain changes). Add a checklist item: "When a filter/param is added to `search_beliefs` across multiple models, ensure at least one test exercises each model class."
 - **Empty-list edge case**: `account_id=[]` is schema-valid but semantically means "match nothing" (SQL `IN ()` returns zero rows). Tests should include this edge case and assert the expected empty result rather than letting it pass as a valid no-op.
+
+**Session 2026-05-31 (Sentry `before_send` filtering)**:
+
+- **Integration hint shape coverage**: When testing Sentry `before_send` or filter behavior, cover the real hint shapes the SDK emits, especially `log_record` versus `exc_info`. Flask error handlers may log handled HTTP errors, and Sentry's logging integration captures those as log events rather than exception events.

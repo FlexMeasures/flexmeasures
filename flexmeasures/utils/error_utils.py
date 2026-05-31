@@ -78,7 +78,7 @@ def error_handling_router(error: HTTPException):
         log_error(
             error,
             error.name,
-            verbose=False,
+            verbose=False,  # not interesting
         )
     elif http_error_code in (401, 403, 410) or isinstance(error, SecurityError):
         log_error(
