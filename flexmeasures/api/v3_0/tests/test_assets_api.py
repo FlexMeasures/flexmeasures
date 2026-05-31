@@ -545,8 +545,17 @@ def test_delete_asset_cleans_stale_asset_references_in_sensors_to_show(
     deleted_asset = setup_api_test_data["some gas sensor"].generic_asset
     deleted_asset_id = deleted_asset.id
 
-    referencing_asset = setup_api_test_data["some temperature sensor"].generic_asset
     referenced_sensor = setup_api_test_data["some temperature sensor"]
+
+    # Use a dedicated asset as the reference holder so deleting `deleted_asset`
+    # does not remove the object we assert on later.
+    referencing_asset = GenericAsset(
+        name="stale-asset-ref-holder",
+        generic_asset_type_id=deleted_asset.generic_asset_type_id,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(referencing_asset)
+    db.session.flush()
 
     referencing_asset.sensors_to_show = [
         {
