@@ -285,11 +285,38 @@ For the ``GET /api/v3_0/sensors/<id>/data`` endpoint specifically, source filter
 Units
 ^^^^^
 
-The FlexMeasures API is quite flexible with sent units.
-A valid unit for timeseries data is any unit that is convertible to the configured sensor unit registered in FlexMeasures.
-So, for example, you can send timeseries data with "W" unit to a "kW" sensor.
-And if you wish to do so, you can even send a timeseries with "kWh" unit to a "kW" sensor.
-In this case, FlexMeasures will convert the data using the resolution of the timeseries.
+The FlexMeasures API is quite flexible with units.
+Units are validated and converted using the `Pint <https://pint.readthedocs.io>`_ library.
+A valid unit for timeseries data is any unit that is convertible to the unit configured on the target sensor in FlexMeasures.
+
+The following categories of unit conversions are supported:
+
+- **Different prefixes** — e.g. posting data in "W" to a "kW" sensor, or "MW" to a "W" sensor.
+- **Equivalent units** — e.g. posting "J/s" to a "W" sensor (since 1 J/s = 1 W), or "m/s" to a "km/h" sensor.
+- **Flow ↔ stock conversions** — e.g. posting "kWh" (energy) to a "kW" (power) sensor. FlexMeasures automatically divides by the event resolution to convert between units of stock and units of flow, and vice versa.
+- **Currency codes** — three-letter ISO 4217 currency codes (e.g. "EUR", "KRW") are valid units. Note that converting between different currencies (e.g. "EUR" to "USD") requires a sensor that records conversion rates over time.
+- **Percentages** — "%" can be posted to any unit if a capacity is known (e.g. a state-of-charge percentage to a "kWh" sensor).
+- **Compound units** — units built from combinations are automatically simplified to the most compact form (e.g. "kW·EUR/MWh" is simplified to "EUR/h").
+
+For example, the following ``unit`` values are all accepted when posting data to a "kW" sensor:
+
++------------+---------------------------------+
+| Unit       | Accepted because                |
++============+=================================+
+| ``"kW"``   | exact match                     |
++------------+---------------------------------+
+| ``"W"``    | different SI prefix             |
++------------+---------------------------------+
+| ``"MW"``   | different SI prefix             |
++------------+---------------------------------+
+| ``"J/s"``  | equivalent unit (1 J/s = 1 W)   |
++------------+---------------------------------+
+| ``"kWh"``  | flow-to-stock (uses resolution) |
++------------+---------------------------------+
+
+.. seealso::
+
+   For the full list of supported conversions and the underlying implementation details, see the :mod:`flexmeasures.utils.unit_utils` module documentation.
 
 .. _signs:
 
