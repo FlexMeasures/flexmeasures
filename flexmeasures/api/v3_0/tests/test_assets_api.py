@@ -540,12 +540,12 @@ def test_delete_an_asset(client, setup_api_test_data, requesting_user, db):
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_delete_asset_cleans_stale_asset_references_in_sensors_to_show(
-    client, setup_api_test_data, requesting_user, db
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
 ):
-    deleted_asset = setup_api_test_data["some gas sensor"].generic_asset
+    deleted_asset = setup_api_fresh_test_data["some gas sensor"].generic_asset
     deleted_asset_id = deleted_asset.id
-
-    referenced_sensor = setup_api_test_data["some temperature sensor"]
+    deleted_asset_name = deleted_asset.name
+    referenced_sensor = setup_api_fresh_test_data["some temperature sensor"]
 
     # Use a dedicated asset as the reference holder so deleting `deleted_asset`
     # does not remove the object we assert on later.
@@ -554,8 +554,8 @@ def test_delete_asset_cleans_stale_asset_references_in_sensors_to_show(
         generic_asset_type_id=deleted_asset.generic_asset_type_id,
         account_id=requesting_user.account_id,
     )
-    db.session.add(referencing_asset)
-    db.session.flush()
+    fresh_db.session.add(referencing_asset)
+    fresh_db.session.flush()
 
     referencing_asset.sensors_to_show = [
         {
@@ -566,23 +566,23 @@ def test_delete_asset_cleans_stale_asset_references_in_sensors_to_show(
             ],
         }
     ]
-    db.session.add(referencing_asset)
-    db.session.commit()
+    fresh_db.session.add(referencing_asset)
+    fresh_db.session.commit()
 
     delete_asset_response = client.delete(
         url_for("AssetAPI:delete", id=deleted_asset_id),
     )
     assert delete_asset_response.status_code == 204
 
-    updated_referencing_asset = db.session.get(GenericAsset, referencing_asset.id)
+    updated_referencing_asset = fresh_db.session.get(GenericAsset, referencing_asset.id)
     assert updated_referencing_asset is not None
     assert str(deleted_asset_id) not in json.dumps(
         updated_referencing_asset.sensors_to_show
     )
 
     check_audit_log_event(
-        db=db,
-        event=f"Removed asset reference '{deleted_asset.name}': {deleted_asset_id} from sensors-to-show (because asset has been deleted).",
+        db=fresh_db,
+        event=f"Removed asset reference '{deleted_asset_name}': {deleted_asset_id} from sensors-to-show (because asset has been deleted).",
         user=requesting_user,
         asset=updated_referencing_asset,
     )
