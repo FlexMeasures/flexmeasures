@@ -11,13 +11,15 @@ import click
 from sqlalchemy import JSON, String, cast, literal
 from flask import current_app
 from rq import Queue
-from rq.job import Job
+from rq.job import Job, JobStatus, NoSuchJobError
 from sqlalchemy import select
 
 from flexmeasures import Sensor, Asset
+
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.planning import Scheduler
+from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
 def get_scheduler_instance(
@@ -44,6 +46,78 @@ def get_asset_or_sensor_ref(asset_or_sensor: Asset | Sensor) -> dict:
     if class_name == "GenericAsset":
         class_name = "Asset"
     return {"id": asset_or_sensor.id, "class": class_name}
+
+
+def failed_job_exc_info(job: Job) -> str | None:
+    """Return traceback text for failed RQ jobs when the worker stored it."""
+    if not job.is_failed:
+        return None
+
+    latest_result = job.latest_result()
+    if latest_result is None:
+        return None
+
+    return latest_result.exc_string
+
+
+def failed_job_reason(job: Job) -> str | None:
+    """Return a short failure reason for failed RQ jobs when available."""
+    exception = job.meta.get("exception")
+    if exception is not None:
+        return f"{type(exception).__name__}: {exception}"
+
+    exc_info = failed_job_exc_info(job)
+    if exc_info is None:
+        return None
+
+    return next(
+        (line.strip() for line in reversed(exc_info.splitlines()) if line.strip()),
+        None,
+    )
+
+
+def job_status_description(job: Job, extra_message: str | None = None):
+    """Return a matching description for the job's status."""
+
+    queue_name = job.origin  # Name of the queue that the job is in
+    job_status = job.get_status()
+    if job_status == JobStatus.QUEUED:
+        description = f"{capitalize(queue_name)} job waiting to be processed."
+    elif job_status == JobStatus.FINISHED:
+        description = f"{capitalize(queue_name)} job has finished."
+    elif job_status == JobStatus.FAILED:
+        reason = failed_job_reason(job)
+        if reason:
+            description = (
+                f"{capitalize(queue_name)} job failed with {reason.rstrip('.')}."
+            )
+        else:
+            description = (
+                f"{capitalize(queue_name)} job failed, "
+                "but no exception information was stored."
+            )
+    elif job_status == JobStatus.STARTED:
+        description = f"{capitalize(queue_name)} job in progress."
+    elif job_status == JobStatus.DEFERRED:
+        try:
+            preferred_job = job.dependency
+            description = f'{capitalize(queue_name)} job waiting for {preferred_job.status} job "{preferred_job.id}" to be processed.'
+        except NoSuchJobError:
+            description = (
+                f"{capitalize(queue_name)} job waiting for unknown job to be processed."
+            )
+    elif job_status == JobStatus.SCHEDULED:
+        description = (
+            f"{capitalize(queue_name)} job is scheduled to run at a later time."
+        )
+    elif job_status == JobStatus.STOPPED:
+        description = f"{capitalize(queue_name)} job has been stopped."
+    elif job_status == JobStatus.CANCELED:
+        description = f"{capitalize(queue_name)} job has been cancelled."
+    else:
+        description = f"{capitalize(queue_name)} job has an unknown status."
+
+    return description + f" {extra_message}" if extra_message else description
 
 
 def get_asset_or_sensor_from_ref(asset_or_sensor: dict):

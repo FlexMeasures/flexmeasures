@@ -11,7 +11,7 @@ from rq.job import Job, JobStatus, NoSuchJobError
 from webargs.flaskparser import use_kwargs
 from marshmallow import fields
 
-from flexmeasures.api.common.utils.api_utils import job_status_description
+from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
@@ -21,18 +21,6 @@ from flexmeasures.data.services.utils import get_asset_or_sensor_from_ref
 def _isoformat_or_none(dt: datetime | None) -> str | None:
     """Return an ISO-8601 string for *dt*, or ``None`` when *dt* is absent."""
     return dt.isoformat() if dt is not None else None
-
-
-def _failed_job_exc_info(job: Job) -> str | None:
-    """Return traceback text for failed jobs when RQ stored it."""
-    if not job.is_failed:
-        return None
-
-    latest_result = job.latest_result()
-    if latest_result is None:
-        return None
-
-    return latest_result.exc_string
 
 
 def _job_read_context(job: Job):
@@ -249,7 +237,7 @@ class JobAPI(FlaskView):
                 enqueued_at=_isoformat_or_none(job.enqueued_at),
                 started_at=_isoformat_or_none(job.started_at),
                 ended_at=_isoformat_or_none(job.ended_at),
-                exc_info=_failed_job_exc_info(job),
+                exc_info=failed_job_exc_info(job),
             ),
             200,
         )

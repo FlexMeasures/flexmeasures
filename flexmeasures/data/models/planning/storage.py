@@ -144,6 +144,8 @@ class MetaStorageScheduler(Scheduler):
         ]
         soc_gain = [flex_model_d.get("soc_gain") for flex_model_d in flex_model]
         soc_usage = [flex_model_d.get("soc_usage") for flex_model_d in flex_model]
+        consumption = [flex_model_d.get("consumption") for flex_model_d in flex_model]
+        production = [flex_model_d.get("production") for flex_model_d in flex_model]
         consumption_capacity = [
             flex_model_d.get("consumption_capacity") for flex_model_d in flex_model
         ]
@@ -906,9 +908,39 @@ class MetaStorageScheduler(Scheduler):
                 device_constraints[d]["efficiency"] = storage_efficiency[d]
 
             # Convert efficiency from sensor resolution to scheduling resolution
-            if sensor_d.event_resolution != timedelta(0):
+            if device_constraints[d]["efficiency"].dropna().eq(1).all():
+                # Only missing or unit efficiency; no resampling needed.
+                pass
+            elif isinstance(storage_efficiency[d], Sensor):
+                # Resample from the resolution of the storage-efficiency sensor
+                device_constraints[d]["efficiency"] **= (
+                    resolution / storage_efficiency[d].event_resolution
+                )
+            elif sensor_d is not None and sensor_d.event_resolution != timedelta(0):
+                # Resample from the resolution of the power sensor
                 device_constraints[d]["efficiency"] **= (
                     resolution / sensor_d.event_resolution
+                )
+            elif isinstance(consumption[d], Sensor) and consumption[
+                d
+            ].event_resolution != timedelta(0):
+                # Resample from the resolution of the consumption sensor
+                device_constraints[d]["efficiency"] **= (
+                    resolution / consumption[d].event_resolution
+                )
+            elif isinstance(production[d], Sensor) and production[
+                d
+            ].event_resolution != timedelta(0):
+                # Resample from the resolution of the production sensor
+                device_constraints[d]["efficiency"] **= (
+                    resolution / production[d].event_resolution
+                )
+            else:
+                raise ValueError(
+                    "The storage-efficiency cannot be interpreted without a resolution. "
+                    "Record the storage-efficiency on a sensor instead (with a non-zero resolution) and then reference that sensor in the flex-model. "
+                    "Alternatively, set the consumption or production field in the flex-model to reference a sensor, "
+                    "and the scheduler will assume their resolution is the one to use.",
                 )
 
             # check that storage constraints are fulfilled
@@ -1567,6 +1599,90 @@ class StorageScheduler(MetaStorageScheduler):
             )
         return soc_schedule
 
+    @staticmethod
+    def _build_consumption_production_schedules(
+        flex_model: list[dict],
+        ems_schedule: pd.DataFrame,
+    ) -> dict:
+        """Build consumption and/or production power schedules for devices that define output sensors.
+
+        Each device's flex model may define a ``consumption`` sensor, a ``production`` sensor, or both.
+        The schedule stored on each sensor depends on which sensors are defined:
+
+        - **Only** ``consumption`` **sensor defined**: the full power schedule is written to that
+          sensor using the scheduler's native sign convention (consumption positive, production
+          negative). ``make_schedule`` applies no further sign change because the sensor already
+          has ``consumption_is_positive=True``.
+        - **Only** ``production`` **sensor defined**: the full power schedule is written to that
+          sensor in the scheduler's native sign convention (consumption positive, production
+          negative). ``make_schedule`` inverts the sign based on the sensor's
+          ``consumption_is_positive=False`` attribute so that production is stored as positive values.
+        - **Both** ``consumption`` **and** ``production`` **sensors defined**: only the non-negative
+          part of the schedule (charging / consuming) is written to the consumption sensor, and only
+          the non-positive part (discharging / producing, still as negative values) is written to
+          the production sensor. ``make_schedule`` inverts the sign for the production sensor.
+
+        The ``consumption_is_positive`` attribute is set on each output sensor when the scheduling
+        job is created (see ``create_scheduling_job``), not here. This method only clips the
+        series; sign handling is left entirely to ``make_schedule``.
+
+        Unit conversion from MW to each sensor's unit is applied.
+
+        :param flex_model:    List of per-device flex models (after deserialization).
+        :param ems_schedule:  DataFrame of per-device power schedules in MW (consumption positive).
+        :returns:             Dict mapping each output sensor to its power schedule.
+        """
+        schedules: dict = {}
+        for d, flex_model_d in enumerate(flex_model):
+            consumption_field = flex_model_d.get("consumption")
+            production_field = flex_model_d.get("production")
+            consumption_sensor = (
+                consumption_field["sensor"]
+                if isinstance(consumption_field, dict) and "sensor" in consumption_field
+                else None
+            )
+            production_sensor = (
+                production_field["sensor"]
+                if isinstance(production_field, dict) and "sensor" in production_field
+                else None
+            )
+            if consumption_sensor is None and production_sensor is None:
+                continue
+            power_series = ems_schedule[d]  # in MW; consumption is positive
+            if consumption_sensor is not None and production_sensor is None:
+                # Full power profile on the consumption sensor (consumption positive, production negative).
+                schedules[consumption_sensor] = convert_units(
+                    power_series,
+                    "MW",
+                    consumption_sensor.unit,
+                    event_resolution=consumption_sensor.event_resolution,
+                )
+            elif production_sensor is not None and consumption_sensor is None:
+                # Full power profile on the production sensor in native scheduler convention.
+                # make_schedule inverts the sign via consumption_is_positive=False on the sensor.
+                schedules[production_sensor] = convert_units(
+                    power_series,
+                    "MW",
+                    production_sensor.unit,
+                    event_resolution=production_sensor.event_resolution,
+                )
+            else:
+                # Both sensors defined: clip to non-negative (consumption) and non-positive (production) parts.
+                # make_schedule inverts the sign for the production sensor via consumption_is_positive=False.
+                schedules[consumption_sensor] = convert_units(
+                    power_series.clip(lower=0),
+                    "MW",
+                    consumption_sensor.unit,
+                    event_resolution=consumption_sensor.event_resolution,
+                )
+                schedules[production_sensor] = convert_units(
+                    power_series.clip(upper=0),
+                    "MW",
+                    production_sensor.unit,
+                    event_resolution=production_sensor.event_resolution,
+                )
+        return schedules
+
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
@@ -1640,6 +1756,10 @@ class StorageScheduler(MetaStorageScheduler):
             flex_model, ems_schedule, soc_at_start, device_constraints, resolution
         )
 
+        consumption_production_schedule = self._build_consumption_production_schedules(
+            flex_model, ems_schedule
+        )
+
         # Resample each device schedule to the resolution of the device's power sensor
         if self.resolution is None:
             storage_schedule = {
@@ -1648,6 +1768,12 @@ class StorageScheduler(MetaStorageScheduler):
                 .mean()
                 for sensor in storage_schedule.keys()
                 if sensor is not None
+            }
+            consumption_production_schedule = {
+                sensor: consumption_production_schedule[sensor]
+                .resample(sensor.event_resolution)
+                .mean()
+                for sensor in consumption_production_schedule.keys()
             }
 
         # Round schedule
@@ -1660,6 +1786,12 @@ class StorageScheduler(MetaStorageScheduler):
             soc_schedule = {
                 sensor: soc_schedule[sensor].round(self.round_to_decimals)
                 for sensor in soc_schedule.keys()
+            }
+            consumption_production_schedule = {
+                sensor: consumption_production_schedule[sensor].round(
+                    self.round_to_decimals
+                )
+                for sensor in consumption_production_schedule.keys()
             }
 
         if self.return_multiple:
@@ -1694,7 +1826,32 @@ class StorageScheduler(MetaStorageScheduler):
                 }
                 for sensor, soc in soc_schedule.items()
             ]
-            return storage_schedules + commitment_costs + soc_schedules
+            # Determine which sensors are consumption vs. production output sensors
+            consumption_output_sensors = {
+                flex_model_d["consumption"]["sensor"]
+                for flex_model_d in flex_model
+                if isinstance(flex_model_d.get("consumption"), dict)
+                and "sensor" in flex_model_d["consumption"]
+            }
+            consumption_production_schedules = [
+                {
+                    "name": (
+                        "consumption_schedule"
+                        if sensor in consumption_output_sensors
+                        else "production_schedule"
+                    ),
+                    "data": data,
+                    "sensor": sensor,
+                    "unit": sensor.unit,
+                }
+                for sensor, data in consumption_production_schedule.items()
+            ]
+            return (
+                storage_schedules
+                + commitment_costs
+                + soc_schedules
+                + consumption_production_schedules
+            )
         else:
             return storage_schedule[sensors[0]]
 
