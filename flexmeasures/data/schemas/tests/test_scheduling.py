@@ -798,6 +798,21 @@ def test_get_variable_quantity_unit(
             {"storage-efficiency": {"sensor": "power-sensor"}},
             {"storage-efficiency": "Cannot convert MW to %"},
         ),
+        # plain quantity storage-efficiency without sensor-backed consumption/production should fail
+        (
+            {"storage-efficiency": "90%"},
+            {
+                "storage-efficiency": "The storage-efficiency cannot be interpreted without a resolution."
+            },
+        ),
+        # plain quantity storage-efficiency is valid when consumption is sensor-backed
+        (
+            {
+                "storage-efficiency": "90%",
+                "consumption": {"sensor": "power-sensor"},
+            },
+            False,
+        ),
     ],
 )
 def test_db_flex_model_schema(
