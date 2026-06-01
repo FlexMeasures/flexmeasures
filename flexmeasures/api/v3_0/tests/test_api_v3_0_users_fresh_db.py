@@ -188,10 +188,13 @@ def test_user_reset_auth_token(
     assert user2.fs_token_uniquifier != old_token_uniquifier
 
     # An audit log entry must have been created
-    assert fresh_db.session.execute(
-        select(AuditLog).filter_by(
-            affected_user_id=user2.id,
-            event=f"Auth token reset for user {user2.username}",
-            active_user_id=requesting_user.id,
-        )
-    ).scalar_one_or_none()
+    assert (
+        fresh_db.session.execute(
+            select(AuditLog).filter_by(
+                affected_user_id=user2.id,
+                event=f"Auth token reset for user {user2.username}",
+                active_user_id=requesting_user.id,
+            )
+        ).scalar_one_or_none()
+        is not None
+    )
