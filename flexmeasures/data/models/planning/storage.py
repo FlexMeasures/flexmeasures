@@ -932,6 +932,13 @@ class MetaStorageScheduler(Scheduler):
                 device_constraints[d]["efficiency"] **= (
                     resolution / production[d].event_resolution
                 )
+            else:
+                raise ValueError(
+                    "The storage-efficiency cannot be interpreted without a resolution. "
+                    "Record the storage-efficiency on a sensor instead (with a non-zero resolution) and then reference that sensor in the flex-model. "
+                    "Alternatively, set the consumption or production field in the flex-model to reference a sensor, "
+                    "and the scheduler will assume their resolution is the one to use.",
+                )
 
             # check that storage constraints are fulfilled
             if not skip_validation:
