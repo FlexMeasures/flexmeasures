@@ -46,11 +46,11 @@ class DeprecatedOption(click.Option):
     def __init__(self, *args, **kwargs):
         deprecated = kwargs.pop("deprecated", ())
         if isinstance(deprecated, (list, tuple, set)):
-            self.deprecated = tuple(deprecated)
+            self.deprecated_options = tuple(deprecated)
         elif isinstance(deprecated, str):
-            self.deprecated = (deprecated,)
+            self.deprecated_options = (deprecated,)
         else:
-            self.deprecated = ()
+            self.deprecated_options = ()
         self.preferred = kwargs.pop("preferred", args[0][-1])
         super(DeprecatedOption, self).__init__(*args, **kwargs)
 
@@ -82,7 +82,7 @@ class DeprecatedOptionsCommand(click.Command):
                 """Construct a closure to the parser option processor"""
 
                 orig_process = an_option.process
-                deprecated = getattr(an_option.obj, "deprecated", None)
+                deprecated = getattr(an_option.obj, "deprecated_options", None)
                 preferred = getattr(an_option.obj, "preferred", None)
                 msg = "Expected `deprecated` value for `{}`"
                 assert deprecated is not None, msg.format(an_option.obj.name)
