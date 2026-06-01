@@ -1,10 +1,12 @@
+import json
+
 import pytest
 from flask import url_for
 from sqlalchemy import select
 
 from flexmeasures.api.tests.utils import AccountContext
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
+from flexmeasures.api.v3_0.tests.utils import get_asset_post_data, check_audit_log_event
 
 
 @pytest.mark.parametrize(
@@ -100,3 +102,55 @@ def test_patch_asset_accepts_flex_context_object(
     ).scalar_one_or_none()
     assert updated_asset is not None
     assert updated_asset.flex_context["site-power-capacity"] == "1000 kW"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_delete_asset_cleans_stale_asset_references_in_sensors_to_show(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
+    """Verify that deleting an asset cleans up stale asset references in other assets' sensors_to_show."""
+    db = fresh_db
+    deleted_asset = setup_api_fresh_test_data["some gas sensor"].generic_asset
+    deleted_asset_id = deleted_asset.id
+    deleted_asset_name = deleted_asset.name
+    referenced_sensor = setup_api_fresh_test_data["some temperature sensor"]
+
+    # Use a dedicated asset as the reference holder so deleting `deleted_asset`
+    # does not remove the object we assert on later.
+    referencing_asset = GenericAsset(
+        name="stale-asset-ref-holder",
+        generic_asset_type_id=deleted_asset.generic_asset_type_id,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(referencing_asset)
+    db.session.flush()
+
+    referencing_asset.sensors_to_show = [
+        {
+            "title": "Mixed graph",
+            "plots": [
+                {"sensor": referenced_sensor.id},
+                {"asset": deleted_asset_id, "flex-model": "soc-min"},
+            ],
+        }
+    ]
+    db.session.add(referencing_asset)
+    db.session.commit()
+
+    delete_asset_response = client.delete(
+        url_for("AssetAPI:delete", id=deleted_asset_id),
+    )
+    assert delete_asset_response.status_code == 204
+
+    updated_referencing_asset = db.session.get(GenericAsset, referencing_asset.id)
+    assert updated_referencing_asset is not None
+    assert str(deleted_asset_id) not in json.dumps(
+        updated_referencing_asset.sensors_to_show
+    )
+
+    check_audit_log_event(
+        db=db,
+        event=f"Removed asset reference '{deleted_asset_name}': {deleted_asset_id} from sensors-to-show (because asset has been deleted).",
+        user=requesting_user,
+        asset=updated_referencing_asset,
+    )
