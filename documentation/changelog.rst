@@ -23,6 +23,7 @@ New features
 * Improve UX after deleting a child asset through the UI [see `PR #2119 <https://www.github.com/FlexMeasures/flexmeasures/pull/2119>`_]
 * Improve source filtering in the sensor data GET endpoint by exposing the documented query parameters in Swagger and allowing filtering by the account linked to data sources [see `PR #2083 <https://www.github.com/FlexMeasures/flexmeasures/pull/2083>`_ and `PR #2151 <https://www.github.com/FlexMeasures/flexmeasures/pull/2151>`_]
 * Support sensor references for efficiency fields in storage flex-models [see `PR #2142 <https://www.github.com/FlexMeasures/flexmeasures/pull/2142>`_]
+* Introduce the ``consumption`` and ``production`` flex-model fields for the ``StorageScheduler`` to save schedules to [see `PR #2190 <https://www.github.com/FlexMeasures/flexmeasures/pull/2190>`_]
 * Added a unified job status endpoint ``GET /api/v3_0/jobs/<uuid>`` to retrieve the current execution status and result message for any background job [see `PR #2141 <https://www.github.com/FlexMeasures/flexmeasures/pull/2141>`_]
 * Add ``flexmeasures jobs inspect-job`` CLI command to show job status and metadata information (similar to the job status endpoint in the API) [see `PR #2202 <https://www.github.com/FlexMeasures/flexmeasures/pull/2202>`_]
 * New ``GET /api/v3_0/sources`` endpoint to list accessible data sources and defined types, with ``only_latest=true`` by default to return only the most recent version per source [see `PR #2126 <https://www.github.com/FlexMeasures/flexmeasures/pull/2126>`_]
@@ -60,6 +61,7 @@ Bugfixes
 * Fix broken API endpoint links in Read the Docs output by post-processing both known API index layouts and rewriting ``(id)`` anchors [see `PR #1753 <https://www.github.com/FlexMeasures/flexmeasures/pull/1753>`_]
 * Wrap Darts training ``ValueError`` about no common feature times as a clearer ``NotEnoughDataException`` when there is insufficient history for the requested forecast horizon [see `PR #2192 <https://www.github.com/FlexMeasures/flexmeasures/pull/2192>`_]
 * Fix queued train-predict forecasting jobs losing their resolved forecast window or failing on detached database objects in workers [see `PR #2035 <https://www.github.com/FlexMeasures/flexmeasures/pull/2035>`_]
+* Make Sentry also ignore 404 events, if we only log them without exc_info [`PR #2212 <https://www.github.com/FlexMeasures/flexmeasures/pull/2212>`_]
 
 
 v0.32.3 | May 15, 2026
@@ -142,6 +144,7 @@ Bugfixes
 
 
 v0.31.3 | April 11, 2026
+============================
 
 Bugfixes
 -----------

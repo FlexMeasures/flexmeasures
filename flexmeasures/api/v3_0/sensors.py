@@ -65,7 +65,10 @@ from flexmeasures.data.schemas.times import (
 )
 from flexmeasures.data.schemas import AssetIdField, SourceIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
-from flexmeasures.data.schemas.scheduling import GetScheduleSchema
+from flexmeasures.data.schemas.scheduling import (
+    GetScheduleSchema,
+    ScheduleSignConvention,
+)
 from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.data.services.sensors import get_sensor_stats
 from flexmeasures.data.services.sensors import delete_sensor as delete_sensor_and_data
@@ -1040,6 +1043,7 @@ class SensorAPI(FlaskView):
         job_id: str,
         duration: timedelta,
         unit: str | None = None,
+        sign_convention: str = ScheduleSignConvention.CONSUMPTION_POSITIVE,
         **kwargs,
     ):
         """
@@ -1054,6 +1058,21 @@ class SensorAPI(FlaskView):
 
             - "duration" (6 hours by default; can be increased to plan further into the future)
             - "unit" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)
+            - "sign-convention" (controls how power values are signed in the response; see below)
+
+            **Sign convention**
+
+            By default (``sign-convention: consumption-positive``), the endpoint always returns schedules where
+            consumption is positive and production is negative, regardless of how the values are stored in the database.
+            This is the most common convention and matches the perspective of a consumer.
+
+            Set ``sign-convention: production-positive`` to flip the sign so that production is returned as
+            positive and consumption as negative. This matches the perspective of a producer.
+
+            Set ``sign-convention: wysiwyg`` (*what-you-see-is-what-you-get*) to return the values with the same sign
+            as database values and what is seen in UI charts. The values will indicate exactly what is stored,
+            which is itself determined by the sensor's ``consumption_is_positive`` attribute (if set)
+            or by the scheduler's default storage convention (production positive in the database).
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1095,6 +1114,21 @@ class SensorAPI(FlaskView):
               example: kW
               schema:
                 type: string
+            - in: query
+              name: sign-convention
+              required: false
+              description: |
+                Sign convention applied to power values in the response.
+                - ``consumption-positive`` (default): consumption is positive, production is negative.
+                - ``production-positive``: production is positive, consumption is negative.
+                - ``wysiwyg`` (*what-you-see-is-what-you-get*): sign of database values and as seen in UI charts.
+              example: consumption-positive
+              schema:
+                type: string
+                enum:
+                  - consumption-positive
+                  - production-positive
+                  - wysiwyg
           responses:
             200:
               description: PROCESSED
@@ -1221,12 +1255,25 @@ class SensorAPI(FlaskView):
         )
 
         sign = 1
-        if sensor.measures_power and not sensor.get_attribute(
-            "consumption_is_positive", False
-        ):
-            sign = -1
+        if sign_convention == ScheduleSignConvention.WYSIWYG:
+            # Return values without adjusting the sign of database values.
+            # No sign inversion: what's in the DB and what is seen in UI charts is what the caller receives.
+            pass
+        elif sensor.measures_power:
+            # Determine whether the database stores consumption as positive or negative.
+            db_consumption_is_positive = sensor.get_attribute(
+                "consumption_is_positive", False
+            )
+            if sign_convention == ScheduleSignConvention.CONSUMPTION_POSITIVE:
+                # Caller wants consumption positive. Invert if DB stores it as negative.
+                if not db_consumption_is_positive:
+                    sign = -1
+            elif sign_convention == ScheduleSignConvention.PRODUCTION_POSITIVE:
+                # Caller wants production positive. Invert if DB already stores consumption positive.
+                if db_consumption_is_positive:
+                    sign = -1
 
-        # For consumption schedules, positive values denote consumption. For the db, consumption is negative unless specified explicitly
+        # Apply sign to get the values in the requested convention
         consumption_schedule = sign * simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
             # for not in-built schedulers, we are not sure if they would store time series in the db
