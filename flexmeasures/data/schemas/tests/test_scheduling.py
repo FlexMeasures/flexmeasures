@@ -749,7 +749,7 @@ def test_get_variable_quantity_unit(
         )
 
 
-# test DBStorageFlexModelSchema
+# test StorageFlexModelSchema and DBStorageFlexModelSchema
 @pytest.mark.parametrize(
     ["flex_model", "fails"],
     [
@@ -798,12 +798,30 @@ def test_get_variable_quantity_unit(
             {"storage-efficiency": {"sensor": "power-sensor"}},
             {"storage-efficiency": "Cannot convert MW to %"},
         ),
+        # plain quantity storage-efficiency without sensor-backed consumption/production should fail
+        (
+            {"storage-efficiency": "90%"},
+            [
+                {
+                    "storage-efficiency": "The storage-efficiency cannot be interpreted without a resolution."
+                },
+                False,
+            ],
+        ),
+        # plain quantity storage-efficiency is valid when consumption is sensor-backed
+        (
+            {
+                "storage-efficiency": "90%",
+                "consumption": {"sensor": "power-sensor"},
+            },
+            False,
+        ),
     ],
 )
-def test_db_flex_model_schema(
+def test_flex_model_schemas(
     db, app, setup_dummy_sensors, setup_efficiency_sensors, flex_model, fails
 ):
-    """Validate DBStorageFlexModelSchema for accepted and rejected flex-model inputs.
+    """Validate StorageFlexModelSchema and DBStorageFlexModelSchema for accepted and rejected flex-model inputs.
 
     Input under test:
     - ``flex_model`` payloads with fixed quantities, sensor references, and list fields
@@ -816,8 +834,16 @@ def test_db_flex_model_schema(
     - When ``fails`` is ``False``, schema loading succeeds.
     - When ``fails`` is a field-to-message mapping, schema loading raises
         ``ValidationError`` and contains the expected field-specific error message(s).
+    - When ``fails`` is a list, its first entry represents the expectation for the StorageFlexModelSchema,
+        and the second entry represents the expectation for the DBStorageFlexModelSchema.
     """
-    schema = DBStorageFlexModelSchema()
+    schemas = [
+        StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None),
+        DBStorageFlexModelSchema(),
+    ]
+    if not isinstance(fails, list):
+        # Then the same expectation holds for both schemas
+        fails = [fails, fails]
 
     sensors = {
         "energy-sensor": setup_dummy_sensors[0],
@@ -839,21 +865,24 @@ def test_db_flex_model_schema(
                 for item in field_value
             ]
 
-    if fails:
-        with pytest.raises(ValidationError) as e_info:
+    for schema, fail in zip(schemas, fails):
+        if fail:
+            with pytest.raises(ValidationError) as e_info:
+                schema.load(flex_model)
+            for field_name, expected_message in fail.items():
+                assert field_name in e_info.value.messages
+                if field_name in ["soc-gain", "soc-usage"]:
+                    for index, message_list in e_info.value.messages[
+                        field_name
+                    ].items():
+                        assert message_list[0] == expected_message[index][0]
+                else:
+                    # Check all messages for the given field for the expected message
+                    assert any(
+                        [
+                            expected_message in message
+                            for message in e_info.value.messages[field_name]
+                        ]
+                    )
+        else:
             schema.load(flex_model)
-        for field_name, expected_message in fails.items():
-            assert field_name in e_info.value.messages
-            if field_name in ["soc-gain", "soc-usage"]:
-                for index, message_list in e_info.value.messages[field_name].items():
-                    assert message_list[0] == expected_message[index][0]
-            else:
-                # Check all messages for the given field for the expected message
-                assert any(
-                    [
-                        expected_message in message
-                        for message in e_info.value.messages[field_name]
-                    ]
-                )
-    else:
-        schema.load(flex_model)
