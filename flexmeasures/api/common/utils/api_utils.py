@@ -462,6 +462,8 @@ def _copy_asset_subtree(
         )
     asset_kwargs["account_id"] = destination_account_id
     asset_kwargs["parent_asset_id"] = destination_parent_asset_id
+    # set external_id to None to avoid conflicts with unique constraint on (account_id, external_id)
+    asset_kwargs["external_id"] = None
     asset_kwargs = convert_asset_json_fields(asset_kwargs)
 
     copied_asset = GenericAsset(**asset_kwargs)
@@ -600,9 +602,6 @@ def copy_asset(
             raise ValueError(
                 "Invalid copy target parent: cannot copy an asset to itself or any of its descendants."
             )
-
-        # set external_id to None to avoid conflicts with unique constraint on (account_id, external_id)
-        asset.external_id = None
 
         copied_root, sensor_id_map = _copy_asset_subtree(
             source_asset=asset,
