@@ -932,7 +932,13 @@ class MetaStorageScheduler(Scheduler):
                 device_constraints[d]["efficiency"] **= (
                     resolution / production[d].event_resolution
                 )
-            else:
+            elif (
+                ~(
+                    device_constraints[d]["efficiency"].isna()
+                    | device_constraints[d]["efficiency"].eq(1)
+                )
+            ).any():
+                # Only trivial storage efficiency (missing or 1), which needs no resampling
                 raise ValueError(
                     "The storage-efficiency cannot be interpreted without a resolution. "
                     "Record the storage-efficiency on a sensor instead (with a non-zero resolution) and then reference that sensor in the flex-model. "
