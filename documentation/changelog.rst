@@ -4,8 +4,10 @@ FlexMeasures Changelog
 **********************
 
 
-v0.33.0 | May XX, 2026
+v0.33.0 | June 01, 2026
 ============================
+
+.. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v033-copy-asset-account-sources/>`_.
 
 .. note:: It is recommended to assign a worker to the ``ingestion`` queue (or configure existing workers to handle it, as well),
           so that sensor data posted via the API is processed asynchronously [see `PR #2101 <https://www.github.com/FlexMeasures/flexmeasures/pull/2101>`_].
