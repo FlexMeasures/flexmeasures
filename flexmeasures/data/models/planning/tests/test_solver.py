@@ -41,7 +41,7 @@ from flexmeasures.tests.utils import get_test_sensor
 from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.utils.unit_utils import convert_units, ur
 
-from pyomo.environ import value
+from pyomo.environ import Objective, SolverFactory, minimize, value
 
 TOLERANCE = 0.00001
 
@@ -2896,6 +2896,80 @@ def test_multiple_devices_simultaneous_scheduler():
         device == d and pytest.approx(cost, 0.01) == expected_individual_costs[d][1]
         for d, (device, cost) in enumerate(individual_costs)
     ), "Individual costs mismatch: Costs for one or more devices are not calculated as expected."
+
+
+def test_multiple_devices_quadratic_soc_minima_fairness(app):
+    """
+    Tech spike for issue #1610:
+    Demonstrate that the Pyomo model behind ``device_scheduler`` can be re-solved
+    with a quadratic penalty and that this yields fair unmet SoC minima.
+    """
+    solver_name = app.config["FLEXMEASURES_LP_SOLVER"]
+    if "highs" not in solver_name.lower():
+        pytest.skip("Quadratic tech spike requires HiGHS.")
+
+    start = pd.Timestamp("2020-01-01T00:00:00")
+    end = pd.Timestamp("2020-01-01T04:00:00")
+    resolution = timedelta(hours=1)
+    num_devices = 3
+    target_soc = 1.0
+
+    device_constraints = []
+    for _ in range(num_devices):
+        constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+        constraints["max"] = target_soc
+        constraints["min"] = 0
+        constraints["derivative max"] = 1
+        constraints["derivative min"] = 0
+        device_constraints.append(constraints)
+
+    ems_constraints = initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
+    ems_constraints["derivative max"] = 0.5
+    ems_constraints["derivative min"] = 0
+
+    commitments = []
+    for d in range(num_devices):
+        commitment = initialize_device_commitment(
+            start=start,
+            end=end,
+            resolution=resolution,
+            device=d,
+            target_datetime="2020-01-01 03:00:00",
+            target_value=target_soc,
+            soc_at_start=0,
+            soc_target_penalty=0,
+        )
+        commitments.append(commitment)
+
+    _, _, results, model = device_scheduler(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitments=commitments,
+        initial_stock=[0] * num_devices,
+    )
+    assert results.solver.termination_condition == "optimal"
+
+    model.costs.deactivate()
+    model.quadratic_costs = Objective(
+        expr=sum(model.commitment_downwards_deviation[c] ** 2 for c in model.c),
+        sense=minimize,
+    )
+
+    solver = SolverFactory(solver_name)
+    quadratic_results = solver.solve(model, load_solutions=False)
+    if len(quadratic_results.solution) > 0:
+        model.solutions.load_from(quadratic_results)
+
+    assert quadratic_results.solver.termination_condition == "optimal"
+
+    charged_energy_per_device = np.array(
+        [sum(model.ems_power[d, j].value for j in model.j) for d in model.d]
+    )
+    unmet_soc_minima = target_soc - charged_energy_per_device
+
+    assert charged_energy_per_device.sum() == pytest.approx(2.0, abs=1e-7)
+    assert max(unmet_soc_minima) - min(unmet_soc_minima) < 1e-7
+    assert unmet_soc_minima == pytest.approx([1 / 3] * num_devices, abs=1e-7)
 
 
 def test_prefer_full_storage_skips_non_storage_devices(db, building):
