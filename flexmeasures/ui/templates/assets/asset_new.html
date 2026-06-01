@@ -244,6 +244,7 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
 
 (function () {
     const perPage = 100;
+    const parentAssetId = "{{ parent_asset_id }}";
     let currentPage = 1;
     let loadedAssetCount = 0;
     let hasMore = true;
@@ -412,6 +413,7 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
             btn.addEventListener("click", function () {
                 const assetId = btn.dataset.assetId;
                 let url = "/api/v3_0/assets/" + assetId + "/copy";
+                if (parentAssetId) url += "?parent_id=" + parentAssetId;
                 btn.disabled = true;
                 showToast("Creating asset from template…", "info");
                 fetch(url, { method: "POST", credentials: "same-origin" })
