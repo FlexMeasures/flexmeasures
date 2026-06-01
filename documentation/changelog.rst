@@ -4,7 +4,20 @@ FlexMeasures Changelog
 **********************
 
 
-v0.33.0 | June 01, 2026
+v1.0.0 | July XX, 2026
+============================
+
+New features
+-------------
+
+Infrastructure / Support
+----------------------
+
+Bugfixes
+-----------
+
+
+v0.33.0 | June 1, 2026
 ============================
 
 .. note:: Read more on these features on `the FlexMeasures blog <https://flexmeasures.io/v033-copy-asset-account-sources/>`_.
