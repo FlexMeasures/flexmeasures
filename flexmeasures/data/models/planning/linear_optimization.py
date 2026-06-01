@@ -6,6 +6,7 @@ import numpy as np
 from pandas.tseries.frequencies import to_offset
 from pyomo.core import (
     ConcreteModel,
+    Expression,
     Var,
     RangeSet,
     Set,
@@ -18,9 +19,10 @@ from pyomo.core import (
     Objective,
     minimize,
 )
-from pyomo.environ import UnknownSolver  # noqa F401
 from pyomo.environ import value
-from pyomo.opt import SolverFactory, SolverResults
+from pyomo.opt import SolverFactory
+from pyomo.contrib.appsi.solvers import Highs as AppsiHighs, Cbc as AppsiCbc
+from pyomo.contrib.appsi.base import Results, TerminationCondition
 
 from flexmeasures.data.models.planning import (
     Commitment,
@@ -41,7 +43,7 @@ def device_scheduler(  # noqa C901
     commitment_upwards_deviation_price: list[pd.Series] | list[float] | None = None,
     commitments: list[pd.DataFrame] | list[Commitment] | None = None,
     initial_stock: float | list[float] = 0,
-) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
+) -> tuple[list[pd.Series], float, Results, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
     and with multiple market commitments on the EMS level.
@@ -92,7 +94,7 @@ def device_scheduler(  # noqa C901
 
     # If the EMS has no devices, don't bother
     if len(device_constraints) == 0:
-        return [], 0, SolverResults(), model
+        return [], 0, Results(), model
 
     # Get timing from first device
     start = device_constraints[0].index.to_pydatetime()[0]
@@ -599,65 +601,99 @@ def device_scheduler(  # noqa C901
         model.d, model.j, rule=device_derivative_equalities
     )
 
-    # Add objective
-    def cost_function(m):
-        costs = 0
-        m.commitment_costs = {
-            c: m.commitment_downwards_deviation[c] * m.down_price[c]
-            + m.commitment_upwards_deviation[c] * m.up_price[c]
-            for c in m.c
-        }
-        for c in m.c:
-            costs += m.commitment_costs[c]
-        return costs
+    # Add individual commitment costs as Expression components
+    model.commitment_cost = Expression(
+        model.c,
+        rule=lambda m, c: m.commitment_downwards_deviation[c] * m.down_price[c]
+        + m.commitment_upwards_deviation[c] * m.up_price[c],
+    )
 
-    model.costs = Objective(rule=cost_function, sense=minimize)
+    # Add objective
+    model.costs = Objective(
+        expr=sum(model.commitment_cost[c] for c in model.c),
+        sense=minimize,
+    )
 
     # Solve
     solver_name = current_app.config.get("FLEXMEASURES_LP_SOLVER")
 
-    solver = SolverFactory(solver_name)
-
-    # Temporary fix for https://github.com/Pyomo/pyomo/issues/3841
-    if solver_name == "cbc":
+    if "highs" in solver_name.lower():
+        solver = AppsiHighs()
+        # Set tight tolerance for HiGHS solver
+        solver.highs_options.update(
+            {
+                "mip_rel_gap": 0,
+                "mip_abs_gap": 0,
+                "primal_feasibility_tolerance": 1e-9,
+                "dual_feasibility_tolerance": 1e-9,
+                "mip_feasibility_tolerance": 1e-9,
+            }
+        )
+        # Disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
+        if current_app.config["LOGGING_LEVEL"] == "INFO":
+            solver.highs_options["output_flag"] = 0
+    elif solver_name == "cbc":
+        solver = AppsiCbc()
+        # Temporary fix for https://github.com/Pyomo/pyomo/issues/3841
         import shutil
 
         cbc_path = shutil.which("cbc") or shutil.which("Cbc")
         if cbc_path is not None:
-            solver.set_executable(cbc_path)
+            solver.config.executable.set_path(cbc_path)
+    else:
+        solver = SolverFactory(solver_name)
 
-    # Set tight tolerance for HiGHS solver
-    profile = {}
-    if "highs" in solver_name.lower():
-        profile = {
-            "mip_rel_gap": "0",
-            "mip_abs_gap": "0",
-            "primal_feasibility_tolerance": "1e-9",
-            "dual_feasibility_tolerance": "1e-9",
-            "mip_feasibility_tolerance": "1e-9",
+    if isinstance(solver, (AppsiHighs, AppsiCbc)):
+        # Disable auto-loading to avoid RuntimeError when solving an infeasible problem.
+        # Solution is loaded manually below if a feasible solution is found.
+        solver.config.load_solution = False
+        results = solver.solve(model)
+        if (
+            results.termination_condition
+            in (
+                TerminationCondition.optimal,
+                TerminationCondition.objectiveLimit,
+                TerminationCondition.maxTimeLimit,
+                TerminationCondition.maxIterations,
+            )
+            and results.best_feasible_objective is not None
+        ):
+            results.solution_loader.load_vars()
+    else:
+        # Legacy SolverFactory path for solvers without a direct APPSI interface.
+        # load_solutions=False avoids RuntimeError when solving an infeasible problem.
+        legacy_results = solver.solve(model, load_solutions=False)
+        # load the results only if a feasible solution has been found
+        if len(legacy_results.solution) > 0:
+            model.solutions.load_from(legacy_results)
+        # Map legacy termination condition strings to APPSI TerminationCondition enums
+        _legacy_tc_map = {
+            "optimal": TerminationCondition.optimal,
+            "globallyOptimal": TerminationCondition.optimal,
+            "locallyOptimal": TerminationCondition.optimal,
+            "feasible": TerminationCondition.optimal,
+            "maxTimeLimit": TerminationCondition.maxTimeLimit,
+            "maxIterations": TerminationCondition.maxIterations,
+            "maxEvaluations": TerminationCondition.maxIterations,
+            "unbounded": TerminationCondition.unbounded,
+            "infeasible": TerminationCondition.infeasible,
+            "infeasibleOrUnbounded": TerminationCondition.infeasibleOrUnbounded,
+            "licensingProblems": TerminationCondition.licensingProblems,
         }
-        # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
-        if current_app.config["LOGGING_LEVEL"] == "INFO":
-            profile["output_flag"] = "false"
-
-    for option_name, option_value in profile.items():
-        solver.options[option_name] = option_value
-
-    # load_solutions=False to avoid a RuntimeError exception in appsi solvers when solving an infeasible problem.
-    results = solver.solve(model, load_solutions=False)
-
-    # load the results only if a feasible solution has been found
-    if len(results.solution) > 0:
-        model.solutions.load_from(results)
+        legacy_tc_str = str(legacy_results.solver.termination_condition)
+        results = Results()
+        results.termination_condition = _legacy_tc_map.get(
+            legacy_tc_str, TerminationCondition.unknown
+        )
 
     planned_costs = value(model.costs)
-    subcommitment_costs = {g: value(cost) for g, cost in model.commitment_costs.items()}
+    subcommitment_costs = {c: value(model.commitment_cost[c]) for c in model.c}
     commitment_costs = {}
 
     # Map subcommitment costs to commitments
-    for g, v in subcommitment_costs.items():
-        c = commitment_mapping[g]
-        commitment_costs[c] = commitment_costs.get(c, 0) + v
+    for c, v in subcommitment_costs.items():
+        orig_c = commitment_mapping[c]
+        commitment_costs[orig_c] = commitment_costs.get(orig_c, 0) + v
 
     planned_power_per_device = []
     for d in model.d:
@@ -674,6 +710,6 @@ def device_scheduler(  # noqa C901
     model.commitment_costs = commitment_costs
     # model.pprint()
     # model.display()
-    # print(results.solver.termination_condition)
+    # print(results.termination_condition)
     # print(planned_costs)
     return planned_power_per_device, planned_costs, results, model

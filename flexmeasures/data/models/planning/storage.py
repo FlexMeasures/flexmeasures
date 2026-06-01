@@ -41,6 +41,7 @@ from flexmeasures.utils.calculations import (
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
 from flexmeasures.utils.unit_utils import ur, convert_units
+from pyomo.contrib.appsi.base import TerminationCondition
 
 
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
@@ -1705,8 +1706,13 @@ class StorageScheduler(MetaStorageScheduler):
                 for soc_at_start_d in soc_at_start
             ],
         )
-        if "infeasible" in (tc := scheduler_results.solver.termination_condition):
-            raise InfeasibleProblemException(tc)
+        if scheduler_results.termination_condition in (
+            TerminationCondition.infeasible,
+            TerminationCondition.infeasibleOrUnbounded,
+        ):
+            raise InfeasibleProblemException(
+                scheduler_results.termination_condition.name
+            )
 
         # Obtain the storage schedule from all device schedules within the EMS
         storage_schedule = dict()

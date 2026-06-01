@@ -41,8 +41,10 @@ from flexmeasures.tests.utils import get_test_sensor
 from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.utils.unit_utils import convert_units, ur
 
-from pyomo.environ import Objective, SolverFactory, minimize, value
+from pyomo.environ import Objective, minimize, value
+from pyomo.contrib.appsi.solvers import Highs as AppsiHighs
 from pyomo.contrib.appsi.solvers.highs import DegreeError
+from pyomo.contrib.appsi.base import TerminationCondition
 
 TOLERANCE = 0.00001
 
@@ -279,7 +281,7 @@ def run_test_charge_discharge_sign(
             for soc_at_start_d in soc_at_start
         ],
     )
-    assert results.solver.termination_condition == "optimal"
+    assert results.termination_condition == TerminationCondition.optimal
 
     device_power_sign = pd.Series(model.device_power_sign.extract_values())[0]
     device_power_up = pd.Series(model.device_power_up.extract_values())[0]
@@ -1211,11 +1213,11 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
             for soc_at_start_d in soc_at_start
         ],
     )
-    assert results.solver.termination_condition == "optimal"
+    assert results.termination_condition == TerminationCondition.optimal
 
     assert device_constraints[0]["equals"].max() > device_constraints[0]["max"].max()
     assert device_constraints[0]["equals"].min() < device_constraints[0]["min"].min()
-    assert results.solver.status == "ok"
+    assert results.termination_condition == TerminationCondition.optimal
 
 
 @pytest.mark.parametrize(
@@ -2489,7 +2491,7 @@ def test_unavoidable_capacity_breach():
             commitments=commitments,
             initial_stock=soc_at_start,
         )
-        assert results.solver.termination_condition == "optimal"
+        assert results.termination_condition == TerminationCondition.optimal
 
         schedule = initialize_series(
             data=[model.ems_power[0, j].value for j in model.j],
@@ -2621,7 +2623,7 @@ def test_multiple_commitments_per_group():
             commitments=commitments,
             initial_stock=soc_at_start,
         )
-        assert results.solver.termination_condition == "optimal"
+        assert results.termination_condition == TerminationCondition.optimal
 
         schedule = initialize_series(
             data=[model.ems_power[0, j].value for j in model.j],
@@ -2803,7 +2805,7 @@ def test_multiple_devices_simultaneous_scheduler():
         commitments=commitments,
         initial_stock=initial_stocks,
     )
-    assert results.solver.termination_condition == "optimal"
+    assert results.termination_condition == TerminationCondition.optimal
 
     schedules = [
         initialize_series(
@@ -2857,7 +2859,7 @@ def test_multiple_devices_simultaneous_scheduler():
         commitments=commitments,
         initial_stock=initial_stocks,
     )
-    assert results.solver.termination_condition == "optimal"
+    assert results.termination_condition == TerminationCondition.optimal
 
     schedules = [
         initialize_series(
@@ -2948,7 +2950,7 @@ def test_multiple_devices_quadratic_soc_minima_fairness(app):
         commitments=commitments,
         initial_stock=[0] * num_devices,
     )
-    assert results.solver.termination_condition == "optimal"
+    assert results.termination_condition == TerminationCondition.optimal
 
     model.costs.deactivate()
     model.quadratic_costs = Objective(
@@ -2956,18 +2958,16 @@ def test_multiple_devices_quadratic_soc_minima_fairness(app):
         sense=minimize,
     )
 
-    solver = SolverFactory(solver_name)
+    solver = AppsiHighs()
     try:
-        quadratic_results = solver.solve(model, load_solutions=False)
+        quadratic_results = solver.solve(model)
     except DegreeError as exc:
         pytest.xfail(
             "appsi_highs currently cannot handle quadratic objectives in this setup "
             f"(captured: {exc})."
         )
-    if len(quadratic_results.solution) > 0:
-        model.solutions.load_from(quadratic_results)
 
-    assert quadratic_results.solver.termination_condition == "optimal"
+    assert quadratic_results.termination_condition == TerminationCondition.optimal
 
     charged_energy_per_device = np.array(
         [sum(model.ems_power[d, j].value for j in model.j) for d in model.d]
@@ -3179,7 +3179,7 @@ def test_multiple_devices_sequential_scheduler():
                 commitments=[energy_commitment, device_commitment],
                 initial_stock=initial_stock,
             )
-            assert results.solver.termination_condition == "optimal"
+            assert results.termination_condition == TerminationCondition.optimal
 
             schedule = initialize_series(
                 data=[model.ems_power[0, j].value for j in model.j],
