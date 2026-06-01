@@ -91,7 +91,14 @@ def create(  # noqa C901
     if app.testing:
         from fakeredis import FakeStrictRedis
 
-        redis_conn = FakeStrictRedis(
+        class RQCompatibleFakeStrictRedis(FakeStrictRedis):
+            def client_list(self, *args, **kwargs):
+                clients = super().client_list(*args, **kwargs)
+                for client in clients:
+                    client.setdefault("addr", "fakeredis:0")
+                return clients
+
+        redis_conn = RQCompatibleFakeStrictRedis(
             host="redis", port="1234"
         )  # dummy connection details
     else:
