@@ -9,6 +9,8 @@ v1.0.0 | July XX, 2026
 
 New features
 -------------
+* Floor off-clock API datetimes to a non-instantaneous sensor's resolution by default when ingesting sensor data, uploading sensor data, and handling scheduler flex-model timed events; configurable with the ``floor_datetimes_to_resolution`` sensor attribute [see `PR #2146 <https://www.github.com/FlexMeasures/flexmeasures/pull/2146>`_]
+
 
 Infrastructure / Support
 ----------------------

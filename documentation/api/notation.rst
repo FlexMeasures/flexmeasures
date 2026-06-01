@@ -120,6 +120,12 @@ In all current versions of the FlexMeasures API, only equidistant timeseries dat
 - "start" should be a timestamp on the hour or a multiple of the sensor resolution thereafter (e.g. "16:10" works if the resolution is 5 minutes), and
 - "duration" should also be a multiple of the sensor resolution.
 
+For non-instantaneous sensors, FlexMeasures floors off-clock datetimes to the
+sensor's resolution by default when ingesting sensor data. For example, data
+posted with ``"start": "2026-05-12T08:29:58+02:00"`` to a 15-minute sensor is
+saved from ``2026-05-12T08:15:00+02:00``. Set the sensor attribute
+``"floor_datetimes_to_resolution": false`` to disable this behaviour.
+
 
 .. _beliefs:
 
@@ -249,7 +255,10 @@ FlexMeasures handles two types of time series, which can be distinguished by def
 Specifying a frequency and resolution is redundant for POST requests that contain both "values" and a "duration" ― FlexMeasures computes the frequency by dividing the duration by the number of values, and, for sensors that record non-instantaneous events, assumes the resolution of the data is equal to the frequency.
 
 When POSTing data, FlexMeasures checks this inferred resolution against the required resolution of the sensors that are posted to.
-If these can't be matched (through upsampling), an error will occur.
+If these can't be matched through upsampling or downsampling, an error will occur.
+Off-clock event starts for non-instantaneous sensors are floored to the sensor's resolution by default.
+The sensor attribute ``floor_datetimes_to_resolution`` can be set to ``false`` to keep incoming datetimes unchanged.
+This flooring behaviour is distinct from the existing ``frequency`` sensor attribute, which rounds incoming instantaneous measurements to a configured Pandas frequency.
 
 GET requests (such as */sensors/data*) return data with a frequency either equal to the resolution that the sensor is configured for (for non-instantaneous sensors), or a default frequency befitting (in our opinion) the requested time interval.
 A "resolution" may be specified explicitly to obtain the data in downsampled form, which can be very beneficial for download speed.
