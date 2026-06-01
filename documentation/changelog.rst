@@ -212,7 +212,7 @@ New features
 * Improved the UX for creating sensors, clicking on ``Enter`` now validates and creates a sensor [see `PR #1876 <https://www.github.com/FlexMeasures/flexmeasures/pull/1876>`_]
 * Show zero values in bar charts even though they have 0 area [see `PR #1932 <https://www.github.com/FlexMeasures/flexmeasures/pull/1932>`_ and `PR #1936 <https://www.github.com/FlexMeasures/flexmeasures/pull/1936>`_]
 * Added ``root`` and ``depth`` fields to the `[GET] /assets` endpoint for listing assets, to allow selecting descendants of a given root asset up to a given depth [see `PR #1874 <https://www.github.com/FlexMeasures/flexmeasures/pull/1874>`_]
-* Support creating schedules with only information known prior to some time, now also via the CLI (the API already supported it) [see `PR #1871 <https://www.github.com/FlexMeasures/flexmeasures/pull/1871>`_].
+* Support creating schedules with only information known prior to some time, now also via the CLI (the API already supported it) [see `PR #1871 <https://www.github.com/FlexMeasures/flexmeasures/pull/1871>`_]
 * Added capability to update an asset's parent from the UI [`PR #1957 <https://www.github.com/FlexMeasures/flexmeasures/pull/1957>`_]
 * Add ``fields`` param to the asset-listing endpoints, to save bandwidth in response data [see `PR #1884 <https://www.github.com/FlexMeasures/flexmeasures/pull/1884>`_]
 
@@ -306,7 +306,7 @@ v0.30.0 | December 2, 2025
 
 New features
 -------------
-* Improve ``flexmeasures add forecasts`` CLI command with clearer success and error messages when creating jobs or beliefs [see `PR #1822 <https://github.com/FlexMeasures/flexmeasures/pull/1822>`_].
+* Improve ``flexmeasures add forecasts`` CLI command with clearer success and error messages when creating jobs or beliefs [see `PR #1822 <https://github.com/FlexMeasures/flexmeasures/pull/1822>`_]
 * Major overhaul of ``flexmeasures add forecasts`` (use the ``--help`` option to learn more) [see `PR #1546 <https://github.com/FlexMeasures/flexmeasures/pull/1546>`_, `PR #1744 <https://github.com/FlexMeasures/flexmeasures/pull/1744>`_ and `PR #1834 <https://github.com/FlexMeasures/flexmeasures/pull/1834>`_]
 * The new ``commitments`` field in the ``flex-context`` can be used to specify previous commitments (e.g. market positions) that the scheduler needs to take into account [see `PR #1754 <https://github.com/FlexMeasures/flexmeasures/pull/1754>`_ and `PR #1793 <https://github.com/FlexMeasures/flexmeasures/pull/1793>`_]
 * Many more field descriptions in Swagger, including flex-model and flex-context fields [see `PR #1777 <https://www.github.com/FlexMeasures/flexmeasures/pull/1777>`_ and `PR #1841 <https://www.github.com/FlexMeasures/flexmeasures/pull/1841>`_]
