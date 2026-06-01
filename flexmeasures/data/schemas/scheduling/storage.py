@@ -338,6 +338,7 @@ class StorageFlexModelSchema(Schema):
         )
         if (
             isinstance(unit, ur.Quantity)
+            and not self.sensor
             and not consumption_is_sensor
             and not production_is_sensor
         ):
