@@ -44,7 +44,13 @@ class DeprecatedOption(click.Option):
     """
 
     def __init__(self, *args, **kwargs):
-        self.deprecated = kwargs.pop("deprecated", ())
+        deprecated = kwargs.pop("deprecated", ())
+        if isinstance(deprecated, (list, tuple, set)):
+            self.deprecated = tuple(deprecated)
+        elif isinstance(deprecated, str):
+            self.deprecated = (deprecated,)
+        else:
+            self.deprecated = ()
         self.preferred = kwargs.pop("preferred", args[0][-1])
         super(DeprecatedOption, self).__init__(*args, **kwargs)
 
