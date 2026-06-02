@@ -12,11 +12,10 @@ from isodate import parse_duration
 import pandas as pd
 import numpy as np
 from flask import request, jsonify, Flask
+from flask.testing import FlaskCliRunner
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
-
-from flask.testing import FlaskCliRunner
 from werkzeug.exceptions import (
     InternalServerError,
     BadRequest,
