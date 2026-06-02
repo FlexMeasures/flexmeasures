@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Determine container name: use $1 if provided, otherwise construct from current folder name
+CONTAINER_NAME="${1:-$(basename $(pwd))-server-1}"
+
 echo "[TUTORIAL-RUNNER] RUNNING TUTORIAL 1 (SIMPLE BATTERY SCHEDULE)..."
 echo "-----------------------------------------------------------------"
 
@@ -31,17 +34,17 @@ ${TOMORROW}T21:00:00,12.5
 ${TOMORROW}T22:00:00,10
 ${TOMORROW}T23:00:00,7" > prices-tomorrow.csv
 
-docker cp prices-tomorrow.csv flexmeasures-server-1:/app
+docker cp prices-tomorrow.csv $CONTAINER_NAME:/app
 
-docker exec -it flexmeasures-server-1 flexmeasures add beliefs \
+docker exec -it $CONTAINER_NAME flexmeasures add beliefs \
   --sensor 1 --source toy-user /app/prices-tomorrow.csv --timezone Europe/Amsterdam
 
 echo "[TUTORIAL-RUNNER] creating schedule ..."
-docker exec -it flexmeasures-server-1 flexmeasures add schedule \
+docker exec -it $CONTAINER_NAME flexmeasures add schedule \
   --sensor 2 \
   --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
   --flex-model '{"soc-min": "50 kWh"}'
 
 echo "[TUTORIAL-RUNNER] displaying schedule..."
-docker exec -it flexmeasures-server-1 flexmeasures show beliefs \
+docker exec -it $CONTAINER_NAME flexmeasures show beliefs \
   --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H

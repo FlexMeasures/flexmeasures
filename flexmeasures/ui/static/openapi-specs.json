@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.33.0"
+    "version": "1.0.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -177,6 +177,9 @@
                       "timezone": "Europe/Amsterdam",
                       "event_resolution": "PT15M",
                       "entity_address": "ea1.2021-01.io.flexmeasures:fm1.14",
+                      "attributes": {
+                        "floor_datetimes_to_resolution": true
+                      },
                       "generic_asset_id": 1
                     }
                   },
@@ -484,7 +487,7 @@
       },
       "post": {
         "summary": "Post sensor data",
-        "description": "Send data values via JSON, where the duration and number of values determine the resolution.\n\nThe example request posts four values for a duration of one hour, where the first\nevent start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.\n\nThe sensor is the one with ID=1.\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to upsample lower resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
+        "description": "Send data values via JSON, where the duration and number of values determine the resolution.\n\nThe example request posts four values for a duration of one hour, where the first\nevent start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.\n\nThe sensor is the one with ID=1.\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to resample compatible resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
         "security": [
           {
             "ApiAuthKey": []
@@ -690,7 +693,7 @@
     "/api/v3_0/sensors/{id}/schedules/{uuid}": {
       "get": {
         "summary": "Get schedule for one device",
-        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n- \"unit\" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)\n",
+        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n- \"unit\" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)\n- \"sign-convention\" (controls how power values are signed in the response; see below)\n\n<strong>Sign convention</strong>\n\nBy default (<code>sign-convention: consumption-positive</code>), the endpoint always returns schedules where\nconsumption is positive and production is negative, regardless of how the values are stored in the database.\nThis is the most common convention and matches the perspective of a consumer.\n\nSet <code>sign-convention: production-positive</code> to flip the sign so that production is returned as\npositive and consumption as negative. This matches the perspective of a producer.\n\nSet <code>sign-convention: wysiwyg</code> (<em>what-you-see-is-what-you-get</em>) to return the values with the same sign\nas database values and what is seen in UI charts. The values will indicate exactly what is stored,\nwhich is itself determined by the sensor's <code>consumption_is_positive</code> attribute (if set)\nor by the scheduler's default storage convention (production positive in the database).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -735,6 +738,21 @@
             "example": "kW",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sign-convention",
+            "required": false,
+            "description": "Sign convention applied to power values in the response.\n- <code>consumption-positive</code> (default): consumption is positive, production is negative.\n- <code>production-positive</code>: production is positive, consumption is negative.\n- <code>wysiwyg</code> (<em>what-you-see-is-what-you-get</em>): sign of database values and as seen in UI charts.\n",
+            "example": "consumption-positive",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "consumption-positive",
+                "production-positive",
+                "wysiwyg"
+              ]
             }
           }
         ],
@@ -1190,7 +1208,8 @@
                     "name": "power",
                     "event_resolution": "PT1H",
                     "unit": "kWh",
-                    "generic_asset_id": 1
+                    "generic_asset_id": 1,
+                    "attributes": "{\"floor_datetimes_to_resolution\": false}"
                   }
                 }
               }
@@ -1215,6 +1234,7 @@
                       "entity_address": "ea1.2023-08.localhost:fm1.1",
                       "event_resolution": "PT1H",
                       "generic_asset_id": 1,
+                      "attributes": "{\"floor_datetimes_to_resolution\": false}",
                       "timezone": "UTC",
                       "id": 2
                     }
@@ -1527,7 +1547,7 @@
     "/api/v3_0/sensors/{id}/data/upload": {
       "post": {
         "summary": "Upload sensor data by file",
-        "description": "The file should have columns for a timestamp (event_start) and a value (event_value).\nThe timestamp should be in ISO 8601 format.\nThe value should be a numeric value.\n\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to upsample lower resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
+        "description": "The file should have columns for a timestamp (event_start) and a value (event_value).\nThe timestamp should be in ISO 8601 format.\nThe value should be a numeric value.\n\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to resample compatible resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -5773,8 +5793,8 @@
             "description": "Obsolete identifier from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/)."
           },
           "attributes": {
-            "description": "JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values.",
-            "example": "{consumption_is_positive: True}"
+            "description": "JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values, `floor_datetimes_to_resolution`, which controls whether off-clock datetimes are floored to a non-instantaneous sensor's resolution, and `frequency`, which rounds incoming instantaneous measurements to a configured Pandas frequency.",
+            "example": "{\"consumption_is_positive\": true, \"floor_datetimes_to_resolution\": true}"
           },
           "generic_asset_id": {
             "type": "integer",
@@ -6043,6 +6063,20 @@
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",
         "properties": {
+          "consumption": {
+            "description": "Sensor used to record the scheduled power as seen from a consumption perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nDepending on which output sensors are defined:\n\n- <strong>Only</strong> <code>consumption</code> <strong>defined</strong>: the full power schedule is stored on this sensor using the\n  consumption-positive sign convention (consumption positive, production negative).\n- <strong>Only</strong> <code>production</code> <strong>defined</strong>: the full power schedule is stored on the production sensor\n  with the production-positive convention (production positive, consumption negative).\n- <strong>Both defined</strong>: only the non-negative part of the schedule is stored on this sensor (zero for\n  time steps with net production), and only the non-positive part (sign-flipped) is stored on the\n  production sensor.\n",
+            "example": {
+              "sensor": 14
+            },
+            "$ref": "#/components/schemas/SensorReference"
+          },
+          "production": {
+            "description": "Sensor used to record the scheduled power as seen from a production perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nSee <code>consumption</code> for the full description of the split logic when both sensors are defined.\n",
+            "example": {
+              "sensor": 15
+            },
+            "$ref": "#/components/schemas/SensorReference"
+          },
           "soc-at-start": {
             "type": "string",
             "description": "The (estimated) state of charge at the beginning of the schedule (for storage devices, this defaults to 0).\nUsually added to each scheduling request.\n",
@@ -6158,7 +6192,7 @@
             "example": "90%"
           },
           "storage-efficiency": {
-            "description": "The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time.\nAs a result, each time step the energy is held longer leads to higher losses.\nThis setting is crucial to some sorts of energy storage, e.g. thermal buffers.\nTo give an example, when this setting is at 95% (or 0.95), this means a loss of 5% per time step. Defaults to 100% (no storage loss over time).\nNote that the storage efficiency used by the scheduler is applied over each time step equal to the sensor resolution.\nFor example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865.\n",
+            "description": "The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time.\nAs a result, each time step the energy is held longer leads to higher losses.\nThis setting is crucial to some sorts of energy storage, e.g. thermal buffers.\nTo give an example, when this setting is at 95% (or 0.95), this means a loss of 5% per time step. Defaults to 100% (no storage loss over time).\nNote that the storage efficiency used by the scheduler is applied over each time step equal to the scheduling resolution.\nFor example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865.\nAlternatively, to let FlexMeasures handle the conversion for you, record the storage-efficiency on a dedicated sensor (in this example, with a 24-hour event resolution).\nThen reference that sensor in the storage-efficiency field.\n",
             "example": "99.9%",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },

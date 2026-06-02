@@ -182,7 +182,13 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
    * - Field
      - Example value
-     - Description 
+     - Description
+   * - ``consumption``
+     - |CONSUMPTION.example|
+     - .. include:: ../_autodoc/CONSUMPTION.rst
+   * - ``production``
+     - |PRODUCTION.example|
+     - .. include:: ../_autodoc/PRODUCTION.rst
    * - ``state-of-charge``
      - |STATE_OF_CHARGE.example|
      - .. include:: ../_autodoc/STATE_OF_CHARGE.rst
