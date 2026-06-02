@@ -33,6 +33,7 @@ class MarshmallowClickMixin:
             raise click.exceptions.BadParameter(e, ctx=ctx, param=param)
 
     def __call__(self, value):
+        """Support click.FuncParamType by behaving like a conversion callable."""
         try:
             return self.deserialize(value)
         except ma.exceptions.ValidationError as e:

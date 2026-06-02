@@ -45,6 +45,8 @@ class DeprecatedOption(click.Option):
 
     def __init__(self, *args, **kwargs):
         deprecated = kwargs.pop("deprecated", ())
+        # Keep our aliases in a separate attribute to avoid colliding with Click's
+        # own `deprecated` option argument (introduced in Click 8.2+).
         if isinstance(deprecated, (list, tuple, set)):
             self.deprecated_options = tuple(deprecated)
         elif isinstance(deprecated, str):
