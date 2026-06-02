@@ -20,7 +20,6 @@ from redis import Redis
 from rq import Queue
 
 from flexmeasures.data.services.job_cache import JobCache
-from flexmeasures.tests.utils import RQCompatibleFakeStrictRedis
 
 
 def create(  # noqa C901
@@ -90,6 +89,8 @@ def create(  # noqa C901
 
     # configure Redis (for redis queue)
     if app.testing:
+        from flexmeasures.tests.utils import RQCompatibleFakeStrictRedis
+
         redis_conn = RQCompatibleFakeStrictRedis(
             host="redis", port="1234"
         )  # dummy connection details
