@@ -15,6 +15,7 @@ New features
 Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_]
+* Documentation section on the modelling choice for recording measurements, forecasts and schedules under one or multiple sensors [see `PR #2217 <https://www.github.com/FlexMeasures/flexmeasures/pull/2217>`_]
 
 Bugfixes
 -----------
