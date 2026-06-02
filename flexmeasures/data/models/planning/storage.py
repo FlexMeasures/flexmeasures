@@ -35,7 +35,7 @@ from flexmeasures.data.schemas.scheduling import (
     FlexContextSchema,
     MultiSensorFlexModelSchema,
 )
-from flexmeasures.data.schemas.sensors import SensorReference
+from flexmeasures.data.schemas.sensors import SensorReference, VariableQuantityField
 from flexmeasures.utils.calculations import (
     integrate_time_series,
 )
@@ -1311,11 +1311,28 @@ class MetaStorageScheduler(Scheduler):
         if isinstance(state_of_charge, list):
             return self._resolve_soc_at_start_from_time_series(state_of_charge, sensor)
         if isinstance(state_of_charge, dict) and "sensor" in state_of_charge:
-            state_of_charge_sensor = db.session.get(Sensor, state_of_charge["sensor"])
+            sensor_id = (
+                state_of_charge["sensor"].id
+                if isinstance(state_of_charge["sensor"], Sensor)
+                else state_of_charge["sensor"]
+            )
+            state_of_charge_sensor = db.session.get(Sensor, sensor_id)
             if state_of_charge_sensor is None:
                 raise ValueError(
-                    f"State-of-charge sensor with id {state_of_charge['sensor']} was not found."
+                    f"State-of-charge sensor with id {sensor_id} was not found."
                 )
+            source_filter_keys = {
+                "source-types",
+                "exclude-source-types",
+                "sources",
+                "source-account",
+            }
+            if not source_filter_keys.isdisjoint(state_of_charge.keys()):
+                state_of_charge_sensor = VariableQuantityField(
+                    to_unit="MWh",
+                    return_magnitude=False,
+                    additional_sensor_units=["%"],
+                ).deserialize({**state_of_charge, "sensor": sensor_id})
             return self._resolve_soc_at_start_from_sensor(
                 state_of_charge_sensor, flex_model, sensor
             )
