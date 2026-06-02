@@ -582,7 +582,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         **kwargs,
     ) -> str | dict[str, Any]:
         if isinstance(value, SensorReference):
-            sensor_reference = dict(sensor=value.id)
+            sensor_reference: dict[str, Any] = dict(sensor=value.id)
             if value.source_types is not None:
                 sensor_reference["source-types"] = value.source_types
             if value.exclude_source_types is not None:

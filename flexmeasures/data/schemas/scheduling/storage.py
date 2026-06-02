@@ -333,6 +333,32 @@ class StorageFlexModelSchema(Schema):
                 "The `state-of-charge` field can only be a Sensor or a time series."
             )
 
+    @validates("consumption")
+    def validate_consumption_has_no_source_filters(self, consumption: dict, **kwargs):
+        if isinstance(consumption, dict) and any(
+            consumption.get(key) is not None
+            for key in (
+                "source_types",
+                "exclude_source_types",
+                "sources",
+                "source_account",
+            )
+        ):
+            raise ValidationError("The `consumption` field cannot use source filters.")
+
+    @validates("production")
+    def validate_production_has_no_source_filters(self, production: dict, **kwargs):
+        if isinstance(production, dict) and any(
+            production.get(key) is not None
+            for key in (
+                "source_types",
+                "exclude_source_types",
+                "sources",
+                "source_account",
+            )
+        ):
+            raise ValidationError("The `production` field cannot use source filters.")
+
     @validates("asset")
     def validate_asset(self, asset: Asset, **kwargs):
         if self.sensor is not None and self.sensor.asset != asset:
@@ -546,6 +572,32 @@ class DBStorageFlexModelSchema(Schema):
             field: (self.declared_fields[field].data_key or field)
             for field in self.declared_fields
         }
+
+    @validates("consumption")
+    def validate_consumption_has_no_source_filters(self, consumption: dict, **kwargs):
+        if isinstance(consumption, dict) and any(
+            consumption.get(key) is not None
+            for key in (
+                "source_types",
+                "exclude_source_types",
+                "sources",
+                "source_account",
+            )
+        ):
+            raise ValidationError("The `consumption` field cannot use source filters.")
+
+    @validates("production")
+    def validate_production_has_no_source_filters(self, production: dict, **kwargs):
+        if isinstance(production, dict) and any(
+            production.get(key) is not None
+            for key in (
+                "source_types",
+                "exclude_source_types",
+                "sources",
+                "source_account",
+            )
+        ):
+            raise ValidationError("The `production` field cannot use source filters.")
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
