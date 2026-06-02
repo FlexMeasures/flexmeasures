@@ -99,6 +99,45 @@ Each belief links to a sensor and a data source. Here are two examples:
 - A thermal demand sensor containing forecasts (data source of type "forecast", e.g. heating usage forecast sent to FlexMeasures or made by FlexMeasures) and measurements (sent into FlexMeasures, data source type "user").
 
 
+.. _signs_of_power_beliefs:
+
+About signs of power & energy values
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+In short: You can use any sign you want for power data.
+What is recorded in the database is exactly as seen in UI charts.
+But the scheduler in FlexMeasures needs to know how to apply the signs.
+Let us explain.
+
+When beliefs are about power or energy, the sign of the value is important. It indicates whether the asset is consuming or producing.
+However, there is no universal standard for this. Some systems use positive values for production and negative values for consumption, while others do the opposite.
+
+FlexMeasures doesn't enforce any perspective (we have a design philosophy of letting users model the system in their own way).
+
+For example, users can create PV power data with positive values indicating production, and they can also create building power data with positive values indicating consumption.
+We allow this because we want the UI to match what is in the database, and users often desire both of these datasets to be shown as positive values.
+We assume that this is what users send in.
+
+Note that, if forecasts are created, they will have the same sign as the original data.
+
+For schedules, the sign of the power schedule (as :ref:`beliefs <beliefs>`) recorded in the database, and as seen in UI charts, is determined as follows:
+
+- If the flex-model contains the ``sensor`` field, and that sensor has power units (e.g. kW), the ``"consumption_is_positive"`` attribute of the sensor is used to decide the sign of the recorded data.
+  If `True`, consumption will be saved as positive, otherwise not. To clarify:
+  - If the attribute is not defined, **by default, scheduled power is recorded with production as positive values** (and consumption as negative values).
+  - To record scheduled power data with consumption as positive values, set ``sensor.attributes["consumption_is_positive"] = True``.
+  - To record scheduled power data with production as positive values (already the default, but this makes it explicit), set ``sensor.attributes["consumption_is_positive"] = False``.
+- If the flex-model contains the ``consumption`` field, scheduled power is recorded with consumption as positive values.
+  The ``"consumption_is_positive"`` attribute of the referenced sensor is set automatically to ``True``.
+- If the flex-model contains the ``production`` field, scheduled power is recorded with production as positive values.
+  The ``"consumption_is_positive"`` attribute of the referenced sensor is set automatically to ``False``.
+
+The ``GET /api/v3_0/sensors/<id>/schedules/<uuid>`` endpoint supports three sign conventions via the ``sign-convention`` query parameter:
+
+- ``consumption-positive`` (default): schedules are always returned with consumption as positive values and production as negative values.
+- ``production-positive``: schedules are returned with production as positive values and consumption as negative values.
+- ``wysiwyg`` (*what-you-see-is-what-you-get*): schedules are returned with the same sign as database values and as seen in the UI charts, indicating exactly what the scheduler stored.
+
+
 Annotations
 -----------
 
@@ -150,45 +189,6 @@ Annotations appear in:
 - API responses when querying chart data with annotation flags
 
 More information, including code examples, is available in :ref:`annotations`.
-
-
-.. _signs_of_power_beliefs:
-
-About signs of power & energy values
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-In short: You can use any sign you want for power data.
-What is recorded in the database is exactly as seen in UI charts.
-But the scheduler in FlexMeasures needs to know how to apply the signs.
-Let us explain.
-
-When beliefs are about power or energy, the sign of the value is important. It indicates whether the asset is consuming or producing.
-However, there is no universal standard for this. Some systems use positive values for production and negative values for consumption, while others do the opposite.
-
-FlexMeasures doesn't enforce any perspective (we have a design philosophy of letting users model the system in their own way). 
-
-For example, users can create PV power data with positive values indicating production, and they can also create building power data with positive values indicating consumption.
-We allow this because we want the UI to match what is in the database, and users often desire both of these datasets to be shown as positive values.
-We assume that this is what users send in.
-
-Note that, if forecasts are created, they will have the same sign as the original data.
-
-For schedules, the sign of the power schedule (as :ref:`beliefs <beliefs>`) recorded in the database, and as seen in UI charts, is determined as follows:
-
-- If the flex-model contains the ``sensor`` field, and that sensor has power units (e.g. kW), the ``"consumption_is_positive"`` attribute of the sensor is used to decide the sign of the recorded data.
-  If `True`, consumption will be saved as positive, otherwise not. To clarify:
-  - If the attribute is not defined, **by default, scheduled power is recorded with production as positive values** (and consumption as negative values).
-  - To record scheduled power data with consumption as positive values, set ``sensor.attributes["consumption_is_positive"] = True``.
-  - To record scheduled power data with production as positive values (already the default, but this makes it explicit), set ``sensor.attributes["consumption_is_positive"] = False``.
-- If the flex-model contains the ``consumption`` field, scheduled power is recorded with consumption as positive values.
-  The ``"consumption_is_positive"`` attribute of the referenced sensor is set automatically to ``True``.
-- If the flex-model contains the ``production`` field, scheduled power is recorded with production as positive values.
-  The ``"consumption_is_positive"`` attribute of the referenced sensor is set automatically to ``False``.
-
-The ``GET /api/v3_0/sensors/<id>/schedules/<uuid>`` endpoint supports three sign conventions via the ``sign-convention`` query parameter:
-
-- ``consumption-positive`` (default): schedules are always returned with consumption as positive values and production as negative values.
-- ``production-positive``: schedules are returned with production as positive values and consumption as negative values.
-- ``wysiwyg`` (*what-you-see-is-what-you-get*): schedules are returned with the same sign as database values and as seen in the UI charts, indicating exactly what the scheduler stored.
 
 
 Accounts & Users
