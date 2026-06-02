@@ -42,6 +42,15 @@ SoCTarget = TypedDict(
     total=False,  # not all are required (just value, which we can say in 3.11)
 )
 
+# Keys used by SensorReferenceSchema to carry source-filter options.
+# Present as non-None values when the caller added a source filter.
+_SENSOR_REFERENCE_SOURCE_FILTER_KEYS = (
+    "source_types",
+    "exclude_source_types",
+    "sources",
+    "source_account",
+)
+
 
 class EfficiencyField(QuantityField):
     """Field that deserializes to a Quantity with % units.
@@ -334,28 +343,16 @@ class StorageFlexModelSchema(Schema):
             )
 
     @validates("consumption")
-    def validate_consumption_has_no_source_filters(self, consumption: dict, **kwargs):
-        if isinstance(consumption, dict) and any(
-            consumption.get(key) is not None
-            for key in (
-                "source_types",
-                "exclude_source_types",
-                "sources",
-                "source_account",
-            )
+    def validate_consumption_has_no_source_filters(self, value: dict, **kwargs):
+        if isinstance(value, dict) and any(
+            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
         ):
             raise ValidationError("The `consumption` field cannot use source filters.")
 
     @validates("production")
-    def validate_production_has_no_source_filters(self, production: dict, **kwargs):
-        if isinstance(production, dict) and any(
-            production.get(key) is not None
-            for key in (
-                "source_types",
-                "exclude_source_types",
-                "sources",
-                "source_account",
-            )
+    def validate_production_has_no_source_filters(self, value: dict, **kwargs):
+        if isinstance(value, dict) and any(
+            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
         ):
             raise ValidationError("The `production` field cannot use source filters.")
 
@@ -574,28 +571,16 @@ class DBStorageFlexModelSchema(Schema):
         }
 
     @validates("consumption")
-    def validate_consumption_has_no_source_filters(self, consumption: dict, **kwargs):
-        if isinstance(consumption, dict) and any(
-            consumption.get(key) is not None
-            for key in (
-                "source_types",
-                "exclude_source_types",
-                "sources",
-                "source_account",
-            )
+    def validate_consumption_has_no_source_filters(self, value: dict, **kwargs):
+        if isinstance(value, dict) and any(
+            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
         ):
             raise ValidationError("The `consumption` field cannot use source filters.")
 
     @validates("production")
-    def validate_production_has_no_source_filters(self, production: dict, **kwargs):
-        if isinstance(production, dict) and any(
-            production.get(key) is not None
-            for key in (
-                "source_types",
-                "exclude_source_types",
-                "sources",
-                "source_account",
-            )
+    def validate_production_has_no_source_filters(self, value: dict, **kwargs):
+        if isinstance(value, dict) and any(
+            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
         ):
             raise ValidationError("The `production` field cannot use source filters.")
 
