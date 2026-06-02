@@ -20,6 +20,7 @@ from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
+    get_sensor_reference_search_kwargs,
 )
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.units import UnitField
@@ -326,6 +327,10 @@ class FlexContextSchema(Schema):
     ):
         if not isinstance(aggregate_power, Sensor):
             raise ValidationError("The `aggregate-power` field can only be a Sensor.")
+        if get_sensor_reference_search_kwargs(aggregate_power):
+            raise ValidationError(
+                "The `aggregate-power` field cannot use source filters."
+            )
 
     @validates_schema(pass_original=True)
     def check_prices(self, data: dict, original_data: dict, **kwargs):

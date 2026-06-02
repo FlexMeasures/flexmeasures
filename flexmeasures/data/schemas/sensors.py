@@ -15,6 +15,7 @@ from marshmallow import (
     fields,
     post_load,
     pre_load,
+    pre_dump,
     validates,
     validates_schema,
 )
@@ -39,6 +40,8 @@ from flexmeasures.data.schemas.utils import (
     with_appcontext_if_needed,
     convert_to_quantity,
 )
+from flexmeasures.data.schemas.sources import DataSourceIdField
+from flexmeasures.data.schemas.account import AccountIdOrListField
 from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.utils.time_utils import get_timezone
 from flexmeasures.utils.unit_utils import (
@@ -266,6 +269,92 @@ class SensorSchemaMixin(Schema):
         return data
 
 
+SENSOR_REFERENCE_FILTER_ATTR = "_sensor_reference_filters"
+SENSOR_REFERENCE_FILTER_FIELD_NAMES = (
+    "sources",
+    "source_account",
+    "source_types",
+    "exclude_source_types",
+)
+
+
+def get_sensor_reference_filters(
+    sensor_or_reference: Sensor | dict | None,
+) -> dict[str, Any]:
+    if sensor_or_reference is None:
+        return {}
+    if isinstance(sensor_or_reference, Sensor):
+        filters = getattr(sensor_or_reference, SENSOR_REFERENCE_FILTER_ATTR, None)
+        return dict(filters) if filters else {}
+    if isinstance(sensor_or_reference, dict):
+        filters = {}
+        if (
+            "sources" in sensor_or_reference
+            and sensor_or_reference["sources"] is not None
+        ):
+            filters["sources"] = sensor_or_reference["sources"]
+        if (
+            "source-account" in sensor_or_reference
+            and sensor_or_reference["source-account"] is not None
+        ):
+            filters["source_account"] = sensor_or_reference["source-account"]
+        if (
+            "source_account" in sensor_or_reference
+            and sensor_or_reference["source_account"] is not None
+        ):
+            filters["source_account"] = sensor_or_reference["source_account"]
+        if (
+            "source-types" in sensor_or_reference
+            and sensor_or_reference["source-types"] is not None
+        ):
+            filters["source_types"] = sensor_or_reference["source-types"]
+        if (
+            "source_types" in sensor_or_reference
+            and sensor_or_reference["source_types"] is not None
+        ):
+            filters["source_types"] = sensor_or_reference["source_types"]
+        if (
+            "exclude-source-types" in sensor_or_reference
+            and sensor_or_reference["exclude-source-types"] is not None
+        ):
+            filters["exclude_source_types"] = sensor_or_reference[
+                "exclude-source-types"
+            ]
+        if (
+            "exclude_source_types" in sensor_or_reference
+            and sensor_or_reference["exclude_source_types"] is not None
+        ):
+            filters["exclude_source_types"] = sensor_or_reference[
+                "exclude_source_types"
+            ]
+        return filters
+    return {}
+
+
+def set_sensor_reference_filters(sensor: Sensor, filters: dict[str, Any]) -> Sensor:
+    if filters:
+        setattr(sensor, SENSOR_REFERENCE_FILTER_ATTR, dict(filters))
+    elif hasattr(sensor, SENSOR_REFERENCE_FILTER_ATTR):
+        delattr(sensor, SENSOR_REFERENCE_FILTER_ATTR)
+    return sensor
+
+
+def get_sensor_reference_search_kwargs(
+    sensor_or_reference: Sensor | dict | None,
+) -> dict[str, Any]:
+    filters = get_sensor_reference_filters(sensor_or_reference)
+    search_kwargs = {}
+    if "sources" in filters:
+        search_kwargs["source"] = filters["sources"]
+    if "source_account" in filters:
+        search_kwargs["source_account_ids"] = filters["source_account"]
+    if "source_types" in filters:
+        search_kwargs["source_types"] = filters["source_types"]
+    if "exclude_source_types" in filters:
+        search_kwargs["exclude_source_types"] = filters["exclude_source_types"]
+    return search_kwargs
+
+
 class SensorSchema(SensorSchemaMixin, ma.SQLAlchemySchema):
     """
     Sensor schema with validations.
@@ -439,14 +528,13 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                 f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
             )
 
-    def _deserialize_dict(self, value: dict[str, int]) -> Sensor:
+    def _deserialize_dict(self, value: dict[str, Any]) -> Sensor:
         """Deserialize a sensor reference to a Sensor."""
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
-        if self.additional_sensor_units:
-            # With additional allowed units, bypass the built-in unit check and perform our own
-            sensor = SensorIdField(unit=None).deserialize(value["sensor"], None, None)
-            if self.to_unit and not self.to_unit.startswith("/"):
+        sensor = SensorReferenceSchema().load(value)
+        if self.to_unit and not self.to_unit.startswith("/"):
+            if self.additional_sensor_units:
                 if (
                     not units_are_convertible(sensor.unit, self.to_unit)
                     and sensor.unit not in self.additional_sensor_units
@@ -454,10 +542,10 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                     raise FMValidationError(
                         f"Cannot convert {sensor.unit} to {self.to_unit}"
                     )
-        else:
-            sensor = SensorIdField(
-                unit=self.to_unit if not self.to_unit.startswith("/") else None
-            ).deserialize(value["sensor"], None, None)
+            elif not units_are_convertible(sensor.unit, self.to_unit):
+                raise FMValidationError(
+                    f"Cannot convert {sensor.unit} to {self.to_unit}"
+                )
         return sensor
 
     def _deserialize_list(self, value: list[dict]) -> list[dict]:
@@ -494,9 +582,9 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
     def _serialize(
         self, value: Sensor | pd.Series | ur.Quantity, attr, obj, **kwargs
-    ) -> str | dict[str, int]:
+    ) -> str | dict[str, Any]:
         if isinstance(value, Sensor):
-            return dict(sensor=value.id)
+            return SensorReferenceSchema().dump(value)
         elif isinstance(value, pd.Series):
             raise NotImplementedError(
                 "Serialization of a time series from a Pandas Series is not implemented yet."
@@ -855,6 +943,62 @@ class SensorReferenceSchema(Schema):
             description="ID of the sensor on which the data is recorded.",
         ),
     )
+    sources = fields.List(
+        DataSourceIdField(),
+        required=False,
+        metadata=dict(
+            description="IDs of the data sources to use when looking up beliefs.",
+        ),
+    )
+    source_account = AccountIdOrListField(
+        required=False,
+        data_key="source-account",
+        metadata=dict(
+            description="Account ID(s) linked to the data sources to use when looking up beliefs.",
+        ),
+    )
+    source_types = fields.List(
+        fields.Str(),
+        required=False,
+        data_key="source-types",
+        metadata=dict(
+            description="Source type names to use when looking up beliefs.",
+        ),
+    )
+    exclude_source_types = fields.List(
+        fields.Str(),
+        required=False,
+        data_key="exclude-source-types",
+        metadata=dict(
+            description="Source type names to exclude when looking up beliefs.",
+        ),
+    )
+
+    @pre_load
+    def normalize_input(self, data, **kwargs):
+        if "source-account" not in data and "source_account" in data:
+            data["source-account"] = data["source_account"]
+        if "source-types" not in data and "source_types" in data:
+            data["source-types"] = data["source_types"]
+        if "exclude-source-types" not in data and "exclude_source_types" in data:
+            data["exclude-source-types"] = data["exclude_source_types"]
+        return data
+
+    @pre_dump
+    def prepare_dump(self, value: Sensor, **kwargs):
+        if isinstance(value, Sensor):
+            return {"sensor": value, **get_sensor_reference_filters(value)}
+        return value
+
+    @post_load
+    def attach_filters(self, data, **kwargs):
+        sensor = data["sensor"]
+        filters = {
+            field_name: data[field_name]
+            for field_name in SENSOR_REFERENCE_FILTER_FIELD_NAMES
+            if data.get(field_name) is not None
+        }
+        return set_sensor_reference_filters(sensor, filters)
 
 
 class TimeSeriesSchema(Schema):

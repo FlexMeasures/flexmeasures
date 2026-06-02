@@ -14,6 +14,7 @@ from flexmeasures.data.models.planning.exceptions import UnknownPricesException
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning import StockCommitment
 from flexmeasures.data.queries.utils import simplify_index
+from flexmeasures.data.schemas.sensors import get_sensor_reference_search_kwargs
 
 from flexmeasures.utils.flexmeasures_inflection import capitalize, pluralize
 from flexmeasures.utils.unit_utils import ur, convert_units
@@ -345,6 +346,7 @@ def get_series_from_quantity_or_sensor(
             )
         time_series = pd.Series(magnitude, index=index, name="event_value")
     elif isinstance(variable_quantity, Sensor):
+        search_kwargs = get_sensor_reference_search_kwargs(variable_quantity)
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
             variable_quantity,
             event_starts_after=query_window[0],
@@ -354,6 +356,7 @@ def get_series_from_quantity_or_sensor(
             beliefs_before=beliefs_before,
             most_recent_beliefs_only=True,
             one_deterministic_belief_per_event=True,
+            **search_kwargs,
         )
         if as_instantaneous_events:
             bdf = bdf.resample_events(

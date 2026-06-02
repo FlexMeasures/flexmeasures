@@ -581,12 +581,12 @@ def _set_flex_model_output_sensors_consumption_is_positive(
         consumption_sensor = (
             consumption_field.get("sensor")
             if isinstance(consumption_field, dict)
-            else None
+            else consumption_field if isinstance(consumption_field, Sensor) else None
         )
         production_sensor = (
             production_field.get("sensor")
             if isinstance(production_field, dict)
-            else None
+            else production_field if isinstance(production_field, Sensor) else None
         )
         for sensor, intended in [
             (consumption_sensor, True),

@@ -35,6 +35,7 @@ from flexmeasures.data.schemas.scheduling import (
     FlexContextSchema,
     MultiSensorFlexModelSchema,
 )
+from flexmeasures.data.schemas.sensors import get_sensor_reference_search_kwargs
 from flexmeasures.utils.calculations import (
     integrate_time_series,
 )
@@ -1185,6 +1186,7 @@ class MetaStorageScheduler(Scheduler):
         state_of_charge_sensor: Sensor,
         flex_model: dict,
         sensor: Sensor | None = None,
+        sensor_reference: Sensor | dict | None = None,
     ) -> float:
         """Resolve ``soc-at-start`` from a ``state-of-charge`` sensor.
 
@@ -1194,10 +1196,14 @@ class MetaStorageScheduler(Scheduler):
         :returns:                      Starting SoC in MWh.
         """
         lookup_radius = self._get_soc_lookup_radius(sensor)
+        search_kwargs = get_sensor_reference_search_kwargs(
+            sensor_reference if sensor_reference is not None else state_of_charge_sensor
+        )
         beliefs = state_of_charge_sensor.search_beliefs(
             event_starts_after=self.start - lookup_radius,
             event_ends_before=self.start + lookup_radius,
             one_deterministic_belief_per_event=True,
+            **search_kwargs,
         )
         if beliefs.empty:
             raise ValueError(
@@ -1279,18 +1285,22 @@ class MetaStorageScheduler(Scheduler):
         state_of_charge = flex_model.get("state-of-charge")
         if isinstance(state_of_charge, Sensor):
             return self._resolve_soc_at_start_from_sensor(
-                state_of_charge, flex_model, sensor
+                state_of_charge, flex_model, sensor, state_of_charge
             )
         if isinstance(state_of_charge, list):
             return self._resolve_soc_at_start_from_time_series(state_of_charge, sensor)
         if isinstance(state_of_charge, dict) and "sensor" in state_of_charge:
-            state_of_charge_sensor = db.session.get(Sensor, state_of_charge["sensor"])
+            state_of_charge_sensor = state_of_charge["sensor"]
+            if not isinstance(state_of_charge_sensor, Sensor):
+                state_of_charge_sensor = db.session.get(
+                    Sensor, state_of_charge["sensor"]
+                )
             if state_of_charge_sensor is None:
                 raise ValueError(
                     f"State-of-charge sensor with id {state_of_charge['sensor']} was not found."
                 )
             return self._resolve_soc_at_start_from_sensor(
-                state_of_charge_sensor, flex_model, sensor
+                state_of_charge_sensor, flex_model, sensor, state_of_charge
             )
         return None
 
@@ -1639,12 +1649,14 @@ class StorageScheduler(MetaStorageScheduler):
             consumption_sensor = (
                 consumption_field["sensor"]
                 if isinstance(consumption_field, dict) and "sensor" in consumption_field
-                else None
+                else (
+                    consumption_field if isinstance(consumption_field, Sensor) else None
+                )
             )
             production_sensor = (
                 production_field["sensor"]
                 if isinstance(production_field, dict) and "sensor" in production_field
-                else None
+                else production_field if isinstance(production_field, Sensor) else None
             )
             if consumption_sensor is None and production_sensor is None:
                 continue
@@ -1828,10 +1840,19 @@ class StorageScheduler(MetaStorageScheduler):
             ]
             # Determine which sensors are consumption vs. production output sensors
             consumption_output_sensors = {
-                flex_model_d["consumption"]["sensor"]
+                (
+                    flex_model_d["consumption"]
+                    if isinstance(flex_model_d.get("consumption"), Sensor)
+                    else flex_model_d["consumption"]["sensor"]
+                )
                 for flex_model_d in flex_model
-                if isinstance(flex_model_d.get("consumption"), dict)
-                and "sensor" in flex_model_d["consumption"]
+                if (
+                    isinstance(flex_model_d.get("consumption"), Sensor)
+                    or (
+                        isinstance(flex_model_d.get("consumption"), dict)
+                        and "sensor" in flex_model_d["consumption"]
+                    )
+                )
             }
             consumption_production_schedules = [
                 {

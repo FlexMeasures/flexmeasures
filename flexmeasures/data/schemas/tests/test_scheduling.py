@@ -15,7 +15,12 @@ from flexmeasures.data.schemas.scheduling.storage import (
     DBStorageFlexModelSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.sensors import TimedEventSchema, VariableQuantityField
+from flexmeasures.data.schemas.sensors import (
+    TimedEventSchema,
+    VariableQuantityField,
+    SensorReferenceSchema,
+)
+from flexmeasures.data.models.data_sources import DataSource
 
 
 @pytest.mark.parametrize(
@@ -181,6 +186,68 @@ def test_storage_flex_model_schema_does_not_floor_instantaneous_sensor(
     )
 
     assert schema.flooring_resolution is None
+
+
+def test_sensor_reference_schema_roundtrip_preserves_source_filters(
+    db, dummy_asset, setup_sources, setup_accounts
+):
+    filtered_source = DataSource(
+        name="filtered-source",
+        type="demo script",
+        account_id=setup_accounts["Prosumer"].id,
+    )
+    db.session.add(filtered_source)
+    db.session.flush()
+
+    sensor = Sensor(
+        name="filtered sensor",
+        generic_asset=dummy_asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+
+    schema = SensorReferenceSchema()
+    loaded = schema.load(
+        {
+            "sensor": sensor.id,
+            "sources": [setup_sources["Seita"].id, filtered_source.id],
+            "source-account": setup_accounts["Prosumer"].id,
+            "source-types": ["demo script"],
+            "exclude-source-types": ["scheduler"],
+        }
+    )
+
+    assert loaded is sensor
+    assert schema.dump(loaded) == {
+        "sensor": sensor.id,
+        "sources": [setup_sources["Seita"].id, filtered_source.id],
+        "source-account": [setup_accounts["Prosumer"].id],
+        "source-types": ["demo script"],
+        "exclude-source-types": ["scheduler"],
+    }
+
+
+def test_aggregate_power_rejects_source_filters(db, dummy_asset, setup_sources):
+    sensor = Sensor(
+        name="aggregate-power sensor",
+        generic_asset=dummy_asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+
+    with pytest.raises(ValidationError, match="cannot use source filters"):
+        FlexContextSchema().load(
+            {
+                "aggregate-power": {
+                    "sensor": sensor.id,
+                    "sources": [setup_sources["Seita"].id],
+                }
+            }
+        )
 
 
 @pytest.mark.parametrize(

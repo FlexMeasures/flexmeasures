@@ -340,11 +340,13 @@ class StorageFlexModelSchema(Schema):
         unit = data.get("storage_efficiency")
         consumption = data.get("consumption")
         production = data.get("production")
-        consumption_is_sensor = isinstance(consumption, dict) and isinstance(
-            consumption.get("sensor"), Sensor
+        consumption_is_sensor = isinstance(consumption, Sensor) or (
+            isinstance(consumption, dict)
+            and isinstance(consumption.get("sensor"), Sensor)
         )
-        production_is_sensor = isinstance(production, dict) and isinstance(
-            production.get("sensor"), Sensor
+        production_is_sensor = isinstance(production, Sensor) or (
+            isinstance(production, dict)
+            and isinstance(production.get("sensor"), Sensor)
         )
         if (
             isinstance(unit, ur.Quantity)
