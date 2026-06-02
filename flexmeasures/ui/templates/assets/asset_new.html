@@ -312,7 +312,6 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
         // Ensure stable ordering across pages to avoid page-overlap duplicates.
         params.set("sort_by", "id");
         params.set("sort_dir", "asc");
-        params.set("all_accessible", "true");
         return params;
     }
 
