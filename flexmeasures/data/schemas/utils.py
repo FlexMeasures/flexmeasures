@@ -7,7 +7,7 @@ from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 from flexmeasures.utils.unit_utils import to_preferred, ur
 
 
-class MarshmallowClickMixin(click.ParamType):
+class MarshmallowClickMixin:
     def __init__(self, *args, **kwargs):
 
         metadata_keys = ["description", "example"]

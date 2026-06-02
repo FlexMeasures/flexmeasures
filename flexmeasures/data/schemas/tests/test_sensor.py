@@ -1,8 +1,11 @@
 import pytest
+import pandas as pd
+import timely_beliefs as tb
 from flexmeasures import Sensor
 from flexmeasures.data.schemas.sensors import (
     QuantityOrSensor,
     VariableQuantityField,
+    floor_bdf_event_starts,
 )
 from flexmeasures.utils.unit_utils import ur
 from marshmallow import ValidationError
@@ -175,3 +178,61 @@ def test_time_series_field(input_param, dst_unit, fails, db):
         assert not fails
     except Exception as e:
         assert fails, e
+
+
+def test_floor_bdf_event_starts(setup_dummy_sensors, setup_sources):
+    sensor1, _, _, _ = setup_dummy_sensors
+    belief_time = pd.Timestamp("2025-01-01T09:00:00+00:00")
+    bdf = tb.BeliefsDataFrame(
+        pd.DataFrame(
+            {
+                "event_start": pd.to_datetime(
+                    [
+                        "2025-01-01T10:00:40+00:00",
+                        "2025-01-01T10:15:40+00:00",
+                    ]
+                ),
+                "belief_time": [belief_time, belief_time],
+                "source": [setup_sources["Seita"], setup_sources["Seita"]],
+                "event_value": [1.0, 2.0],
+            }
+        ),
+        sensor=sensor1,
+        event_resolution=pd.Timedelta(minutes=15),
+    )
+
+    floored_bdf = floor_bdf_event_starts(bdf, pd.Timedelta(minutes=15))
+
+    pd.testing.assert_index_equal(
+        floored_bdf.event_starts,
+        pd.DatetimeIndex(
+            ["2025-01-01T10:00:00+00:00", "2025-01-01T10:15:00+00:00"],
+            name="event_start",
+        ),
+    )
+    assert floored_bdf["event_value"].to_list() == [1.0, 2.0]
+
+
+def test_floor_bdf_event_starts_rejects_collisions(setup_dummy_sensors, setup_sources):
+    sensor1, _, _, _ = setup_dummy_sensors
+    belief_time = pd.Timestamp("2025-01-01T09:00:00+00:00")
+    bdf = tb.BeliefsDataFrame(
+        pd.DataFrame(
+            {
+                "event_start": pd.to_datetime(
+                    [
+                        "2025-01-01T10:00:40+00:00",
+                        "2025-01-01T10:08:10+00:00",
+                    ]
+                ),
+                "belief_time": [belief_time, belief_time],
+                "source": [setup_sources["Seita"], setup_sources["Seita"]],
+                "event_value": [1.0, 2.0],
+            }
+        ),
+        sensor=sensor1,
+        event_resolution=pd.Timedelta(minutes=7, seconds=30),
+    )
+
+    with pytest.raises(ValidationError, match="would merge multiple beliefs"):
+        floor_bdf_event_starts(bdf, pd.Timedelta(minutes=15))
