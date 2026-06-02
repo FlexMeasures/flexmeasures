@@ -19,6 +19,7 @@ from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.sensors import (
+    SensorReference,
     SensorReferenceSchema,
     VariableQuantityField,
 )
@@ -39,6 +40,15 @@ SoCTarget = TypedDict(
         "value": float,
     },
     total=False,  # not all are required (just value, which we can say in 3.11)
+)
+
+# Keys used by SensorReferenceSchema to carry source-filter options.
+# Present as non-None values when the caller added a source filter.
+_SENSOR_REFERENCE_SOURCE_FILTER_KEYS = (
+    "source_types",
+    "exclude_source_types",
+    "sources",
+    "source_account",
 )
 
 
@@ -293,7 +303,7 @@ class StorageFlexModelSchema(Schema):
             return
         soc_targets: list[SoCTarget] | Sensor | None = data.get("soc_targets")
         # skip check if the SOC targets are not provided or if they are defined as sensors
-        if not soc_targets or isinstance(soc_targets, Sensor):
+        if not soc_targets or isinstance(soc_targets, (Sensor, SensorReference)):
             return
         max_target_datetime = max([target["end"] for target in soc_targets])
         max_server_horizon = current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")
@@ -308,17 +318,33 @@ class StorageFlexModelSchema(Schema):
             )
 
     @validates("state_of_charge")
-    def validate_state_of_charge(self, state_of_charge: Sensor | list[dict], **kwargs):
+    def validate_state_of_charge(
+        self, state_of_charge: Sensor | SensorReference | list[dict], **kwargs
+    ):
         if isinstance(
-            state_of_charge, Sensor
+            state_of_charge, (Sensor, SensorReference)
         ) and state_of_charge.event_resolution != timedelta(0):
             raise ValidationError(
                 "The field `state-of-charge` points to a sensor with a non-instantaneous event resolution. Please, use an instantaneous sensor."
             )
-        if not isinstance(state_of_charge, (Sensor, list)):
+        if not isinstance(state_of_charge, (Sensor, SensorReference, list)):
             raise ValidationError(
                 "The `state-of-charge` field can only be a Sensor or a time series."
             )
+
+    @validates("consumption")
+    def validate_consumption_has_no_source_filters(self, value: dict, **kwargs):
+        if isinstance(value, dict) and any(
+            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
+        ):
+            raise ValidationError("The `consumption` field cannot use source filters.")
+
+    @validates("production")
+    def validate_production_has_no_source_filters(self, value: dict, **kwargs):
+        if isinstance(value, dict) and any(
+            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
+        ):
+            raise ValidationError("The `production` field cannot use source filters.")
 
     @validates("asset")
     def validate_asset(self, asset: Asset, **kwargs):
@@ -331,10 +357,10 @@ class StorageFlexModelSchema(Schema):
         consumption = data.get("consumption")
         production = data.get("production")
         consumption_is_sensor = isinstance(consumption, dict) and isinstance(
-            consumption.get("sensor"), Sensor
+            consumption.get("sensor"), (Sensor, SensorReference)
         )
         production_is_sensor = isinstance(production, dict) and isinstance(
-            production.get("sensor"), Sensor
+            production.get("sensor"), (Sensor, SensorReference)
         )
         if (
             isinstance(unit, ur.Quantity)
@@ -534,6 +560,20 @@ class DBStorageFlexModelSchema(Schema):
             for field in self.declared_fields
         }
 
+    @validates("consumption")
+    def validate_consumption_has_no_source_filters(self, value: dict, **kwargs):
+        if isinstance(value, dict) and any(
+            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
+        ):
+            raise ValidationError("The `consumption` field cannot use source filters.")
+
+    @validates("production")
+    def validate_production_has_no_source_filters(self, value: dict, **kwargs):
+        if isinstance(value, dict) and any(
+            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
+        ):
+            raise ValidationError("The `production` field cannot use source filters.")
+
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
         """Do not allow time series specs for the flex-model fields saved in the db."""
@@ -613,7 +653,7 @@ class DBStorageFlexModelSchema(Schema):
                                 f"Field '{self.mapped_schema_keys[field]}' must have a power unit.",
                                 field_name=self.mapped_schema_keys[field],
                             )
-                    elif isinstance(item, Sensor):
+                    elif isinstance(item, (Sensor, SensorReference)):
                         if not is_power_unit(item.unit):
                             raise ValidationError(
                                 f"Field '{self.mapped_schema_keys[field]}' must have a power unit.",
@@ -639,7 +679,7 @@ class DBStorageFlexModelSchema(Schema):
                     f"Field '{self.mapped_schema_keys[field]}' failed unit validation by {unit_validator.__name__}.",
                     field_name=self.mapped_schema_keys[field],
                 )
-        elif isinstance(data[field], Sensor):
+        elif isinstance(data[field], (Sensor, SensorReference)):
             if not unit_validator(data[field].unit):
                 raise ValidationError(
                     f"Field '{self.mapped_schema_keys[field]}' failed unit validation by {unit_validator.__name__}.",

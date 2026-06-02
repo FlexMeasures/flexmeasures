@@ -20,6 +20,7 @@ from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
+    SensorReference,
 )
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.units import UnitField
@@ -322,8 +323,14 @@ class FlexContextSchema(Schema):
 
     @validates("aggregate_power")
     def validate_aggregate_power_is_sensor(
-        self, aggregate_power: Sensor | list[dict] | ur.Quantity, **kwargs
+        self,
+        aggregate_power: Sensor | SensorReference | list[dict] | ur.Quantity,
+        **kwargs,
     ):
+        if isinstance(aggregate_power, SensorReference):
+            raise ValidationError(
+                "The `aggregate-power` field cannot use source filters."
+            )
         if not isinstance(aggregate_power, Sensor):
             raise ValidationError("The `aggregate-power` field can only be a Sensor.")
 
@@ -826,7 +833,7 @@ class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
                     f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
                     field_name=self.mapped_schema_keys[field],
                 )
-        elif isinstance(data[field], Sensor):
+        elif isinstance(data[field], (Sensor, SensorReference)):
             if not unit_validator(data[field].unit):
                 raise ValidationError(
                     f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
