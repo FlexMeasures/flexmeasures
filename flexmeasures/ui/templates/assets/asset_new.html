@@ -162,12 +162,10 @@
 
             <div id="copyAssetsResults" class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-1 my-2"></div>
             <div id="copyAssetsStatus" class="small text-muted my-1"></div>
-            <div id="copyAssetsBottomSpinner" class="justify-content-center my-2 d-none">
-                <div class="spinner-border spinner-border-sm text-primary" role="status">
-                    <span class="visually-hidden">Loading more…</span>
-                </div>
+            <div id="copyAssetsPagination" class="d-flex flex-wrap align-items-center gap-2 my-2 d-none">
+                <div id="copyAssetsPageNumbers" class="btn-group flex-wrap" role="group" aria-label="Asset search pages"></div>
+                <button id="copyAssetsNextBtn" type="button" class="btn btn-outline-primary btn-sm">Next</button>
             </div>
-            <div id="copyAssetsSentinel" class="w-100 py-2"></div>
 
         </div><!-- end #copy-asset tab pane -->
 
@@ -243,25 +241,23 @@
 import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
 (function () {
-    const perPage = 100;
-    const parentAssetId = "{{ parent_asset_id }}";
+    const perPage = 10;
+    let parentAssetId = "{{ parent_asset_id }}";
     let currentPage = 1;
-    let loadedAssetCount = 0;
-    let hasMore = true;
     let isLoading = false;
     let hasInitializedCopyTab = false;
     let searchDebounceTimer = null;
-    let totalFilteredRecords = null;
-    let observer = null;
+    let totalFilteredRecords = 0;
+    let totalPages = 0;
     let activeSearchToken = 0;
-    const renderedAssetIds = new Set();
     const accountNameCache = new Map();
 
     const spinner = document.getElementById("copyAssetsSpinner");
-    const bottomSpinner = document.getElementById("copyAssetsBottomSpinner");
     const results = document.getElementById("copyAssetsResults");
     const status = document.getElementById("copyAssetsStatus");
-    const sentinel = document.getElementById("copyAssetsSentinel");
+    const pagination = document.getElementById("copyAssetsPagination");
+    const pageNumbers = document.getElementById("copyAssetsPageNumbers");
+    const nextButton = document.getElementById("copyAssetsNextBtn");
 
     function toggleSpinner(show) {
         if (show) {
@@ -273,16 +269,6 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
         }
     }
 
-    function toggleBottomSpinner(show) {
-        if (show) {
-            bottomSpinner.classList.remove("d-none");
-            bottomSpinner.classList.add("d-flex");
-        } else {
-            bottomSpinner.classList.remove("d-flex");
-            bottomSpinner.classList.add("d-none");
-        }
-    }
-
     function setStatusMessage(message) {
         status.textContent = message || "";
     }
@@ -290,14 +276,13 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
     function resetSearchState() {
         activeSearchToken += 1;
         currentPage = 1;
-        loadedAssetCount = 0;
-        hasMore = true;
         isLoading = false;
-        totalFilteredRecords = null;
-        renderedAssetIds.clear();
+        totalFilteredRecords = 0;
+        totalPages = 0;
         results.innerHTML = "";
+        pageNumbers.innerHTML = "";
+        pagination.classList.add("d-none");
         setStatusMessage("");
-        toggleBottomSpinner(false);
     }
 
     function getSearchParams(page) {
@@ -319,17 +304,12 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
         if (reset) {
             resetSearchState();
         }
-        if (isLoading || !hasMore) {
+        if (isLoading) {
             return;
         }
 
         isLoading = true;
-        if (reset) {
-            toggleSpinner(true);
-            toggleBottomSpinner(false);
-        } else {
-            toggleBottomSpinner(true);
-        }
+        toggleSpinner(true);
         const requestToken = activeSearchToken;
         const params = getSearchParams(currentPage);
 
@@ -343,45 +323,36 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
                 return;
             }
             const assets = data.data || [];
-            totalFilteredRecords = data["filtered-records"];
+            totalFilteredRecords = data["filtered-records"] || 0;
+            totalPages = Math.ceil(totalFilteredRecords / perPage);
 
-            if (!assets.length && currentPage === 1) {
+            if (!assets.length) {
+                renderCopyResults([]);
+                renderPagination();
                 setStatusMessage("No assets found.");
-                hasMore = false;
                 return;
             }
 
             renderCopyResults(assets);
-            loadedAssetCount += assets.length;
-
-            if (
-                assets.length < perPage ||
-                (typeof totalFilteredRecords === "number" &&
-                    loadedAssetCount >= totalFilteredRecords)
-            ) {
-                hasMore = false;
-                setStatusMessage("Nothing more to load.");
-            } else {
-                currentPage += 1;
-                setStatusMessage("Scroll down to load more.");
-            }
+            renderPagination();
+            setStatusMessage(
+                "Showing page " + currentPage + " of " + totalPages +
+                " (" + totalFilteredRecords + " result" +
+                (totalFilteredRecords === 1 ? "" : "s") + ")."
+            );
         } catch (err) {
             showToast("Failed to search assets: " + err.message, "error");
             setStatusMessage("Failed to load assets.");
         } finally {
             isLoading = false;
             toggleSpinner(false);
-            toggleBottomSpinner(false);
         }
     }
 
     function renderCopyResults(assets) {
         const container = document.getElementById("copyAssetsResults");
+        container.innerHTML = "";
         assets.forEach(function (asset) {
-            if (renderedAssetIds.has(asset.id)) {
-                return;
-            }
-            renderedAssetIds.add(asset.id);
             const col = document.createElement("div");
             col.className = "col";
             const accountLabel = asset.account_id
@@ -412,7 +383,11 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
             btn.addEventListener("click", function () {
                 const assetId = btn.dataset.assetId;
                 let url = "/api/v3_0/assets/" + assetId + "/copy";
-                if (parentAssetId) url += "?parent_id=" + parentAssetId;
+                if (parentAssetId) {
+                    url += "?parent_id=" + parentAssetId;
+                } else {
+                    url += "?parent_id=" + assetId;
+                }
                 btn.disabled = true;
                 showToast("Creating asset from template…", "info");
                 fetch(url, { method: "POST", credentials: "same-origin" })
@@ -434,25 +409,75 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
         });
     }
 
-    function initInfiniteScroll() {
-        if (observer) {
-            observer.disconnect();
+    function renderPagination() {
+        pageNumbers.innerHTML = "";
+
+        if (!totalPages) {
+            pagination.classList.add("d-none");
+            return;
         }
-        observer = new IntersectionObserver(
-            function (entries) {
-                entries.forEach(function (entry) {
-                    if (entry.isIntersecting) {
-                        searchAssetsForCopy(false);
-                    }
-                });
-            },
-            {
-                root: null,
-                rootMargin: "200px 0px",
-                threshold: 0,
-            },
+
+        pagination.classList.remove("d-none");
+
+        const pageItems = getPageItems(totalPages, currentPage);
+        pageItems.forEach(function (item) {
+            if (item === "ellipsis") {
+                const ellipsis = document.createElement("span");
+                ellipsis.className = "px-2 align-self-center";
+                ellipsis.textContent = "...";
+                pageNumbers.appendChild(ellipsis);
+                return;
+            }
+
+            const page = item;
+            const pageButton = document.createElement("button");
+            pageButton.type = "button";
+            pageButton.className =
+                "btn btn-sm " +
+                (page === currentPage ? "btn-primary" : "btn-outline-primary");
+            pageButton.textContent = String(page);
+            pageButton.addEventListener("click", function () {
+                if (page === currentPage) {
+                    return;
+                }
+                currentPage = page;
+                searchAssetsForCopy(false);
+            });
+            pageNumbers.appendChild(pageButton);
+        });
+
+        nextButton.disabled = currentPage >= totalPages;
+    }
+
+    function getPageItems(total, current) {
+        if (total <= 7) {
+            return Array.from({ length: total }, (_, i) => i + 1);
+        }
+
+        const items = [];
+        const nearStart = current <= 4;
+        const nearEnd = current >= total - 3;
+
+        if (nearStart) {
+            items.push(1, 2, 3, 4, 5, "ellipsis", total);
+            return items;
+        }
+
+        if (nearEnd) {
+            items.push(1, "ellipsis", total - 4, total - 3, total - 2, total - 1, total);
+            return items;
+        }
+
+        items.push(
+            1,
+            "ellipsis",
+            current - 1,
+            current,
+            current + 1,
+            "ellipsis",
+            total,
         );
-        observer.observe(sentinel);
+        return items;
     }
 
     function triggerNewSearch() {
@@ -490,12 +515,18 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
     document.getElementById("copySearchInput").addEventListener("input", triggerNewSearch);
     document.getElementById("copyAssetTypeSelect").addEventListener("change", triggerNewSearch);
     document.getElementById("copyIncludePublic").addEventListener("change", triggerNewSearch);
+    nextButton.addEventListener("click", function () {
+        if (currentPage >= totalPages) {
+            return;
+        }
+        currentPage += 1;
+        searchAssetsForCopy(false);
+    });
 
     // Run initial search when the tab is first shown
     document.getElementById("copy-asset-tab").addEventListener("shown.bs.tab", function () {
         if (!hasInitializedCopyTab) {
             hasInitializedCopyTab = true;
-            initInfiniteScroll();
             searchAssetsForCopy(true);
         }
     });
