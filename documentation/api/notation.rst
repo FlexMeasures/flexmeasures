@@ -289,6 +289,12 @@ For the ``GET /api/v3_0/sensors/<id>/data`` endpoint specifically, source filter
 - ``source-account``: filter by the account ID linked to data sources
 - ``source-type``: filter by the type of data source (e.g. 'forecaster' or 'scheduler')
 
+.. note::
+
+   If schedules are recorded on the same sensor as measurements or forecasts, source filtering can be used to distinguish them.
+   An alternative is to model schedules on dedicated sensors; see :ref:`one_or_multiple_sensors`.
+
+
 .. _units:
 
 Units

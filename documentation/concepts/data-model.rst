@@ -94,9 +94,10 @@ when they said so and how certain they were.
 
 Each belief links to a sensor and a data source. Here are two examples:
 
-
 - The power sensor of a battery, where we store the schedules, can have two sources: (1) the schedule itself (a data source of type "scheduler", representing how FlexMeasures created this data) and (2) the realized schedule, i.e. the measurements of how the battery responded (or not) to the schedule. The latter might have a data source of type "user" (who sent the measurements to FlexMeasures).
 - A thermal demand sensor containing forecasts (data source of type "forecast", e.g. heating usage forecast sent to FlexMeasures or made by FlexMeasures) and measurements (sent into FlexMeasures, data source type "user").
+
+See also :ref:`one_or_multiple_sensors` for guidance on when such beliefs are best recorded on one shared sensor and when separate sensors are preferable.
 
 
 .. _signs_of_power_beliefs:
@@ -131,11 +132,35 @@ For schedules, the sign of the power schedule (as :ref:`beliefs <beliefs>`) reco
 - If the flex-model contains the ``production`` field, scheduled power is recorded with production as positive values.
   The ``"consumption_is_positive"`` attribute of the referenced sensor is set automatically to ``False``.
 
+For guidance on when schedules should share a power sensor with measurements and forecasts, and when dedicated output sensors are preferable, see :ref:`one_or_multiple_sensors`.
+
 The ``GET /api/v3_0/sensors/<id>/schedules/<uuid>`` endpoint supports three sign conventions via the ``sign-convention`` query parameter:
 
 - ``consumption-positive`` (default): schedules are always returned with consumption as positive values and production as negative values.
 - ``production-positive``: schedules are returned with production as positive values and consumption as negative values.
 - ``wysiwyg`` (*what-you-see-is-what-you-get*): schedules are returned with the same sign as database values and as seen in the UI charts, indicating exactly what the scheduler stored.
+
+
+.. _one_or_multiple_sensors:
+
+
+Modeling measurements, forecasts and schedules on one or multiple sensors
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A common modeling choice is whether measurements, forecasts and schedules for an asset should all be recorded on a single power sensor, or on separate sensors.
+
+Using a single sensor is advisable when these data represent different beliefs about the same physical quantity at the same connection point.
+In that case, keeping them on one sensor makes it explicit that measurements, forecasts and schedules all refer to the same events, and therefore should share the same unit, event resolution and sign convention.
+Different origins of the data can still be distinguished through their data source.
+
+Using separate sensors is advisable when scheduled power should be modeled separately from measured or forecast power.
+This can be useful when you want to avoid filtering by source in queries, when schedules should use a different sign convention, when they should be stored at a different resolution, or when the scheduled quantity has a different operational meaning from the measured quantity.
+
+For storage scheduling, the ``consumption`` and ``production`` flex-model fields support this second approach by letting FlexMeasures write schedules to dedicated output sensors.
+If both are defined, the scheduled power is split into its consumption and production parts.
+If only one is defined, the full schedule is written to that sensor using the sign convention implied by that field.
+
+In short: use one sensor when you want multiple sources to express beliefs about the same underlying events; use separate sensors when you want cleaner operational separation between measured, forecast and scheduled data.
 
 
 Annotations
