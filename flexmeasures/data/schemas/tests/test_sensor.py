@@ -9,7 +9,15 @@ from flexmeasures.data.schemas.sensors import (
     floor_bdf_event_starts,
 )
 from flexmeasures.utils.unit_utils import ur
-from marshmallow import ValidationError
+from marshmallow import Schema, ValidationError
+
+
+class VariableQuantityDumpSchema(Schema):
+    value = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+
+def serialize_variable_quantity(value):
+    return VariableQuantityDumpSchema().dump({"value": value})["value"]
 
 
 @pytest.mark.parametrize(
@@ -288,6 +296,62 @@ def test_sensor_reference_with_source_account(setup_dummy_sensors, setup_account
     assert result.source_types is None
     assert result.exclude_source_types is None
     assert result.sources is None
+
+
+def test_sensor_reference_serialization_preserves_source_filters(
+    setup_dummy_sensors, setup_sources, setup_accounts, db
+):
+    sensor1, _, _, _ = setup_dummy_sensors
+    seita_source = setup_sources["Seita"]
+    prosumer_account = setup_accounts["Prosumer"]
+    db.session.flush()
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+    source_reference = field.deserialize(
+        {
+            "sensor": sensor1.id,
+            "source-types": ["scheduler"],
+            "exclude-source-types": ["forecaster"],
+            "sources": [seita_source.id],
+            "source-account": [prosumer_account.id],
+        }
+    )
+
+    assert isinstance(source_reference, SensorReference)
+    serialized_reference = serialize_variable_quantity(source_reference)
+    assert serialized_reference == {
+        "sensor": sensor1.id,
+        "source-types": ["scheduler"],
+        "exclude-source-types": ["forecaster"],
+        "sources": [seita_source.id],
+        "source-account": [prosumer_account.id],
+    }
+
+
+def test_sensor_reference_filters_are_kept_per_reference(
+    setup_dummy_sensors, setup_sources, db
+):
+    sensor1, _, _, _ = setup_dummy_sensors
+    seita_source = setup_sources["Seita"]
+    entsoe_source = setup_sources["ENTSO-E"]
+    db.session.flush()
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    seita_reference = field.deserialize(
+        {"sensor": sensor1.id, "sources": [seita_source.id]}
+    )
+    entsoe_reference = field.deserialize(
+        {"sensor": sensor1.id, "sources": [entsoe_source.id]}
+    )
+
+    assert isinstance(seita_reference, SensorReference)
+    assert isinstance(entsoe_reference, SensorReference)
+    assert seita_reference.sensor == entsoe_reference.sensor
+    assert seita_reference.sources[0].id == seita_source.id
+    assert entsoe_reference.sources[0].id == entsoe_source.id
+    serialized_seita_reference = serialize_variable_quantity(seita_reference)
+    serialized_entsoe_reference = serialize_variable_quantity(entsoe_reference)
+    assert serialized_seita_reference["sources"] == [seita_source.id]
+    assert serialized_entsoe_reference["sources"] == [entsoe_source.id]
 
 
 @pytest.mark.parametrize(

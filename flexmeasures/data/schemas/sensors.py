@@ -580,9 +580,20 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         attr,
         obj,
         **kwargs,
-    ) -> str | dict[str, int]:
+    ) -> str | dict[str, Any]:
         if isinstance(value, SensorReference):
-            return dict(sensor=value.id)
+            sensor_reference = dict(sensor=value.id)
+            if value.source_types is not None:
+                sensor_reference["source-types"] = value.source_types
+            if value.exclude_source_types is not None:
+                sensor_reference["exclude-source-types"] = value.exclude_source_types
+            if value.sources is not None:
+                sensor_reference["sources"] = [source.id for source in value.sources]
+            if value.source_account is not None:
+                sensor_reference["source-account"] = [
+                    account.id for account in value.source_account
+                ]
+            return sensor_reference
         elif isinstance(value, Sensor):
             return dict(sensor=value.id)
         elif isinstance(value, pd.Series):
