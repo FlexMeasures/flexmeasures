@@ -889,8 +889,8 @@ class MetaStorageScheduler(Scheduler):
             device_constraints[d]["derivative up efficiency"] = charging_efficiency[d]
 
             # Apply storage efficiency (accounts for losses over time)
-            if isinstance(storage_efficiency[d], ur.Quantity) or isinstance(
-                storage_efficiency[d], Sensor
+            if isinstance(
+                storage_efficiency[d], (ur.Quantity, Sensor, SensorReference)
             ):
                 device_constraints[d]["efficiency"] = (
                     get_continuous_series_sensor_or_quantity(
@@ -912,7 +912,7 @@ class MetaStorageScheduler(Scheduler):
             if device_constraints[d]["efficiency"].dropna().eq(1).all():
                 # Only missing or unit efficiency; no resampling needed.
                 pass
-            elif isinstance(storage_efficiency[d], Sensor):
+            elif isinstance(storage_efficiency[d], (Sensor, SensorReference)):
                 # Resample from the resolution of the storage-efficiency sensor
                 device_constraints[d]["efficiency"] **= (
                     resolution / storage_efficiency[d].event_resolution
@@ -922,14 +922,14 @@ class MetaStorageScheduler(Scheduler):
                 device_constraints[d]["efficiency"] **= (
                     resolution / sensor_d.event_resolution
                 )
-            elif isinstance(consumption[d], Sensor) and consumption[
+            elif isinstance(consumption[d], (Sensor, SensorReference)) and consumption[
                 d
             ].event_resolution != timedelta(0):
                 # Resample from the resolution of the consumption sensor
                 device_constraints[d]["efficiency"] **= (
                     resolution / consumption[d].event_resolution
                 )
-            elif isinstance(production[d], Sensor) and production[
+            elif isinstance(production[d], (Sensor, SensorReference)) and production[
                 d
             ].event_resolution != timedelta(0):
                 # Resample from the resolution of the production sensor
