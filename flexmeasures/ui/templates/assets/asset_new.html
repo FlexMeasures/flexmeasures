@@ -391,7 +391,7 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
             col.innerHTML =
                 '<div class="d-flex justify-content-between align-items-center border rounded px-2 py-1">' +
                 '<div class="me-2 text-truncate">' +
-                '<div class="fw-semibold text-truncate" title="View Asset"> <a href="/assets/' + asset.id + '/properties" class="text-reset">' + escapeHtml(asset.name) + ' (ID:' + asset.id + ')</a></div>' +
+                '<div class="fw-semibold text-truncate" title="View Asset"> <a href="/assets/' + asset.id + '" class="text-reset">' + escapeHtml(asset.name) + ' (ID:' + asset.id + ')</a></div>' +
                 '<div class="text-muted small text-truncate js-account-label">' + accountLabel + '</div>' +
                 '</div>' +
                 '<button class="btn btn-sm btn-primary js-copy-from-tab-btn"' +
