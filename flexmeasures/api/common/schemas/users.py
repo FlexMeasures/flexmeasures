@@ -39,7 +39,7 @@ class AccountIdField(fields.Integer):
         return current_user.account if not current_user.is_anonymous else None
 
 
-class UserIdField(fields.Integer, MarshmallowClickMixin):
+class UserIdField(MarshmallowClickMixin, fields.Integer):
     """
     Field that represents a user ID. It deserializes from the user id to a user instance.
     """

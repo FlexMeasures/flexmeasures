@@ -21,6 +21,7 @@ class MarshmallowClickMixin:
 
         super().__init__(*args, **kwargs)
         self.name = self.__class__.__name__
+        self.__name__ = self.name
 
     def get_metavar(self, param, **kwargs):
         return self.__class__.__name__
@@ -30,6 +31,12 @@ class MarshmallowClickMixin:
             return self.deserialize(value, **kwargs)
         except ma.exceptions.ValidationError as e:
             raise click.exceptions.BadParameter(e, ctx=ctx, param=param)
+
+    def __call__(self, value):
+        try:
+            return self.deserialize(value)
+        except ma.exceptions.ValidationError as e:
+            raise ValueError(e) from e
 
 
 class FMValidationError(ma.exceptions.ValidationError):
