@@ -89,9 +89,9 @@ def create(  # noqa C901
 
     # configure Redis (for redis queue)
     if app.testing:
-        from fakeredis import FakeStrictRedis
+        from flexmeasures.tests.utils import RQCompatibleFakeStrictRedis
 
-        redis_conn = FakeStrictRedis(
+        redis_conn = RQCompatibleFakeStrictRedis(
             host="redis", port="1234"
         )  # dummy connection details
     else:
