@@ -1775,7 +1775,7 @@ class StorageScheduler(MetaStorageScheduler):
 
         # Obtain the aggregate power schedule, too, if the flex-context states the associated sensor. Fill with the sum of schedules made here.
         aggregate_power_sensor = self.flex_context.get("aggregate_power", None)
-        if isinstance(aggregate_power_sensor, (Sensor, SensorReference)):
+        if isinstance(aggregate_power_sensor, Sensor):
             storage_schedule[aggregate_power_sensor] = pd.concat(
                 ems_schedule, axis=1
             ).sum(axis=1)

@@ -327,7 +327,11 @@ class FlexContextSchema(Schema):
         aggregate_power: Sensor | SensorReference | list[dict] | ur.Quantity,
         **kwargs,
     ):
-        if not isinstance(aggregate_power, (Sensor, SensorReference)):
+        if isinstance(aggregate_power, SensorReference):
+            raise ValidationError(
+                "The `aggregate-power` field cannot use source filters."
+            )
+        if not isinstance(aggregate_power, Sensor):
             raise ValidationError("The `aggregate-power` field can only be a Sensor.")
 
     @validates_schema(pass_original=True)

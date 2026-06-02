@@ -770,6 +770,26 @@ def test_get_variable_quantity_unit(
         )
 
 
+def test_flex_context_schema_rejects_filtered_aggregate_power(
+    setup_dummy_sensors, setup_sources, db
+):
+    _, _, _, power_sensor = setup_dummy_sensors
+    seita_source = setup_sources["Seita"]
+    db.session.flush()
+
+    with pytest.raises(ValidationError) as exc_info:
+        FlexContextSchema().load(
+            {
+                "aggregate-power": {
+                    "sensor": power_sensor.id,
+                    "sources": [seita_source.id],
+                }
+            }
+        )
+
+    assert "cannot use source filters" in str(exc_info.value)
+
+
 # test StorageFlexModelSchema and DBStorageFlexModelSchema
 @pytest.mark.parametrize(
     ["flex_model", "fails"],
