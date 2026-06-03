@@ -75,6 +75,10 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
         sensors["Test Building"].id,
         sensors["Test EV"].id,
     ]
+    assert deferred_jobs[1].meta["asset_or_sensor"] == {
+        "id": assets["Test Site"].id,
+        "class": "Asset",
+    }
 
     ev_power = sensors["Test EV"].search_beliefs()
     battery_power = sensors["Test Battery"].search_beliefs()

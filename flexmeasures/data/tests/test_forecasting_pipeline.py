@@ -4,14 +4,89 @@ import pytest
 
 import logging
 import pandas as pd
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from marshmallow import ValidationError
 
+from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
+from flexmeasures.data.models.forecasting.pipelines.train import derive_daily_lag_steps
+from flexmeasures.data.models.generic_assets import (
+    GenericAsset as Asset,
+    GenericAssetType,
+)
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
+
+
+def test_custom_lgbm_falls_back_when_daily_lag_is_under_sampled():
+    """Short histories should drop daily lags only where they are under-sampled."""
+    under_sampled_model = CustomLGBM(
+        max_forecast_horizon=192,
+        probabilistic=False,
+        seasonal_lags_steps=[96, 1, 24],
+        training_sample_count=288,
+    )
+    assert under_sampled_model.seasonal_lags_steps == [96, 1, 24]
+    assert under_sampled_model.models[0].lags["target"] == [
+        -97,
+        -96,
+        -25,
+        -24,
+        -2,
+        -1,
+    ]
+    assert under_sampled_model.models[48].lags["target"] == [
+        -49,
+        -48,
+        -25,
+        -24,
+        -2,
+        -1,
+    ]
+    assert under_sampled_model.models[-1].lags["target"] == [-1]
+
+    sufficiently_sampled_model = CustomLGBM(
+        max_forecast_horizon=192,
+        probabilistic=False,
+        seasonal_lags_steps=[96, 1, 24],
+        training_sample_count=384,
+    )
+    assert sufficiently_sampled_model.seasonal_lags_steps == [96, 1, 24]
+    assert sufficiently_sampled_model.models[-1].lags["target"] == [-1]
+
+
+def test_custom_lgbm_rejects_invalid_lag_steps():
+    with pytest.raises(ValueError, match="seasonal_lags_steps values"):
+        CustomLGBM(
+            max_forecast_horizon=1,
+            probabilistic=False,
+            seasonal_lags_steps=[24, 0],
+        )
+
+    with pytest.raises(NotEnoughDataException, match="Not enough training data"):
+        CustomLGBM(
+            max_forecast_horizon=2,
+            probabilistic=False,
+            seasonal_lags_steps=[24],
+            training_sample_count=2,
+        )
+
+
+def test_derive_daily_lag_steps_requires_divisible_resolution(caplog):
+    assert derive_daily_lag_steps(timedelta(minutes=15)) == 96
+
+    with caplog.at_level(logging.WARNING):
+        assert derive_daily_lag_steps(timedelta(minutes=35)) == 24
+
+    assert any(
+        "does not evenly divide one day" in message for message in caplog.messages
+    )
 
 
 @pytest.mark.parametrize(
@@ -460,6 +535,70 @@ def test_missing_data_logs_warning(
     ), "Expected NotEnoughDataException for missing data threshold"
 
 
+def test_train_predict_pipeline_wraps_darts_value_error_with_not_enough_data_exception(
+    fresh_db,
+    tmp_path,
+):
+    data_source = DataSource(name="short-history-source", type="test")
+    asset_type = GenericAssetType(name="short-history-asset-type")
+    asset = Asset(
+        name="Short history test asset",
+        generic_asset_type=asset_type,
+        latitude=1.0,
+        longitude=1.0,
+    )
+    sensor = Sensor(
+        name="short-history-target",
+        generic_asset=asset,
+        unit="kW",
+        event_resolution=timedelta(minutes=15),
+    )
+    fresh_db.session.add_all([data_source, asset_type, asset, sensor])
+    fresh_db.session.flush()
+
+    history_index = pd.date_range(
+        datetime(2025, 1, 1),
+        datetime(2025, 1, 3, 23, 45),
+        freq="15min",
+        tz="UTC",
+    )
+    beliefs = [
+        TimedBelief(
+            sensor=sensor,
+            event_start=event_start,
+            event_value=float(i % 10),
+            source=data_source,
+            belief_horizon=timedelta(0),
+        )
+        for i, event_start in enumerate(history_index)
+    ]
+    fresh_db.session.add_all(beliefs)
+    fresh_db.session.commit()
+
+    pipeline = TrainPredictPipeline(
+        config={"train-start": "2025-01-01T00:00+00:00"},
+    )
+
+    with pytest.raises(NotEnoughDataException) as excinfo:
+        pipeline.compute(
+            parameters={
+                "sensor": sensor.id,
+                "model-save-dir": str(tmp_path / "models"),
+                "output-path": None,
+                "start": "2025-01-04T00:00+00:00",
+                "end": "2025-01-08T00:00+00:00",
+                "sensor-to-save": None,
+                "max-forecast-horizon": "PT96H",
+                "forecast-frequency": "PT1H",
+                "probabilistic": False,
+            }
+        )
+
+    assert "Not enough training data for the requested forecast horizon" in str(
+        excinfo.value
+    )
+
+
 # Test that max_training-period caps train-period and logs a warning
 @pytest.mark.parametrize(
     ["config", "params"],
@@ -587,4 +726,649 @@ def test_prior_restricts_training_beliefs(
     assert mean_after > mean_before * 10, (
         f"Forecasts after anomaly ({mean_after:.1f}) should be at least 10x higher "
         f"than forecasts before anomaly ({mean_before:.1f})"
+    )
+
+
+def test_future_regressor_split_selects_latest_known_value_per_regressor(monkeypatch):
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+    future_regressor_a = type(
+        "SensorStub",
+        (),
+        {"name": "weather-a", "id": 2, "event_resolution": timedelta(hours=1)},
+    )()
+    future_regressor_b = type(
+        "SensorStub",
+        (),
+        {"name": "weather-b", "id": 3, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[future_regressor_a, future_regressor_b],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 8, 9),
+        event_ends_before=datetime(2025, 1, 8, 10),
+    )
+    forecast_belief_time = pd.Timestamp("2025-01-08T10:00:00")
+    regressor_a, regressor_b = pipeline.future_regressors
+
+    df = pd.DataFrame(
+        [
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=30),
+                pipeline.target: None,
+                regressor_a: 3.0,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": forecast_belief_time,
+                pipeline.target: 1.0,
+                regressor_a: 4.0,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T10:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=30),
+                pipeline.target: None,
+                regressor_a: 5.0,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T10:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=15),
+                pipeline.target: None,
+                regressor_a: None,
+                regressor_b: 7.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T10:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=10),
+                pipeline.target: None,
+                regressor_a: None,
+                regressor_b: 8.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T10:00:00"),
+                "belief_time": forecast_belief_time + pd.Timedelta(minutes=5),
+                pipeline.target: None,
+                regressor_a: 50.0,
+                regressor_b: 80.0,
+            },
+        ]
+    )
+
+    captured_future_frames = []
+
+    # Capture the covariate frame before missing-value filling converts it
+    # to a Darts TimeSeries. This keeps the test focused on in-memory belief
+    # selection instead of requiring database-backed sensor data.
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.future_regressors:
+            captured_future_frames.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+
+    pipeline.split_data_all_beliefs(df)
+
+    assert len(captured_future_frames) == 1, (
+        "Expected one future-covariate frame because this one-step pipeline "
+        "prepares exactly one split."
+    )
+    selected = captured_future_frames[0].set_index("event_start")
+    assert selected.loc[pd.Timestamp("2025-01-08T09:00:00"), regressor_a] == 4.0, (
+        "Expected regressor A's latest known realized value for the historical "
+        "event, because it has the latest non-null belief by forecast time."
+    )
+    assert selected.loc[pd.Timestamp("2025-01-08T10:00:00"), regressor_a] == 5.0, (
+        "Expected regressor A's available forecast value to survive even though "
+        "regressor B has a later belief on a different joined row."
+    )
+    assert selected.loc[pd.Timestamp("2025-01-08T10:00:00"), regressor_b] == 8.0, (
+        "Expected regressor B's latest known forecast value, because selection "
+        "happens independently per regressor."
+    )
+    assert 50.0 not in set(selected[regressor_a].dropna()), (
+        "Expected regressor A's future belief recorded after the forecast "
+        "belief_time to be excluded."
+    )
+    assert 80.0 not in set(selected[regressor_b].dropna()), (
+        "Expected regressor B's future belief recorded after the forecast "
+        "belief_time to be excluded."
+    )
+
+
+def test_past_regressor_split_selects_latest_known_value_per_regressor(monkeypatch):
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+    past_regressor_a = type(
+        "SensorStub",
+        (),
+        {"name": "meter-a", "id": 2, "event_resolution": timedelta(hours=1)},
+    )()
+    past_regressor_b = type(
+        "SensorStub",
+        (),
+        {"name": "meter-b", "id": 3, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[],
+        past_regressors=[past_regressor_a, past_regressor_b],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 8, 9),
+        event_ends_before=datetime(2025, 1, 8, 10),
+    )
+    forecast_belief_time = pd.Timestamp("2025-01-08T10:00:00")
+    regressor_a, regressor_b = pipeline.past_regressors
+
+    df = pd.DataFrame(
+        [
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=30),
+                pipeline.target: None,
+                regressor_a: 5.0,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=15),
+                pipeline.target: None,
+                regressor_a: None,
+                regressor_b: 7.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": forecast_belief_time,
+                pipeline.target: 1.0,
+                regressor_a: None,
+                regressor_b: None,
+            },
+        ]
+    )
+
+    captured_past_frames = []
+
+    # Capture the covariate frame before missing-value filling converts it
+    # to a Darts TimeSeries. This keeps the test focused on in-memory belief
+    # selection instead of requiring database-backed sensor data.
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.past_regressors:
+            captured_past_frames.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+
+    pipeline.split_data_all_beliefs(df)
+
+    assert len(captured_past_frames) == 1, (
+        "Expected one past-covariate frame because this one-step pipeline "
+        "prepares exactly one split."
+    )
+    selected = captured_past_frames[0].set_index("event_start")
+    assert selected.loc[pd.Timestamp("2025-01-08T09:00:00"), regressor_a] == 5.0, (
+        "Expected past regressor A's value to survive even though past "
+        "regressor B is known on a different joined row."
+    )
+    assert selected.loc[pd.Timestamp("2025-01-08T09:00:00"), regressor_b] == 7.0, (
+        "Expected past regressor B's value to survive because selection happens "
+        "independently per regressor."
+    )
+
+
+def test_future_regressor_splits_use_only_beliefs_known_at_forecast_belief_time(
+    monkeypatch,
+):
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+    future_regressor = type(
+        "SensorStub",
+        (),
+        {"name": "weather", "id": 2, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[future_regressor],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 7, 23),
+        event_ends_before=datetime(2025, 1, 8, 1),
+        predict_start=datetime(2025, 1, 8),
+        predict_end=datetime(2025, 1, 8, 1),
+    )
+    forecast_belief_time = pd.Timestamp("2025-01-08T00:00:00")
+    future_col = pipeline.future_regressors[0]
+
+    df = pd.DataFrame(
+        [
+            # Historical forecast belief: known at forecast belief time, but not realized,
+            # so it should not be used for the past part of the regressor split.
+            {
+                "event_start": pd.Timestamp("2025-01-07T23:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(hours=2),
+                pipeline.target: None,
+                future_col: 88.0,
+            },
+            # Historical realized belief: known exactly at forecast belief time,
+            # so this is the admissible value for the past event.
+            {
+                "event_start": pd.Timestamp("2025-01-07T23:00:00"),
+                "belief_time": forecast_belief_time,
+                pipeline.target: 1.0,
+                future_col: 10.0,
+            },
+            # Historical realized belief: recorded after forecast belief time,
+            # so it must be rejected even though it is the latest realized value.
+            {
+                "event_start": pd.Timestamp("2025-01-07T23:00:00"),
+                "belief_time": forecast_belief_time + pd.Timedelta(minutes=30),
+                pipeline.target: 1.0,
+                future_col: 99.0,
+            },
+            # Future forecast belief: known at forecast belief time and still a forecast,
+            # so this is admissible for the future part of the split.
+            {
+                "event_start": pd.Timestamp("2025-01-08T00:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=5),
+                pipeline.target: None,
+                future_col: 20.0,
+            },
+            # Future forecast belief: not known at forecast belief time,
+            # so it must be excluded even though it is for the same event.
+            {
+                "event_start": pd.Timestamp("2025-01-08T00:00:00"),
+                "belief_time": forecast_belief_time + pd.Timedelta(minutes=5),
+                pipeline.target: None,
+                future_col: 77.0,
+            },
+            # Future forecast belief exactly known at forecast belief time,
+            # proving the forecast belief-time boundary itself remains admissible.
+            {
+                "event_start": pd.Timestamp("2025-01-08T01:00:00"),
+                "belief_time": forecast_belief_time,
+                pipeline.target: None,
+                future_col: 30.0,
+            },
+        ]
+    )
+
+    captured_future_frames = []
+
+    # Capture the future-regressor frame after split_data_all_beliefs has applied
+    # belief-time filtering, but before missing-value filling can alter its shape.
+    # This lets the assertions below inspect which beliefs survived the split.
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.future_regressors:
+            captured_future_frames.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+
+    pipeline.split_data_all_beliefs(df, is_predict_pipeline=True)
+
+    assert len(captured_future_frames) == 1
+    values_by_event = captured_future_frames[0].set_index("event_start")[future_col]
+    assert values_by_event.loc[pd.Timestamp("2025-01-07T23:00:00")] == 10.0
+    assert values_by_event.loc[pd.Timestamp("2025-01-08T00:00:00")] == 20.0
+    assert values_by_event.loc[pd.Timestamp("2025-01-08T01:00:00")] == 30.0
+    assert 88.0 not in set(values_by_event)
+    assert 99.0 not in set(values_by_event)
+    assert 77.0 not in set(values_by_event)
+
+
+def test_realized_future_regressors_use_latest_known_per_regressor_per_step(
+    monkeypatch,
+):
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+    future_regressor_a = type(
+        "SensorStub",
+        (),
+        {"name": "weather-a", "id": 2, "event_resolution": timedelta(hours=1)},
+    )()
+    future_regressor_b = type(
+        "SensorStub",
+        (),
+        {"name": "weather-b", "id": 3, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[future_regressor_a, future_regressor_b],
+        past_regressors=[],
+        n_steps_to_predict=2,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 8, 9),
+        event_ends_before=datetime(2025, 1, 8, 11),
+        predict_start=datetime(2025, 1, 8, 10),
+        predict_end=datetime(2025, 1, 8, 12),
+    )
+    regressor_a, regressor_b = pipeline.future_regressors
+
+    df = pd.DataFrame(
+        [
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": pd.Timestamp("2025-01-08T09:10:00"),
+                pipeline.target: None,
+                regressor_a: 1.0,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": pd.Timestamp("2025-01-08T09:40:00"),
+                pipeline.target: None,
+                regressor_a: None,
+                regressor_b: 20.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": pd.Timestamp("2025-01-08T09:50:00"),
+                pipeline.target: None,
+                regressor_a: 2.0,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": pd.Timestamp("2025-01-08T10:00:00"),
+                pipeline.target: 1.0,
+                regressor_a: None,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": pd.Timestamp("2025-01-08T10:30:00"),
+                pipeline.target: None,
+                regressor_a: 3.0,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": pd.Timestamp("2025-01-08T10:45:00"),
+                pipeline.target: None,
+                regressor_a: None,
+                regressor_b: 30.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T10:00:00"),
+                "belief_time": pd.Timestamp("2025-01-08T11:00:00"),
+                pipeline.target: 2.0,
+                regressor_a: None,
+                regressor_b: None,
+            },
+        ]
+    )
+
+    captured_future_frames = []
+
+    # Capture the covariate frame before missing-value filling converts it
+    # to a Darts TimeSeries. This keeps the test focused on in-memory belief
+    # selection instead of requiring database-backed sensor data.
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.future_regressors:
+            captured_future_frames.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+
+    pipeline.split_data_all_beliefs(df, is_predict_pipeline=True)
+
+    assert len(captured_future_frames) == 2, (
+        "Expected two future-covariate frames because the predict pipeline "
+        "simulates two forecast belief_time steps."
+    )
+    first_step = captured_future_frames[0].set_index("event_start")
+    second_step = captured_future_frames[1].set_index("event_start")
+    event_start = pd.Timestamp("2025-01-08T09:00:00")
+
+    assert first_step.loc[event_start, regressor_a] == 2.0, (
+        "Expected the first forecast step to use regressor A's latest realized "
+        "belief known by 10:00, not the older 09:10 belief."
+    )
+    assert first_step.loc[event_start, regressor_b] == 20.0, (
+        "Expected the first forecast step to exclude regressor B's 10:45 belief "
+        "because it is not known yet at 10:00."
+    )
+    assert second_step.loc[event_start, regressor_a] == 3.0, (
+        "Expected the second forecast step to use regressor A's 10:30 belief "
+        "because it is known by 11:00."
+    )
+    assert second_step.loc[event_start, regressor_b] == 30.0, (
+        "Expected the second forecast step to use regressor B's 10:45 belief "
+        "because it is known by 11:00."
+    )
+
+
+def test_future_regressor_changes_forecasts_in_forecast_belief_time_window(
+    app, fresh_db, tmp_path
+):
+    """
+    Integration check for deterministic regressor behavior around belief-time splitting.
+
+    We build two target sensors with identical history, run one with a future regressor
+    and one without, and assert the future-regressor run is more accurate. The
+    target is constructed as a deterministic function of the weather regressor, so
+    admitting the regressor forecasts known at each forecast belief time should
+    improve the forecast.
+    """
+    db = fresh_db
+
+    asset_type = GenericAssetType(name="deterministic-regressor-asset-type")
+    asset = Asset(
+        name="Deterministic regressor test asset",
+        generic_asset_type=asset_type,
+        latitude=1.0,
+        longitude=1.0,
+    )
+    source_actual = DataSource(name="deterministic-regressor-actual", type="test")
+    source_forecaster = DataSource(name="deterministic-regressor-forecast", type="test")
+    db.session.add_all([asset_type, asset, source_actual, source_forecaster])
+    db.session.flush()
+
+    target_without_regressor = Sensor(
+        name="target-without-regressor",
+        generic_asset=asset,
+        unit="kW",
+        event_resolution=timedelta(hours=1),
+    )
+    target_with_regressor = Sensor(
+        name="target-with-regressor",
+        generic_asset=asset,
+        unit="kW",
+        event_resolution=timedelta(hours=1),
+    )
+    weather_regressor = Sensor(
+        name="weather-regressor",
+        generic_asset=asset,
+        unit="kW",
+        event_resolution=timedelta(hours=1),
+    )
+    db.session.add_all(
+        [target_without_regressor, target_with_regressor, weather_regressor]
+    )
+    db.session.flush()
+
+    history_index = pd.date_range(
+        datetime(2025, 1, 1),
+        datetime(2025, 1, 7, 23, 0),
+        freq="1h",
+        tz="UTC",
+    )
+    forecast_index = pd.date_range(
+        datetime(2025, 1, 8),
+        datetime(2025, 1, 8, 23, 0),
+        freq="1h",
+        tz="UTC",
+    )
+
+    # Deterministic but non-periodic-enough pattern so autoregressive-only models
+    # cannot trivially extrapolate future behavior from target history alone.
+    historical_regressor_values = [
+        ((37 * i + 13) % 97) + ((i % 5) * 0.1) for i in range(len(history_index))
+    ]
+    future_regressor_values = [
+        ((53 * i + 7) % 101) + 150 + ((i % 7) * 0.1) for i in range(len(forecast_index))
+    ]
+    target_historical_values = [3 * value + 5 for value in historical_regressor_values]
+    target_future_truth = [3 * value + 5 for value in future_regressor_values]
+
+    beliefs = []
+    for ts, reg_value, target_value in zip(
+        history_index,
+        historical_regressor_values,
+        target_historical_values,
+    ):
+        beliefs.extend(
+            [
+                TimedBelief(
+                    sensor=weather_regressor,
+                    event_start=ts,
+                    event_value=reg_value,
+                    source=source_actual,
+                    belief_horizon=timedelta(0),
+                ),
+                TimedBelief(
+                    sensor=target_with_regressor,
+                    event_start=ts,
+                    event_value=target_value,
+                    source=source_actual,
+                    belief_horizon=timedelta(0),
+                ),
+                TimedBelief(
+                    sensor=target_without_regressor,
+                    event_start=ts,
+                    event_value=target_value,
+                    source=source_actual,
+                    belief_horizon=timedelta(0),
+                ),
+            ]
+        )
+
+    for ts, reg_value in zip(forecast_index, future_regressor_values):
+        # Each weather-regressor forecast is issued five minutes before its
+        # hourly event starts. That makes it a 65-minute-horizon forecast for
+        # the full hourly event, while the pipeline issues target forecasts at
+        # the start of each event with a 60-minute max forecast horizon.
+        beliefs.append(
+            TimedBelief(
+                sensor=weather_regressor,
+                event_start=ts,
+                event_value=reg_value,
+                source=source_forecaster,
+                belief_time=ts - timedelta(minutes=5),
+            )
+        )
+
+    db.session.add_all(beliefs)
+    db.session.commit()
+
+    base_config = {"train-start": "2025-01-01T00:00+00:00"}
+    common_params = {
+        "model-save-dir": str(tmp_path / "models"),
+        "output-path": None,
+        "start": "2025-01-08T00:00+00:00",
+        "end": "2025-01-09T00:00+00:00",
+        "sensor-to-save": None,
+        "max-forecast-horizon": "PT1H",
+        "forecast-frequency": "PT1H",
+        "probabilistic": False,
+    }
+
+    pipeline_without_regressor = TrainPredictPipeline(config=base_config)
+    returns_without_regressor = pipeline_without_regressor.compute(
+        parameters={
+            **common_params,
+            "sensor": target_without_regressor.id,
+        }
+    )
+
+    pipeline_with_regressor = TrainPredictPipeline(
+        config={
+            **base_config,
+            "future-regressors": [weather_regressor.id],
+        }
+    )
+    returns_with_regressor = pipeline_with_regressor.compute(
+        parameters={
+            **common_params,
+            "sensor": target_with_regressor.id,
+        }
+    )
+
+    forecasts_without_regressor = simplify_index(returns_without_regressor[0]["data"])[
+        "event_value"
+    ].rename("without_regressor")
+    forecasts_with_regressor = simplify_index(returns_with_regressor[0]["data"])[
+        "event_value"
+    ].rename("with_regressor")
+    aligned_forecasts = pd.concat(
+        [forecasts_without_regressor, forecasts_with_regressor],
+        axis=1,
+        join="inner",
+    )
+
+    assert list(forecasts_without_regressor.index) == list(forecast_index)
+    assert list(forecasts_with_regressor.index) == list(forecast_index)
+    assert not aligned_forecasts.empty
+    assert aligned_forecasts.notna().all(axis=None)
+    # First confirm the admissible future covariates affect the forecast at all.
+    # The accuracy assertions below check that the effect is beneficial.
+    assert (
+        aligned_forecasts["without_regressor"]
+        .ne(aligned_forecasts["with_regressor"])
+        .any()
+    ), "Future-regressor run should produce a different forecast because it has admissible future covariates."
+
+    truth = pd.Series(target_future_truth, index=forecast_index, name="truth")
+    mae_without_regressor = (
+        aligned_forecasts["without_regressor"]
+        .reindex(truth.index)
+        .sub(truth)
+        .abs()
+        .mean()
+    )
+    mae_with_regressor = (
+        aligned_forecasts["with_regressor"].reindex(truth.index).sub(truth).abs().mean()
+    )
+    first_forecast_timestamp = forecast_index[0]
+    first_error_without_regressor = abs(
+        aligned_forecasts.loc[first_forecast_timestamp, "without_regressor"]
+        - truth.loc[first_forecast_timestamp]
+    )
+    first_error_with_regressor = abs(
+        aligned_forecasts.loc[first_forecast_timestamp, "with_regressor"]
+        - truth.loc[first_forecast_timestamp]
+    )
+    assert (
+        first_error_with_regressor < first_error_without_regressor
+    ), "At the forecast belief-time boundary, the future-regressor run should be more accurate."
+    assert mae_with_regressor < mae_without_regressor, (
+        "The future-regressor forecast is expected to be more accurate "
+        "on this deterministic synthetic dataset."
     )

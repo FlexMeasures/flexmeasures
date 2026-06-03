@@ -12,10 +12,10 @@ from isodate import parse_duration
 import pandas as pd
 import numpy as np
 from flask import request, jsonify, Flask
+from flask.testing import FlaskCliRunner
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
-
 from werkzeug.exceptions import (
     InternalServerError,
     BadRequest,
@@ -64,10 +64,23 @@ Such fixtures can be recognised by having fresh_db appended to their name.
 """
 
 
+class CustomFlaskCliRunner(FlaskCliRunner):
+    """A CLI test runner that lets exceptions propagate instead of catching them.
+
+    This makes test failures more informative: instead of seeing only a non-zero
+    exit code, the full exception with traceback is shown directly.
+    """
+
+    def invoke(self, *args, **kwargs):
+        kwargs.setdefault("catch_exceptions", False)
+        return super().invoke(*args, **kwargs)
+
+
 @pytest.fixture(scope="session")
 def app():
     print("APP FIXTURE")
     test_app = create_app(env="testing")
+    test_app.test_cli_runner_class = CustomFlaskCliRunner
 
     with test_app.app_context():
         yield test_app
@@ -1752,6 +1765,69 @@ def setup_multiple_sources(db, add_battery_assets):
     db.session.commit()
 
     return test_sensor, s1, s2, s3
+
+
+@pytest.fixture(scope="module")
+def setup_sources_with_accounts(db, add_battery_assets, setup_accounts):
+    """Set up a sensor with beliefs from data sources that belong to different accounts.
+
+    Returns a tuple of (sensor, source_account_a, source_account_b, source_no_account)
+    where each source has beliefs at different time slots:
+    - source_account_a: account "Prosumer", belief at 2024-02-01T10:00+01:00
+    - source_account_b: account "Supplier", belief at 2024-02-01T11:00+01:00
+    - source_no_account: no account, belief at 2024-02-01T12:00+01:00
+    """
+    battery = add_battery_assets["Test battery with dynamic power capacity"]
+
+    test_sensor = Sensor(
+        name="test sensor for account filtering",
+        generic_asset=battery,
+        unit="kW",
+        event_resolution=timedelta(minutes=15),
+    )
+    db.session.add(test_sensor)
+
+    source_account_a = DataSource(
+        name="Source Account A",
+        type="demo script",
+        account_id=setup_accounts["Prosumer"].id,
+    )
+    source_account_b = DataSource(
+        name="Source Account B",
+        type="demo script",
+        account_id=setup_accounts["Supplier"].id,
+    )
+    source_no_account = DataSource(
+        name="Source No Account",
+        type="demo script",
+    )
+    db.session.add_all([source_account_a, source_account_b, source_no_account])
+
+    add_beliefs(
+        db=db,
+        sensor=test_sensor,
+        time_slots=[pd.Timestamp("2024-02-01T10:00:00+01:00")],
+        values=[1.0],
+        source=source_account_a,
+    )
+    add_beliefs(
+        db=db,
+        sensor=test_sensor,
+        time_slots=[pd.Timestamp("2024-02-01T11:00:00+01:00")],
+        values=[2.0],
+        source=source_account_b,
+    )
+    add_beliefs(
+        db=db,
+        sensor=test_sensor,
+        time_slots=[pd.Timestamp("2024-02-01T12:00:00+01:00")],
+        values=[3.0],
+        source=source_no_account,
+    )
+
+    db.session.commit()
+
+    return test_sensor, source_account_a, source_account_b, source_no_account
 
 
 def add_beliefs(
