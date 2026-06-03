@@ -75,7 +75,7 @@ def device_scheduler(  # noqa C901
                                 or use a single value to set the initial stock to be the same for all devices.
     :param coupling_groups:     Hard flow-coupling constraints between devices.  Each entry maps a group name to a list of
                                 ``(device_index, coefficient)`` tuples.  For every pair of devices in a group the constraint
-                                ``coeff_ref * P[d_ref, j] == coeff_i * P[d_i, j]`` is enforced for every time step ``j``,
+                                ``P[d_ref, j] / coeff_ref == P[d_i, j] / coeff_i`` is enforced for every time step ``j``,
                                 using the first member of the list as the reference device.
                                 Example — a CHP with gas input (d=0, coeff 1.0), heat output (d=1, coeff −0.5) and
                                 power output (d=2, coeff −0.3)::
@@ -128,7 +128,7 @@ def device_scheduler(  # noqa C901
 
     # Build flat list of pairwise flow-coupling constraints from coupling_groups.
     # Each entry is (d_ref, coeff_ref, d_i, coeff_i) and enforces:
-    #   coeff_ref * ems_power[d_ref, j] == coeff_i * ems_power[d_i, j]
+    #   ems_power[d_ref, j] / coeff_ref == ems_power[d_i, j] / coeff_i
     coupling_pairs: list[tuple[int, float, int, float]] = []
     if coupling_groups:
         for _group_name, members in coupling_groups.items():
@@ -765,13 +765,13 @@ def device_scheduler(  # noqa C901
             """Enforce a fixed ratio between the flows of two coupled devices.
 
             For coupling pair ``p`` at time ``j`` the constraint is:
-                coeff_ref * ems_power[d_ref, j] == coeff_i * ems_power[d_i, j]
+                ems_power[d_ref, j] / coeff_ref == ems_power[d_i, j] / coeff_i
             which is stored as the Pyomo equality (0, lhs - rhs, 0).
             """
             d_ref, coeff_ref, d_i, coeff_i = coupling_pairs[p]
             return (
                 0,
-                coeff_ref * m.ems_power[d_ref, j] - coeff_i * m.ems_power[d_i, j],
+                m.ems_power[d_ref, j] / coeff_ref - m.ems_power[d_i, j] / coeff_i,
                 0,
             )
 

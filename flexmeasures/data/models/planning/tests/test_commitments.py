@@ -1558,21 +1558,18 @@ def test_chp_coupling():
     ``[(0, 1.0), (1, -0.5), (2, -0.3)]``. This generates two hard equality
     constraints for every time step ``j``:
 
-        1.0 * P_gas[j]  ==  -0.5 * P_heat[j]   →  P_gas  == -0.5 * P_heat
-        1.0 * P_gas[j]  ==  -0.3 * P_power[j]  →  P_gas  == -0.3 * P_power
+        1.0 * P_gas[j]  ==   P_heat[j] / -0.5
+        1.0 * P_gas[j]  ==  P_power[j] / -0.3
 
     Heat production is forced to exactly 10 kW via ``derivative equals = -10``
     on device 1. Substituting into the coupling constraints gives the expected
     solution:
 
-        P_gas   =   5 kW         (gas consumed)
+        P_gas   =  20 kW         (gas consumed)
         P_heat  = -10 kW         (heat produced, forced)
-        P_power =   5 kW / -0.3
-                ≈ -17 kW         (electricity produced)
+        P_power =  20 kW * -0.3
+                ≈  -6 kW         (electricity produced)
 
-    Note: the coefficients above do not represent a physically realisable CHP
-    (total output exceeds input). They are chosen to exercise the constraint
-    arithmetic with non-trivial numbers that are easy to verify by hand.
     """
     start = pd.Timestamp("2026-01-01T00:00+01:00")
     end = pd.Timestamp("2026-01-01T04:00+01:00")
@@ -1669,22 +1666,22 @@ def test_chp_coupling():
         obj="heat output forced to -10 kW by derivative_equals",
     )
 
-    # Coupling: 1.0 * P_gas == -0.5 * P_heat  →  P_gas = -0.5 * (-10) = 5 kW
+    # Coupling: P_gas / 1.0 == P_heat / -0.5  →  P_gas = -10 / -0.5 = 20 kW
     pd.testing.assert_series_equal(
         schedules[0],
-        pd.Series(5.0, index=index),
+        pd.Series(20.0, index=index),
         check_names=False,
         rtol=1e-4,
-        obj="gas consumption determined by coupling (5 kW from 10 kW heat at coeff -0.5)",
+        obj="gas consumption determined by coupling (20 kW from 10 kW heat at coeff -0.5)",
     )
 
-    # Coupling: 1.0 * P_gas == -0.3 * P_power  →  P_power = -5 / 0.3 = -50/3 kW
+    # Coupling: P_gas / 1.0 == P_power / -0.3  →  P_power = 20 / -0.3 = -6 kW
     pd.testing.assert_series_equal(
         schedules[2],
-        pd.Series(-50.0 / 3.0, index=index),
+        pd.Series(-6.0, index=index),
         check_names=False,
         rtol=1e-4,
-        obj="power output determined by coupling (-50/3 kW from 5 kW gas at coeff -0.3)",
+        obj="power output determined by coupling (20/-0.3 kW from 20 kW gas at coeff -0.3)",
     )
 
 
