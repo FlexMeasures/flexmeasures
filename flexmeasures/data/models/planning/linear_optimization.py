@@ -111,21 +111,30 @@ def device_scheduler(  # noqa C901
     resolution = pd.to_timedelta(device_constraints[0].index.freq).to_pytimedelta()
     end = device_constraints[0].index.to_pydatetime()[-1] + resolution
 
-    # map device → stock group
+    # map device -> primary stock group (used for per-device stock bounds)
+    # and map stock group -> all member devices (used for stock accumulation).
     device_to_group = {}
+    group_to_devices = {}
 
     if stock_groups:
         for g, devices in stock_groups.items():
+            group_to_devices[g] = list(devices)
             for d in devices:
-                device_to_group[d] = g
-        # For devices not in any stock group (e.g., inflexible devices),
-        # map them to themselves so they're treated as individual groups
+                # Keep first assignment as the primary group. A device can still
+                # participate in multiple groups via ``group_to_devices``.
+                if d not in device_to_group:
+                    device_to_group[d] = g
+        # Devices not in any stock group are treated as single-device groups.
         for d in range(len(device_constraints)):
             if d not in device_to_group:
-                device_to_group[d] = d
+                g = f"_device_{d}"
+                device_to_group[d] = g
+                group_to_devices[g] = [d]
     else:
         for d in range(len(device_constraints)):
-            device_to_group[d] = d
+            g = f"_device_{d}"
+            device_to_group[d] = g
+            group_to_devices[g] = [d]
 
     # Collect (group_index, device_index, coefficient) triples for coupling constraints.
     # Each device in each group will be constrained: P[d, j] == coeff * alpha[group, j]
@@ -569,7 +578,7 @@ def device_scheduler(  # noqa C901
         group = device_to_group[d]
 
         # all devices belonging to this stock
-        devices = [dev for dev, g in device_to_group.items() if g == group]
+        devices = group_to_devices[group]
 
         # initial stock
         if isinstance(initial_stock, list):
