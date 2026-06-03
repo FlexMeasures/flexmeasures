@@ -586,18 +586,26 @@ def test_resolve_soc_at_start_from_percent_sensor_uses_device_sensor_fallback(
 def test_storage_scheduler_chp_coupling(app, db):
     """Test that the StorageScheduler enforces CHP coupling constraints between devices.
 
-    Models a Combined Heat and Power unit with three sensors:
+    Models a Combined Heat and Power unit with three sensors.
 
-    - d=0  gas input:    CHP gas consumption           (positive ems_power, coeff  1.0)
-    - d=1  heat output:  CHP heat → heat buffer        (positive ems_power, coeff  0.5)
-    - d=2  power output: CHP electricity production    (negative ems_power, coeff −0.3)
+    In the flex-model, the coupling coefficients are entered as positive magnitudes::
 
-    The coupling group ``"chp"`` introduces a free variable ``alpha`` and enforces
-    ``P[d] == coeff * alpha`` for every device:
+        gas input   -> 1.0
+        heat output -> 0.5
+        power output -> 0.3
 
-        P_gas   =  1.0 * alpha
-        P_heat  =  0.5 * alpha   (η_heat  = 0.5)
-        P_power = −0.3 * alpha   (η_power = 0.3)
+    Internally, the CHP is interpreted with the signed commodity-flow coefficients::
+
+        P_gas   ->  1.0
+        P_heat  -> -0.5
+        P_power -> -0.3
+
+    The returned storage schedule for the heat buffer is still positive, because this
+    test uses the storage sign convention for buffer charging.
+
+    - d=0  gas input:    CHP gas consumption
+    - d=1  heat output:  CHP heat -> heat buffer
+    - d=2  power output: CHP electricity production
 
     The heat output is forced to exactly 5 kW per step by combining:
     - ``production-capacity: "0 kW"``  (hard lower bound: derivative_min = 0)
@@ -649,9 +657,9 @@ def test_storage_scheduler_chp_coupling(app, db):
     db.session.flush()
 
     # ---- flex model
-    # Coupling-coefficients equal the signed efficiency fractions.
-    # Positive coeff = input or stock-accumulating device (positive ems_power).
-    # Negative coeff = production device (negative ems_power).
+    # Flex-model coupling-coefficients are user-facing positive magnitudes.
+    # The intended internal CHP coefficients are +1.0 for gas, -0.5 for heat,
+    # and -0.3 for power.
     flex_model = [
         {
             # d=0: gas input — pure flow device (no SoC), can only consume gas.
