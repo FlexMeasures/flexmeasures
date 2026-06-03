@@ -110,44 +110,60 @@ class Scheduler:
         of each device model.
 
         Devices sharing the same coupling name form a coupling group.
-        The optimization model introduces a decision variable ``alpha`` per group per time step,
-        and constrains every device by ``P[d] == coeff_d * alpha``.
+        The optimization model introduces a decision variable ``alpha`` per group per time
+        step, and constrains every device by ``P[d] == coeff_d * alpha``.
 
-        - Input devices (consuming) are specified with positive coupling coefficients.
-          Their coefficients must sum up to 1.
-        - Output devices (producing) are specified with negative coupling coefficients.
-          Their coefficients do not need to sum up to -1; the remainder denotes a loss.
+        Coupling coefficients in flex-models are user-facing positive magnitudes.
+        The internal sign is inferred from directional capacities:
+
+        - ``consumption_capacity == 0`` -> output device -> internally negative coefficient
+        - ``production_capacity == 0`` -> input device -> internally positive coefficient
+
+        If neither direction is explicitly blocked, the coefficient stays positive.
 
         Example — a CHP with 50% heat efficiency and 30% power efficiency:
 
             [
-                {"coupling": "chp", "coupling_coefficient":  1.0},  # gas input (alpha = P_gas)
-                {"coupling": "chp", "coupling_coefficient": -0.5},  # heat output (50% of gas becomes heat)
-                {"coupling": "chp", "coupling_coefficient": -0.3},  # power output  (30% of gas becomes power)
+                {"coupling": "chp", "coupling_coefficient": 1.0},  # gas input (alpha = P_gas)
+                {"coupling": "chp", "coupling_coefficient": 0.5},  # heat output (50% of gas)
+                {"coupling": "chp", "coupling_coefficient": 0.3},  # power output (30% of gas)
             ]
 
         :param flex_model: List of deserialized device flex-model dicts.
         :returns: Mapping from coupling-group name to a list of
-                  ``(device_index, coefficient)`` tuples suitable for passing to
-                  ``device_scheduler(coupling_groups=...)``. Returns an empty dict
+                  ``(device_index, internal_signed_coefficient)`` tuples suitable for
+                  passing to ``device_scheduler(coupling_groups=...)``. Returns an empty dict
                   when no device defines a ``coupling`` field.
-        :raises ValueError: if sum of positive coefficients in a group is not 1.
         """
+
+        def _is_zero_capacity(value: Any) -> bool:
+            """Return True if the capacity value is numerically zero."""
+
+            if value is None:
+                return False
+
+            # Pint quantities expose ``magnitude``.
+            magnitude = getattr(value, "magnitude", value)
+            try:
+                return bool(np.isclose(float(magnitude), 0.0))
+            except (TypeError, ValueError):
+                return False
+
         groups: dict[str, list[tuple[int, float]]] = defaultdict(list)
         for d, fm in enumerate(flex_model):
             coupling_name = fm.get("coupling")
             if coupling_name is None:
                 continue
-            coefficient = fm.get("coupling_coefficient", 1.0)
+            coefficient = abs(float(fm.get("coupling_coefficient", 1.0)))
+
+            is_output = _is_zero_capacity(fm.get("consumption_capacity"))
+            is_input = _is_zero_capacity(fm.get("production_capacity"))
+
+            if is_output and not is_input:
+                coefficient = -coefficient
+
             groups[coupling_name].append((d, coefficient))
 
-        # Check sum of positive coefficients
-        for group_name, devices in groups.items():
-            positive_sum = sum(coeff for _, coeff in devices if coeff > 0)
-            if not abs(positive_sum - 1.0) < 1e-8:  # tiny tolerance for floating point
-                raise ValueError(
-                    f"Sum of positive coefficients in coupling group '{group_name}' is {positive_sum}, but must equal 1."
-                )
         return dict(groups)
 
     def __init__(

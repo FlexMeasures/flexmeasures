@@ -272,12 +272,12 @@ class StorageFlexModelSchema(Schema):
         required=False,
         load_default=1.0,
         metadata=dict(
-            description="Coupling coefficient for this device within its coupling group. "
+            description="Positive coupling magnitude for this device within its coupling group. "
             "The optimizer introduces a decision variable 'alpha' per group per time step "
             "and constrains every device by P[d] == coeff * alpha. "
-            "Sign convention: positive for input devices or stock-accumulating devices (positive ems_power); "
-            "negative for output/producing devices (negative ems_power). "
-            "Example: a CHP with gas input (coeff 1.0), heat output (coeff -0.5) and power output (coeff -0.3). "
+            "The sign of coeff is inferred internally from directional capacities: "
+            "consumption-capacity = 0 implies output (negative), production-capacity = 0 implies input (positive). "
+            "Example: a CHP with gas input (1.0), heat output (0.5) and power output (0.3). "
             "Defaults to 1.0.",
             example=0.5,
         ),

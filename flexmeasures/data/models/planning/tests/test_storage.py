@@ -588,14 +588,14 @@ def test_storage_scheduler_chp_coupling(app, db):
 
     Models a Combined Heat and Power unit with three sensors:
 
-    - d=0  gas input:    CHP gas consumption           (positive ems_power, coeff  0.5)
+    - d=0  gas input:    CHP gas consumption           (positive ems_power, coeff  1.0)
     - d=1  heat output:  CHP heat → heat buffer        (positive ems_power, coeff  0.5)
     - d=2  power output: CHP electricity production    (negative ems_power, coeff −0.3)
 
     The coupling group ``"chp"`` introduces a free variable ``alpha`` and enforces
     ``P[d] == coeff * alpha`` for every device:
 
-        P_gas   =  0.5 * alpha
+        P_gas   =  1.0 * alpha
         P_heat  =  0.5 * alpha   (η_heat  = 0.5)
         P_power = −0.3 * alpha   (η_power = 0.3)
 
@@ -608,7 +608,7 @@ def test_storage_scheduler_chp_coupling(app, db):
     solution is P_heat = 5 kW every step. Substituting P_heat = 5 kW gives
     alpha = 5 / 0.5 = 10 kW, so:
 
-        P_gas   =  0.5 × 10 kW = 5 kW
+        P_gas   =  1.0 × 10 kW = 10 kW
         P_power = −0.3 × 10 kW = −3 kW
     """
     # ---- asset type + asset
@@ -659,7 +659,7 @@ def test_storage_scheduler_chp_coupling(app, db):
             "power-capacity": "20 kW",
             "production-capacity": "0 kW",  # derivative_min = 0
             "coupling": "chp",
-            "coupling-coefficient": 0.5,
+            "coupling-coefficient": 1.0,
         },
         {
             # d=1: heat output — tracks heat-buffer SoC, positive ems_power = heat
@@ -692,7 +692,7 @@ def test_storage_scheduler_chp_coupling(app, db):
             "power-capacity": "6 kW",
             "consumption-capacity": "0 kW",  # derivative_max = 0
             "coupling": "chp",
-            "coupling-coefficient": -ETA_POWER,  # = -0.3
+            "coupling-coefficient": ETA_POWER,  # = 0.3 (sign inferred from capacities)
         },
     ]
 
@@ -742,12 +742,12 @@ def test_storage_scheduler_chp_coupling(app, db):
         err_msg="Heat output should be exactly 5 kW per step (forced by SoC target)",
     )
 
-    # Coupling: P_gas = 0.5 * alpha = 0.005 MW = 5 kW
+    # Coupling: P_gas = 1.0 * alpha = 0.010 MW = 10 kW
     np.testing.assert_allclose(
         gas_schedule.iloc[active_steps],
-        0.005,  # 5 kW expressed in MW
+        0.010,  # 10 kW expressed in MW
         rtol=1e-4,
-        err_msg="Gas input must be 5 kW — determined by coupling (0.5 * alpha)",
+        err_msg="Gas input must be 10 kW — determined by coupling (1.0 * alpha)",
     )
 
     # Coupling: P_power = -ETA_POWER * alpha = -0.3 * 0.010 MW = -0.003 MW = -3 kW
