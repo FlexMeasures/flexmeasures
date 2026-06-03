@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from flask import url_for
 import pytest
 from isodate import parse_datetime
@@ -8,12 +10,29 @@ from sqlalchemy import select
 
 from flexmeasures.api.common.responses import unknown_schedule, unrecognized_event
 from flexmeasures.api.tests.utils import check_deprecation
-from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
+from flexmeasures.api.v3_0.tests.utils import (
+    get_sensor_by_name,
+    message_for_trigger_schedule,
+)
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.tests.utils import get_test_sensor
 from flexmeasures.utils.unit_utils import ur
+
+
+@pytest.fixture(scope="module")
+def setup_capacity_sensor_on_asset_in_supplier_account(db, setup_generic_assets):
+    sensor = Sensor(
+        name="supplier account capacity sensor",
+        unit="MW",
+        event_resolution=timedelta(minutes=15),
+        generic_asset=setup_generic_assets["test_wind_turbine"],
+    )
+    db.session.add(sensor)
+    db.session.commit()
+    return sensor
 
 
 @pytest.mark.parametrize(
@@ -96,6 +115,162 @@ def test_trigger_schedule_with_invalid_flexmodel(
             assert (
                 err_msg in trigger_schedule_response.json["message"]["json"][field][0]
             )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_schedule_preserves_flex_model_datetimes_in_job_kwargs(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    battery_soc_sensor,
+    add_charging_station_assets,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    message = message_for_trigger_schedule(with_targets=True)
+    offclock_target = "2015-01-02T23:00:40+01:00"
+    for field in ("soc-targets", "soc-minima", "soc-maxima"):
+        message["flex-model"][field][0]["datetime"] = offclock_target
+
+    sensor = get_sensor_by_name(
+        add_charging_station_assets["Test charging station"], "power"
+    )
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+
+    assert trigger_schedule_response.status_code == 200
+    assert len(app.queues["scheduling"]) == 1
+
+    job = app.queues["scheduling"].jobs[0]
+    for field in ("soc-targets", "soc-minima", "soc-maxima"):
+        target = job.kwargs["flex_model"][field][0]
+        assert target["datetime"] == offclock_target
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_schedule_preserves_flex_model_datetimes_when_flooring_disabled(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    battery_soc_sensor,
+    add_charging_station_assets,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    message = message_for_trigger_schedule(with_targets=True)
+    offclock_target = "2015-01-02T23:00:40+01:00"
+    for field in ("soc-targets", "soc-minima", "soc-maxima"):
+        message["flex-model"][field][0]["datetime"] = offclock_target
+
+    sensor = get_sensor_by_name(
+        add_charging_station_assets["Test charging station"], "power"
+    )
+    original_attributes = dict(sensor.attributes or {})
+    sensor.attributes = {
+        **original_attributes,
+        "floor_datetimes_to_resolution": False,
+    }
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+    sensor.attributes = original_attributes
+
+    assert trigger_schedule_response.status_code == 200
+    assert len(app.queues["scheduling"]) == 1
+
+    job = app.queues["scheduling"].jobs[0]
+    for field in ("soc-targets", "soc-minima", "soc-maxima"):
+        target = job.kwargs["flex_model"][field][0]
+        assert target["datetime"] == offclock_target
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_schedule_with_invalid_flex_model_datetime(
+    app,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    message = message_for_trigger_schedule(with_targets=True)
+    message["flex-model"]["soc-minima"][0]["datetime"] = "not-a-datetime"
+
+    sensor = add_battery_assets["Test battery"].sensors[0]
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+
+    assert trigger_schedule_response.status_code == 422
+    assert "message" in trigger_schedule_response.json
+    assert "json" in trigger_schedule_response.json["message"]
+    errors = trigger_schedule_response.json["message"]["json"]
+    assert "soc-minima" in errors
+    minima_errors = errors.get("soc-minima", {})
+    assert "0" in minima_errors
+    timed_event_errors = minima_errors.get("0", {})
+    assert "datetime" in timed_event_errors
+    datetime_errors = timed_event_errors.get("datetime", [])
+    assert datetime_errors
+    assert "Not a valid datetime" in datetime_errors[0]
+
+
+@pytest.mark.parametrize(
+    "flex_config, field",
+    [
+        ("flex-context", "site-consumption-capacity"),
+        ("flex-model", "consumption-capacity"),
+    ],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_schedule_with_unreadable_flex_config_sensor(
+    app,
+    add_battery_assets,
+    setup_capacity_sensor_on_asset_in_supplier_account,
+    keep_scheduling_queue_empty,
+    flex_config,
+    field,
+    requesting_user,
+):
+    sensor = add_battery_assets["Test battery"].sensors[0]
+    message = message_for_trigger_schedule()
+    message.setdefault(flex_config, {})
+    message[flex_config][field] = {
+        "sensor": setup_capacity_sensor_on_asset_in_supplier_account.id
+    }
+
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+
+    print("Server responded with:\n%s" % trigger_schedule_response.json)
+    check_deprecation(trigger_schedule_response, deprecation=None, sunset=None)
+    assert trigger_schedule_response.status_code == 403
+    # Keep the field path in the error so API users can locate the bad reference.
+    assert (
+        str({"json": {flex_config: {field: "sensor"}}})
+        in trigger_schedule_response.json["message"]
+    )
+    # Do not leak metadata about a sensor the caller is not allowed to read.
+    assert (
+        setup_capacity_sensor_on_asset_in_supplier_account.name
+        not in trigger_schedule_response.json["message"]
+    )
 
 
 @pytest.mark.parametrize("message", [message_for_trigger_schedule(unknown_prices=True)])
@@ -187,7 +362,9 @@ def test_get_schedule_fallback(
 
     start = "2015-01-02T00:00:00+01:00"
     epex_da = get_test_sensor(db)
-    charging_station = add_charging_station_assets[charging_station_name].sensors[0]
+    charging_station = get_sensor_by_name(
+        add_charging_station_assets[charging_station_name], "power"
+    )
 
     capacity = charging_station.get_attribute(
         "capacity_in_mw",
@@ -345,7 +522,9 @@ def test_get_schedule_fallback_not_redirect(
 
     start = "2015-01-02T00:00:00+01:00"
     epex_da = get_test_sensor(db)
-    charging_station = add_charging_station_assets[charging_station_name].sensors[0]
+    charging_station = get_sensor_by_name(
+        add_charging_station_assets[charging_station_name], "power"
+    )
 
     capacity = charging_station.get_attribute(
         "capacity_in_mw",

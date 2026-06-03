@@ -57,11 +57,11 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    {{ asset_form.parent_asset_id.label(class="control-label") }}
+                                    {{ asset_form.parent_asset_id.label(class="col-sm-6 control-label") }}
                                     <div class="col-md-6">
                                         <select name="parent_asset_id" id="parent_asset_id" class="form-control">
-                                            <option value="" {% if asset.parent_asset_id is none %} selected {% endif
-                                                %}>No Parent</option>
+                                            <option value="" {% if asset.parent_asset_id is none %} selected {%
+                                                endif %}>No Parent</option>
                                             {% for account_asset in account_assets %}
                                             {% if account_asset.id != asset.id %}
                                             <option value="{{ account_asset.id }}" {% if
@@ -86,7 +86,6 @@
                                         <input class="form-control" id="asset-id" name="asset-id" type="text"
                                             value="{{ asset.id }}" disabled></input>
                                     </div>
-                                </div>
 
                                 <div class="form-group">
                                     {{ asset_form.sensors_to_show_as_kpis.label(class="control-label") }}
@@ -97,7 +96,6 @@
                                         <span style="color: red;">[{{error}}]</span>
                                         {% endfor %}
                                     </div>
-                                </div>
 
                                 <div class="form-group">
                                     {{ asset_form.external_id.label(class="control-label") }}
@@ -108,28 +106,28 @@
                                         <span style="color: red;">[{{error}}]</span>
                                         {% endfor %}
                                     </div>
-                                </div>
 
-                                <div class="form-group">
-                                    <label class="control-label">Location</label>
-                                    <small>(Click map to edit latitude and longitude in form)</small>
-                                    <div id="mapid"></div>
-                                    <button class="btn btn-sm btn-responsive btn-success create-button" type="submit"
-                                        value="Save"
-                                        style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
-                                        Save
-                                    </button>
+                                    <div class="form-group">
+                                        <label class="control-label">Location</label>
+                                        <small>(Click map to edit latitude and longitude in form)</small>
+                                        <div id="mapid"></div>
+                                        <button class="btn btn-sm btn-responsive btn-success create-button"
+                                            type="submit" value="Save"
+                                            style="margin-top: 20px; float: right; border: 1px solid var(--light-gray);">
+                                            Save
+                                        </button>
+                                    </div>
                                 </div>
+                            </fieldset>
+                        </form>
+                        <div class="form-group pt-3">
+                            <div class="col-md-12">
+                                {{ json_attributes_editor_button(label="Open editor", field_label=attributes_label,
+                                field_description=attributes_description) }}
                             </div>
-                        </fieldset>
-                    </form>
-                    <div class="form-group pt-3">
-                        <div class="col-md-12">
-                            {{ json_attributes_editor_button(label="Open editor", field_label=attributes_label, field_description=attributes_description) }}
                         </div>
                     </div>
                 </div>
-            </div>
             </div>
             {% endif %}
 
@@ -342,7 +340,8 @@
                     </div>
 
                     <div class="d-flex ms-auto align-items-center gap-2">
-                        <button type="button" id="saveChangesBtn" class="btn btn-primary ms-auto create-button">Save</button>
+                        <button type="button" id="saveChangesBtn"
+                            class="btn btn-primary ms-auto create-button">Save</button>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
 
@@ -412,9 +411,8 @@
     <script type="module" type="text/javascript">
 
         import {
-            getFlexFieldTitle, renderFlexFieldOptions, renderSensor,
-            createReactiveState, processResourceRawJSON, getAsset,
-            getAccount, getSensor, apiBasePath, renderSensorSearchResults
+            getFlexFieldTitle, renderFlexFieldOptions, renderSensor, createReactiveState, getAsset,
+            getAccount, getSensor, apiBasePath, renderSensorSearchResults, extractApiErrorMessage, processResourceRawJSON
         } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}`;
@@ -456,6 +454,10 @@
                 validTypes = [Array];
             } else if (type === "typeFive") {
                 validTypes = [String];
+            } else {
+                // Raise error for unsupported type
+                showToast(`Unsupported type for field "${key}" in flex model schema.`, "error");
+                console.error(`Unsupported type "${type}" for field "${key}" in flex model schema.`);
             }
             FlexModelFieldValidTypes[key] = validTypes;
         }
@@ -655,9 +657,15 @@
                 });
 
                 if (response.status !== 200) {
-                    const errorData = await response.json();
-                    const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
-                    showToast(`Failed to update the flex model: ${errorMessage}`, "error");
+                    let errorData = null;
+                    try {
+                        errorData = await response.json();
+                    } catch (_error) {
+                        errorData = null;
+                    }
+
+                    const errorMessage = extractApiErrorMessage(errorData, response.statusText);
+                    showToast(`Failed to update the flex model <div>${errorMessage}</div>`, "error");
                     reRenderForm();
                 } else {
                     renderFlexFieldOptions(assetFlexModelSchema, getFlexModel());
@@ -667,13 +675,23 @@
 
             async function renderSelectInfoCards(modelKey, allowedUnits = []) {
                 if (modelKey) {
+                    const storageEfficiencyWarning = modelKey === "storage-efficiency"
+                        ? `
+                            <div class="pt-2 text-danger">
+                                <span class="fw-bold">Warning:</span> If you use a sensor, ensure its resolution matches the scheduling resolution. Currently there is no resampling using sensor resolution for this field.
+                            </div>
+                        `
+                        : "";
+
                     flexInfoContainer.innerHTML = `
                     <div>
                         <div class="alert alert-info" role="alert">
-                            <b> About ${getFlexFieldTitle(modelKey)}
+                            <strong>About ${getFlexFieldTitle(modelKey)}</strong>
                             <div class="pt-2 fw-normal">
                                 ${schemaSpecs[modelKey]["description"] || "No description available."}
                             </div>
+
+                            ${storageEfficiencyWarning}
 
                              <div class="pt-2 fw-bold"> 
                                 Possible types: <span class="fw-normal"> ${schemaSpecs[modelKey]["types"]["ui"] || "No types available."} </span> <br/>
@@ -1238,7 +1256,7 @@
             this.id = id;
             this.name = name;
             this.unit = unit === '' ? '<span title="A sensor recording numbers rather than physical or economical quantities.">dimensionless</span>' : unit;
-            this.resolution = resolution
+            this.resolution = humanizeIsoDuration(resolution);
             this.url = `/sensors/${id}`;
         }
 
@@ -1327,9 +1345,9 @@
     {% if user_can_update_asset %}
     {% from "_macros.html" import json_attributes_editor_modal %}
     {{ json_attributes_editor_modal(
-         api_url="/api/v3_0/assets/" ~ asset.id,
-         initial_attributes=asset.attributes,
-         entity_name=asset.name
+    api_url="/api/v3_0/assets/" ~ asset.id,
+    initial_attributes=asset.attributes,
+    entity_name=asset.name
     ) }}
     {% endif %}
     {% endblock %}

@@ -9,6 +9,8 @@ description: Reviews GitHub Actions workflows, pre-commit hooks, and CI/CD pipel
 
 Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actions workflows, pre-commit hooks, linters, build scripts, and CI/CD pipelines. Ensure tests run efficiently, caching works correctly, and agents are used properly in workflows. This agent owns the reliability of the development and deployment infrastructure.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review
@@ -114,50 +116,7 @@ git diff flexmeasures/ui/static/openapi-specs.json | grep -c '"Asia/'
 
 ### Pre-commit Hook Execution (CRITICAL)
 
-**Every commit MUST pass pre-commit hooks BEFORE being committed.**
-
-This is mandatory. Committing code that fails pre-commit hooks is a process failure.
-
-#### Why This Matters
-
-Pre-commit hooks enforce code quality standards:
-- **Flake8**: Catches linting errors (unused imports, complexity, style violations)
-- **Black**: Ensures consistent code formatting
-- **Mypy**: Validates type annotations
-
-Code that bypasses pre-commit:
-- Fails in CI (wastes resources)
-- Forces maintainers to fix formatting
-- Creates noisy review feedback
-- Delays PR merge
-
-#### Execution Requirements
-
-**Before ANY commit:**
-
-1. **Install pre-commit**:
-   ```bash
-   pip install pre-commit
-   pre-commit install  # Install git hooks (optional but recommended)
-   ```
-
-2. **Run all hooks**:
-   ```bash
-   pre-commit run --all-files
-   ```
-
-3. **Verify zero failures**:
-   - ✅ All hooks pass
-   - ✅ No files modified by hooks (or modifications committed)
-   - ✅ No errors from flake8, black, or mypy
-
-4. **Document execution**:
-   ```
-   Pre-commit verification:
-   - Command: pre-commit run --all-files
-   - Result: All hooks passed
-   - Modified files: None (or included in commit)
-   ```
+**Every commit MUST pass `pre-commit run --all-files` BEFORE being committed.** See `.github/instructions/pre-commit-hooks.instructions.md` for setup and hook details. Committing code that fails pre-commit hooks is a process failure.
 
 #### Responsibility Assignment
 
@@ -420,6 +379,15 @@ pytest -k test_auth_token  # Ensure auth setup runs
 - Document new CI patterns
 - Update checklist based on real issues
 - Refine guidance on caching and optimization
+
+### Lessons Learned
+
+#### `uv sync --locked` fails after `uv lock --upgrade` (PR #2148)
+
+- **Symptom**: `uv sync --locked` fails with "needs to be updated, but `--locked` was provided" even after running `uv lock`
+- **Root cause**: New packages (e.g. `numba`/`llvmlite`) introduce fork markers with impossible platform combos (e.g. `os_name == 'nt' AND sys_platform == 'darwin'`), causing coverage check to fail
+- **Fix**: Add `[tool.uv] environments` to `pyproject.toml` limiting resolution to actual target platforms, then regenerate `uv.lock`
+- **Verification**: After any significant `uv lock --upgrade`, run `uv sync --locked` locally and confirm exit code 0
 
 ### Continuous Improvement
 

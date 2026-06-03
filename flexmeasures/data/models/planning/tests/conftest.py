@@ -29,7 +29,7 @@ def app_with_each_solver(app, request):
     app.config["FLEXMEASURES_LP_SOLVER"] = original_solver
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="module")
 def setup_planning_test_data(db, add_market_prices, add_charging_station_assets):
     """
     Set up data for all planning tests.

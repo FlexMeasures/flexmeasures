@@ -11,6 +11,8 @@ Guard FlexMeasures' domain model, invariants, and long-term architecture.
 Ensure PR changes respect domain boundaries, maintain model clarity, and prevent erosion of core architectural principles.
 This agent owns the integrity of models (e.g. assets, sensors, data sources, schedulers, forecasters, reporters) and their relationships.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review
@@ -131,6 +133,7 @@ Marshmallow schemas define the canonical format for parameter dictionaries. All 
 - [ ] **Dictionary access**: Verify code uses dict keys from `data_key`, not Python attributes
 - [ ] **Parameter modification**: Check `pop()`, `del`, assignment operations use correct keys
 - [ ] **Storage consistency**: Ensure DataSource.attributes, job.meta use schema format
+- [ ] **Schema parity**: When adding a filter/parameter to `Sensor.search_beliefs`, verify it is added to BOTH `Input` (io.py) AND `BeliefsSearchConfigSchema` (reporting/__init__.py). These two schemas serve overlapping purposes but are distinct classes — omitting one creates a silent gap where documented features silently fail at schema validation time.
 
 **Domain Pattern: Schema Format Migrations**
 
@@ -537,28 +540,13 @@ When reviewing or implementing domain model fixes:
 
 ### Must Make Atomic Commits
 
-**Never mix code changes with documentation or analysis files.**
-Examples of non-atomic commits to avoid:
-- Code fix + `ARCHITECTURE_ANALYSIS.md` in same commit
-- Multiple unrelated model changes
-- Production code + test code (should be separate)
+See `.github/instructions/atomic-commits.instructions.md`. Never mix code changes with documentation or analysis files.
+
 Good commit practice:
 1. Code change (single logical unit)
 2. Test for that change (separate commit)
 3. Documentation update (separate commit)
 4. Agent instruction update (separate commit)
-
-### Must Avoid Committing Analysis Files
-
-**Never commit temporary analysis or planning files:**
-Files to never commit:
-- `ARCHITECTURE_ANALYSIS.md`
-- `DOMAIN_MODEL_ANALYSIS.md`
-- Any `.md` files created for understanding/planning
-These should:
-- Stay in working memory only
-- Be written to `/tmp/` if needed for reference
-- Never be added to git
 
 ### Must Verify Claims Before Stating Them
 
@@ -588,3 +576,18 @@ After each assignment:
    Change:
    - Added guidance on <specific topic>
    ```
+
+### Lessons Learned
+
+**Session 2026-03-24 (PR #2058 — add account_id to DataSource)**:
+
+- **New domain invariant**: User-type DataSources now have `account_id` populated. Document new FK relationships and invariants in the Domain Knowledge section immediately.
+- **Migration checklist**: Added an explicit Alembic migration checklist after reviewing the migration for this PR. Key patterns: correlated subquery for bulk backfill, SQLAlchemy Core stubs (no ORM imports), `batch_alter_table` for all ALTER operations, exact constraint name matching.
+- **Missed API Specialist coordination**: The PR changed endpoint behavior (POST sensor data sets account_id on the created data source). The API Specialist should have been engaged to verify backward compatibility. When domain model changes affect how endpoints behave or what they return, flag for API Specialist review.
+- **Self-improvement failure**: Despite having explicit self-improvement requirements, no agent updated its instructions during this PR session. This was caught by the Coordinator post-hoc. The agent must update its own instructions as the LAST step of every assignment, not skip it.
+
+**Session 2026-04 (PR #2065 — add account_id filter to search_beliefs)**:
+
+- **Schema parity gap**: The PR added `account_id` to `BeliefsSearchConfigSchema` but not to `Input` (io.py). These two schemas both expose `Sensor.search_beliefs` parameters; omitting a parameter from one creates a silent gap. The architecture agent must check both schemas on any search_beliefs parameter addition.
+- **Documentation vs. implementation mismatch**: The `reporting.rst` docs stated reporters can filter by `account_id`, but this only works if `Input` also has the field. Docs that outrun schema support mislead users. Always verify the full schema chain before documenting a feature.
+- **DataSource account_id=None for non-user sources**: The existing invariant (reporters/schedulers/forecasters have `account_id=None`) limits the usefulness of `account_id` filtering: it only matches user-type sources. PRs adding `account_id` filters should either document this limitation explicitly or reconsider the invariant.

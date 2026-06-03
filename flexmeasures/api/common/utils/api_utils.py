@@ -9,29 +9,38 @@ from typing import Sequence
 from datetime import timedelta
 
 from flask import current_app
+from redis.exceptions import ConnectionError as RedisConnectionError
 from werkzeug.exceptions import Forbidden, Unauthorized
 from numpy import array
 from psycopg2.errors import UniqueViolation
-from rq.job import Job, JobStatus, NoSuchJobError
+from rq import Queue, Worker
+from rq.job import Job
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
+from flexmeasures.data.services.data_ingestion import (
+    add_beliefs_to_db_and_enqueue_forecasting_jobs,
+)
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.utils import save_to_db
+from flexmeasures.data.utils import (
+    SAVE_TO_DB_SUCCESS,
+    SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
+    SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+)
 from flexmeasures.auth.policy import check_access
 from flexmeasures.api.common.responses import (
     invalid_replacement,
     ResponseTuple,
     request_processed,
+    request_accepted_for_processing,
     already_received_and_successfully_processed,
 )
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.utils.error_utils import error_handling_router
-from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
 def upsample_values(
@@ -77,59 +86,6 @@ def unique_ever_seen(iterable: Sequence, selector: Sequence):
     return u, s
 
 
-def job_status_description(job: Job, extra_message: str | None = None):
-    """Return a matching description for the job's status.
-
-    Supports each rq.job.JobStatus (NB JobStatus.CREATED is deprecated).
-
-    :param job:             The rq.Job.
-    :param extra_message:   Optionally, append a message to the job status description.
-    """
-
-    job_status = job.get_status()
-    queue_name = job.origin  # Name of the queue that the job is in
-    if job_status == JobStatus.QUEUED:
-        description = f"{capitalize(queue_name)} job waiting to be processed."
-    elif job_status == JobStatus.FINISHED:
-        description = f"{capitalize(queue_name)} job has finished."
-    elif job_status == JobStatus.FAILED:
-        # Try to inform the user on why the job failed
-        e = job.meta.get(
-            "exception",
-            Exception(
-                "The job does not state why it failed. "
-                "The worker may be missing an exception handler, "
-                "or its exception handler is not storing the exception as job meta data."
-            ),
-        )
-        description = (
-            f"{capitalize(queue_name)} job failed with {type(e).__name__}: {e}."
-        )
-    elif job_status == JobStatus.STARTED:
-        description = f"{capitalize(queue_name)} job in progress."
-    elif job_status == JobStatus.DEFERRED:
-        # Try to inform the user on what other job the job is waiting for
-        try:
-            preferred_job = job.dependency
-            description = f'{capitalize(queue_name)} job waiting for {preferred_job.status} job "{preferred_job.id}" to be processed.'
-        except NoSuchJobError:
-            description = (
-                f"{capitalize(queue_name)} job waiting for unknown job to be processed."
-            )
-    elif job_status == JobStatus.SCHEDULED:
-        description = (
-            f"{capitalize(queue_name)} job is scheduled to run at a later time."
-        )
-    elif job_status == JobStatus.STOPPED:
-        description = f"{capitalize(queue_name)} job has been stopped."
-    elif job_status == JobStatus.CANCELED:
-        description = f"{capitalize(queue_name)} job has been cancelled."
-    else:
-        description = f"{capitalize(queue_name)} job has an unknown status."
-
-    return description + f" {extra_message}" if extra_message else description
-
-
 def enqueue_forecasting_jobs(
     forecasting_jobs: list[Job] | None = None,
 ):
@@ -146,20 +102,109 @@ def save_and_enqueue(
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:
-    # Attempt to save
-    status = save_to_db(data, save_changed_beliefs_only=save_changed_beliefs_only)
-    db.session.commit()
-
-    # Only enqueue forecasting jobs upon successfully saving new data
-    if status[:7] == "success" and status != "success_but_nothing_new":
-        enqueue_forecasting_jobs(forecasting_jobs)
+    status = add_beliefs_to_db_and_enqueue_forecasting_jobs(
+        data,
+        forecasting_jobs=forecasting_jobs,
+        save_changed_beliefs_only=save_changed_beliefs_only,
+    )
 
     # Pick a response
-    if status == "success":
+    if status == SAVE_TO_DB_SUCCESS:
         return request_processed()
     elif status in (
-        "success_with_unchanged_beliefs_skipped",
-        "success_but_nothing_new",
+        SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+        SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
+    ):
+        return already_received_and_successfully_processed()
+    return invalid_replacement()
+
+
+def queue_has_connected_workers(queue: Queue) -> bool:
+    """Return True when an RQ queue is reachable and has connected workers."""
+    try:
+        return bool(Worker.all(queue=queue))
+    except RedisConnectionError:
+        return False
+
+
+def process_sensor_data_ingestion(
+    sensor_id: int,
+    user_id: int,
+    sensor_data: dict | None = None,
+    uploaded_files: list[dict] | None = None,
+    upload_data: dict | None = None,
+    forecasting_jobs: list[Job] | None = None,
+    save_changed_beliefs_only: bool = True,
+) -> ResponseTuple:
+    """Process sensor data ingestion asynchronously when possible.
+
+    If an ingestion queue with connected workers is available, enqueue a background
+    job and return ``202 Accepted``. Otherwise, process the data synchronously and
+    return the resulting ingestion response.
+    """
+    ingestion_queue = current_app.queues.get("ingestion")
+    if ingestion_queue is None:
+        current_app.logger.warning(
+            "No ingestion queue configured. Processing sensor data directly."
+        )
+    elif queue_has_connected_workers(ingestion_queue):
+        forecasting_job_ids = (
+            [job.id for job in forecasting_jobs]
+            if forecasting_jobs is not None
+            else None
+        )
+        try:
+            job = ingestion_queue.enqueue(
+                add_beliefs_to_db_and_enqueue_forecasting_jobs,
+                sensor_id=sensor_id,
+                user_id=user_id,
+                sensor_data=sensor_data,
+                uploaded_files=uploaded_files,
+                upload_data=upload_data,
+                forecasting_job_ids=forecasting_job_ids,
+                save_changed_beliefs_only=save_changed_beliefs_only,
+                meta={"sensor_id": sensor_id},
+                ttl=current_app.config.get(
+                    "FLEXMEASURES_JOB_TTL", timedelta(-1)
+                ).total_seconds(),
+                # No need to keep ingestion results for the FLEXMEASURES_PLANNING_TTL
+                result_ttl=int(
+                    current_app.config.get(
+                        "FLEXMEASURES_JOB_TTL", timedelta(-1)
+                    ).total_seconds()
+                ),
+            )
+        except RedisConnectionError as error:
+            current_app.logger.warning(
+                "Unable to enqueue ingestion job in Redis queue %s: %s. Processing synchronously instead.",
+                getattr(ingestion_queue, "name", "<unknown>"),
+                error,
+            )
+        else:
+            return request_accepted_for_processing(
+                job.id,
+                "Sensor data has been accepted for processing.",
+            )
+    else:
+        current_app.logger.warning(
+            "No workers connected to the ingestion queue. Processing sensor data directly."
+        )
+
+    status = add_beliefs_to_db_and_enqueue_forecasting_jobs(
+        sensor_id=sensor_id,
+        user_id=user_id,
+        sensor_data=sensor_data,
+        uploaded_files=uploaded_files,
+        upload_data=upload_data,
+        forecasting_jobs=forecasting_jobs,
+        save_changed_beliefs_only=save_changed_beliefs_only,
+    )
+
+    if status == SAVE_TO_DB_SUCCESS:
+        return request_processed()
+    elif status in (
+        SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+        SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
     ):
         return already_received_and_successfully_processed()
     return invalid_replacement()

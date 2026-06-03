@@ -52,7 +52,12 @@ export async function renderAssetPlotCard(
   graphIndex,
   plotIndex,
 ) {
-  const Asset = await getAsset(assetPlot.asset, false);
+  let Asset;
+  try {
+    Asset = await getAsset(assetPlot.asset, false);
+  } catch (e) {
+    Asset = null;
+  }
   let IsFlexContext = false;
   let IsFlexModel = false;
   let flexConfigValue = null;
@@ -96,9 +101,9 @@ export async function renderAssetPlotCard(
   disabledInput.disabled = true;
 
   let flexConfigData = IsFlexContext
-    ? Asset["flex_context"]
+    ? Asset?.["flex_context"]
     : IsFlexModel
-      ? Asset["flex_model"]
+      ? Asset?.["flex_model"]
       : null;
 
   // convert string to object if it's a string, otherwise keep it as is (could be null or already an object)
@@ -110,8 +115,21 @@ export async function renderAssetPlotCard(
     }
   }
 
-  const valueToDisplay =
-    flexConfigData[assetPlot[IsFlexContext ? "flex-context" : "flex-model"]];
+  const flexConfigField = assetPlot[IsFlexContext ? "flex-context" : "flex-model"];
+  const hasConfigObject =
+    flexConfigData !== null && typeof flexConfigData === "object";
+  const valueToDisplay = hasConfigObject
+    ? flexConfigData[flexConfigField]
+    : undefined;
+
+  if (valueToDisplay === undefined || valueToDisplay === null) {
+    disabledInput.value = "FlexConfig Not configured";
+    infoDiv.appendChild(disabledInput);
+    flexDiv.appendChild(infoDiv);
+    flexDiv.appendChild(closeIcon);
+    container.appendChild(flexDiv);
+    return container;
+  }
   const isSensorReference =
     typeof valueToDisplay === "object" &&
     valueToDisplay !== null &&
@@ -141,8 +159,7 @@ export async function renderAssetPlotCard(
     if (typeof valueToDisplay === "object") {
       disabledInput.value = JSON.stringify(valueToDisplay);
     } else {
-      disabledInput.value =
-        valueToDisplay || "No Flex Context/Model Configured";
+      disabledInput.value = valueToDisplay;
     }
     infoDiv.appendChild(disabledInput);
   }

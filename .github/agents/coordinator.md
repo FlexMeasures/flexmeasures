@@ -101,6 +101,39 @@ This agent owns the creation, structure, and evolution of all other agents.
 8. **Lead** - Main entry point; orchestrates agents for reviews, development, and mixed tasks
 9. **UI Specialist** - Flask/Jinja2 templates, side-panel pattern, permission gating in views, JS fetch→poll→Toast→reload pattern, UI tests
 
+### `.github/instructions/` Structure
+
+In addition to per-agent knowledge in `.github/agents/*.md`, the repository contains **GitHub Copilot instruction files** in `.github/instructions/`. These files carry project-wide conventions that appear in two or more agent files and are surfaced automatically by GitHub Copilot during inline code suggestions.
+
+#### Purpose
+
+- Reduce duplication between agent files — agents link out instead of repeating shared rules
+- Provide context to Copilot even when no agent is running
+- Each file has a YAML frontmatter `applyTo:` glob that scopes it to relevant files
+
+#### Current Instruction Files
+
+| File | `applyTo:` | Topic |
+|------|-----------|-------|
+| `atomic-commits.instructions.md` | `**` | One logical change per commit; standard message format |
+| `pre-commit-hooks.instructions.md` | `**` | Run pre-commit before pushing; required hooks |
+| `docstrings.instructions.md` | `**/*.py` | RST docstring format; doctests for utility functions |
+| `changelog.instructions.md` | `**` | Changelog entry location, format, and required fields |
+| `error-handling.instructions.md` | `**/*.py` | HTTP error codes, user-facing messages, exception patterns |
+| `ui-terminology.instructions.md` | `flexmeasures/ui/**` | "organisation" (not "account"), standard UI vocabulary |
+| `marshmallow-schemas.instructions.md` | `flexmeasures/data/schemas/**/*.py` | `data_key`, `load_default`, field naming, dump vs load |
+| `timezone-awareness.instructions.md` | `**/*.py` | `pytz`/`timely_beliefs` patterns; never store naive datetimes |
+| `testing.instructions.md` | `flexmeasures/**/tests/**/*.py` | Full suite, `db` vs `fresh_db`, `requesting_user` fixture |
+
+#### Coordinator Checklist for `.github/instructions/`
+
+When a new cross-cutting pattern is discovered (appearing in 2+ agent files):
+
+- [ ] Create `.github/instructions/<topic>.instructions.md` with correct `applyTo:` glob
+- [ ] Include concrete examples showing correct and incorrect code
+- [ ] Add a reference note (blockquote) in all affected agent files
+- [ ] Commit the instruction file alone; commit agent file updates in a separate commit
+
 ### Standard Agent Template
 
 All agents must follow this structure:
@@ -389,32 +422,11 @@ This is not optional. Agents that don't self-improve will:
 - Miss opportunities to encode knowledge
 - Fail to evolve with the project
 
-### 2. Atomic Commit Discipline
+### 2. Atomic Commits and No Temporary Files
 
-**Never mix different types of changes in a single commit.**
+See `.github/instructions/atomic-commits.instructions.md`. Never mix different types of changes in one commit; never commit temporary planning or analysis files.
 
-Examples of what to separate:
-
-- Code changes from tests
-- Code changes from documentation
-- Documentation from agent instructions
-- Multiple unrelated changes
-
-Each commit should tell one clear story about one logical change.
-
-### 3. No Temporary Analysis Files
-
-**Never commit temporary planning or analysis files.**
-Forbidden files that slip into commits:
-- `ARCHITECTURE_ANALYSIS.md`
-- `TASK_SUMMARY.md`
-- `TEST_PLAN.md`
-- `DOCUMENTATION_CHANGES.md`
-- Any `.md` files created for understanding/planning
-
-These should stay in working memory or `/tmp/`, never in git.
-
-### 4. Verify Claims Before Stating
+### 3. Verify Claims Before Stating
 
 **All claims must be backed by actual verification.**
 
@@ -432,7 +444,7 @@ Required verification:
 - Test exact bug scenarios end-to-end
 - Use FlexMeasures dev environment to verify behavior
 
-### 5. Use FlexMeasures Dev Environment
+### 4. Use FlexMeasures Dev Environment
 
 **Agents must make successful use of working FlexMeasures dev environment.**
 Key capabilities:
@@ -440,22 +452,11 @@ Key capabilities:
 - Set up environment: `uv sync --group dev --group test`
 - Run tests: `uv run poe test`
 - Test CLI: `flexmeasures <command> <args>`
-- Run pre-commit: `pre-commit run --all-files`
+- Run pre-commit: `pre-commit run --all-files` (see `.github/instructions/pre-commit-hooks.instructions.md`)
 - Build docs: `make update-docs`
 - Profile performance: `export FLEXMEASURES_PROFILE_REQUESTS=true`
 
 Agents should not just suggest actions—they should execute them.
-
-### 6. Commit Message Format
-
-Standard format for all agent commits:
-```
-<area or agent>: <concise lesson or improvement>
-Context:
-- What triggered the change
-Change:
-- What was adjusted and why
-```
 
 ### Common Failures from Recent Session
 
@@ -640,3 +641,24 @@ If any agent hasn't self-improved, Lead must:
 4. Then mark task complete
 
 **This makes self-improvement blocking, not optional.**
+
+### Pattern: Schema Surface Parity (2026-04 — PR #2065)
+
+**Context**: PR #2065 adds `account_id` as a filter parameter to `Sensor.search_beliefs` / `TimedBelief.search` / `GenericAsset.search_beliefs`.
+
+**Gap discovered**: `account_id` was added to `BeliefsSearchConfigSchema` (used in `StatusSchema.staleness_search`) but NOT to `Input` in `flexmeasures/data/schemas/io.py` (used by reporters like `PandasReporter` and `AggregatorReporter` for their input parameter lists). The `reporting.rst` documentation stated reporters can filter by `account_id`, but users attempting to do so would receive a Marshmallow `ValidationError`.
+
+**Root cause**: Two Marshmallow schemas expose `Sensor.search_beliefs` parameters to users, but they are distinct classes maintained separately:
+- `Input` (io.py): used for reporter/forecaster `input` parameter list
+- `BeliefsSearchConfigSchema` (reporting/__init__.py): used for sensor status config
+
+**Coordinator rule added**: When any PR adds a parameter to `Sensor.search_beliefs`, the Coordinator should check that **all schemas exposing search_beliefs parameters** receive the same addition. Current list:
+- `flexmeasures/data/schemas/io.py` → `Input` (reporter parameters)
+- `flexmeasures/data/schemas/reporting/__init__.py` → `BeliefsSearchConfigSchema` (status config)
+
+**Agent coordination implication**: 
+- Architecture Specialist owns the schema parity checklist (added to its review checklist)
+- Documentation Specialist must verify documentation examples are exercisable via the actual available schemas
+- Test Specialist must cover all model classes that receive the new parameter
+
+**Additional gap**: `account_id` for non-user DataSources (reporters, schedulers, forecasters) remains `None`. The filter therefore only matches user-type sources. This architectural constraint (documented in Architecture Specialist) limits the feature's utility and should be prominently noted in documentation whenever `account_id` filtering is described.
