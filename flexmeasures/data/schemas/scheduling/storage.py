@@ -272,11 +272,14 @@ class StorageFlexModelSchema(Schema):
         required=False,
         load_default=1.0,
         metadata=dict(
-            description="Coefficient for this device within its coupling group. "
-            "For each pair of devices in the group the constraint "
-            "coeff_ref * P[d_ref] == coeff_i * P[d_i] is enforced at every time step, "
-            "where d_ref is the first device listed in the group. Defaults to 1.0.",
-            example=1.0,
+            description="Coupling coefficient for this device within its coupling group. "
+            "The optimizer introduces a decision variable 'alpha' per group per time step "
+            "and constrains every device by P[d] == coeff * alpha. "
+            "Sign convention: positive for input devices or stock-accumulating devices (positive ems_power); "
+            "negative for output/producing devices (negative ems_power). "
+            "Example: a CHP with gas input (coeff 1.0), heat output (coeff -0.5) and power output (coeff -0.3). "
+            "Defaults to 1.0.",
+            example=0.5,
         ),
     )
 

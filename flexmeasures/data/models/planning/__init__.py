@@ -109,16 +109,29 @@ class Scheduler:
         """Build coupling groups from the 'coupling' and 'coupling_coefficient' fields
         of each device model.
 
-        Devices that share the same coupling name form a coupling group. Within each
-        group the first device encountered acts as the reference device (coefficient
-        assigned as given) and the remaining devices are linked to it via a pairwise
-        hard equality constraint enforced by ``device_scheduler``.
+        Devices sharing the same coupling name form a coupling group.
+        The optimization model introduces a decision variable ``alpha`` per group per time step,
+        and constrains every device by ``P[d] == coeff_d * alpha``.
+
+        - Input devices (consuming) are specified with positive coupling coefficients.
+          Their coefficients must sum up to 1.
+        - Output devices (producing) are specified with negative coupling coefficients.
+          Their coefficients do not need to sum up to -1; the remainder denotes a loss.
+
+        Example — a CHP with 50% heat efficiency and 30% power efficiency:
+
+            [
+                {"coupling": "chp", "coupling_coefficient":  1.0},  # gas input (alpha = P_gas)
+                {"coupling": "chp", "coupling_coefficient": -0.5},  # heat output (50% of gas becomes heat)
+                {"coupling": "chp", "coupling_coefficient": -0.3},  # power output  (30% of gas becomes power)
+            ]
 
         :param flex_model: List of deserialized device flex-model dicts.
         :returns: Mapping from coupling-group name to a list of
                   ``(device_index, coefficient)`` tuples suitable for passing to
-                  ``device_scheduler(coupling_groups=...)``.  Returns an empty dict
+                  ``device_scheduler(coupling_groups=...)``. Returns an empty dict
                   when no device defines a ``coupling`` field.
+        :raises ValueError: if sum of positive coefficients in a group is not 1.
         """
         groups: dict[str, list[tuple[int, float]]] = defaultdict(list)
         for d, fm in enumerate(flex_model):
@@ -127,6 +140,14 @@ class Scheduler:
                 continue
             coefficient = fm.get("coupling_coefficient", 1.0)
             groups[coupling_name].append((d, coefficient))
+
+        # Check sum of positive coefficients
+        for group_name, devices in groups.items():
+            positive_sum = sum(coeff for _, coeff in devices if coeff > 0)
+            if not abs(positive_sum - 1.0) < 1e-8:  # tiny tolerance for floating point
+                raise ValueError(
+                    f"Sum of positive coefficients in coupling group '{group_name}' is {positive_sum}, but must equal 1."
+                )
         return dict(groups)
 
     def __init__(

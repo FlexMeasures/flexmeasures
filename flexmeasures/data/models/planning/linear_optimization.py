@@ -73,10 +73,11 @@ def device_scheduler(  # noqa C901
                                     device:                     0 (corresponds to device d; if not set, commitment is on an EMS level)
     :param initial_stock:       initial stock for each device. Use a list with the same number of devices as device_constraints,
                                 or use a single value to set the initial stock to be the same for all devices.
-    :param coupling_groups:     Hard flow-coupling constraints between devices.  Each entry maps a group name to a list of
-                                ``(device_index, coefficient)`` tuples.  For every pair of devices in a group the constraint
-                                ``P[d_ref, j] / coeff_ref == P[d_i, j] / coeff_i`` is enforced for every time step ``j``,
-                                using the first member of the list as the reference device.
+    :param coupling_groups:     Hard flow-coupling constraints between devices. Each entry maps a group name to a list of
+                                ``(device_index, coefficient)`` tuples. A decision variable ``alpha`` is introduced per group
+                                per time step and every device ``d`` in the group is constrained by ``P[d, j] == coeff_d * alpha[group, j]``.
+                                Sign convention: positive coefficient for input devices (consuming, positive ``ems_power``),
+                                negative coefficient for output devices (producing, negative ``ems_power``).
                                 Example — a CHP with gas input (d=0, coeff 1.0), heat output (d=1, coeff −0.5) and
                                 power output (d=2, coeff −0.3)::
 
@@ -126,17 +127,14 @@ def device_scheduler(  # noqa C901
         for d in range(len(device_constraints)):
             device_to_group[d] = d
 
-    # Build flat list of pairwise flow-coupling constraints from coupling_groups.
-    # Each entry is (d_ref, coeff_ref, d_i, coeff_i) and enforces:
-    #   ems_power[d_ref, j] / coeff_ref == ems_power[d_i, j] / coeff_i
-    coupling_pairs: list[tuple[int, float, int, float]] = []
+    # Collect (group_index, device_index, coefficient) triples for coupling constraints.
+    # Each device in each group will be constrained: P[d, j] == coeff * alpha[group, j]
+    # where alpha is a free variable representing the common normalised flow.
+    coupling_device_specs: list[tuple[int, int, float]] = []
     if coupling_groups:
-        for _group_name, members in coupling_groups.items():
-            if len(members) < 2:
-                continue
-            d_ref, coeff_ref = members[0]
-            for d_i, coeff_i in members[1:]:
-                coupling_pairs.append((d_ref, coeff_ref, d_i, coeff_i))
+        for g_idx, (_group_name, members) in enumerate(coupling_groups.items()):
+            for d_idx, coeff in members:
+                coupling_device_specs.append((g_idx, d_idx, coeff))
 
     # Move commitments from old structure to new
     if commitments is None:
@@ -759,25 +757,27 @@ def device_scheduler(  # noqa C901
         model.d, model.j, rule=device_derivative_equalities
     )
 
-    if coupling_pairs:
+    if coupling_device_specs:
+        n_coupling_groups = len(coupling_groups)
 
-        def flow_coupling_rule(m, p, j):
-            """Enforce a fixed ratio between the flows of two coupled devices.
+        # One free variable per group per time step: the common normalised flow.
+        model.coupling_group_range = RangeSet(0, n_coupling_groups - 1)
+        model.coupling_alpha = Var(model.coupling_group_range, model.j, domain=Reals)
 
-            For coupling pair ``p`` at time ``j`` the constraint is:
-                ems_power[d_ref, j] / coeff_ref == ems_power[d_i, j] / coeff_i
-            which is stored as the Pyomo equality (0, lhs - rhs, 0).
+        model.coupling_device_range = RangeSet(0, len(coupling_device_specs) - 1)
+
+        def flow_coupling_rule(m, c, j):
+            """Enforce P[d, j] == coeff * alpha[group, j] for each coupled device.
+
+            This pins every device's flow to the same normalised level ``alpha``,
+            scaled by its coupling coefficient. The coefficient sign indicates direction:
+            positive for inputs (consuming), negative for outputs (producing).
             """
-            d_ref, coeff_ref, d_i, coeff_i = coupling_pairs[p]
-            return (
-                0,
-                m.ems_power[d_ref, j] / coeff_ref - m.ems_power[d_i, j] / coeff_i,
-                0,
-            )
+            g, d, coeff = coupling_device_specs[c]
+            return m.ems_power[d, j] == coeff * m.coupling_alpha[g, j]
 
-        model.coupling_pair = RangeSet(0, len(coupling_pairs) - 1)
         model.flow_coupling_constraints = Constraint(
-            model.coupling_pair, model.j, rule=flow_coupling_rule
+            model.coupling_device_range, model.j, rule=flow_coupling_rule
         )
 
     # Add objective

@@ -1548,22 +1548,22 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
 def test_chp_coupling():
     """Test that coupling_groups enforces fixed flow ratios between CHP devices.
 
-    Models a Combined Heat and Power unit with three flow devices:
+    Models a Combined Heat and Power unit with three pure flow devices:
 
     - d=0  gas input:    can only consume gas          (derivative_min=0)
     - d=1  heat output:  can only produce heat          (derivative_max=0)
     - d=2  power output: can only produce electricity   (derivative_max=0)
 
     The coupling group ``"chp"`` is specified with coefficients
-    ``[(0, 1.0), (1, -0.5), (2, -0.3)]``. This generates two hard equality
-    constraints for every time step ``j``:
+    ``[(0, 1.0), (1, -0.5), (2, -0.3)]``, introducing a decision variable ``alpha``
+    and enforcing ``P[d] == coeff * alpha`` for each device:
 
-        1.0 * P_gas[j]  ==   P_heat[j] / -0.5
-        1.0 * P_gas[j]  ==  P_power[j] / -0.3
+        P_gas   =  1.0 * alpha   (input,  coeff =  1.0)
+        P_heat  = -0.5 * alpha   (output, coeff = -0.5, heat efficiency 50%)
+        P_power = -0.3 * alpha   (output, coeff = -0.3, power efficiency 30%)
 
     Heat production is forced to exactly 10 kW via ``derivative equals = -10``
-    on device 1. Substituting into the coupling constraints gives the expected
-    solution:
+    on device 1. Substituting ``P_heat = -10`` gives ``alpha = 20``, so:
 
         P_gas   =  20 kW         (gas consumed)
         P_heat  = -10 kW         (heat produced, forced)
@@ -1681,7 +1681,141 @@ def test_chp_coupling():
         pd.Series(-6.0, index=index),
         check_names=False,
         rtol=1e-4,
-        obj="power output determined by coupling (20/-0.3 kW from 20 kW gas at coeff -0.3)",
+        obj="power output determined by coupling (-0.3 * alpha = -0.3 * 20 = -6 kW)",
+    )
+
+
+def test_dual_fuel_chp_coupling():
+    """Test coupling_groups with two input devices (dual-fuel CHP).
+
+    Models a CHP unit that consumes equal parts natural gas and hydrogen,
+    producing heat and electricity:
+
+    - d=0  gas input:      can only consume gas           (derivative_min=0)
+    - d=1  hydrogen input: can only consume hydrogen      (derivative_min=0)
+    - d=2  heat output:    can only produce heat          (derivative_max=0)
+    - d=3  power output:   can only produce electricity   (derivative_max=0)
+
+    Coupling group ``"chp"`` with coefficients
+    ``[(0, 0.5), (1, 0.5), (2, -0.5), (3, -0.3)]`` introduces a free variable
+    ``alpha`` and enforces ``P[d] == coeff * alpha``:
+
+        P_gas      =  0.5 * alpha   (50% of total fuel from gas)
+        P_hydrogen =  0.5 * alpha   (50% of total fuel from hydrogen)
+        P_heat     = -0.5 * alpha   (heat efficiency 50% of total fuel)
+        P_power    = -0.3 * alpha   (power efficiency 30% of total fuel)
+
+    Because gas and hydrogen share the same coefficient the two fuel flows are
+    always equal, confirming that device order does not affect the result.
+
+    Heat production is forced to exactly 10 kW via ``derivative equals = -10`` on device 2.
+    Substituting ``P_heat = -10`` gives ``alpha = 20``, so:
+
+        P_gas      =  10 kW   (equal gas input)
+        P_hydrogen =  10 kW   (equal hydrogen input)
+        P_heat     = -10 kW   (heat produced, forced)
+        P_power    =  -6 kW   (electricity produced)
+    """
+    start = pd.Timestamp("2026-01-01T00:00+01:00")
+    end = pd.Timestamp("2026-01-01T04:00+01:00")
+    resolution = pd.Timedelta("1h")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    def _flow_df(**kwargs) -> pd.DataFrame:
+        defaults = {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": 0.0,
+            "derivative max": 0.0,
+            "derivative equals": np.nan,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+        }
+        defaults.update(kwargs)
+        return pd.DataFrame(defaults, index=index)
+
+    # d=0: gas input — can only consume, capacity 100 kW
+    gas_constraints = _flow_df(**{"derivative max": 100.0})
+    # d=1: hydrogen input — can only consume, capacity 100 kW
+    hydrogen_constraints = _flow_df(**{"derivative max": 100.0})
+    # d=2: heat output — can only produce, forced to -10 kW
+    heat_constraints = _flow_df(
+        **{"derivative min": -100.0, "derivative equals": -10.0}
+    )
+    # d=3: power output — can only produce, free (coupling determines value)
+    power_constraints = _flow_df(**{"derivative min": -100.0})
+
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -200.0, "derivative max": 200.0},
+        index=index,
+    )
+
+    # Both fuel inputs share coefficient 0.5, so they receive identical flows.
+    # Outputs have negative coefficients equal to their efficiency fractions.
+    coupling_groups = {"chp": [(0, 0.5), (1, 0.5), (2, -0.5), (3, -0.3)]}
+
+    # Gas-price commitment for device 0 just to give the objective a finite value
+    # Even though hydrogen is free, it will still be used because its consumption is coupled to gas.
+    fuel_cost_commitment = FlowCommitment(
+        name="fuel cost",
+        index=index,
+        quantity=pd.Series(0.0, index=index),
+        upwards_deviation_price=pd.Series(1.0, index=index),
+        downwards_deviation_price=pd.Series(0.0, index=index),
+        device=pd.Series(0, index=index),
+    )
+
+    schedules, _costs, results, _model = device_scheduler(
+        device_constraints=[
+            gas_constraints,
+            hydrogen_constraints,
+            heat_constraints,
+            power_constraints,
+        ],
+        ems_constraints=ems_constraints,
+        commitments=[fuel_cost_commitment],
+        coupling_groups=coupling_groups,
+    )
+
+    assert (
+        results.solver.termination_condition == "optimal"
+    ), "Solver did not find an optimal solution."
+
+    # Heat is fixed to -10 kW; alpha = -10 / -0.5 = 20.
+    pd.testing.assert_series_equal(
+        schedules[2],
+        pd.Series(-10.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="heat output forced to -10 kW by derivative_equals",
+    )
+
+    # Coupling: P_gas = 0.5 * alpha = 0.5 * 20 = 10 kW
+    pd.testing.assert_series_equal(
+        schedules[0],
+        pd.Series(10.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="gas input = 0.5 * alpha = 10 kW",
+    )
+
+    # Coupling: P_hydrogen = 0.5 * alpha = 10 kW (equal to gas)
+    pd.testing.assert_series_equal(
+        schedules[1],
+        pd.Series(10.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="hydrogen input = 0.5 * alpha = 10 kW (equal to gas input)",
+    )
+
+    # Coupling: P_power = -0.3 * alpha = -0.3 * 20 = -6 kW
+    pd.testing.assert_series_equal(
+        schedules[3],
+        pd.Series(-6.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="power output = -0.3 * alpha = -6 kW",
     )
 
 

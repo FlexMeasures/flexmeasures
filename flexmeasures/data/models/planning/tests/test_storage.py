@@ -586,16 +586,18 @@ def test_resolve_soc_at_start_from_percent_sensor_uses_device_sensor_fallback(
 def test_storage_scheduler_chp_coupling(app, db):
     """Test that the StorageScheduler enforces CHP coupling constraints between devices.
 
-    Models a Combined Heat and Power unit with three flow sensors:
+    Models a Combined Heat and Power unit with three sensors:
 
-    - d=0  gas input:    CHP gas consumption           (positive ems_power, coeff 1.0)
-    - d=1  heat output:  CHP heat → heat buffer         (positive ems_power, coeff 2.0)
-    - d=2  power output: CHP electricity production     (negative ems_power, coeff −10/3)
+    - d=0  gas input:    CHP gas consumption           (positive ems_power, coeff  1.0)
+    - d=1  heat output:  CHP heat → heat buffer        (positive ems_power, coeff  0.5)
+    - d=2  power output: CHP electricity production    (negative ems_power, coeff −0.3)
 
-    The coupling group ``"chp"`` enforces::
+    The coupling group ``"chp"`` introduces a free variable ``alpha`` and enforces
+    ``P[d] == coeff * alpha`` for every device:
 
-        1.0 * P_gas  ==  2.0 * P_heat     →  P_heat  = 0.5 * P_gas   (η_heat  = 0.5)
-        1.0 * P_gas  == −10/3 * P_power   →  P_power = −0.3 * P_gas  (η_power = 0.3)
+        P_gas   =  1.0 * alpha
+        P_heat  =  0.5 * alpha   (η_heat  = 0.5)
+        P_power = −0.3 * alpha   (η_power = 0.3)
 
     The heat output is forced to exactly 5 kW per step by combining:
     - ``production-capacity: "0 kW"``  (hard lower bound: derivative_min = 0)
@@ -603,9 +605,10 @@ def test_storage_scheduler_chp_coupling(app, db):
     - ``soc-targets`` requiring 20 kWh at the end of the 4-hour window
 
     With soc_at_start = 0 and max 5 kW over 4 × 1-hour steps the only feasible
-    solution is P_heat = 5 kW every step.  The coupling constraints then fix::
+    solution is P_heat = 5 kW every step. Substituting P_heat = 5 kW gives
+    alpha = 5 / 0.5 = 10 kW, so:
 
-        P_gas   =  2.0 ×  5 kW = 10 kW
+        P_gas   =  1.0 × 10 kW = 10 kW
         P_power = −0.3 × 10 kW = −3 kW
     """
     # ---- asset type + asset
@@ -646,8 +649,9 @@ def test_storage_scheduler_chp_coupling(app, db):
     db.session.flush()
 
     # ---- flex model
-    # The "coupling-coefficient" for each device determines its ratio in the
-    # hard-equality coupling constraint enforced by device_scheduler.
+    # Coupling-coefficients equal the signed efficiency fractions.
+    # Positive coeff = input or stock-accumulating device (positive ems_power).
+    # Negative coeff = production device (negative ems_power).
     flex_model = [
         {
             # d=0: gas input — pure flow device (no SoC), can only consume gas.
@@ -655,11 +659,11 @@ def test_storage_scheduler_chp_coupling(app, db):
             "power-capacity": "20 kW",
             "production-capacity": "0 kW",  # derivative_min = 0
             "coupling": "chp",
-            "coupling-coefficient": 1.0,  # reference device
+            "coupling-coefficient": 1.0,  # reference: alpha = P_gas
         },
         {
             # d=1: heat output — tracks heat-buffer SoC, positive ems_power = heat
-            # added to buffer.  The SoC target forces P_heat = 5 kW per step.
+            # added to buffer. The SoC target forces P_heat = 5 kW per step.
             "sensor": heat_output_sensor.id,
             "soc-at-start": "0 MWh",
             "soc-min": "0 MWh",
@@ -679,7 +683,7 @@ def test_storage_scheduler_chp_coupling(app, db):
             "production-capacity": "0 kW",  # can only add heat, not extract
             "prefer-charging-sooner": True,
             "coupling": "chp",
-            "coupling-coefficient": 1.0 / ETA_HEAT,  # = 2.0
+            "coupling-coefficient": ETA_HEAT,  # = 0.5
         },
         {
             # d=2: power output — pure flow device (no SoC), can only produce
@@ -688,7 +692,7 @@ def test_storage_scheduler_chp_coupling(app, db):
             "power-capacity": "6 kW",
             "consumption-capacity": "0 kW",  # derivative_max = 0
             "coupling": "chp",
-            "coupling-coefficient": -1.0 / ETA_POWER,  # = -10/3
+            "coupling-coefficient": -ETA_POWER,  # = -0.3
         },
     ]
 
@@ -730,6 +734,7 @@ def test_storage_scheduler_chp_coupling(app, db):
     active_steps = slice(None, -1)  # exclude the final trailing idle slot
 
     # Heat output is forced to exactly 5 kW per step by the SoC target.
+    # alpha = P_heat / ETA_HEAT = 0.005 / 0.5 = 0.010 MW
     np.testing.assert_allclose(
         heat_schedule.iloc[active_steps],
         0.005,  # 5 kW expressed in MW
@@ -737,18 +742,18 @@ def test_storage_scheduler_chp_coupling(app, db):
         err_msg="Heat output should be exactly 5 kW per step (forced by SoC target)",
     )
 
-    # Coupling: 1.0 * P_gas == 2.0 * P_heat  →  P_gas = 2.0 * 5 kW = 10 kW
+    # Coupling: P_gas = 1.0 * alpha = 0.010 MW = 10 kW
     np.testing.assert_allclose(
         gas_schedule.iloc[active_steps],
         0.010,  # 10 kW expressed in MW
         rtol=1e-4,
-        err_msg="Gas input must be 10 kW — determined by coupling (2× heat output)",
+        err_msg="Gas input must be 10 kW — determined by coupling (1.0 * alpha)",
     )
 
-    # Coupling: 1.0 * P_gas == −10/3 * P_power  →  P_power = −0.3 * 10 kW = −3 kW
+    # Coupling: P_power = -ETA_POWER * alpha = -0.3 * 0.010 MW = -0.003 MW = -3 kW
     np.testing.assert_allclose(
         power_schedule.iloc[active_steps],
-        -0.003,  # −3 kW expressed in MW
+        -0.003,  # -3 kW expressed in MW
         rtol=1e-4,
-        err_msg="Power output must be −3 kW — determined by coupling (−0.3× gas input)",
+        err_msg="Power output must be -3 kW — determined by coupling (-0.3 * alpha)",
     )
