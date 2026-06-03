@@ -8,6 +8,9 @@ from flexmeasures.data.models.charts.defaults import (
     REPLAY_RULER,
     STROKE_WIDTH,
 )
+from flexmeasures.data.models.charts.utils import (
+    source_legend_label_transformation,
+)
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
 )
@@ -103,7 +106,7 @@ def create_bar_chart_or_histogram_specs(
                     "stroke": {
                         "condition": {
                             "test": "datum.event_value === 0",
-                            "field": FIELD_DEFINITIONS["source_name"]["field"],
+                            "field": FIELD_DEFINITIONS["source_legend_label"]["field"],
                         },
                         "value": None,
                     },
@@ -114,8 +117,7 @@ def create_bar_chart_or_histogram_specs(
                         },
                         "value": 0,
                     },
-                    "color": FIELD_DEFINITIONS["source_name"],
-                    "detail": FIELD_DEFINITIONS["source"],
+                    "color": FIELD_DEFINITIONS["source_legend_label"],
                     "opacity": {"value": 0.7},
                     "tooltip": [
                         (
@@ -128,14 +130,17 @@ def create_bar_chart_or_histogram_specs(
                             **dict(title=f"{capitalize(sensor.sensor_type)}"),
                         },
                         FIELD_DEFINITIONS["source_name_and_id"],
+                        FIELD_DEFINITIONS["source_display_type"],
                         FIELD_DEFINITIONS["source_model"],
+                        FIELD_DEFINITIONS["source_version"],
                     ],
                 },
                 "transform": [
                     {
-                        "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
+                        "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                         "as": "source_name_and_id",
                     },
+                    *source_legend_label_transformation,
                 ],
                 "selection": {
                     "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
@@ -329,6 +334,7 @@ def heatmap(
         },
         FIELD_DEFINITIONS["source_name_and_id"],
         FIELD_DEFINITIONS["source_model"],
+        FIELD_DEFINITIONS["source_version"],
     ]
     chart_specs = {
         "description": f"A {split} heatmap showing sensor data.",
@@ -350,7 +356,7 @@ def heatmap(
                         "filter": "timezoneoffset(datum.event_start) >= timezoneoffset(datum.event_start + 60 * 60 * 1000) && timezoneoffset(datum.event_start) <= timezoneoffset(datum.event_start - 60 * 60 * 1000)"
                     },
                     {
-                        "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
+                        "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                         "as": "source_name_and_id",
                     },
                     # In case of multiple sources, show the one with the most visible data
@@ -485,7 +491,7 @@ def create_fall_dst_transition_layer(
                 "as": "dst_transition_event_start_next",
             },
             {
-                "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
+                "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                 "as": "source_name_and_id",
             },
         ],
@@ -581,8 +587,9 @@ def _setup_shared_tooltip(
         ),
         {**event_value_field_definition, **dict(title=f"{capitalize(sensor_type)}")},
         FIELD_DEFINITIONS["source_name_and_id"],
-        FIELD_DEFINITIONS["source_type"],
+        FIELD_DEFINITIONS["source_display_type"],
         FIELD_DEFINITIONS["source_model"],
+        FIELD_DEFINITIONS["source_version"],
     ]
 
 
@@ -640,7 +647,7 @@ def _build_chart_specs(
         vconcat=[*sensors_specs],
         transform=[
             {
-                "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
+                "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                 "as": "source_name_and_id",
             },
         ],

@@ -38,6 +38,15 @@ def _sentry_filter_notfound(event, hint):
         exc_type, exc_value, _tb = hint["exc_info"]
         if isinstance(exc_value, NotFound):
             return None
+    # FlexMeasures logs handled 404s with verbose=False to keep automated
+    # scans for hackable URLs from overwhelming log files. Sentry receives
+    # those as logging events, so the NotFound exception is only visible in
+    # the LogRecord message rather than in hint["exc_info"].
+    log_record = hint.get("log_record")
+    if log_record is not None:
+        message = log_record.getMessage()
+        if message.startswith("NotFound - URL was: "):
+            return None
     return event
 
 

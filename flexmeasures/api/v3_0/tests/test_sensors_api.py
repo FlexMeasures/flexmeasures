@@ -5,7 +5,7 @@ import math
 import io
 import json
 
-from flask import url_for
+from flask import current_app, url_for
 from sqlalchemy import select, func
 
 from flexmeasures.data.models.time_series import TimedBelief
@@ -342,6 +342,107 @@ def test_upload_csv_file(client, db, setup_api_test_data, sensor_name, requestin
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_csv_file_returns_accepted_job(
+    client, setup_api_test_data, requesting_user, monkeypatch
+):
+    monkeypatch.setattr(
+        "flexmeasures.api.common.utils.api_utils.Worker.all",
+        lambda queue: [object()],
+    )
+    current_app.queues["ingestion"].empty()
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    csv_content = """event_start,event_value
+2022-12-16T05:11:00Z,4
+"""
+    sensor = setup_api_test_data["some gas sensor"]
+    file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": file},
+        content_type="multipart/form-data",
+        headers={"Authorization": auth_token},
+    )
+
+    assert response.status_code == 202
+    assert response.json["status"] == "ACCEPTED"
+    assert response.json["job_monitor_url"] == url_for(
+        "JobAPI:get_job_status", uuid=response.json["job_id"]
+    )
+    job = current_app.queues["ingestion"].fetch_job(response.json["job_id"])
+    assert job.kwargs["sensor_id"] == sensor.id
+    assert job.kwargs["uploaded_files"][0]["filename"] == "test.csv"
+    assert job.kwargs["uploaded_files"][0]["content"] == csv_content.encode("utf-8")
+    assert "data" not in job.kwargs
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_csv_file_rejects_large_upload(
+    client, setup_api_test_data, requesting_user, monkeypatch
+):
+    monkeypatch.setitem(
+        current_app.config,
+        "FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES",
+        1,
+    )
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    sensor = setup_api_test_data["some gas sensor"]
+    file = (
+        io.BytesIO(b"event_start,event_value\n2022-12-16T05:11:00Z,4\n"),
+        "test.csv",
+    )
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": file},
+        content_type="multipart/form-data",
+        headers={"Authorization": auth_token},
+    )
+
+    assert response.status_code == 413
+    assert response.json["status"] == "PAYLOAD_TOO_LARGE"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_upload_csv_file_measured_instantly_with_resampling(
+    client, db, setup_api_test_data, requesting_user
+):
+    """Regression test: uploading data with belief-time-measured-instantly=on and resampling
+    needed should complete with a 200 status and not trigger the O(N²) slow path in
+    resample_events that previously caused server hangs and OOM crashes.
+
+    The "some gas sensor" has 10-minute resolution. We upload 5-minute data, triggering
+    downsampling. With belief_time_measured_instantly=True, each event gets a unique belief_time
+    which previously caused the slow track in resample_events with O(N²) memory usage.
+    """
+    auth_token = get_auth_token(client, "test_admin_user@seita.nl", "testtest")
+    # 5-minute resolution data -> needs downsampling to sensor's 10-minute resolution
+    csv_content = """event_start,event_value
+2022-12-16T05:00:00Z,10
+2022-12-16T05:05:00Z,20
+2022-12-16T05:10:00Z,30
+2022-12-16T05:15:00Z,40
+2022-12-16T05:20:00Z,50
+2022-12-16T05:25:00Z,60
+"""
+    sensor = setup_api_test_data["some gas sensor"]
+    file = (io.BytesIO(csv_content.encode("utf-8")), "test.csv")
+
+    data = {
+        "uploaded-files": file,
+        "belief-time-measured-instantly": "on",
+    }
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data=data,
+        content_type="multipart/form-data",
+        headers={"Authorization": auth_token},
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_upload_excel_file(client, requesting_user):
     import openpyxl
 
@@ -647,9 +748,12 @@ def test_fetch_sensor_stats(
             assert record["Min value"]
             assert record["Max value"]
             if source == "Test Admin User (ID: 7)":
-                sum_values = 162.0
-                count_values = 36
-                mean_value = 4.5
+                # 36 values from CSV/Excel uploads (upsampled from 1H to 10min)
+                # + 3 values from test_upload_csv_file_measured_instantly_with_resampling
+                # (downsampled from 5min to 10min: values 15, 35, 55)
+                sum_values = 267.0
+                count_values = 39
+                mean_value = 267.0 / 39
             elif source == "Test Supplier User (ID: 6)":
                 sum_values = 275.1
                 count_values = 3

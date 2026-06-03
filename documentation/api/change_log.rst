@@ -5,10 +5,14 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-31 | 2026-04-28
+v3.0-31 | 2026-06-01
 """"""""""""""""""""
 
 - Added a unified job status endpoint ``GET /api/v3_0/jobs/<uuid>`` that returns the current execution status and a human-readable result message for any background job (scheduling, forecasting, etc.) identified by its UUID.
+- Switched from ``force_new_job_creation`` to ``force-new-job-creation`` (maintaining backwards compatibility) and added the field to `/assets/(id)/schedules/trigger` (POST) endpoint, too.
+- Support both snake_case and kebab-case fields in `/sensors/<id>/data` (GET), while only documenting the kebab-case ones.
+- The ``consumption`` and ``production`` flex-model fields for the ``StorageScheduler`` now act as output sensors: the scheduler writes the resulting power schedule to those sensors, with unit conversion and resampling applied. When only one of the two is defined, the full power profile is written (sign-inverted for the production sensor). When both are defined, the schedule is split into its non-negative (consumption) and non-positive (production) parts.
+- Added a ``sign-convention`` query parameter to ``GET /sensors/<id>/schedules/<uuid>`` with three modes: ``consumption-positive`` (default, unchanged behaviour), ``production-positive``, and ``wysiwyg`` (sign of database values and as seen in UI charts).
 
 v3.0-30 | 2026-04-15
 """"""""""""""""""""

@@ -12,10 +12,9 @@ from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required, current_user
-from marshmallow import fields, Schema, ValidationError, validates_schema
+from marshmallow import fields, pre_load, Schema, ValidationError, validates_schema
 import marshmallow.validate as validate
 from rq.job import Job, JobStatus, NoSuchJobError
-import timely_beliefs as tb
 from webargs.flaskparser import use_args, use_kwargs
 from sqlalchemy import delete, select, or_
 
@@ -33,12 +32,14 @@ from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
     GetSensorDataSchema,
     GetSensorDataQuerySchema,
     PostSensorDataSchema,
+    PostSensorDataRequestSchema,
 )
 from flexmeasures.api.common.schemas.sensors import SensorId  # noqa F401
 from flexmeasures.api.common.schemas.users import AccountIdField
-from flexmeasures.api.common.utils.api_utils import (
-    job_status_description,
-    save_and_enqueue,
+from flexmeasures.api.common.utils.api_utils import process_sensor_data_ingestion
+from flexmeasures.data.services.utils import job_status_description
+from flexmeasures.api.common.utils.deprecation_utils import (
+    _add_headers as add_deprecation_header,
 )
 from flexmeasures.auth.policy import check_access
 from flexmeasures.auth.decorators import permission_required_for_context
@@ -55,6 +56,7 @@ from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorSchema,
     SensorIdField,
     SensorDataFileSchema,
+    SensorDataFileRequestSchema,
 )
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
@@ -63,7 +65,10 @@ from flexmeasures.data.schemas.times import (
 )
 from flexmeasures.data.schemas import AssetIdField, SourceIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
-from flexmeasures.data.schemas.scheduling import GetScheduleSchema
+from flexmeasures.data.schemas.scheduling import (
+    GetScheduleSchema,
+    ScheduleSignConvention,
+)
 from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.data.services.sensors import get_sensor_stats
 from flexmeasures.data.services.sensors import delete_sensor as delete_sensor_and_data
@@ -267,11 +272,20 @@ class TriggerScheduleKwargsSchema(Schema):
         ),
     )
     force_new_job_creation = fields.Boolean(
+        data_key="force-new-job-creation",
         required=False,
         metadata=dict(
             description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
         ),
     )
+
+    @pre_load
+    def support_legacy_field_name(self, data, **kwargs):
+        """Accept old snake_case input for backwards compatibility."""
+        if "force_new_job_creation" in data and "force-new-job-creation" not in data:
+            data["force-new-job-creation"] = data.pop("force_new_job_creation")
+
+        return data
 
 
 class SensorAPI(FlaskView):
@@ -497,19 +511,21 @@ class SensorAPI(FlaskView):
 
     @route("<id>/data/upload", methods=["POST"])
     @use_args(
-        SensorDataFileSchema(), location="combined_sensor_data_upload", as_kwargs=True
+        SensorDataFileRequestSchema(),
+        location="combined_sensor_data_upload",
+        as_kwargs=True,
     )
     @permission_required_for_context(
         "create-children",
-        ctx_arg_name="data",
-        ctx_loader=lambda data: data[0].sensor if data else None,
-        pass_ctx_to_loader=True,
+        ctx_arg_name="sensor",
     )
     def upload_data(
         self,
-        data: list[tb.BeliefsDataFrame],
+        sensor: Sensor,
+        uploaded_files: list,
         filenames: list[str],
         unit: str | None = None,
+        belief_time_measured_instantly: bool | None = None,
         **kwargs,
     ):
         """
@@ -524,8 +540,10 @@ class SensorAPI(FlaskView):
 
             The unit has to be convertible to the sensor's unit.
             The resolution of the data has to match the sensor's required resolution, but
-            FlexMeasures will attempt to upsample lower resolutions.
+            FlexMeasures will attempt to resample compatible resolutions.
             The list of values may include null values.
+            The request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
+            (3 MiB by default).
 
           security:
             - ApiKeyAuth: []
@@ -542,6 +560,8 @@ class SensorAPI(FlaskView):
                   uploaded-files:
                     contentType: application/octet-stream
           responses:
+            202:
+              description: ACCEPTED
             200:
               description: PROCESSED
               content:
@@ -596,33 +616,52 @@ class SensorAPI(FlaskView):
               description: UNAUTHORIZED
             403:
               description: INVALID_SENDER
+            413:
+              description: PAYLOAD_TOO_LARGE
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
             - Sensors
         """
-        sensor = data[0].sensor
-
         AssetAuditLog.add_record(
             sensor.generic_asset,
             f"Data from {join_words_into_a_list(filenames)} uploaded to sensor '{sensor.name}': {sensor.id}",
         )
-        response, code = save_and_enqueue(data)
+        files_for_job = []
+        for file in uploaded_files:
+            files_for_job.append(
+                dict(
+                    filename=file.filename,
+                    content_type=file.content_type,
+                    content=file.read(),
+                )
+            )
+        upload_data = {
+            "belief-time-measured-instantly": (
+                "on" if belief_time_measured_instantly else "off"
+            ),
+        }
+        if unit is not None:
+            upload_data["unit"] = unit
+        response, code = process_sensor_data_ingestion(
+            sensor_id=sensor.id,
+            user_id=current_user.id,
+            uploaded_files=files_for_job,
+            upload_data=upload_data,
+        )
         return response, code
 
     @route("/<id>/data", methods=["POST"])
     @use_args(
-        PostSensorDataSchema(),
+        PostSensorDataRequestSchema(),
         location="combined_sensor_data_description",
         as_kwargs=True,
     )
     @permission_required_for_context(
         "create-children",
-        ctx_arg_name="bdf",
-        ctx_loader=lambda bdf: bdf.sensor,
-        pass_ctx_to_loader=True,
+        ctx_arg_name="sensor",
     )
-    def post_data(self, id: int, bdf: tb.BeliefsDataFrame):
+    def post_data(self, id: int, sensor: Sensor, sensor_data: dict):
         """
         .. :quickref: Data; Post sensor data
         ---
@@ -637,8 +676,10 @@ class SensorAPI(FlaskView):
             The sensor is the one with ID=1.
             The unit has to be convertible to the sensor's unit.
             The resolution of the data has to match the sensor's required resolution, but
-            FlexMeasures will attempt to upsample lower resolutions.
+            FlexMeasures will attempt to resample compatible resolutions.
             The list of values may include null values.
+            The request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
+            (3 MiB by default).
 
           security:
             - ApiAuthKey: []
@@ -660,6 +701,8 @@ class SensorAPI(FlaskView):
                       "duration": "PT1H"
                       "unit": "m³/h"
           responses:
+            202:
+              description: ACCEPTED
             200:
               description: PROCESSED
             400:
@@ -668,12 +711,18 @@ class SensorAPI(FlaskView):
               description: UNAUTHORIZED
             403:
               description: INVALID_SENDER
+            413:
+              description: PAYLOAD_TOO_LARGE
             422:
               description: UNPROCESSABLE_ENTITY
           tags:
             - Sensors
         """
-        response, code = save_and_enqueue(bdf)
+        response, code = process_sensor_data_ingestion(
+            sensor_id=sensor.id,
+            user_id=current_user.id,
+            sensor_data=sensor_data,
+        )
         return response, code
 
     @route("/<id>/data", methods=["GET"])
@@ -770,12 +819,14 @@ class SensorAPI(FlaskView):
         **kwargs,
     ):
         """
-        .. :quickref: Schedules; Trigger scheduling job for one device
+        .. :quickref: Schedules; Trigger scheduling job for one device (deprecated)
         ---
         post:
-          summary: Trigger scheduling job for one device
+          summary: Trigger scheduling job for one device. Deprecated.
+
           description: |
-            Trigger FlexMeasures to create a schedule for this sensor.
+            Trigger FlexMeasures to create a schedule for this sensor. Deprecated - please use the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger) instead.
+
             The assumption is that this sensor is the power sensor on a flexible asset.
 
             In this request, you can describe:
@@ -980,6 +1031,9 @@ class SensorAPI(FlaskView):
         d, s = request_processed()
         return dict(**response, **d), s
 
+    # mark endpoint as deprecated
+    trigger_schedule.after_request = lambda response: add_deprecation_header(response)
+
     @route("/<id>/schedules/<uuid>", methods=["GET"])
     @use_kwargs(GetScheduleSchema(), location="args_and_json")
     @permission_required_for_context("read", ctx_arg_name="sensor")
@@ -989,6 +1043,7 @@ class SensorAPI(FlaskView):
         job_id: str,
         duration: timedelta,
         unit: str | None = None,
+        sign_convention: str = ScheduleSignConvention.CONSUMPTION_POSITIVE,
         **kwargs,
     ):
         """
@@ -1003,6 +1058,21 @@ class SensorAPI(FlaskView):
 
             - "duration" (6 hours by default; can be increased to plan further into the future)
             - "unit" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)
+            - "sign-convention" (controls how power values are signed in the response; see below)
+
+            **Sign convention**
+
+            By default (``sign-convention: consumption-positive``), the endpoint always returns schedules where
+            consumption is positive and production is negative, regardless of how the values are stored in the database.
+            This is the most common convention and matches the perspective of a consumer.
+
+            Set ``sign-convention: production-positive`` to flip the sign so that production is returned as
+            positive and consumption as negative. This matches the perspective of a producer.
+
+            Set ``sign-convention: wysiwyg`` (*what-you-see-is-what-you-get*) to return the values with the same sign
+            as database values and what is seen in UI charts. The values will indicate exactly what is stored,
+            which is itself determined by the sensor's ``consumption_is_positive`` attribute (if set)
+            or by the scheduler's default storage convention (production positive in the database).
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1044,6 +1114,21 @@ class SensorAPI(FlaskView):
               example: kW
               schema:
                 type: string
+            - in: query
+              name: sign-convention
+              required: false
+              description: |
+                Sign convention applied to power values in the response.
+                - ``consumption-positive`` (default): consumption is positive, production is negative.
+                - ``production-positive``: production is positive, consumption is negative.
+                - ``wysiwyg`` (*what-you-see-is-what-you-get*): sign of database values and as seen in UI charts.
+              example: consumption-positive
+              schema:
+                type: string
+                enum:
+                  - consumption-positive
+                  - production-positive
+                  - wysiwyg
           responses:
             200:
               description: PROCESSED
@@ -1170,12 +1255,25 @@ class SensorAPI(FlaskView):
         )
 
         sign = 1
-        if sensor.measures_power and not sensor.get_attribute(
-            "consumption_is_positive", False
-        ):
-            sign = -1
+        if sign_convention == ScheduleSignConvention.WYSIWYG:
+            # Return values without adjusting the sign of database values.
+            # No sign inversion: what's in the DB and what is seen in UI charts is what the caller receives.
+            pass
+        elif sensor.measures_power:
+            # Determine whether the database stores consumption as positive or negative.
+            db_consumption_is_positive = sensor.get_attribute(
+                "consumption_is_positive", False
+            )
+            if sign_convention == ScheduleSignConvention.CONSUMPTION_POSITIVE:
+                # Caller wants consumption positive. Invert if DB stores it as negative.
+                if not db_consumption_is_positive:
+                    sign = -1
+            elif sign_convention == ScheduleSignConvention.PRODUCTION_POSITIVE:
+                # Caller wants production positive. Invert if DB already stores consumption positive.
+                if db_consumption_is_positive:
+                    sign = -1
 
-        # For consumption schedules, positive values denote consumption. For the db, consumption is negative unless specified explicitly
+        # Apply sign to get the values in the requested convention
         consumption_schedule = sign * simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
             # for not in-built schedulers, we are not sure if they would store time series in the db
@@ -1253,6 +1351,8 @@ class SensorAPI(FlaskView):
                         timezone: Europe/Amsterdam
                         event_resolution: PT15M
                         entity_address: ea1.2021-01.io.flexmeasures:fm1.14
+                        attributes:
+                          floor_datetimes_to_resolution: true
                         generic_asset_id: 1
                     power_sensor:
                       summary: A power sensor recording average consumption every 5 minutes.
@@ -1316,6 +1416,7 @@ class SensorAPI(FlaskView):
                       "event_resolution": "PT1H"
                       "unit": "kWh"
                       "generic_asset_id": 1
+                      "attributes": '{"floor_datetimes_to_resolution": false}'
           responses:
             201:
               description: New Sensor
@@ -1332,6 +1433,7 @@ class SensorAPI(FlaskView):
                         "entity_address": "ea1.2023-08.localhost:fm1.1"
                         "event_resolution": "PT1H"
                         "generic_asset_id": 1
+                        "attributes": '{"floor_datetimes_to_resolution": false}'
                         "timezone": "UTC"
                         "id": 2
             400:

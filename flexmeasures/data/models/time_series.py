@@ -495,7 +495,12 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
                     sources_metadata[source_obj.id] = {
                         "name": source_dict.get("name", ""),
                         "model": source_dict.get("model", ""),
+                        "version": source_dict.get("version", ""),
                         "type": source_dict.get("type", "other"),
+                        "raw_type": source_dict.get("raw_type", ""),
+                        "display_type": source_dict.get(
+                            "display_type", source_dict.get("type", "other")
+                        ),
                         "description": source_dict.get("description", ""),
                     }
 
