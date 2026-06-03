@@ -6,6 +6,8 @@ from datetime import datetime
 from pytz import utc
 
 from flexmeasures.cli import is_running as cli_is_running
+from flexmeasures.cli.utils import DeprecatedOption, DeprecatedOptionsCommand
+from click.testing import CliRunner
 
 
 def test_cli_is_running(app, monkeypatch):
@@ -112,6 +114,37 @@ def test_get_unique_sensor_names(app, db, add_asset_with_children):
     ]
 
     assert list(aliases.values()) == expected_aliases
+
+
+def test_deprecated_options_command_allows_non_deprecated_option():
+    @click.command(cls=DeprecatedOptionsCommand)
+    @click.option("--name", cls=DeprecatedOption)
+    def cmd(name):
+        click.echo(name)
+
+    result = CliRunner().invoke(cmd, ["--name", "foo"])
+
+    assert result.exit_code == 0
+    assert result.output == "foo\n"
+
+
+def test_deprecated_options_command_warns_for_deprecated_alias():
+    @click.command(cls=DeprecatedOptionsCommand)
+    @click.option(
+        "--name",
+        "--old-name",
+        cls=DeprecatedOption,
+        deprecated=["--old-name"],
+        preferred="--name",
+    )
+    def cmd(name):
+        click.echo(name)
+
+    result = CliRunner().invoke(cmd, ["--old-name", "foo"])
+
+    assert result.exit_code == 0
+    assert "Option '--old-name' will be replaced by '--name'." in result.output
+    assert result.output.endswith("foo\n")
 
 
 @pytest.mark.xfail(
