@@ -16,7 +16,7 @@ import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 from rq import Queue, Worker, SimpleWorker
-from rq.job import Job
+from rq.job import Job, JobStatus, NoSuchJobError
 from rq.registry import (
     BaseRegistry,
     CanceledJobRegistry,
@@ -37,6 +37,7 @@ from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.cli.utils import MsgStyle
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
 
 
 REGISTRY_MAP = dict(
@@ -285,13 +286,77 @@ def run_job(job_id: str):
     click.echo(f"Job {job_id} finished with: {result}")
 
 
+@fm_jobs.command("inspect-job")
+@with_appcontext
+@click.option(
+    "--job",
+    "job_id",
+    required=True,
+    help="Job UUID of the job you want to inspect.",
+)
+def inspect_job(job_id: str):
+    """
+    Inspect a background job and print its current status, result and metadata.
+
+    """
+    try:
+        job = Job.fetch(job_id, connection=app.redis_connection)
+    except NoSuchJobError:
+        click.secho(f"Job {job_id} not found.", fg="red")
+        raise click.Abort()
+
+    job_status = job.get_status()
+    status_name = (
+        job_status.name
+        if isinstance(job_status, JobStatus)
+        else str(job_status).upper()
+    )
+    try:
+        result = job.return_value()
+    except Exception:  # noqa: BLE001
+        result = None
+
+    exc_info = failed_job_exc_info(job)
+
+    # Determine color for status based on job state
+    if status_name == "FINISHED":
+        status_style = MsgStyle.SUCCESS
+    elif status_name == "FAILED":
+        status_style = MsgStyle.ERROR
+    elif status_name in ("QUEUED", "DEFERRED", "SCHEDULED", "STARTED"):
+        status_style = MsgStyle.WARN
+    elif status_name in ("STOPPED", "CANCELED"):
+        status_style = MsgStyle.ERROR
+    else:
+        status_style = {}
+
+    colored_status = click.style(status_name, **status_style)
+
+    info_data = [
+        ["Status", colored_status],
+        ["Message", job_status_description(job)],
+        ["Result", result],
+        ["Function", job.func_name],
+        ["Queue", job.origin],
+        ["Enqueued At", job.enqueued_at.isoformat() if job.enqueued_at else "—"],
+        ["Started At", job.started_at.isoformat() if job.started_at else "—"],
+        ["Ended At", job.ended_at.isoformat() if job.ended_at else "—"],
+    ]
+
+    click.echo(tabulate(info_data, headers=["Field", "Value"]))
+
+    if exc_info:
+        click.echo("\nException Info:")
+        click.echo(exc_info)
+
+
 @fm_jobs.command("run-worker")
 @with_appcontext
 @click.option(
     "--queue",
     default=None,
     required=True,
-    help="State which queue(s) to work on (using '|' as separator), e.g. 'forecasting', 'scheduling' or 'forecasting|scheduling'.",
+    help="State which queue(s) to work on (using '|' as separator), e.g. 'forecasting', 'scheduling', 'ingestion' or 'forecasting|scheduling'.",
 )
 @click.option(
     "--name",
@@ -310,7 +375,7 @@ def run_job(job_id: str):
 )
 def run_worker(queue: str, name: str | None, with_scheduler: bool):
     """
-    Start a worker process for forecasting and/or scheduling jobs.
+    Start a worker process for forecasting, scheduling and/or ingestion jobs.
 
     We use the app context to find out which redis queues to use.
     """
