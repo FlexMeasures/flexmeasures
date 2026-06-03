@@ -1565,9 +1565,10 @@ def test_chp_coupling():
     on device 1. Substituting into the coupling constraints gives the expected
     solution:
 
-        P_gas   =  5 kW          (gas consumed)
+        P_gas   =   5 kW         (gas consumed)
         P_heat  = -10 kW         (heat produced, forced)
-        P_power = -50/3 ≈ -16.67 kW  (electricity produced)
+        P_power =   5 kW / -0.3
+                ≈ -17 kW         (electricity produced)
 
     Note: the coefficients above do not represent a physically realisable CHP
     (total output exceeds input). They are chosen to exercise the constraint
