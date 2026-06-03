@@ -1735,7 +1735,7 @@ def _run_factory_scenario(
     ETA_POWER = 0.3  # fraction of CHP gas input that becomes power
     STEAM_DEMAND = 15.0  # kW, constant heat drain representing steam production
     CHP_GAS_MAX = 20.0  # kW, maximum gas input to CHP
-    BOILER_GAS_MAX = 100.0  # kW, maximum gas input to gas boiler
+    BOILER_GAS_MAX = 10.0  # kW, maximum gas input to gas boiler
     HEATER_POWER_MAX = 100.0  # kW, maximum electricity input to e-heater
 
     start = pd.Timestamp("2026-01-01T00:00+01:00")
@@ -1869,9 +1869,24 @@ def test_factory_chp_dispatch():
     Merit order: e-heater ≪ gas boiler ≪ CHP.
 
     All 15 kW steam demand is met by the e-heater; CHP and gas boiler are off.
+
+    Scenario C — gas slightly cheaper
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Prices: gas = 50 EUR/kW, electricity = 55 EUR/kW.
+
+    Effective cost per kW of heat delivered:
+    - CHP:       gas_cost − power_revenue  = (50·20 − 55·6) / 10 = 67 EUR/kW
+    - gas boiler: 50 EUR/kW
+    - e-heater:   55 EUR/kW
+
+    Merit order: gas boiler ≪ e-heater ≪ CHP.
+
+    With gas boiler at maximum (10 kW gas → 10 kW heat):
+    - remaining heat demand = 15 − 10 = 5 kW → e-heater
+    - CHP not needed
     """
     # ------------------------------------------------------------------ #
-    # Scenario A: gas cheaper — CHP at max, gas boiler fills the rest      #
+    # Scenario A: gas cheaper — CHP at max, gas boiler fills the rest    #
     # ------------------------------------------------------------------ #
     (e_heater, gas_boiler, chp_gas, chp_heat, chp_power, _demand) = (
         _run_factory_scenario(gas_price=20.0, elec_price=50.0)
@@ -1920,7 +1935,7 @@ def test_factory_chp_dispatch():
     )
 
     # ------------------------------------------------------------------ #
-    # Scenario B: electricity cheaper — e-heater meets all demand          #
+    # Scenario B: electricity cheaper — e-heater meets all demand        #
     # ------------------------------------------------------------------ #
     (e_heater, gas_boiler, chp_gas, chp_heat, chp_power, _demand) = (
         _run_factory_scenario(gas_price=100.0, elec_price=10.0)
@@ -1949,4 +1964,53 @@ def test_factory_chp_dispatch():
         check_names=False,
         atol=1e-4,
         obj="Scenario B: gas boiler not used (electricity is cheapest)",
+    )
+
+    # --------------------------------------------------------------------------------- #
+    # Scenario C: gas slightly cheaper — gas boiler at max, e-heater fills the rest     #
+    # --------------------------------------------------------------------------------- #
+    (e_heater, gas_boiler, chp_gas, chp_heat, chp_power, _demand) = (
+        _run_factory_scenario(gas_price=50.0, elec_price=55.0)
+    )
+
+    expected_chp_gas = pd.Series(0.0, index=e_heater.index)
+    expected_chp_heat = pd.Series(0.0, index=e_heater.index)
+    expected_chp_power = pd.Series(0.0, index=e_heater.index)
+    expected_boiler = pd.Series(10.0, index=e_heater.index)
+    expected_eheater = pd.Series(5.0, index=e_heater.index)  # fills 15-10 kW gap
+
+    pd.testing.assert_series_equal(
+        chp_gas,
+        expected_chp_gas,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: CHP not used",
+    )
+    pd.testing.assert_series_equal(
+        chp_heat,
+        expected_chp_heat,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: CHP not used",
+    )
+    pd.testing.assert_series_equal(
+        chp_power,
+        expected_chp_power,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: CHP not used",
+    )
+    pd.testing.assert_series_equal(
+        gas_boiler,
+        expected_boiler,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: gas boiler at maximum (10 kW)",
+    )
+    pd.testing.assert_series_equal(
+        e_heater,
+        expected_eheater,
+        check_names=False,
+        atol=1e-4,
+        obj="Scenario C: e-heater fills remaining 5 kW heat demand",
     )
