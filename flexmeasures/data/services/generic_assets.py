@@ -215,7 +215,51 @@ _REMOVE = object()
 def _prune_sensors_to_show_asset_refs(
     value: list[Any] | None, asset_id: int
 ) -> tuple[list[Any] | None, bool]:
-    """Remove references to a deleted asset from sensors_to_show."""
+    """Remove references to a deleted asset from sensors_to_show.
+
+    Processes the entire sensors_to_show list, removing any entries or plots
+    that reference the deleted asset.
+
+    :param value:    The sensors_to_show list to clean.
+    :param asset_id: ID of the deleted asset to remove references to.
+    :return:         Tuple of (cleaned_list, was_modified).
+
+    Examples
+    ========
+
+    Remove plots referencing deleted asset 42:
+
+    >>> before = [
+    ...     {"title": "Power", "plots": [{"sensor": 1}, {"asset": 42, "flex-model": "soc-min"}]},
+    ...     {"title": "Price", "plots": [{"sensor": 3}]}
+    ... ]
+    >>> after, changed = _prune_sensors_to_show_asset_refs(before, 42)
+    >>> after
+    [{"title": "Power", "plots": [{"sensor": 1}]}, {"title": "Price", "plots": [{"sensor": 3}]}]
+    >>> changed
+    True
+
+    Remove entire entry when all plots reference deleted asset:
+
+    >>> before = [
+    ...     {"title": "Storage", "plots": [{"asset": 42, "flex-model": "soc-min"}]},
+    ...     {"title": "Price", "plots": [{"sensor": 3}]}
+    ... ]
+    >>> after, changed = _prune_sensors_to_show_asset_refs(before, 42)
+    >>> after
+    [{"title": "Price", "plots": [{"sensor": 3}]}]
+    >>> changed
+    True
+
+    No changes when asset not referenced:
+
+    >>> before = [{"title": "Power", "plots": [{"sensor": 1}]}]
+    >>> after, changed = _prune_sensors_to_show_asset_refs(before, 42)
+    >>> after
+    [{"title": "Power", "plots": [{"sensor": 1}]}]
+    >>> changed
+    False
+    """
     if not isinstance(value, list):
         return value, False
 
@@ -242,7 +286,55 @@ def _prune_sensors_to_show_asset_refs(
 def _prune_sensors_to_show_asset_entry(
     entry: dict[str, Any], asset_id: int
 ) -> tuple[dict[str, Any] | object, bool]:
-    """Prune one sensors_to_show entry for deleted asset references."""
+    """Prune one sensors_to_show entry for deleted asset references.
+
+    Removes plots within a graph entry that reference the deleted asset.
+    Returns _REMOVE sentinel if the entry itself or all its plots reference
+    the deleted asset.
+
+    :param entry:    A single graph entry from sensors_to_show.
+    :param asset_id: ID of the deleted asset to remove references to.
+    :return:         Tuple of (modified_entry_or_sentinel, was_modified).
+
+    Examples
+    ========
+
+    Remove one plot referencing deleted asset:
+
+    >>> entry = {"title": "Power", "plots": [{"sensor": 1}, {"asset": 42, "flex-model": "soc-min"}]}
+    >>> result, changed = _prune_sensors_to_show_asset_entry(entry, 42)
+    >>> result
+    {"title": "Power", "plots": [{"sensor": 1}]}
+    >>> changed
+    True
+
+    Remove entire entry when only plot references deleted asset:
+
+    >>> entry = {"title": "Storage", "plots": [{"asset": 42, "flex-model": "soc-min"}]}
+    >>> result, changed = _prune_sensors_to_show_asset_entry(entry, 42)
+    >>> result is _REMOVE
+    True
+    >>> changed
+    True
+
+    Remove entire entry when entry itself references deleted asset:
+
+    >>> entry = {"title": "Storage", "plots": [{"asset": 42, "flex-model": "soc-min"}]}
+    >>> result, changed = _prune_sensors_to_show_asset_entry(entry, 42)
+    >>> result is _REMOVE
+    True
+    >>> changed
+    True
+
+    No changes when asset not referenced:
+
+    >>> entry = {"title": "Power", "plots": [{"sensor": 1}]}
+    >>> result, changed = _prune_sensors_to_show_asset_entry(entry, 42)
+    >>> result
+    {"title": "Power", "plots": [{"sensor": 1}]}
+    >>> changed
+    False
+    """
     if entry.get("asset") == asset_id:
         return _REMOVE, True
 
