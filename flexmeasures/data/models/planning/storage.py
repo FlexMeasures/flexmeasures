@@ -2107,7 +2107,7 @@ class StorageScheduler(MetaStorageScheduler):
         )
 
         consumption_production_schedule = self._build_consumption_production_schedules(
-            flex_model, ems_schedule
+            flex_model_for_soc, ems_schedule
         )
 
         # Resample each device schedule to the resolution of the device's power sensor
@@ -2179,7 +2179,7 @@ class StorageScheduler(MetaStorageScheduler):
             # Determine which sensors are consumption vs. production output sensors
             consumption_output_sensors = {
                 flex_model_d["consumption"]["sensor"]
-                for flex_model_d in flex_model
+                for flex_model_d in flex_model_for_soc
                 if isinstance(flex_model_d.get("consumption"), dict)
                 and "sensor" in flex_model_d["consumption"]
             }
