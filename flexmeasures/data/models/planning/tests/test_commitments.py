@@ -1735,6 +1735,8 @@ def _run_factory_scenario(
     ETA_POWER = 0.3  # fraction of CHP gas input that becomes power
     STEAM_DEMAND = 15.0  # kW, constant heat drain representing steam production
     CHP_GAS_MAX = 20.0  # kW, maximum gas input to CHP
+    BOILER_GAS_MAX = 100.0  # kW, maximum gas input to gas boiler
+    HEATER_POWER_MAX = 100.0  # kW, maximum electricity input to e-heater
 
     start = pd.Timestamp("2026-01-01T00:00+01:00")
     end = pd.Timestamp("2026-01-01T04:00+01:00")
@@ -1761,9 +1763,9 @@ def _run_factory_scenario(
         # d=0  e-heater: heat-node reference device. min=max=0 forces the heat
         #       node to balance at every step (zero-capacity flow node), making
         #       the per-step dispatch deterministic despite flat prices.
-        _df(min=0.0, max=0.0, **{"derivative max": 100.0}),
+        _df(min=0.0, max=0.0, **{"derivative max": HEATER_POWER_MAX}),
         # d=1  gas boiler: up to 100 kW gas → 100 kW heat (efficiency 1 for clean maths)
-        _df(**{"derivative max": 100.0}),
+        _df(**{"derivative max": BOILER_GAS_MAX}),
         # d=2  CHP gas input: up to CHP_GAS_MAX kW gas
         _df(**{"derivative max": CHP_GAS_MAX}),
         # d=3  CHP heat output: positive ems_power adds heat to the buffer
