@@ -1849,7 +1849,7 @@ def test_factory_chp_dispatch():
     Effective cost per kW of heat delivered:
     - CHP:       gas_cost − power_revenue  = (20·20 − 50·6) / 10 = 10 EUR/kW
     - gas boiler: 20 EUR/kW  (efficiency = 1)
-    - e-heater:   50 EUR/kW
+    - e-heater:   50 EUR/kW  (efficiency = 1)
 
     Merit order: CHP ≪ gas boiler ≪ e-heater.
 
