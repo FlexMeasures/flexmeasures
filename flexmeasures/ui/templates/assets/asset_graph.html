@@ -443,6 +443,26 @@
         const saveChangesBtn = document.getElementById("saveChangesBtn");
         const addPlotBtn = document.getElementById("addPlotBtn");
 
+        function graphAlreadyHasSensor(graph, sensorId) {
+            return (graph.plots || []).some((plot) => {
+                if (plot.sensor === sensorId) {
+                    return true;
+                }
+                if (Array.isArray(plot.sensors)) {
+                    return plot.sensors.includes(sensorId);
+                }
+                return false;
+            });
+        }
+
+        function graphAlreadyHasAssetReference(graph, payload) {
+            return (graph.plots || []).some((plot) =>
+                plot.asset === payload.asset &&
+                plot["flex-context"] === payload["flex-context"] &&
+                plot["flex-model"] === payload["flex-model"],
+            );
+        }
+
         saveChangesBtn.onclick = async function () {
             await updateAssetSensorsToShow();
         };
@@ -458,6 +478,11 @@
                 }
 
                 const sensorsToShowOldState = getSensorToShow();
+                const selectedGraph = sensorsToShowOldState[index];
+                if (graphAlreadyHasAssetReference(selectedGraph, payload)) {
+                    showToast("This asset reference is already added to this graph.", "warning");
+                    return;
+                }
                 sensorsToShowOldState[index].plots.push(payload);
                 setSensorToShow(sensorsToShowOldState);
             } else {
@@ -1152,6 +1177,11 @@
             const oldSensorsToShow = getSensorToShow();
 
             if (editingIndex()) {
+                const selectedGraph = oldSensorsToShow[editingIndex()];
+                if (graphAlreadyHasSensor(selectedGraph, id)) {
+                    showToast("This sensor is already added to this graph.", "warning");
+                    return;
+                }
                 oldSensorsToShow[editingIndex()]["plots"].push({ sensor: id });
             } else {
                 const newAsset = {
@@ -1180,6 +1210,10 @@
             // renderGraphCards();
 
             const oldSensorsToShow = getSensorToShow();
+            if (graphAlreadyHasSensor(oldSensorsToShow[graphIndex], sensorId)) {
+                showToast("This sensor is already added to this graph.", "warning");
+                return;
+            }
             oldSensorsToShow[graphIndex].plots.push({ sensor: sensorId });
             setSensorToShow(oldSensorsToShow);
         }

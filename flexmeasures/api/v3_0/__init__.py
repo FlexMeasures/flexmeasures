@@ -29,8 +29,10 @@ from flexmeasures.api.v3_0.assets import (
     CopyAssetSchema,
 )
 from flexmeasures.api.v3_0.health import HealthAPI
+from flexmeasures.api.v3_0.jobs import JobAPI
 from flexmeasures.api.v3_0.public import ServicesAPI
 from flexmeasures.api.v3_0.deprecated import SensorEntityAddressAPI
+from flexmeasures.api.v3_0.sources import SourceAPI
 from flexmeasures.api.v3_0.assets import (
     flex_context_schema_openAPI,
     AssetAPIQuerySchema,
@@ -56,8 +58,10 @@ def register_at(app: Flask):
     AssetAPI.register(app, route_prefix=v3_0_api_prefix)
     AssetTypesAPI.register(app, route_prefix=v3_0_api_prefix)
     HealthAPI.register(app, route_prefix=v3_0_api_prefix)
+    JobAPI.register(app, route_prefix=v3_0_api_prefix)
     ServicesAPI.register(app)
     SensorEntityAddressAPI.register(app, route_prefix=v3_0_api_prefix)
+    SourceAPI.register(app, route_prefix=v3_0_api_prefix)
 
     register_swagger_ui(app)
 

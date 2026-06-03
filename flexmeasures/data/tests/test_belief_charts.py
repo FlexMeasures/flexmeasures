@@ -11,6 +11,7 @@ The key scenarios checked here:
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -18,9 +19,70 @@ import pytest
 import pytz
 
 from flexmeasures import Sensor
+from flexmeasures.data.models.charts.utils import source_legend_label_transformation
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
+
+
+def _walk_dicts(value):
+    if isinstance(value, dict):
+        yield value
+        for child in value.values():
+            yield from _walk_dicts(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _walk_dicts(child)
+
+
+def _collect_scenegraph_texts(value) -> list[str]:
+    texts = []
+    if isinstance(value, dict):
+        if "text" in value:
+            texts.append(value["text"])
+        for child in value.values():
+            texts.extend(_collect_scenegraph_texts(child))
+    elif isinstance(value, list):
+        for child in value:
+            texts.extend(_collect_scenegraph_texts(child))
+    return texts
+
+
+def _chart_source(
+    source_id: int,
+    name: str,
+    display_type: str,
+    source_type: str = "other",
+    model: str = "",
+    version: str = "",
+    raw_type: str | None = None,
+) -> dict:
+    return {
+        "source": {
+            "id": source_id,
+            "name": name,
+            "display_type": display_type,
+            "raw_type": raw_type or display_type,
+            "type": source_type,
+            "model": model,
+            "version": version,
+        }
+    }
+
+
+def _render_source_legend_labels(values: list[dict]) -> list[str]:
+    vl_convert = pytest.importorskip("vl_convert")
+    spec = {
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+        "data": {"values": values},
+        "transform": source_legend_label_transformation,
+        "mark": "text",
+        "encoding": {
+            "text": {"field": "source_legend_label", "type": "nominal"},
+            "y": {"field": "source.id", "type": "nominal", "axis": None},
+        },
+    }
+    return _collect_scenegraph_texts(vl_convert.vegalite_to_scenegraph(spec))
 
 
 @pytest.fixture(scope="function")
@@ -250,6 +312,185 @@ def test_fixed_value_sensor_unit_matches_flex_model(battery_with_soc_flex_model)
             )
 
 
+def test_bar_chart_uses_source_legend_label_with_id_fallback(
+    battery_with_soc_flex_model,
+):
+    """Duplicate source-name labels should use IDs only as a last resort."""
+    _, soc_sensor = battery_with_soc_flex_model
+
+    start = datetime(2015, 1, 1, tzinfo=pytz.utc)
+    end = datetime(2015, 1, 2, tzinfo=pytz.utc)
+
+    spec = soc_sensor.chart(
+        include_data=False,
+        event_starts_after=start,
+        event_ends_before=end,
+    )
+    data_layer = spec["layer"][0]
+    transforms = data_layer["transform"]
+
+    assert data_layer["encoding"]["color"]["field"] == "source_legend_label"
+    assert (
+        data_layer["encoding"]["stroke"]["condition"]["field"] == "source_legend_label"
+    )
+    display_type_transform = next(
+        transform
+        for transform in transforms
+        if transform.get("as") == "source_display_type"
+    )
+    assert "source.display_type" in display_type_transform["calculate"]
+    assert "source.raw_type" in display_type_transform["calculate"]
+    assert any(
+        transform.get("as") == "source_version_detail"
+        and "source.version" in transform["calculate"]
+        for transform in transforms
+    )
+
+    legend_label_transform = next(
+        transform
+        for transform in transforms
+        if transform.get("as") == "source_legend_label"
+    )
+    assert "ID:" in legend_label_transform["calculate"]
+    assert "source.id" in legend_label_transform["calculate"]
+
+    tooltip_id_transform = next(
+        transform
+        for transform in transforms
+        if transform.get("as") == "source_name_and_id"
+    )
+    assert "ID:" in tooltip_id_transform["calculate"]
+    tooltip_fields = [
+        tooltip["field"]
+        for tooltip in data_layer["encoding"]["tooltip"]
+        if tooltip is not None
+    ]
+    assert "source_name_and_id" in tooltip_fields
+    assert "source.display_type" in tooltip_fields
+    assert "source.model" in tooltip_fields
+    assert "source.version" in tooltip_fields
+
+
+def test_source_legend_label_transform_renders_short_non_id_labels():
+    values = [
+        _chart_source(1, "Unique", "user"),
+        _chart_source(
+            2,
+            "FlexMeasures",
+            "forecaster",
+            source_type="forecaster",
+            model="TrainPredictPipeline",
+            version="1",
+        ),
+        _chart_source(
+            3, "FlexMeasures", "reporter", model="PandasReporter", version="1"
+        ),
+        _chart_source(4, "Seita", "reporter", model="ModelA", version="1"),
+        _chart_source(5, "Seita", "reporter", model="ModelB", version="1"),
+        _chart_source(6, "Acme", "reporter", model="Shared", version="1"),
+        _chart_source(7, "Acme", "reporter", model="Shared", version="2"),
+    ]
+    texts = _render_source_legend_labels(values)
+
+    assert texts == [
+        "Unique",
+        "FlexMeasures (forecaster)",
+        "FlexMeasures (reporter)",
+        "Seita (ModelA)",
+        "Seita (ModelB)",
+        "Acme (v1)",
+        "Acme (v2)",
+    ]
+    assert "(" not in texts[0]
+    assert all("(" in text and ")" in text for text in texts[1:])
+    assert all("ID:" not in text for text in texts)
+
+
+def test_source_legend_label_transform_handles_sparse_source_metadata():
+    texts = _render_source_legend_labels(
+        [
+            _chart_source(1, "NoModel", "reporter", model="", version="1"),
+            _chart_source(2, "NoModel", "reporter", model="", version="2"),
+            _chart_source(
+                3,
+                "ModelOnly",
+                "",
+                source_type="",
+                raw_type="",
+                model="ModelA",
+            ),
+            _chart_source(
+                4,
+                "ModelOnly",
+                "",
+                source_type="",
+                raw_type="",
+                model="ModelB",
+            ),
+            {
+                "source": {
+                    "id": 5,
+                    "name": "OldData",
+                    "type": "scheduler",
+                    "model": "",
+                    "version": "",
+                }
+            },
+            {
+                "source": {
+                    "id": 6,
+                    "name": "OldData",
+                    "type": "other",
+                    "model": "",
+                    "version": "",
+                }
+            },
+            _chart_source(7, "NoDetails", "", source_type="", raw_type=""),
+            _chart_source(8, "NoDetails", "", source_type="", raw_type=""),
+        ]
+    )
+
+    assert texts == [
+        "NoModel (v1)",
+        "NoModel (v2)",
+        "ModelOnly (ModelA)",
+        "ModelOnly (ModelB)",
+        "OldData (scheduler)",
+        "OldData (other)",
+        "NoDetails (ID: 7)",
+        "NoDetails (ID: 8)",
+    ]
+    assert all("undefined" not in text for text in texts)
+    assert all("()" not in text for text in texts)
+    assert all("ID:" not in text for text in texts[:-2])
+
+
+def test_chart_styling_still_uses_normalized_source_type(battery_with_soc_flex_model):
+    """The new label field must not replace source.type for visual styling."""
+    battery, _ = battery_with_soc_flex_model
+
+    start = datetime(2015, 1, 1, tzinfo=pytz.utc)
+    end = datetime(2015, 1, 2, tzinfo=pytz.utc)
+
+    spec = battery.chart(
+        include_data=False,
+        event_starts_after=start,
+        event_ends_before=end,
+    )
+    stroke_dash_encodings = [
+        node["strokeDash"]
+        for node in _walk_dicts(spec)
+        if isinstance(node.get("strokeDash"), dict)
+    ]
+
+    assert any(
+        stroke_dash.get("field") == "source.type"
+        and stroke_dash.get("scale", {}).get("domain")
+        == ["forecaster", "scheduler", "other"]
+        for stroke_dash in stroke_dash_encodings
+    )
+
+
 # ---------------------------------------------------------------------------
 # Tests for the UI path: chart_data_json(compress_json=True)
 #
@@ -290,8 +531,6 @@ def test_chart_data_json_compressed_returns_expected_structure(
     start = datetime(2015, 1, 1, tzinfo=pytz.utc)
     end = datetime(2015, 1, 2, tzinfo=pytz.utc)
 
-    import json
-
     parsed = json.loads(
         battery.chart_data_json(
             compress_json=True,
@@ -314,8 +553,6 @@ def test_chart_data_json_compressed_includes_fixed_value_sensors(
 
     start = datetime(2015, 1, 1, tzinfo=pytz.utc)
     end = datetime(2015, 1, 2, tzinfo=pytz.utc)
-
-    import json
 
     parsed = json.loads(
         battery.chart_data_json(
@@ -343,8 +580,6 @@ def test_chart_data_json_compressed_fixed_value_records_are_correct(
 
     start = datetime(2015, 1, 1, tzinfo=pytz.utc)
     end = datetime(2015, 1, 2, tzinfo=pytz.utc)
-
-    import json
 
     parsed = json.loads(
         battery.chart_data_json(
@@ -382,8 +617,6 @@ def test_chart_data_json_compressed_source_references_flex_model(
     start = datetime(2015, 1, 1, tzinfo=pytz.utc)
     end = datetime(2015, 1, 2, tzinfo=pytz.utc)
 
-    import json
-
     parsed = json.loads(
         battery.chart_data_json(
             compress_json=True,
@@ -398,3 +631,95 @@ def test_chart_data_json_compressed_source_references_flex_model(
         "Source metadata must reference 'flex-model' for values from the flex_model; "
         f"got descriptions: {source_descriptions}"
     )
+
+
+def test_chart_data_json_preserves_display_source_type_for_labels(
+    battery_with_soc_flex_model,
+    fresh_db,
+):
+    """Chart data should preserve exact and label-friendly source type metadata."""
+    battery, soc_sensor = battery_with_soc_flex_model
+    start = datetime(2015, 1, 1, tzinfo=pytz.utc)
+    end = datetime(2015, 1, 2, tzinfo=pytz.utc)
+
+    forecaster_source = DataSource(
+        name="FlexMeasures",
+        type="forecaster",
+        model="TrainPredictPipeline",
+        version="1",
+    )
+    reporter_source = DataSource(
+        name="FlexMeasures",
+        type="reporter",
+        model="PandasReporter",
+        version="1",
+    )
+    fresh_db.session.add_all([forecaster_source, reporter_source])
+    fresh_db.session.flush()
+
+    for source, value in [(forecaster_source, 31), (reporter_source, 32)]:
+        fresh_db.session.add(
+            TimedBelief(
+                sensor=soc_sensor,
+                event_start=start,
+                event_value=value,
+                belief_horizon=timedelta(0),
+                source=source,
+            )
+        )
+    fresh_db.session.flush()
+
+    parsed = json.loads(
+        battery.chart_data_json(
+            compress_json=True,
+            event_starts_after=start,
+            event_ends_before=end,
+        )
+    )
+
+    forecaster_metadata = parsed["sources"][str(forecaster_source.id)]
+    assert forecaster_metadata["type"] == "forecaster"
+    assert forecaster_metadata["raw_type"] == "forecaster"
+    assert forecaster_metadata["display_type"] == "forecaster"
+    assert forecaster_metadata["model"] == "TrainPredictPipeline"
+    assert forecaster_metadata["version"] == "1"
+
+    reporter_metadata = parsed["sources"][str(reporter_source.id)]
+    assert reporter_metadata["type"] == "other"
+    assert reporter_metadata["raw_type"] == "reporter"
+    assert reporter_metadata["display_type"] == "reporter"
+    assert reporter_metadata["model"] == "PandasReporter"
+    assert reporter_metadata["version"] == "1"
+
+
+def test_chart_data_json_skips_invalid_saved_asset_reference(
+    battery_with_soc_flex_model,
+):
+    """Invalid saved flex references should be ignored instead of crashing chart endpoints."""
+    battery, soc_sensor = battery_with_soc_flex_model
+
+    # Keep one valid sensor plot and add one invalid flex-context reference.
+    battery.sensors_to_show = [
+        {
+            "title": "Mixed",
+            "plots": [
+                {"sensor": soc_sensor.id},
+                {"asset": battery.id, "flex-context": "non-existing-field"},
+            ],
+        }
+    ]
+
+    start = datetime(2015, 1, 1, tzinfo=pytz.utc)
+    end = datetime(2015, 1, 2, tzinfo=pytz.utc)
+
+    parsed = json.loads(
+        battery.chart_data_json(
+            compress_json=True,
+            event_starts_after=start,
+            event_ends_before=end,
+        )
+    )
+
+    sensor_ids_in_data = {r["sid"] for r in parsed["data"]}
+    assert soc_sensor.id in sensor_ids_in_data
+    assert -1 not in sensor_ids_in_data

@@ -9,6 +9,8 @@ description: Prevents subtle bugs in time handling, units, and data semantics wi
 
 Prevent subtle bugs in time handling, units, and data semantics across FlexMeasures. Ensure timezone-aware datetime operations, correct unit conversions with pint, proper pandas time index handling, and validate time-series data contracts. This agent owns the correctness of temporal and physical unit operations.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review
@@ -162,12 +164,11 @@ Critical conversions require duration or capacity parameters.
 
 ### Must Make Atomic Commits
 
-When making time/unit fixes:
+See `.github/instructions/atomic-commits.instructions.md`. When making time/unit fixes:
 
-- **Separate code changes from tests** - One commit per logical unit
-- **Separate documentation updates** - Don't mix with code
-- **Never commit analysis files** - No `TIME_ANALYSIS.md` or similar
-- **Update agent instructions separately** - Own file, own commit
+- **Separate code changes from tests** — one commit per logical unit
+- **Separate documentation updates** — don't mix with code
+- **Update agent instructions separately** — own file, own commit
 
 ### Must Verify Claims
 

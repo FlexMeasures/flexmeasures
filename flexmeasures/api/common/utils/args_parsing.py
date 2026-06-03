@@ -1,11 +1,14 @@
 from flask import jsonify
+from flask import current_app
 from flask import Request
 from flask_json import JsonError
 from webargs import ValidationError
 from webargs.flaskparser import parser
 from webargs.multidictproxy import MultiDictProxy
 from werkzeug.datastructures import MultiDict
+from werkzeug.exceptions import RequestEntityTooLarge
 
+from flexmeasures.api.common.responses import request_too_large
 from flexmeasures.data.schemas.utils import FMValidationError
 
 """
@@ -43,6 +46,25 @@ def validation_error_handler(error: FMValidationError):
     response = jsonify(response_data)
     response.status_code = status_code
     return response
+
+
+def request_entity_too_large_handler(error: RequestEntityTooLarge):
+    response_data, status_code = request_too_large(error.description)
+    response = jsonify(response_data)
+    response.status_code = status_code
+    return response
+
+
+def _enforce_request_size_limit(request: Request, config_key: str):
+    max_size = current_app.config.get(config_key)
+    if max_size is None or request.content_length is None:
+        return
+    if request.content_length > max_size:
+        raise RequestEntityTooLarge(
+            description=(
+                f"Request body exceeds the configured limit of {max_size} bytes."
+            )
+        )
 
 
 @parser.location_loader("args_and_json")
@@ -99,6 +121,8 @@ def combined_sensor_data_upload(request: Request, schema):
         MultiDictProxy: A proxy object wrapping the merged data from path parameters
                         and uploaded files.
     """
+    _enforce_request_size_limit(request, "FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES")
+
     data = MultiDict(request.view_args)
     data.update(request.files)
     belief_time = request.form.get("belief-time-measured-instantly")
@@ -132,6 +156,11 @@ def combined_sensor_data_description(request: Request, schema):
         MultiDictProxy: A proxy object wrapping the merged data from path parameters, URL
                         and/or uploaded json.
     """
+    if request.method == "POST":
+        _enforce_request_size_limit(
+            request, "FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES"
+        )
+
     # combine data
     data = MultiDict(request.view_args)
     data.update(request.args)  # Url (GET)

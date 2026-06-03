@@ -9,6 +9,8 @@ description: Ensures excellent documentation, clear error messages, and smooth d
 
 Keep FlexMeasures understandable and contributor-friendly by ensuring excellent documentation, clear error messages, and smooth developer workflows. Review docstrings, user-facing docs, CLI help text, error messages, and README updates. Ensure FlexMeasures is accessible to new users and contributors.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review
@@ -421,35 +423,11 @@ Instead:
 
 ### Must Make Atomic Commits
 
-**Never mix documentation changes with code or analysis files.**
-
-Bad (non-atomic):
-
-- Documentation update + code change
-- Multiple unrelated doc changes
-- Docs + `DOCUMENTATION_CHANGES.md` tracking file
-
-Good (atomic):
+See `.github/instructions/atomic-commits.instructions.md`. Never mix documentation changes with code or analysis files:
 
 1. Single documentation file update
 2. Related test documentation (separate commit)
 3. Agent instruction update (separate commit)
-
-### Must Avoid Committing Planning Files
-
-**Never commit temporary documentation planning files:**
-
-Files to never commit:
-
-- `DOCUMENTATION_CHANGES.md`
-- `DOC_PLAN.md`
-- Any `.md` files created for planning doc updates
-
-These should:
-
-- Stay in working memory only
-- Be written to `/tmp/` if needed
-- Never be added to git
 
 ### Using FlexMeasures Dev Environment for Doc Testing
 

@@ -51,12 +51,14 @@ of which some are referred to in this documentation.
 ``flexmeasures show account``                     Show an account, its users and assets.
 ``flexmeasures show asset-types``                 List available asset types.
 ``flexmeasures show asset``                       Show an asset and its sensors.
+``flexmeasures show assets``                      Show all assets for a given account or public assets.
 ``flexmeasures show roles``                       List available account- and user roles.
 ``flexmeasures show data-sources``                List available data sources.
 ``flexmeasures show beliefs``                     Plot time series data.
 ``flexmeasures show reporters``                   List available reporters.
 ``flexmeasures show schedulers``                  List available schedulers.
 ``flexmeasures show chart``                       Export charts to PNG or SVG.
+``flexmeasures show forecasters``                 List available forecasters.
 ================================================= =======================================
 
 
@@ -109,6 +111,8 @@ of which some are referred to in this documentation.
 ``flexmeasures jobs delete-queue``                Delete a job queue.
 ``flexmeasures jobs save-last``                   Save the last n jobs of your choice to a file. 
 ``flexmeasures jobs run-job``                     Run a single job (useful for debugging it)
+``flexmeasures jobs inspect-job``                 Inspect a background job and print its current status, result and metadata.
+``flexmeasures jobs stats``                       Show estimated live statistics of the queueing system.
 ================================================= =======================================
 
 
