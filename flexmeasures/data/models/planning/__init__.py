@@ -102,6 +102,33 @@ class Scheduler:
 
         return dict(groups)
 
+    @staticmethod
+    def _build_coupling_groups(
+        flex_model: list[dict],
+    ) -> dict[str, list[tuple[int, float]]]:
+        """Build coupling groups from the 'coupling' and 'coupling_coefficient' fields
+        of each device model.
+
+        Devices that share the same coupling name form a coupling group. Within each
+        group the first device encountered acts as the reference device (coefficient
+        assigned as given) and the remaining devices are linked to it via a pairwise
+        hard equality constraint enforced by ``device_scheduler``.
+
+        :param flex_model: List of deserialized device flex-model dicts.
+        :returns: Mapping from coupling-group name to a list of
+                  ``(device_index, coefficient)`` tuples suitable for passing to
+                  ``device_scheduler(coupling_groups=...)``.  Returns an empty dict
+                  when no device defines a ``coupling`` field.
+        """
+        groups: dict[str, list[tuple[int, float]]] = defaultdict(list)
+        for d, fm in enumerate(flex_model):
+            coupling_name = fm.get("coupling")
+            if coupling_name is None:
+                continue
+            coefficient = fm.get("coupling_coefficient", 1.0)
+            groups[coupling_name].append((d, coefficient))
+        return dict(groups)
+
     def __init__(
         self,
         sensor: Sensor | None = None,  # deprecated
