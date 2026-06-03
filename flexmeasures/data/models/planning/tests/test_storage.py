@@ -330,6 +330,112 @@ def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(
     assert scheduler.flex_model["soc_unit"] == "MWh"
 
 
+def test_deserialize_storage_soc_at_start_from_filtered_state_of_charge_sensor(
+    add_charging_station_assets, setup_markets, setup_sources, db
+):
+    start = pd.Timestamp("2015-01-01T00:00:00+01:00")
+    end = start + timedelta(hours=12)
+    charging_station = add_charging_station_assets["Test charging station"]
+    power_sensor = next(s for s in charging_station.sensors if s.name == "power")
+    soc_sensor = add_charging_station_assets["uni-soc"]
+
+    db.session.add(
+        TimedBelief(
+            sensor=soc_sensor,
+            source=setup_sources["Seita"],
+            event_start=start - timedelta(minutes=30),
+            belief_horizon=timedelta(0),
+            event_value=2.75,
+        )
+    )
+    db.session.add(
+        TimedBelief(
+            sensor=soc_sensor,
+            source=setup_sources["ENTSO-E"],
+            event_start=start - timedelta(minutes=30),
+            belief_horizon=timedelta(minutes=-15),
+            event_value=9.75,
+        )
+    )
+    db.session.flush()
+
+    scheduler = StorageScheduler(
+        power_sensor,
+        start,
+        end,
+        power_sensor.event_resolution,
+        flex_model={
+            "state-of-charge": {
+                "sensor": soc_sensor.id,
+                "sources": [setup_sources["Seita"].id],
+            },
+            "soc-min": "0 MWh",
+            "soc-max": "5 MWh",
+            "power-capacity": "2 MW",
+        },
+        flex_context={"consumption-price": {"sensor": setup_markets["epex_da"].id}},
+    )
+
+    scheduler.deserialize_config()
+
+    assert scheduler.flex_model["soc_at_start"] == 2.75
+
+
+def test_deserialize_storage_efficiency_from_filtered_sensor(
+    add_battery_assets, setup_sources, db
+):
+    battery = add_battery_assets["Test battery"]
+    power_sensor = next(s for s in battery.sensors if s.name == "power")
+    efficiency_sensor = Sensor(
+        name="storage-efficiency",
+        generic_asset=battery,
+        event_resolution=timedelta(hours=1),
+        unit="%",
+    )
+    db.session.add(efficiency_sensor)
+    db.session.add(
+        TimedBelief(
+            sensor=efficiency_sensor,
+            source=setup_sources["Seita"],
+            event_start="2015-01-01T00:00:00+01:00",
+            belief_horizon=timedelta(0),
+            event_value=90,
+        )
+    )
+    db.session.add(
+        TimedBelief(
+            sensor=efficiency_sensor,
+            source=setup_sources["ENTSO-E"],
+            event_start="2015-01-01T00:00:00+01:00",
+            belief_horizon=timedelta(minutes=-15),
+            event_value=80,
+        )
+    )
+    db.session.flush()
+
+    scheduler = StorageScheduler(
+        power_sensor,
+        pd.Timestamp("2015-01-01T00:00:00+01:00"),
+        pd.Timestamp("2015-01-01T02:00:00+01:00"),
+        power_sensor.event_resolution,
+        flex_model={
+            "soc-at-start": "2.5 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "5 MWh",
+            "power-capacity": "2 MW",
+            "storage-efficiency": {
+                "sensor": efficiency_sensor.id,
+                "sources": [setup_sources["Seita"].id],
+            },
+        },
+        flex_context={"consumption-price": "1 EUR/MWh"},
+    )
+
+    _, _, _, _, _, device_constraints, _, _ = scheduler._prepare(skip_validation=True)
+
+    assert device_constraints[0]["efficiency"].iloc[0] == pytest.approx(0.9**0.25)
+
+
 def test_deserialize_storage_soc_at_start_from_state_of_charge_time_series(
     add_charging_station_assets, setup_markets
 ):
