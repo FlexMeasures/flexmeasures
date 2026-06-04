@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import inspect
 import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
+from sqlalchemy import select
 from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.dialects.postgresql import JSONB
 
 import pandas as pd
 import timely_beliefs as tb
@@ -108,7 +111,9 @@ class DataGenerator:
         """
         raise NotImplementedError()
 
-    def compute(self, parameters: dict | None = None, **kwargs) -> list[dict[str, Any]]:
+    def compute(
+        self, parameters: dict | None = None, as_job: bool = False, **kwargs
+    ) -> list[dict[str, Any]]:
         """The configuration `parameters` stores dynamic parameters, parameters that, if
         changed, DO NOT trigger the creation of a new DataSource. Static parameters, such as
         the topology of an energy system, can go into `config`.
@@ -117,6 +122,7 @@ class DataGenerator:
         of the method compute when passing the `parameters` as deserialized attributes.
 
         :param parameters:  Serialized parameters, defaults to None.
+        :param as_job:      If True, runs as a job.
         :param kwargs:      Deserialized parameters (can be used as an alternative to the `parameters` kwarg).
         """
 
@@ -130,9 +136,14 @@ class DataGenerator:
 
         self._parameters = self._parameters_schema.load(self._parameters)
 
-        results = self._compute(**self._parameters)
+        sig = inspect.signature(inspect.unwrap(self._compute))
+        accepts_as_job = "as_job" in sig.parameters
+        if accepts_as_job:
+            results = self._compute(**self._parameters, as_job=as_job)
+        else:
+            results = self._compute(**self._parameters)
 
-        if not self._parameters.get("as_job", False):
+        if not as_job:
             results = self._assign_sensors_and_source(results)
         return results
 
@@ -245,24 +256,54 @@ class DataGenerator:
         return _parameters
 
 
+DEFAULT_DATASOURCE_TYPES = [
+    "user",
+    "scheduler",
+    "forecaster",
+    "reporter",
+    "demo script",
+    "gateway",
+    "market",
+]
+
+
 class DataSource(db.Model, tb.BeliefSourceDBMixin):
     """Each data source is a data-providing entity."""
 
     __tablename__ = "data_source"
     __table_args__ = (
-        db.UniqueConstraint("name", "user_id", "model", "version", "attributes_hash"),
+        db.UniqueConstraint(
+            "name", "user_id", "account_id", "model", "version", "attributes_hash"
+        ),
     )
 
     # The type of data source (e.g. user, forecaster or scheduler)
+    # just a string, but preferably one of DEFAULT_DATASOURCE_TYPES
     type = db.Column(db.String(80), default="")
 
-    # The id of the user source (can link e.g. to fm_user table)
-    user_id = db.Column(
-        db.Integer, db.ForeignKey("fm_user.id"), nullable=True, unique=True
+    # The id of the user source (can link e.g. to fm_user table).
+    # No DB-level FK so that deleting a user preserves the lineage reference in this column.
+    user_id = db.Column(db.Integer, nullable=True, unique=True)
+    user = db.relationship(
+        "User",
+        primaryjoin="DataSource.user_id == User.id",
+        foreign_keys="[DataSource.user_id]",
+        backref=db.backref("data_source", lazy=True, passive_deletes="all"),
+        passive_deletes="all",
     )
-    user = db.relationship("User", backref=db.backref("data_source", lazy=True))
 
-    attributes = db.Column(MutableDict.as_mutable(db.JSON), nullable=False, default={})
+    # The account this data source belongs to (populated from user.account for user-type sources).
+    # No DB-level FK so that deleting an account preserves the lineage reference in this column.
+    account_id = db.Column(db.Integer, nullable=True)
+    account = db.relationship(
+        "Account",
+        primaryjoin="DataSource.account_id == Account.id",
+        foreign_keys="[DataSource.account_id]",
+        backref=db.backref("data_sources", lazy=True, passive_deletes="all"),
+        passive_deletes="all",
+    )
+
+    attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
     attributes_hash = db.Column(db.LargeBinary(length=256))
 
@@ -273,12 +314,25 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         nullable=True,
     )
 
-    sensors = db.relationship(
-        "Sensor",
-        secondary="timed_belief",
-        backref=db.backref("data_sources", lazy="select"),
-        viewonly=True,
-    )
+    @property
+    def sensors(self) -> list:
+        """Return all Sensor objects that have beliefs recorded by this data source.
+
+        Uses a two-step subquery (distinct sensor IDs → Sensor rows) so that
+        it scales to very large timed_belief tables without fetching every belief row.
+        Mirrors the approach of ``Sensor.data_sources``.
+        """
+        from flexmeasures.data.models.time_series import Sensor, TimedBelief
+
+        sensor_id_subq = (
+            select(TimedBelief.sensor_id)
+            .where(TimedBelief.source_id == self.id)
+            .distinct()
+            .subquery()
+        )
+        return db.session.scalars(
+            select(Sensor).where(Sensor.id.in_(select(sensor_id_subq)))
+        ).all()
 
     _data_generator: ClassVar[DataGenerator | None] = None
 
@@ -294,15 +348,20 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
             name = user.username
             type = "user"
             self.user = user
+            # Prefer the FK column directly (avoids triggering a lazy load/autoflush).
+            # Fall back to the account relationship for users not yet flushed to the DB
+            # (where account_id may not be set on the column yet).
+            if user.account_id is not None:
+                self.account_id = user.account_id
+            elif user.account is not None:
+                self.account_id = user.account.id
         elif user is None and type == "user":
             raise TypeError("A data source cannot have type 'user' but no user set.")
         self.type = type
 
         if attributes is not None:
             self.attributes = attributes
-            self.attributes_hash = hashlib.sha256(
-                json.dumps(attributes).encode("utf-8")
-            ).digest()
+            self.attributes_hash = DataSource.hash_attributes(attributes)
         else:
             # Otherwise, the attributes only default to {} when flushing/committing to the db
             kwargs["attributes"] = {}
@@ -403,20 +462,21 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     @cached_property
     def as_dict(self) -> dict:
-        model_incl_version = self.model if self.model else ""
-        if self.model and self.version:
-            model_incl_version += f" (v{self.version})"
-        if "forecast" in self.type.lower():
+        raw_type = self.type or ""
+        if "forecast" in raw_type.lower():
             _type = "forecaster"  # e.g. 'forecaster' or 'forecasting script'
-        elif "schedul" in self.type.lower():  # e.g. 'scheduler' or 'scheduling script'
+        elif "schedul" in raw_type.lower():  # e.g. 'scheduler' or 'scheduling script'
             _type = "scheduler"
         else:
             _type = "other"
         return dict(
             id=self.id,
             name=self.name,
-            model=model_incl_version,
+            model=self.model or "",
+            version=self.version or "",
             type=_type,
+            raw_type=raw_type,
+            display_type=_type if _type != "other" else raw_type or "other",
             description=self.description,
         )
 
@@ -428,7 +488,20 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     @staticmethod
     def hash_attributes(attributes: dict) -> str:
-        return hashlib.sha256(json.dumps(attributes).encode("utf-8")).digest()
+        """Hash a dict of attributes to a fixed-length byte string.
+
+        Keys are sorted before hashing so that the result is stable regardless of
+        Python insertion order.  This matters because PostgreSQL JSONB serialises
+        JSON object keys in **alphabetical** order, so a round-trip through the
+        database changes the key order of the Python dict.  Without ``sort_keys``
+        the hash computed from the freshly-loaded dict would differ from the hash
+        that was stored when the :class:`DataSource` was first created, causing
+        :func:`~flexmeasures.data.services.data_sources.get_or_create_source` to
+        silently create a duplicate row.
+        """
+        return hashlib.sha256(
+            json.dumps(attributes, sort_keys=True).encode("utf-8")
+        ).digest()
 
     def get_attribute(self, attribute: str, default: Any = None) -> Any:
         """Looks for the attribute in the DataSource's attributes column."""

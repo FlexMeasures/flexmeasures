@@ -58,6 +58,8 @@
             cursor: default; 
         }
     </style>
+    <!-- json-editor (https://github.com/json-editor/json-editor) -->
+    <script src="https://cdn.jsdelivr.net/npm/@json-editor/json-editor@{{ config.FLEXMEASURES_JS_VERSIONS.jsoneditor }}/dist/jsoneditor.min.js"></script>
     <!-- Leaflet -->
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet" />
     <link href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" rel="stylesheet" />
@@ -92,92 +94,7 @@
 
     {% block body %}
 
-    {% block nav %}
-    <nav class="navbar navbar-expand-lg fixed-top mt-0 navbar-default mb-2 navbar-fixed-top " id="topnavbar">
-        <div class="container-fluid" id="navbar-container">
-        
-                     
-            <div class="navbar-brand">
-              <a href="/">
-                <span class="navbar-tool-name">
-                  {% if menu_logo %}
-                    <img id="navbar-logo" src="{{menu_logo}}"/>
-                  {% else %}
-                    <img id="navbar-logo" src="https://artwork.lfenergy.org/projects/flexmeasures/horizontal/white/flexmeasures-horizontal-white.svg" alt="FlexMeasures"/>
-                  {% endif %}
-                </span>
-              </a>
-            </div>
-            <div
-                class="navbar-toggler border-0"
-                type="button"
-                data-bs-toggle="collapse"
-                data-bs-target="#navbarSupportedContent"
-                aria-controls="navbarSupportedContent"
-                aria-expanded="false"
-                aria-label="Toggle navigation"
-            >
-                <i class="fa fa-bars"></i>
-            </div>
-         
-          <div class="collapse navbar-collapse justify-content-end flex-row" id="navbarSupportedContent">
-            <ul class="nav navbar-nav d-flex">
-              {% for href, id, caption, tooltip, icon in navigation_bar %}
-                {% if id == "tasks" %}
-                <li {% if id == active_page %} class="nav-item dropdown active" {% else %} class="nav-item dropdown" {% endif %}>
-                    <a class="nav-link dropdown-toggle" href="#" id="tasksDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    <span class="fa fa-tasks" aria-hidden="true"></span>
-                        Tasks
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="tasksDropdown">
-                    {% for queue in queue_names %}
-                        <li {% if current_user.has_role('anonymous') %} class="disabled" {% endif %}>
-                        <a class="dropdown-item" {% if not current_user.has_role('anonymous') %} href="/tasks/0/view/jobs/{{ queue }}/started/10/asc/1" {% endif %}>
-                            {{ queue | capitalize }}
-                        </a>
-                        </li>
-                    {% endfor %}
-                    <li {% if current_user.has_role('anonymous') %} class="disabled" {% endif %}>
-                        <a class="dropdown-item" {% if not current_user.has_role('anonymous') %} href="/tasks/" {% endif %}>
-                            Overview
-                        </a>
-                    </li>
-                    </ul>
-                </li>
-                {% else %}
-                <li {% if id == active_page %} class="nav-item active" {% else %} class="nav-item" {% endif %}
-                    data-bs-toggle="tooltip" title="{{ tooltip }}" data-placement="bottom"
-                    {% if id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) %}
-                    class="disabled" {% endif %}>
-                    <a {% if not ( id == 'upload' or (current_user.has_role('anonymous') and id in ('tasks', 'users')) ) %} href="/{{ href|e }}" {% endif %}
-                    {% if id in ['openapi-docs', 'docs'] %} target="_blank" {% endif %} class="nav-link">
-                        <span class="fa fa-{{ icon }}" aria-hidden="true"></span>
-                        {{ caption|e }}
-
-                        {# use tooltip as caption for small screens showing a collapsed menu #}
-                        {% if not caption %}
-                            <span class="d-inline d-lg-none">{{ tooltip }}</span>
-                        {% endif %}
-                    </a>
-                </li>
-                {% endif %}
-                {% endfor %}
-            </ul>
-          </div>
-        </div>
-    </nav>
-    {% endblock nav %}
-
-    <div
-        class="position-fixed bottom-0 end-0 p-3"
-        id="toast-container"
-        role="alert"
-        aria-live="assertive"
-        aria-atomic="true"
-        style="z-index: 1000000"
-    >
-        <button id="close-all-toasts" class="btn">Close All</button>
-    </div>
+    {% include "includes/navbar.html" %}
 
     {% if message and message != "" %}
     <div class="col-md-12 alert alert-info">{{ message}} </div>
@@ -227,27 +144,27 @@
                     {% endfor %}
                 </ul>
             </li>
-            <div style="margin-left: auto;" class="d-flex align-items-center">
+            <div class="row gx-0" style="margin-left: auto;">
                 {# Option to refresh data from materialized view if applicable #}
                 {# Note: the checkbox is checked by default, meaning the materialized view is used (for faster loading) #}
                 {# Unchecking it will reload the graph with fresh data, which may take more time #}
                 {# This option is only shown when a materialized view refresh interval is configured #}
                 {% if active_subpage == "asset_graph" and mv_refresh_interval %}
-                <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" id="useMaterializedView" checked title="Bypass cached data and reload this graph with real-time results.
+                <div class="col-auto form-check form-switch" title="Bypass cached data and reload this graph with real-time results.
 Cached data is refreshed every {{ mv_refresh_interval }} minutes for faster loading.
 Loading fresh data will take additional time.">
+                    <input class="form-check-input" type="checkbox" id="useMaterializedView" checked>
                     <label class="form-check-label" for="useMaterializedView">Refresh data</label>
                 </div>
                 {% endif %}
-                <div class="form-check form-switch" title="Set this asset view as your default when visiting asset pages." style="margin-left: 10px;">
-                    <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView" onchange="setDefaultAssetView(this, '{{ breadcrumb_info["current_asset_view"] }}')">
-                    <label class="form-check-label" for="defaultAssetView">Set as my default asset view</label>
+                <div class="col-auto form-check" title="Set this asset view as your default when visiting asset pages.">
+                    <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView">
+                    <label class="form-check-label" for="defaultAssetView">Set as default view</label>
                 </div>
                 {% if breadcrumb_info['current_asset_view'] == 'Graphs' %}
                 <div class="col-auto form-check" title="If checked, legends for graphs will always be combined at the bottom (for the current user). This can be useful on narrower screens like tables. The default (off) means that with 7 or more sensors to show, the legends will be shown on the right, and per graph.">
-                    <input class="form-check-input" type="checkbox" {% if session.get("keep_legends_below_graphs") %} checked {% endif %} id="defaultlegendPosition" onchange="setDefaultlegendPosition(this)">
-                    <label class="form-check-label" for="defaultlegendPosition">Keep legends below</label>
+                    <input class="form-check-input" type="checkbox" {% if session.get("keep_legends_below_graphs") %} checked {% endif %} id="defaultLegendPosition">
+                    <label class="form-check-label" for="defaultLegendPosition">Keep legends below</label>
                 </div>
                 {% endif %}
             </div>
@@ -1193,220 +1110,80 @@ Loading fresh data will take additional time.">
 
     {% endblock divs %}
 
+    {% include 'includes/toasts.html' %}
+
+    {% if toast_msg %}
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            showToast("{{ toast_msg | e }}", "success");
+        });
+    </script>
+    {% endif %}
+
 
     {#- Scripts used by all views (e.g. by navigation menu) -#}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/2.0.8/js/dataTables.bootstrap5.min.js"></script>
 
-    <!-- Add the class touched to body when the user uses any touch event. -->
-    <script>
-        document.body.addEventListener('touchstart', function() {
-          document.body.classList.add('touched');
-        });
-    </script>
+    <script type='module'>
+        import { setDefaultAssetView, setDefaultLegendPosition } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
-    {% block scripts %}
-    <!-- JS to enable tooltips -->
-    <script type='text/javascript'>
-        $(document).ready(function () {
+        document.addEventListener("DOMContentLoaded", function() {
+            {% if breadcrumb_info is defined %}
+                const breadcrumbInfo = {{ breadcrumb_info | tojson }};
+                const defaultAssetView = document.getElementById("defaultAssetView");
+                const defaultLegendPosition = document.getElementById("defaultLegendPosition");
+
+                if (defaultAssetView) {
+                    defaultAssetView.addEventListener('change', function () {
+                        setDefaultAssetView(this, breadcrumbInfo.current_asset_view);
+                    });
+                }
+
+                if (defaultLegendPosition) {
+                    defaultLegendPosition.addEventListener('change', function () {
+                        setDefaultLegendPosition(this);
+                    });
+                }
+            {% endif %}
+
+            // Enable Tooltip logic
             if ($("[rel=tooltip]").length) {
                 $("[rel=tooltip]").tooltip();
             }
+
+            // Set up swiping and clicking for the left sidepanel
+            var leftSidepanels = document.getElementsByClassName('sidepanel-content');
+            var leftSidepanelLabels = document.getElementsByClassName('sidepanel-label');
+            async function openSidepanel(e) {
+                if ( (e.target.classList.contains('sidepanel-container')) | (e.type == 'click') ) {
+                for (var i = leftSidepanels.length - 1; i >= 0; i--) {
+                    leftSidepanels[i].classList.add('sidepanel-show');
+                }
+                }
+            }
+            async function closeSidepanel(e) {
+                for (var i = leftSidepanels.length - 1; i >= 0; i--) {
+                leftSidepanels[i].classList.remove('sidepanel-show');
+                }
+            }
+            for (var i = leftSidepanelLabels.length - 1; i >= 0; i--) {
+                leftSidepanelLabels[i].addEventListener("click", openSidepanel);
+            }
+            document.addEventListener('swiped-right', openSidepanel);
+
+            document.addEventListener('swiped-left', closeSidepanel);
+            
+            // Add the class touched to body when the user uses any touch event.
+            document.body.addEventListener('touchstart', function() {
+            document.body.classList.add('touched');
+            });
         });
     </script>
 
-    <script>
-        // Set default asset view
-        function setDefaultAssetView(checkbox, view_name) {
-            // Get the checked status of the checkbox
-            const isChecked = checkbox.checked;
 
-            const apiBasePath = window.location.origin;
-            fetch(apiBasePath + '/api/v3_0/assets/default_asset_view', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}',
-                },
-                body: JSON.stringify({
-                    default_asset_view: view_name,
-                    use_as_default: isChecked
-                })
-            })
-            .then(response => response.json())
-            .catch(error => {
-                console.error('Error during API call:', error);
-            });
-        }
-
-        function setDefaultlegendPosition(checkbox) {
-            // Get the checked status of the checkbox
-            const isChecked = checkbox.checked;
-
-            const apiBasePath = window.location.origin;
-            fetch(apiBasePath + '/api/v3_0/assets/keep_legends_below_graphs', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}',
-                },
-                body: JSON.stringify({
-                    keep_legends_below_graphs: isChecked
-                })
-            })
-            .then(response => {
-                response.json();
-                location.reload();
-            })
-            .catch(error => {
-                console.error('Error during API call:', error);
-            });
-        }
-    </script>
-
-    <!-- JS to enable toast -->
-    <script defer>
-        const toastStack = document.getElementById("toast-container");
-        const closeToastBtn = document.getElementById("close-all-toasts");
-        
-        // written like this since this script(order) is ontop of the main script
-        document.addEventListener("DOMContentLoaded", function () {
-            initiateToastCloseBtn(closeToastBtn);
-        });
-
-        function maybeHideCloseToastBtn() {
-            const remainingToasts = toastStack.querySelectorAll(".toast");
-            if (remainingToasts.length === 0) {
-                closeToastBtn.style.display = "none";
-            }
-        }
-
-        function initiateToastCloseBtn(closeToastBtn){
-            // hide button
-            closeToastBtn.style.display = "none";
-
-            closeToastBtn.addEventListener("click", function () {
-                const toastElements = document.querySelectorAll(".toast");
-                toastElements.forEach((toast) => {
-                const toastInstance = bootstrap.Toast.getInstance(toast); // Get the toast instance
-                if (toastInstance) {
-                    // destroy the toast
-                    toastInstance.dispose();
-                    toast.remove();
-                }
-                });
-                // Hide the close button
-                closeToastBtn.style.display = "none";
-            });
-        }
-
-        function showAllToasts() {
-            const toastElements = document.querySelectorAll(".toast");
-            toastElements.forEach((toast) => {
-                const toastInstance = new bootstrap.Toast(toast);
-                toastInstance.show();
-            });
-        }
-
-        function showToast(message, type, { highlightDuplicates = true, showDuplicateCount = true } = {}) {
-            let colorClass;
-            let colorStyle = "";
-            let title;
-        
-            // Determine the type of toast
-            if (type == "error") {
-              delay = 10000;
-              colorClass = "bg-danger";
-              title = "Error";
-            } else if (type == "success") {
-              delay = 2000;
-              colorClass = "bg-success";
-              title = "Success";
-            } else {
-              delay = 5000;
-              colorStyle =
-                "background-color: {{ primary_color }};";
-              title = "Info";
-            }
-
-            // Search for an existing toast with the same message
-            const existingToasts = toastStack.querySelectorAll(".toast");
-            for (const t of existingToasts) {
-                const body = t.querySelector(".toast-body");
-                if (body && body.dataset.originalMessage === message) {
-                    // It's a duplicate
-                    if (showDuplicateCount) {
-                        let count = parseInt(body.dataset.count || "1") + 1;
-                        body.dataset.count = count;
-                        body.innerHTML = `${message} <span class="text-muted ms-2">(x${count})</span>`;
-                    }
-
-                    if (highlightDuplicates) {
-                        t.classList.remove("highlight");
-                        void t.offsetWidth; // Trigger reflow for CSS animation restart
-                        t.classList.add("highlight");
-                    }
-
-                    // Reinitialize and show the toast again
-                    const oldInstance = bootstrap.Toast.getInstance(t);
-                    if (oldInstance) {
-                        oldInstance.dispose();
-                    }
-                    const newInstance = new bootstrap.Toast(t);
-                    newInstance.show();
-
-                    return; // Don't create a new toast
-                }
-            }
-        
-            // Create the toast HTML
-            const toast = document.createElement("div");
-            toast.classList.add("toast", "mb-1");
-            toast.setAttribute("data-bs-autohide", "true");
-            toast.setAttribute("data-bs-delay", delay);
-            toast.setAttribute("role", "alert");
-            toast.setAttribute("aria-live", "assertive");
-            toast.setAttribute("aria-atomic", "true");
-        
-            toast.innerHTML = `
-              <div class="toast-header">
-                <div class="rounded me-2 ${colorClass}" style="width: 20px; height: 20px; display: inline-block; ${colorStyle}"></div>
-                <strong class="me-auto">${title}</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-              </div>
-            <div class="toast-body" data-original-message="${message}" data-count="1">
-                ${message}
-              </div>
-            `;
-        
-            // Append toast to the toast stack
-            toastStack.insertAdjacentElement("afterbegin", toast);
-        
-            // Show the close all button
-            closeToastBtn.style.display = "block";
-        
-            showAllToasts();
-
-            // Dispose and remove toast when it's autohidden
-            toast.addEventListener("hidden.bs.toast", function () {
-                const instance = bootstrap.Toast.getInstance(toast);
-                if (instance) {
-                    instance.dispose();
-                }
-                toast.remove();
-                maybeHideCloseToastBtn();
-            });
-
-            // destroy only this toast if the close(X) button is clicked
-            toast.querySelector(".btn-close").addEventListener("click", function () {
-                const toastInstance = new bootstrap.Toast(toast);
-                toastInstance.dispose();
-                toast.remove();
-                maybeHideCloseToastBtn();
-            });            
-        }
-    </script>
+    {% block scripts %}
 
     <!-- External scripts -->
     <script src="https://cdn.jsdelivr.net/npm/ion-rangeslider@2.3.1/js/ion.rangeSlider.min.js"></script>
@@ -1428,179 +1205,15 @@ Loading fresh data will take additional time.">
     {% endblock scripts %}
 
 
-
     {% block paginate_tables_script %}
     <script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
     <script
         src="https://cdn.datatables.net/plug-ins/1.10.22/features/conditionalPaging/dataTables.conditionalPaging.js"></script>
     {% endblock paginate_tables_script %}
 
-    <footer class="page-footer font-small pt-4 mt-auto">
-        <div class="footer text-center">
-            <div class="container-fluid">
-                {% block copyright_notice %}
-                FlexMeasures technology is created by <a href="https://seita.nl/">Seita Energy Flexibility</a>,
-                in cooperation with <a href="https://aoneeng.com/">A1 Engineering</a>
-                &copy
-                <script>var CurrentYear = new Date().getFullYear(); document.write(CurrentYear)</script>.
-                {% endblock copyright_notice %}
-
-                {% block about %}
-                <a href="#" data-bs-toggle="modal" data-bs-target="#About">About FlexMeasures</a>.
-                <!-- The modal -->
-                <div class="modal fade" id="About" tabindex="-1" role="dialog" aria-labelledby="modalLabelLarge" aria-hidden="true">
-                <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-
-                <div class="modal-header">
-                    <h4 class="modal-title" id="modalLabelLarge">About FlexMeasures</h4>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-
-                <div class="modal-body">
-
-                    <div class="justify">
-                        <p>
-                            In a world with renewable energy, flexibility is crucial for cost and CO₂ reduction.
-                            Planning ahead allows flexible devices to profit from scheduling the best flexible
-                            actions (such as shifting or curtailing energy use).
-                        </p>
-                        <p>
-                            The {{ FLEXMEASURES_PLATFORM_NAME }} Platform is a tool for businesses operating energy devices.
-                            Its purpose is to realise the best value for device owners by scheduling balancing actions.
-                            For instance, if the devices draw from or supply to the power grid, {{ FLEXMEASURES_PLATFORM_NAME }} can assist in
-                            selling balancing services to energy markets.
-                            It fulfills this purpose with three services: Monitoring, forecasting and scheduling.
-                            {{ FLEXMEASURES_PLATFORM_NAME }} is designed as open-source software to empower energy service companies while they
-                            maintain autonomy over their operations and their technology roadmap.
-                            Read more <a href="https://flexmeasures.readthedocs.io">here</a>.
-
-                        </p>
-                        <p>
-                            {{ FLEXMEASURES_PLATFORM_NAME }} is compliant with the Universal Smart Energy Framework (<a
-                                href="https://www.usef.energy/download-the-framework/a-flexibility-market-design/">USEF</a>), a
-                            “flexibility market design for the trading and commoditisation of energy flexibility and the
-                            architecture, tools and rules to make it work effectively.
-                            USEF fits on top of most market models and is already being adopted across Europe to accelerate and
-                            future-proof smart energy projects.”
-                        </p>
-                        {% if current_user.has_role('anonymous') and current_user.has_role('CPO') %}
-                        <p>
-                            This demo is tuned to operators of charge points for electric vehicles (EVs).
-                            The terminology used follows the Open Charge Point Interface (<a
-                                href="https://ocpi-protocol.org/">OCPI</a>).
-                            This dashboard shows you the locations of all charge points connected to the platform and how they
-                            are doing.
-                            Each charge point contains multiple chargers&mdash;called Electric Vehicle Supply Equipment (EVSE)
-                            in OCPI&mdash;which are monitored individually (click on a charge point location to reveal its
-                            EVSE).
-                        </p>
-                        <p>
-                            {{ FLEXMEASURES_PLATFORM_NAME }} supports automated scheduling of charging profiles through its API.
-                            Charging profiles are optimised against applicable market conditions like wholesale prices and
-                            contracted (time-of-use) tariffs.
-                            Charging preferences can be set to reflect whether EV owners are in a hurry or parking for some
-                            time.
-                        </p>
-                        {% endif %}
-                    </div>
-                </div>
-                
-                </div>
-                </div>
-                </div>
-
-                {% endblock about %}
-
-                {% block credits %}
-                <a href="#" data-bs-toggle="modal" data-bs-target="#Credits">Credits</a>.
-
-                <!-- The modal -->
-                <div class="modal fade" id="Credits" tabindex="-1" role="dialog" aria-labelledby="modalLabelLarge" aria-hidden="true">
-                <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-
-                <div class="modal-header">
-                    <h4 class="modal-title" id="modalLabelLarge">Credits</h4>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h3>Images from <a href="https://seita.nl">Seita</a></h3>
-                            <div>FlexMeasures on laptop - image by <a href="https://drakemultimedia.nl/" title="Bobby Drake">Bobby Drake</a></div>
-                            <h3>Images from <a href="https://unsplash.com/" title="Unsplash">Unsplash</a></h3>
-                            <div>Tesla charging station - image by <a href="https://www.chasealewis.com/" title="Chase Lewis">Chase Lewis</a></div>
-                            <div>Wind turbines on top of mountain - image by <a href="https://www.tbk-f.com/" title="TJ K.">TJ K.</a></div>
-                        </div>
-                        <div class="col-md-6">
-                            <h3>Icons from <a href="https://www.flaticon.com/" title="Flaticon">Flaticon</a></h3>
-                            <div><a href="https://www.flaticon.com/free-icon/wind-power_1085695">Wind turbine</a> - icon by <a href="https://www.flaticon.com/authors/good-ware" title="Good Ware">Good Ware</a> (made to spin by Seita)</div>
-                            <div><a href="https://www.flaticon.com/search?word=currency&author_id=258">Coins</a> - icons by <a href="https://www.flaticon.com/authors/pixelmeetup" title="Pixelmeetup">Pixelmeetup</a></div>
-                            <div>Other icons by <a href="https://www.freepik.com" title="Freepik">Freepik</a></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-header">
-                    We did our best to give credit to the original photographers and illustrators for the images included on this website. If we have not properly credited an original photographer or illustrator, please notifiy us and we will make the appropriate changes necessary.
-                </div>
-
-                </div>
-                </div>
-                </div>
-                {% endblock credits %}
-
-                <br/>
-
-
-                {% block support %}
-
-                {% if FLEXMEASURES_SUPPORT_PAGE %}
-                <a href="{{ FLEXMEASURES_SUPPORT_PAGE }}" target="_blank" rel="noopener noreferrer">Get Support</a>.
-                {% endif %}
-
-                {% endblock support %}
-
-                {% block termsofservice %}
-
-                {% if FLEXMEASURES_TOS_PAGE %}
-                <a href="{{ FLEXMEASURES_TOS_PAGE }}" target="_blank" rel="noopener noreferrer">Terms of Service</a>.
-                {% endif %}
-
-                {% endblock termsofservice %}
-
-
-                {% block technical_info %}
-                {# We might render templates from plugins, where this meta info is not available #}
-                {% if app_running_since %}
-                    This app is running since {{ app_running_since }}
-                {% endif %}
-                {% if (flexmeasures_version or git_version) and not current_user.has_role('anonymous') %}
-                    {% if flexmeasures_version %}
-                        on version {{ flexmeasures_version }}.
-                    {% else %}
-                        {% if git_version != "Unknown" %}
-                        on version {{ git_version }}+{{ git_commits_since }}.
-                        {% else %}
-                        on revision {{ git_hash }}.
-                        {% endif %}
-                    {% endif %}
-                {% endif %}
-                {% if loaded_plugins %}
-                    Loaded plugins: {{ loaded_plugins }}.
-                {% endif %}
-                {% endblock technical_info %}
-            </div>
-            {% block logo %}
-            <div>
-                <a href="https://flexmeasures.io/"><img src="https://artwork.lfenergy.org/projects/flexmeasures/icon/white/flexmeasures-icon-white.svg" alt="FlexMeasures" class="footer-logo"></a>
-            </div>
-            {% endblock logo %}
-        </div>
-    </footer>
     {% endblock body %}
-
+    
+    {% include 'includes/footer.html' %}
 </body>
 
 </html>

@@ -1,7 +1,9 @@
 from __future__ import annotations
-from typing import Tuple, Union, Sequence
+from typing import Sequence
 import inflect
 from functools import wraps
+
+from flask import url_for
 
 from flexmeasures.auth.error_handling import FORBIDDEN_MSG, FORBIDDEN_STATUS_CODE
 
@@ -9,8 +11,7 @@ p = inflect.engine()
 
 
 # Type annotation for responses: (message, status_code) or (message, status_code, header)
-# todo: Use | instead of Union and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
-ResponseTuple = Union[Tuple[dict, int], Tuple[dict, int, dict]]
+ResponseTuple = tuple[dict, int] | tuple[dict, int, dict]
 
 
 def is_response_tuple(value) -> bool:
@@ -63,7 +64,7 @@ def already_received_and_successfully_processed(message: str) -> ResponseTuple:
 
 
 @BaseMessage(
-    "Some of the data represents a replacement, which is reserved for customized servers. If you are hosting FlexMeasures, you can enable replacements by setting FLEXMEASURES_ALLOW_DATA_OVERWRITE=True in the configuration settings. Alternatively, update the prior in your request."
+    "Some of the data represents a replacement: existing values would be changed for the same sensor, source, event timestamp and belief time. This is reserved for customized servers. If you are hosting FlexMeasures, you can enable replacements by setting FLEXMEASURES_ALLOW_DATA_OVERWRITE=True in the configuration settings. Alternatively, submit the data with a different prior, or check whether the same file was already uploaded with different values."
 )
 def invalid_replacement(message: str) -> ResponseTuple:
     return (
@@ -177,12 +178,13 @@ def invalid_role(requested_access_role: str) -> ResponseTuple:
 
 def invalid_sender(
     required_permissions: list[str] | None = None,
+    message: str | None = None,
 ) -> ResponseTuple:
     """
     Signify that the sender is invalid to perform the request. Fits well with 403 errors.
     Optionally tell the user which permissions they should have.
     """
-    message = FORBIDDEN_MSG
+    message = message or FORBIDDEN_MSG
     if required_permissions:
         message += f" It requires {p.join(required_permissions)} permission(s)."
     return (
@@ -261,6 +263,11 @@ def unknown_schedule(message: str) -> ResponseTuple:
     return dict(result="Rejected", status="UNKNOWN_SCHEDULE", message=message), 400
 
 
+@BaseMessage("No known forecast for this time period.")
+def unknown_forecast(message: str) -> ResponseTuple:
+    return dict(result="Rejected", status="UNKNOWN_FORECAST", message=message), 400
+
+
 def fallback_schedule_redirect(message: str, location: str) -> ResponseTuple:
     return (
         dict(result="Rejected", status="UNKNOWN_SCHEDULE", message=message),
@@ -269,7 +276,7 @@ def fallback_schedule_redirect(message: str, location: str) -> ResponseTuple:
     )
 
 
-def invalid_flex_config(message: str) -> ResponseTuple:
+def unprocessable_entity(message: str) -> ResponseTuple:
     return (
         dict(
             result="Rejected", status="UNPROCESSABLE_ENTITY", message=dict(json=message)
@@ -371,6 +378,25 @@ def unrecognized_asset(message: str) -> ResponseTuple:
 @BaseMessage("Request has been processed.")
 def request_processed(message: str) -> ResponseTuple:
     return dict(status="PROCESSED", message=message), 200
+
+
+def request_accepted_for_processing(
+    job_id: str,
+    message: str = "Request has been accepted for processing.",
+) -> ResponseTuple:
+    return (
+        dict(
+            status="ACCEPTED",
+            message=message,
+            job_monitor_url=url_for("JobAPI:get_job_status", uuid=job_id),
+            job_id=job_id,
+        ),
+        202,
+    )
+
+
+def request_too_large(message: str) -> ResponseTuple:
+    return dict(result="Rejected", status="PAYLOAD_TOO_LARGE", message=message), 413
 
 
 def pluralize(usef_role_name: str) -> str:

@@ -1,13 +1,16 @@
-from flask.cli import with_appcontext
+from typing import Any
+
 from flexmeasures.data import ma
 from marshmallow import fields, validates
 
 from flexmeasures.data import db
-from flexmeasures.data.models.user import (
-    Account as AccountModel,
-    AccountRole as AccountRoleModel,
+from flexmeasures.data.models.user import Account, AccountRole
+from flexmeasures.data.schemas.attributes import JSON
+from flexmeasures.data.schemas.utils import (
+    FMValidationError,
+    MarshmallowClickMixin,
+    with_appcontext_if_needed,
 )
-from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 
 
@@ -15,7 +18,7 @@ class AccountRoleSchema(ma.SQLAlchemySchema):
     """AccountRole schema, with validations."""
 
     class Meta:
-        model = AccountRoleModel
+        model = AccountRole
 
     id = ma.auto_field(dump_only=True)
     name = ma.auto_field()
@@ -26,13 +29,14 @@ class AccountSchema(ma.SQLAlchemySchema):
     """Account schema, with validations."""
 
     class Meta:
-        model = AccountModel
+        model = Account
 
     id = ma.auto_field(dump_only=True)
     name = ma.auto_field(required=True)
     primary_color = ma.auto_field(required=False)
     secondary_color = ma.auto_field(required=False)
     logo_url = ma.auto_field(required=False)
+    attributes = JSON(required=False, load_default={})
     account_roles = fields.Nested("AccountRoleSchema", exclude=("accounts",), many=True)
     consultancy_account_id = ma.auto_field()
 
@@ -58,19 +62,47 @@ class AccountSchema(ma.SQLAlchemySchema):
             raise FMValidationError(str(e))
 
 
-class AccountIdField(fields.Int, MarshmallowClickMixin):
+class AccountIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to an Account and serializes back to an integer."""
 
-    @with_appcontext
-    def _deserialize(self, value, attr, obj, **kwargs) -> AccountModel:
+    @with_appcontext_if_needed()
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> Account:
         """Turn an account id into an Account."""
-        account = db.session.get(AccountModel, value)
+        account_id: int = super()._deserialize(value, attr, data, **kwargs)
+        account = db.session.get(Account, account_id)
         if account is None:
-            raise FMValidationError(f"No account found with id {value}.")
+            raise FMValidationError(f"No account found with id {account_id}.")
         # lazy loading now (account somehow is not in the session after this)
         account.account_roles
         return account
 
-    def _serialize(self, account, attr, data, **kwargs):
+    def _serialize(self, value: Account, attr, obj, **kwargs):
         """Turn an Account into a source id."""
-        return account.id
+        return value.id
+
+
+class AccountIdOrListField(fields.Field):
+    """Field that accepts a single account ID or a non-empty list of account IDs.
+
+    Both ``42`` and ``[42, 99]`` are accepted.  Always deserializes to a list of
+    :class:`~flexmeasures.data.models.user.Account` instances.
+
+    The field is intentionally expressed as a union of ``integer`` and
+    ``array[integer]`` rather than always requiring a list, so that future
+    OpenAPI generation can emit a ``oneOf`` schema for it.
+    """
+
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> list[Account]:
+        _item_field = AccountIdField()
+        if isinstance(value, list):
+            if len(value) == 0:
+                raise FMValidationError("Must be a non-empty list of account IDs.")
+            return [_item_field._deserialize(v, attr, data, **kwargs) for v in value]
+        return [_item_field._deserialize(value, attr, data, **kwargs)]
+
+    def _serialize(self, value: Any, attr, obj, **kwargs):
+        if value is None:
+            return None
+        if isinstance(value, list):
+            return [a.id if hasattr(a, "id") else a for a in value]
+        return value.id if hasattr(value, "id") else value

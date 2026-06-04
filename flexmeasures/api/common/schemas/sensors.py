@@ -1,5 +1,7 @@
+from typing import Any
+
 from flask import abort
-from marshmallow import Schema, fields, ValidationError
+from marshmallow import Schema, fields
 from sqlalchemy import select
 
 from flexmeasures.data import db
@@ -9,7 +11,6 @@ from flexmeasures.utils.entity_address_utils import (
     EntityAddressException,
 )
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.utils.unit_utils import is_valid_unit
 
 
 class EntityAddressValidationError(FMValidationError):
@@ -21,16 +22,17 @@ class SensorIdField(fields.Integer):
     Field that represents a sensor ID. It de-serializes from the sensor id to a sensor instance.
     """
 
-    def _deserialize(self, sensor_id: int, attr, obj, **kwargs) -> Sensor:
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> Sensor:
+        sensor_id: int = super()._deserialize(value, attr, data, **kwargs)
         sensor: Sensor = db.session.execute(
-            select(Sensor).filter_by(id=int(sensor_id))
+            select(Sensor).filter_by(id=sensor_id)
         ).scalar_one_or_none()
         if sensor is None:
             raise abort(404, f"Sensor {sensor_id} not found")
         return sensor
 
-    def _serialize(self, sensor: Sensor, attr, data, **kwargs) -> int:
-        return sensor.id
+    def _serialize(self, value: Sensor, attr, obj, **kwargs) -> int:
+        return value.id
 
 
 class SensorId(Schema):
@@ -62,7 +64,7 @@ class SensorEntityAddressField(fields.Str):
         self.fm_scheme = fm_scheme
         super().__init__(*args, **kwargs)
 
-    def _deserialize(self, value, attr, obj, **kwargs) -> Sensor:
+    def _deserialize(self, value, attr, data, **kwargs) -> Sensor:
         """De-serialize to a Sensor."""
         try:
             ea = parse_entity_address(value, self.entity_type, self.fm_scheme)
@@ -81,21 +83,9 @@ class SensorEntityAddressField(fields.Str):
         except EntityAddressException as eae:
             raise EntityAddressValidationError(str(eae))
 
-    def _serialize(self, value: Sensor, attr, data, **kwargs):
+    def _serialize(self, value: Sensor, attr, obj, **kwargs):
         """Serialize to an entity address."""
         if self.fm_scheme == "fm0":
             return value.entity_address_fm0
         else:
             return value.entity_address
-
-
-class UnitField(fields.Str):
-    """Field that represents a unit."""
-
-    def _deserialize(self, value, attr, data, **kwargs) -> str:
-        if not is_valid_unit(value):
-            raise ValidationError(f"Invalid unit: {value}")
-        return value
-
-    def _serialize(self, value: str, attr, obj, **kwargs) -> str:
-        return value

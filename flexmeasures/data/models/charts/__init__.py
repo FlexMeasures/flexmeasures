@@ -19,6 +19,7 @@ def chart_type_to_chart_specs(chart_type: str, **kwargs) -> dict:
         for chart_type, chart_specs in getmembers(belief_charts)
         if isfunction(chart_specs) or isinstance(chart_specs, dict)
     }
+
     # Create chart specs
     chart_specs_or_fnc = belief_charts_mapping[chart_type]
     if isfunction(chart_specs_or_fnc):

@@ -19,7 +19,7 @@ def setup_dummy_asset(fresh_db, app):
 
     dummy_asset_type = GenericAssetType(name="DummyGenericAssetType")
 
-    db.session.add(dummy_asset_type)
+    fresh_db.session.add(dummy_asset_type)
 
     dummy_asset = GenericAsset(
         name="DummyGenericAsset", generic_asset_type=dummy_asset_type
@@ -47,7 +47,7 @@ def setup_dummy_data(fresh_db, app, setup_dummy_asset):
         name="PandasReport", generic_asset_type=report_asset_type
     )
 
-    db.session.add(pandas_report)
+    fresh_db.session.add(pandas_report)
 
     dummy_asset = db.session.get(GenericAsset, setup_dummy_asset)
 
@@ -55,17 +55,17 @@ def setup_dummy_data(fresh_db, app, setup_dummy_asset):
         "sensor 1", generic_asset=dummy_asset, event_resolution=timedelta(hours=1)
     )
 
-    db.session.add(sensor1)
+    fresh_db.session.add(sensor1)
     sensor2 = Sensor(
         "sensor 2", generic_asset=dummy_asset, event_resolution=timedelta(hours=1)
     )
-    db.session.add(sensor2)
+    fresh_db.session.add(sensor2)
     report_sensor = Sensor(
         "report sensor",
         generic_asset=pandas_report,
         event_resolution=timedelta(hours=2),
     )
-    db.session.add(report_sensor)
+    fresh_db.session.add(report_sensor)
 
     report_sensor_2 = Sensor(
         "report sensor 2",
@@ -91,8 +91,8 @@ def setup_dummy_data(fresh_db, app, setup_dummy_asset):
                 )
             )
 
-    db.session.add_all(beliefs)
-    db.session.commit()
+    fresh_db.session.add_all(beliefs)
+    fresh_db.session.commit()
 
     yield sensor1.id, sensor2.id, report_sensor.id, report_sensor_2.id
 

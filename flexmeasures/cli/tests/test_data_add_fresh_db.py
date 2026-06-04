@@ -1,6 +1,7 @@
 import pytest
 import json
 import yaml
+import logging
 import os
 from datetime import datetime
 import pytz
@@ -9,15 +10,25 @@ from sqlalchemy import select
 from flexmeasures import Asset
 from flexmeasures.cli.tests.utils import to_flags
 from flexmeasures.data.models.user import Account
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 from flexmeasures.cli.tests.utils import check_command_ran_without_error
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.tests.utils import get_test_sensor
 
 
-@pytest.mark.skip_github
-def test_add_reporter(app, fresh_db, setup_dummy_data):
+def test_add_forecast(app, setup_dummy_data):
+    from flexmeasures.cli.data_add import add_forecast
+
+    cli_input = {
+        "sensor": 1,
+    }
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_forecast, to_flags(cli_input))
+    assert result.exit_code == 0, result.output
+
+
+def test_add_reporter(app, fresh_db, setup_dummy_data, caplog):
     """
     The reporter aggregates input data from two sensors (both have 200 data points)
     to a two-hour resolution.
@@ -53,6 +64,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
     # Running the command with start and end values.
 
     runner = app.test_cli_runner()
+    caplog.set_level(logging.INFO)
 
     cli_input_params = {
         "config": "reporter_config.yaml",
@@ -94,7 +106,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
             Sensor, report_sensor_id
         )  # get fresh report sensor instance
 
-        assert "Reporter PandasReporter found" in result.output
+        assert "Reporter PandasReporter found." in caplog.text
         assert f"Report computation done for sensor `{report_sensor}`." in result.output
 
         # Check report is saved to the database
@@ -147,7 +159,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
 
         assert (
             "Reporter `PandasReporter` fetched successfully from the database."
-            in result.output
+            in caplog.text
         )
         assert f"Report computation done for sensor `{report_sensor}`." in result.output
 
@@ -159,8 +171,7 @@ def test_add_reporter(app, fresh_db, setup_dummy_data):
         assert len(stored_report) == 95
 
 
-@pytest.mark.skip_github
-def test_add_multiple_output(app, fresh_db, setup_dummy_data):
+def test_add_multiple_output(app, fresh_db, setup_dummy_data, caplog):
     """ """
 
     from flexmeasures.cli.data_add import add_report
@@ -191,6 +202,7 @@ def test_add_multiple_output(app, fresh_db, setup_dummy_data):
     # Running the command with start and end values.
 
     runner = app.test_cli_runner()
+    caplog.set_level(logging.INFO)
 
     cli_input_params = {
         "config": "reporter_config.yaml",
@@ -234,7 +246,7 @@ def test_add_multiple_output(app, fresh_db, setup_dummy_data):
         report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
         report_sensor_2 = fresh_db.session.get(Sensor, report_sensor_2_id)
 
-        assert "Reporter PandasReporter found" in result.output
+        assert "Reporter PandasReporter found" in caplog.text
         assert f"Report computation done for sensor `{report_sensor}`." in result.output
         assert (
             f"Report computation done for sensor `{report_sensor_2}`." in result.output
@@ -250,7 +262,6 @@ def test_add_multiple_output(app, fresh_db, setup_dummy_data):
         assert all(report_sensor_2.search_beliefs() == 0)
 
 
-@pytest.mark.skip_github
 @pytest.mark.parametrize("process_type", [("INFLEXIBLE"), ("SHIFTABLE"), ("BREAKABLE")])
 def test_add_process(
     app, process_power_sensor, process_type, add_market_prices_fresh_db, db
@@ -298,7 +309,6 @@ def test_add_process(
     assert (schedule == -0.4).event_value.sum() == 4
 
 
-@pytest.mark.skip_github
 @pytest.mark.parametrize(
     "event_resolution, name, success",
     [("PT20M", "ONE", True), (15, "TWO", True), ("some_string", "THREE", False)],
@@ -330,7 +340,6 @@ def test_add_sensor(app, fresh_db, setup_dummy_asset, event_resolution, name, su
         assert sensor is None
 
 
-@pytest.mark.skip_github
 @pytest.mark.parametrize(
     "name, consultancy_account_id, success",
     [
@@ -365,7 +374,6 @@ def test_add_account(
         assert result.exit_code == 1
 
 
-@pytest.mark.skip_github
 @pytest.mark.parametrize("storage_power_capacity", ["sensor", "quantity", None])
 @pytest.mark.parametrize("storage_efficiency", ["sensor", "quantity", None])
 def test_add_storage_schedule(
@@ -455,3 +463,146 @@ def test_add_storage_schedule(
 
     check_command_ran_without_error(result)
     assert len(power_sensor.search_beliefs()) == 48
+
+
+def test_add_storage_schedule_uses_state_of_charge_sensor_for_soc_at_start(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_charging_station_assets_fresh_db,
+    setup_sources_fresh_db,
+):
+    """Test that the StorageScheduler reads soc-at-start from a sensor and stores
+    schedules on dedicated consumption and production output sensors with the correct
+    sign convention and clipping behaviour.
+
+    Setup:
+    - Bidirectional charging station (can both charge and discharge).
+    - SOC at start: 2.5 MWh (read from a sensor belief).
+    - Schedule window: 2015-01-03 00:00–12:00 CET.
+      On this date the market data has consumption prices of -10 EUR/MWh for hours 0–7
+      (incentivises charging) and production prices of +60 EUR/MWh for hours 8–23
+      (incentivises discharging), so the optimizer is guaranteed to do both.
+
+    Sign-convention and clipping assertions (both consumption and production sensors defined):
+    - Consumption sensor (consumption_is_positive=True): all stored values ≥ 0
+      (charging intervals are positive; discharging intervals are clipped to 0).
+    - Production sensor (consumption_is_positive=False): all stored values ≥ 0
+      (discharging intervals are stored as positive; charging intervals are clipped to 0).
+    - No single timestep may carry both a positive consumption and a positive production
+      value (the two sensors together partition the schedule without overlap).
+    - At least one charging and one discharging event must actually occur.
+    """
+    from flexmeasures.cli.data_add import add_schedule
+
+    # Use the bidirectional station so both charging and discharging can occur.
+    bidirectional_charging_station = add_charging_station_assets_fresh_db[
+        "Test charging station (bidirectional)"
+    ]
+    power_sensor = next(
+        s for s in bidirectional_charging_station.sensors if s.name == "power"
+    )
+    soc_sensor = add_charging_station_assets_fresh_db["bi-soc"]
+
+    # 2015-01-03: consumption prices are -10 EUR/MWh in hours 0-7 (charging rewarded)
+    # and production prices are +60 EUR/MWh in hours 8-23 (discharging rewarded).
+    start = "2015-01-03T00:00:00+01:00"
+
+    fresh_db.session.add(
+        TimedBelief(
+            sensor=soc_sensor,
+            source=setup_sources_fresh_db["Seita"],
+            event_start=datetime.fromisoformat(start),
+            event_value=2.5,
+            belief_time=datetime.fromisoformat(start),
+        )
+    )
+
+    # Add dedicated output sensors for the consumption (charging) and production
+    # (discharging) parts of the schedule.
+    consumption_output_sensor = Sensor(
+        name="consumption output",
+        generic_asset=bidirectional_charging_station,
+        unit="MW",
+        event_resolution=power_sensor.event_resolution,
+    )
+    production_output_sensor = Sensor(
+        name="production output",
+        generic_asset=bidirectional_charging_station,
+        unit="MW",
+        event_resolution=power_sensor.event_resolution,
+    )
+    fresh_db.session.add(consumption_output_sensor)
+    fresh_db.session.add(production_output_sensor)
+    fresh_db.session.commit()
+
+    epex_da = add_market_prices_fresh_db["epex_da"]
+    epex_da_production = add_market_prices_fresh_db["epex_da_production"]
+
+    cli_input_params = {
+        "sensor": power_sensor.id,
+        "start": start,
+        "duration": "PT12H",
+        "scheduler": "StorageScheduler",
+        "flex-context": json.dumps(
+            {
+                "consumption-price": {"sensor": epex_da.id},
+                "production-price": {"sensor": epex_da_production.id},
+            }
+        ),
+        "flex-model": json.dumps(
+            {
+                "state-of-charge": {"sensor": soc_sensor.id},
+                "soc-min": "0 MWh",
+                "soc-max": "5 MWh",
+                "power-capacity": "2 MW",
+                "consumption": {"sensor": consumption_output_sensor.id},
+                "production": {"sensor": production_output_sensor.id},
+            }
+        ),
+    }
+
+    result = app.test_cli_runner().invoke(add_schedule, to_flags(cli_input_params))
+
+    check_command_ran_without_error(result)
+    assert len(power_sensor.search_beliefs()) == 48
+    assert power_sensor.generic_asset.get_attribute("soc_in_mwh") == 2.5
+
+    # Reload sensors from the DB after the schedule has been committed.
+    consumption_output_sensor = fresh_db.session.get(
+        Sensor, consumption_output_sensor.id
+    )
+    production_output_sensor = fresh_db.session.get(Sensor, production_output_sensor.id)
+    consumption_beliefs = consumption_output_sensor.search_beliefs()
+    production_beliefs = production_output_sensor.search_beliefs()
+
+    assert len(consumption_beliefs) == 48
+    assert len(production_beliefs) == 48
+
+    consumption_values = consumption_beliefs.values.flatten()
+    production_values = production_beliefs.values.flatten()
+
+    # Sign convention: consumption sensor (consumption_is_positive=True) stores
+    # charging as positive values; discharging intervals are clipped to 0.
+    assert (
+        consumption_values >= 0
+    ).all(), "Consumption output sensor must only hold non-negative values"
+    # Sign convention: production sensor (consumption_is_positive=False) stores
+    # discharging as positive values; charging intervals are clipped to 0.
+    assert (
+        production_values >= 0
+    ).all(), "Production output sensor must only hold non-negative values"
+    # Clipping: the two sensors partition the schedule without overlap — no
+    # single timestep should carry both a positive consumption and a positive
+    # production value.
+    assert not (
+        (consumption_values > 0) & (production_values > 0)
+    ).any(), "No timestep may have both positive consumption and positive production"
+    # With negative consumption prices in hours 0-7 and positive production prices
+    # in hours 8+, both charging and discharging must occur.
+    assert (
+        consumption_values > 0
+    ).any(), "Some charging must occur given the negative consumption prices"
+    assert (
+        production_values > 0
+    ).any(), "Some discharging must occur given the positive production prices"

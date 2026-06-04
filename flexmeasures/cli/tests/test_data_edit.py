@@ -11,7 +11,6 @@ from flexmeasures.cli.tests.utils import get_click_commands
 from flexmeasures.tests.utils import get_test_sensor
 
 
-@pytest.mark.skip_github
 def test_add_one_sensor_attribute(app, db, setup_markets):
     from flexmeasures.cli.data_edit import edit_attribute
 
@@ -46,7 +45,6 @@ def test_add_one_sensor_attribute(app, db, setup_markets):
     assert n_attributes_after == n_attributes_before + 1
 
 
-@pytest.mark.skip_github
 def test_update_one_asset_attribute(app, db, setup_generic_assets):
     from flexmeasures.cli.data_edit import edit_attribute
 
@@ -74,7 +72,6 @@ def test_update_one_asset_attribute(app, db, setup_generic_assets):
     ).scalar_one_or_none()
 
 
-@pytest.mark.skip_github
 @pytest.mark.parametrize(
     "event_starts_after, event_ends_before",
     (

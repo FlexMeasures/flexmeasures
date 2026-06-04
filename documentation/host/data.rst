@@ -97,7 +97,7 @@ Make sure postgres represents datetimes in UTC timezone
 
 (Otherwise, pandas can get confused with daylight saving time.)
 
-Luckily, many web hosters already have ``timezone= 'UTC'`` set correctly by default,
+Luckily, many web hosts already have ``timezone= 'UTC'`` set correctly by default,
 but local postgres installations often use ``timezone='localtime'``.
 
 In any case, check both your local installation and the server, like this:
@@ -306,13 +306,11 @@ You can visualise the data model like this:
 
 .. code-block:: bash
 
-   $ make show-data-model
+   $ uv run poe show-data-model --uml
 
 
 This will generate a picture based on the model code.
-You can also generate picture based on the actual database, see inside the Makefile. 
-
-.. note:: If you encounter "error: externally-managed-environment" when running `make test` and you do it in venv, try `pip cache purge` or use pipx.
+You can also generate picture based on the actual database with ``uv run poe show-data-model --schema``.
 
 Maintenance
 ----------------

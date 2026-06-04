@@ -57,7 +57,12 @@ So this tells us which API versions exist. For instance, we know that the latest
 
 Also, we can see that a list of endpoints is available on https://flexmeasures.readthedocs.io for each of these versions.
 
-.. note:: Sunset API versions are still documented there, simply select an older version.
+All API responses include a ``FlexMeasures-Version`` header with the current server version, and responses from versioned API endpoints (e.g. under ``/api/v3_0``) also include an ``API-Version`` header indicating the API version:
+
+.. code-block:: http
+
+    FlexMeasures-Version: 0.32.0
+    API-Version: v3_0
 
 
 .. _api_auth:
@@ -104,6 +109,51 @@ which gives a response like this if the credentials are correct:
     }
 
 .. note:: Each access token has a limited lifetime, see :ref:`api_auth`.
+
+.. _api_see_other:
+
+See Other (303)
+---------------
+
+Some API responses return ``HTTP status 303 (See Other)`` to redirect the client to a different resource.
+This happens, for example, when a scheduling job fails and a fallback schedule has been computed instead.
+In that case, the response includes a ``Location`` header pointing to the fallback schedule endpoint, so clients can automatically retrieve the fallback result.
+
+The response body will contain a JSON message with a ``status`` field set to ``"UNKNOWN_SCHEDULE"`` and a ``message`` field explaining the reason for the redirect.
+
+.. note::
+
+    The fallback schedule mechanism activates when the main scheduler encounters an infeasible problem (i.e. when constraints cannot be satisfied).
+    This is less likely to happen when ``"relax-constraints": true`` is set in the ``flex-context``, as constraint relaxation softens most infeasibility-causing constraints.
+    The hard constraints that remain even after constraint relaxation are ``soc-min``, ``soc-max``, ``soc-targets`` and ``power-capacity`` in the ``flex-model``, and ``site-power-capacity`` in the ``flex-context``.
+
+    Server administrators can configure whether clients receive a 303 redirect (``FLEXMEASURES_FALLBACK_REDIRECT = True``) or whether FlexMeasures follows the fallback automatically and returns the fallback schedule directly (``FLEXMEASURES_FALLBACK_REDIRECT = False``, the default).
+
+Here is a client-side code example in Python for handling 303 redirects (this merely follows the redirect and should be revised to make use of the client's monitoring tools):
+
+.. code-block:: python
+
+    import requests
+
+    def get_schedule(url, params):
+        """Request a schedule, following any 303 redirect to a fallback schedule.
+
+        Reference
+        ---------
+        https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#see-other-303
+        """
+        response = requests.get(url, params=params)
+        if response.status_code == 303:
+            fallback_url = response.headers["Location"]
+            print(
+                f"Schedule at {url} was redirected to a fallback schedule."
+                f" Reason: {response.json().get('message')}"
+                f" Fetching fallback schedule from {fallback_url} ..."
+            )
+            response = requests.get(fallback_url, params=params)
+            if not response.ok:
+                print(f"Failed to fetch fallback schedule: {response.status_code} {response.text}")
+        return response
 
 .. _api_deprecation:
 

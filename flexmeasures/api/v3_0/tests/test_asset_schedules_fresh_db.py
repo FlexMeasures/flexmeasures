@@ -11,7 +11,7 @@ from rq.job import Job
 from flexmeasures import Sensor
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.planning.tests.utils import check_constraints
-from flexmeasures.data.tests.utils import work_on_rq
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
     handle_scheduling_exception,
     get_data_source_for_job,
@@ -24,8 +24,8 @@ from flexmeasures.utils.unit_utils import ur
     "message_without_targets, message_with_targets, asset_name",
     [
         (
-            message_for_trigger_schedule(),
-            message_for_trigger_schedule(with_targets=True),
+            message_for_trigger_schedule(resolution="PT30M"),
+            message_for_trigger_schedule(resolution="PT30M", with_targets=True),
             "Test battery",
         ),
     ],
@@ -127,6 +127,7 @@ def test_asset_trigger_and_get_schedule(
             == sensor_1.generic_asset.parent_asset.id
         ), "first queued job is the one for the top-level asset"
     assert scheduling_job.kwargs["start"] == parse_datetime(message["start"])
+    assert scheduling_job.kwargs["resolution"] == parse_duration(message["resolution"])
     assert done_job_id == job_id
 
     # process the scheduling queue
@@ -183,10 +184,11 @@ def test_asset_trigger_and_get_schedule(
     soc_sensors = [bi_soc_sensor, uni_soc_sensor]
     expected_length_of_schedule = compute_expected_length(message, sensors, sequential)
 
-    # The 72nd quarterhour is the first quarterhour within the cheapest hour.
+    # The 72nd and 73rd quarter-hours make up the first half-hour within the cheapest hour.
     # That's when we expect all charging for the uni-directional CP.
     expected_uni_schedule = [0] * 188
-    expected_uni_schedule[72] = 0.053651
+    expected_uni_schedule[72] = 0.026824
+    expected_uni_schedule[73] = 0.026824
 
     # try to retrieve the schedule for each sensor through the /sensors/<id>/schedules/<job_id> [GET] api endpoint
     for d, (sensor, soc_sensor, flex_model) in enumerate(
@@ -243,6 +245,7 @@ def test_asset_trigger_and_get_schedule(
         assert (
             len(soc_schedule)
             == expected_length_of_schedule[d]
+            * (sensor.event_resolution / parse_duration(message["resolution"]))
             + 1  # +1 because the SoC schedule is end-inclusive
         )
         assert soc_schedule[0] * 1000 == flex_model["soc-at-start"]

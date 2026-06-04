@@ -11,21 +11,27 @@ from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.utils import get_power_values
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.tests.utils import work_on_rq
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
     handle_scheduling_exception,
     get_data_source_for_job,
 )
+from flexmeasures.data.schemas.scheduling import ScheduleSignConvention
 from flexmeasures.utils.calculations import integrate_time_series
 
 
 @pytest.mark.parametrize(
     "message, asset_name",
     [
-        (message_for_trigger_schedule(), "Test battery"),
-        (message_for_trigger_schedule(with_targets=True), "Test charging station"),
+        (message_for_trigger_schedule(resolution="PT1H"), "Test battery"),
         (
-            message_for_trigger_schedule(with_targets=True, use_time_window=True),
+            message_for_trigger_schedule(resolution="PT1H", with_targets=True),
+            "Test charging station",
+        ),
+        (
+            message_for_trigger_schedule(
+                resolution="PT1H", with_targets=True, use_time_window=True
+            ),
             "Test charging station",
         ),
     ],
@@ -195,6 +201,194 @@ def test_trigger_and_get_schedule(
 
     # Check whether the soc-at-start was persisted as an asset attribute
     assert sensor.generic_asset.get_attribute("soc_in_mwh") == start_soc
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    battery_soc_sensor_fresh_db,
+    setup_sources_fresh_db,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    scheduling_resolution = "PT1H"
+    message = message_for_trigger_schedule(resolution=scheduling_resolution)
+    message["flex-context"] = {
+        "consumption-price": {"sensor": add_market_prices_fresh_db["epex_da"].id},
+        "production-price": {"sensor": add_market_prices_fresh_db["epex_da"].id},
+        "site-power-capacity": "1 TW",
+    }
+    message["flex-model"]["state-of-charge"] = {
+        "sensor": battery_soc_sensor_fresh_db.id
+    }
+    message["flex-model"].pop("soc-at-start")
+
+    fresh_db.session.add(
+        TimedBelief(
+            sensor=battery_soc_sensor_fresh_db,
+            source=setup_sources_fresh_db["Seita"],
+            event_start=parse_datetime(message["start"]),
+            belief_horizon=timedelta(0),
+            event_value=50,
+        )
+    )
+
+    # Also add a production output sensor to verify the production schedule is stored.
+    # (Using only a production sensor means the full power profile is stored with sign inverted:
+    # production positive, consumption negative.)
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == "Test battery")
+        .one_or_none()
+    )
+    production_output_sensor = Sensor(
+        name="production output",
+        generic_asset=sensor.generic_asset,
+        unit="MW",
+        event_resolution=sensor.event_resolution,
+    )
+    fresh_db.session.add(production_output_sensor)
+    fresh_db.session.commit()
+
+    message["flex-model"]["production"] = {"sensor": production_output_sensor.id}
+
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+        assert trigger_schedule_response.status_code == 200
+        job_id = trigger_schedule_response.json["schedule"]
+
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+    with app.test_client() as client:
+        get_soc_schedule_response = client.get(
+            url_for(
+                "SensorAPI:get_schedule", id=battery_soc_sensor_fresh_db.id, uuid=job_id
+            ),
+            query_string={"duration": "PT24H"},
+        )
+        assert get_soc_schedule_response.status_code == 200
+        assert get_soc_schedule_response.json["unit"] == "%"
+        soc_values = get_soc_schedule_response.json["values"]
+        assert soc_values[0] == 50
+
+    sensor = fresh_db.session.get(Sensor, sensor.id)
+    assert sensor.generic_asset.get_attribute("soc_in_mwh") == pytest.approx(0.02)
+
+    # Verify the production output sensor received schedule data.
+    # Only the production sensor is defined (no consumption sensor), so the full power profile
+    # is stored with inverted sign: production as positive, consumption as negative.
+    production_output_sensor = fresh_db.session.get(Sensor, production_output_sensor.id)
+    production_beliefs = production_output_sensor.search_beliefs(
+        event_starts_after=parse_datetime(message["start"])
+    )
+    assert len(production_beliefs) == 96  # 24h at 15-min resolution
+    assert (
+        soc_values[1] - soc_values[0] == -50
+    ), "expected SoC to go down in the first hour"
+    assert (
+        production_beliefs.resample_events(scheduling_resolution).iloc[0].event_value
+        > 0
+    ), "expected first hour to show positive production"
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_conflicting_consumption_is_positive_attribute_prevents_job_creation(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    battery_soc_sensor_fresh_db,
+    setup_sources_fresh_db,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    """Scheduling must be rejected immediately when consumption_is_positive is already set
+    to a value that conflicts with the flex-model field used for the sensor.
+
+    Here a sensor that already has ``consumption_is_positive=True`` (consumption sensor) is
+    mistakenly referenced under the ``production`` flex-model field. The trigger API should
+    raise a ``ValueError`` and return a 422 response, so the job is never created and the
+    sensor's belief table remains empty.
+
+    ``force-new-job-creation`` is set to bypass the job-cache, which would otherwise serve the
+    cached result of a prior test that ran against the same battery sensor and time window
+    (``fresh_db`` resets sensor IDs to the same values each test, producing the same cache key).
+    """
+    message = message_for_trigger_schedule(resolution="PT1H")
+    message["force-new-job-creation"] = True
+    message["flex-context"] = {
+        "consumption-price": {"sensor": add_market_prices_fresh_db["epex_da"].id},
+        "production-price": {"sensor": add_market_prices_fresh_db["epex_da"].id},
+        "site-power-capacity": "1 TW",
+    }
+    message["flex-model"].pop("soc-at-start")
+    message["flex-model"]["state-of-charge"] = {
+        "sensor": battery_soc_sensor_fresh_db.id
+    }
+
+    # Find the main power sensor for the battery.
+    power_sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == "Test battery")
+        .one_or_none()
+    )
+
+    # Create an output sensor that is pre-marked as a *consumption* sensor.
+    # We will then (wrongly) pass it as the `production` field in the flex-model.
+    mismatched_sensor = Sensor(
+        name="consumption output (misused as production)",
+        generic_asset=power_sensor.generic_asset,
+        unit="MW",
+        event_resolution=power_sensor.event_resolution,
+        attributes={"consumption_is_positive": True},  # consumption sensor
+    )
+    fresh_db.session.add(mismatched_sensor)
+    fresh_db.session.add(
+        TimedBelief(
+            sensor=battery_soc_sensor_fresh_db,
+            source=setup_sources_fresh_db["Seita"],
+            event_start=parse_datetime(message["start"]),
+            belief_horizon=timedelta(0),
+            event_value=50,
+        )
+    )
+    fresh_db.session.commit()
+
+    # Reference the consumption-marked sensor under the `production` field — a mismatch.
+    message["flex-model"]["production"] = {"sensor": mismatched_sensor.id}
+
+    with app.test_client() as client:
+        trigger_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=power_sensor.id),
+            json=message,
+        )
+        # The conflict is detected at trigger time: the API returns 422 immediately,
+        # without creating a job.
+        assert trigger_response.status_code == 422
+        assert "consumption_is_positive" in str(
+            trigger_response.json.get("message", "")
+        )
+
+    # No beliefs should have been written for the mismatched sensor.
+    mismatched_sensor = fresh_db.session.get(Sensor, mismatched_sensor.id)
+    saved_beliefs = mismatched_sensor.search_beliefs(
+        event_starts_after=parse_datetime(message["start"])
+    )
+    assert (
+        len(saved_beliefs) == 0
+    ), "No data should be saved when the attribute conflict is detected at job-creation time"
 
 
 @pytest.mark.parametrize(
@@ -536,6 +730,280 @@ def test_multiple_contracts(
             int(soc_schedule[target.get("datetime", target.get("end"))] * 1000)
             == target["value"]
         )
+
+
+def _assert_schedule_sign_convention(
+    output_type: str,
+    sign_convention: str,
+    main_values: list,
+    output_values: list,
+) -> None:
+    """Assert that *output_values* satisfy the expected sign convention relative to *main_values*.
+
+    *main_values* are always fetched with the default ``consumption-positive`` convention so that
+    positive values represent charging and negative values represent discharging.
+
+    The expected sign of *output_values* depends on both ``output_type`` and ``sign_convention``:
+
+    - ``consumption`` output sensor stores consumption as positive (``consumption_is_positive=True``):
+      - ``consumption-positive``: same as DB → same sign as main.
+      - ``production-positive``: inverts DB → opposite sign from main.
+      - ``wysiwyg``: raw DB (consumption positive) → same sign as main.
+    - ``production`` output sensor stores production as positive (``consumption_is_positive=False``):
+      - ``consumption-positive``: inverts DB → same sign as main.
+      - ``production-positive``: raw DB (production positive) → opposite sign from main.
+      - ``wysiwyg``: raw DB (production positive) → opposite sign from main.
+    """
+    same_sign_as_main = (
+        sign_convention == ScheduleSignConvention.CONSUMPTION_POSITIVE
+        or (
+            output_type == "consumption"
+            and sign_convention == ScheduleSignConvention.WYSIWYG
+        )
+    )
+
+    for main_val, out_val in zip(main_values, output_values):
+        if main_val > 0:
+            if same_sign_as_main:
+                assert out_val >= 0, (
+                    f"[output_type={output_type}, sign_convention={sign_convention}] "
+                    f"Expected output >= 0 for charging (main={main_val}), got {out_val}"
+                )
+            else:
+                assert out_val <= 0, (
+                    f"[output_type={output_type}, sign_convention={sign_convention}] "
+                    f"Expected output <= 0 for charging (main={main_val}), got {out_val}"
+                )
+        elif main_val < 0:
+            if same_sign_as_main:
+                assert out_val <= 0, (
+                    f"[output_type={output_type}, sign_convention={sign_convention}] "
+                    f"Expected output <= 0 for discharging (main={main_val}), got {out_val}"
+                )
+            else:
+                assert out_val >= 0, (
+                    f"[output_type={output_type}, sign_convention={sign_convention}] "
+                    f"Expected output >= 0 for discharging (main={main_val}), got {out_val}"
+                )
+
+
+@pytest.mark.parametrize(
+    "sign_convention",
+    [
+        ScheduleSignConvention.CONSUMPTION_POSITIVE,
+        ScheduleSignConvention.PRODUCTION_POSITIVE,
+        ScheduleSignConvention.WYSIWYG,
+    ],
+)
+@pytest.mark.parametrize(
+    "output_type",
+    ["consumption", "production"],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_schedule_sign_convention_json_flex_model(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    battery_soc_sensor_fresh_db,
+    keep_scheduling_queue_empty,
+    output_type,
+    sign_convention,
+    requesting_user,
+):
+    """Test that get_schedule returns correct values for all three sign-convention modes
+    when the schedule was triggered with a consumption/production sensor in the JSON flex-model.
+
+    The main power sensor is used as a reference (always fetched with the default
+    ``consumption-positive`` convention). The expected sign of the output sensor values
+    relative to that reference depends on ``output_type`` × ``sign_convention``;
+    see :func:`_assert_schedule_sign_convention` for the full decision table.
+    """
+    battery_asset = add_battery_assets_fresh_db["Test battery"]
+
+    # Create a dedicated output sensor on the battery asset
+    output_sensor = Sensor(
+        name=f"{output_type} output",
+        generic_asset=battery_asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    fresh_db.session.add(output_sensor)
+    fresh_db.session.flush()
+
+    # Build the trigger message with the output sensor in the flex-model.
+    # force-new-job-creation bypasses the Redis job cache, which would otherwise return a cached
+    # job_id from the previous parametrized run (fresh_db resets sensor IDs to the same values
+    # each function, producing the same trigger hash).
+    message = message_for_trigger_schedule(resolution="PT1H")
+    message["force-new-job-creation"] = True
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    message["flex-context"] = {
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
+        "site-power-capacity": "1 TW",
+    }
+    message["flex-model"][output_type] = {"sensor": output_sensor.id}
+
+    # Find the main power sensor to trigger the schedule on
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == "Test battery")
+        .one_or_none()
+    )
+
+    with app.test_client() as client:
+        trigger_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+        assert trigger_response.status_code == 200
+        job_id = trigger_response.json["schedule"]
+
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+    job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+    assert job.is_finished
+
+    # Retrieve the schedule from the output sensor using the requested sign convention
+    with app.test_client() as client:
+        get_response = client.get(
+            url_for("SensorAPI:get_schedule", id=output_sensor.id, uuid=job_id),
+            query_string={"duration": "PT24H", "sign-convention": sign_convention},
+        )
+        assert get_response.status_code == 200
+        values = get_response.json["values"]
+
+    assert len(values) > 0
+    assert any(v != 0 for v in values), "Schedule should have non-zero values"
+
+    # Get the main power sensor schedule using the default convention as reference
+    with app.test_client() as client:
+        main_response = client.get(
+            url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+            query_string={"duration": "PT24H"},
+        )
+        assert main_response.status_code == 200
+        main_values = main_response.json["values"]
+
+    _assert_schedule_sign_convention(output_type, sign_convention, main_values, values)
+
+
+@pytest.mark.parametrize(
+    "sign_convention",
+    [
+        ScheduleSignConvention.CONSUMPTION_POSITIVE,
+        ScheduleSignConvention.PRODUCTION_POSITIVE,
+        ScheduleSignConvention.WYSIWYG,
+    ],
+)
+@pytest.mark.parametrize(
+    "output_type",
+    ["consumption", "production"],
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_schedule_sign_convention_db_flex_model(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    battery_soc_sensor_fresh_db,
+    keep_scheduling_queue_empty,
+    output_type,
+    sign_convention,
+    requesting_user,
+):
+    """Test that get_schedule returns correct values for all three sign-convention modes
+    when the consumption/production sensor is stored in the DB flex-model (asset attributes).
+
+    See :func:`_assert_schedule_sign_convention` for the full decision table.
+    """
+    battery_asset = add_battery_assets_fresh_db["Test battery"]
+
+    # Create a dedicated output sensor on the battery asset
+    output_sensor = Sensor(
+        name=f"{output_type} output db",
+        generic_asset=battery_asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    fresh_db.session.add(output_sensor)
+    fresh_db.session.flush()
+
+    # Store the output sensor reference in the asset's flex_model (DB flex-model)
+    battery_asset.flex_model = battery_asset.flex_model or {}
+    battery_asset.flex_model[output_type] = {"sensor": output_sensor.id}
+    fresh_db.session.add(battery_asset)
+    fresh_db.session.flush()
+
+    # Build the trigger message without consumption/production in JSON flex-model
+    # (it will be read from the asset's DB flex-model)
+    message = message_for_trigger_schedule(resolution="PT1H")
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    message["flex-context"] = {
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
+        "site-power-capacity": "1 TW",
+    }
+
+    # Find the main power sensor to trigger the schedule on
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == "Test battery")
+        .one_or_none()
+    )
+
+    # Flush Redis to clear any job dedup cache from prior parametrized runs
+    app.redis_connection.flushdb()
+
+    with app.test_client() as client:
+        trigger_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+        assert trigger_response.status_code == 200
+        job_id = trigger_response.json["schedule"]
+
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+
+    job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+    assert job.is_finished
+
+    # Retrieve the schedule from the output sensor using the requested sign convention
+    with app.test_client() as client:
+        get_response = client.get(
+            url_for("SensorAPI:get_schedule", id=output_sensor.id, uuid=job_id),
+            query_string={"duration": "PT24H", "sign-convention": sign_convention},
+        )
+        assert (
+            get_response.status_code == 200
+        ), f"GET schedule failed: {get_response.json}"
+        values = get_response.json["values"]
+
+    assert len(values) > 0
+    assert any(v != 0 for v in values), "Schedule should have non-zero values"
+
+    # Get the main power sensor schedule using the default convention as reference
+    with app.test_client() as client:
+        main_response = client.get(
+            url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+            query_string={"duration": "PT24H"},
+        )
+        assert main_response.status_code == 200
+        main_values = main_response.json["values"]
+
+    _assert_schedule_sign_convention(output_type, sign_convention, main_values, values)
+
+    # Clean up: remove the flex_model entry so it doesn't affect other tests
+    del battery_asset.flex_model[output_type]
+    fresh_db.session.add(battery_asset)
+    fresh_db.session.flush()
 
 
 def setup_inflexible_device_sensors(fresh_db, asset, sensor_name, sensor_num):

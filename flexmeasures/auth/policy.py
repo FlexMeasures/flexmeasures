@@ -3,7 +3,6 @@ Tooling & docs for implementing our auth policy
 """
 
 from __future__ import annotations
-from typing import List, Tuple, Union, Optional
 
 from flask import current_app
 from flask_security import current_user
@@ -19,10 +18,7 @@ CONSULTANT_ROLE = "consultant"
 
 # constants to allow access to certain groups
 EVERY_LOGGED_IN_USER = "every-logged-in-user"
-# todo: Use | instead of Union, list instead of List and tuple instead of Tuple when FM stops supporting Python 3.9 (because of https://github.com/python/cpython/issues/86399)
-PRINCIPALS_TYPE = Optional[
-    Union[str, Tuple[str], List[Optional[Union[str, Tuple[str]]]]]
-]
+PRINCIPALS_TYPE = str | tuple[str] | list[str | tuple[str] | None] | None
 
 
 class AuthModelMixin(object):
@@ -139,14 +135,14 @@ def user_matches_principals(user, principals: PRINCIPALS_TYPE) -> bool:
     Returns False if no principals are passed.
     """
     if not isinstance(principals, list):
-        principals = [principals]  # now we handle a list of str or Tuple[str]
+        principals = [principals]  # now we handle a list of str or tuple[str]
     for matchable_principals in principals:
         if matchable_principals is None or len(matchable_principals) == 0:
             continue  # these cases will not evaluate to True, rather use the explicit case (see below)
         if isinstance(matchable_principals, str):
             matchable_principals = (
                 matchable_principals,
-            )  # now we handle only Tuple[str]
+            )  # now we handle only tuple[str]
         if EVERY_LOGGED_IN_USER in matchable_principals:
             return True
         if user is not None and all(

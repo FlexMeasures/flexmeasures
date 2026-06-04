@@ -4,6 +4,7 @@ FlexMeasures API v3
 
 from pathlib import Path
 from typing import Any, Type
+import inspect
 
 from flask import Flask
 import json
@@ -12,26 +13,38 @@ from apispec import APISpec
 from apispec_oneofschema import MarshmallowPlugin
 from apispec_webframeworks.flask import FlaskPlugin
 from flask_swagger_ui import get_swaggerui_blueprint
-from marshmallow import Schema
+from marshmallow import Schema, fields
 
 from flexmeasures import __version__ as fm_version
-from flexmeasures.api.v3_0.sensors import SensorAPI
+from flexmeasures.api.v3_0.sensors import (
+    SensorAPI,
+    forecasting_trigger_schema_openAPI,
+)
 from flexmeasures.api.v3_0.accounts import AccountAPI
 from flexmeasures.api.v3_0.users import UserAPI
-from flexmeasures.api.v3_0.assets import AssetAPI, AssetTypesAPI
+from flexmeasures.api.v3_0.assets import (
+    AssetAPI,
+    AssetTriggerSchema,
+    AssetTypesAPI,
+    CopyAssetSchema,
+)
 from flexmeasures.api.v3_0.health import HealthAPI
+from flexmeasures.api.v3_0.jobs import JobAPI
 from flexmeasures.api.v3_0.public import ServicesAPI
 from flexmeasures.api.v3_0.deprecated import SensorEntityAddressAPI
+from flexmeasures.api.v3_0.sources import SourceAPI
 from flexmeasures.api.v3_0.assets import (
     flex_context_schema_openAPI,
     AssetAPIQuerySchema,
     DefaultAssetViewJSONSchema,
 )
+from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.data.schemas.sensors import QuantitySchema, TimeSeriesSchema
 from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.api.v3_0.accounts import AccountAPIQuerySchema
 from flexmeasures.api.v3_0.users import UserAPIQuerySchema, AuthRequestSchema
+from flexmeasures.utils.doc_utils import rst_to_openapi
 
 
 def register_at(app: Flask):
@@ -45,8 +58,10 @@ def register_at(app: Flask):
     AssetAPI.register(app, route_prefix=v3_0_api_prefix)
     AssetTypesAPI.register(app, route_prefix=v3_0_api_prefix)
     HealthAPI.register(app, route_prefix=v3_0_api_prefix)
+    JobAPI.register(app, route_prefix=v3_0_api_prefix)
     ServicesAPI.register(app)
     SensorEntityAddressAPI.register(app, route_prefix=v3_0_api_prefix)
+    SourceAPI.register(app, route_prefix=v3_0_api_prefix)
 
     register_swagger_ui(app)
 
@@ -91,14 +106,22 @@ def create_openapi_specs(app: Flask):
     token_header_name = app.config.get("SECURITY_TOKEN_AUTHENTICATION_HEADER")
 
     api_intro = (
-        f"Welcome to the {platform_name} API.<br/>"
-        'This is a platform for smart energy scheduling (a "Cloud EMS").'
+        f"Welcome to the {platform_name} API."
+        "<br/>"
+        'This is a platform for smart energy scheduling (a "Cloud EMS"). '
         "<br/><br/>"
-        "You can try out all these endpoints if you are authenticated in the platform."
-        "Or you can paste your API key token with the button on the right."
-        "<br/><br/>"
-        f"To authenticate your code, include an `{token_header_name}` header with your API key."
-        'Also, check out the <a href="https://github.com/FlexMeasures/flexmeasures-client" target="_blank">Python client</a>.'
+        "To use the API, you need to be authenticated."
+        "<br/>"
+        "If you are currently logged in to the platform, you can try out all endpoints on this page right away!"
+        "<br/>"
+        'You can alternatively add a token via the "Authorize" button on the right. You can find an API access token on <a href="/logged-in-user">your user page</a> - or ask the host.'
+    )
+    if app.config.get("FLEXMEASURES_SIGNUP_PAGE", None):
+        api_intro += f'<br/>No account yet? <a href="{app.config.get("FLEXMEASURES_SIGNUP_PAGE")}">Sign up here</a>.<br/>'
+    api_intro += (
+        "<br/>"
+        f"If you write code against these API endpoints, then include an `{token_header_name}` header in your requests with the API token. "
+        'If you use Python, check out the <a href="https://github.com/FlexMeasures/flexmeasures-client" target="_blank">Python client</a>.'
     )
 
     spec = APISpec(
@@ -129,9 +152,12 @@ def create_openapi_specs(app: Flask):
     # Explicitly register OpenAPI-compatible schemas
     schemas = [
         ("FlexContextOpenAPISchema", flex_context_schema_openAPI),
+        ("forecasting_trigger_schema_openAPI", forecasting_trigger_schema_openAPI),
         ("UserAPIQuerySchema", UserAPIQuerySchema),
         ("AssetAPIQuerySchema", AssetAPIQuerySchema),
         ("AssetSchema", AssetSchema),
+        ("AnnotationSchema", AnnotationSchema),
+        ("CopyAssetSchema", CopyAssetSchema),
         ("DefaultAssetViewJSONSchema", DefaultAssetViewJSONSchema),
         ("AccountSchema", AccountSchema(partial=True)),
         ("AccountAPIQuerySchema", AccountAPIQuerySchema),
@@ -140,6 +166,10 @@ def create_openapi_specs(app: Flask):
 
     for name, schema in schemas:
         spec.components.schema(name, schema=schema)
+
+    # Register ID fields used in paths
+    field = AssetTriggerSchema._declared_fields["asset"]
+    register_path_id_field(spec, param_name="AssetIdPath", field=field)
 
     last_exception = None
     with app.test_request_context():
@@ -151,6 +181,13 @@ def create_openapi_specs(app: Flask):
                 continue
 
             view_function = app.view_functions[endpoint_name]
+
+            # Make sure rst docstring suits OpenAPI
+            target = view_function
+            if inspect.ismethod(view_function):
+                target = view_function.__func__
+            if target.__doc__:
+                target.__doc__ = rst_to_openapi(target.__doc__)
 
             # Document all API endpoints under /api or root /
             if rule.rule.startswith("/api/") or rule.rule == "/":
@@ -195,3 +232,23 @@ def register_swagger_ui(app: Flask):
     )
 
     app.register_blueprint(swaggerui_blueprint)
+
+
+def register_path_id_field(
+    spec: APISpec,
+    param_name: str,
+    field: fields.Field,
+    location: str = "path",
+    required: bool = True,
+):
+    """Register the field as an OpenAPI parameter"""
+    spec.components.parameter(
+        param_name,
+        location=location,
+        component={
+            "name": field.data_key or field.name,
+            "required": required,
+            "description": field.metadata.get("description"),
+            "schema": {"type": "integer"},
+        },
+    )

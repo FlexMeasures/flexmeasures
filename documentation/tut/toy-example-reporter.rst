@@ -137,7 +137,7 @@ Finally, we can create the report with the following command:
        --start-offset DB,1D --end-offset DB,2D \
        --resolution PT15M
 
-Now we can visualize the diminished headroom in the following `link <http://localhost:5000/sensors/8/graphs>`_, which should resemble the following image:
+Now we can visualize the diminished headroom in the following `link <http://localhost:5000/sensors/8>`_, which should resemble the following image:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-headroom.png
     :align: center

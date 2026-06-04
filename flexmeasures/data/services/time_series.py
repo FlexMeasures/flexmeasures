@@ -55,22 +55,29 @@ def aggregate_values(bdf_dict: dict[Any, tb.BeliefsDataFrame]) -> tb.BeliefsData
 
 
 def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
-    """Drop beliefs that are already stored in the database with an earlier belief time.
+    """Drop beliefs that are already stored in the database with an earlier or equal belief time.
 
     Also drop beliefs that are already in the data with an earlier belief time.
 
-    Quite useful function to prevent cluttering up your database with beliefs that remain unchanged over time.
+    Quite useful function to prevent cluttering up your database with beliefs that remain
+    unchanged over time, and to prevent duplicate key violations when re-running forecasters
+    or reporters with identical data.
     """
     if bdf.empty:
         return bdf
-
+    bdf = bdf.convert_index_from_belief_horizon_to_time()
     # Save the oldest ex-post beliefs explicitly, even if they do not deviate from the most recent ex-ante beliefs
     ex_ante_bdf = bdf[bdf.belief_horizons > timedelta(0)]
     ex_post_bdf = bdf[bdf.belief_horizons <= timedelta(0)]
+    canonical_order = ["event_start", "belief_time", "source", "cumulative_probability"]
     if not ex_ante_bdf.empty and not ex_post_bdf.empty:
         # We treat each part separately to avoid that ex-post knowledge would be lost
-        ex_ante_bdf = drop_unchanged_beliefs(ex_ante_bdf)
-        ex_post_bdf = drop_unchanged_beliefs(ex_post_bdf)
+        ex_ante_bdf = drop_unchanged_beliefs(ex_ante_bdf).reorder_levels(
+            canonical_order
+        )
+        ex_post_bdf = drop_unchanged_beliefs(ex_post_bdf).reorder_levels(
+            canonical_order
+        )
         bdf = pd.concat([ex_ante_bdf, ex_post_bdf])
         return bdf
 
@@ -101,58 +108,94 @@ def drop_unchanged_beliefs(bdf: tb.BeliefsDataFrame) -> tb.BeliefsDataFrame:
     )
     if bdf_db.empty:
         return bdf
-    return (
-        bdf.convert_index_from_belief_horizon_to_time()
+    ordered_bdf = (
+        bdf.reorder_levels(canonical_order)
         .groupby(
             level=["event_start", "belief_time", "source"],
             group_keys=False,
-            as_index=False,
         )
         .apply(_drop_unchanged_beliefs_compared_to_db, bdf_db=bdf_db)
     )
+    # pandas 2.x groupby/apply can lose level names when some groups return empty DataFrames
+    if ordered_bdf.index.names != canonical_order:
+        ordered_bdf.index.names = canonical_order
+    return ordered_bdf
 
 
 def _drop_unchanged_beliefs_compared_to_db(
     bdf: tb.BeliefsDataFrame,
     bdf_db: tb.BeliefsDataFrame,
 ) -> tb.BeliefsDataFrame:
-    """Drop beliefs that are already stored in the database with an earlier belief time.
+    """Drop beliefs that are already stored in the database with an earlier or equal belief time.
 
     Assumes a BeliefsDataFrame with a unique belief time and unique source,
     and either all ex-ante beliefs or all ex-post beliefs.
 
+    Handles two cases:
+
+    1. **Unchanged belief** — the candidate value matches the most recent prior belief in the DB
+       (belief_time strictly earlier than the candidate): the candidate is dropped to avoid
+       cluttering the database with redundant history.
+    2. **Exact duplicate** — a belief with the exact same belief_time already exists in the DB
+       with the same value: the candidate is dropped to prevent duplicate key violations, which
+       is particularly useful when re-running forecasters or reporters with identical data.
+
     It is preferable to call the public function drop_unchanged_beliefs instead.
     """
     source = bdf.lineage.sources[0]  # unique source
+    event_start = bdf.event_starts[0]  # unique event_start
     belief_time = bdf.lineage.belief_times[0]  # unique belief time
-    bdf_db_from_source = bdf_db[bdf_db.sources == source]
+    # Compare by ID rather than object identity: the candidate bdf may have been
+    # deserialized from an RQ job queue (pickled in a different process), so its
+    # DataSource objects are detached and won't be identical to the freshly-loaded
+    # ones in bdf_db even when they represent the same DB row.
+    # Also filter by event_start: bdf_db may contain beliefs for multiple event_starts,
+    # and we must not let a newer belief_time from a different event_start contaminate
+    # the most-recent-belief-time lookup for this candidate's event_start.
+    bdf_db_from_source = bdf_db[
+        (bdf_db.sources.map(lambda s: s.id) == source.id)
+        & (bdf_db.event_starts == event_start)
+    ]
     if bdf_db_from_source.empty:
         return bdf
-    cutoff_idx = bdf_db_from_source.belief_times.searchsorted(belief_time, side="right")
-    if cutoff_idx == 0:
+    # Use .max() rather than searchsorted: the result is correct regardless of
+    # whether bdf_db happens to be sorted ascending or descending by belief_time.
+    most_recent_bt = bdf_db_from_source.belief_times[
+        bdf_db_from_source.belief_times <= belief_time
+    ].max()
+    if pd.isna(most_recent_bt):
         # No earlier belief time in db
         return bdf
-    most_recent_bt = bdf_db_from_source.belief_times[cutoff_idx - 1]
     previous_most_recent_beliefs = bdf_db_from_source[
         bdf_db_from_source.belief_times == most_recent_bt
     ]
-    if previous_most_recent_beliefs.empty:
-        return bdf
-    compare_fields = ["event_start", "source", "cumulative_probability", "event_value"]
-    a = bdf.reset_index().set_index(compare_fields)
-    b = previous_most_recent_beliefs.reset_index().set_index(compare_fields)
-    bdf = a.drop(
-        b.index,
-        errors="ignore",
-        axis=0,
-    )
+    # Use source_id (integer) instead of source (object) for robust cross-session
+    # comparison. Detached ORM instances (for example after serialization boundaries
+    # or different session lifecycles) may represent the same DB row but still fail
+    # object-identity based comparison in pandas indices.
+    a_df = bdf.reset_index()
+    a_df["source_id"] = a_df["source"].map(lambda s: s.id)
+    b_df = previous_most_recent_beliefs.reset_index()
+    b_df["source_id"] = b_df["source"].map(lambda s: s.id)
+
+    compare_fields = [
+        "event_start",
+        "source_id",
+        "cumulative_probability",
+        "event_value",
+    ]
+    a = a_df.set_index(compare_fields)
+    b = b_df.set_index(compare_fields)
+    dropped = a.drop(b.index, errors="ignore", axis=0)
 
     # Keep whole probabilistic beliefs, not just the parts that changed
-    c = bdf.reset_index().set_index(["event_start", "source"])
-    d = a.reset_index().set_index(["event_start", "source"])
+    c = dropped.reset_index().set_index(["event_start", "source_id"])
+    d = a_df.set_index(["event_start", "source_id"])
     bdf = d[d.index.isin(c.index)]
 
-    bdf = bdf.reset_index().set_index(
-        ["event_start", "belief_time", "source", "cumulative_probability"]
+    bdf = (
+        bdf.reset_index()
+        .drop(columns=["source_id"], errors="ignore")
+        .set_index(["event_start", "belief_time", "source", "cumulative_probability"])
     )
     return bdf

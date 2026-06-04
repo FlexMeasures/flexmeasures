@@ -27,6 +27,7 @@ from flexmeasures.data.schemas import (
     SourceIdField,
 )
 from flexmeasures.data.services.users import find_user_by_email, delete_user
+from flexmeasures.data.services.sensors import delete_sensor as delete_sensor_and_data
 from flexmeasures.cli.utils import (
     abort,
     done,
@@ -319,11 +320,17 @@ def delete_beliefs(  # noqa: C901
             Sensor.generic_asset_id.in_([asset.id for asset in generic_assets]),
         ]
 
-    # Create query
-    q = select(TimedBelief).join(Sensor).where(*entity_filters, *event_filters)
-
+    # Source filter
+    source_filters = []
     if sources:
-        q = q.filter(TimedBelief.source_id.in_([source.id for source in sources]))
+        source_filters += [TimedBelief.source_id.in_([source.id for source in sources])]
+
+    # Create query
+    q = (
+        select(TimedBelief)
+        .join(Sensor)
+        .where(*entity_filters, *event_filters, *source_filters)
+    )
 
     # Prompt based on count of query
     num_beliefs_up_for_deletion = db.session.scalar(select(func.count()).select_from(q))
@@ -337,7 +344,9 @@ def delete_beliefs(  # noqa: C901
         elif generic_assets:
             prompt = f"Delete all {num_beliefs_up_for_deletion} beliefs on sensors of {join_words_into_a_list([repr(asset) for asset in generic_assets])}?"
         click.confirm(prompt, abort=True)
-    db.session.execute(delete(TimedBelief).where(*entity_filters, *event_filters))
+    db.session.execute(
+        delete(TimedBelief).where(*entity_filters, *event_filters, *source_filters)
+    )
     click.secho(f"Removing {num_beliefs_up_for_deletion} beliefs ...")
     db.session.commit()
     num_beliefs_after = db.session.scalar(select(func.count()).select_from(q))
@@ -531,18 +540,17 @@ def delete_sensor(
     sensors: list[Sensor],
 ):
     """Delete sensors and their (time series) data."""
-    n = delete(TimedBelief).where(
-        TimedBelief.sensor_id.in_(sensor.id for sensor in sensors)
-    )
-    statements = []
-    for sensor in sensors:
-        statements.append(delete(Sensor).filter_by(id=sensor.id))
+    n_beliefs = db.session.execute(
+        select(func.count())
+        .select_from(TimedBelief)
+        .where(TimedBelief.sensor_id.in_([sensor.id for sensor in sensors]))
+    ).scalar_one()
     click.confirm(
-        f"Delete {', '.join(sensor.__repr__() for sensor in sensors)}, along with {n} beliefs?",
+        f"Delete {', '.join(sensor.__repr__() for sensor in sensors)}, along with {n_beliefs} beliefs?",
         abort=True,
     )
-    for statement in statements:
-        db.session.execute(statement)
+    for sensor in sensors:
+        delete_sensor_and_data(sensor)
     db.session.commit()
 
 

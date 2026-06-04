@@ -4,7 +4,7 @@ from flexmeasures.data.models.planning.exceptions import InfeasibleProblemExcept
 import pandas as pd
 from rq.job import Job
 from flexmeasures.data.services.scheduling import create_sequential_scheduling_job
-from flexmeasures.data.tests.utils import work_on_rq
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.models.time_series import Sensor
 
@@ -75,6 +75,10 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
         sensors["Test Building"].id,
         sensors["Test EV"].id,
     ]
+    assert deferred_jobs[1].meta["asset_or_sensor"] == {
+        "id": assets["Test Site"].id,
+        "class": "Asset",
+    }
 
     ev_power = sensors["Test EV"].search_beliefs()
     battery_power = sensors["Test Battery"].search_beliefs()

@@ -37,10 +37,9 @@ class AssetForm(FlaskForm):
         places=None,
         render_kw={"placeholder": "--Click the map or enter a longitude--"},
     )
-    attributes = StringField(
-        "Other attributes (JSON)",
-        default="{}",
-        description="Custom attributes as JSON, for custom functionality, e.g. used in plugins.",
+    parent_asset_id = IntegerField(
+        "Parent Asset Id",
+        validators=[optional()],
     )
     sensors_to_show_as_kpis = StringField(
         "Sensors to show as KPIs (JSON)",
@@ -122,7 +121,6 @@ class NewAssetForm(AssetForm):
         "Asset type", coerce=int, validators=[DataRequired()]
     )
     account_id = SelectField("Account", coerce=int, validators=[optional()])
-    parent_asset_id = IntegerField("Parent Asset Id", validators=[optional()])
 
     def set_account(self) -> tuple[Account | None, str | None]:
         """Set an account for the to-be-created asset.

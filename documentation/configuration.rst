@@ -162,6 +162,15 @@ Will be displayed in the UI footer and on top of the OpenAPI docs page.
 Default: ``None``
 
 
+FLEXMEASURES_SIGNUP_PAGE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A URL where users can create an account (or ask the FlexMeasures host for one).
+Will be displayed in the UI footer and on top of the OpenAPI docs page.
+
+Default: ``None``
+
+
 FLEXMEASURES_TOS_PAGE
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -184,6 +193,32 @@ The path can be a complete URL or a relative from the app root.
 .. note:: You can also add extra styles for plugins with the usual Blueprint method. That is more elegant but only applies to the Blueprint's views.
 
 Default: ``""``
+
+
+FLEXMEASURES_JSONEDITOR_THEME
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Visual theme for the in-app JSON attributes editor (used on the sensor, asset and account pages).
+The editor is rendered by `@json-editor/json-editor <https://github.com/json-editor/json-editor>`_
+and the theme value is passed directly to that library.
+
+Available values:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Value
+     - Appearance
+   * - ``"spectre"``
+     - Spectre CSS styling.
+   * - ``"bootstrap5"``
+     - Bootstrap 5 styling.
+   * - ``"barebones"``
+     - Minimal unstyled HTML.
+   * - ``"html"``
+     - Plain HTML elements only, no extra classes.
+
+Default: ``"spectre"``
 
 
 FLEXMEASURES_ROOT_VIEW
@@ -312,6 +347,14 @@ Set a negative value to persist forever.
 
 Default: ``3600``
 
+FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Maximum request body size for sensor data posted to the sensor data API, both for JSON data and file uploads.
+Set to ``None`` to disable this FlexMeasures-specific limit.
+
+Default: ``3 * 1024 * 1024``
+
 .. _datasource_config:
 
 FLEXMEASURES_DEFAULT_DATASOURCE
@@ -416,7 +459,7 @@ Default:
 SQLALCHEMY_TEST_DATABASE_URI
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When running tests (``make test``, which runs ``pytest``), the default database URI is set in ``utils.config_defaults.TestingConfig``.
+When running tests (``uv run poe test``), the default database URI is set in ``utils.config_defaults.TestingConfig``.
 You can use this setting to overwrite that URI and point the tests to an (empty) database of your choice. 
 
 .. note:: This setting is only supported as an environment variable, not in a config file, and only during testing.
@@ -629,6 +672,15 @@ See `here <https://docs.sentry.io/platforms/python/configuration/options/>_` for
 Default: ``{}``
 
 
+FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If ``True``, 404 (Not Found) errors will not be forwarded to Sentry. Online platforms see many automated scans for known vulnerable paths,
+so without this filter, 404 errors can inflate Sentry error budgets unnecessarily.
+
+Default: ``True``
+
+
 FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -638,13 +690,18 @@ Default: ``None``
 
 
 .. _monitoring_mail_recipients:
+.. _default_monitoring_mail_recipients:
 
-FLEXMEASURES_MONITORING_MAIL_RECIPIENTS
-^^^^^^^^^^^^^^^^^^^^^^^
+FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-E-mail addresses to send monitoring alerts to from the CLI task ``flexmeasures monitor tasks``. For example ``["fred@one.com", "wilma@two.com"]``
+E-mail addresses to send monitoring alerts to from the CLI tasks ``flexmeasures monitor latest-run`` and ``flexmeasures monitor last-seen`` if no explicit user recipients are given. For example ``["fred@one.com", "wilma@two.com"]``.
 
 Default: ``[]``
+
+.. deprecated:: 0.33
+
+    ``FLEXMEASURES_MONITORING_MAIL_RECIPIENTS`` is deprecated. Use ``FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS`` instead.
 
 
 .. _redis-config:
@@ -734,6 +791,19 @@ Interval in minutes to refresh the materialized db view which caches the most re
 
 Default: None
 
+.. _fallback-redirect-config:
+
+FLEXMEASURES_FALLBACK_REDIRECT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Control how the API handles a failed scheduling job when a fallback schedule has been computed.
+
+If ``True``, the API returns ``HTTP status 303 (See Other)`` with a ``Location`` header pointing to the fallback schedule endpoint.
+Clients must follow this redirect themselves to obtain the fallback schedule (see :ref:`api_see_other`).
+
+If ``False``, the API transparently follows the fallback job and returns the fallback schedule directly in the response.
+
+Default: ``False``
 
 .. _reporters-config:
 

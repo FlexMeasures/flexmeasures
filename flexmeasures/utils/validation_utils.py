@@ -73,10 +73,12 @@ def validate_variable_quantity(
     :param data_key:            User-facing data-key of the field that is being validated.
     """
 
+    from flexmeasures.data.schemas.sensors import SensorReference
+
     if isinstance(variable_quantity, ur.Quantity):
         if not unit_validator(str(variable_quantity.units)):
             return False
-    elif isinstance(variable_quantity, Sensor):
+    elif isinstance(variable_quantity, (Sensor, SensorReference)):
         if not unit_validator(variable_quantity.unit):
             return False
     elif isinstance(variable_quantity, list):

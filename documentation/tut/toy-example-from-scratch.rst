@@ -179,8 +179,12 @@ The `battery's graph dashboard <http://localhost:5000/assets/3/graphs>`_ shows b
     :align: center
 |
 
-.. note:: The ``flexmeasures add schedule`` command also accepts state-of-charge targets, so the schedule can be more sophisticated.
-   But that is not the point of this tutorial.
-   See ``flexmeasures add schedule --help`` for available CLI options, :ref:`describing_flexibility` for all flex-model fields or check out the :ref:`tut_v2g` for a tangible example of modelling storage constraints.
+.. note:: The ``flexmeasures add schedule`` command accepts many options for sophisticated scheduling:
+   
+   - State-of-charge targets and constraints (see :ref:`tut_v2g` for a practical example)
+   - Custom scheduling resolution via ``--resolution`` (see :ref:`scheduling_resolution`)
+   - Flexible device models and contexts (see :ref:`describing_flexibility`)
+   
+   Run ``flexmeasures add schedule --help`` for all available CLI options.
 
 This tutorial showed the fastest way to a schedule. In :ref:`tut_toy_schedule_expanded`, we'll go further into settings with more realistic ingredients: solar panels and a limited grid connection.

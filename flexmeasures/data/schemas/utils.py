@@ -7,7 +7,7 @@ from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 from flexmeasures.utils.unit_utils import to_preferred, ur
 
 
-class MarshmallowClickMixin(click.ParamType):
+class MarshmallowClickMixin:
     def __init__(self, *args, **kwargs):
 
         metadata_keys = ["description", "example"]
@@ -21,6 +21,7 @@ class MarshmallowClickMixin(click.ParamType):
 
         super().__init__(*args, **kwargs)
         self.name = self.__class__.__name__
+        self.__name__ = self.name
 
     def get_metavar(self, param, **kwargs):
         return self.__class__.__name__
@@ -30,6 +31,13 @@ class MarshmallowClickMixin(click.ParamType):
             return self.deserialize(value, **kwargs)
         except ma.exceptions.ValidationError as e:
             raise click.exceptions.BadParameter(e, ctx=ctx, param=param)
+
+    def __call__(self, value):
+        """Support click.FuncParamType by behaving like a conversion callable."""
+        try:
+            return self.deserialize(value)
+        except ma.exceptions.ValidationError as e:
+            raise ValueError(e) from e
 
 
 class FMValidationError(ma.exceptions.ValidationError):
@@ -47,14 +55,28 @@ class FMValidationError(ma.exceptions.ValidationError):
 def with_appcontext_if_needed():
     """Execute within the script's application context, in case there is one.
 
-    An exception is `flexmeasures run`, which has a click context at the time the decorator is called,
+    An exception is any server ``run`` command (e.g. ``flexmeasures run`` or ``flask run``),
+    which has a click context at the time the decorator is called,
     but no longer has a click context at the time the decorated function is called,
     which, typically, is a request to the running FlexMeasures server.
+
+    The check walks up the entire context chain so it handles both:
+    - ``flask run``: modules are imported while the ``run`` subcommand context is *current*
+      (``ctx.info_name == "run"``, ``ctx.invoked_subcommand is None``).
+    - ``flexmeasures run``: modules are imported at group level, where the parent context
+      has ``invoked_subcommand == "run"``.
     """
 
     def decorator(f):
         ctx = get_current_context(silent=True)
-        if ctx and not ctx.invoked_subcommand == "run":
+        # Walk up the context chain: if any level is a "run" command we are serving HTTP
+        # requests and must NOT wrap with the CLI app-context decorator.
+        check = ctx
+        while check is not None:
+            if check.info_name == "run" or check.invoked_subcommand == "run":
+                return f
+            check = check.parent
+        if ctx is not None:
             return with_cli_appcontext(f)
         return f
 
@@ -83,3 +105,13 @@ def convert_to_quantity(value: str, to_unit: str) -> ur.Quantity:
         raise FMValidationError(
             f"Cannot convert value '{value}' to a valid quantity. {e}"
         )
+
+
+def snake_to_kebab(key: str) -> str:
+    """Convert snake_case to kebab-case."""
+    return key.replace("_", "-")
+
+
+def kebab_to_snake(key: str) -> str:
+    """Convert kebab-case to snake_case."""
+    return key.replace("-", "_")

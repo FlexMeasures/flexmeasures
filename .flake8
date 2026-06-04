@@ -1,0 +1,14 @@
+[flake8]
+exclude = .git,__pycache__,documentation,.venv
+max-line-length = 160
+max-complexity = 13
+select = B,C,E,F,W,B9
+; B902: blind except Exception: statement. 
+; E226: missing whitespace around arithmetic operator.
+; Weren't triggered before, is trigged now because of the pre-commit.yaml now using UV commands.
+; Reconsider fixing these when migrating to Ruff.
+ignore = E501, W503, E203, B902, E226
+per-file-ignores =
+    flexmeasures/__init__.py:F401
+    flexmeasures/data/schemas/__init__.py:F401
+    flexmeasures/ui/crud/assets/__init__.py:F401

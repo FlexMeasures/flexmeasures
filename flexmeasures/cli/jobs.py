@@ -8,6 +8,7 @@ import os
 import random
 import string
 import sys
+from datetime import datetime, timedelta
 from types import TracebackType
 from typing import Type
 
@@ -15,8 +16,9 @@ import click
 from flask import current_app as app
 from flask.cli import with_appcontext
 from rq import Queue, Worker, SimpleWorker
-from rq.job import Job
+from rq.job import Job, JobStatus, NoSuchJobError
 from rq.registry import (
+    BaseRegistry,
     CanceledJobRegistry,
     DeferredJobRegistry,
     FailedJobRegistry,
@@ -31,8 +33,11 @@ import pandas as pd
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
+from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.cli.utils import MsgStyle
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.utils.time_utils import server_now
+from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
 
 
 REGISTRY_MAP = dict(
@@ -48,6 +53,216 @@ REGISTRY_MAP = dict(
 @click.group("jobs")
 def fm_jobs():
     """FlexMeasures: Job queueing."""
+
+
+@fm_jobs.command("stats")
+@with_appcontext
+@click.option(
+    "--window",
+    default=60,
+    show_default=True,
+    help="Look-back window (minutes) to estimate per-queue arrival rates.",
+)
+def stats(window: int):
+    """
+    Show estimated live statistics of the queueing system.
+
+    Jobs are treated as customers in a multi-server queueing system.
+    This is a snapshot-based, Little’s-law estimate that ignores variability.
+    Future improvements may incorporate distributions and variability corrections for arrival and service rates.
+    For example:
+    - using Krämer/Langenbach-Belz to better estimate waiting times.
+    - using Erlang-C to give a risk-averse overestimate of waiting times.
+
+    \b
+    Stats overall:
+    -   ρ = average capacity requirement (consider scaling up the number of workers when close to or higher than 100%)
+    -   L = average number of jobs in the system (being serviced or in queue); i.e. workers required for zero waiting
+    -   m = total number of available workers (capacity to do work)
+
+    \b
+    Stats per queue:
+    -   W = average time until job is finished
+    -   Ws = average time spent being serviced
+    -   Wq = average time spent waiting in queue
+    -   Ls = average number of jobs being worked on at any given time
+    -   Lq = current queue length
+    -   λ = arrival rate (estimated from enqueue timestamps over the most recent window)
+
+    Uses Little's-law to compute the average waiting times for each queue:
+
+        W = L / λ
+
+    """
+    click.echo(
+        f"Estimating arrival rates using a {window}-minute historical window from the recent jobs on all queues & registries...  Use --help to read more."
+    )
+
+    now = server_now()
+    cutoff = now - timedelta(minutes=window)
+
+    # FlexMeasures makes all queues available under app.queues
+    L_i = []
+    rows = []
+    for queue_name, rq_queue in app.queues.items():
+        # Lq = current queue length
+        Lq = rq_queue.count
+
+        # λ = jobs per second
+        lambda_rate = _estimate_arrival_rate_all_registries(rq_queue, cutoff, window)
+
+        if lambda_rate <= 0:
+            click.echo(f"{queue_name}: no recent arrivals → cannot estimate timings.")
+            rows.append([queue_name, "—", "—", "—", "—", "—", "—"])
+            continue
+
+        # Waiting time in queue
+        Wq = Lq / lambda_rate
+        # Time spent being serviced
+        Ws = _estimate_service_time(rq_queue, cutoff)
+        # Total time spent in system (waiting and being serviced)
+        W = Wq + Ws if Ws > 0 else Wq
+
+        # Ls = average jobs being worked on at any given time
+        Ls = lambda_rate * Ws
+        L_i.append(Lq + Ls)
+
+        rows.append(
+            [
+                queue_name,
+                f"{lambda_rate:.4f}",
+                Lq,
+                f"{Ls:.2f}",
+                f"{Wq:.2f}",
+                f"{Ws:.2f}",
+                f"{W:.2f}",
+            ]
+        )
+
+    # Overall metrics (not per queue)
+    # Total number of workers
+    m_total = len(Worker.all(connection=app.redis_connection))
+    # Required workers
+    L_total = sum(L_i)
+    # Capacity requirements
+    rho_system = L_total / m_total if m_total > 0 else float("inf")
+
+    headers = [
+        "Queue",
+        "λ (/s)\narrivals",
+        "Lq\nqueue",
+        "Ls\nservice",
+        "Wq (s)\nwaiting",
+        "Ws (s)\nservicing",
+        "W (s)\ntotal",
+    ]
+
+    click.secho(
+        f"\nOverall: m={m_total}, L={L_total:.2f}, ρ={rho_system:.0%}\n",
+        **(
+            MsgStyle.SUCCESS
+            if rho_system < 0.68
+            else MsgStyle.WARN if rho_system < 0.95 else MsgStyle.ERROR
+        ),
+    )
+    click.echo(tabulate(rows, headers=headers, tablefmt="simple"))
+    click.echo("\n")
+
+
+def _estimate_arrival_rate_all_registries(
+    queue: Queue, cutoff: datetime, window: int
+) -> float:
+    """
+    Estimate arrival rate λ (jobs/sec) by counting all jobs belonging to the queue
+    across all registries (waiting/deferred/scheduled/started/finished/failed/canceled).
+
+    Only jobs with enqueued_at >= cutoff count toward recent arrivals.
+    """
+    registries = get_all_registries(queue)
+
+    conn = queue.connection
+    recent = 0
+
+    for reg in registries:
+        try:
+            job_ids = reg.get_job_ids()
+        except Exception:
+            # some registries (rarely) may not implement get_job_ids cleanly
+            continue
+
+        # Scan newest → oldest
+        for job_id in reversed(job_ids):
+            raw = conn.hgetall(f"rq:job:{job_id}")
+            if not raw:
+                continue
+
+            enq = raw.get(b"enqueued_at")
+            if not enq:
+                continue
+
+            try:
+                ts = datetime.fromisoformat(enq.decode("utf-8"))
+            except Exception:
+                continue
+
+            if ts >= cutoff:
+                recent += 1
+            else:
+                # Jobs only get older; stop early for this registry
+                break
+
+    return recent / float(window * 60)
+
+
+def _estimate_service_time(
+    queue: Queue, cutoff: datetime, max_jobs: int = 200
+) -> float:
+    """
+    Estimate average service time (seconds) using recently finished jobs.
+
+    Uses finished_job_registry and processes newest → oldest.
+    """
+    reg = queue.finished_job_registry
+    conn = queue.connection
+
+    durations = []
+
+    try:
+        job_ids = reg.get_job_ids()
+    except Exception:
+        return 0.0
+
+    for job_id in reversed(job_ids):
+        raw = conn.hgetall(f"rq:job:{job_id}")
+        if not raw:
+            continue
+
+        started = raw.get(b"started_at")
+        ended = raw.get(b"ended_at")
+
+        if not started or not ended:
+            continue
+
+        try:
+            started_ts = datetime.fromisoformat(started.decode("utf-8"))
+            ended_ts = datetime.fromisoformat(ended.decode("utf-8"))
+        except Exception:
+            continue
+
+        if ended_ts < cutoff:
+            break
+
+        duration = (ended_ts - started_ts).total_seconds()
+        if duration >= 0:
+            durations.append(duration)
+
+        if len(durations) >= max_jobs:
+            break
+
+    if not durations:
+        return 0.0
+
+    return sum(durations) / len(durations)
 
 
 @fm_jobs.command("run-job")
@@ -66,8 +281,73 @@ def run_job(job_id: str):
     """
     connection = app.queues["scheduling"].connection
     job = Job.fetch(job_id, connection=connection)
-    result = job.func(**job.kwargs)
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_worker_exception, job=job)
+    result = job.perform()
     click.echo(f"Job {job_id} finished with: {result}")
+
+
+@fm_jobs.command("inspect-job")
+@with_appcontext
+@click.option(
+    "--job",
+    "job_id",
+    required=True,
+    help="Job UUID of the job you want to inspect.",
+)
+def inspect_job(job_id: str):
+    """
+    Inspect a background job and print its current status, result and metadata.
+
+    """
+    try:
+        job = Job.fetch(job_id, connection=app.redis_connection)
+    except NoSuchJobError:
+        click.secho(f"Job {job_id} not found.", fg="red")
+        raise click.Abort()
+
+    job_status = job.get_status()
+    status_name = (
+        job_status.name
+        if isinstance(job_status, JobStatus)
+        else str(job_status).upper()
+    )
+    try:
+        result = job.return_value()
+    except Exception:  # noqa: BLE001
+        result = None
+
+    exc_info = failed_job_exc_info(job)
+
+    # Determine color for status based on job state
+    if status_name == "FINISHED":
+        status_style = MsgStyle.SUCCESS
+    elif status_name == "FAILED":
+        status_style = MsgStyle.ERROR
+    elif status_name in ("QUEUED", "DEFERRED", "SCHEDULED", "STARTED"):
+        status_style = MsgStyle.WARN
+    elif status_name in ("STOPPED", "CANCELED"):
+        status_style = MsgStyle.ERROR
+    else:
+        status_style = {}
+
+    colored_status = click.style(status_name, **status_style)
+
+    info_data = [
+        ["Status", colored_status],
+        ["Message", job_status_description(job)],
+        ["Result", result],
+        ["Function", job.func_name],
+        ["Queue", job.origin],
+        ["Enqueued At", job.enqueued_at.isoformat() if job.enqueued_at else "—"],
+        ["Started At", job.started_at.isoformat() if job.started_at else "—"],
+        ["Ended At", job.ended_at.isoformat() if job.ended_at else "—"],
+    ]
+
+    click.echo(tabulate(info_data, headers=["Field", "Value"]))
+
+    if exc_info:
+        click.echo("\nException Info:")
+        click.echo(exc_info)
 
 
 @fm_jobs.command("run-worker")
@@ -76,7 +356,7 @@ def run_job(job_id: str):
     "--queue",
     default=None,
     required=True,
-    help="State which queue(s) to work on (using '|' as separator), e.g. 'forecasting', 'scheduling' or 'forecasting|scheduling'.",
+    help="State which queue(s) to work on (using '|' as separator), e.g. 'forecasting', 'scheduling', 'ingestion' or 'forecasting|scheduling'.",
 )
 @click.option(
     "--name",
@@ -84,9 +364,18 @@ def run_job(job_id: str):
     required=False,
     help="Give your worker a recognizable name. Defaults to random string. Defaults to fm-worker-<randomstring>",
 )
-def run_worker(queue: str, name: str | None):
+@click.option(
+    "--with-scheduler/--without-scheduler",
+    "with_scheduler",
+    default=True,
+    help=(
+        "Enable RQ's embedded scheduler so jobs queued with enqueue_in run when due. "
+        "Default: enabled. Use --without-scheduler to disable."
+    ),
+)
+def run_worker(queue: str, name: str | None, with_scheduler: bool):
     """
-    Start a worker process for forecasting and/or scheduling jobs.
+    Start a worker process for forecasting, scheduling and/or ingestion jobs.
 
     We use the app context to find out which redis queues to use.
     """
@@ -142,9 +431,13 @@ def run_worker(queue: str, name: str | None):
     )
     for q in q_list:
         click.echo("Running against %s on %s" % (q, q.connection))
+    click.echo(
+        "RQ embedded scheduler: %s (enqueue_in jobs)"
+        % ("on" if with_scheduler else "off")
+    )
     click.echo("=========================================================\n")
 
-    worker.work()
+    worker.work(with_scheduler=with_scheduler)
 
 
 @fm_jobs.command("show-queues")
@@ -457,6 +750,19 @@ def parse_queue_list(queue_names_str: str) -> list[Queue]:
         else:
             raise ValueError(f"Unknown queue '{q_name}'.")
     return q_list
+
+
+def get_all_registries(queue: Queue) -> list[BaseRegistry]:
+    registries = [
+        queue,
+        queue.deferred_job_registry,
+        queue.scheduled_job_registry,
+        queue.started_job_registry,
+        queue.finished_job_registry,
+        queue.failed_job_registry,
+        queue.canceled_job_registry,
+    ]
+    return registries
 
 
 app.cli.add_command(fm_jobs)

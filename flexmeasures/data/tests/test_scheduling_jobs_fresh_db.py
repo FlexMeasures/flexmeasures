@@ -7,7 +7,8 @@ from sqlalchemy import select
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.services.scheduling import create_scheduling_job
-from flexmeasures.data.tests.utils import work_on_rq, exception_reporter
+from flexmeasures.data.tests.utils import exception_reporter
+from flexmeasures.utils.job_utils import work_on_rq
 
 
 def test_scheduling_a_charging_station(

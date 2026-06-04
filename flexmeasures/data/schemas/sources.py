@@ -9,12 +9,13 @@ from flexmeasures.data.schemas.utils import (
 )
 
 
-class DataSourceIdField(fields.Int, MarshmallowClickMixin):
+class DataSourceIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to a DataSource and serializes back to an integer."""
 
     @with_appcontext_if_needed()
     def _deserialize(self, value, attr, obj, **kwargs) -> DataSource:
         """Turn a source id into a DataSource."""
+        value = super()._deserialize(value, attr, obj, **kwargs)
         source = db.session.get(DataSource, value)
         if source is None:
             raise FMValidationError(f"No data source found with id {value}.")

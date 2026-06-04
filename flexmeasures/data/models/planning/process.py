@@ -19,7 +19,7 @@ from flexmeasures.data.schemas.scheduling import FlexContextSchema
 
 class ProcessScheduler(Scheduler):
 
-    __version__ = "1"
+    __version__ = "2"
     __author__ = "Seita"
 
     def compute(self) -> pd.Series | None:
