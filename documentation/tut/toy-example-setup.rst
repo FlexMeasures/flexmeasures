@@ -213,7 +213,7 @@ If you want, you can inspect what you created in the CLI (we'll also show the UI
     
     Flex-Context                      Flex-Model
     --------------------------------  ------------
-    site-power-capacity: 500 kVA
+    site-power-capacity: 500 kW
     consumption-price: {'sensor': 1}
 
     ====================================
@@ -230,7 +230,7 @@ If you want, you can inspect what you created in the CLI (we'll also show the UI
 You can see that this building asset has some meta information about how FlexMeasures needs to schedule:
 
 - Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 1, which stores day-ahead prices). 
-- Also, the building has a grid connection capacity of 500 kVA, meaning that the total power flowing into or out of the building cannot exceed this value.
+- Also, the building has a grid connection capacity of 500 kW, meaning that the total power flowing into or out of the building cannot exceed this value.
 
 Now let's look at the battery asset, as well:
 
@@ -251,7 +251,7 @@ Now let's look at the battery asset, as well:
     
     Flex-Context    Flex-Model
     --------------  -------------------------
-                    power-capacity: 500 kVA
+                    power-capacity: 500 kW
                     roundtrip-efficiency: 90%
                     soc-max: 450 kWh
 
@@ -265,14 +265,14 @@ Now let's look at the battery asset, as well:
     
       ID  Name         Unit    Resolution    Timezone          Attributes
     ----  -----------  ------  ------------  ----------------  ------------
-       2  discharging  MW      15 minutes    Europe/Amsterdam
+       2  discharging  kW      15 minutes    Europe/Amsterdam
     
 
     
 Yes, that is quite a large battery :) 
 You can also see that the asset has some meta information about its scheduling.
 
-- Within :ref:`flex_model`, we noted that the battery's power capacity is the same as the building's grid connection capacity (500 kVA), meaning the battery can charge or discharge at full power without overloading the connection, but no other devices can (we will come back to this limitation).
+- Within :ref:`flex_model`, we noted that the battery's power capacity is the same as the building's grid connection capacity (500 kW), meaning the battery can charge or discharge at full power without overloading the connection, but no other devices can (we will come back to this limitation).
 - Also noted is the battery's roundtrip efficiency (90%) and maximum state of charge (450 kWh).
 
 .. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v3_0`.
@@ -313,36 +313,36 @@ And on the flex-model of the battery can be seen on its properties page (and is 
 Add some price data
 ---------------------------------------
 
-Now to add price data. First, we'll create the CSV file with prices (EUR/MWh, see the setup for sensor 1 above) for tomorrow.
+Now to add price data. First, we'll create the CSV file with prices (EUR/kWh, see the setup for sensor 1 above) for tomorrow.
 
 .. code-block:: bash
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
     $ echo "Hour,Price
-    $ ${TOMORROW}T00:00:00,10
-    $ ${TOMORROW}T01:00:00,11
-    $ ${TOMORROW}T02:00:00,12
-    $ ${TOMORROW}T03:00:00,15
-    $ ${TOMORROW}T04:00:00,18
-    $ ${TOMORROW}T05:00:00,17
-    $ ${TOMORROW}T06:00:00,10.5
-    $ ${TOMORROW}T07:00:00,9
-    $ ${TOMORROW}T08:00:00,9.5
-    $ ${TOMORROW}T09:00:00,9
-    $ ${TOMORROW}T10:00:00,8.5
-    $ ${TOMORROW}T11:00:00,10
-    $ ${TOMORROW}T12:00:00,8
-    $ ${TOMORROW}T13:00:00,5
-    $ ${TOMORROW}T14:00:00,4
-    $ ${TOMORROW}T15:00:00,4
-    $ ${TOMORROW}T16:00:00,5.5
-    $ ${TOMORROW}T17:00:00,8
-    $ ${TOMORROW}T18:00:00,12
-    $ ${TOMORROW}T19:00:00,13
-    $ ${TOMORROW}T20:00:00,14
-    $ ${TOMORROW}T21:00:00,12.5
-    $ ${TOMORROW}T22:00:00,10
-    $ ${TOMORROW}T23:00:00,7" > prices-tomorrow.csv
+    $ ${TOMORROW}T00:00:00,0.010
+    $ ${TOMORROW}T01:00:00,0.011
+    $ ${TOMORROW}T02:00:00,0.012
+    $ ${TOMORROW}T03:00:00,0.015
+    $ ${TOMORROW}T04:00:00,0.018
+    $ ${TOMORROW}T05:00:00,0.017
+    $ ${TOMORROW}T06:00:00,0.0105
+    $ ${TOMORROW}T07:00:00,0.009
+    $ ${TOMORROW}T08:00:00,0.0095
+    $ ${TOMORROW}T09:00:00,0.009
+    $ ${TOMORROW}T10:00:00,0.0085
+    $ ${TOMORROW}T11:00:00,0.010
+    $ ${TOMORROW}T12:00:00,0.008
+    $ ${TOMORROW}T13:00:00,0.005
+    $ ${TOMORROW}T14:00:00,0.004
+    $ ${TOMORROW}T15:00:00,0.004
+    $ ${TOMORROW}T16:00:00,0.0055
+    $ ${TOMORROW}T17:00:00,0.008
+    $ ${TOMORROW}T18:00:00,0.012
+    $ ${TOMORROW}T19:00:00,0.013
+    $ ${TOMORROW}T20:00:00,0.014
+    $ ${TOMORROW}T21:00:00,0.0125
+    $ ${TOMORROW}T22:00:00,0.010
+    $ ${TOMORROW}T23:00:00,0.007" > prices-tomorrow.csv
 
 This is time series data, in FlexMeasures we call *"beliefs"*. Beliefs can also be sent to FlexMeasures via API or imported from open data hubs like `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `Weather Forecast APIs <https://github.com/flexmeasures/flexmeasures-weather>`_. However, in this tutorial we'll show how you can read data in from a CSV file. Sometimes that's just what you need :)
 
@@ -368,19 +368,19 @@ Let's look at the price data we just loaded:
     │       ▗▀▚▖                                                 │
     │      ▗▘  ▝▖                                                │
     │      ▞    ▌                                                │
-    │     ▟     ▐                                                │ 15EUR/MWh
+    │     ▟     ▐                                                │ 0.015EUR/kWh
     │    ▗▘     ▝▖                                      ▗        │
     │   ▗▘       ▚                                    ▄▞▘▚▖      │
     │   ▞        ▐                                  ▄▀▘   ▝▄     │
     │ ▄▞          ▌                                ▛        ▖    │
     │▀            ▚                               ▐         ▝▖   │
-    │             ▝▚            ▖                ▗▘          ▝▖  │ 10EUR/MWh
+    │             ▝▚            ▖                ▗▘          ▝▖  │ 0.010EUR/kWh
     │               ▀▄▄▞▀▄▄   ▗▀▝▖               ▞            ▐  │
     │                      ▀▀▜▘  ▝▚             ▗▘             ▚ │
     │                              ▌            ▞               ▌│
     │                              ▝▖          ▞                ▝│
     │                               ▐         ▞                  │
-    │                                ▚      ▗▞                   │ 5EUR/MWh
+    │                                ▚      ▗▞                   │ 0.005EUR/kWh
     │                                 ▀▚▄▄▄▄▘                    │
     └────────────────────────────────────────────────────────────┘
                5            10            15           20
@@ -395,5 +395,4 @@ Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5
 |
 
 .. note:: Technically, these prices for tomorrow may be forecasts (depending on whether you are running through this tutorial before or after the day-ahead market's gate closure). You can also use FlexMeasures to compute forecasts yourself. See :ref:`tut_forecasting_scheduling`.
-
 
