@@ -76,9 +76,6 @@ class Scheduler:
         soc_usage = defaultdict(list)
 
         for d, fm in enumerate(flex_model):
-            if fm.get("sensor") is None:
-                continue
-
             soc = fm.get("state_of_charge")
             if soc is not None:
                 if hasattr(soc, "id"):
@@ -94,9 +91,10 @@ class Scheduler:
         for soc_id, device_list in soc_usage.items():
             groups[soc_id] = device_list
 
+        already_grouped = {dev for group in groups.values() for dev in group}
         missing_soc_sensor_i = -len(flex_model)
-        for d, fm in enumerate(flex_model):
-            if fm.get("sensor") is not None and fm.get("state_of_charge") is None:
+        for d in range(len(flex_model)):
+            if d not in already_grouped:
                 groups[missing_soc_sensor_i].append(d)
                 missing_soc_sensor_i += 1
 

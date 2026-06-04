@@ -139,6 +139,8 @@ class MetaStorageScheduler(Scheduler):
         belief_time = self.belief_time
 
         # For backwards compatibility with the single asset scheduler
+        # Track whether we started with a single dict (single-sensor mode) or a list
+        is_single_sensor_mode = not isinstance(self.flex_model, list)
         flex_model = self.flex_model.copy()
         if not isinstance(flex_model, list):
             flex_model = [flex_model]
@@ -153,7 +155,12 @@ class MetaStorageScheduler(Scheduler):
         for fm in flex_model:
 
             # stock model: entry in the flex-model list where the sensor key is the state-of-charge sensor of the device (e.g. a stock)
-            if fm.get("sensor") is None and (soc_sensor := fm.get("state_of_charge")):
+            # Only apply this detection in multi-device mode; in single-sensor mode the power sensor is self.sensor (not in the fm dict)
+            if (
+                not is_single_sensor_mode
+                and fm.get("sensor") is None
+                and (soc_sensor := fm.get("state_of_charge"))
+            ):
                 stock_models[
                     soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
                 ] = fm
@@ -180,8 +187,13 @@ class MetaStorageScheduler(Scheduler):
 
             # Check if this is a stock-only model (no power sensor)
             # Stock-only entries have SOC parameters but no power sensor
+            # Only apply in multi-device mode; single-sensor mode devices have no "sensor" key by design
             soc_sensor = fm.get("state_of_charge")
-            if fm.get("sensor") is None and soc_sensor is not None:
+            if (
+                not is_single_sensor_mode
+                and fm.get("sensor") is None
+                and soc_sensor is not None
+            ):
                 # This is a stock-only entry, add to stock_models only
                 soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
                 stock_models[soc_id] = fm
