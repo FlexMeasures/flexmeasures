@@ -1391,6 +1391,51 @@ def test_capacity(
 
 
 @pytest.mark.parametrize(
+    "production_capacity, consumption_capacity, expected_capacity",
+    [
+        ("300 kW", "700 kW", 0.7),
+        ("1.1 MW", "200 kW", 1.1),
+    ],
+)
+def test_device_power_capacity_uses_greatest_directional_capacity_before_site_fallback(
+    db,
+    add_battery_assets,
+    production_capacity,
+    consumption_capacity,
+    expected_capacity,
+):
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    start = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 2))
+    end = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": 0,
+            "soc-min": 0,
+            "soc-max": 5,
+            "production-capacity": production_capacity,
+            "consumption-capacity": consumption_capacity,
+        },
+    )
+    scheduler.deserialize_config()
+
+    power_capacity = scheduler._get_device_power_capacity(
+        [scheduler.flex_model],
+        [battery.generic_asset],
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=scheduler.belief_time,
+    )[0]
+
+    assert np.allclose(power_capacity.values, expected_capacity)
+
+
+@pytest.mark.parametrize(
     ["soc_values", "log_message", "expected_num_targets"],
     [
         (
