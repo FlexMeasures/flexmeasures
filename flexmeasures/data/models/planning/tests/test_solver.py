@@ -966,6 +966,76 @@ def test_add_storage_constraints_skips_global_minimum_when_soc_min_is_missing():
     )
 
 
+def test_add_storage_constraints_skips_global_maximum_when_soc_max_is_missing():
+    """Missing soc-max should not imply a constant upper bound."""
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.0
+    soc_min = 0
+    soc_max = None
+
+    storage_device_constraints = add_storage_constraints(
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets=None,
+        soc_maxima=None,
+        soc_minima=None,
+        soc_max=soc_max,
+        soc_min=soc_min,
+    )
+
+    assert (storage_device_constraints["min"] == soc_min).all()
+    assert storage_device_constraints["max"].isna().all()
+    assert (
+        validate_storage_constraints(
+            storage_device_constraints,
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            resolution=resolution,
+        )
+        == []
+    )
+
+
+def test_add_storage_constraints_skips_bounds_when_soc_min_and_soc_max_are_missing():
+    """Missing soc-min and soc-max should not imply constant bounds."""
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.0
+    soc_min = None
+    soc_max = None
+
+    storage_device_constraints = add_storage_constraints(
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets=None,
+        soc_maxima=None,
+        soc_minima=None,
+        soc_max=soc_max,
+        soc_min=soc_min,
+    )
+
+    assert storage_device_constraints["min"].isna().all()
+    assert storage_device_constraints["max"].isna().all()
+    assert (
+        validate_storage_constraints(
+            storage_device_constraints,
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            resolution=resolution,
+        )
+        == []
+    )
+
+
 def test_add_storage_constraints_with_soc_min_missing_and_soc_minima_has_gaps():
     """Timed minima should not turn missing soc-minima into a global lower bound."""
     start = datetime(2023, 5, 18, tzinfo=pytz.utc)
@@ -1003,6 +1073,69 @@ def test_add_storage_constraints_with_soc_min_missing_and_soc_minima_has_gaps():
         )
         == []
     )
+
+
+def test_add_storage_constraints_with_soc_max_missing_and_soc_maxima_has_gaps():
+    """Timed maxima should not turn missing soc-max into a constant upper bound."""
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+    resolution = timedelta(hours=1)
+    soc_at_start = 1.0
+    soc_min = 0
+    soc_max = None
+
+    soc_maxima = initialize_series(np.nan, start, end, resolution)
+    soc_maxima[start + resolution] = 6
+
+    storage_device_constraints = add_storage_constraints(
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets=None,
+        soc_maxima=soc_maxima,
+        soc_minima=None,
+        soc_max=soc_max,
+        soc_min=soc_min,
+    )
+
+    assert storage_device_constraints["max"].notna().sum() == 1
+    assert storage_device_constraints["max"].dropna().iloc[0] == 5
+    assert storage_device_constraints["max"].isna().any()
+    assert (
+        validate_storage_constraints(
+            storage_device_constraints,
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            resolution=resolution,
+        )
+        == []
+    )
+
+
+def test_ensure_soc_min_max_allows_missing_soc_max():
+    """Missing soc-max should remain unset when no fallback is available."""
+    scheduler = StorageScheduler.__new__(StorageScheduler)
+    scheduler.flex_model = {"soc-min": "0 MWh"}
+    scheduler.asset = None
+    scheduler.sensor = None
+
+    scheduler.ensure_soc_min_max()
+
+    assert scheduler.flex_model == {"soc-min": "0 MWh"}
+
+
+def test_ensure_soc_min_max_allows_missing_soc_min_and_soc_max():
+    """Missing soc-min and soc-max should remain unset when no fallback is available."""
+    scheduler = StorageScheduler.__new__(StorageScheduler)
+    scheduler.flex_model = {}
+    scheduler.asset = None
+    scheduler.sensor = None
+
+    scheduler.ensure_soc_min_max()
+
+    assert scheduler.flex_model == {}
 
 
 @pytest.mark.parametrize(
