@@ -21,6 +21,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Let storage scheduling infer missing ``power-capacity`` from directional device capacities before falling back to site capacity [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 
 
 v0.33.0 | June 1, 2026
