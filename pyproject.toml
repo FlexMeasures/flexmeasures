@@ -48,8 +48,7 @@ dependencies = [
     "bcrypt==4.3.0",  # see https://github.com/SeitaBV/flexmeasures-cloudinfra/issues/283
     "pytz>=2025.2",
     "isodate>=0.7.2",
-    # see https://github.com/FlexMeasures/flexmeasures/issues/1485
-    "click<8.2.0",
+    "click>=8.2.0",
     "click-default-group>=1.2.4",
     "email-validator>=2.3.0",
     "rq>=2.6.1",

@@ -33,6 +33,26 @@ Fixing one test can break adjacent tests in the same module when they share muta
 
 Using `db` when data is mutated causes `DetachedInstanceError` and flaky cross-test contamination.
 
+### Never mix `fresh_db` and `db` in the same module
+
+`fresh_db` is function-scoped and calls `_db.drop_all()` before and after each test. If a `db` test (module-scoped) is open at the same time, `drop_all()` will block forever waiting for the module-scoped connection to release its locks — **hanging CI indefinitely**.
+
+**Rule:** every test module must use either `db` OR `fresh_db` — never both.
+
+Put `fresh_db` tests in a dedicated `*_fresh_db.py` sibling module, following the established convention:
+
+```
+# ✅ Correct structure
+test_api_v1_1.py            ← uses `db`
+test_api_v1_1_fresh_db.py   ← uses `fresh_db`
+
+test_utils.py               ← uses `db`
+test_utils_fresh_db.py      ← uses `fresh_db`
+
+# ❌ Wrong: mixes both fixtures in one file
+test_utils.py               ← uses `db` AND `fresh_db`  ← CI will hang
+```
+
 ## API test isolation
 
 ```python
