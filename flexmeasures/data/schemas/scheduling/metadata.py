@@ -336,16 +336,19 @@ Boolean option only.
     example=True,
 )
 POWER_CAPACITY = MetaData(
-    description="Device-level power constraint. How much power can be applied to this asset. [#minimum_overlap]_",
+    description="""Symmetric device-level power constraint. How much power can be applied to this asset in either direction.
+If omitted, the scheduler infers this limit from the greatest of ``consumption-capacity`` and ``production-capacity`` when both are configured, before falling back to ``site-power-capacity``. [#minimum_overlap]_""",
     example="50 kVA",
 )
 CONSUMPTION_CAPACITY = MetaData(
-    description="Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_",
+    description="""Device-level power constraint on consumption. How much power can be drawn by this asset.
+If ``power-capacity`` is omitted and ``production-capacity`` is also configured, this field contributes to the inferred symmetric device-level power limit. [#minimum_overlap]_""",
     example={"sensor": 56},
 )
 PRODUCTION_CAPACITY = MetaData(
     description="""Device-level power constraint on production.
 How much power can be supplied by this asset.
+If ``power-capacity`` is omitted and ``consumption-capacity`` is also configured, this field contributes to the inferred symmetric device-level power limit.
 For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts. [#minimum_overlap]_
 """,
     example="0 kW",
