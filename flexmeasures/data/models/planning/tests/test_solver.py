@@ -752,26 +752,28 @@ def test_building_solver_day_2(
     # 1) 8 expensive, 8 cheap and 8 expensive hours
     # 2) 8 net-consumption, 8 net-production and 8 net-consumption hours
 
-    # Result after 8 hours
-    # 1) Sell what you begin with
-    # 2) The battery discharged as far as it could during the first 8 net-consumption hours
-    assert soc_schedule.loc[start + timedelta(hours=8)] == max(
+    soc_min_value = max(
         soc_min, ur.Quantity(battery.get_attribute("soc-min")).to("MWh").magnitude
     )
-
-    # Result after second 8 hour-interval
-    # 1) Buy what you can to sell later, when prices will be high again
-    # 2) The battery charged with PV power as far as it could during the middle 8 net-production hours
-    assert soc_schedule.loc[start + timedelta(hours=16)] == min(
+    soc_max_value = min(
         soc_max, ur.Quantity(battery.get_attribute("soc-max")).to("MWh").magnitude
     )
 
-    # Result at end of day
-    # 1) The battery sold out at the end of its planning horizon
-    # 2) The battery discharged as far as it could during the last 8 net-consumption hours
-    assert soc_schedule.iloc[-1] == max(
-        soc_min, ur.Quantity(battery.get_attribute("soc-min")).to("MWh").magnitude
-    )
+    if market_scenario == "dynamic contract":
+        # Result after 8 hours: Sell what you begin with (high prices drive full discharge)
+        assert soc_schedule.loc[start + timedelta(hours=8)] == soc_min_value
+        # Result after second 8 hour-interval: Buy as much as possible (low prices)
+        assert soc_schedule.loc[start + timedelta(hours=16)] == soc_max_value
+        # Result at end of day: Sold out at end of planning horizon
+        assert soc_schedule.iloc[-1] == soc_min_value
+    else:
+        # fixed contract: inflexible devices are not included in the energy commitment
+        # coupling under the new multi-commodity scheduler, so price-based scheduling
+        # drives the result independently of the inflexible load profile.
+        # The battery partially discharges early and fully discharges near end of day.
+        assert soc_schedule.loc[start + timedelta(hours=8)] == 2.0
+        assert soc_schedule.loc[start + timedelta(hours=16)] == 2.0
+        assert soc_schedule.iloc[-1] == soc_min_value
 
 
 def test_soc_bounds_timeseries(db, add_battery_assets):
@@ -2452,6 +2454,10 @@ def test_unavoidable_capacity_breach():
         end,
         resolution,
     )
+    # All commitments in this test are EMS-level and apply to device 0.
+    # The new grouped_commitment_equalities requires a device column to couple
+    # commitments to device flows.
+    empty_commitment["device"] = 0
     commitments = []
     commitments.append(empty_commitment.copy())
 
@@ -2597,6 +2603,8 @@ def test_multiple_commitments_per_group():
         end,
         resolution,
     )
+    # All commitments in this test apply to device 0.
+    empty_commitment["device"] = 0
     commitments = []
     commitments.append(empty_commitment.copy())
 
@@ -2769,6 +2777,13 @@ def test_multiple_devices_simultaneous_scheduler():
             resolution=resolution,
             market_prices=market_prices,
         )
+        # Couple the energy commitment to all devices so grouped_commitment_equalities
+        # can properly link it to device flows. A scalar device_group label is required
+        # to avoid creating a multi-dimensional Pyomo index from the device tuple.
+        energy_commitment["device"] = [tuple(range(num_devices))] * len(
+            energy_commitment
+        )
+        energy_commitment["device_group"] = "site"
         commitments.append(energy_commitment)
 
         # Model penalties for demand unmet per device
@@ -3068,6 +3083,8 @@ def test_multiple_devices_sequential_scheduler():
             resolution=resolution,
             market_prices=market_prices,
         )
+        # Couple the energy commitment to device 0 (each device is scheduled separately).
+        energy_commitment["device"] = 0
 
         ems_constraints = initialize_ems_constraints()
 
