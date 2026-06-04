@@ -235,7 +235,7 @@ def _prune_sensors_to_show_asset_refs(
     ... ]
     >>> after, changed = _prune_sensors_to_show_asset_refs(before, 42)
     >>> after
-    [{"title": "Power", "plots": [{"sensor": 1}]}, {"title": "Price", "plots": [{"sensor": 3}]}]
+    [{'title': 'Power', 'plots': [{'sensor': 1}]}, {'title': 'Price', 'plots': [{'sensor': 3}]}]
     >>> changed
     True
 
@@ -247,7 +247,7 @@ def _prune_sensors_to_show_asset_refs(
     ... ]
     >>> after, changed = _prune_sensors_to_show_asset_refs(before, 42)
     >>> after
-    [{"title": "Price", "plots": [{"sensor": 3}]}]
+    [{'title': 'Price', 'plots': [{'sensor': 3}]}]
     >>> changed
     True
 
@@ -256,7 +256,7 @@ def _prune_sensors_to_show_asset_refs(
     >>> before = [{"title": "Power", "plots": [{"sensor": 1}]}]
     >>> after, changed = _prune_sensors_to_show_asset_refs(before, 42)
     >>> after
-    [{"title": "Power", "plots": [{"sensor": 1}]}]
+    [{'title': 'Power', 'plots': [{'sensor': 1}]}]
     >>> changed
     False
     """
@@ -304,7 +304,7 @@ def _prune_sensors_to_show_asset_entry(
     >>> entry = {"title": "Power", "plots": [{"sensor": 1}, {"asset": 42, "flex-model": "soc-min"}]}
     >>> result, changed = _prune_sensors_to_show_asset_entry(entry, 42)
     >>> result
-    {"title": "Power", "plots": [{"sensor": 1}]}
+    {'title': 'Power', 'plots': [{'sensor': 1}]}
     >>> changed
     True
 
@@ -331,7 +331,7 @@ def _prune_sensors_to_show_asset_entry(
     >>> entry = {"title": "Power", "plots": [{"sensor": 1}]}
     >>> result, changed = _prune_sensors_to_show_asset_entry(entry, 42)
     >>> result
-    {"title": "Power", "plots": [{"sensor": 1}]}
+    {'title': 'Power', 'plots': [{'sensor': 1}]}
     >>> changed
     False
     """
