@@ -341,8 +341,7 @@ If omitted, the scheduler infers this limit from the greatest of ``consumption-c
     example="50 kVA",
 )
 CONSUMPTION_CAPACITY = MetaData(
-    description="""Device-level power constraint on consumption. How much power can be drawn by this asset.
-If ``power-capacity`` is omitted and ``production-capacity`` is also configured, this field contributes to the inferred symmetric device-level power limit. [#minimum_overlap]_""",
+    description="""Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_""",
     example={"sensor": 56},
 )
 PRODUCTION_CAPACITY = MetaData(
