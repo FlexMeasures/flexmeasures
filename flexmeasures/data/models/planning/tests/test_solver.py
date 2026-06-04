@@ -966,7 +966,7 @@ def test_add_storage_constraints_skips_global_minimum_when_soc_min_is_missing():
     )
 
 
-def test_add_storage_constraints_with_soc_minima_and_missing_soc_min_has_gaps():
+def test_add_storage_constraints_with_soc_min_missing_and_soc_minima_has_gaps():
     """Timed minima should not turn missing soc-min into a global lower bound."""
     start = datetime(2023, 5, 18, tzinfo=pytz.utc)
     end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
