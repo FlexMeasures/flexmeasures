@@ -1427,8 +1427,8 @@ class MetaStorageScheduler(Scheduler):
 
     def ensure_soc_min_max(self):
         """
-        Make sure we have min and max SOC.
-        If not passed directly, then get default from asset or targets.
+        Fill in min and max SOC where fallbacks are available.
+        If not passed directly, then get defaults from asset or targets.
         This happens before deserializing the flex-model.
         """
         soc_min_asset, soc_max_asset = self.get_min_max_soc_from_asset()
@@ -1438,16 +1438,15 @@ class MetaStorageScheduler(Scheduler):
             else:
                 self.flex_model.pop("soc-min", None)
         if "soc-max" not in self.flex_model or self.flex_model["soc-max"] is None:
-            self.flex_model["soc-max"] = soc_max_asset
-            # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
-            if self.flex_model["soc-max"] is None:
+            if soc_max_asset is not None:
+                self.flex_model["soc-max"] = soc_max_asset
+            else:
+                # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
                 _, max_target = self.get_min_max_targets()
-                if max_target:
+                if max_target is not None:
                     self.flex_model["soc-max"] = max_target
                 else:
-                    raise ValueError(
-                        "Need maximal permitted state of charge, please specify soc-max or some soc-targets."
-                    )
+                    self.flex_model.pop("soc-max", None)
 
     def _get_device_power_capacity(
         self, flex_model: list[dict], assets: list[Asset]
@@ -2034,7 +2033,7 @@ def add_storage_constraints(
     soc_targets: list[dict[str, datetime | float]] | pd.Series | None,
     soc_maxima: list[dict[str, datetime | float]] | pd.Series | None,
     soc_minima: list[dict[str, datetime | float]] | pd.Series | None,
-    soc_max: float,
+    soc_max: float | None,
     soc_min: float | None,
 ) -> pd.DataFrame:
     """Collect all constraints for a given storage device in a DataFrame that the device_scheduler can interpret.
@@ -2046,7 +2045,7 @@ def add_storage_constraints(
     :param soc_targets:                 Exact targets for the state of charge at each time.
     :param soc_maxima:                  Maximum state of charge at each time.
     :param soc_minima:                  Minimum state of charge at each time.
-    :param soc_max:                     Maximum state of charge at all times.
+    :param soc_max:                     Maximum state of charge at all times, if configured.
     :param soc_min:                     Minimum state of charge at all times, if configured.
     :returns:                           Constraints (StorageScheduler.COLUMNS) for a storage device, at each time step (index).
                                         See device_scheduler for possible column names.
@@ -2069,7 +2068,11 @@ def add_storage_constraints(
         if soc_min is not None
         else None
     )
-    soc_max_change = (soc_max - soc_at_start) * timedelta(hours=1) / resolution
+    soc_max_change = (
+        (soc_max - soc_at_start) * timedelta(hours=1) / resolution
+        if soc_max is not None
+        else None
+    )
 
     if soc_minima is not None:
         storage_device_constraints["min"] = build_device_soc_values(
@@ -2095,11 +2098,13 @@ def add_storage_constraints(
             resolution,
         )
 
-    storage_device_constraints["max"] = (
-        storage_device_constraints["max"].astype(float).fillna(soc_max_change)
-    )
+    storage_device_constraints["max"] = storage_device_constraints["max"].astype(float)
+    if soc_max_change is not None:
+        storage_device_constraints["max"] = storage_device_constraints["max"].fillna(
+            soc_max_change
+        )
 
-    # limiting max and min to be in the range [soc_min, soc_max]
+    # Limit max and min to the constant bounds that are configured.
     storage_device_constraints["min"] = (
         storage_device_constraints["min"].clip(
             lower=soc_min_change, upper=soc_max_change
@@ -2118,7 +2123,7 @@ def validate_storage_constraints(
     constraints: pd.DataFrame,
     soc_at_start: float,
     soc_min: float | None,
-    soc_max: float,
+    soc_max: float | None,
     resolution: timedelta,
 ) -> list[dict]:
     """Check that the storage constraints are fulfilled, e.g min <= equals <= max.
@@ -2141,7 +2146,7 @@ def validate_storage_constraints(
     :param constraints:         dataframe containing the constraints of a storage device
     :param soc_at_start:        State of charge at the start time.
     :param soc_min:             Minimum state of charge at all times, if configured.
-    :param soc_max:             Maximum state of charge at all times.
+    :param soc_max:             Maximum state of charge at all times, if configured.
     :param resolution:          Constant duration between the start of each time step.
     :returns:                   List of constraint violations, specifying their time, constraint and violation.
     """
@@ -2174,11 +2179,14 @@ def validate_storage_constraints(
         soc_min = np.nan
 
     # 2) max <= soc_max
-    soc_max = (soc_max - soc_at_start) * timedelta(hours=1) / resolution
-    _constraints["soc_max(t)"] = soc_max
-    constraint_violations += validate_constraint(
-        _constraints, "max(t)", "<=", "soc_max(t)"
-    )
+    if soc_max is not None:
+        soc_max = (soc_max - soc_at_start) * timedelta(hours=1) / resolution
+        _constraints["soc_max(t)"] = soc_max
+        constraint_violations += validate_constraint(
+            _constraints, "max(t)", "<=", "soc_max(t)"
+        )
+    else:
+        soc_max = np.nan
 
     ########################################
     # B. Validation in the same time frame #
