@@ -176,8 +176,14 @@ class MetaStorageScheduler(Scheduler):
             "inflexible_device_sensors", []
         )
 
-        # Fetch the device's power capacity (required Sensor attribute)
-        power_capacity_in_mw = self._get_device_power_capacity(flex_model, assets)
+        # Fetch the device's power capacity (required to keep the optimization problem bounded)
+        power_capacity_in_mw = self._get_device_power_capacity(
+            flex_model,
+            assets,
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+        )
 
         # Check for known prices or price forecasts
         up_deviation_prices = get_continuous_series_sensor_or_quantity(
@@ -1448,14 +1454,20 @@ class MetaStorageScheduler(Scheduler):
                     )
 
     def _get_device_power_capacity(
-        self, flex_model: list[dict], assets: list[Asset]
-    ) -> list[ur.Quantity]:
+        self,
+        flex_model: list[dict],
+        assets: list[Asset],
+        query_window: tuple[datetime, datetime],
+        resolution: timedelta,
+        beliefs_before: datetime | None,
+    ) -> list[Sensor | SensorReference | list[dict] | ur.Quantity | pd.Series]:
         """The device power capacity for each device must be known for the optimization problem to stay bounded.
 
         We search for the power capacity in the following order:
         1. Look for the power_capacity_in_mw field in the deserialized flex-model.
         2. Look for the power-capacity flex-model field of the asset.
-        3. Look for the site-power-capacity attribute of the asset.
+        3. Look for the greatest device consumption-capacity or production-capacity.
+        4. Look for the site-power-capacity attribute of the asset.
         """
         power_capacities = []
         for flex_model_d, asset in zip(flex_model, assets):
@@ -1472,6 +1484,21 @@ class MetaStorageScheduler(Scheduler):
                 continue
 
             # 3
+            fallback_capacity = self._get_largest_device_capacity(
+                flex_model_d=flex_model_d,
+                query_window=query_window,
+                resolution=resolution,
+                beliefs_before=beliefs_before,
+            )
+            if fallback_capacity is not None:
+                current_app.logger.warning(
+                    f"Missing 'power-capacity' on asset {asset.id}. "
+                    "Using the largest of consumption-capacity and production-capacity instead."
+                )
+                power_capacities.append(fallback_capacity)
+                continue
+
+            # 4
             site_power_capacity = asset.get_attribute("site-power-capacity")
             if site_power_capacity is not None:
                 current_app.logger.warning(
@@ -1494,14 +1521,47 @@ class MetaStorageScheduler(Scheduler):
             )
         return power_capacities
 
+    def _get_largest_device_capacity(
+        self,
+        flex_model_d: dict,
+        query_window: tuple[datetime, datetime],
+        resolution: timedelta,
+        beliefs_before: datetime | None,
+    ) -> Sensor | SensorReference | list[dict] | ur.Quantity | pd.Series | None:
+        """Return the largest directional capacity when both directions are configured."""
+        capacity_fields = ("consumption_capacity", "production_capacity")
+        if any(flex_model_d.get(field) is None for field in capacity_fields):
+            return None
+        capacities = [
+            self._ensure_variable_quantity(flex_model_d[field], "MW")
+            for field in capacity_fields
+        ]
+
+        capacity_series = [
+            get_continuous_series_sensor_or_quantity(
+                variable_quantity=capacity,
+                unit="MW",
+                query_window=query_window,
+                resolution=resolution,
+                beliefs_before=beliefs_before,
+                min_value=0,
+                resolve_overlaps="min",
+            )
+            for capacity in capacities
+        ]
+        largest_capacity = pd.concat(capacity_series, axis=1).max(axis=1)
+        if largest_capacity.isna().all():
+            return None
+        return largest_capacity
+
     def _ensure_variable_quantity(
-        self, value: str | int | float | ur.Quantity, unit: str
-    ) -> Sensor | SensorReference | list[dict] | ur.Quantity:
+        self, value: str | int | float | ur.Quantity | pd.Series, unit: str
+    ) -> Sensor | SensorReference | list[dict] | ur.Quantity | pd.Series:
         if isinstance(value, str):
             q = ur.Quantity(value).to(unit)
         elif isinstance(value, (float, int)):
             q = ur.Quantity(f"{value} {unit}")
-        elif isinstance(value, (Sensor, SensorReference, list, ur.Quantity)):
+        elif isinstance(value, (Sensor, SensorReference, list, ur.Quantity, pd.Series)):
             q = value
         else:
             raise TypeError(
