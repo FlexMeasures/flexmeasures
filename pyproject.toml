@@ -48,13 +48,12 @@ dependencies = [
     "bcrypt==4.3.0",  # see https://github.com/SeitaBV/flexmeasures-cloudinfra/issues/283
     "pytz>=2025.2",
     "isodate>=0.7.2",
-    # see https://github.com/FlexMeasures/flexmeasures/issues/1485
-    "click<8.2.0",
+    "click>=8.2.0",
     "click-default-group>=1.2.4",
     "email-validator>=2.3.0",
     "rq>=2.6.1",
     # sort order
-    "rq-dashboard>=0.8.0.2",
+    "rq-dashboard>=0.8.7",
     # the following uses environment markers (see PEP 496)
     "rq-win; os_name == 'nt' or os_name == 'win'",
     # Note: we sometimes limit redis due to our use of fakeredis (check their pyproject.toml)
