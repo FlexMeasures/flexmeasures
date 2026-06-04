@@ -21,6 +21,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Let storage scheduling skip a missing ``soc-min`` as an unconstrained lower bound [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 
 
 v0.33.0 | June 1, 2026
