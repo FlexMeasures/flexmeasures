@@ -114,7 +114,7 @@ class AccountPatchSchema(Schema):
             raise FMValidationError(str(e))
 
 
-class AccountIdField(fields.Int, MarshmallowClickMixin):
+class AccountIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to an Account and serializes back to an integer."""
 
     @with_appcontext_if_needed()
