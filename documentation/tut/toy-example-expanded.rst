@@ -119,6 +119,10 @@ This will have an effect on the available headroom for the battery, given the ``
                 }
             }
 
+        .. note:: 
+            The API returns a **202 Accepted** response containing a ``job_id`` field.
+            Use this UUID to monitor the job status via :ref:`api_background_jobs`.
+
     .. tab:: FlexMeasures Client
 
         Using the `FlexMeasures Client <https://pypi.org/project/flexmeasures-client/>`_:

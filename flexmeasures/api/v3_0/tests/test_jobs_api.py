@@ -110,7 +110,7 @@ def test_get_job_status_queued(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
         # immediately query the generic job endpoint – job is still queued
@@ -156,7 +156,7 @@ def test_get_job_status_started(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
         # simulate the job being picked up by a worker
@@ -205,7 +205,7 @@ def test_get_job_status_finished(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
         # run the scheduling job
@@ -266,7 +266,7 @@ def test_get_job_status_failed_custom_scheduler_includes_exc_info(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message_for_trigger_schedule(),
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
         work_on_rq(
@@ -302,7 +302,7 @@ def test_get_job_status_failed_infeasible_schedule_includes_exc_info(
             url_for("SensorAPI:trigger_schedule", id=charging_station.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
         work_on_rq(

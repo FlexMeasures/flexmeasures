@@ -143,7 +143,7 @@ def test_trigger_schedule_preserves_flex_model_datetimes_in_job_kwargs(
             json=message,
         )
 
-    assert trigger_schedule_response.status_code == 200
+    assert trigger_schedule_response.status_code == 202
     assert len(app.queues["scheduling"]) == 1
 
     job = app.queues["scheduling"].jobs[0]
@@ -184,7 +184,7 @@ def test_trigger_schedule_preserves_flex_model_datetimes_when_flooring_disabled(
         )
     sensor.attributes = original_attributes
 
-    assert trigger_schedule_response.status_code == 200
+    assert trigger_schedule_response.status_code == 202
     assert len(app.queues["scheduling"]) == 1
 
     job = app.queues["scheduling"].jobs[0]
@@ -298,7 +298,7 @@ def test_trigger_and_get_schedule_with_unknown_prices(
     )
     print("Server responded with:\n%s" % trigger_schedule_response.json)
     check_deprecation(trigger_schedule_response, deprecation=None, sunset=None)
-    assert trigger_schedule_response.status_code == 200
+    assert trigger_schedule_response.status_code == 202
     job_id = trigger_schedule_response.json["schedule"]
 
     # look for scheduling jobs in queue
@@ -410,7 +410,7 @@ def test_get_schedule_fallback(
         )
 
         # check that the call is successful
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
         job_id = trigger_schedule_response.json["schedule"]
 
         # look for scheduling jobs in queue
@@ -567,7 +567,7 @@ def test_get_schedule_fallback_not_redirect(
         )
 
         # check that the call is successful
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
         job_id = trigger_schedule_response.json["schedule"]
 
         # look for scheduling jobs in queue
@@ -655,7 +655,7 @@ def test_get_schedule_with_unit(
         url_for("SensorAPI:trigger_schedule", id=sensor.id),
         json=message,
     )
-    assert trigger_schedule_response.status_code == 200, trigger_schedule_response.json
+    assert trigger_schedule_response.status_code == 202, trigger_schedule_response.json
     job_id = trigger_schedule_response.json["schedule"]
 
     # process the scheduling queue
