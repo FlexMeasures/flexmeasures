@@ -520,6 +520,8 @@ def test_add_storage_schedule(
     max_power = schedule.event_value.abs().max()
     assert len(schedule) == 48
     assert power_sensor.unit == "kW"
+    # The 700 kW quantity override is the highest cap used by this parametrized test.
+    # The lower bound catches accidentally storing MW-scale values on the kW sensor.
     assert max_power > 1
     assert max_power <= 700
 
