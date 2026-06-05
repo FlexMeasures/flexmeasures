@@ -20,7 +20,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
     # setup an account with a user, assets for battery & solar and an energy market (ID 1)
     $ flexmeasures add toy-account
     # load prices to optimize schedules against
-    $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+    $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam --unit EUR/MWh
 
 
 Okay, let's get started!
@@ -313,42 +313,42 @@ And on the flex-model of the battery can be seen on its properties page (and is 
 Add some price data
 ---------------------------------------
 
-Now to add price data. First, we'll create the CSV file with prices (EUR/kWh, see the setup for sensor 1 above) for tomorrow.
+Now to add price data. First, we'll create the CSV file with prices in EUR/MWh for tomorrow. The price sensor stores data in EUR/kWh, and we'll ask FlexMeasures to convert the CSV values while loading them.
 
 .. code-block:: bash
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
     $ echo "Hour,Price
-    $ ${TOMORROW}T00:00:00,0.010
-    $ ${TOMORROW}T01:00:00,0.011
-    $ ${TOMORROW}T02:00:00,0.012
-    $ ${TOMORROW}T03:00:00,0.015
-    $ ${TOMORROW}T04:00:00,0.018
-    $ ${TOMORROW}T05:00:00,0.017
-    $ ${TOMORROW}T06:00:00,0.0105
-    $ ${TOMORROW}T07:00:00,0.009
-    $ ${TOMORROW}T08:00:00,0.0095
-    $ ${TOMORROW}T09:00:00,0.009
-    $ ${TOMORROW}T10:00:00,0.0085
-    $ ${TOMORROW}T11:00:00,0.010
-    $ ${TOMORROW}T12:00:00,0.008
-    $ ${TOMORROW}T13:00:00,0.005
-    $ ${TOMORROW}T14:00:00,0.004
-    $ ${TOMORROW}T15:00:00,0.004
-    $ ${TOMORROW}T16:00:00,0.0055
-    $ ${TOMORROW}T17:00:00,0.008
-    $ ${TOMORROW}T18:00:00,0.012
-    $ ${TOMORROW}T19:00:00,0.013
-    $ ${TOMORROW}T20:00:00,0.014
-    $ ${TOMORROW}T21:00:00,0.0125
-    $ ${TOMORROW}T22:00:00,0.010
-    $ ${TOMORROW}T23:00:00,0.007" > prices-tomorrow.csv
+    $ ${TOMORROW}T00:00:00,10
+    $ ${TOMORROW}T01:00:00,11
+    $ ${TOMORROW}T02:00:00,12
+    $ ${TOMORROW}T03:00:00,15
+    $ ${TOMORROW}T04:00:00,18
+    $ ${TOMORROW}T05:00:00,17
+    $ ${TOMORROW}T06:00:00,10.5
+    $ ${TOMORROW}T07:00:00,9
+    $ ${TOMORROW}T08:00:00,9.5
+    $ ${TOMORROW}T09:00:00,9
+    $ ${TOMORROW}T10:00:00,8.5
+    $ ${TOMORROW}T11:00:00,10
+    $ ${TOMORROW}T12:00:00,8
+    $ ${TOMORROW}T13:00:00,5
+    $ ${TOMORROW}T14:00:00,4
+    $ ${TOMORROW}T15:00:00,4
+    $ ${TOMORROW}T16:00:00,5.5
+    $ ${TOMORROW}T17:00:00,8
+    $ ${TOMORROW}T18:00:00,12
+    $ ${TOMORROW}T19:00:00,13
+    $ ${TOMORROW}T20:00:00,14
+    $ ${TOMORROW}T21:00:00,12.5
+    $ ${TOMORROW}T22:00:00,10
+    $ ${TOMORROW}T23:00:00,7" > prices-tomorrow.csv
 
 This is time series data, in FlexMeasures we call *"beliefs"*. Beliefs can also be sent to FlexMeasures via API or imported from open data hubs like `ENTSO-E <https://github.com/SeitaBV/flexmeasures-entsoe>`_ or `Weather Forecast APIs <https://github.com/flexmeasures/flexmeasures-weather>`_. However, in this tutorial we'll show how you can read data in from a CSV file. Sometimes that's just what you need :)
 
 .. code-block:: bash
 
-    $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+    $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam --unit EUR/MWh
     Successfully created beliefs
 
 In FlexMeasures, all beliefs have a data source. Here, we use the username of the user we created earlier. We could also pass a user ID, or the name of a new data source we want to use for CLI scripts.
@@ -395,4 +395,3 @@ Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5
 |
 
 .. note:: Technically, these prices for tomorrow may be forecasts (depending on whether you are running through this tutorial before or after the day-ahead market's gate closure). You can also use FlexMeasures to compute forecasts yourself. See :ref:`tut_forecasting_scheduling`.
-

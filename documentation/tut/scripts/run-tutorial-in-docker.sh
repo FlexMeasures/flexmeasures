@@ -9,35 +9,35 @@ echo "-----------------------------------------------------------------"
 echo "[TUTORIAL-RUNNER] loading prices..."
 TOMORROW=$(date --date="next day" '+%Y-%m-%d')
 echo "Hour,Price
-${TOMORROW}T00:00:00,0.010
-${TOMORROW}T01:00:00,0.011
-${TOMORROW}T02:00:00,0.012
-${TOMORROW}T03:00:00,0.015
-${TOMORROW}T04:00:00,0.018
-${TOMORROW}T05:00:00,0.017
-${TOMORROW}T06:00:00,0.0105
-${TOMORROW}T07:00:00,0.009
-${TOMORROW}T08:00:00,0.0095
-${TOMORROW}T09:00:00,0.009
-${TOMORROW}T10:00:00,0.0085
-${TOMORROW}T11:00:00,0.010
-${TOMORROW}T12:00:00,0.008
-${TOMORROW}T13:00:00,0.005
-${TOMORROW}T14:00:00,0.004
-${TOMORROW}T15:00:00,0.004
-${TOMORROW}T16:00:00,0.0055
-${TOMORROW}T17:00:00,0.008
-${TOMORROW}T18:00:00,0.012
-${TOMORROW}T19:00:00,0.013
-${TOMORROW}T20:00:00,0.014
-${TOMORROW}T21:00:00,0.0125
-${TOMORROW}T22:00:00,0.010
-${TOMORROW}T23:00:00,0.007" > prices-tomorrow.csv
+${TOMORROW}T00:00:00,10
+${TOMORROW}T01:00:00,11
+${TOMORROW}T02:00:00,12
+${TOMORROW}T03:00:00,15
+${TOMORROW}T04:00:00,18
+${TOMORROW}T05:00:00,17
+${TOMORROW}T06:00:00,10.5
+${TOMORROW}T07:00:00,9
+${TOMORROW}T08:00:00,9.5
+${TOMORROW}T09:00:00,9
+${TOMORROW}T10:00:00,8.5
+${TOMORROW}T11:00:00,10
+${TOMORROW}T12:00:00,8
+${TOMORROW}T13:00:00,5
+${TOMORROW}T14:00:00,4
+${TOMORROW}T15:00:00,4
+${TOMORROW}T16:00:00,5.5
+${TOMORROW}T17:00:00,8
+${TOMORROW}T18:00:00,12
+${TOMORROW}T19:00:00,13
+${TOMORROW}T20:00:00,14
+${TOMORROW}T21:00:00,12.5
+${TOMORROW}T22:00:00,10
+${TOMORROW}T23:00:00,7" > prices-tomorrow.csv
 
 docker cp prices-tomorrow.csv $CONTAINER_NAME:/app
 
 docker exec -it $CONTAINER_NAME flexmeasures add beliefs \
-  --sensor 1 --source toy-user /app/prices-tomorrow.csv --timezone Europe/Amsterdam
+  --sensor 1 --source toy-user /app/prices-tomorrow.csv --timezone Europe/Amsterdam --unit EUR/MWh
 
 echo "[TUTORIAL-RUNNER] creating schedule ..."
 docker exec -it $CONTAINER_NAME flexmeasures add schedule \
