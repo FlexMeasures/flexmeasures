@@ -471,6 +471,42 @@ def test_off_tick_soc_bounds_are_projected_to_scheduling_ticks(
     ), "next tick should use the projected SoC bound implied by reachability"
 
 
+def test_off_tick_soc_projection_accepts_missing_global_bounds():
+    """Missing global SoC bounds leave projected off-tick bounds unclamped."""
+    tz = pytz.timezone("Europe/Amsterdam")
+    resolution = timedelta(minutes=15)
+    previous_tick = pd.Timestamp(tz.localize(datetime(2015, 1, 1, 17)))
+    next_tick = previous_tick + resolution
+    capacity = pd.Series(
+        0.04, index=pd.date_range(previous_tick, next_tick, freq=resolution)
+    )
+
+    _, projected_maxima, projected_minima = project_off_tick_soc_constraints(
+        soc_targets=[
+            {
+                "datetime": "2015-01-01T17:12:00+01:00",
+                "start": "2015-01-01T17:12:00+01:00",
+                "end": "2015-01-01T17:12:00+01:00",
+                "value": 0.5,
+            }
+        ],
+        soc_maxima=None,
+        soc_minima=None,
+        consumption_capacity=capacity,
+        production_capacity=capacity,
+        resolution=resolution,
+        soc_min=None,
+        soc_max=None,
+    )
+
+    assert _soc_event_value_at(projected_minima, previous_tick) == pytest.approx(
+        0.492
+    ), "missing global soc-min should not clamp the projected previous-tick minimum"
+    assert _soc_event_value_at(projected_maxima, previous_tick) == pytest.approx(
+        0.508
+    ), "missing global soc-max should not clamp the projected previous-tick maximum"
+
+
 def _soc_event_value_at(events, dt):
     matches = [
         event

@@ -2029,6 +2029,20 @@ def _soc_value_in_mwh(value: ur.Quantity | float | int) -> float:
     return float(value)
 
 
+def _optional_soc_value_in_mwh(value: ur.Quantity | float | int | None) -> float | None:
+    if value is None:
+        return None
+    return _soc_value_in_mwh(value)
+
+
+def _clamp_soc_min(value: float, soc_min: float | None) -> float:
+    return value if soc_min is None else max(soc_min, value)
+
+
+def _clamp_soc_max(value: float, soc_max: float | None) -> float:
+    return value if soc_max is None else min(soc_max, value)
+
+
 def _soc_event_at(
     soc_event: dict[str, datetime | float],
     dt: pd.Timestamp,
@@ -2118,8 +2132,8 @@ def project_off_tick_soc_constraints(
     consumption_capacity: pd.Series,
     production_capacity: pd.Series,
     resolution: timedelta,
-    soc_min: ur.Quantity | float,
-    soc_max: ur.Quantity | float,
+    soc_min: ur.Quantity | float | None,
+    soc_max: ur.Quantity | float | None,
 ) -> tuple[
     list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
     list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
@@ -2154,8 +2168,8 @@ def project_off_tick_soc_constraints(
     projected_minima = copy.deepcopy(soc_minima) if isinstance(soc_minima, list) else []
     projected_maxima = copy.deepcopy(soc_maxima) if isinstance(soc_maxima, list) else []
 
-    soc_min_value = _soc_value_in_mwh(soc_min)
-    soc_max_value = _soc_value_in_mwh(soc_max)
+    soc_min_value = _optional_soc_value_in_mwh(soc_min)
+    soc_max_value = _optional_soc_value_in_mwh(soc_max)
 
     if isinstance(soc_targets, list):
         projected_targets = []
@@ -2184,7 +2198,7 @@ def project_off_tick_soc_constraints(
                 _soc_event_at(
                     soc_target,
                     previous_tick,
-                    max(soc_min_value, target_value - charge_before_target),
+                    _clamp_soc_min(target_value - charge_before_target, soc_min_value),
                 ),
                 bound_type="min",
             )
@@ -2193,7 +2207,9 @@ def project_off_tick_soc_constraints(
                 _soc_event_at(
                     soc_target,
                     previous_tick,
-                    min(soc_max_value, target_value + discharge_before_target),
+                    _clamp_soc_max(
+                        target_value + discharge_before_target, soc_max_value
+                    ),
                 ),
                 bound_type="max",
             )
@@ -2219,12 +2235,12 @@ def project_off_tick_soc_constraints(
             _soc_event_at(
                 soc_minimum,
                 previous_tick,
-                max(
-                    soc_min_value,
+                _clamp_soc_min(
                     minimum_value
                     - _energy_capacity_between(
                         consumption_capacity, previous_tick, minimum_time, resolution
                     ),
+                    soc_min_value,
                 ),
             ),
             bound_type="min",
@@ -2234,12 +2250,12 @@ def project_off_tick_soc_constraints(
             _soc_event_at(
                 soc_minimum,
                 next_tick,
-                max(
-                    soc_min_value,
+                _clamp_soc_min(
                     minimum_value
                     - _energy_capacity_between(
                         production_capacity, minimum_time, next_tick, resolution
                     ),
+                    soc_min_value,
                 ),
             ),
             bound_type="min",
@@ -2264,12 +2280,12 @@ def project_off_tick_soc_constraints(
             _soc_event_at(
                 soc_maximum,
                 previous_tick,
-                min(
-                    soc_max_value,
+                _clamp_soc_max(
                     maximum_value
                     + _energy_capacity_between(
                         production_capacity, previous_tick, maximum_time, resolution
                     ),
+                    soc_max_value,
                 ),
             ),
             bound_type="max",
@@ -2279,12 +2295,12 @@ def project_off_tick_soc_constraints(
             _soc_event_at(
                 soc_maximum,
                 next_tick,
-                min(
-                    soc_max_value,
+                _clamp_soc_max(
                     maximum_value
                     + _energy_capacity_between(
                         consumption_capacity, maximum_time, next_tick, resolution
                     ),
+                    soc_max_value,
                 ),
             ),
             bound_type="max",
