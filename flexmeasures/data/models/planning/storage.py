@@ -806,12 +806,12 @@ class MetaStorageScheduler(Scheduler):
                     device_constraints[d]["derivative max"] = consumption_capacity_d
 
             if soc_at_start[d] is not None:
-                if _should_normalize_off_tick_soc_constraints(sensor_d):
+                if _should_project_off_tick_soc_constraints(sensor_d):
                     (
                         soc_targets[d],
                         soc_maxima[d],
                         soc_minima[d],
-                    ) = normalize_off_tick_soc_constraints(
+                    ) = project_off_tick_soc_constraints(
                         soc_targets[d],
                         soc_maxima[d],
                         soc_minima[d],
@@ -1137,7 +1137,7 @@ class MetaStorageScheduler(Scheduler):
 
     def flex_model_has_off_tick_soc_constraints(self) -> bool:
         if isinstance(self.flex_model, dict):
-            if not _should_normalize_off_tick_soc_constraints(self.sensor):
+            if not _should_project_off_tick_soc_constraints(self.sensor):
                 return False
             resolution = _get_soc_constraint_resolution(
                 self.resolution, self.sensor, self.default_resolution
@@ -1991,7 +1991,7 @@ def _get_soc_constraint_resolution(
     return default_resolution
 
 
-def _should_normalize_off_tick_soc_constraints(sensor: Sensor | None) -> bool:
+def _should_project_off_tick_soc_constraints(sensor: Sensor | None) -> bool:
     return sensor is None or sensor.get_attribute("floor_datetimes_to_resolution", True)
 
 
@@ -2092,20 +2092,20 @@ def _add_soc_bound(
     soc_events.append(soc_event)
 
 
-def _normalized_soc_events_or_original(
+def _projected_soc_events_or_original(
     original_soc_events: (
         list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None
     ),
-    normalized_soc_events: list[dict[str, datetime | float]],
+    projected_soc_events: list[dict[str, datetime | float]],
 ) -> list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None:
     if isinstance(original_soc_events, list):
-        return normalized_soc_events
-    if original_soc_events is None and normalized_soc_events:
-        return normalized_soc_events
+        return projected_soc_events
+    if original_soc_events is None and projected_soc_events:
+        return projected_soc_events
     return original_soc_events
 
 
-def normalize_off_tick_soc_constraints(
+def project_off_tick_soc_constraints(
     soc_targets: (
         list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None
     ),
@@ -2133,23 +2133,19 @@ def normalize_off_tick_soc_constraints(
     ):
         return soc_targets, soc_maxima, soc_minima
 
-    normalized_minima = (
-        copy.deepcopy(soc_minima) if isinstance(soc_minima, list) else []
-    )
-    normalized_maxima = (
-        copy.deepcopy(soc_maxima) if isinstance(soc_maxima, list) else []
-    )
+    projected_minima = copy.deepcopy(soc_minima) if isinstance(soc_minima, list) else []
+    projected_maxima = copy.deepcopy(soc_maxima) if isinstance(soc_maxima, list) else []
 
     soc_min_value = _soc_value_in_mwh(soc_min)
     soc_max_value = _soc_value_in_mwh(soc_max)
 
     if isinstance(soc_targets, list):
-        normalized_targets = []
+        projected_targets = []
         for soc_target in soc_targets:
             if soc_target["start"] != soc_target["end"] or _is_on_schedule_tick(
                 soc_target["end"], resolution
             ):
-                normalized_targets.append(copy.copy(soc_target))
+                projected_targets.append(copy.copy(soc_target))
                 continue
 
             target_time = pd.Timestamp(soc_target["end"])
@@ -2164,11 +2160,9 @@ def normalize_off_tick_soc_constraints(
                 production_capacity, previous_tick, target_time, resolution
             )
 
-            normalized_targets.append(
-                _soc_event_at(soc_target, next_tick, target_value)
-            )
+            projected_targets.append(_soc_event_at(soc_target, next_tick, target_value))
             _add_soc_bound(
-                normalized_minima,
+                projected_minima,
                 _soc_event_at(
                     soc_target,
                     previous_tick,
@@ -2177,7 +2171,7 @@ def normalize_off_tick_soc_constraints(
                 bound_type="min",
             )
             _add_soc_bound(
-                normalized_maxima,
+                projected_maxima,
                 _soc_event_at(
                     soc_target,
                     previous_tick,
@@ -2186,7 +2180,7 @@ def normalize_off_tick_soc_constraints(
                 bound_type="max",
             )
     else:
-        normalized_targets = soc_targets
+        projected_targets = soc_targets
 
     if isinstance(soc_minima, list):
         soc_minimum_events = copy.deepcopy(soc_minima)
@@ -2203,7 +2197,7 @@ def normalize_off_tick_soc_constraints(
         next_tick = minimum_time.ceil(resolution)
         minimum_value = _soc_value_in_mwh(soc_minimum["value"])
         _add_soc_bound(
-            normalized_minima,
+            projected_minima,
             _soc_event_at(
                 soc_minimum,
                 previous_tick,
@@ -2218,7 +2212,7 @@ def normalize_off_tick_soc_constraints(
             bound_type="min",
         )
         _add_soc_bound(
-            normalized_minima,
+            projected_minima,
             _soc_event_at(
                 soc_minimum,
                 next_tick,
@@ -2248,7 +2242,7 @@ def normalize_off_tick_soc_constraints(
         next_tick = maximum_time.ceil(resolution)
         maximum_value = _soc_value_in_mwh(soc_maximum["value"])
         _add_soc_bound(
-            normalized_maxima,
+            projected_maxima,
             _soc_event_at(
                 soc_maximum,
                 previous_tick,
@@ -2263,7 +2257,7 @@ def normalize_off_tick_soc_constraints(
             bound_type="max",
         )
         _add_soc_bound(
-            normalized_maxima,
+            projected_maxima,
             _soc_event_at(
                 soc_maximum,
                 next_tick,
@@ -2279,9 +2273,9 @@ def normalize_off_tick_soc_constraints(
         )
 
     return (
-        normalized_targets,
-        _normalized_soc_events_or_original(soc_maxima, normalized_maxima),
-        _normalized_soc_events_or_original(soc_minima, normalized_minima),
+        projected_targets,
+        _projected_soc_events_or_original(soc_maxima, projected_maxima),
+        _projected_soc_events_or_original(soc_minima, projected_minima),
     )
 
 

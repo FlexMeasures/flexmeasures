@@ -9,7 +9,7 @@ import pandas as pd
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.storage import (
     StorageScheduler,
-    normalize_off_tick_soc_constraints,
+    project_off_tick_soc_constraints,
 )
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -437,7 +437,7 @@ def test_off_tick_soc_bounds_are_projected_to_scheduling_ticks(
         0.04, index=pd.date_range(previous_tick, next_tick, freq=resolution)
     )
 
-    _, normalized_maxima, normalized_minima = normalize_off_tick_soc_constraints(
+    _, projected_maxima, projected_minima = project_off_tick_soc_constraints(
         soc_targets=None,
         soc_maxima=soc_maxima,
         soc_minima=soc_minima,
@@ -448,12 +448,12 @@ def test_off_tick_soc_bounds_are_projected_to_scheduling_ticks(
         soc_max=1,
     )
 
-    normalized_events = normalized_minima or normalized_maxima
+    projected_events = projected_minima or projected_maxima
 
-    assert _soc_event_value_at(normalized_events, previous_tick) == pytest.approx(
+    assert _soc_event_value_at(projected_events, previous_tick) == pytest.approx(
         expected_previous_value
     )
-    assert _soc_event_value_at(normalized_events, next_tick) == pytest.approx(
+    assert _soc_event_value_at(projected_events, next_tick) == pytest.approx(
         expected_next_value
     )
 
@@ -477,7 +477,7 @@ def test_off_tick_soc_bounds_are_merged_on_the_same_scheduling_tick():
         0, index=pd.date_range(previous_tick, next_tick, freq=resolution)
     )
 
-    _, normalized_maxima, normalized_minima = normalize_off_tick_soc_constraints(
+    _, projected_maxima, projected_minima = project_off_tick_soc_constraints(
         soc_targets=None,
         soc_maxima=[
             {
@@ -514,10 +514,10 @@ def test_off_tick_soc_bounds_are_merged_on_the_same_scheduling_tick():
         soc_max=1,
     )
 
-    assert _soc_event_value_at(normalized_minima, previous_tick) == pytest.approx(0.7)
-    assert _soc_event_value_at(normalized_minima, next_tick) == pytest.approx(0.7)
-    assert _soc_event_value_at(normalized_maxima, previous_tick) == pytest.approx(0.6)
-    assert _soc_event_value_at(normalized_maxima, next_tick) == pytest.approx(0.6)
+    assert _soc_event_value_at(projected_minima, previous_tick) == pytest.approx(0.7)
+    assert _soc_event_value_at(projected_minima, next_tick) == pytest.approx(0.7)
+    assert _soc_event_value_at(projected_maxima, previous_tick) == pytest.approx(0.6)
+    assert _soc_event_value_at(projected_maxima, next_tick) == pytest.approx(0.6)
 
 
 def test_off_tick_soc_constraints_enable_relax_soc_constraints(add_battery_assets, db):
