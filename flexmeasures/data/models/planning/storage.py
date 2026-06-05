@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import re
 import copy
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Type
+from typing import Literal, Type
 
 import pandas as pd
 import numpy as np
@@ -49,6 +50,36 @@ from flexmeasures.utils.unit_utils import ur, convert_units
 
 
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
+
+SocBoundType = Literal["min", "max"]
+SocProjectionTick = Literal["previous", "next"]
+SocCapacityType = Literal["consumption", "production"]
+SocCapacityPeriod = Literal["before", "after"]
+
+
+@dataclass(frozen=True)
+class SocProjectionRule:
+    bound_type: SocBoundType
+    tick: SocProjectionTick
+    capacity: SocCapacityType
+    period: SocCapacityPeriod
+    sign: int
+
+
+SOC_PROJECTION_POLICIES = {
+    "soc-targets": (
+        SocProjectionRule("min", "previous", "consumption", "before", -1),
+        SocProjectionRule("max", "previous", "production", "before", +1),
+    ),
+    "soc-minima": (
+        SocProjectionRule("min", "previous", "consumption", "before", -1),
+        SocProjectionRule("min", "next", "production", "after", -1),
+    ),
+    "soc-maxima": (
+        SocProjectionRule("max", "previous", "production", "before", +1),
+        SocProjectionRule("max", "next", "consumption", "after", +1),
+    ),
+}
 
 
 class MetaStorageScheduler(Scheduler):
@@ -2027,6 +2058,83 @@ def _energy_capacity_between(
     return energy
 
 
+def _tick_for_projection_rule(
+    rule: SocProjectionRule,
+    previous_tick: pd.Timestamp,
+    next_tick: pd.Timestamp,
+) -> pd.Timestamp:
+    return previous_tick if rule.tick == "previous" else next_tick
+
+
+def _capacity_for_projection_rule(
+    rule: SocProjectionRule,
+    consumption_capacity: pd.Series,
+    production_capacity: pd.Series,
+) -> pd.Series:
+    return (
+        consumption_capacity if rule.capacity == "consumption" else production_capacity
+    )
+
+
+def _capacity_period_for_projection_rule(
+    rule: SocProjectionRule,
+    previous_tick: pd.Timestamp,
+    event_time: pd.Timestamp,
+    next_tick: pd.Timestamp,
+) -> tuple[pd.Timestamp, pd.Timestamp]:
+    if rule.period == "before":
+        return previous_tick, event_time
+    return event_time, next_tick
+
+
+def _clamp_projected_soc_value(
+    value: float,
+    rule: SocProjectionRule,
+    soc_min: float | None,
+    soc_max: float | None,
+) -> float:
+    if rule.bound_type == "min":
+        return _clamp_soc_min(value, soc_min)
+    return _clamp_soc_max(value, soc_max)
+
+
+def _add_projected_soc_bound(
+    projected_minima: list[dict[str, datetime | float]],
+    projected_maxima: list[dict[str, datetime | float]],
+    soc_event: dict[str, datetime | float],
+    rule: SocProjectionRule,
+    event_time: pd.Timestamp,
+    previous_tick: pd.Timestamp,
+    next_tick: pd.Timestamp,
+    consumption_capacity: pd.Series,
+    production_capacity: pd.Series,
+    resolution: timedelta,
+    soc_min: float | None,
+    soc_max: float | None,
+) -> None:
+    capacity_start, capacity_end = _capacity_period_for_projection_rule(
+        rule, previous_tick, event_time, next_tick
+    )
+    capacity = _capacity_for_projection_rule(
+        rule, consumption_capacity, production_capacity
+    )
+    projected_value = _soc_value_in_mwh(soc_event["value"]) + rule.sign * (
+        _energy_capacity_between(capacity, capacity_start, capacity_end, resolution)
+    )
+    projected_soc_events = (
+        projected_minima if rule.bound_type == "min" else projected_maxima
+    )
+    _add_soc_bound(
+        projected_soc_events,
+        _soc_event_at(
+            soc_event,
+            _tick_for_projection_rule(rule, previous_tick, next_tick),
+            _clamp_projected_soc_value(projected_value, rule, soc_min, soc_max),
+        ),
+        bound_type=rule.bound_type,
+    )
+
+
 def _add_soc_bound(
     soc_events: list[dict[str, datetime | float]],
     soc_event: dict[str, datetime | float],
@@ -2126,126 +2234,55 @@ def project_off_tick_soc_constraints(
             next_tick = target_time.ceil(resolution)
             target_value = _soc_value_in_mwh(soc_target["value"])
 
-            charge_before_target = _energy_capacity_between(
-                consumption_capacity, previous_tick, target_time, resolution
-            )
-            discharge_before_target = _energy_capacity_between(
-                production_capacity, previous_tick, target_time, resolution
-            )
-
             projected_targets.append(_soc_event_at(soc_target, next_tick, target_value))
-            _add_soc_bound(
-                projected_minima,
-                _soc_event_at(
+            for rule in SOC_PROJECTION_POLICIES["soc-targets"]:
+                _add_projected_soc_bound(
+                    projected_minima,
+                    projected_maxima,
                     soc_target,
+                    rule,
+                    target_time,
                     previous_tick,
-                    _clamp_soc_min(target_value - charge_before_target, soc_min_value),
-                ),
-                bound_type="min",
-            )
-            _add_soc_bound(
-                projected_maxima,
-                _soc_event_at(
-                    soc_target,
-                    previous_tick,
-                    _clamp_soc_max(
-                        target_value + discharge_before_target, soc_max_value
-                    ),
-                ),
-                bound_type="max",
-            )
+                    next_tick,
+                    consumption_capacity,
+                    production_capacity,
+                    resolution,
+                    soc_min_value,
+                    soc_max_value,
+                )
     else:
         projected_targets = soc_targets
 
-    if isinstance(soc_minima, list):
-        soc_minimum_events = copy.deepcopy(soc_minima)
-    else:
-        soc_minimum_events = []
-    for soc_minimum in soc_minimum_events:
-        if soc_minimum["start"] != soc_minimum["end"] or is_on_schedule_tick(
-            soc_minimum["end"], resolution
-        ):
+    for field_name, soc_events in (
+        ("soc-minima", soc_minima),
+        ("soc-maxima", soc_maxima),
+    ):
+        if not isinstance(soc_events, list):
             continue
+        for soc_event in copy.deepcopy(soc_events):
+            if soc_event["start"] != soc_event["end"] or is_on_schedule_tick(
+                soc_event["end"], resolution
+            ):
+                continue
 
-        minimum_time = pd.Timestamp(soc_minimum["end"])
-        previous_tick = minimum_time.floor(resolution)
-        next_tick = minimum_time.ceil(resolution)
-        minimum_value = _soc_value_in_mwh(soc_minimum["value"])
-        _add_soc_bound(
-            projected_minima,
-            _soc_event_at(
-                soc_minimum,
-                previous_tick,
-                _clamp_soc_min(
-                    minimum_value
-                    - _energy_capacity_between(
-                        consumption_capacity, previous_tick, minimum_time, resolution
-                    ),
+            event_time = pd.Timestamp(soc_event["end"])
+            previous_tick = event_time.floor(resolution)
+            next_tick = event_time.ceil(resolution)
+            for rule in SOC_PROJECTION_POLICIES[field_name]:
+                _add_projected_soc_bound(
+                    projected_minima,
+                    projected_maxima,
+                    soc_event,
+                    rule,
+                    event_time,
+                    previous_tick,
+                    next_tick,
+                    consumption_capacity,
+                    production_capacity,
+                    resolution,
                     soc_min_value,
-                ),
-            ),
-            bound_type="min",
-        )
-        _add_soc_bound(
-            projected_minima,
-            _soc_event_at(
-                soc_minimum,
-                next_tick,
-                _clamp_soc_min(
-                    minimum_value
-                    - _energy_capacity_between(
-                        production_capacity, minimum_time, next_tick, resolution
-                    ),
-                    soc_min_value,
-                ),
-            ),
-            bound_type="min",
-        )
-
-    if isinstance(soc_maxima, list):
-        soc_maximum_events = copy.deepcopy(soc_maxima)
-    else:
-        soc_maximum_events = []
-    for soc_maximum in soc_maximum_events:
-        if soc_maximum["start"] != soc_maximum["end"] or is_on_schedule_tick(
-            soc_maximum["end"], resolution
-        ):
-            continue
-
-        maximum_time = pd.Timestamp(soc_maximum["end"])
-        previous_tick = maximum_time.floor(resolution)
-        next_tick = maximum_time.ceil(resolution)
-        maximum_value = _soc_value_in_mwh(soc_maximum["value"])
-        _add_soc_bound(
-            projected_maxima,
-            _soc_event_at(
-                soc_maximum,
-                previous_tick,
-                _clamp_soc_max(
-                    maximum_value
-                    + _energy_capacity_between(
-                        production_capacity, previous_tick, maximum_time, resolution
-                    ),
                     soc_max_value,
-                ),
-            ),
-            bound_type="max",
-        )
-        _add_soc_bound(
-            projected_maxima,
-            _soc_event_at(
-                soc_maximum,
-                next_tick,
-                _clamp_soc_max(
-                    maximum_value
-                    + _energy_capacity_between(
-                        consumption_capacity, maximum_time, next_tick, resolution
-                    ),
-                    soc_max_value,
-                ),
-            ),
-            bound_type="max",
-        )
+                )
 
     return (
         projected_targets,
