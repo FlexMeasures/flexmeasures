@@ -35,6 +35,10 @@ from flexmeasures.data.schemas.scheduling import (
     FlexContextSchema,
     MultiSensorFlexModelSchema,
 )
+from flexmeasures.data.schemas.scheduling.utils import (
+    is_on_schedule_tick,
+    should_project_off_tick_soc_constraints,
+)
 from flexmeasures.data.schemas.sensors import SensorReference, VariableQuantityField
 from flexmeasures.utils.calculations import (
     integrate_time_series,
@@ -45,7 +49,6 @@ from flexmeasures.utils.unit_utils import ur, convert_units
 
 
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
-SOC_TIMED_EVENT_FIELDS = ("soc-targets", "soc-minima", "soc-maxima")
 
 
 class MetaStorageScheduler(Scheduler):
@@ -806,7 +809,7 @@ class MetaStorageScheduler(Scheduler):
                     device_constraints[d]["derivative max"] = consumption_capacity_d
 
             if soc_at_start[d] is not None:
-                if _should_project_off_tick_soc_constraints(sensor_d):
+                if should_project_off_tick_soc_constraints(sensor_d):
                     (
                         soc_targets[d],
                         soc_maxima[d],
@@ -1073,8 +1076,8 @@ class MetaStorageScheduler(Scheduler):
             self.flex_model = {}
 
         self.collect_flex_config()
-        self.enable_relax_soc_constraints_for_off_tick_soc_constraints()
-        self.flex_context = FlexContextSchema().load(self.flex_context)
+        if self.flex_context is None:
+            self.flex_context = {}
 
         if isinstance(self.flex_model, dict):
             if self.sensor.generic_asset.asset_type.name in storage_asset_types:
@@ -1086,11 +1089,16 @@ class MetaStorageScheduler(Scheduler):
                 self.ensure_soc_min_max()
 
             # Now it's time to check if our flex configuration holds up to schemas
-            self.flex_model = StorageFlexModelSchema(
+            schema = StorageFlexModelSchema(
                 start=self.start,
                 sensor=self.sensor,
                 default_soc_unit=self.flex_model.get("soc-unit"),
-            ).load(self.flex_model)
+                schedule_resolution=self.resolution,
+                default_resolution=self.default_resolution,
+            )
+            self.flex_model = schema.load(self.flex_model)
+            if schema.has_off_tick_soc_constraints:
+                self.enable_relax_soc_constraints()
 
             # Extend schedule period in case a target exceeds its end
             self.possibly_extend_end(soc_targets=self.flex_model.get("soc_targets"))
@@ -1104,13 +1112,18 @@ class MetaStorageScheduler(Scheduler):
                     flex_model=sensor_flex_model["sensor_flex_model"],
                     sensor=sensor_flex_model.get("sensor"),
                 )
-                self.flex_model[d] = StorageFlexModelSchema(
+                schema = StorageFlexModelSchema(
                     start=self.start,
                     sensor=sensor_flex_model.get("sensor"),
                     default_soc_unit=sensor_flex_model["sensor_flex_model"].get(
                         "soc-unit"
                     ),
-                ).load(sensor_flex_model["sensor_flex_model"])
+                    schedule_resolution=self.resolution,
+                    default_resolution=self.default_resolution,
+                )
+                self.flex_model[d] = schema.load(sensor_flex_model["sensor_flex_model"])
+                if schema.has_off_tick_soc_constraints:
+                    self.enable_relax_soc_constraints()
                 self.flex_model[d]["sensor"] = sensor_flex_model.get("sensor")
                 self.flex_model[d]["asset"] = sensor_flex_model.get("asset")
 
@@ -1125,36 +1138,13 @@ class MetaStorageScheduler(Scheduler):
                 f"Unsupported type of flex-model: '{type(self.flex_model)}'"
             )
 
+        self.flex_context = FlexContextSchema().load(self.flex_context)
+
         return self.flex_model
 
-    def enable_relax_soc_constraints_for_off_tick_soc_constraints(self) -> None:
+    def enable_relax_soc_constraints(self) -> None:
         """Relax SoC constraints when off-tick SoC events require scheduling-tick projection."""
-        if self.flex_context is None:
-            self.flex_context = {}
-        if not self.flex_model_has_off_tick_soc_constraints():
-            return
         self.flex_context["relax-soc-constraints"] = True
-
-    def flex_model_has_off_tick_soc_constraints(self) -> bool:
-        if isinstance(self.flex_model, dict):
-            if not _should_project_off_tick_soc_constraints(self.sensor):
-                return False
-            resolution = _get_soc_constraint_resolution(
-                self.resolution, self.sensor, self.default_resolution
-            )
-            return flex_model_has_off_tick_soc_constraints(
-                self.flex_model, resolution=resolution
-            )
-        if isinstance(self.flex_model, list):
-            resolution = self.resolution or self.default_resolution
-            return any(
-                flex_model_has_off_tick_soc_constraints(
-                    flex_model.get("sensor-flex-model", flex_model),
-                    resolution=resolution,
-                )
-                for flex_model in self.flex_model
-            )
-        return False
 
     def has_soc_at_start(self) -> bool:
         return (
@@ -1974,55 +1964,6 @@ def create_constraint_violations_message(constraint_violations: list) -> str:
     return message
 
 
-def _is_on_schedule_tick(dt: datetime, resolution: timedelta) -> bool:
-    timestamp = pd.Timestamp(dt)
-    return timestamp == timestamp.floor(resolution)
-
-
-def _get_soc_constraint_resolution(
-    schedule_resolution: timedelta | None,
-    sensor: Sensor | None,
-    default_resolution: timedelta,
-) -> timedelta:
-    if schedule_resolution not in (None, timedelta(0)):
-        return schedule_resolution
-    if sensor is not None and sensor.event_resolution != timedelta(0):
-        return sensor.event_resolution
-    return default_resolution
-
-
-def _should_project_off_tick_soc_constraints(sensor: Sensor | None) -> bool:
-    return sensor is None or sensor.get_attribute("floor_datetimes_to_resolution", True)
-
-
-def flex_model_has_off_tick_soc_constraints(
-    flex_model: dict,
-    resolution: timedelta | None,
-) -> bool:
-    if resolution in (None, timedelta(0)):
-        return False
-
-    for field_name in SOC_TIMED_EVENT_FIELDS:
-        field_value = flex_model.get(field_name)
-        if not isinstance(field_value, list):
-            continue
-        for soc_event in field_value:
-            if not isinstance(soc_event, dict):
-                continue
-            for timing_field in ("datetime", "start", "end"):
-                if soc_event.get(timing_field) is None:
-                    continue
-                try:
-                    is_on_tick = _is_on_schedule_tick(
-                        soc_event[timing_field], resolution
-                    )
-                except (TypeError, ValueError):
-                    continue
-                if not is_on_tick:
-                    return True
-    return False
-
-
 def _soc_value_in_mwh(value: ur.Quantity | float | int) -> float:
     if isinstance(value, ur.Quantity):
         return value.to("MWh").magnitude
@@ -2174,7 +2115,7 @@ def project_off_tick_soc_constraints(
     if isinstance(soc_targets, list):
         projected_targets = []
         for soc_target in soc_targets:
-            if soc_target["start"] != soc_target["end"] or _is_on_schedule_tick(
+            if soc_target["start"] != soc_target["end"] or is_on_schedule_tick(
                 soc_target["end"], resolution
             ):
                 projected_targets.append(copy.copy(soc_target))
@@ -2221,7 +2162,7 @@ def project_off_tick_soc_constraints(
     else:
         soc_minimum_events = []
     for soc_minimum in soc_minimum_events:
-        if soc_minimum["start"] != soc_minimum["end"] or _is_on_schedule_tick(
+        if soc_minimum["start"] != soc_minimum["end"] or is_on_schedule_tick(
             soc_minimum["end"], resolution
         ):
             continue
@@ -2266,7 +2207,7 @@ def project_off_tick_soc_constraints(
     else:
         soc_maximum_events = []
     for soc_maximum in soc_maximum_events:
-        if soc_maximum["start"] != soc_maximum["end"] or _is_on_schedule_tick(
+        if soc_maximum["start"] != soc_maximum["end"] or is_on_schedule_tick(
             soc_maximum["end"], resolution
         ):
             continue
