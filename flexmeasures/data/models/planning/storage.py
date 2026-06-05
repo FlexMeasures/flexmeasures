@@ -1983,7 +1983,7 @@ def _get_soc_constraint_resolution(
     schedule_resolution: timedelta | None,
     sensor: Sensor | None,
     default_resolution: timedelta,
-) -> timedelta | None:
+) -> timedelta:
     if schedule_resolution not in (None, timedelta(0)):
         return schedule_resolution
     if sensor is not None and sensor.event_resolution != timedelta(0):
