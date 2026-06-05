@@ -293,7 +293,7 @@ def test_battery_relaxation(add_battery_assets, db):
     )  # 100 EUR/(kW*h) * 0.025 MW * 1000 kW/MW * 4 hours
 
 
-def test_off_tick_soc_target_is_projected_to_storage_grid(add_battery_assets, db):
+def test_off_tick_soc_target_is_projected_to_scheduling_ticks(add_battery_assets, db):
     _, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
     )
@@ -423,7 +423,7 @@ def test_off_tick_soc_target_is_projected_for_instantaneous_sensor(
         ),
     ],
 )
-def test_off_tick_soc_bounds_are_projected_to_storage_grid(
+def test_off_tick_soc_bounds_are_projected_to_scheduling_ticks(
     soc_minima,
     soc_maxima,
     expected_previous_value,
@@ -468,7 +468,7 @@ def _soc_event_value_at(events, dt):
     return matches[0]["value"]
 
 
-def test_off_tick_soc_bounds_are_merged_on_the_same_storage_grid_tick():
+def test_off_tick_soc_bounds_are_merged_on_the_same_scheduling_tick():
     tz = pytz.timezone("Europe/Amsterdam")
     resolution = timedelta(minutes=15)
     previous_tick = pd.Timestamp(tz.localize(datetime(2015, 1, 1, 17)))

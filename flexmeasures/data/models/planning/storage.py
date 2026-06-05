@@ -1128,7 +1128,7 @@ class MetaStorageScheduler(Scheduler):
         return self.flex_model
 
     def enable_relax_soc_constraints_for_off_tick_soc_constraints(self) -> None:
-        """Relax SoC constraints when off-tick SoC events require grid projection."""
+        """Relax SoC constraints when off-tick SoC events require scheduling-tick projection."""
         if self.flex_context is None:
             self.flex_context = {}
         if not self.flex_model_has_off_tick_soc_constraints():
@@ -2125,7 +2125,7 @@ def normalize_off_tick_soc_constraints(
     list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
     list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
 ]:
-    """Project off-tick point-like SoC constraints onto the scheduling grid."""
+    """Project off-tick point-like SoC constraints onto the scheduling ticks."""
 
     if not any(
         isinstance(soc_events, list) and soc_events
