@@ -340,9 +340,8 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         which usually is at creation time.
         """
 
-        if "name" in data:
-            parent_id = data.get("parent_asset_id", None)
-
+        parent_id = data.get("parent_asset_id")
+        if "name" in data and parent_id is not None:
             query = select(GenericAsset).filter_by(
                 name=data["name"],
                 parent_asset_id=parent_id,

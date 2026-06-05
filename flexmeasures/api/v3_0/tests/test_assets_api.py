@@ -614,24 +614,31 @@ def test_consultancy_user_without_consultant_role(
 
 
 @pytest.mark.parametrize(
-    "parent_name, child_name, fails",
+    "parent_name, child_name, pre_existing_root, fails",
     [
-        ("parent", "child_4", False),
-        (None, "child_1", False),
-        (None, "child_1", True),
-        ("parent", "child_1", True),
+        ("parent", "child_4", False, False),
+        (None, "child_1", False, False),
+        (None, "child_1", True, False),
+        ("parent", "child_1", False, True),
     ],
 )
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_post_an_asset_with_existing_name(
-    client, add_asset_with_children, parent_name, child_name, fails, requesting_user, db
+    client,
+    add_asset_with_children,
+    parent_name,
+    child_name,
+    pre_existing_root,
+    fails,
+    requesting_user,
+    db,
 ):
     """Catch DB error (Unique key violated) correctly.
 
     Cases:
         1) Create a child asset
         2) Create an orphan asset with a name that already exists under a parent asset
-        3) Create an orphan asset with an existing name.
+        3) Create an orphan asset with an existing root asset name.
         4) Create a child asset with a name that already exists among its siblings.
     """
 
@@ -650,9 +657,21 @@ def test_post_an_asset_with_existing_name(
     post_data["account_id"] = requesting_user.account_id
 
     if parent:
-        post_data["parent_asset_id"] = parent.parent_asset_id
+        post_data["parent_asset_id"] = parent.id
     else:
         post_data["parent_asset_id"] = None
+
+    if pre_existing_root:
+        db.session.add(
+            GenericAsset(
+                name=child_name,
+                generic_asset_type=add_asset_with_children[
+                    "child_1"
+                ].generic_asset_type,
+                account_id=requesting_user.account_id,
+            )
+        )
+        db.session.flush()
 
     asset_creation_response = client.post(
         url_for("AssetAPI:post"),

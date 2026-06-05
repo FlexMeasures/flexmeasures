@@ -1,5 +1,8 @@
 from datetime import timedelta
 
+import pytest
+from sqlalchemy.exc import IntegrityError
+
 from flexmeasures.data.services.generic_assets import format_json_field_change
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
@@ -76,6 +79,48 @@ class NewAssetWithSensors:
         self.db.session.delete(self.price_sensor2)
         self.db.session.delete(self.test_battery)
         self.db.session.commit()
+
+
+def test_duplicate_root_asset_names_are_allowed(db, setup_generic_asset_types):
+    asset_type = setup_generic_asset_types["battery"]
+    root_assets = [
+        GenericAsset(name="Shared root name", generic_asset_type=asset_type),
+        GenericAsset(name="Shared root name", generic_asset_type=asset_type),
+    ]
+
+    db.session.add_all(root_assets)
+    db.session.flush()
+
+    assert root_assets[0].id != root_assets[1].id
+    assert root_assets[0].parent_asset_id is None
+    assert root_assets[1].parent_asset_id is None
+
+
+def test_duplicate_sibling_asset_names_are_rejected(db, setup_generic_asset_types):
+    asset_type = setup_generic_asset_types["battery"]
+    parent = GenericAsset(name="Parent asset", generic_asset_type=asset_type)
+    db.session.add(parent)
+    db.session.flush()
+
+    db.session.add_all(
+        [
+            GenericAsset(
+                name="Shared child name",
+                generic_asset_type=asset_type,
+                parent_asset_id=parent.id,
+            ),
+            GenericAsset(
+                name="Shared child name",
+                generic_asset_type=asset_type,
+                parent_asset_id=parent.id,
+            ),
+        ]
+    )
+
+    with pytest.raises(IntegrityError):
+        db.session.flush()
+
+    db.session.rollback()
 
 
 def test_format_json_field_change_reports_nested_flex_model_changes():
