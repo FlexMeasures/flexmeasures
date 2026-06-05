@@ -333,9 +333,15 @@ def test_off_tick_soc_target_is_projected_to_scheduling_ticks(add_battery_assets
     _, _, _, _, _, device_constraints, _, _ = scheduler._prepare(skip_validation=True)
     storage_constraints = device_constraints[0].tz_convert(tz)
 
-    assert pd.isna(storage_constraints.loc[start, "equals"])
-    assert storage_constraints.loc[start, "min"] == pytest.approx(0.992 * 4)
-    assert storage_constraints.loc[start + resolution, "equals"] == pytest.approx(4)
+    assert pd.isna(
+        storage_constraints.loc[start, "equals"]
+    ), "off-tick targets should not become exact constraints on the previous tick"
+    assert storage_constraints.loc[start, "min"] == pytest.approx(
+        0.992 * 4
+    ), "previous tick should allow charging the missing 0.008 MWh before the target time"
+    assert storage_constraints.loc[start + resolution, "equals"] == pytest.approx(
+        4
+    ), "next tick should carry the projected exact target"
 
 
 def test_off_tick_soc_target_is_projected_for_instantaneous_sensor(
@@ -388,8 +394,12 @@ def test_off_tick_soc_target_is_projected_for_instantaneous_sensor(
     _, _, _, _, _, device_constraints, _, _ = scheduler._prepare(skip_validation=True)
     storage_constraints = device_constraints[0].tz_convert(tz)
 
-    assert storage_constraints.loc[start, "min"] == pytest.approx(0.992 * 4)
-    assert storage_constraints.loc[start + resolution, "equals"] == pytest.approx(4)
+    assert storage_constraints.loc[start, "min"] == pytest.approx(
+        0.992 * 4
+    ), "instantaneous sensors should still project the previous-tick minimum"
+    assert storage_constraints.loc[start + resolution, "equals"] == pytest.approx(
+        4
+    ), "instantaneous sensors should still project the exact target to the next tick"
 
 
 @pytest.mark.parametrize(
@@ -452,10 +462,10 @@ def test_off_tick_soc_bounds_are_projected_to_scheduling_ticks(
 
     assert _soc_event_value_at(projected_events, previous_tick) == pytest.approx(
         expected_previous_value
-    )
+    ), "previous tick should use the capacity-adjusted projected SoC bound"
     assert _soc_event_value_at(projected_events, next_tick) == pytest.approx(
         expected_next_value
-    )
+    ), "next tick should use the projected SoC bound implied by reachability"
 
 
 def _soc_event_value_at(events, dt):
@@ -464,7 +474,7 @@ def _soc_event_value_at(events, dt):
         for event in events
         if pd.Timestamp(event["start"]) == dt and pd.Timestamp(event["end"]) == dt
     ]
-    assert len(matches) == 1
+    assert len(matches) == 1, "projection should create exactly one event per tick"
     return matches[0]["value"]
 
 
@@ -514,10 +524,18 @@ def test_off_tick_soc_bounds_are_merged_on_the_same_scheduling_tick():
         soc_max=1,
     )
 
-    assert _soc_event_value_at(projected_minima, previous_tick) == pytest.approx(0.7)
-    assert _soc_event_value_at(projected_minima, next_tick) == pytest.approx(0.7)
-    assert _soc_event_value_at(projected_maxima, previous_tick) == pytest.approx(0.6)
-    assert _soc_event_value_at(projected_maxima, next_tick) == pytest.approx(0.6)
+    assert _soc_event_value_at(projected_minima, previous_tick) == pytest.approx(
+        0.7
+    ), "merged minima should keep the stricter lower bound on the previous tick"
+    assert _soc_event_value_at(projected_minima, next_tick) == pytest.approx(
+        0.7
+    ), "merged minima should keep the stricter lower bound on the next tick"
+    assert _soc_event_value_at(projected_maxima, previous_tick) == pytest.approx(
+        0.6
+    ), "merged maxima should keep the stricter upper bound on the previous tick"
+    assert _soc_event_value_at(projected_maxima, next_tick) == pytest.approx(
+        0.6
+    ), "merged maxima should keep the stricter upper bound on the next tick"
 
 
 def test_off_tick_soc_constraints_enable_relax_soc_constraints(add_battery_assets, db):
@@ -555,9 +573,15 @@ def test_off_tick_soc_constraints_enable_relax_soc_constraints(add_battery_asset
 
     scheduler.deserialize_config()
 
-    assert scheduler.flex_context["relax_soc_constraints"] is True
-    assert scheduler.flex_context["soc_minima_breach_price"] is not None
-    assert scheduler.flex_context["soc_maxima_breach_price"] is not None
+    assert (
+        scheduler.flex_context["relax_soc_constraints"] is True
+    ), "off-tick SoC constraints should automatically enable SoC relaxation"
+    assert (
+        scheduler.flex_context["soc_minima_breach_price"] is not None
+    ), "auto-enabled SoC relaxation should include a minima breach price"
+    assert (
+        scheduler.flex_context["soc_maxima_breach_price"] is not None
+    ), "auto-enabled SoC relaxation should include a maxima breach price"
 
 
 def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(
