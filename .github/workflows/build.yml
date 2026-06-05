@@ -55,7 +55,7 @@ jobs:
       - name: Add beliefs
         run: |
           docker exec --env-file .env fm-container flexmeasures \
-            add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+            add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam --unit EUR/MWh
       - name: Export TOMORROW
         run: echo "TOMORROW=$(date --date="next day" '+%Y-%m-%d')"
           >> $GITHUB_ENV
