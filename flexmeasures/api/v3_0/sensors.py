@@ -1222,6 +1222,27 @@ class SensorAPI(FlaskView):
                         start: "2015-06-02T10:00:00+00:00"
                         duration: "PT45M"
                         unit: "MW"
+            202:
+              description: Scheduling job status while the job is still running
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: ["QUEUED", "STARTED", "DEFERRED"]
+                        description: Processing status of the scheduling job.
+
+                      message:
+                        type: string
+                        description: Human-readable message about current job processing.
+                  examples:
+                    started:
+                      summary: Scheduling job is still running
+                      value:
+                        status: "STARTED"
+                        message: "The scheduling job is currently running."
             400:
               description: INVALID_TIMEZONE, INVALID_DOMAIN, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP
             401:
@@ -1278,7 +1299,23 @@ class SensorAPI(FlaskView):
                     _external=True,
                 ),
             )
+        elif job.is_failed:
+            return unknown_schedule(job_status_description(job, scheduler_info_msg))
         else:
+            if current_app.config.get("FLEXMEASURES_API_SUNSET_ACTIVE"):
+                job_status = job.get_status()
+                job_status_name = (
+                    job_status.upper()
+                    if isinstance(job_status, str)
+                    else job_status.name
+                )
+                return (
+                    dict(
+                        status=job_status_name,
+                        message=job_status_description(job, scheduler_info_msg),
+                    ),
+                    202,
+                )
             return unknown_schedule(job_status_description(job, scheduler_info_msg))
         schedule_start = job.kwargs["start"]
 

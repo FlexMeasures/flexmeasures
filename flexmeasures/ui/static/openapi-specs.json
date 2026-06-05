@@ -821,6 +821,40 @@
               }
             }
           },
+          "202": {
+            "description": "Scheduling job status while the job is still running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "QUEUED",
+                        "STARTED",
+                        "DEFERRED"
+                      ],
+                      "description": "Processing status of the scheduling job."
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable message about current job processing."
+                    }
+                  }
+                },
+                "examples": {
+                  "started": {
+                    "summary": "Scheduling job is still running",
+                    "value": {
+                      "status": "STARTED",
+                      "message": "The scheduling job is currently running."
+                    }
+                  }
+                }
+              }
+            }
+          },
           "400": {
             "description": "INVALID_TIMEZONE, INVALID_DOMAIN, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP"
           },
