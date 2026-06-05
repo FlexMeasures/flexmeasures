@@ -213,7 +213,7 @@ If you want, you can inspect what you created in the CLI (we'll also show the UI
     
     Flex-Context                      Flex-Model
     --------------------------------  ------------
-    site-power-capacity: 500 kW
+    site-power-capacity: 500 kVA
     consumption-price: {'sensor': 1}
 
     ====================================
@@ -230,7 +230,7 @@ If you want, you can inspect what you created in the CLI (we'll also show the UI
 You can see that this building asset has some meta information about how FlexMeasures needs to schedule:
 
 - Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 1, which stores day-ahead prices). 
-- Also, the building has a grid connection capacity of 500 kW, meaning that the total power flowing into or out of the building cannot exceed this value.
+- Also, the building has a grid connection capacity of 500 kVA, meaning that the total power flowing into or out of the building cannot exceed this physical limit.
 
 Now let's look at the battery asset, as well:
 

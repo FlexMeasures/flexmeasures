@@ -398,7 +398,7 @@ def test_add_toy_account_battery_uses_kw_scale_units(app, fresh_db):
     ).scalar_one()
 
     assert day_ahead_sensor.unit == "EUR/kWh"
-    assert building.flex_context["site-power-capacity"] == "500 kW"
+    assert building.flex_context["site-power-capacity"] == "500 kVA"
     assert battery.flex_model["power-capacity"] == "500 kW"
     assert battery.flex_model["soc-max"] == "450 kWh"
     assert battery.sensors[0].unit == "kW"

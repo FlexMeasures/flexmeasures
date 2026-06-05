@@ -1797,7 +1797,7 @@ def add_toy_account(kind: str, name: str):
         latitude=location[0],
         longitude=location[1],
         flex_context={
-            "site-power-capacity": "500 kW",
+            "site-power-capacity": "500 kVA",
             "consumption-price": {"sensor": day_ahead_sensor.id},
         },
     )
