@@ -294,6 +294,7 @@ def test_battery_relaxation(add_battery_assets, db):
 
 
 def test_off_tick_soc_target_is_projected_to_scheduling_ticks(add_battery_assets, db):
+    """Off-tick targets become a next-tick target and a reachable previous-tick bound."""
     _, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
     )
@@ -347,6 +348,7 @@ def test_off_tick_soc_target_is_projected_to_scheduling_ticks(add_battery_assets
 def test_off_tick_soc_target_is_projected_for_instantaneous_sensor(
     add_battery_assets, db
 ):
+    """Off-tick projection also applies when the scheduled sensor is instantaneous."""
     _, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
     )
@@ -439,6 +441,7 @@ def test_off_tick_soc_bounds_are_projected_to_scheduling_ticks(
     expected_previous_value,
     expected_next_value,
 ):
+    """Off-tick minima and maxima are projected as reachable bounds on surrounding ticks."""
     tz = pytz.timezone("Europe/Amsterdam")
     resolution = timedelta(minutes=15)
     previous_tick = pd.Timestamp(tz.localize(datetime(2015, 1, 1, 17)))
@@ -479,6 +482,7 @@ def _soc_event_value_at(events, dt):
 
 
 def test_off_tick_soc_bounds_are_merged_on_the_same_scheduling_tick():
+    """Projected bounds sharing a tick keep the stricter minimum or maximum."""
     tz = pytz.timezone("Europe/Amsterdam")
     resolution = timedelta(minutes=15)
     previous_tick = pd.Timestamp(tz.localize(datetime(2015, 1, 1, 17)))
@@ -539,6 +543,7 @@ def test_off_tick_soc_bounds_are_merged_on_the_same_scheduling_tick():
 
 
 def test_off_tick_soc_constraints_enable_relax_soc_constraints(add_battery_assets, db):
+    """Off-tick SoC constraints enable relaxation because projection can add bounds."""
     _, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
     )

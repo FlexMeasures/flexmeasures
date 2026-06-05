@@ -100,6 +100,26 @@ Each belief links to a sensor and a data source. Here are two examples:
 See also :ref:`one_or_multiple_sensors` for guidance on when such beliefs are best recorded on one shared sensor and when separate sensors are preferable.
 
 
+.. _projecting_scheduling_constraints:
+
+Projecting scheduling constraints to a fixed resolution
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Schedulers operate on a fixed scheduling resolution, such as 15 minutes.
+This means the optimization problem can enforce state-of-charge constraints only on the scheduling ticks implied by that resolution.
+When a storage flex-model contains point-like ``soc-targets``, ``soc-minima`` or ``soc-maxima`` between two scheduling ticks, FlexMeasures projects those constraints onto the surrounding ticks instead of simply flooring them.
+
+For an off-tick ``soc-target``, the target value is moved to the next scheduling tick as an exact target.
+The previous tick receives lower and upper bounds that reflect how much the asset could still charge or discharge between the previous tick and the original target time.
+For off-tick ``soc-minima``, both surrounding ticks receive lower bounds that preserve whether the requested minimum can still be reached.
+For off-tick ``soc-maxima``, both surrounding ticks receive upper bounds with the same reachability logic.
+
+The projection uses the ``consumption-capacity`` and ``production-capacity`` active at the relevant ticks.
+If multiple projected lower bounds land on the same tick, the highest lower bound is kept.
+If multiple projected upper bounds land on the same tick, the lowest upper bound is kept.
+Because projection can introduce additional bounds and more complex combinations can become infeasible, FlexMeasures enables ``relax-soc-constraints`` automatically when off-tick SoC constraints are submitted.
+
+
 .. _signs_of_power_beliefs:
 
 About signs of power & energy values

@@ -2125,7 +2125,25 @@ def project_off_tick_soc_constraints(
     list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
     list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
 ]:
-    """Project off-tick point-like SoC constraints onto the scheduling ticks."""
+    """Project off-tick point-like SoC constraints onto scheduling ticks.
+
+    The scheduler can only enforce constraints at its fixed scheduling resolution.
+    Point-like ``soc-targets``, ``soc-minima`` and ``soc-maxima`` that fall between
+    two scheduling ticks are therefore replaced by constraints on the previous and
+    next tick that preserve reachability using the available charge and discharge
+    capacity between the original event time and those ticks.
+
+    ``soc-targets`` are projected to an exact target on the next tick, plus
+    capacity-adjusted lower and upper bounds on the previous tick. ``soc-minima``
+    become lower bounds on both surrounding ticks, and ``soc-maxima`` become upper
+    bounds on both surrounding ticks. If multiple projected bounds land on the same
+    tick, the stricter lower or upper bound is kept.
+
+    Returns ``(soc_targets, soc_maxima, soc_minima)`` with projected list-based
+    timed events. Non-list specifications such as sensors, series, fixed
+    quantities, or ``None`` are returned unchanged unless projected bounds need to
+    be added to a missing list.
+    """
 
     if not any(
         isinstance(soc_events, list) and soc_events
