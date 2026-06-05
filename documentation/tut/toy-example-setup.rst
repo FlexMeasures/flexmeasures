@@ -251,7 +251,7 @@ Now let's look at the battery asset, as well:
     
     Flex-Context    Flex-Model
     --------------  -------------------------
-                    power-capacity: 500 kW
+                    power-capacity: 500 kVA
                     roundtrip-efficiency: 90%
                     soc-max: 450 kWh
 
@@ -272,7 +272,7 @@ Now let's look at the battery asset, as well:
 Yes, that is quite a large battery :) 
 You can also see that the asset has some meta information about its scheduling.
 
-- Within :ref:`flex_model`, we noted that the battery's power capacity is the same as the building's grid connection capacity (500 kW), meaning the battery can charge or discharge at full power without overloading the connection, but no other devices can (we will come back to this limitation).
+- Within :ref:`flex_model`, we noted that the battery's power capacity is the same as the building's grid connection capacity (500 kVA), meaning the battery can charge or discharge at full power without overloading the connection, but no other devices can (we will come back to this limitation).
 - Also noted is the battery's roundtrip efficiency (90%) and maximum state of charge (450 kWh).
 
 .. note:: Obviously, you can use the ``flexmeasures`` command to create your own, custom account and assets. See :ref:`cli`. And to create, edit or read asset data via the API, see :ref:`v3_0`.

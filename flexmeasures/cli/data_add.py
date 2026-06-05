@@ -1811,7 +1811,7 @@ def add_toy_account(kind: str, name: str):
             "discharging",
             parent_asset_id=building_asset.id,
             flex_model={
-                "power-capacity": "500 kW",
+                "power-capacity": "500 kVA",
                 "roundtrip-efficiency": "90%",
                 "soc-max": "450 kWh",
             },

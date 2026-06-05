@@ -6,7 +6,7 @@ Toy example II: Adding solar production, and a limit on the grid connection
 ============================================================================
 
 
-So far we haven't taken into account any other devices that consume or produce electricity. The battery was free to use all available capacity (which was 500 kW, both its own maximum charge/discharge rate, and the maximum grid capacity).
+So far we haven't taken into account any other devices that consume or produce electricity. The battery was free to use all available capacity (which was 500 kVA, both its own maximum charge/discharge rate, and the maximum grid capacity).
 
 What if other devices will be using some of that capacity? Our schedules need to reflect that, so we stay within given limits.
 

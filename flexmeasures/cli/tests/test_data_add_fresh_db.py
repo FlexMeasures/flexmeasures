@@ -374,7 +374,7 @@ def test_add_account(
         assert result.exit_code == 1
 
 
-def test_add_toy_account_battery_uses_kw_scale_units(app, fresh_db):
+def test_add_toy_account_battery_uses_kw_sensors_and_kva_capacities(app, fresh_db):
     from flexmeasures.cli.data_add import add_toy_account
 
     result = app.test_cli_runner().invoke(add_toy_account, ["--kind", "battery"])
@@ -399,7 +399,7 @@ def test_add_toy_account_battery_uses_kw_scale_units(app, fresh_db):
 
     assert day_ahead_sensor.unit == "EUR/kWh"
     assert building.flex_context["site-power-capacity"] == "500 kVA"
-    assert battery.flex_model["power-capacity"] == "500 kW"
+    assert battery.flex_model["power-capacity"] == "500 kVA"
     assert battery.flex_model["soc-max"] == "450 kWh"
     assert battery.sensors[0].unit == "kW"
     assert solar.sensors[0].unit == "kW"
