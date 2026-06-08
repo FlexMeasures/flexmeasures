@@ -364,7 +364,16 @@ def cleanup_asset_references_in_assets(
     asset_id: int, asset_name: str | None = None
 ) -> int:
     """Remove references to a deleted asset in sensors_to_show across assets."""
+    # Build a JSONB variable for the PostgreSQL path query
+    # This creates {"aid": <asset_id>} which we reference as $aid in the path expression
     vars_json = sa.func.jsonb_build_object("aid", asset_id)
+
+    # Find all assets that reference the deleted asset in their sensors_to_show field
+    # Uses PostgreSQL's JSONB path query: "$.**.asset ? (@ == $aid)"
+    # - "$..**" recursively searches all levels of the JSONB structure
+    # - ".asset" looks for keys named "asset"
+    # - "? (@ == $aid)" filters where the value equals our asset_id variable
+    # We exclude the deleted asset itself (id != asset_id) to avoid self-references
     candidates = db.session.scalars(
         sa.select(GenericAsset).where(
             sa.and_(
