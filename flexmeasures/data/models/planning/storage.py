@@ -348,6 +348,12 @@ class MetaStorageScheduler(Scheduler):
             commodity = flex_model_d.get("commodity", "electricity")
             commodity_to_devices.setdefault(commodity, []).append(d)
 
+        # inflexible devices are electricity by default
+        number_flexible_devices = len(flex_model)
+        number_inflexible_devices = len(self.flex_context["inflexible_device_sensors"])
+        num_flexible_devices = len(flex_model)
+        commodity_to_devices["electricity"] += list(range(number_flexible_devices, number_flexible_devices + number_inflexible_devices))
+
         commodity_contexts = self._get_commodity_contexts()
         price_frames_by_commodity = {}
 
