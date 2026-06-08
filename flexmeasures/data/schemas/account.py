@@ -1,7 +1,7 @@
 from typing import Any
 
 from flexmeasures.data import ma
-from marshmallow import Schema, fields, validates
+from marshmallow import Schema, fields, validates, post_load
 from flask_security import current_user
 
 from flexmeasures.data import db
@@ -139,6 +139,31 @@ class AccountCreateSchema(Schema):
             raise FMValidationError(
                 "You can only set consultancy_account_id to your own account."
             )
+
+    @post_load
+    @with_appcontext_if_needed()
+    def set_consultancy_account_default(self, data, **kwargs):
+        """Set consultancy_account_id to current user's account for consultants/account-admins.
+
+        This runs after validation, so we know the user has the required roles.
+        Only applies when consultancy_account_id is None or missing.
+        """
+        if (
+            "consultancy_account_id" not in data
+            or data["consultancy_account_id"] is None
+        ):
+            # Admins don't get auto-defaulting
+            if user_has_admin_access(current_user, "update"):
+                return data
+
+            # For consultants/account-admins, default to their account
+            # (validation already confirmed they have the required roles)
+            if current_user.has_role(CONSULTANT_ROLE) or current_user.has_role(
+                ACCOUNT_ADMIN_ROLE
+            ):
+                data["consultancy_account_id"] = current_user.account.id
+
+        return data
 
 
 class AccountPatchSchema(Schema):

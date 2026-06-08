@@ -181,7 +181,7 @@ def test_get_one_user_audit_log_consultant(
 @pytest.mark.parametrize(
     "requesting_user, expected_status_code",
     [
-        ("test_consultant@seita.nl", 401),
+        ("test_consultant@seita.nl", 422),
     ],
     indirect=["requesting_user"],
 )
@@ -192,6 +192,7 @@ def test_consultant_cannot_update_account_consultant(
     requesting_user,
     expected_status_code,
 ):
+    """Test that consultant cannot change consultancy_account_id to a different account."""
     client_accounts = requesting_user.account.consultancy_client_accounts
     test_user_account_id = client_accounts[0].id if client_accounts else None
 
@@ -203,6 +204,11 @@ def test_consultant_cannot_update_account_consultant(
     print("Server responded with:\n%s" % patch_account_response.data)
     print("Status code: %s" % patch_account_response.status_code)
     assert patch_account_response.status_code == expected_status_code
+    if expected_status_code == 422:
+        assert (
+            b"You can only set consultancy_account_id to your own account"
+            in patch_account_response.data
+        )
 
 
 @pytest.mark.parametrize(
@@ -333,6 +339,10 @@ def test_post_account_consultant_without_required_account_role_forbidden(
     ).scalar_one_or_none()
     assert role is not None
 
+    # Save original roles to restore later
+    original_roles = list(requesting_user.account.account_roles)
+
+    # Remove Consultancy role temporarily
     requesting_user.account.account_roles = [
         r
         for r in requesting_user.account.account_roles
@@ -345,6 +355,10 @@ def test_post_account_consultant_without_required_account_role_forbidden(
     }
     response = client.post(url_for("AccountAPI:post"), json=payload)
     assert response.status_code == 403
+
+    # Restore original roles to avoid polluting other tests
+    requesting_user.account.account_roles = original_roles
+    db.session.commit()
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -379,3 +393,71 @@ def test_patch_account_roles_invalid_role_id(
     )
 
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "requesting_user, consultancy_account_id_type, status_code, error_message",
+    [
+        # Consultant explicitly setting their own account ID - success
+        ("test_consultant@seita.nl", "own", 201, None),
+        # Consultant trying to set another account ID - forbidden
+        (
+            "test_consultant@seita.nl",
+            "other",
+            422,
+            "You can only set consultancy_account_id to your own account",
+        ),
+        # Consultant setting non-existent account ID - validation error
+        ("test_consultant@seita.nl", 999999, 422, "No account found with id 999999"),
+        # Admin setting any account ID - success
+        ("test_admin_user@seita.nl", "other", 201, None),
+        # User without consultant role - forbidden
+        ("test_consultancy_user_without_consultant_access@seita.nl", None, 403, None),
+    ],
+    indirect=["requesting_user"],
+)
+def test_post_account_with_consultancy_account_id(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    consultancy_account_id_type,
+    status_code,
+    error_message,
+    db,
+):
+    """Test creating accounts with various consultancy_account_id scenarios."""
+    # Build payload with appropriate consultancy_account_id
+    payload = {
+        "name": f"Test Account {requesting_user.id if requesting_user else 'anon'}"
+    }
+
+    if consultancy_account_id_type == "own":
+        payload["consultancy_account_id"] = requesting_user.account.id
+    elif consultancy_account_id_type == "other":
+        other_account = db.session.execute(
+            select(Account).filter_by(name="Test Prosumer Account")
+        ).scalar_one()
+        payload["consultancy_account_id"] = other_account.id
+    elif isinstance(consultancy_account_id_type, int):
+        payload["consultancy_account_id"] = consultancy_account_id_type
+    # else: None, don't add to payload
+
+    response = client.post(url_for("AccountAPI:post"), json=payload)
+    assert response.status_code == status_code
+
+    if error_message:
+        assert error_message in str(response.json)
+
+    if status_code == 201:
+        created = db.session.execute(
+            select(Account).filter_by(name=payload["name"])
+        ).scalar_one_or_none()
+        assert created is not None
+
+        if consultancy_account_id_type == "own":
+            assert created.consultancy_account_id == requesting_user.account.id
+        elif consultancy_account_id_type == "other":
+            other_account = db.session.execute(
+                select(Account).filter_by(name="Test Prosumer Account")
+            ).scalar_one()
+            assert created.consultancy_account_id == other_account.id
