@@ -124,6 +124,10 @@ class MetaStorageScheduler(Scheduler):
         flex_model = self.flex_model.copy()
         if not isinstance(flex_model, list):
             flex_model = [flex_model]
+        else:
+            flex_model = [flex_model_d.copy() for flex_model_d in flex_model]
+        for flex_model_d in flex_model:
+            self._default_missing_directional_capacity_to_zero(flex_model_d)
 
         # total number of flexible devices D described in the flex-model
         num_flexible_devices = len(flex_model)
@@ -1493,7 +1497,7 @@ class MetaStorageScheduler(Scheduler):
             if fallback_capacity is not None:
                 current_app.logger.warning(
                     f"Missing 'power-capacity' on asset {asset.id}. "
-                    "Using the largest of consumption-capacity and production-capacity instead."
+                    "Using the largest configured directional capacity instead."
                 )
                 power_capacities.append(fallback_capacity)
                 continue
@@ -1521,6 +1525,17 @@ class MetaStorageScheduler(Scheduler):
             )
         return power_capacities
 
+    @staticmethod
+    def _default_missing_directional_capacity_to_zero(flex_model_d: dict) -> None:
+        """Default the missing opposite directional capacity to zero."""
+        has_consumption_capacity = flex_model_d.get("consumption_capacity") is not None
+        has_production_capacity = flex_model_d.get("production_capacity") is not None
+
+        if has_consumption_capacity and not has_production_capacity:
+            flex_model_d["production_capacity"] = ur.Quantity("0 MW")
+        elif has_production_capacity and not has_consumption_capacity:
+            flex_model_d["consumption_capacity"] = ur.Quantity("0 MW")
+
     def _get_largest_device_capacity(
         self,
         flex_model_d: dict,
@@ -1528,13 +1543,16 @@ class MetaStorageScheduler(Scheduler):
         resolution: timedelta,
         beliefs_before: datetime | None,
     ) -> Sensor | SensorReference | list[dict] | ur.Quantity | pd.Series | None:
-        """Return the largest directional capacity when both directions are configured."""
+        """Return the largest configured directional capacity, if any."""
         capacity_fields = ("consumption_capacity", "production_capacity")
-        if any(flex_model_d.get(field) is None for field in capacity_fields):
+        configured_capacity_fields = [
+            field for field in capacity_fields if flex_model_d.get(field) is not None
+        ]
+        if not configured_capacity_fields:
             return None
         capacities = [
             self._ensure_variable_quantity(flex_model_d[field], "MW")
-            for field in capacity_fields
+            for field in configured_capacity_fields
         ]
 
         capacity_series = [
