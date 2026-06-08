@@ -27,10 +27,20 @@ def upgrade():
         ["name", "parent_asset_id"],
         unique=True,
         postgresql_where=sa.text("parent_asset_id IS NOT NULL"),
+        sqlite_where=sa.text("parent_asset_id IS NOT NULL"),
+    )
+    op.create_index(
+        "generic_asset_root_account_id_name_key",
+        "generic_asset",
+        ["account_id", "name"],
+        unique=True,
+        postgresql_where=sa.text("parent_asset_id IS NULL AND account_id IS NOT NULL"),
+        sqlite_where=sa.text("parent_asset_id IS NULL AND account_id IS NOT NULL"),
     )
 
 
 def downgrade():
+    op.drop_index("generic_asset_root_account_id_name_key", table_name="generic_asset")
     op.drop_index("generic_asset_name_parent_asset_id_key", table_name="generic_asset")
     op.create_unique_constraint(
         "generic_asset_name_parent_asset_id_key",
