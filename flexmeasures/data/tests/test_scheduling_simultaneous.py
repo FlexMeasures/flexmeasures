@@ -96,7 +96,7 @@ def test_create_simultaneous_jobs(
     ]
     price_sensor = db.session.get(Sensor, price_sensor_id)
     prices = price_sensor.search_beliefs(
-        event_starts_after=start - pd.Timedelta(hours=1), event_ends_before=end
+        event_starts_after=start, event_ends_before=end
     )
     prices = prices.droplevel([1, 2, 3])
     prices.index = prices.index.tz_convert("Europe/Amsterdam")
