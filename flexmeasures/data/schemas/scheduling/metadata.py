@@ -347,7 +347,6 @@ CONSUMPTION_CAPACITY = MetaData(
 PRODUCTION_CAPACITY = MetaData(
     description="""Device-level power constraint on production.
 How much power can be supplied by this asset.
-If ``power-capacity`` is omitted and ``consumption-capacity`` is also configured, this field contributes to the inferred symmetric device-level power limit.
 For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts. [#minimum_overlap]_
 """,
     example="0 kW",
