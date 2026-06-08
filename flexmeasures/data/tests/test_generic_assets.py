@@ -81,8 +81,11 @@ class NewAssetWithSensors:
         self.db.session.commit()
 
 
-def test_duplicate_root_asset_names_are_allowed(db, setup_generic_asset_types):
-    asset_type = setup_generic_asset_types["battery"]
+def test_duplicate_public_root_asset_names_are_allowed(
+    fresh_db, setup_generic_asset_types_fresh_db
+):
+    db = fresh_db
+    asset_type = setup_generic_asset_types_fresh_db["battery"]
     root_assets = [
         GenericAsset(name="Shared root name", generic_asset_type=asset_type),
         GenericAsset(name="Shared root name", generic_asset_type=asset_type),
@@ -96,8 +99,64 @@ def test_duplicate_root_asset_names_are_allowed(db, setup_generic_asset_types):
     assert root_assets[1].parent_asset_id is None
 
 
-def test_duplicate_sibling_asset_names_are_rejected(db, setup_generic_asset_types):
-    asset_type = setup_generic_asset_types["battery"]
+def test_duplicate_root_asset_names_in_different_accounts_are_allowed(
+    fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
+):
+    db = fresh_db
+    asset_type = setup_generic_asset_types_fresh_db["battery"]
+    root_assets = [
+        GenericAsset(
+            name="Shared account root name",
+            generic_asset_type=asset_type,
+            owner=setup_accounts_fresh_db["Prosumer"],
+        ),
+        GenericAsset(
+            name="Shared account root name",
+            generic_asset_type=asset_type,
+            owner=setup_accounts_fresh_db["Supplier"],
+        ),
+    ]
+
+    db.session.add_all(root_assets)
+    db.session.flush()
+
+    assert root_assets[0].id != root_assets[1].id
+    assert root_assets[0].account_id != root_assets[1].account_id
+    assert root_assets[0].parent_asset_id is None
+    assert root_assets[1].parent_asset_id is None
+
+
+def test_duplicate_root_asset_names_in_same_account_are_rejected(
+    fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
+):
+    db = fresh_db
+    asset_type = setup_generic_asset_types_fresh_db["battery"]
+    root_assets = [
+        GenericAsset(
+            name="Conflicting account root name",
+            generic_asset_type=asset_type,
+            owner=setup_accounts_fresh_db["Prosumer"],
+        ),
+        GenericAsset(
+            name="Conflicting account root name",
+            generic_asset_type=asset_type,
+            owner=setup_accounts_fresh_db["Prosumer"],
+        ),
+    ]
+
+    db.session.add_all(root_assets)
+
+    with pytest.raises(IntegrityError):
+        db.session.flush()
+
+    db.session.rollback()
+
+
+def test_duplicate_sibling_asset_names_are_rejected(
+    fresh_db, setup_generic_asset_types_fresh_db
+):
+    db = fresh_db
+    asset_type = setup_generic_asset_types_fresh_db["battery"]
     parent = GenericAsset(name="Parent asset", generic_asset_type=asset_type)
     db.session.add(parent)
     db.session.flush()
