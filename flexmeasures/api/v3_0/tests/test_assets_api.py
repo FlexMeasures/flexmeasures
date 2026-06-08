@@ -618,7 +618,7 @@ def test_consultancy_user_without_consultant_role(
     [
         ("parent", "child_4", False, False),
         (None, "child_1", False, False),
-        (None, "child_1", True, False),
+        (None, "duplicate_root_name", True, True),
         ("parent", "child_1", False, True),
     ],
 )
@@ -638,7 +638,7 @@ def test_post_an_asset_with_existing_name(
     Cases:
         1) Create a child asset
         2) Create an orphan asset with a name that already exists under a parent asset
-        3) Create an orphan asset with an existing root asset name.
+        3) Create an orphan asset with an existing root asset name in the same account.
         4) Create a child asset with a name that already exists among its siblings.
     """
 
