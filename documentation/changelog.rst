@@ -64,6 +64,7 @@ Infrastructure / Support
 * Speed up sensor stats, especially potent when viewing sensors stats over a large sensor history [`PR #2173 <https://www.github.com/FlexMeasures/flexmeasures/pull/2173>`_]
 * Various smaller fixes in documenting scheduling endpoints and flex-model fields [`PR #2122 <https://www.github.com/FlexMeasures/flexmeasures/pull/2122>`_]
 * Add cross-cutting Copilot instruction files to ``.github/instructions/`` covering atomic commits, changelog format, docstrings, error handling, Marshmallow schemas, pre-commit hooks, testing, timezone awareness, and UI terminology [see `PR #2198 <https://www.github.com/FlexMeasures/flexmeasures/pull/2198>`_]
+* Ignore stale asset references in ``sensors_to_show`` so chart endpoints and the graph editor remain usable, and automatically prune those references when deleting assets [see `PR #2210 <https://www.github.com/FlexMeasures/flexmeasures/pull/2210>`_]
 
 Bugfixes
 -----------
