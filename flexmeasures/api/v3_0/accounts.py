@@ -231,8 +231,12 @@ class AccountAPI(FlaskView):
             - Accounts
         """
 
-        if not account_data["consultancy_account_id"]:
-            # Validation has already occurred in the AccountPatchSchema, so no need to check again for roles
+        # If no consultancy_account_id provided, default to current user's account
+        # (validation will happen in schema if a value is provided)
+        if (
+            "consultancy_account_id" not in account_data
+            or account_data["consultancy_account_id"] is None
+        ):
             account_data["consultancy_account_id"] = current_user.account.id
 
         account = Account(**account_data)
