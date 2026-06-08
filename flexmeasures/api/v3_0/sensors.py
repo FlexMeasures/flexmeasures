@@ -16,7 +16,7 @@ from marshmallow import fields, pre_load, Schema, ValidationError, validates_sch
 import marshmallow.validate as validate
 from rq.job import Job, JobStatus, NoSuchJobError
 from webargs.flaskparser import use_args, use_kwargs
-from sqlalchemy import delete, select, or_
+from sqlalchemy import cast, delete, select, or_, String
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -90,6 +90,17 @@ sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 annotation_schema = AnnotationSchema()
+
+
+def sensor_search_term_filter(term: str):
+    filters = [
+        Sensor.name.ilike(f"%{term}%"),
+        Account.name.ilike(f"%{term}%"),
+        GenericAsset.name.ilike(f"%{term}%"),
+    ]
+    if term.isdecimal():
+        filters.append(cast(Sensor.id, String).like(f"{term}%"))
+    return or_(*filters)
 
 
 REGRESSOR_CONFIG_FIELDS = {
@@ -330,7 +341,7 @@ class SensorAPI(FlaskView):
 
             Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
 
-            The `filter` parameter allows you to search for sensors by name or account name.
+            The `filter` parameter allows you to search for sensors by name, account name, asset name, or sensor ID prefix.
             The `unit` parameter allows you to filter by unit.
 
             For the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger
@@ -471,16 +482,7 @@ class SensorAPI(FlaskView):
 
         if filter is not None:
             sensor_query = sensor_query.filter(
-                or_(
-                    *(
-                        or_(
-                            Sensor.name.ilike(f"%{term}%"),
-                            Account.name.ilike(f"%{term}%"),
-                            GenericAsset.name.ilike(f"%{term}%"),
-                        )
-                        for term in filter
-                    )
-                )
+                or_(*(sensor_search_term_filter(term) for term in filter))
             )
 
         if unit:
