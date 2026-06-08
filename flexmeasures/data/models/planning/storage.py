@@ -104,20 +104,6 @@ class MetaStorageScheduler(Scheduler):
                 if key not in ("gas_price", "relax_constraints"):
                     commodity_contexts["electricity"][key] = value
 
-        # Backwards-compatible gas defaults from old `gas-price`.
-        if (
-            self.flex_context.get("gas_price") is not None
-            and "gas" not in commodity_contexts
-        ):
-            commodity_contexts["gas"] = {
-                "commodity": "gas",
-                "consumption_price": self.flex_context.get("gas_price"),
-                "production_price": self.flex_context.get("gas_price"),
-                "inflexible_device_sensors": self.flex_context.get(
-                    "inflexible_device_sensors", []
-                ),
-            }
-
         return commodity_contexts
 
     def _prepare(self, skip_validation: bool = False) -> tuple:  # noqa: C901
@@ -139,6 +125,8 @@ class MetaStorageScheduler(Scheduler):
         belief_time = self.belief_time
 
         # For backwards compatibility with the single asset scheduler
+        # Track whether we started with a single dict (single-sensor mode) or a list
+        is_single_sensor_mode = not isinstance(self.flex_model, list)
         flex_model = self.flex_model.copy()
         if not isinstance(flex_model, list):
             flex_model = [flex_model]
@@ -153,7 +141,12 @@ class MetaStorageScheduler(Scheduler):
         for fm in flex_model:
 
             # stock model: entry in the flex-model list where the sensor key is the state-of-charge sensor of the device (e.g. a stock)
-            if fm.get("sensor") is None and (soc_sensor := fm.get("state_of_charge")):
+            # Only apply this detection in multi-device mode; in single-sensor mode the power sensor is self.sensor (not in the fm dict)
+            if (
+                not is_single_sensor_mode
+                and fm.get("sensor") is None
+                and (soc_sensor := fm.get("state_of_charge"))
+            ):
                 stock_models[
                     soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
                 ] = fm
@@ -180,8 +173,13 @@ class MetaStorageScheduler(Scheduler):
 
             # Check if this is a stock-only model (no power sensor)
             # Stock-only entries have SOC parameters but no power sensor
+            # Only apply in multi-device mode; single-sensor mode devices have no "sensor" key by design
             soc_sensor = fm.get("state_of_charge")
-            if fm.get("sensor") is None and soc_sensor is not None:
+            if (
+                not is_single_sensor_mode
+                and fm.get("sensor") is None
+                and soc_sensor is not None
+            ):
                 # This is a stock-only entry, add to stock_models only
                 soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
                 stock_models[soc_id] = fm
@@ -340,6 +338,12 @@ class MetaStorageScheduler(Scheduler):
             commodity = flex_model_d.get("commodity", "electricity")
             commodity_to_devices.setdefault(commodity, []).append(d)
 
+        # inflexible devices are electricity by default
+        number_flexible_devices = len(flex_model)
+        number_inflexible_devices = len(self.flex_context["inflexible_device_sensors"])
+        num_flexible_devices = len(flex_model)
+        commodity_to_devices["electricity"] += list(range(number_flexible_devices, number_flexible_devices + number_inflexible_devices))
+
         commodity_contexts = self._get_commodity_contexts()
         price_frames_by_commodity = {}
 
@@ -347,8 +351,15 @@ class MetaStorageScheduler(Scheduler):
             commodity_devices = device_list_series(devices, index)
             commodity_context = commodity_contexts.get(commodity, {})
 
-            consumption_price = commodity_context.get("consumption_price")
-            production_price = commodity_context.get("production_price")
+            # Get info from commodity_context
+            consumption_price_sensor = commodity_context.get("consumption_price_sensor")
+            production_price_sensor = commodity_context.get("production_price_sensor")
+            consumption_price = commodity_context.get(
+                "consumption_price", consumption_price_sensor
+            )
+            production_price = commodity_context.get(
+                "production_price", production_price_sensor
+            )
 
             if production_price is None:
                 production_price = consumption_price
