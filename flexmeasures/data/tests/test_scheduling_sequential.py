@@ -92,9 +92,12 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     work_on_rq(queue, handle_scheduling_exception)
 
     # Check that the jobs completed successfully
-    assert queued_jobs[0].get_status() == "finished"
-    assert deferred_jobs[0].get_status() == "finished"
-    assert deferred_jobs[1].get_status() == "finished"
+    ev_job = queued_jobs[0]
+    battery_job = deferred_jobs[0]
+    wrapup_job = deferred_jobs[1]
+    assert ev_job.get_status() == "finished"
+    assert battery_job.get_status() == "finished"
+    assert wrapup_job.get_status() == "finished"
 
     # check results
     ev_power = sensors["Test EV"].search_beliefs()
