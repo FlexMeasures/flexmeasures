@@ -8,7 +8,6 @@ from flask import current_app
 from flask_security import current_user
 from werkzeug.exceptions import Unauthorized, Forbidden
 
-
 PERMISSIONS = ["create-children", "read", "update", "delete"]
 
 # User Roles
@@ -262,3 +261,18 @@ def can_modify_role(
                     return True
 
     return False
+
+
+def user_can_add_accounts() -> bool:
+    """Check if the current user can create new accounts.
+
+    Uses the ACL system to verify the user has permission to create
+    accounts on the FlexMeasures platform.
+
+    :return: True if user has permission, False otherwise.
+    """
+    try:
+        check_access(FlexMeasuresPlatform.init(), "create-children")
+        return True
+    except (Forbidden, Unauthorized):
+        return False

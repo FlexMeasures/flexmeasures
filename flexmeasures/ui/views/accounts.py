@@ -8,10 +8,10 @@ from flask_security import login_required
 from flask_security.core import current_user
 
 from flexmeasures.auth.policy import (
+    user_can_add_accounts,
     user_has_admin_access,
     check_access,
     FlexMeasuresPlatform,
-    CONSULTANCY_ACCOUNT_ROLE,
 )
 
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, ICON_MAPPING
@@ -34,11 +34,7 @@ class AccountCrudUI(FlaskView):
     def index(self):
         """/accounts"""
 
-        user_can_create_account = True
-        try:
-            check_access(FlexMeasuresPlatform.init(), "create-children")
-        except (Forbidden, Unauthorized):
-            user_can_create_account = False
+        user_can_create_account = user_can_add_accounts()
 
         return render_flexmeasures_template(
             "accounts/accounts.html",
@@ -99,9 +95,7 @@ class AccountCrudUI(FlaskView):
             user_can_create_children = False
 
         user_is_admin = user_has_admin_access(current_user, "read")
-        can_add_client_account = user_is_admin or account.has_role(
-            CONSULTANCY_ACCOUNT_ROLE
-        )
+        can_add_client_account = user_can_add_accounts()
 
         account_role_options = {
             role.name: role.id for role in db.session.scalars(select(AccountRole)).all()
