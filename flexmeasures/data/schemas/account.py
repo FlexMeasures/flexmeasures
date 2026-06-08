@@ -2,6 +2,7 @@ from typing import Any
 
 from flexmeasures.data import ma
 from marshmallow import Schema, fields, validates
+from flask_security import current_user
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole
@@ -12,6 +13,12 @@ from flexmeasures.data.schemas.utils import (
     with_appcontext_if_needed,
 )
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
+from flexmeasures.auth.policy import (
+    user_has_admin_access,
+    ACCOUNT_ADMIN_ROLE,
+    CONSULTANT_ROLE,
+    CONSULTANCY_ACCOUNT_ROLE,
+)
 
 
 class AccountRoleSchema(ma.SQLAlchemySchema):
@@ -112,6 +119,54 @@ class AccountPatchSchema(Schema):
             validate_url(value)
         except ValueError as e:
             raise FMValidationError(str(e))
+
+    @validates("consultancy_account_id")
+    @with_appcontext_if_needed()
+    def validate_consultancy_account_id(self, value, **kwargs):
+        """Validate consultancy_account_id field.
+
+        Rules:
+        - Must be an existing account
+        - Admins can set it to any account
+        - Non-admins can only set it to their own account if:
+          - Their account has the consultancy account role AND
+          - They have the consultant or account-admin user role
+        """
+        # Allow None (clearing the consultancy relationship)
+        if value is None:
+            return
+
+        # Check that the account exists
+        consultancy_account = db.session.get(Account, value)
+        if consultancy_account is None:
+            raise FMValidationError(f"No account found with id {value}.")
+
+        # Admins can set any consultancy account
+        if user_has_admin_access(current_user, "update"):
+            return
+
+        # Non-admins can only set it to their own account
+        if value != current_user.account.id:
+            raise FMValidationError(
+                "You can only set consultancy_account_id to your own account."
+            )
+
+        # Check that the user's account has the consultancy account role
+        if not current_user.account.has_role(CONSULTANCY_ACCOUNT_ROLE):
+            raise FMValidationError(
+                f"Your account must have the '{CONSULTANCY_ACCOUNT_ROLE}' role "
+                "to be set as a consultancy account."
+            )
+
+        # Check that the user has consultant or account-admin role
+        if not (
+            current_user.has_role(CONSULTANT_ROLE)
+            or current_user.has_role(ACCOUNT_ADMIN_ROLE)
+        ):
+            raise FMValidationError(
+                f"You must have the '{CONSULTANT_ROLE}' or '{ACCOUNT_ADMIN_ROLE}' "
+                "role to set a consultancy account."
+            )
 
 
 class AccountIdField(MarshmallowClickMixin, fields.Int):

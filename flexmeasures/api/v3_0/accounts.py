@@ -10,7 +10,6 @@ from flask_sqlalchemy.pagination import SelectPagination
 
 from flexmeasures.auth.policy import (
     user_has_admin_access,
-    CONSULTANT_ROLE,
     FlexMeasuresPlatform,
 )
 from flexmeasures.auth.decorators import permission_required_for_context
@@ -232,7 +231,8 @@ class AccountAPI(FlaskView):
             - Accounts
         """
 
-        if current_user.has_role(CONSULTANT_ROLE):
+        if not account_data["consultancy_account_id"]:
+            # Validation has already occurred in the AccountPatchSchema, so no need to check again for roles
             account_data["consultancy_account_id"] = current_user.account.id
 
         account = Account(**account_data)
