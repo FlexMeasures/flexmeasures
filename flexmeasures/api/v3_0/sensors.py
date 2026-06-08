@@ -92,6 +92,17 @@ partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 annotation_schema = AnnotationSchema()
 
 
+def sensor_search_term_filter(term: str):
+    filters = [
+        Sensor.name.ilike(f"%{term}%"),
+        Account.name.ilike(f"%{term}%"),
+        GenericAsset.name.ilike(f"%{term}%"),
+    ]
+    if term.isdecimal():
+        filters.append(Sensor.id == int(term))
+    return or_(*filters)
+
+
 REGRESSOR_CONFIG_FIELDS = {
     "future-regressors": {
         "schema_field_name": "future_regressors",
@@ -330,7 +341,7 @@ class SensorAPI(FlaskView):
 
             Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
 
-            The `filter` parameter allows you to search for sensors by name or account name.
+            The `filter` parameter allows you to search for sensors by name, account name, asset name, or sensor ID.
             The `unit` parameter allows you to filter by unit.
 
             For the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger
@@ -471,16 +482,7 @@ class SensorAPI(FlaskView):
 
         if filter is not None:
             sensor_query = sensor_query.filter(
-                or_(
-                    *(
-                        or_(
-                            Sensor.name.ilike(f"%{term}%"),
-                            Account.name.ilike(f"%{term}%"),
-                            GenericAsset.name.ilike(f"%{term}%"),
-                        )
-                        for term in filter
-                    )
-                )
+                or_(*(sensor_search_term_filter(term) for term in filter))
             )
 
         if unit:

@@ -170,6 +170,27 @@ def test_get_assets(
         assert turbine["account_id"] == setup_accounts["Supplier"].id
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_can_filter_by_asset_id(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    asset = setup_api_test_data["some gas sensor"].generic_asset
+    response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={
+            "account_id": asset.account_id,
+            "filter": str(asset.id),
+        },
+    )
+
+    print("Server responded with:\n%s" % response.json)
+
+    assert response.status_code == 200
+    assert [a["id"] for a in response.json] == [asset.id]
+
+
 @pytest.mark.parametrize(
     "requesting_user, sort_by, sort_dir, expected_name_of_first_sensor",
     [
@@ -219,6 +240,26 @@ def test_fetch_asset_sensors(
 
     if sort_by:
         assert response.json["data"][0]["name"] == expected_name_of_first_sensor
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_fetch_asset_sensors_can_filter_by_sensor_id(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    sensor = setup_api_test_data["some gas sensor"]
+    response = client.get(
+        url_for("AssetAPI:asset_sensors", id=sensor.generic_asset_id),
+        query_string={"filter": str(sensor.id)},
+    )
+
+    print("Server responded with:\n%s" % response.json)
+
+    assert response.status_code == 200
+    assert response.json["num-records"] == 3
+    assert response.json["filtered-records"] == 1
+    assert [s["id"] for s in response.json["data"]] == [sensor.id]
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)

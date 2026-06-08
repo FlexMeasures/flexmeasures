@@ -189,24 +189,31 @@ def query_assets_by_search_terms(
     # Initialize base query
     query = select_statement
 
+    def asset_term_filters(term: str, include_account: bool = True):
+        filters = [GenericAsset.name.ilike(f"%{term}%")]
+        if include_account:
+            filters.append(Account.name.ilike(f"%{term}%"))
+        if term.isdecimal():
+            filters.append(GenericAsset.id == int(term))
+        return or_(*filters)
+
     if search_terms is not None:
         private_select_statement = select_statement.join(
             Account, Account.id == GenericAsset.account_id
         )
         private_filter_statement = filter_statement & and_(
-            *(
-                or_(
-                    GenericAsset.name.ilike(f"%{term}%"),
-                    Account.name.ilike(f"%{term}%"),
-                )
-                for term in search_terms
-            )
+            *(asset_term_filters(term) for term in search_terms)
         )
         public_select_statement = select_statement
         public_filter_statement = (
             filter_statement
             & GenericAsset.account_id.is_(None)
-            & and_(GenericAsset.name.ilike(f"%{term}%") for term in search_terms)
+            & and_(
+                *(
+                    asset_term_filters(term, include_account=False)
+                    for term in search_terms
+                )
+            )
         )
 
         if sort_by is not None and sort_dir is not None:

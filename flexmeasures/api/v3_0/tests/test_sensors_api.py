@@ -226,6 +226,29 @@ def test_fetch_sensors(
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
+def test_fetch_sensors_can_filter_by_sensor_id(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    sensor = setup_api_test_data["some gas sensor"]
+    response = client.get(
+        url_for("SensorAPI:index"),
+        query_string={
+            "asset_id": sensor.generic_asset_id,
+            "filter": str(sensor.id),
+        },
+    )
+
+    print("Server responded with:\n%s" % response.json)
+
+    assert response.status_code == 200
+    assert [s["id"] for s in response.json] == [sensor.id]
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
 def test_fetch_one_sensor(
     client, setup_api_test_data: dict[str, Sensor], requesting_user, db
 ):
