@@ -229,7 +229,7 @@ def smart_building_types(app, fresh_db, setup_generic_asset_types_fresh_db):
 @pytest.fixture(scope="function")
 def smart_building(app, fresh_db, smart_building_types):
     """
-    Topology of the sytstem:
+    Topology of the system:
 
                            +---------+
                            |         |
