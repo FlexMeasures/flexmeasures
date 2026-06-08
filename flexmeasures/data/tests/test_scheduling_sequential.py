@@ -134,7 +134,6 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     resolution = sensors["Test EV"].event_resolution.total_seconds() / 3600
     ev_costs = (-ev_power * prices * resolution).sum().item()
     battery_costs = (-battery_power * prices * resolution).sum().item()
-    total_cost = ev_costs + battery_costs
 
     # Assert costs
     expected_ev_costs = 2.2375
