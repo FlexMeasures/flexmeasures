@@ -800,7 +800,7 @@ def make_schedule(  # noqa: C901
 
     # Save any result that specifies a sensor to save it to
     for result in consumption_schedule:
-        if result["name"] == "commitment_costs":
+        if rq_job and result["name"] == "commitment_costs":
             rq_job.meta["scheduler_info"]["commitment_costs"] = result["data"]
             continue
         elif "sensor" not in result:
