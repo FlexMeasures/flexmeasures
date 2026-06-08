@@ -15,7 +15,7 @@ from flask_sqlalchemy.pagination import SelectPagination
 from marshmallow import fields, post_load, ValidationError, Schema, validate
 
 from webargs.flaskparser import use_kwargs, use_args
-from sqlalchemy import select, func, or_
+from sqlalchemy import cast, select, func, or_, String
 
 from flexmeasures.data.services.generic_assets import (
     create_asset,
@@ -93,7 +93,7 @@ sensors_schema = SensorSchema(many=True)
 def sensor_term_filter(term: str):
     filters = [Sensor.name.ilike(f"%{term}%")]
     if term.isdecimal():
-        filters.append(Sensor.id == int(term))
+        filters.append(cast(Sensor.id, String).like(f"{term}%"))
     return or_(*filters)
 
 
@@ -300,7 +300,7 @@ class AssetAPI(FlaskView):
             The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
               - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
               - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
-              - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name, or exactly matches their ID.
+              - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name, or is a prefix of their ID.
               The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)
 
             Per default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).
@@ -446,7 +446,7 @@ class AssetAPI(FlaskView):
 
             - If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.
             - If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).
-            - If a search 'filter' is provided, the response will filter out sensors where a search term is either present in their name or exactly matches their ID.
+            - If a search 'filter' is provided, the response will filter out sensors where a search term is either present in their name or is a prefix of their ID.
             The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
           security:
             - ApiKeyAuth: []

@@ -3,7 +3,7 @@ from __future__ import annotations
 from itertools import groupby
 from flask_login import current_user
 
-from sqlalchemy import and_, select, Select, literal, or_, union_all
+from sqlalchemy import and_, cast, select, Select, literal, or_, String, union_all
 from sqlalchemy.orm import aliased
 from flexmeasures.data import db
 from flexmeasures.auth.policy import user_has_admin_access
@@ -194,7 +194,7 @@ def query_assets_by_search_terms(
         if include_account:
             filters.append(Account.name.ilike(f"%{term}%"))
         if term.isdecimal():
-            filters.append(GenericAsset.id == int(term))
+            filters.append(cast(GenericAsset.id, String).like(f"{term}%"))
         return or_(*filters)
 
     if search_terms is not None:

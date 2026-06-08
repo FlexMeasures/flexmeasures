@@ -16,7 +16,7 @@ from marshmallow import fields, pre_load, Schema, ValidationError, validates_sch
 import marshmallow.validate as validate
 from rq.job import Job, JobStatus, NoSuchJobError
 from webargs.flaskparser import use_args, use_kwargs
-from sqlalchemy import delete, select, or_
+from sqlalchemy import cast, delete, select, or_, String
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -99,7 +99,7 @@ def sensor_search_term_filter(term: str):
         GenericAsset.name.ilike(f"%{term}%"),
     ]
     if term.isdecimal():
-        filters.append(Sensor.id == int(term))
+        filters.append(cast(Sensor.id, String).like(f"{term}%"))
     return or_(*filters)
 
 
@@ -341,7 +341,7 @@ class SensorAPI(FlaskView):
 
             Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
 
-            The `filter` parameter allows you to search for sensors by name, account name, asset name, or sensor ID.
+            The `filter` parameter allows you to search for sensors by name, account name, asset name, or sensor ID prefix.
             The `unit` parameter allows you to filter by unit.
 
             For the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger
