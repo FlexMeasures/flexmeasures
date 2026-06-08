@@ -355,8 +355,15 @@ class MetaStorageScheduler(Scheduler):
             commodity_devices = device_list_series(devices, index)
             commodity_context = commodity_contexts.get(commodity, {})
 
-            consumption_price = commodity_context.get("consumption_price")
-            production_price = commodity_context.get("production_price")
+            # Get info from commodity_context
+            consumption_price_sensor = commodity_context.get("consumption_price_sensor")
+            production_price_sensor = commodity_context.get("production_price_sensor")
+            consumption_price = commodity_context.get(
+                "consumption_price", consumption_price_sensor
+            )
+            production_price = commodity_context.get(
+                "production_price", production_price_sensor
+            )
 
             if production_price is None:
                 production_price = consumption_price
