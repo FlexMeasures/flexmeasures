@@ -340,7 +340,9 @@ class MetaStorageScheduler(Scheduler):
 
         # inflexible devices are electricity by default
         number_flexible_devices = len(flex_model)
-        number_inflexible_devices = len(self.flex_context["inflexible_device_sensors"])
+        number_inflexible_devices = len(
+            self.flex_context.get("inflexible_device_sensors", [])
+        )
         num_flexible_devices = len(flex_model)
         commodity_to_devices["electricity"] += list(
             range(
