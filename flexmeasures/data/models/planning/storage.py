@@ -104,20 +104,6 @@ class MetaStorageScheduler(Scheduler):
                 if key not in ("gas_price", "relax_constraints"):
                     commodity_contexts["electricity"][key] = value
 
-        # Backwards-compatible gas defaults from old `gas-price`.
-        if (
-            self.flex_context.get("gas_price") is not None
-            and "gas" not in commodity_contexts
-        ):
-            commodity_contexts["gas"] = {
-                "commodity": "gas",
-                "consumption_price": self.flex_context.get("gas_price"),
-                "production_price": self.flex_context.get("gas_price"),
-                "inflexible_device_sensors": self.flex_context.get(
-                    "inflexible_device_sensors", []
-                ),
-            }
-
         return commodity_contexts
 
     def _prepare(self, skip_validation: bool = False) -> tuple:  # noqa: C901
