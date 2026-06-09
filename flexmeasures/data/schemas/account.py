@@ -3,6 +3,7 @@ from typing import Any
 from flexmeasures.data import ma
 from marshmallow import Schema, fields, validates, post_load
 from flask_security import current_user
+from werkzeug.exceptions import Forbidden
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole
@@ -69,6 +70,59 @@ class AccountSchema(ma.SQLAlchemySchema):
             raise FMValidationError(str(e))
 
 
+def _validate_consultancy_account_id_permissions(value, allow_clearing: bool = False):
+    """Shared validation logic for consultancy_account_id field.
+
+    Args:
+        value: The consultancy_account_id value to validate (can be None)
+        allow_clearing: If True, allows None value after role checks (for PATCH)
+                       If False, None is allowed without additional validation (for POST with defaulting)
+
+    Raises:
+        Forbidden: When user lacks required permissions
+        FMValidationError: When account doesn't exist or other validation fails
+
+    Rules:
+        - Admins can set/clear any consultancy_account_id
+        - Non-admins need both:
+          - Account role: Consultancy
+          - User role: consultant OR account-admin
+        - Non-admins can only set it to their own account
+    """
+    # Admins can do anything
+    if user_has_admin_access(current_user, "update"):
+        return
+
+    # For non-admins, check required roles first (before allowing None or validating value)
+    if not current_user.account.has_role(CONSULTANCY_ACCOUNT_ROLE):
+        raise Forbidden(
+            f"Your account must have the '{CONSULTANCY_ACCOUNT_ROLE}' role "
+            "to be set as a consultancy account."
+        )
+
+    if not (
+        current_user.has_role(CONSULTANT_ROLE)
+        or current_user.has_role(ACCOUNT_ADMIN_ROLE)
+    ):
+        raise Forbidden(
+            f"You must have the '{CONSULTANT_ROLE}' or '{ACCOUNT_ADMIN_ROLE}' "
+            "role to set a consultancy account."
+        )
+
+    # After role checks, None is allowed
+    if value is None:
+        return
+
+    # Validate the explicit value provided
+    consultancy_account = db.session.get(Account, value)
+    if consultancy_account is None:
+        raise FMValidationError(f"No account found with id {value}.")
+
+    # Non-admins can only set their own account
+    if value != current_user.account.id:
+        raise Forbidden("You can only set consultancy_account_id to your own account.")
+
+
 class AccountCreateSchema(Schema):
     """Schema for creating an account via API."""
 
@@ -90,55 +144,12 @@ class AccountCreateSchema(Schema):
     @validates("consultancy_account_id")
     @with_appcontext_if_needed()
     def validate_consultancy_account_id(self, value, **kwargs):
-        """Validate consultancy_account_id field.
+        """Validate consultancy_account_id field for account creation.
 
-        Rules:
-        - Must be an existing account (if provided)
-        - Admins can set it to any account
-        - Non-admins can only set it to their own account if:
-          - Their account has the consultancy account role AND
-          - They have the consultant or account-admin user role
+        Uses shared validation logic. For POST requests, None is allowed
+        and will be defaulted in @post_load.
         """
-        # Admins can set any consultancy account (including None)
-        if user_has_admin_access(current_user, "update"):
-            return
-
-        # For non-admins, whether value is provided or None, they need the right roles
-        # because None will be defaulted to their account in the API
-
-        # Check that the user's account has the consultancy account role
-        if not current_user.account.has_role(CONSULTANCY_ACCOUNT_ROLE):
-            raise FMValidationError(
-                f"Your account must have the '{CONSULTANCY_ACCOUNT_ROLE}' role "
-                "to be set as a consultancy account."
-            )
-
-        # Check that the user has consultant or account-admin role
-        if not (
-            current_user.has_role(CONSULTANT_ROLE)
-            or current_user.has_role(ACCOUNT_ADMIN_ROLE)
-        ):
-            raise FMValidationError(
-                f"You must have the '{CONSULTANT_ROLE}' or '{ACCOUNT_ADMIN_ROLE}' "
-                "role to set a consultancy account."
-            )
-
-        # If value is None, validation passes
-        if value is None:
-            return
-
-        # From here on, we're validating a non-None value that was explicitly provided
-
-        # Check that the account exists
-        consultancy_account = db.session.get(Account, value)
-        if consultancy_account is None:
-            raise FMValidationError(f"No account found with id {value}.")
-
-        # Non-admins can only set it to their own account
-        if value != current_user.account.id:
-            raise FMValidationError(
-                "You can only set consultancy_account_id to your own account."
-            )
+        _validate_consultancy_account_id_permissions(value, allow_clearing=False)
 
     @post_load
     @with_appcontext_if_needed()
@@ -201,55 +212,11 @@ class AccountPatchSchema(Schema):
     @validates("consultancy_account_id")
     @with_appcontext_if_needed()
     def validate_consultancy_account_id(self, value, **kwargs):
-        """Validate consultancy_account_id field.
+        """Validate consultancy_account_id field for account updates.
 
-        Rules:
-        - Must be an existing account (if provided)
-        - Admins can set it to any account or clear it
-        - Non-admins can set it to their own account or clear it if:
-          - Their account has the consultancy account role AND
-          - They have the consultant or account-admin user role
+        Uses shared validation logic. For PATCH requests, None clears the relationship.
         """
-        # Admins can set any consultancy account or clear it (set to None)
-        if user_has_admin_access(current_user, "update"):
-            return
-
-        # For non-admins, check roles whether setting or clearing
-        # They need proper roles to modify this field at all
-
-        # Check that the user's account has the consultancy account role
-        if not current_user.account.has_role(CONSULTANCY_ACCOUNT_ROLE):
-            raise FMValidationError(
-                f"Your account must have the '{CONSULTANCY_ACCOUNT_ROLE}' role "
-                "to be set as a consultancy account."
-            )
-
-        # Check that the user has consultant or account-admin role
-        if not (
-            current_user.has_role(CONSULTANT_ROLE)
-            or current_user.has_role(ACCOUNT_ADMIN_ROLE)
-        ):
-            raise FMValidationError(
-                f"You must have the '{CONSULTANT_ROLE}' or '{ACCOUNT_ADMIN_ROLE}' "
-                "role to set a consultancy account."
-            )
-
-        # If clearing the relationship (None), validation passes after role checks
-        if value is None:
-            return
-
-        # From here on, we're setting a non-None value
-
-        # Check that the account exists
-        consultancy_account = db.session.get(Account, value)
-        if consultancy_account is None:
-            raise FMValidationError(f"No account found with id {value}.")
-
-        # Non-admins can only set it to their own account
-        if value != current_user.account.id:
-            raise FMValidationError(
-                "You can only set consultancy_account_id to your own account."
-            )
+        _validate_consultancy_account_id_permissions(value, allow_clearing=True)
 
 
 class AccountIdField(MarshmallowClickMixin, fields.Int):

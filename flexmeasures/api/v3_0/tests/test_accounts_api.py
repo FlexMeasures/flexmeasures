@@ -181,7 +181,7 @@ def test_get_one_user_audit_log_consultant(
 @pytest.mark.parametrize(
     "requesting_user, expected_status_code",
     [
-        ("test_consultant@seita.nl", 422),
+        ("test_consultant@seita.nl", 403),
     ],
     indirect=["requesting_user"],
 )
@@ -204,11 +204,6 @@ def test_consultant_cannot_update_account_consultant(
     print("Server responded with:\n%s" % patch_account_response.data)
     print("Status code: %s" % patch_account_response.status_code)
     assert patch_account_response.status_code == expected_status_code
-    if expected_status_code == 422:
-        assert (
-            b"You can only set consultancy_account_id to your own account"
-            in patch_account_response.data
-        )
 
 
 @pytest.mark.parametrize(
@@ -400,11 +395,11 @@ def test_patch_account_roles_invalid_role_id(
     [
         # Consultant explicitly setting their own account ID - success
         ("test_consultant@seita.nl", "own", 201, None),
-        # Consultant trying to set another account ID - forbidden
+        # Consultant trying to set another account ID - forbidden (authorization error)
         (
             "test_consultant@seita.nl",
             "other",
-            422,
+            403,
             "You can only set consultancy_account_id to your own account",
         ),
         # Consultant setting non-existent account ID - validation error
@@ -445,7 +440,9 @@ def test_post_account_with_consultancy_account_id(
     response = client.post(url_for("AccountAPI:post"), json=payload)
     assert response.status_code == status_code
 
-    if error_message:
+    # For 422 validation errors, check the specific error message
+    # For 403 authorization errors, Flask uses a generic message
+    if error_message and status_code == 422:
         assert error_message in str(response.json)
 
     if status_code == 201:
