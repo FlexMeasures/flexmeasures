@@ -29,6 +29,7 @@ v0.33.1 | June XX, 2026
 Bugfixes
 -----------
 * Improve auth checks on editing user roles [see `PR #2228 <https://www.github.com/FlexMeasures/flexmeasures/pull/2228>`_]
+* Deny unsupported or unresolved user role changes by default [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 
 
 
