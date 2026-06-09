@@ -15,7 +15,7 @@ from flexmeasures.auth.policy import (
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import Account, User, AccountRole
+from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -388,28 +388,6 @@ class AccountAPI(FlaskView):
             "attributes",
             "account_roles",
         ]
-
-        if "account_roles" in account_data:
-            raw_roles = account_data["account_roles"]
-            if not isinstance(raw_roles, list) or any(
-                not isinstance(role_id, int) for role_id in raw_roles
-            ):
-                return {"errors": ["account_roles must be a list of integer IDs."]}, 422
-
-            resolved_roles = [
-                db.session.get(AccountRole, role_id) for role_id in raw_roles
-            ]
-            invalid_role_ids = [
-                role_id
-                for role_id, db_role in zip(raw_roles, resolved_roles)
-                if db_role is None
-            ]
-            if invalid_role_ids:
-                return {
-                    "errors": [f"Invalid account role ID(s): {invalid_role_ids}."]
-                }, 422
-
-            account_data["account_roles"] = resolved_roles
 
         modified_fields = {
             field: getattr(account, field)

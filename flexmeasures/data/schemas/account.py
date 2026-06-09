@@ -218,6 +218,45 @@ class AccountPatchSchema(Schema):
         """
         _validate_consultancy_account_id_permissions(value, allow_clearing=True)
 
+    @post_load
+    @with_appcontext_if_needed()
+    def transform_account_roles(self, data, **kwargs):
+        """Transform account_roles from list of IDs to list of AccountRole objects.
+
+        Validates that:
+        - account_roles is a list of integers
+        - All role IDs exist in the database
+
+        Raises:
+            FMValidationError: If validation fails
+        """
+        if "account_roles" not in data:
+            return data
+
+        raw_roles = data["account_roles"]
+
+        # Validate it's a list of integers
+        if not isinstance(raw_roles, list) or any(
+            not isinstance(role_id, int) for role_id in raw_roles
+        ):
+            raise FMValidationError("account_roles must be a list of integer IDs.")
+
+        # Resolve IDs to AccountRole objects
+        resolved_roles = [db.session.get(AccountRole, role_id) for role_id in raw_roles]
+
+        # Check for invalid IDs
+        invalid_role_ids = [
+            role_id
+            for role_id, db_role in zip(raw_roles, resolved_roles)
+            if db_role is None
+        ]
+        if invalid_role_ids:
+            raise FMValidationError(f"Invalid account role ID(s): {invalid_role_ids}.")
+
+        # Replace list of IDs with list of AccountRole objects
+        data["account_roles"] = resolved_roles
+        return data
+
 
 class AccountIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to an Account and serializes back to an integer."""
