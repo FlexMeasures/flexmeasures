@@ -289,6 +289,7 @@ class User(db.Model, UserMixin, AuthModelMixin):
         """
         Within the same account, everyone can read. Consultants as well.
         Only the user themselves, consultants or account-admins can edit their user record.
+        Check policy.can_modify_role() for special treatment of roles.
         Creation and deletion are left to site admins in CLI.
         """
         return {

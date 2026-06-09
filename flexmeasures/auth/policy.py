@@ -210,7 +210,7 @@ def can_modify_role(
     :param user: The current attempting to modify a role.
     :param roles_to_modify: A list of roles to modify - can be a Role or a role ID.
     :param modified_user: The user whose roles are being modified.
-    :return: True if the user can modify the roles, False otherwise.
+    :return: True if the user can modify each of the roles, False otherwise.
 
     The roles are:
     - admin: can only be changed in CLI / directly in the DB, so not here
@@ -219,23 +219,39 @@ def can_modify_role(
     - consultant: can be added and removed by admins and account-admins (in same account)
 
     """
-
+    roles = []
     for role in roles_to_modify:
         if isinstance(role, int):
             from flexmeasures.data.models.user import Role
 
-            role = current_app.db.session.get(Role, role)
+            roles.append(current_app.db.session.get(Role, role))
+        else:
+            roles.append(role)
 
-    if role is not None:
-        if role.name != ADMIN_ROLE and user.has_role(ADMIN_ROLE):
-            return True  # admin can do all changes, aside from admin status
-        if role.name == ACCOUNT_ADMIN_ROLE and user.has_role(CONSULTANT_ROLE):
-            if modified_user.account.consultancy_account is not None:
-                if user.account.id == modified_user.account.consultancy_account.id:
-                    return True
-        if role.name == CONSULTANT_ROLE and user.has_role(ACCOUNT_ADMIN_ROLE):
-            if user.account.id and modified_user.account.id:
-                if user.account.id == modified_user.account.id:
-                    return True
+    can_modify_roles = []
+    for role in roles:
+        can_modify_this_role = False
+        if role is None:
+            can_modify_roles.append(can_modify_this_role)
+            continue
+        if role.name == ADMIN_ROLE:
+            # Nobody can do this here, only in CLI or directly in the DB.
+            can_modify_this_role = False
+        elif role.name == ADMIN_READER_ROLE:
+            can_modify_this_role = user.has_role(
+                ADMIN_ROLE
+            )  # only admins can change admin-reader status
+        elif role.name == ACCOUNT_ADMIN_ROLE:  # admins and consultants can do this
+            can_modify_this_role = user.has_role(ADMIN_ROLE) or (
+                modified_user.account.consultancy_account is not None
+                and user.has_role(CONSULTANT_ROLE)
+                and user.account.id == modified_user.account.consultancy_account.id
+            )
+        elif role.name == CONSULTANT_ROLE:  # admins and account-admins can do this
+            can_modify_this_role = user.has_role(ADMIN_ROLE) or (
+                user.has_role(ACCOUNT_ADMIN_ROLE)
+                and user.account.id == modified_user.account.id
+            )
+        can_modify_roles.append(can_modify_this_role)
 
-    return False
+    return bool(can_modify_roles) and all(can_modify_roles)
