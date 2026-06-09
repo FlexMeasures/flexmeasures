@@ -123,7 +123,7 @@ class AccountCreateSchema(Schema):
                 "role to set a consultancy account."
             )
 
-        # If value is None, validation passes (it will be set to current user's account in API)
+        # If value is None, validation passes
         if value is None:
             return
 
