@@ -4,8 +4,9 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.33.0 | May 27, 2026
+since v0.33.0 | June 01, 2026
 =================================
+
 * Add ``flexmeasures jobs inspect-job`` to show the job status and metadata information.
 
 since v0.31.1 | March 6, 2026

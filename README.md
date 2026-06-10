@@ -17,6 +17,8 @@ In a nutshell, FlexMeasures turns data into optimized schedules for flexible ass
 
 ![The most simple view of FlexMeasures, turning data into schedules](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/simple-flexEMS.png)
 
+FlexMeasures was created by and continues to be maintained by [Seita Energy Flexibility BV](https://www.seita.nl) in The Netherlands.
+The vision of the project is to make sure that smart backend software is available to all parties working with energy flexibility, no matter where they are working on their local energy transition.
 
 Here is why using FlexMeasures is a great idea:
 
@@ -40,7 +42,7 @@ FlexMeasures is designed to help with three basic needs of developers in the ene
 FlexMeasures is designed to make decisions based on data in an automated way. Data pipelining and dedicated machine learning tooling is crucial.
 
 - API/CLI functionality to read in time series data
-- Extensions for integrating 3rd party data, e.g. from [ENTSO-E](https://github.com/SeitaBV/flexmeasures-entsoe) or [OpenWeatherMap](https://github.com/SeitaBV/flexmeasures-openweathermap)
+- Extensions/Plugins for integrating 3rd party data (e.g. from [ENTSO-E](https://github.com/SeitaBV/flexmeasures-entsoe), [OpenWeatherMap/WeatherAPI](https://github.com/flexmeasures/flexmeasures-weather)) or protocols (e.g. [OpenADR](https://github.com/FlexMeasures/flexmeasures-openadr3))
 - Forecasting for the upcoming hours
 - Schedule optimization for flexible assets
 
@@ -63,23 +65,28 @@ Building customer-facing apps & services is where developers make impact. We mak
 
 - FlexMeasures has well-documented API endpoints and CLI commands to interact with its model and data
 - You can extend it easily with your own logic by writing plugins
-- A backend UI shows you your assets in maps and your data in plots. There is also support for plots to be available per API, for integration in your own frontend
+- A backend UI shows you your assets in maps and your data in plots (try the Replay button!). There is also support for plots to be available per API, for integration in your own frontend
 - Multi-tenancy ― model multiple accounts on one server. Data is only seen/editable by authorized users in the right account
 
 
 ## Getting started
 
-Head over to our [documentation](https://flexmeasures.readthedocs.io), e.g. the [getting started guide](https://flexmeasures.readthedocs.io/latest/getting-started.html#getting-started) or the [5-minute tutorial](https://flexmeasures.readthedocs.io/latest/tut/toy-example-setup.html). Or find more information on [FlexMeasures.io](https://flexmeasures.io).
+Head over to our [documentation](https://flexmeasures.readthedocs.io), e.g. the [getting-started guide](https://flexmeasures.readthedocs.io/latest/getting-started.html#getting-started) or the [5-minute tutorial](https://flexmeasures.readthedocs.io/latest/tut/toy-example-setup.html). Or find more information on [FlexMeasures.io](https://flexmeasures.io).
 
 See also [Seita's Github profile](https://github.com/SeitaBV), e.g. for FlexMeasures plugin examples.
 
 
 ## Development & community
 
-FlexMeasures was initiated by [Seita BV](https://www.seita.nl) in The Netherlands in order to make sure that smart backend software is available to all parties working with energy flexibility, no matter where they are working on their local energy transition.
+FlexMeasures is available under the permissive Apache2.0 licence and it is [an incubation project at the Linux Energy Foundation](https://www.lfenergy.org/projects/flexmeasures/).
 
-We made FlexMeasures freely available under the Apache2.0 licence and it is now [an incubation project at the Linux Energy Foundation](https://www.lfenergy.org/projects/flexmeasures/).
+Within the FlexMeasures project, [we welcome contributions](https://github.com/FlexMeasures/tsc/blob/main/CONTRIBUTING.md). A list of contributing organizations:
 
-Within the FlexMeasures project, [we welcome contributions](https://github.com/FlexMeasures/tsc/blob/main/CONTRIBUTING.md). You can also [learn more about our governance](https://github.com/Flexmeasures/tsc/blob/main/GOVERNANCE.md).
+- Seita Energy Flexibility (NL, maintainer)
+- Thiink (US)
+- ELaad (NL)
+- LUO (BE)
 
-You can connect with the community here on GitHub (e.g. by creating an issue), on [the mailing list](https://lists.lfenergy.org/g/flexmeasures), on [the FlexMeasures channel within the LF Energy Slack](https://slack.lfenergy.org/) or [by contacting the current maintainers](https://seita.nl/who-we-are/#contact).
+You can also [learn more about our governance](https://github.com/Flexmeasures/tsc/blob/main/GOVERNANCE.md).
+
+You can connect with the community here on GitHub (e.g. by creating an issue), on [the FlexMeasures channel within the LF Energy Slack](https://slack.lfenergy.org/), on [the mailing list](https://lists.lfenergy.org/g/flexmeasures) or [by contacting the current maintainers](https://seita.nl/who-we-are/#contact).
