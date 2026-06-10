@@ -28,6 +28,7 @@ Start to run one worker for each kind of job (in a separate terminal):
 
    $ flexmeasures jobs run-worker --queue forecasting
    $ flexmeasures jobs run-worker --queue scheduling
+   $ flexmeasures jobs run-worker --queue ingestion
 
 
 You can also clear the job queues:
@@ -36,6 +37,7 @@ You can also clear the job queues:
 
    $ flexmeasures jobs clear-queue --queue forecasting
    $ flexmeasures jobs clear-queue --queue scheduling
+   $ flexmeasures jobs clear-queue --queue ingestion
 
 
 When the main FlexMeasures process runs (e.g. by ``flexmeasures run``), the queues of forecasting and scheduling jobs can be visited at ``http://localhost:5000/tasks/forecasting`` and ``http://localhost:5000/tasks/schedules``, respectively (by admins).
@@ -207,7 +209,7 @@ Run ``flexmeasures add schedule --help`` for more information.
 .. _scheduling_resolution:
 
 Scheduling resolution
-~~~~~~~~~~~~~~~~~~~~~
+---------------------
 
 The ``--resolution`` parameter (available in both the CLI and API) controls how often the scheduler is allowed to change power setpoints in the resulting schedule. This can be useful for several scenarios:
 
@@ -301,7 +303,8 @@ Schedules can be queried by their UUID for up to 1 week after they were triggere
 Afterwards, the exact schedule can still be retrieved through the `[GET] /sensors/<id>/data <../api/v3_0.html#get--api-v3_0-sensors-id-data>`_, using precise filter values for ``start``, ``prior`` and ``source``.
 Besides the UUID, the endpoint for retrieving schedules takes a sensor ID, which is the sensor ID of one of the power sensors that was referenced in the flex model.
 
-.. note:: If a ``state-of-charge`` sensor was referenced in the flex model (like in the example below), the scheduled state of charge can be retrieved using the same endpoint and UUID, but then using the state-of-charge sensor ID.
+.. note:: If a ``state-of-charge`` sensor was referenced in the flex model (like in the example below), FlexMeasures can both persist the scheduled state of charge on that sensor and, when ``soc-at-start`` is omitted, infer the starting state of charge from a recent sensor value near the schedule start. If no sufficiently recent state-of-charge value is available, the scheduling request will fail instead of silently assuming a state of charge, so stale SoC sensors are detected early.
+          The scheduled state of charge can then be retrieved using the same endpoint and UUID, but with the state-of-charge sensor ID.
 
           .. code-block:: json
               :emphasize-lines: 3

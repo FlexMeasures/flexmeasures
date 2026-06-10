@@ -152,16 +152,16 @@ The last step, touching a wsgi.py file, is often used as a way to soft-restart t
    PATH_TO_WSGI=/path/to/wsgi/script/for/the/app
 
    echo "CHECKING OUT CODE TO GIT WORK TREE ($PATH_TO_GIT_WORK_TREE) ..."
-   GIT_WORK_TREE=$PATH_TO_GIT_WORK_TREE git checkout -f
+  GIT_WORK_TREE=$PATH_TO_GIT_WORK_TREE git checkout -f
 
-   cd $PATH_TO_GIT_WORK_TREE
-   PATH=$PATH_TO_VENV/bin:$PATH
+  cd $PATH_TO_GIT_WORK_TREE
+  PATH=$PATH_TO_VENV/bin:$PATH
 
-   echo "INSTALLING DEPENDENCIES ..."
-   make install-deps
+  echo "INSTALLING DEPENDENCIES ..."
+  uv sync --frozen
 
    echo "UPGRADING DATABASE STRUCTURE ..."
-   make upgrade-db
+   uv run poe upgrade-db
 
    echo "RESTARTING APPLICATION ..."
    touch $PATH_TO_WSGI

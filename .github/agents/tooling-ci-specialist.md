@@ -9,6 +9,8 @@ description: Reviews GitHub Actions workflows, pre-commit hooks, and CI/CD pipel
 
 Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actions workflows, pre-commit hooks, linters, build scripts, and CI/CD pipelines. Ensure tests run efficiently, caching works correctly, and agents are used properly in workflows. This agent owns the reliability of the development and deployment infrastructure.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review
@@ -50,7 +52,7 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 - [ ] **Hook versions**: Hooks use recent, stable versions
 - [ ] **Hook coverage**: Appropriate hooks for code quality
 - [ ] **Performance**: Hooks run in reasonable time
-- [ ] **Configuration**: Hooks configured via `setup.cfg` or `pyproject.toml`
+- [ ] **Configuration**: Hooks configured via `pyproject.toml`
 - [ ] **Local vs CI**: Some hooks can skip in CI
 
 #### generate-openapi-specs Hook: Known Regressions
@@ -99,7 +101,7 @@ git diff flexmeasures/ui/static/openapi-specs.json | grep -c '"Asia/'
 
 ### Linter Configuration
 
-- [ ] **Flake8**: Configured in `setup.cfg` with appropriate rules
+- [ ] **Flake8**: Configured in `.flake8` with appropriate rules
 - [ ] **Black**: Line length and style consistent
 - [ ] **Mypy**: Type checking configuration appropriate
 - [ ] **Consistency**: Settings match across local and CI
@@ -111,6 +113,72 @@ git diff flexmeasures/ui/static/openapi-specs.json | grep -c '"Asia/'
 - [ ] **OS matrix**: Ubuntu latest (add others if needed)
 - [ ] **Fail-fast**: Usually false for comprehensive testing
 - [ ] **Coverage**: One Python version runs coverage
+
+### Pre-commit Hook Execution (CRITICAL)
+
+**Every commit MUST pass `pre-commit run --all-files` BEFORE being committed.** See `.github/instructions/pre-commit-hooks.instructions.md` for setup and hook details. Committing code that fails pre-commit hooks is a process failure.
+
+#### Responsibility Assignment
+
+**Who runs pre-commit:**
+- **During code changes**: Agent making changes runs pre-commit before committing
+- **Before PR close**: Lead verifies pre-commit execution
+- **In PR review**: Tooling & CI Specialist validates config matches CI
+
+**Enforcement:**
+- Lead's session close checklist includes pre-commit verification
+- Lead cannot close session without pre-commit evidence
+- If pre-commit fails, agent must fix all issues before proceeding
+
+#### Common Failures and Fixes
+
+**Flake8 failures:**
+```bash
+# Common issues:
+# - E501: Line too long (black should handle this)
+# - F401: Unused import (remove import)
+# - C901: Function too complex (refactor)
+# - W503: Line break before binary operator (ignore, conflicts with black)
+
+# Quick check:
+flake8 path/to/file.py
+```
+
+**Black failures:**
+```bash
+# Auto-fix formatting:
+black path/to/file.py
+
+# Or format entire codebase:
+black .
+```
+
+**Mypy failures:**
+```bash
+# Type annotation required
+# Manual fix needed:
+# - Add type hints to function signatures
+# - Fix type mismatches
+# - Add # type: ignore comments with justification
+
+# Run mypy:
+ci/run_mypy.sh
+```
+
+#### Integration with Lead
+
+**Lead checklist items:**
+- [ ] Pre-commit hooks installed
+- [ ] All hooks pass: `pre-commit run --all-files`
+- [ ] Zero failures from flake8, black, mypy
+- [ ] If hooks modified files, changes committed
+
+**Evidence required:**
+- Show pre-commit output confirming all hooks passed
+- Or confirm: "Pre-commit verified: all hooks passed"
+
+**Enforcement:**
+Lead MUST verify pre-commit execution before closing session.
 
 ### Agent Environment Setup
 
@@ -124,9 +192,8 @@ This file defines standardized environment setup for GitHub Copilot agents. When
   - Other system tools
   
 - [ ] **Python environment**: 
-  - Is Python version appropriate? (Default: 3.11)
-  - Are dependencies installed correctly? (`pip-sync`, `pip install -e .`)
-  - Is pip-tools version pinned?
+  - Is Python version appropriate according to `.python-version`?
+  - Are dependencies installed correctly? (`uv sync`)
   
 - [ ] **Database setup**:
   - Is PostgreSQL service started?
@@ -187,18 +254,25 @@ This file defines standardized environment setup for GitHub Copilot agents. When
 
 Setup:
 ```bash
-pip install pre-commit
+uv tool install pre-commit
 pre-commit run --all-files
 ```
 
 ### Flake8 Configuration
 
-`setup.cfg`:
+`.flake8`:
 ```ini
 [flake8]
+exclude = .git,__pycache__,documentation
 max-line-length = 160
 max-complexity = 13
+select = B,C,E,F,W,B9
 ignore = E501, W503, E203
+per-file-ignores =
+    flexmeasures/__init__.py:F401
+    flexmeasures/data/schemas/__init__.py:F401
+    flexmeasures/ui/crud/assets/__init__.py:F401
+
 ```
 
 Ignored rules:
@@ -216,13 +290,13 @@ Ignored rules:
 
 **Test execution**:
 ```bash
-make install-for-test  # Install dependencies
-make test              # Run pytest
+uv sync --group test  # Install dependencies
+uv run poe test              # Run pytest
 ```
 
 ### Caching Strategy
 
-Pip cache configuration:
+Uv cache configuration:
 ```yaml
 uses: actions/cache@v4
 with:
@@ -259,10 +333,9 @@ pytest -k test_auth_token  # Ensure auth setup runs
 
 - Workflows: `.github/workflows/`
 - Pre-commit: `.pre-commit-config.yaml`
-- Linter config: `setup.cfg`
-- Mypy runner: `ci/run_mypy.sh`
+- Linter config: `.flake8`
+- Task runner: `pyproject.toml` (poethepoet tasks)
 - PostgreSQL setup: `ci/setup-postgres.sh`
-- Makefile: `Makefile`
 - Docker: `Dockerfile`, `docker-compose.yml`
 
 ## Interaction Rules
@@ -307,6 +380,15 @@ pytest -k test_auth_token  # Ensure auth setup runs
 - Update checklist based on real issues
 - Refine guidance on caching and optimization
 
+### Lessons Learned
+
+#### `uv sync --locked` fails after `uv lock --upgrade` (PR #2148)
+
+- **Symptom**: `uv sync --locked` fails with "needs to be updated, but `--locked` was provided" even after running `uv lock`
+- **Root cause**: New packages (e.g. `numba`/`llvmlite`) introduce fork markers with impossible platform combos (e.g. `os_name == 'nt' AND sys_platform == 'darwin'`), causing coverage check to fail
+- **Fix**: Add `[tool.uv] environments` to `pyproject.toml` limiting resolution to actual target platforms, then regenerate `uv.lock`
+- **Verification**: After any significant `uv lock --upgrade`, run `uv sync --locked` locally and confirm exit code 0
+
 ### Continuous Improvement
 
 - Monitor CI run times and optimize
@@ -349,15 +431,15 @@ Before committing CI changes:
 
 1. **Test pre-commit hooks locally**:
    ```bash
-   pip install pre-commit
+   uv tool install pre-commit
    pre-commit install
    pre-commit run --all-files
    ```
 2. **Test make targets**:
    ```bash
-   make install-for-test
-   make test
-   make update-docs
+   uv sync --group test
+   uv run poe test
+   uv run poe update-docs
    ```
 3. **Verify pytest configuration**:
    ```bash

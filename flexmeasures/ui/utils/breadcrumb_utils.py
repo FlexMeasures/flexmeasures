@@ -2,16 +2,19 @@ from __future__ import annotations
 
 from sqlalchemy import select
 from flexmeasures import Sensor, Asset, Account
+from flexmeasures.data.models.user import User
 from flexmeasures.utils.flexmeasures_inflection import human_sorted
 from flask import url_for, current_app
+from flask_security.core import current_user
 
 
 def get_breadcrumb_info(
-    entity: Sensor | Asset | Account | None, current_page: str = None
+    entity: Sensor | Asset | Account | User | None, current_page: str = None
 ) -> dict:
     breadcrumb = {
         "ancestors": get_ancestry(entity),
         "siblings": get_siblings(entity),
+        "views": [],
     }
 
     if entity is not None and isinstance(entity, Asset):
@@ -52,14 +55,14 @@ def get_breadcrumb_info(
     return breadcrumb
 
 
-def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
+def get_ancestry(entity: Sensor | Asset | Account | User | None) -> list[dict]:
     """
     Return a list of ancestors meta data, with URLs for their pages, their name and type.
     This function calls itself recursively to go up the ancestral tree, up to the account.
     This function also allows customization for assets and sensors (for this, set "breadcrumb_ancestry" attribute).
     """
     custom_ancestry = None
-    if entity is not None and not isinstance(entity, Account):
+    if entity is not None and not isinstance(entity, (Account, User)):
         custom_ancestry = entity.get_attribute("breadcrumb_ancestry")
     if custom_ancestry is not None and isinstance(custom_ancestry, list):
         # Append current Asset to the custom ancestry breadcrumb
@@ -85,6 +88,17 @@ def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
                 "type": "Account",
             }
         ]
+
+    # user
+    if isinstance(entity, User):
+        current_entity_info = [
+            {
+                "url": url_for("UserCrudUI:get", id=entity.id),
+                "name": entity.username,
+                "type": "User",
+            }
+        ]
+        return get_ancestry(entity.account) + current_entity_info
 
     # sensor
     if isinstance(entity, Sensor):
@@ -117,17 +131,51 @@ def get_ancestry(entity: Sensor | Asset | Account | None) -> list[dict]:
     return []
 
 
-def get_siblings(entity: Sensor | Asset | Account | None) -> list[dict]:
+def get_siblings(entity: Sensor | Asset | Account | User | None) -> list[dict]:
     """
     Return a list of siblings meta data, with URLs for their pages, name and type.
     This function also allows customization (for this, set "breadcrumb_siblings" attribute).
     """
     custom_siblings = None
-    if entity is not None and not isinstance(entity, Account):
+    if entity is not None and not isinstance(entity, (Account, User)):
         custom_siblings = entity.get_attribute("breadcrumb_siblings")
     if custom_siblings is not None and isinstance(custom_siblings, list):
         return custom_siblings
     siblings = []
+    if isinstance(entity, Account):
+        from flexmeasures.auth.policy import user_has_admin_access
+
+        session = current_app.db.session
+        if user_has_admin_access(current_user, "read"):
+            sibling_accounts = session.scalars(select(Account)).all()
+        else:
+            sibling_accounts = [current_user.account] + (
+                current_user.account.consultancy_client_accounts
+                if "consultant" in current_user.roles
+                else []
+            )
+        # Only show siblings (dropdown) when there is more than one accessible account
+        if len(sibling_accounts) > 1:
+            siblings = [
+                {
+                    "url": url_for("AccountCrudUI:get", account_id=account.id),
+                    "name": account.name,
+                    "type": "Account",
+                }
+                for account in sibling_accounts
+            ]
+    if isinstance(entity, User):
+        # Show other users in the same account as siblings (enables dropdown navigation)
+        account_users = entity.account.users if entity.account else []
+        if len(account_users) > 1:
+            siblings = [
+                {
+                    "url": url_for("UserCrudUI:get", id=u.id),
+                    "name": u.username,
+                    "type": "User",
+                }
+                for u in account_users
+            ]
     if isinstance(entity, Sensor):
         siblings = [
             {

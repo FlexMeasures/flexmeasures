@@ -140,10 +140,10 @@ If you also want to install your requirements, you could for instance add these 
 
 .. code-block:: docker
 
-    COPY requirements/app.in /app/requirements/flexmeasures_testplugin.txt
-    RUN pip3 install --no-cache-dir -r requirements/flexmeasures_testplugin.txt
+    COPY requirements.txt /app/requirements.txt
+    RUN pip install --no-cache-dir -r /app/requirements.txt
 
-.. note:: No need to install flexmeasures here, as the Docker image we are based on already installed FlexMeasures from code. If you pip3-install your plugin here (assuming it's on Pypi), check if it recognizes that FlexMeasures installation as it should.
+.. note:: No need to install flexmeasures here, as the Docker image we are based on already installed FlexMeasures from code. The FlexMeasures image has a virtual environment at ``/app/.venv`` which is already in the PATH. Using ``pip install`` will add your plugin dependencies to this virtual environment.
 
 
 

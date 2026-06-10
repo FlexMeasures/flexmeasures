@@ -1,12 +1,16 @@
 from typing import Any
 
-from flask.cli import with_appcontext
 from flexmeasures.data import ma
 from marshmallow import fields, validates
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import Account, AccountRole
-from flexmeasures.data.schemas.utils import FMValidationError, MarshmallowClickMixin
+from flexmeasures.data.schemas.attributes import JSON
+from flexmeasures.data.schemas.utils import (
+    FMValidationError,
+    MarshmallowClickMixin,
+    with_appcontext_if_needed,
+)
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 
 
@@ -32,6 +36,7 @@ class AccountSchema(ma.SQLAlchemySchema):
     primary_color = ma.auto_field(required=False)
     secondary_color = ma.auto_field(required=False)
     logo_url = ma.auto_field(required=False)
+    attributes = JSON(required=False, load_default={})
     account_roles = fields.Nested("AccountRoleSchema", exclude=("accounts",), many=True)
     consultancy_account_id = ma.auto_field()
 
@@ -57,10 +62,10 @@ class AccountSchema(ma.SQLAlchemySchema):
             raise FMValidationError(str(e))
 
 
-class AccountIdField(fields.Int, MarshmallowClickMixin):
+class AccountIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to an Account and serializes back to an integer."""
 
-    @with_appcontext
+    @with_appcontext_if_needed()
     def _deserialize(self, value: Any, attr, data, **kwargs) -> Account:
         """Turn an account id into an Account."""
         account_id: int = super()._deserialize(value, attr, data, **kwargs)
@@ -74,3 +79,30 @@ class AccountIdField(fields.Int, MarshmallowClickMixin):
     def _serialize(self, value: Account, attr, obj, **kwargs):
         """Turn an Account into a source id."""
         return value.id
+
+
+class AccountIdOrListField(fields.Field):
+    """Field that accepts a single account ID or a non-empty list of account IDs.
+
+    Both ``42`` and ``[42, 99]`` are accepted.  Always deserializes to a list of
+    :class:`~flexmeasures.data.models.user.Account` instances.
+
+    The field is intentionally expressed as a union of ``integer`` and
+    ``array[integer]`` rather than always requiring a list, so that future
+    OpenAPI generation can emit a ``oneOf`` schema for it.
+    """
+
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> list[Account]:
+        _item_field = AccountIdField()
+        if isinstance(value, list):
+            if len(value) == 0:
+                raise FMValidationError("Must be a non-empty list of account IDs.")
+            return [_item_field._deserialize(v, attr, data, **kwargs) for v in value]
+        return [_item_field._deserialize(value, attr, data, **kwargs)]
+
+    def _serialize(self, value: Any, attr, obj, **kwargs):
+        if value is None:
+            return None
+        if isinstance(value, list):
+            return [a.id if hasattr(a, "id") else a for a in value]
+        return value.id if hasattr(value, "id") else value

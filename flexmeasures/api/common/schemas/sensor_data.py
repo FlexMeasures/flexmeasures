@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from flask_login import current_user
 from isodate import datetime_isoformat
-from marshmallow import fields, post_load, validates_schema, ValidationError
+from marshmallow import fields, post_load, pre_load, validates_schema, ValidationError
 from marshmallow.validate import OneOf, Length
 from marshmallow_polyfield import PolyField
 from timely_beliefs import BeliefsDataFrame
@@ -12,10 +12,12 @@ import pandas as pd
 
 from flexmeasures.data import ma
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.user import User
 from flexmeasures.api.common.schemas.sensors import (
     SensorEntityAddressField,
     SensorIdField,
 )
+from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.utils.api_utils import upsample_values
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.schemas import AwareDateTimeField, DurationField, SourceIdField
@@ -149,9 +151,48 @@ class SensorDataDescriptionSchema(SensorDataTimingDescriptionSchema):
             )
 
 
-class GetSensorDataSchema(SensorDataDescriptionSchema):
-    resolution = DurationField(required=False)
-    source = SourceIdField(required=False)
+class GetSensorDataFilterSchemaMixin:
+    """Shared filters for GET sensor data request parsing and docs."""
+
+    resolution = DurationField(
+        required=False,
+        metadata=dict(
+            description="Resolution of the returned sensor data in ISO 8601 duration format.",
+            example="PT15M",
+        ),
+    )
+    source = SourceIdField(
+        required=False,
+        metadata=dict(
+            description="Filter by a specific data source ID.",
+            example=42,
+        ),
+    )
+    source_account = AccountIdField(
+        data_key="source-account",
+        required=False,
+        metadata=dict(
+            description="Filter by the account linked to data sources.",
+            example=3,
+        ),
+    )
+    source_type = fields.Str(
+        data_key="source-type",
+        required=False,
+        validate=Length(min=1),
+        metadata=dict(
+            description="Filter by a specific data source type.",
+            example="forecaster",
+        ),
+    )
+
+    @pre_load
+    def support_legacy_field_name(self, data, **kwargs):
+        """Accept old snake_case input for backwards compatibility."""
+        return {key.replace("_", "-"): value for key, value in data.items()}
+
+
+class GetSensorDataSchema(GetSensorDataFilterSchemaMixin, SensorDataDescriptionSchema):
 
     # Optional field that can be used for extra validation
     type = fields.Str(
@@ -184,6 +225,20 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
                 f"The unit requested for this message type should be convertible from an energy price unit, got incompatible unit: {requested_unit}"
             )
 
+    @validates_schema
+    def source_type_must_exist_on_sensor(self, data, **kwargs):
+        source_type = data.get("source_type")
+        if not source_type:
+            return
+        sensor: Sensor = data["sensor"]
+        if not sensor.search_data_sources(
+            source_types=[source_type], check_exists=True
+        ):
+            raise ValidationError(
+                f"No data source with source-type '{source_type}' has recorded any data on this sensor.",
+                field_name="source_type",
+            )
+
     @staticmethod
     def load_data_and_make_response(sensor_data_description: dict) -> dict:
         """Turn the de-serialized and validated data description into a response.
@@ -202,6 +257,8 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         unit = sensor_data_description["unit"]
         resolution = sensor_data_description.get("resolution")
         source = sensor_data_description.get("source")
+        source_account = sensor_data_description.get("source_account")
+        source_type = sensor_data_description.get("source_type")
 
         # Post-load configuration of event frequency
         if resolution is None:
@@ -231,6 +288,8 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
                 horizons_at_least=horizons_at_least,
                 horizons_at_most=horizons_at_most,
                 source=source,
+                source_account_ids=source_account.id if source_account else None,
+                source_types=[source_type] if source_type else None,
                 beliefs_before=sensor_data_description.get("prior", None),
                 one_deterministic_belief_per_event=True,
                 resolution=resolution,
@@ -264,10 +323,20 @@ class GetSensorDataSchema(SensorDataDescriptionSchema):
         return response
 
 
+class GetSensorDataQuerySchema(
+    GetSensorDataFilterSchemaMixin, SensorDataTimingDescriptionSchema
+):
+    """Document the actual query parameters for GET /sensors/<id>/data."""
+
+
 class PostSensorDataSchema(SensorDataDescriptionSchema):
     """
     This schema includes data (values) and still describes it.
     """
+
+    def __init__(self, *args, source_user: User | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.source_user = source_user
 
     values = PolyField(
         deserialization_schema_selector=select_schema_to_ensure_list_of_floats,
@@ -313,12 +382,31 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             )
 
     @validates_schema
+    def check_single_value_zero_duration_for_non_instantaneous_sensor(
+        self, data, **kwargs
+    ):
+        """Reject inputs where a non-instantaneous sensor cannot infer any resolution."""
+
+        required_resolution = data["sensor"].event_resolution
+        inferred_resolution = data["duration"] / len(data["values"])
+
+        if (
+            required_resolution != timedelta(hours=0)
+            and len(data["values"]) == 1
+            and inferred_resolution == timedelta(hours=0)
+        ):
+            raise ValidationError(
+                f"Cannot infer a non-zero resolution from one value over zero duration. This sensor requires a resolution of {required_resolution}."
+            )
+
+    @validates_schema
     def check_resolution_compatibility_of_sensor_data(self, data, **kwargs):
         """Ensure event frequency is compatible with the sensor's event resolution.
 
         For a sensor recording instantaneous values, any event frequency is compatible.
         For a sensor recording non-instantaneous values, the event frequency must fit the sensor's event resolution.
-        Currently, only upsampling is supported (e.g. converting hourly events to 15-minute events).
+        Upsampling and downsampling are supported when the inferred resolution and
+        the sensor resolution are multiples of each other.
         """
         required_resolution = data["sensor"].event_resolution
 
@@ -329,7 +417,9 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         # The event frequency is inferred by assuming sequential, equidistant values within a time interval.
         # The event resolution is assumed to be equal to the event frequency.
         inferred_resolution = data["duration"] / len(data["values"])
-        if inferred_resolution % required_resolution != timedelta(hours=0):
+        if inferred_resolution % required_resolution != timedelta(
+            hours=0
+        ) and required_resolution % inferred_resolution != timedelta(hours=0):
             raise ValidationError(
                 f"Resolution of {inferred_resolution} is incompatible with the sensor's required resolution of {required_resolution}."
             )
@@ -348,7 +438,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             )
 
     @post_load()
-    def post_load_sequence(self, data: dict, **kwargs) -> BeliefsDataFrame:
+    def post_load_sequence(self, data: dict, **kwargs) -> dict[str, BeliefsDataFrame]:
         """
         If needed, upsample and convert units, then deserialize to a BeliefsDataFrame.
         Returns a dict with the BDF in it, as that is expected by webargs when used with as_kwargs=True.
@@ -356,6 +446,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         data = self.possibly_upsample_values(data)
         data = self.possibly_convert_units(data)
         bdf = self.load_bdf(data)
+        bdf = self.possibly_downsample_bdf(bdf, data["sensor"].event_resolution)
 
         # Post-load validation against message type
         _type = data.get("type", None)
@@ -378,7 +469,7 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             data["values"],
             from_unit=data["unit"],
             to_unit=data["sensor"].unit,
-            event_resolution=data["sensor"].event_resolution,
+            event_resolution=data["duration"] / len(data["values"]),
         )
         return data
 
@@ -407,17 +498,35 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
         return data
 
     @staticmethod
-    def load_bdf(sensor_data: dict) -> BeliefsDataFrame:
+    def possibly_downsample_bdf(
+        bdf: BeliefsDataFrame, required_resolution: timedelta
+    ) -> BeliefsDataFrame:
+        """
+        Downsample the data if needed, to fit the sensor's resolution.
+        Marshmallow runs this after validation.
+        """
+        if required_resolution == timedelta(hours=0):
+            return bdf
+
+        if bdf.event_resolution < required_resolution:
+            bdf = bdf.resample_events(required_resolution)
+        return bdf
+
+    def load_bdf(self, sensor_data: dict) -> BeliefsDataFrame:
         """
         Turn the de-serialized and validated data into a BeliefsDataFrame.
         """
-        source = get_or_create_source(current_user)
+        source = get_or_create_source(self.source_user or current_user)
         num_values = len(sensor_data["values"])
         event_resolution = sensor_data["duration"] / num_values
         start = sensor_data["start"]
         sensor = sensor_data["sensor"]
 
-        if frequency := sensor.get_attribute("frequency"):
+        if sensor.event_resolution != timedelta(0) and sensor.get_attribute(
+            "floor_datetimes_to_resolution", True
+        ):
+            start = pd.Timestamp(start).floor(sensor.event_resolution)
+        elif frequency := sensor.get_attribute("frequency"):
             start = pd.Timestamp(start).round(frequency)
 
         if event_resolution == timedelta(hours=0):
@@ -445,8 +554,32 @@ class PostSensorDataSchema(SensorDataDescriptionSchema):
             s,
             source=source,
             sensor=sensor_data["sensor"],
+            event_resolution=event_resolution,
             **belief_timing,
         )
+
+
+class PostSensorDataRequestSchema(PostSensorDataSchema):
+    """Validate posted sensor data without building a BeliefsDataFrame."""
+
+    @post_load()
+    def post_load_sequence(self, data: dict, **kwargs) -> dict:
+        sensor_data = {
+            "values": data["values"],
+            "start": datetime_isoformat(data["start"]),
+            "duration": duration_isoformat(data["duration"]),
+            "unit": data["unit"],
+        }
+        if "prior" in data:
+            sensor_data["prior"] = datetime_isoformat(data["prior"])
+        elif "horizon" in data:
+            sensor_data["horizon"] = duration_isoformat(data["horizon"])
+        else:
+            # Preserve request-time semantics when processing happens later in a worker.
+            sensor_data["prior"] = datetime_isoformat(server_now())
+        if "type" in data:
+            sensor_data["type"] = data["type"]
+        return dict(sensor=data["sensor"], sensor_data=sensor_data)
 
 
 class GetSensorDataSchemaEntityAddress(GetSensorDataSchema):

@@ -409,6 +409,31 @@ def get_unit_dimension(unit: str) -> str:
     return "value"
 
 
+def split_into_magnitude_and_unit(value: str) -> tuple[str | None, str | None]:
+    """Extract the unit part from a string representing a quantity, as well as the number value.
+
+    For example:
+    >>> split_into_magnitude_and_unit("1000 kW")
+    ('1000', 'kW')
+    >>> split_into_magnitude_and_unit("350 EUR/MWh")
+    ('350', 'EUR/MWh')
+    >>> split_into_magnitude_and_unit("50")
+    ('50', '')
+    >>> split_into_magnitude_and_unit("kW")
+    (None, 'kW')
+    """
+    try:
+        # ur.Quantity parses the number and unit automatically
+        qty = ur.Quantity(value)
+        value = f"{qty.magnitude:g}" if qty.magnitude != 1 else None
+
+        # We return the units formatted with "~P" (short pretty format)
+        # to match the registry settings.
+        return value, f"{qty.units:~P}"
+    except Exception:
+        return None, None
+
+
 def _convert_time_units(
     data: tb.BeliefsSeries | pd.Series | list[int | float] | int | float,
     from_unit: str,
