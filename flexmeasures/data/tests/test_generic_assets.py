@@ -81,7 +81,7 @@ class NewAssetWithSensors:
         self.db.session.commit()
 
 
-def test_duplicate_public_root_asset_names_are_allowed(
+def test_duplicate_public_root_asset_names_are_rejected(
     fresh_db, setup_generic_asset_types_fresh_db
 ):
     db = fresh_db
@@ -92,11 +92,9 @@ def test_duplicate_public_root_asset_names_are_allowed(
     ]
 
     db.session.add_all(root_assets)
-    db.session.flush()
 
-    assert root_assets[0].id != root_assets[1].id
-    assert root_assets[0].parent_asset_id is None
-    assert root_assets[1].parent_asset_id is None
+    with pytest.raises(IntegrityError):
+        db.session.flush()
 
 
 def test_duplicate_root_asset_names_in_different_accounts_are_allowed(
