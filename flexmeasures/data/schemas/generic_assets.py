@@ -337,7 +337,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
         Validate that name is unique in its asset context.
         For child assets, names are unique among siblings.
         For account-owned root assets, names are unique within the account.
-        Public root assets are exempt.
+        For public root assets, names are unique globally.
         This is also checked by db indexes.
         Here, we can only check if we have all information (a full form),
         which usually is at creation time or when the existing asset is in context.
@@ -370,17 +370,25 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
                 "account_id", getattr(current_asset, "account_id", None)
             )
             if account_id is None:
-                return
-
-            query = select(GenericAsset).filter_by(
-                name=name,
-                account_id=account_id,
-                parent_asset_id=None,
-            )
-            err_msg = (
-                f"An asset with the name '{name}' already exists as a top-level asset "
-                f"in account {account_id}"
-            )
+                query = select(GenericAsset).filter_by(
+                    name=name,
+                    account_id=None,
+                    parent_asset_id=None,
+                )
+                err_msg = (
+                    f"An asset with the name '{name}' already exists as a public "
+                    "top-level asset"
+                )
+            else:
+                query = select(GenericAsset).filter_by(
+                    name=name,
+                    account_id=account_id,
+                    parent_asset_id=None,
+                )
+                err_msg = (
+                    f"An asset with the name '{name}' already exists as a top-level "
+                    f"asset in account {account_id}"
+                )
 
         if current_editing_id is not None:
             query = query.filter(GenericAsset.id != current_editing_id)

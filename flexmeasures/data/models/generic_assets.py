@@ -224,6 +224,13 @@ class GenericAsset(db.Model, AuthModelMixin):
             ),
             sqlite_where=db.text("parent_asset_id IS NULL AND account_id IS NOT NULL"),
         ),
+        db.Index(
+            "generic_asset_public_root_name_key",
+            "name",
+            unique=True,
+            postgresql_where=db.text("parent_asset_id IS NULL AND account_id IS NULL"),
+            sqlite_where=db.text("parent_asset_id IS NULL AND account_id IS NULL"),
+        ),
         db.UniqueConstraint(
             "account_id",
             "external_id",
