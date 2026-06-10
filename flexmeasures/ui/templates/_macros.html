@@ -37,75 +37,92 @@
       var chartDom = document.getElementById('view');
       var myChart = echarts.init(chartDom);
 
-      // Function to get responsive sizes
-      function getResponsiveConfig() {
-        let width = window.innerWidth;
-        if (width < 576) {
-          return { boxSize: 85, iconSize: 28, fontSize: 11 };
-        } else if (width < 768) {
-          return { boxSize: 105, iconSize: 36, fontSize: 13 };
-        } else {
-          return { boxSize: 130, iconSize: 44, fontSize: 14 };
+      // Count the maximum number of nodes at any single depth level.
+      // This is what drives vertical spacing: if 6 siblings share the height,
+      // each box can only be ~1/6 of the available height before they overlap.
+      function getMaxNodesAtAnyLevel(roots) {
+        var maxAtLevel = 0;
+        function traverse(nodeList) {
+          if (!nodeList || nodeList.length === 0) return;
+          if (nodeList.length > maxAtLevel) maxAtLevel = nodeList.length;
+          nodeList.forEach(function(n) { traverse(n.children || []); });
         }
+        traverse(roots);
+        return Math.max(maxAtLevel, 1);
       }
 
       function updateChart() {
-        let config = getResponsiveConfig();
+        // Derive box size from available vertical space so nodes never overlap.
+        var maxNodes    = getMaxNodesAtAnyLevel(rootNodes);
+        var available   = chartDom.clientHeight * 0.72; // usable height (72 % of container)
+        var spacePerNode = available / maxNodes;
+        // Clamp: 52 px minimum (readable), 110 px maximum (not too large)
+        var BOX_SIZE  = Math.max(52, Math.min(110, Math.floor(spacePerNode * 0.78)));
+        var ICON_SIZE = Math.floor(BOX_SIZE * 0.36);          // ~36 % of box
+        var FONT_SIZE = Math.max(9, Math.floor(BOX_SIZE * 0.14)); // ~14 % of box
 
         // Enhance nodes with styles
         function enrichNodeData(node) {
-          let isCurrent = node.name === currentAssetName;
-          let isAdd = node.name === 'Add asset';
+          var isCurrent = node.name === currentAssetName;
+          var isAdd     = node.name === 'Add asset';
 
-          node.symbol = 'roundRect';
-          node.symbolSize = isCurrent ? [config.boxSize * 1.08, config.boxSize * 1.08] : [config.boxSize, config.boxSize];
+          node.symbol     = 'roundRect';
+          node.symbolSize = isCurrent
+            ? [BOX_SIZE * 1.08, BOX_SIZE * 1.08]
+            : [BOX_SIZE, BOX_SIZE];
 
-          node.label = {
-            position: 'inside',
-            color: isCurrent ? '#000000' : (isAdd ? '#ffffff' : '#1e293b'),
-            fontSize: isCurrent ? config.fontSize + 1 : config.fontSize,
-            fontWeight: isCurrent ? 'bold' : '600',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            formatter: function(params) {
-               if (node.icon) {
-                 return `{icon_${node.id}|}\n{text|${node.name}}`;
-               }
-               return `{text|${node.name}}`;
-            },
-            rich: {
-              text: {
-                 width: config.boxSize - 16,
-                 overflow: 'truncate',
-                 align: 'center',
-                 padding: [8, 0, 0, 0]
-              }
+          // Build rich-text dict so icon + text fit inside the symbol.
+          var rich = {
+            text: {
+              width:      BOX_SIZE - 10,
+              overflow:   'truncate',
+              align:      'center',
+              fontSize:   FONT_SIZE,
+              lineHeight: FONT_SIZE + 2,
+              padding:    [2, 0, 0, 0]
             }
           };
-
           if (node.icon) {
-            node.label.rich[`icon_${node.id}`] = {
-              backgroundColor: {
-                image: node.icon
-              },
-              height: config.iconSize,
-              width: config.iconSize,
-              align: 'center'
+            rich['icon_' + node.id] = {
+              backgroundColor: { image: node.icon },
+              height: ICON_SIZE,
+              width:  ICON_SIZE,
+              align:  'center'
             };
           }
 
+          node.label = {
+            show:       true,
+            position:   'inside',
+            color:      isCurrent ? '#000000' : (isAdd ? '#ffffff' : '#1e293b'),
+            fontSize:   FONT_SIZE,
+            fontWeight: isCurrent ? 'bold' : '600',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            // Keep a reference to the node-id in a closure so the formatter
+            // can emit the correct rich-text key without ambiguity.
+            formatter: (function(n) {
+              return function() {
+                return n.icon
+                  ? ('{icon_' + n.id + '|}\n{text|' + n.name + '}')
+                  : ('{text|' + n.name + '}');
+              };
+            })(node),
+            rich: rich
+          };
+
           node.itemStyle = {
-             color: isCurrent ? '#fcd34d' : (isAdd ? '#10b981' : '#ffffff'),
-             borderColor: isCurrent ? '#f59e0b' : (isAdd ? '#047857' : '#cbd5e1'),
-             borderWidth: isCurrent ? 3 : 1,
-             borderRadius: 8,
-             shadowColor: 'rgba(0, 0, 0, 0.2)',
-             shadowBlur: 10,
-             shadowOffsetX: 2,
-             shadowOffsetY: 6
+            color:       isCurrent ? '#fcd34d' : (isAdd ? '#10b981' : '#ffffff'),
+            borderColor: isCurrent ? '#f59e0b' : (isAdd ? '#047857' : '#cbd5e1'),
+            borderWidth: isCurrent ? 3 : 1,
+            borderRadius: 8,
+            shadowColor:   'rgba(0, 0, 0, 0.2)',
+            shadowBlur:    10,
+            shadowOffsetX: 2,
+            shadowOffsetY: 6
           };
 
           if (node.children && node.children.length > 0) {
-             node.children.forEach(enrichNodeData);
+            node.children.forEach(enrichNodeData);
           }
         }
 
