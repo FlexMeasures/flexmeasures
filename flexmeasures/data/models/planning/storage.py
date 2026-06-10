@@ -91,6 +91,12 @@ class MetaStorageScheduler(Scheduler):
         if not self.config_deserialized:
             self.deserialize_config()
 
+        # todo: look for the reason why flex_model has an object(dict) without a sensor, and fix the root cause if possible, instead of filtering it out here
+        if isinstance(self.flex_model, list):
+            self.flex_model = [
+                model for model in self.flex_model if model["sensor"] is not None
+            ]
+
         start = self.start
         end = self.end
         resolution = self.resolution
@@ -973,6 +979,7 @@ class MetaStorageScheduler(Scheduler):
             device_constraints,
             ems_constraints,
             commitments,
+            inflexible_device_sensors,
         )
 
     def convert_to_commitments(
@@ -1534,6 +1541,7 @@ class StorageFallbackScheduler(MetaStorageScheduler):
             device_constraints,
             ems_constraints,
             commitments,
+            inflexible_device_sensors,
         ) = self._prepare(skip_validation=skip_validation)
 
         # Fallback policy if the problem was unsolvable
@@ -1746,6 +1754,7 @@ class StorageScheduler(MetaStorageScheduler):
             device_constraints,
             ems_constraints,
             commitments,
+            inflexible_device_sensors,
         ) = self._prepare(skip_validation=skip_validation)
 
         ems_schedule, expected_costs, scheduler_results, model = device_scheduler(
@@ -1773,6 +1782,16 @@ class StorageScheduler(MetaStorageScheduler):
             elif sensor is not None and sensor in storage_schedule:
                 storage_schedule[sensor] += ems_schedule[d]
 
+        # Obtain the inflexible device schedules
+        num_flexible_devices = len(sensors)
+        inflexible_schedules = dict()
+        for i, inflexible_sensor in enumerate(inflexible_device_sensors):
+            device_index = num_flexible_devices + i
+            if inflexible_sensor not in inflexible_schedules:
+                inflexible_schedules[inflexible_sensor] = ems_schedule[device_index]
+            else:
+                inflexible_schedules[inflexible_sensor] += ems_schedule[device_index]
+
         # Obtain the aggregate power schedule, too, if the flex-context states the associated sensor. Fill with the sum of schedules made here.
         aggregate_power_sensor = self.flex_context.get("aggregate_power", None)
         if isinstance(aggregate_power_sensor, Sensor):
@@ -1789,6 +1808,18 @@ class StorageScheduler(MetaStorageScheduler):
                 event_resolution=sensor.event_resolution,
             )
             for sensor in storage_schedule.keys()
+            if sensor is not None
+        }
+
+        # Convert each inflexible device schedule to the unit of the device's power sensor
+        inflexible_schedules = {
+            sensor: convert_units(
+                inflexible_schedules[sensor],
+                "MW",
+                sensor.unit,
+                event_resolution=sensor.event_resolution,
+            )
+            for sensor in inflexible_schedules.keys()
             if sensor is not None
         }
 
@@ -1815,6 +1846,13 @@ class StorageScheduler(MetaStorageScheduler):
                 for sensor in storage_schedule.keys()
                 if sensor is not None
             }
+            inflexible_schedules = {
+                sensor: inflexible_schedules[sensor]
+                .resample(sensor.event_resolution)
+                .mean()
+                for sensor in inflexible_schedules.keys()
+                if sensor is not None
+            }
             consumption_production_schedule = {
                 sensor: consumption_production_schedule[sensor]
                 .resample(sensor.event_resolution)
@@ -1827,6 +1865,11 @@ class StorageScheduler(MetaStorageScheduler):
             storage_schedule = {
                 sensor: storage_schedule[sensor].round(self.round_to_decimals)
                 for sensor in storage_schedule.keys()
+                if sensor is not None
+            }
+            inflexible_schedules = {
+                sensor: inflexible_schedules[sensor].round(self.round_to_decimals)
+                for sensor in inflexible_schedules.keys()
                 if sensor is not None
             }
             soc_schedule = {
@@ -1849,6 +1892,16 @@ class StorageScheduler(MetaStorageScheduler):
                     "unit": sensor.unit,
                 }
                 for sensor in storage_schedule.keys()
+                if sensor is not None
+            ]
+            inflexible_device_schedules = [
+                {
+                    "name": "inflexible_device_schedule",
+                    "sensor": sensor,
+                    "data": inflexible_schedules[sensor],
+                    "unit": sensor.unit,
+                }
+                for sensor in inflexible_schedules.keys()
                 if sensor is not None
             ]
             commitment_costs = [
@@ -1894,6 +1947,7 @@ class StorageScheduler(MetaStorageScheduler):
             ]
             return (
                 storage_schedules
+                + inflexible_device_schedules
                 + commitment_costs
                 + soc_schedules
                 + consumption_production_schedules
