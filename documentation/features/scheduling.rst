@@ -253,6 +253,8 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 .. [#minimum_overlap] In case this field defines partially overlapping time periods, the minimum value is selected. See :ref:`variable_quantities`.
 
+.. [#projecting_scheduling_constraints] Off-tick ``soc-targets``, ``soc-minima`` and ``soc-maxima`` are projected to the surrounding scheduling ticks. See :ref:`projecting_scheduling_constraints`.
+
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
 Usually, not the whole flexibility model is needed.

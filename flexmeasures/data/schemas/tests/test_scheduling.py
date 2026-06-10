@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 import pytest
 
@@ -14,7 +14,6 @@ from flexmeasures.data.schemas.scheduling.storage import (
     StorageFlexModelSchema,
     DBStorageFlexModelSchema,
 )
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.sensors import TimedEventSchema, VariableQuantityField
 
 
@@ -163,24 +162,28 @@ def test_process_scheduler_flex_model_process_type(db, app, setup_dummy_sensors)
     assert process_scheduler_flex_model["process_type"] == ProcessType.SHIFTABLE
 
 
-def test_storage_flex_model_schema_does_not_floor_instantaneous_sensor(
-    db, app, dummy_asset
+def test_storage_flex_model_schema_preserves_off_tick_soc_datetimes(
+    db, app, setup_dummy_sensors
 ):
-    sensor = Sensor(
-        "instantaneous power sensor",
-        generic_asset=dummy_asset,
-        event_resolution=timedelta(0),
-        unit="MW",
-    )
-    db.session.add(sensor)
-    db.session.flush()
+    sensor1, _, _, _ = setup_dummy_sensors
 
     schema = StorageFlexModelSchema(
-        sensor=sensor,
+        sensor=sensor1,
         start=datetime(2023, 1, 1, tzinfo=pytz.UTC),
     )
 
-    assert schema.flooring_resolution is None
+    flex_model = schema.load(
+        {
+            "soc-at-start": "0 MWh",
+            "soc-targets": [
+                {"datetime": "2023-01-01T00:04:40+00:00", "value": "1 MWh"}
+            ],
+        }
+    )
+
+    assert flex_model["soc_targets"][0]["datetime"] == pd.Timestamp(
+        "2023-01-01T00:04:40+00:00"
+    )
 
 
 @pytest.mark.parametrize(
