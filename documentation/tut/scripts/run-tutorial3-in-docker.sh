@@ -14,12 +14,12 @@ echo "[TUTORIAL-RUNNER] Computing schedule for PV curtailment (using artificial 
 
 echo '''{
   "consumption-price": [
-    {"start": "'${TOMORROW}'T00:00+01", "duration": "PT24H", "value": "10 EUR/MWh"}
+    {"start": "'${TOMORROW}'T00:00+01", "duration": "PT24H", "value": "0.010 EUR/kWh"}
   ],
   "production-price": [
-    {"start": "'${TOMORROW}'T05:00+01", "duration": "PT7H", "value": "4 EUR/MWh"},
-    {"start": "'${TOMORROW}'T12:00+01", "duration": "PT2H", "value": "-10 EUR/MWh"},
-    {"start": "'${TOMORROW}'T14:00+01", "duration": "PT7H", "value": "4 EUR/MWh"}
+    {"start": "'${TOMORROW}'T05:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"},
+    {"start": "'${TOMORROW}'T12:00+01", "duration": "PT2H", "value": "-0.010 EUR/kWh"},
+    {"start": "'${TOMORROW}'T14:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"}
   ]
 }''' > tutorial3-priceprofile-flex-context.json
 docker cp tutorial3-priceprofile-flex-context.json $CONTAINER_NAME:/app/ 

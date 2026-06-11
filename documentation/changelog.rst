@@ -11,6 +11,7 @@ New features
 -------------
 * Floor off-clock API datetimes to a non-instantaneous sensor's resolution by default when ingesting sensor data, uploading sensor data, and handling scheduler flex-model timed events; configurable with the ``floor_datetimes_to_resolution`` sensor attribute [see `PR #2146 <https://www.github.com/FlexMeasures/flexmeasures/pull/2146>`_]
 * Sensor references in flex-model and flex-context support various ways of filtering by source [see `PR #2209 <https://www.github.com/FlexMeasures/flexmeasures/pull/2209>`_]
+* Create toy tutorial accounts with kW-scale power sensors and ``EUR/kWh`` day-ahead prices [see `PR #2223 <https://www.github.com/FlexMeasures/flexmeasures/pull/2223>`_]
 
 
 Infrastructure / Support

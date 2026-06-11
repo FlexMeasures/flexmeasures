@@ -37,12 +37,12 @@ Also, we want to create a situation with negative prices, so curtailment makes s
             $ # this flex context has negative prices between 12:00 and 14:00
             $ echo '''{
             "consumption-price": [
-                {"start": "'${TOMORROW}'T00:00+01", "duration": "PT24H", "value": "10 EUR/MWh"}
+                {"start": "'${TOMORROW}'T00:00+01", "duration": "PT24H", "value": "0.010 EUR/kWh"}
             ],
             "production-price": [
-                {"start": "'${TOMORROW}'T05:00+01", "duration": "PT7H", "value": "4 EUR/MWh"},
-                {"start": "'${TOMORROW}'T12:00+01", "duration": "PT2H", "value": "-10 EUR/MWh"},
-                {"start": "'${TOMORROW}'T14:00+01", "duration": "PT7H", "value": "4 EUR/MWh"}
+                {"start": "'${TOMORROW}'T05:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"},
+                {"start": "'${TOMORROW}'T12:00+01", "duration": "PT2H", "value": "-0.010 EUR/kWh"},
+                {"start": "'${TOMORROW}'T14:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"}
             ]
             }''' > tutorial3-priceprofile-flex-context.json
             $ docker cp tutorial3-priceprofile-flex-context.json flexmeasures-server-1:/app/ 
@@ -71,12 +71,12 @@ Also, we want to create a situation with negative prices, so curtailment makes s
                 ],
                 "flex-context": {
                     "consumption-price": [
-                        {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "10 EUR/MWh"}
+                        {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "0.010 EUR/kWh"}
                     ],
                     "production-price": [
-                        {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "4 EUR/MWh"},
-                        {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-10 EUR/MWh"},
-                        {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "4 EUR/MWh"}
+                        {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"},
+                        {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-0.010 EUR/kWh"},
+                        {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"}
                     ]
                 }
             }
@@ -109,12 +109,12 @@ Also, we want to create a situation with negative prices, so curtailment makes s
                     ],
                     flex_context={
                         "consumption-price": [
-                            {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "10 EUR/MWh"}
+                            {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "0.010 EUR/kWh"}
                         ],
                         "production-price": [
-                            {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "4 EUR/MWh"},
-                            {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-10 EUR/MWh"},
-                            {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "4 EUR/MWh"}
+                            {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"},
+                            {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-0.010 EUR/kWh"},
+                            {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"}
                         ]
                     },
                 )
@@ -132,7 +132,7 @@ Great. Let's see what we made:
     Data spans 12 hours and starts at 2025-11-29 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
     ┌────────────────────────────────────────────────────────────┐
-    │                    ▞▀▀▀▌                                   │ 0.2MW
+    │                    ▞▀▀▀▌                                   │ 200kW
     │               ▄▄▄▄▞    ▌          ▗▄▄▄▖                    │
     │              ▗▘        ▚          ▐   ▝▖                   │
     │          ▛▀▀▀▘         ▐          ▐    ▝▀▀▀▜               │
@@ -140,7 +140,7 @@ Great. Let's see what we made:
     │     ▄▄▄▄▌              ▐          ▌         ▐▄▄▄▄          │
     │    ▗▘                  ▐          ▌             ▐          │
     │    ▐                   ▐          ▌              ▌         │
-    │▄▄▄▄▌                   ▐          ▌              ▐▄▄▄▄     │ 0.1MW
+    │▄▄▄▄▌                   ▐          ▌              ▐▄▄▄▄     │ 100kW
     │                         ▌         ▌                  ▐     │
     │                         ▌        ▐                    ▌    │
     │                         ▌        ▐                    ▐    │
@@ -148,7 +148,7 @@ Great. Let's see what we made:
     │                         ▌        ▐                         │
     │                         ▌        ▐                         │
     │                         ▚        ▐                         │
-    │▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▐▄▄▄▄▄▄▄▄▌▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁│ -0.0MW
+    │▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▐▄▄▄▄▄▄▄▄▌▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁│ 0kW
     └────────────────────────────────────────────────────────────┘
     06:00         09:00          12:00          15:00
                     ██ production (toy-solar)
@@ -205,12 +205,12 @@ Note that we are still passing in the flex-context with block price profiles her
                 ],
                 "flex-context": {
                     "consumption-price": [
-                        {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "10 EUR/MWh"}
+                        {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "0.010 EUR/kWh"}
                     ],
                     "production-price": [
-                        {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "4 EUR/MWh"},
-                        {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-10 EUR/MWh"},
-                        {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "4 EUR/MWh"}
+                        {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"},
+                        {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-0.010 EUR/kWh"},
+                        {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"}
                     ]
                 }
             }
@@ -244,12 +244,12 @@ Note that we are still passing in the flex-context with block price profiles her
                 ],
                 flex_context={
                         "consumption-price": [
-                            {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "10 EUR/MWh"}
+                            {"start": "2025-11-18T00:00+01", "duration": "PT24H", "value": "0.010 EUR/kWh"}
                         ],
                         "production-price": [
-                            {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "4 EUR/MWh"},
-                            {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-10 EUR/MWh"},
-                            {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "4 EUR/MWh"}
+                            {"start": "2025-11-18T05:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"},
+                            {"start": "2025-11-18T12:00+01", "duration": "PT2H", "value": "-0.010 EUR/kWh"},
+                            {"start": "2025-11-18T14:00+01", "duration": "PT7H", "value": "0.004 EUR/kWh"}
                         ]
                     },
             )
@@ -276,22 +276,22 @@ And here is the CLI version:
     The time resolution (x-axis) is 15 minutes.
     ┌────────────────────────────────────────────────────────────┐
     │                                                         ▛▀▀│
-    │                                                        ▐   │ 0.4MW
+    │                                                        ▐   │ 400kW
     │                                                        ▐   │
     │                                                        ▞   │
     │                      ▐▀▌                               ▌   │
     │                      ▐ ▌▄▄▄▄▄▖                         ▌   │
-    │              ▄▄▄▄▄▞▀▀▞▀▐     ▝▀▚▞▀▚▄▄▄▄▖              ▐    │ 0.2MW
+    │              ▄▄▄▄▄▞▀▀▞▀▐     ▝▀▚▞▀▚▄▄▄▄▖              ▐    │ 200kW
     │     ▄▄▄▄▞▀▀▀▀▘       ▌ ▐               ▝▀▀▀▀▚▄▄▄▄     ▐    │
     │▄▄▄▄▞                ▗▘ ▐                         ▚▄▄▄▄▌    │
     │                     ▞  ▐                              ▌▄▄▄▄│
     │                    ▗▘  ▐                             ▐     │
-    │▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▔▔▔▔▌▔▔▔▔▔▔▔▔▔▐▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▔▔▔▔▔│ -0.0MW
+    │▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▔▔▔▔▌▔▔▔▔▔▔▔▔▔▐▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▔▔▔▔▔│ 0kW
     │                         ▌         ▌                        │
     │                         ▌         ▌                        │
     │                         ▌        ▐                         │
     │                         ▌      ▗▖▐                         │
-    │                         ▐▄▄▄▄▞▀▘▝▘                         │ -0.2MW
+    │                         ▐▄▄▄▄▞▀▘▝▘                         │ -200kW
     └────────────────────────────────────────────────────────────┘
     06:00         09:00          12:00          15:00
     ██ production (toy-solar)   ██ discharging (toy-battery)
@@ -325,7 +325,7 @@ We see the battery cycling twice, as before, but now it also soaks up solar prod
     │▄▄▌▄▄▀▀▀▀▀▀▀▀▀▐    ▐          ▝▀▀▀▀▀▀▀▀▀▄▄▄▄▄     ▌   ▙▘    │
     │  ▌           ▐     ▌                        ▚▄▄▄▐▖   █     │
     │  ▐           ▌     ▌                            ▐▝▀▀▀▐▚▄▄▄▄│
-    │▔▔▝▀▀▀▀▀▀▌▔▔▔▔▌▔▔▔▔▔▝▀▀▀▀▀▀▀▀▌▔▔▔▔▔▔▔▔▔▔▞▀▀▀▀▀▀▀▀▀▔▔▔▔▔▔▔▔▔▔│ 0.0MW
+    │▔▔▝▀▀▀▀▀▀▌▔▔▔▔▌▔▔▔▔▔▝▀▀▀▀▀▀▀▀▌▔▔▔▔▔▔▔▔▔▔▞▀▀▀▀▀▀▀▀▀▔▔▔▔▔▔▔▔▔▔│ 0kW
     │         ▌   ▐               ▐         ▞                    │
     │         ▚   ▐               ▐         ▌                    │
     │         ▐   ▌               ▐         ▌                    │
@@ -333,7 +333,7 @@ We see the battery cycling twice, as before, but now it also soaks up solar prod
     │         ▐  ▐                 ▌       ▐                     │
     │          ▌ ▞                 ▌       ▐                     │
     │          ▌ ▌                 ▌       ▌                     │
-    │          ▙▟                  ▐▄▄▄▄▄▄▄▌                     │ -0.5MW
+    │          ▙▟                  ▐▄▄▄▄▄▄▄▌                     │ -500kW
     └────────────────────────────────────────────────────────────┘
             09:00          12:00          15:00           18:00
     ██ production (toy-solar)   ██ discharging (toy-battery)

@@ -6,7 +6,7 @@ Toy example II: Adding solar production, and a limit on the grid connection
 ============================================================================
 
 
-So far we haven't taken into account any other devices that consume or produce electricity. The battery was free to use all available capacity (which was 500 kVA, both its own maximum charge/discharge rate, and the maximum grid capacity). 
+So far we haven't taken into account any other devices that consume or produce electricity. The battery was free to use all available capacity (which was 500 kVA, both its own maximum charge/discharge rate, and the maximum grid capacity).
 
 What if other devices will be using some of that capacity? Our schedules need to reflect that, so we stay within given limits.
 
@@ -24,36 +24,36 @@ How does it work?
 Adding PV production forecasts
 ------------------------------
 
-First, we'll create a new CSV file with solar forecasts (MW, see the setup for sensor 3 in part I of this tutorial) for tomorrow.
+First, we'll create a new CSV file with solar forecasts (kW, see the setup for sensor 3 in part I of this tutorial) for tomorrow.
 
 .. code-block:: bash
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
     $ echo "Hour,Price
-    $ ${TOMORROW}T00:00:00,0.0
-    $ ${TOMORROW}T01:00:00,0.0
-    $ ${TOMORROW}T02:00:00,0.0
-    $ ${TOMORROW}T03:00:00,0.0
-    $ ${TOMORROW}T04:00:00,0.01
-    $ ${TOMORROW}T05:00:00,0.03
-    $ ${TOMORROW}T06:00:00,0.06
-    $ ${TOMORROW}T07:00:00,0.1
-    $ ${TOMORROW}T08:00:00,0.14
-    $ ${TOMORROW}T09:00:00,0.17
-    $ ${TOMORROW}T10:00:00,0.19
-    $ ${TOMORROW}T11:00:00,0.21
-    $ ${TOMORROW}T12:00:00,0.22
-    $ ${TOMORROW}T13:00:00,0.21
-    $ ${TOMORROW}T14:00:00,0.19
-    $ ${TOMORROW}T15:00:00,0.17
-    $ ${TOMORROW}T16:00:00,0.14
-    $ ${TOMORROW}T17:00:00,0.1
-    $ ${TOMORROW}T18:00:00,0.06
-    $ ${TOMORROW}T19:00:00,0.03
-    $ ${TOMORROW}T20:00:00,0.01
-    $ ${TOMORROW}T21:00:00,0.0
-    $ ${TOMORROW}T22:00:00,0.0
-    $ ${TOMORROW}T23:00:00,0.0" > solar-tomorrow.csv
+    $ ${TOMORROW}T00:00:00,0
+    $ ${TOMORROW}T01:00:00,0
+    $ ${TOMORROW}T02:00:00,0
+    $ ${TOMORROW}T03:00:00,0
+    $ ${TOMORROW}T04:00:00,10
+    $ ${TOMORROW}T05:00:00,30
+    $ ${TOMORROW}T06:00:00,60
+    $ ${TOMORROW}T07:00:00,100
+    $ ${TOMORROW}T08:00:00,140
+    $ ${TOMORROW}T09:00:00,170
+    $ ${TOMORROW}T10:00:00,190
+    $ ${TOMORROW}T11:00:00,210
+    $ ${TOMORROW}T12:00:00,220
+    $ ${TOMORROW}T13:00:00,210
+    $ ${TOMORROW}T14:00:00,190
+    $ ${TOMORROW}T15:00:00,170
+    $ ${TOMORROW}T16:00:00,140
+    $ ${TOMORROW}T17:00:00,100
+    $ ${TOMORROW}T18:00:00,60
+    $ ${TOMORROW}T19:00:00,30
+    $ ${TOMORROW}T20:00:00,10
+    $ ${TOMORROW}T21:00:00,0
+    $ ${TOMORROW}T22:00:00,0
+    $ ${TOMORROW}T23:00:00,0" > solar-tomorrow.csv
 
 Then, we read in the created CSV file as beliefs data.
 This time, different to above, we want to use a new data source (not the user) ― it represents whoever is making these solar production forecasts.

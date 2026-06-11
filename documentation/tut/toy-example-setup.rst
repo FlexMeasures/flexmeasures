@@ -20,7 +20,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
     # setup an account with a user, assets for battery & solar and an energy market (ID 1)
     $ flexmeasures add toy-account
     # load prices to optimize schedules against
-    $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+    $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam --unit EUR/MWh
 
 
 Okay, let's get started!
@@ -230,7 +230,7 @@ If you want, you can inspect what you created in the CLI (we'll also show the UI
 You can see that this building asset has some meta information about how FlexMeasures needs to schedule:
 
 - Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 1, which stores day-ahead prices). 
-- Also, the building has a grid connection capacity of 500 kVA, meaning that the total power flowing into or out of the building cannot exceed this value.
+- Also, the building has a grid connection capacity of 500 kVA, meaning that the total power flowing into or out of the building cannot exceed this physical limit.
 
 Now let's look at the battery asset, as well:
 
@@ -265,7 +265,7 @@ Now let's look at the battery asset, as well:
     
       ID  Name         Unit    Resolution    Timezone          Attributes
     ----  -----------  ------  ------------  ----------------  ------------
-       2  discharging  MW      15 minutes    Europe/Amsterdam
+       2  discharging  kW      15 minutes    Europe/Amsterdam
     
 
     
@@ -313,7 +313,7 @@ And on the flex-model of the battery can be seen on its properties page (and is 
 Add some price data
 ---------------------------------------
 
-Now to add price data. First, we'll create the CSV file with prices (EUR/MWh, see the setup for sensor 1 above) for tomorrow.
+Now to add price data. First, we'll create the CSV file with prices in EUR/MWh for tomorrow. The price sensor stores data in EUR/kWh, and we'll ask FlexMeasures to convert the CSV values while loading them.
 
 .. code-block:: bash
 
@@ -348,7 +348,7 @@ This is time series data, in FlexMeasures we call *"beliefs"*. Beliefs can also 
 
 .. code-block:: bash
 
-    $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+    $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam --unit EUR/MWh
     Successfully created beliefs
 
 In FlexMeasures, all beliefs have a data source. Here, we use the username of the user we created earlier. We could also pass a user ID, or the name of a new data source we want to use for CLI scripts.
@@ -368,19 +368,19 @@ Let's look at the price data we just loaded:
     │       ▗▀▚▖                                                 │
     │      ▗▘  ▝▖                                                │
     │      ▞    ▌                                                │
-    │     ▟     ▐                                                │ 15EUR/MWh
+    │     ▟     ▐                                                │ 0.015EUR/kWh
     │    ▗▘     ▝▖                                      ▗        │
     │   ▗▘       ▚                                    ▄▞▘▚▖      │
     │   ▞        ▐                                  ▄▀▘   ▝▄     │
     │ ▄▞          ▌                                ▛        ▖    │
     │▀            ▚                               ▐         ▝▖   │
-    │             ▝▚            ▖                ▗▘          ▝▖  │ 10EUR/MWh
+    │             ▝▚            ▖                ▗▘          ▝▖  │ 0.010EUR/kWh
     │               ▀▄▄▞▀▄▄   ▗▀▝▖               ▞            ▐  │
     │                      ▀▀▜▘  ▝▚             ▗▘             ▚ │
     │                              ▌            ▞               ▌│
     │                              ▝▖          ▞                ▝│
     │                               ▐         ▞                  │
-    │                                ▚      ▗▞                   │ 5EUR/MWh
+    │                                ▚      ▗▞                   │ 0.005EUR/kWh
     │                                 ▀▚▄▄▄▄▘                    │
     └────────────────────────────────────────────────────────────┘
                5            10            15           20
@@ -395,5 +395,3 @@ Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5
 |
 
 .. note:: Technically, these prices for tomorrow may be forecasts (depending on whether you are running through this tutorial before or after the day-ahead market's gate closure). You can also use FlexMeasures to compute forecasts yourself. See :ref:`tut_forecasting_scheduling`.
-
-

@@ -8,7 +8,7 @@ Until this point we've been using a static battery, one of the most flexible ene
 
 However, in some settings, we can reduce electricity bills by **just** smartly timing the necessary work that we know we have to do. We call this work a "process". In other words, if the process can be displaced, by breaking it into smaller consumption periods or shifting its start time, the process run can match the lower price hours better.
 
-For example, we could have a load that consumes energy at a constant rate (e.g. 200kW) for a fixed duration (e.g. 4h), but there's some flexibility in the start time. In that case, we could find the optimal start time in order to minimize the energy cost.
+For example, we could have a load that consumes energy at a constant rate (e.g. 200 kW) for a fixed duration (e.g. 4h), but there's some flexibility in the start time. In that case, we could find the optimal start time in order to minimize the energy cost.
 
 Examples of flexible processes are: 
     - Water irrigation in agriculture
@@ -39,9 +39,9 @@ Before moving forward, we'll add the `process` asset and three sensors to store 
     User with email toy-user@flexmeasures.io already exists in account Docker Toy Account.
     The sensor recording day-ahead prices is day-ahead prices (ID: 1).
     Created <GenericAsset 5: 'toy-process' (process)>
-    Created <Sensor 4: Power (Inflexible), unit: MW res.: 0:15:00>
-    Created <Sensor 5: Power (Breakable), unit: MW res.: 0:15:00>
-    Created <Sensor 6: Power (Shiftable), unit: MW res.: 0:15:00>
+    Created <Sensor 4: Power (Inflexible), unit: kW res.: 0:15:00>
+    Created <Sensor 5: Power (Breakable), unit: kW res.: 0:15:00>
+    Created <Sensor 6: Power (Shiftable), unit: kW res.: 0:15:00>
     The sensor recording the power of the inflexible load is Power (Inflexible) (ID: 4).
     The sensor recording the power of the breakable load is Power (Breakable) (ID: 5).
     The sensor recording the power of the shiftable load is Power (Shiftable) (ID: 6).
@@ -50,7 +50,7 @@ Before moving forward, we'll add the `process` asset and three sensors to store 
 Trigger an updated schedule
 ----------------------------
 
-In this example, we are planning to consume at a 200kW constant power for a period of 4h. 
+In this example, we are planning to consume at a 200 kW constant power for a period of 4h.
 
 This load is to be scheduled for tomorrow, except from the period from 3pm to 4pm (imposed using the ``time-restrictions`` parameter).
 
@@ -62,7 +62,7 @@ Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, 
     $ flexmeasures add schedule --sensor 4 --scheduler ProcessScheduler \
         --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
         --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
-        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"INFLEXIBLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
+        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"INFLEXIBLE\", \"power\": 200, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
 
 Under the INFLEXIBLE policy, the process starts as soon as possible, in this case, coinciding with the start of the planning window.
 
@@ -73,7 +73,7 @@ Following the INFLEXIBLE policy, we'll schedule the same 4h consumption requirem
     $ flexmeasures add schedule --sensor 5 --scheduler ProcessScheduler \
         --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
         --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
-        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"BREAKABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
+        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"BREAKABLE\", \"power\": 200, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
  
 The BREAKABLE policy splits or breaks the process into blocks that can be scheduled discontinuously. The smallest possible unit is (currently) determined by the sensor's resolution. 
 
@@ -84,7 +84,7 @@ Finally, we'll schedule the process using the SHIFTABLE policy. The 4h block can
     $ flexmeasures add schedule --sensor 6 --scheduler ProcessScheduler \
         --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
         --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
-        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"SHIFTABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
+        --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"SHIFTABLE\", \"power\": 200, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
  
 
 Results
@@ -111,15 +111,15 @@ Let's list the power costs which the policies achieved for each of the four bloc
 +-------------------------+------------+-----------+-----------+
 |          Block          | INFLEXIBLE | BREAKABLE | SHIFTABLE |
 +=========================+============+===========+===========+
-|            1            |   10.00    |   5.00    |   10.00   |
+|            1            |   0.010    |   0.005   |   0.010   |
 +-------------------------+------------+-----------+-----------+
-|            2            |   11.00    |   4.00    |   8.00    |
+|            2            |   0.011    |   0.004   |   0.008   |
 +-------------------------+------------+-----------+-----------+
-|            3            |   12.00    |   5.50    |   5.00    |
+|            3            |   0.012    |   0.0055  |   0.005   |
 +-------------------------+------------+-----------+-----------+
-|            4            |   15.00    |   7.00    |   4.00    |
+|            4            |   0.015    |   0.007   |   0.004   |
 +-------------------------+------------+-----------+-----------+
-| Average Price (EUR/MWh) |   12.00    |   5.37    |   6.75    |
+| Average Price (EUR/kWh) |   0.012    |  0.00537  |  0.00675  |
 +-------------------------+------------+-----------+-----------+
 |    Total Cost (EUR)     |    9.60    |   4.29    |   5.40    |
 +-------------------------+------------+-----------+-----------+

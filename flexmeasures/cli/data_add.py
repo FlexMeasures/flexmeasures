@@ -1730,7 +1730,7 @@ def add_toy_account(kind: str, name: str):
         Sensor,
         name="day-ahead prices",
         generic_asset=nl_zone,
-        unit="EUR/MWh",
+        unit="EUR/kWh",
         timezone="Europe/Amsterdam",
         event_resolution=timedelta(minutes=60),
         knowledge_horizon=(
@@ -1750,7 +1750,7 @@ def add_toy_account(kind: str, name: str):
         asset_name: str,
         asset_type: str,
         sensor_name: str,
-        unit: str = "MW",
+        unit: str = "kW",
         parent_asset_id: int | None = None,
         flex_context: dict | None = None,
         flex_model: dict | None = None,
@@ -1918,7 +1918,7 @@ def add_toy_account(kind: str, name: str):
             generic_asset=building_asset,
             timezone="Europe/Amsterdam",
             event_resolution="P1Y",
-            unit="MW",
+            unit="kW",
         )
         db.session.commit()
 
@@ -1934,7 +1934,7 @@ def add_toy_account(kind: str, name: str):
         belief = TimedBelief(
             event_start=start_year,
             belief_time=server_now(),
-            event_value=0.5,
+            event_value=500,
             source=db.session.get(DataSource, 1),
             sensor=grid_connection_capacity,
         )
