@@ -155,6 +155,91 @@ Here is a client-side code example in Python for handling 303 redirects (this me
                 print(f"Failed to fetch fallback schedule: {response.status_code} {response.text}")
         return response
 
+.. _api_background_jobs:
+
+Background job monitoring
+--------------------------
+
+Several API endpoints queue background jobs for asynchronous processing (scheduling, forecasting, data ingestion) and return a ``202 Accepted`` response.
+These responses include a ``job_id`` field (the canonical identifier) that clients can use to monitor job progress and retrieve results.
+They also include both ``job_monitor_url`` for generic status monitoring and (if applicable) ``job_results_url`` for the sensor-specific results endpoint.
+
+**Example 202 Accepted response from a scheduling endpoint:**
+
+.. code-block:: json
+
+    {
+        "status": "ACCEPTED",
+        "job_id": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+        "job_monitor_url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+        "job_results_url": "/api/v3_0/sensors/3/schedules/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+        "message": "Request has been accepted for processing."
+    }
+
+**Monitoring job status:**
+
+Clients should use the ``job_id`` to query the unified job status endpoint:
+
+.. code-block:: bash
+
+    GET /api/v3_0/jobs/<job_id>
+
+This returns the current execution status and a human-readable result message. For example:
+
+.. code-block:: python
+
+    import requests
+    import time
+
+    def wait_for_job(job_id, job_monitor_url, timeout=300, poll_interval=5):
+        """Wait for a background job to complete and return the result.
+        
+        Parameters
+        ----------
+        job_id : str
+            The UUID of the background job.
+        job_monitor_url : str
+            The URL to query for job status (e.g., "/api/v3_0/jobs/<uuid>").
+        timeout : int
+            Maximum seconds to wait for job completion.
+        poll_interval : int
+            Seconds between status checks.
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            response = requests.get(job_monitor_url)
+            if not response.ok:
+                raise RuntimeError(f"Failed to query job status: {response.status_code} {response.text}")
+            
+            job_data = response.json()
+            status = job_data.get("status")
+            
+            if status in ("PENDING", "RUNNING"):
+                print(f"Job {job_id} is still {status.lower()}...")
+                time.sleep(poll_interval)
+            elif status == "SUCCEEDED":
+                return job_data.get("result")
+            else:  # Failed, error, etc.
+                raise RuntimeError(f"Job failed with status {status}: {job_data.get('message')}")
+        
+        raise TimeoutError(f"Job {job_id} did not complete within {timeout} seconds")
+
+.. note::
+
+    For **schedules**, after the job completes successfully, use the job ID (same value as the legacy ``schedule`` field) to retrieve the actual schedule or follow the returned ``job_results_url``:
+    
+    .. code-block:: bash
+    
+        GET /api/v3_0/sensors/<sensor_id>/schedules/<job_id>
+    
+    For **forecasts**, after the job completes successfully, use the job ID to retrieve the forecast or follow the returned ``job_results_url``:
+    
+    .. code-block:: bash
+    
+        GET /api/v3_0/sensors/<sensor_id>/forecasts/<job_id>
+
+    Both of these endpoints will also return `202 Accepted` if the job is still being computed, so clients can continue to poll them directly if they prefer.
+
 .. _api_deprecation:
 
 Deprecation and sunset
@@ -165,6 +250,38 @@ Deprecation of major features doesn't happen a lot, but when it does, it happens
 For more information on our multi-stage deprecation approach and available options for FlexMeasures hosts, see :ref:`Deprecation and sunset for hosts<api_deprecation_hosts>`.
 
 .. _api_deprecation_clients:
+
+Deprecated response fields
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In addition to deprecating entire endpoints, we sometimes deprecate individual fields in API responses while maintaining backward compatibility by including both the legacy and canonical fields.
+When this happens, responses include a ``_deprecated_fields`` object containing machine-readable information about deprecated fields.
+
+For example, when scheduling endpoints switched from ``schedule`` to ``job_id`` as the canonical field identifier for background jobs:
+
+.. code-block:: json
+
+    {
+        "status": "ACCEPTED",
+        "job_id": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+        "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+        "job_monitor_url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+        "job_results_url": "/api/v3_0/sensors/3/schedules/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+        "_deprecated_fields": {
+            "schedule": {
+                "use": "job_id",
+                "deprecated_since": "1.0.0",
+                "removal_date": "2.0.0",
+                "note": "The 'schedule' response field is deprecated; use 'job_id' instead"
+            }
+        }
+    }
+
+Clients should:
+
+- Use the ``_deprecated_fields`` object to identify which fields are deprecated in their version.
+- Migrate to use the canonical field names (indicated by the ``"use"`` field).
+- Plan upgrades before the ``"removal_date"`` to avoid breakage when the deprecated fields are removed in a future API version.
 
 Clients
 ^^^^^^^
