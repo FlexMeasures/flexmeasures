@@ -1391,6 +1391,69 @@ def test_capacity(
 
 
 @pytest.mark.parametrize(
+    "configured_capacities, expected_capacity, expected_derivative_min, expected_derivative_max",
+    [
+        (
+            {"production-capacity": "300 kW", "consumption-capacity": "700 kW"},
+            0.7,
+            -0.3,
+            0.7,
+        ),
+        (
+            {"production-capacity": "1.1 MW", "consumption-capacity": "200 kW"},
+            1.1,
+            -1.1,
+            0.2,
+        ),
+        ({"consumption-capacity": "700 kW"}, 0.7, 0, 0.7),
+        ({"production-capacity": "300 kW"}, 0.3, -0.3, 0),
+    ],
+)
+def test_device_power_capacity_uses_directional_capacity_before_site_fallback(
+    db,
+    add_battery_assets,
+    configured_capacities,
+    expected_capacity,
+    expected_derivative_min,
+    expected_derivative_max,
+):
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    start = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 2))
+    end = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": 0,
+            "soc-min": 0,
+            "soc-max": 5,
+            **configured_capacities,
+        },
+        flex_context={"consumption-price": "1 EUR/MWh"},
+    )
+    scheduler.deserialize_config()
+
+    power_capacity = scheduler._get_device_power_capacity(
+        [scheduler.flex_model],
+        [battery.generic_asset],
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=scheduler.belief_time,
+    )[0]
+
+    assert np.allclose(power_capacity.values, expected_capacity)
+
+    device_constraints = scheduler._prepare(skip_validation=True)[5]
+
+    assert np.allclose(device_constraints[0]["derivative min"], expected_derivative_min)
+    assert np.allclose(device_constraints[0]["derivative max"], expected_derivative_max)
+
+
+@pytest.mark.parametrize(
     ["soc_values", "log_message", "expected_num_targets"],
     [
         (
@@ -1507,7 +1570,7 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
             True,
             None,
             None,
-            # from the power sensor attribute 'consumption_capacity'
+            # from the power sensor attribute 'production_capacity'
             [-8] * 24 * 4,
             # from the flex model field 'consumption-capacity' (a sensor),
             # and when absent, defaulting to the max value from the power sensor attribute capacity_in_mw
@@ -1573,8 +1636,8 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
             None,
             # from the flex model field 'production-capacity' (a quantity)
             -0.01,
-            # from the asset attribute 'capacity_in_mw'
-            2,
+            # missing consumption-capacity defaults to zero when production-capacity is provided
+            0,
             False,
             False,
             -1.1,
@@ -1826,6 +1889,7 @@ def test_battery_stock_delta_sensor(
         "roundtrip-efficiency": 1,
         "storage-efficiency": 1,
         "production-capacity": "0kW",
+        "consumption-capacity": f"{capacity}MW",
         "soc-at-start": 0,
     }
     if stock_delta_sensor is not None:
@@ -2017,6 +2081,7 @@ def test_battery_storage_efficiency_sensor(
             "roundtrip-efficiency": 1,
             "storage-efficiency": {"sensor": storage_efficiency_sensor_obj.id},
             "production-capacity": "0kW",
+            "consumption-capacity": "2MW",
             "soc-at-start": 0,
         },
     )
@@ -2098,6 +2163,7 @@ def test_add_storage_constraint_from_sensor(
         "soc-min": 0,
         "roundtrip-efficiency": 1,
         "production-capacity": "0kW",
+        "consumption-capacity": "2MW",
         "soc-at-start": soc_at_start,
     }
 
