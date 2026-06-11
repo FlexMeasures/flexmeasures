@@ -171,7 +171,17 @@
     </div>
     <div class="col-md-8">
       <div class="card">
-        <h3>Account</h3>
+        <div class="d-flex justify-content-between align-items-center">
+          <h3>Account</h3>
+          {% if can_add_client_account %}
+          <a
+            class="btn bg-primary-custom text-decoration-none text-light nav-button"
+            href="{{ url_for('AccountCrudUI:new', consultancy_account_id=account.id) }}"
+          >
+            Add client account
+          </a>
+          {% endif %}
+        </div>
         <small>Account: {{ account.name }}</small>
         <div class="row">
           <div class="col-md-7">

@@ -8,7 +8,10 @@ from flask_json import as_json
 from sqlalchemy import or_, select, func
 from flask_sqlalchemy.pagination import SelectPagination
 
-from flexmeasures.auth.policy import user_has_admin_access
+from flexmeasures.auth.policy import (
+    user_has_admin_access,
+    FlexMeasuresPlatform,
+)
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AuditLog
@@ -16,7 +19,11 @@ from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
-from flexmeasures.data.schemas.account import AccountSchema
+from flexmeasures.data.schemas.account import (
+    AccountSchema,
+    AccountCreateSchema,
+    AccountPatchSchema,
+)
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.api.common.schemas.users import AccountAPIQuerySchema
@@ -24,14 +31,14 @@ from flexmeasures.api.common.schemas.users import AccountAPIQuerySchema
 """
 API endpoints to manage accounts.
 
-Both POST (to create) and DELETE are not accessible via the API, but as CLI functions.
-Editing (PATCH) is also not yet implemented, but might be next, e.g. for the name or roles.
+DELETE is not accessible via the API, but as a CLI function.
 """
 
 # Instantiate schemas outside of endpoint logic to minimize response time
 account_schema = AccountSchema()
 accounts_schema = AccountSchema(many=True)
-partial_account_schema = AccountSchema(partial=True)
+partial_account_schema = AccountPatchSchema()
+account_create_schema = AccountCreateSchema()
 annotation_schema = AnnotationSchema()
 
 
@@ -178,6 +185,58 @@ class AccountAPI(FlaskView):
 
         return response, 200
 
+    @route("", methods=["POST"])
+    @use_args(account_create_schema, arg_name="account_data")
+    @permission_required_for_context(
+        "create-children",
+        ctx_loader=FlexMeasuresPlatform.init,
+    )
+    @as_json
+    def post(self, account_data: dict):
+        """
+        .. :quickref: Accounts; Create an account.
+        ---
+        post:
+          summary: Create a new account.
+          description: |
+            Create a new account with a required name.
+
+            - Admin users can create accounts.
+            - Consultant users can create accounts only if their account has the
+              `CONSULTANCY_ACCOUNT_ROLE` account role.
+            - For consultant users, the newly created account is automatically
+              linked to their own account as consultancy account.
+
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            description: Account fields for creation.
+            required: true
+            content:
+              application/json:
+                schema: AccountCreateSchema
+                example:
+                  name: New Customer Account
+                  consultancy_account_id: 2
+          responses:
+            201:
+              description: PROCESSED
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Accounts
+        """
+
+        account = Account(**account_data)
+        db.session.add(account)
+        db.session.commit()
+
+        return account_schema.dump(account), 201
+
     @route("/<id>", methods=["GET"])
     @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
     @permission_required_for_context("read", ctx_arg_name="account")
@@ -259,9 +318,10 @@ class AccountAPI(FlaskView):
             required: true
             content:
               application/json:
-                schema: AccountSchema
+                schema: AccountPatchSchema
                 example:
                   name: Test Account Updated
+                  account_roles: [1, 3]
                   primary_color: '#1a3443'
                   secondary_color: '#f1a122'
                   logo_url: 'https://example.com/logo.png'
@@ -326,7 +386,9 @@ class AccountAPI(FlaskView):
             "logo_url",
             "consultancy_account_id",
             "attributes",
+            "account_roles",
         ]
+
         modified_fields = {
             field: getattr(account, field)
             for field in fields_to_check
