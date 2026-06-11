@@ -317,7 +317,7 @@ class MetaStorageScheduler(Scheduler):
 
         # EMS constraints are kept per commodity (one device group per commodity).
         #
-        # As on `main`, the site-power / site-consumption / site-production capacities
+        # The site-power / site-consumption / site-production capacities
         # are enforced as hard EMS-level constraints (derivative max/min). Because each
         # commodity has its own set of devices, ``ems_constraints`` is a list of
         # DataFrames and ``ems_constraint_groups`` lists the device indices each
