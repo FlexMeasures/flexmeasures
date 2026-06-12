@@ -32,6 +32,7 @@ from flexmeasures.data.models.planning.utils import (
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import (
+    CommodityFlexContextSchema,
     FlexContextSchema,
     MultiSensorFlexModelSchema,
 )
@@ -1337,8 +1338,20 @@ class MetaStorageScheduler(Scheduler):
             self.flex_model = {}
 
         self.collect_flex_config()
-        self.flex_context = FlexContextSchema().load(self.flex_context)
-
+        if isinstance(self.flex_context, dict):
+            # One flex-context for electricity
+            self.flex_context = FlexContextSchema().load(self.flex_context)
+        elif isinstance(self.flex_context, list):
+            # A flex-context per commodity -> nest it under the commodity_contexts field
+            for g, commodity_flex_context in enumerate(self.flex_context):
+                self.flex_context[g] = CommodityFlexContextSchema().load(
+                    commodity_flex_context
+                )
+            self.flex_context = dict(commodity_contexts=self.flex_context)
+        else:
+            raise TypeError(
+                f"Unsupported type of flex-context: '{type(self.flex_context)}'"
+            )
         if isinstance(self.flex_model, dict):
             if self.sensor.generic_asset.asset_type.name in storage_asset_types:
                 self.ensure_soc_at_start()
