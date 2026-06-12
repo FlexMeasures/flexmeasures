@@ -53,6 +53,38 @@ function capFirst(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
+// "Source" key with little line samples (dotted/dashed/solid + label per type),
+// mirroring the Vega-Lite charts' Source legend. Returns one ECharts graphic
+// group laid out as a single horizontal strip. Reserve SOURCE_KEY_HEIGHT for it.
+const SOURCE_KEY_HEIGHT = 22;
+
+function buildSourceKey(left, top) {
+  const children = [
+    {
+      type: "text",
+      left: 0,
+      top: 3,
+      style: { text: "Source", font: "bold 12px sans-serif", fill: "#222" },
+    },
+  ];
+  let x = 56;
+  for (const row of SOURCE_KEY_ROWS) {
+    children.push({
+      type: "line",
+      shape: { x1: x, y1: 9, x2: x + 26, y2: 9 },
+      style: { stroke: "#555", lineWidth: 1.5, lineDash: row.dash || null },
+    });
+    children.push({
+      type: "text",
+      left: x + 32,
+      top: 3,
+      style: { text: row.label, fontSize: 11, fill: "#222" },
+    });
+    x += 32 + row.label.length * 6.5 + 22;
+  }
+  return { type: "group", left: left, top: top, children: children };
+}
+
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(
     /[&<>"]/g,
@@ -239,7 +271,14 @@ const SENSOR_COLORS = [
   "#ff9896", "#c5b0d5", "#c49c94", "#dbdb8d", "#9edae5",
 ];
 
-// Line styles per source type, as in the Vega-Lite charts' "Source" legend
+// Line styles per source type, as in the Vega-Lite charts' "Source" legend.
+// The three rows of the source key below must list these same dash patterns.
+const SOURCE_KEY_ROWS = [
+  { label: "forecaster", dash: [2, 3] },
+  { label: "scheduler", dash: [7, 4] },
+  { label: "other", dash: null }, // solid
+];
+
 function lineTypeForSource(source) {
   const type = String(source.display_type || source.type || "").toLowerCase();
   if (type.includes("forecast")) {
@@ -404,10 +443,15 @@ function buildLineBarOption(elementId, groups, opts) {
   const containerWidth = container.clientWidth || 800;
   const plotCenter = (GRID_LEFT + containerWidth - gridRight) / 2;
 
+  // The Source key (line-style legend) is shown on sensor-colored line charts,
+  // where sources are told apart by line style; it sits in a strip at the top.
+  const showSourceKey = opts.chartType !== "bar_chart" && groups[0].nameBySensor;
+  const topOffset = TOP_OFFSET + (showSourceKey ? SOURCE_KEY_HEIGHT : 0);
+
   // Vertical layout: subplots, then (in legends-below mode) the slider and
   // one combined legend at the very bottom, as in the Vega-Lite charts
   const lastGridBottom =
-    TOP_OFFSET + groups.length * GRID_HEIGHT + (groups.length - 1) * gridGap;
+    topOffset + groups.length * GRID_HEIGHT + (groups.length - 1) * gridGap;
   const numSeries = groups.reduce((sum, g) => sum + g.series.length, 0);
   const itemsPerRow = Math.max(Math.floor((containerWidth - GRID_LEFT - 30) / 220), 1);
   const legendHeight = Math.ceil(numSeries / itemsPerRow) * 24 + 8;
@@ -416,7 +460,7 @@ function buildLineBarOption(elementId, groups, opts) {
 
   container.style.height = legendsBelow
     ? bottomLegendTop + legendHeight + 12 + "px"
-    : TOP_OFFSET + groups.length * (GRID_HEIGHT + gridGap) + BOTTOM_OFFSET + "px";
+    : topOffset + groups.length * (GRID_HEIGHT + gridGap) + BOTTOM_OFFSET + "px";
 
   const grids = [];
   const xAxes = [];
@@ -428,7 +472,7 @@ function buildLineBarOption(elementId, groups, opts) {
   const sensorColor = new Map();
 
   groups.forEach((group, i) => {
-    const top = TOP_OFFSET + i * (GRID_HEIGHT + gridGap);
+    const top = topOffset + i * (GRID_HEIGHT + gridGap);
     grids.push({
       top: top,
       height: GRID_HEIGHT,
@@ -546,26 +590,10 @@ function buildLineBarOption(elementId, groups, opts) {
     });
   }
 
-  // Source line-style key, as in the Vega-Lite charts' "Source" legend
-  let sourceKey = null;
-  if (opts.chartType !== "bar_chart" && groups[0].nameBySensor) {
-    const lineTypes = new Set(seriesMeta.map((s) => lineTypeForSource(s.source)));
-    if (lineTypes.size > 1) {
-      const parts = [];
-      if (lineTypes.has("dotted")) parts.push("┄ forecaster");
-      if (lineTypes.has("dashed")) parts.push("╌ scheduler");
-      if (lineTypes.has("solid")) parts.push("─ other");
-      sourceKey = {
-        type: "text",
-        left: GRID_LEFT,
-        top: legendsBelow ? bottomLegendTop + legendHeight + 4 : 16,
-        style: { text: "Source:  " + parts.join("    "), fontSize: 11, fill: "#555" },
-      };
-      if (legendsBelow) {
-        container.style.height = bottomLegendTop + legendHeight + 36 + "px";
-      }
-    }
-  }
+  // Source line-style key, as in the Vega-Lite charts' "Source" legend.
+  // Always shown (all three types) on the sensor-colored line charts, in the
+  // strip reserved at the top-left, clear of the toolbox and the side legends.
+  const sourceKey = showSourceKey ? buildSourceKey(GRID_LEFT, 6) : null;
 
   const allAxisIndices = xAxes.map((_, i) => i);
   const toolbox = toolboxFeatures(elementId, opts.datasetName);
