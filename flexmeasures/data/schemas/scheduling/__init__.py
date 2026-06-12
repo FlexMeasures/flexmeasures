@@ -250,7 +250,8 @@ class SharedSchema(Schema):
 
 class CommodityFlexContextSchema(SharedSchema):
     commodity = fields.Str(
-        required=True,
+        required=False,
+        load_default="electricity",
         data_key="commodity",
         metadata=metadata.COMMODITY_FLEX_CONTEXT.to_dict(),
     )
