@@ -4561,9 +4561,12 @@
         "properties": {
           "consumption-price": {
             "description": "The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem. [#old_consumption_price_field]_",
-            "example": {
-              "sensor": 5
-            }
+            "examples": [
+              {
+                "sensor": 5
+              },
+              "0.29 EUR/kWh"
+            ]
           },
           "production-price": {
             "description": "The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. [#old_production_price_field]_",
@@ -4632,7 +4635,8 @@
           },
           "commodity": {
             "type": "string",
-            "enum": [
+            "description": "Commodity type for this storage flex-model.\nDefaults to ``electricity``.\n",
+            "examples": [
               "electricity",
               "gas"
             ]
@@ -4648,9 +4652,12 @@
         "properties": {
           "consumption-price": {
             "description": "The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem.",
-            "example": {
-              "sensor": 5
-            },
+            "examples": [
+              {
+                "sensor": 5
+              },
+              "0.29 EUR/kWh"
+            ],
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "production-price": {
@@ -4788,13 +4795,6 @@
               "sensor": 9
             },
             "$ref": "#/components/schemas/SensorReference"
-          },
-          "gas-price": {
-            "description": "The gas price applied to the site's aggregate gas consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem",
-            "example": {
-              "sensor": 6
-            },
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           }
         },
         "additionalProperties": false
