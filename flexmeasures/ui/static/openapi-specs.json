@@ -4734,6 +4734,7 @@
             }
           },
           "commodities": {
+            "description": "For multi-commodity scheduling problems, the above fields can be set here per commodity.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CommodityFlexContext"

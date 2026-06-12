@@ -272,6 +272,9 @@ class FlexContextSchema(SharedSchema):
         data_key="commodities",
         required=False,
         many=True,
+        metadata=dict(
+            description="For multi-commodity scheduling problems, the above fields can be set here per commodity.",
+        ),
     )
     # Device commitments
     consumption_breach_price = VariableQuantityField(

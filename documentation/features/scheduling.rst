@@ -39,6 +39,7 @@ The flex-context
 
 The ``flex-context`` is independent of the type of flexible device that is optimized, or which scheduler is used.
 With the flexibility context, we aim to describe the system in which the flexible assets operate, such as its physical and contractual limitations.
+For multi-commodity scheduling problems, the flex-context can be defined separately per commodity (e.g. electricity and gas), using the ``commodities`` field.
 
 Fields can have fixed values, but some fields can also point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
 The full list of flex-context fields follows below.
