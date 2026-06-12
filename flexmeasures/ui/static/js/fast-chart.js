@@ -25,7 +25,6 @@ import { convertToCSV } from "./data-utils.js";
 
 const GRID_HEIGHT = 220; // height of each subplot in px
 const SIDE_GRID_GAP = 56; // vertical space between subplots (axis labels + titles)
-const BELOW_GRID_GAP = 110; // extra space when legends go below each subplot
 const TOP_OFFSET = 48; // room for the toolbox and the first subplot title
 const BOTTOM_OFFSET = 78; // room for the slider and the last x-axis labels
 const GRID_LEFT = 70; // room for the y-axis labels
@@ -367,13 +366,24 @@ function buildLineBarOption(elementId, groups, opts) {
   const instance = instances[elementId];
   const container = document.getElementById(elementId);
   const legendsBelow = !!opts.legendsBelow;
-  const gridGap = legendsBelow ? BELOW_GRID_GAP : SIDE_GRID_GAP;
+  const gridGap = SIDE_GRID_GAP;
   const gridRight = legendsBelow ? 30 : LEGEND_WIDTH + 40;
   const containerWidth = container.clientWidth || 800;
   const plotCenter = (GRID_LEFT + containerWidth - gridRight) / 2;
 
-  container.style.height =
-    TOP_OFFSET + groups.length * (GRID_HEIGHT + gridGap) + BOTTOM_OFFSET + "px";
+  // Vertical layout: subplots, then (in legends-below mode) the slider and
+  // one combined legend at the very bottom, as in the Vega-Lite charts
+  const lastGridBottom =
+    TOP_OFFSET + groups.length * GRID_HEIGHT + (groups.length - 1) * gridGap;
+  const numSeries = groups.reduce((sum, g) => sum + g.series.length, 0);
+  const itemsPerRow = Math.max(Math.floor((containerWidth - GRID_LEFT - 30) / 220), 1);
+  const legendHeight = Math.ceil(numSeries / itemsPerRow) * 24 + 8;
+  const sliderTop = lastGridBottom + 36;
+  const bottomLegendTop = sliderTop + 28 + 18;
+
+  container.style.height = legendsBelow
+    ? bottomLegendTop + legendHeight + 12 + "px"
+    : TOP_OFFSET + groups.length * (GRID_HEIGHT + gridGap) + BOTTOM_OFFSET + "px";
 
   const grids = [];
   const xAxes = [];
@@ -399,28 +409,16 @@ function buildLineBarOption(elementId, groups, opts) {
       top: top - 42,
       textStyle: { fontSize: 15, color: "#222" },
     });
-    const legend = {
-      // One legend per subplot, listing only its own series
-      data: group.series.map((s) => s.name),
-      type: "scroll",
-      // For single-sensor subplots the sensor is already in the title, so only show the source
-      formatter: group.multiSensor
-        ? undefined
-        : (name) => name.split(" · ").slice(1).join(" · ") || name,
-      tooltip: { show: true }, // hover reveals truncated names in full
-    };
-    if (legendsBelow) {
-      Object.assign(legend, {
-        orient: "horizontal",
-        left: GRID_LEFT,
-        right: gridRight,
-        top: top + GRID_HEIGHT + 32,
-        itemWidth: 18,
-        itemGap: 10,
-        textStyle: { fontSize: 11 },
-      });
-    } else {
-      Object.assign(legend, {
+    if (!legendsBelow) {
+      legends.push({
+        // One vertical legend beside each subplot, listing only its own series
+        data: group.series.map((s) => s.name),
+        type: "scroll",
+        // For single-sensor subplots the sensor is already in the title, so only show the source
+        formatter: group.multiSensor
+          ? undefined
+          : (name) => name.split(" · ").slice(1).join(" · ") || name,
+        tooltip: { show: true }, // hover reveals truncated names in full
         orient: "vertical",
         right: 8,
         top: top,
@@ -431,7 +429,6 @@ function buildLineBarOption(elementId, groups, opts) {
         textStyle: { width: LEGEND_WIDTH - 40, overflow: "truncate", fontSize: 11 },
       });
     }
-    legends.push(legend);
     xAxes.push({
       type: "time",
       gridIndex: i,
@@ -495,6 +492,22 @@ function buildLineBarOption(elementId, groups, opts) {
     });
   });
 
+  if (legendsBelow) {
+    // One combined legend below all subplots, as in the Vega-Lite charts
+    legends.push({
+      data: seriesMeta.map((s) => s.name),
+      type: "plain", // wraps into multiple rows
+      orient: "horizontal",
+      left: GRID_LEFT,
+      right: 30,
+      top: bottomLegendTop,
+      itemWidth: 18,
+      itemGap: 12,
+      textStyle: { fontSize: 11 },
+      tooltip: { show: true },
+    });
+  }
+
   const allAxisIndices = xAxes.map((_, i) => i);
   const toolbox = toolboxFeatures(elementId, opts.datasetName);
   toolbox.feature.dataZoom.xAxisIndex = allAxisIndices;
@@ -517,7 +530,9 @@ function buildLineBarOption(elementId, groups, opts) {
     toolbox: toolbox,
     dataZoom: [
       { type: "inside", xAxisIndex: allAxisIndices }, // mouse-wheel zoom and drag-to-pan
-      { type: "slider", xAxisIndex: allAxisIndices, bottom: 14, height: 28 },
+      legendsBelow
+        ? { type: "slider", xAxisIndex: allAxisIndices, top: sliderTop, height: 28 }
+        : { type: "slider", xAxisIndex: allAxisIndices, bottom: 14, height: 28 },
     ],
   };
 }
