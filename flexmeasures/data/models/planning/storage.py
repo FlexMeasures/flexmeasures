@@ -99,15 +99,7 @@ class MetaStorageScheduler(Scheduler):
 
         # Backwards-compatible electricity defaults from old top-level fields.
         if "electricity" not in commodity_contexts:
-            commodity_contexts["electricity"] = {}
-            for key, value in self.flex_context.items():
-                if key not in (
-                    "relax_constraints",
-                    "relax_soc_constraints",
-                    "relax_capacity_constraints",
-                    "relax_site_capacity_constraints",
-                ):
-                    commodity_contexts["electricity"][key] = value
+            commodity_contexts["electricity"] = self.flex_context
 
         return commodity_contexts
 
