@@ -45,8 +45,7 @@ COMMITMENTS = MetaData(
 )
 CONSUMPTION_PRICE = MetaData(
     description="The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. [#old_consumption_price_field]_",
-    example={"sensor": 5},
-    # examples=[{"sensor": 5}, "0.29 EUR/kWh"],  # todo: waiting for https://github.com/marshmallow-code/apispec/pull/999
+    examples=[{"sensor": 5}, "0.29 EUR/kWh"],
 )
 PRODUCTION_PRICE = MetaData(
     description="The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. [#old_production_price_field]_",
