@@ -4559,6 +4559,14 @@
       "CommodityFlexContext": {
         "type": "object",
         "properties": {
+          "commodity": {
+            "type": "string",
+            "description": "Commodity type for this storage flex-model.\nDefaults to ``electricity``.\n",
+            "examples": [
+              "electricity",
+              "gas"
+            ]
+          },
           "consumption-price": {
             "description": "The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem. [#old_consumption_price_field]_",
             "examples": [
@@ -4632,14 +4640,6 @@
             "items": {
               "type": "integer"
             }
-          },
-          "commodity": {
-            "type": "string",
-            "description": "Commodity type for this storage flex-model.\nDefaults to ``electricity``.\n",
-            "examples": [
-              "electricity",
-              "gas"
-            ]
           }
         },
         "required": [
