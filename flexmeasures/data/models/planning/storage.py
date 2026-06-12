@@ -213,6 +213,10 @@ class MetaStorageScheduler(Scheduler):
         # This ensures the mapping aligns with the device indices
         self.stock_groups = self._build_stock_groups(device_models)
 
+        # Build coupling_groups from the 'coupling' and 'coupling_coefficient' fields
+        # of each device model. Devices sharing the same coupling name form a group.
+        self.coupling_groups = self._build_coupling_groups(device_models)
+
         # List the asset(s) and sensor(s) being scheduled
         if self.asset is not None:
             if not isinstance(self.flex_model, list):
@@ -2125,6 +2129,7 @@ class StorageScheduler(MetaStorageScheduler):
             commitments=commitments,
             initial_stock=initial_stock,
             stock_groups=self.stock_groups,
+            coupling_groups=self.coupling_groups if self.coupling_groups else None,
         )
         if "infeasible" in (tc := scheduler_results.solver.termination_condition):
             raise InfeasibleProblemException(tc)

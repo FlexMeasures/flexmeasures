@@ -6329,6 +6329,21 @@
             ],
             "description": "Commodity label for this device/asset."
           },
+          "coupling": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "Name of the coupling group this device belongs to. Devices sharing the same coupling name are constrained to have proportionally related flows via a hard equality constraint. Use together with 'coupling-coefficient' to set the ratio.",
+            "example": "chp"
+          },
+          "coupling-coefficient": {
+            "type": "number",
+            "default": 1.0,
+            "description": "Positive coupling magnitude for this device within its coupling group. The optimizer introduces a decision variable 'alpha' per group per time step and constrains every device by P[d] == coeff * alpha. The sign of coeff is inferred internally from directional capacities: consumption-capacity = 0 implies output (negative), production-capacity = 0 implies input (positive). Example: a CHP with gas input (1.0), heat output (0.5) and power output (0.3). Defaults to 1.0.",
+            "example": 0.5
+          },
           "sensor": {
             "type": "integer",
             "description": "ID of the device's power sensor."

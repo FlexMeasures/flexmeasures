@@ -6,6 +6,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.planning.utils import initialize_index
@@ -15,6 +16,7 @@ from flexmeasures.data.models.planning.tests.utils import (
     get_sensors_from_db,
     series_to_ts_specs,
 )
+from flexmeasures.data.services.utils import get_or_create_model
 
 
 def test_battery_solver_multi_commitment(add_battery_assets, db):
@@ -582,4 +584,188 @@ def test_resolve_soc_at_start_from_percent_sensor_uses_device_sensor_fallback(
             soc_sensor, {}, power_sensor
         )
         == 2.5
+    )
+
+
+def test_storage_scheduler_chp_coupling(app, db):
+    """Test that the StorageScheduler enforces CHP coupling constraints between devices.
+
+    Models a Combined Heat and Power unit with three sensors.
+
+    In the flex-model, the coupling coefficients are entered as positive magnitudes::
+
+        gas input   -> 1.0
+        heat output -> 0.5
+        power output -> 0.3
+
+    Internally, the CHP is interpreted with the signed commodity-flow coefficients::
+
+        P_gas   ->  1.0
+        P_heat  -> -0.5
+        P_power -> -0.3
+
+    The returned storage schedule for the heat buffer is still positive, because this
+    test uses the storage sign convention for buffer charging.
+
+    - d=0  gas input:    CHP gas consumption
+    - d=1  heat output:  CHP heat -> heat buffer
+    - d=2  power output: CHP electricity production
+
+    The heat output is forced to exactly 5 kW per step by combining:
+    - ``production-capacity: "0 kW"``  (hard lower bound: derivative_min = 0)
+    - ``consumption-capacity: "5 kW"`` (hard upper bound: derivative_max = 0.005 MW)
+    - ``soc-targets`` requiring 20 kWh at the end of the 4-hour window
+
+    With soc_at_start = 0 and max 5 kW over 4 × 1-hour steps the only feasible
+    solution is P_heat = 5 kW every step. Substituting P_heat = 5 kW gives
+    alpha = 5 / 0.5 = 10 kW, so:
+
+        P_gas   =  1.0 × 10 kW = 10 kW
+        P_power = −0.3 × 10 kW = −3 kW
+    """
+    # ---- asset type + asset
+    chp_type = get_or_create_model(GenericAssetType, name="chp-plant")
+    chp = GenericAsset(name="CHP plant (coupling test)", generic_asset_type=chp_type)
+    db.session.add(chp)
+    db.session.flush()
+
+    # ---- schedule window
+    start = pd.Timestamp("2026-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2026-01-01T04:00:00+01:00")
+    resolution = timedelta(hours=1)
+
+    # CHP efficiencies (same values as the factory scenario in test_commitments.py)
+    ETA_HEAT = 0.5  # fraction of gas input that becomes heat
+    ETA_POWER = 0.3  # fraction of gas input that becomes electricity
+
+    # ---- sensors
+    gas_input_sensor = Sensor(
+        name="CHP gas input (coupling test)",
+        generic_asset=chp,
+        unit="MW",
+        event_resolution=resolution,
+    )
+    heat_output_sensor = Sensor(
+        name="CHP heat output (coupling test)",
+        generic_asset=chp,
+        unit="MW",
+        event_resolution=resolution,
+    )
+    power_output_sensor = Sensor(
+        name="CHP power output (coupling test)",
+        generic_asset=chp,
+        unit="MW",
+        event_resolution=resolution,
+    )
+    db.session.add_all([gas_input_sensor, heat_output_sensor, power_output_sensor])
+    db.session.flush()
+
+    # ---- flex model
+    # Flex-model coupling-coefficients are user-facing positive magnitudes.
+    # The intended internal CHP coefficients are +1.0 for gas, -0.5 for heat,
+    # and -0.3 for power.
+    flex_model = [
+        {
+            # d=0: gas input — pure flow device (no SoC), can only consume gas.
+            "sensor": gas_input_sensor.id,
+            "power-capacity": "20 kW",
+            "production-capacity": "0 kW",  # derivative_min = 0
+            "coupling": "chp",
+            "coupling-coefficient": 1.0,
+        },
+        {
+            # d=1: heat output — tracks heat-buffer SoC, positive ems_power = heat
+            # added to buffer. The SoC target forces P_heat = 5 kW per step.
+            "sensor": heat_output_sensor.id,
+            "soc-at-start": "0 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "0.02 MWh",  # 20 kWh — matches the SoC target
+            "soc-targets": [
+                {
+                    # Single target at the schedule end: cumulative heat = 20 kWh.
+                    # With max 5 kW and 4 × 1 h steps the only feasible solution
+                    # is 5 kW every step.
+                    "start": "2026-01-01T04:00:00+01:00",
+                    "duration": "PT1H",
+                    "value": "0.02 MWh",
+                }
+            ],
+            "power-capacity": "5 kW",
+            "consumption-capacity": "5 kW",
+            "production-capacity": "0 kW",  # can only add heat, not extract
+            "prefer-charging-sooner": True,
+            "coupling": "chp",
+            "coupling-coefficient": ETA_HEAT,  # = 0.5
+        },
+        {
+            # d=2: power output — pure flow device (no SoC), can only produce
+            # electricity (negative ems_power).
+            "sensor": power_output_sensor.id,
+            "power-capacity": "6 kW",
+            "consumption-capacity": "0 kW",  # derivative_max = 0
+            "coupling": "chp",
+            "coupling-coefficient": ETA_POWER,  # = 0.3 (sign inferred from capacities)
+        },
+    ]
+
+    flex_context = {
+        "consumption-price": "50 EUR/MWh",
+        "production-price": "50 EUR/MWh",
+        "site-power-capacity": "1 MW",  # large enough to avoid EMS constraints
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=chp,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    results = scheduler.compute(skip_validation=True)
+
+    # ---- extract storage schedules per sensor
+    storage_schedules = {
+        r["sensor"]: r["data"] for r in results if r.get("name") == "storage_schedule"
+    }
+
+    assert gas_input_sensor in storage_schedules, "Gas input schedule missing"
+    assert heat_output_sensor in storage_schedules, "Heat output schedule missing"
+    assert power_output_sensor in storage_schedules, "Power output schedule missing"
+
+    gas_schedule = storage_schedules[gas_input_sensor]
+    heat_schedule = storage_schedules[heat_output_sensor]
+    power_schedule = storage_schedules[power_output_sensor]
+
+    # The SoC target of 20 kWh is met after 4 × 1-hour steps at 5 kW.
+    # The schedule index runs from ``start`` to ``end`` inclusive (5 time slots),
+    # so the last slot has no binding SoC constraint and the CHP is idle there.
+    # All assertions therefore apply to the first four active slots only.
+    active_steps = slice(None, -1)  # exclude the final trailing idle slot
+
+    # Heat output is forced to exactly 5 kW per step by the SoC target.
+    # alpha = P_heat / ETA_HEAT = 0.005 / 0.5 = 0.010 MW
+    np.testing.assert_allclose(
+        heat_schedule.iloc[active_steps],
+        0.005,  # 5 kW expressed in MW
+        rtol=1e-4,
+        err_msg="Heat output should be exactly 5 kW per step (forced by SoC target)",
+    )
+
+    # Coupling: P_gas = 1.0 * alpha = 0.010 MW = 10 kW
+    np.testing.assert_allclose(
+        gas_schedule.iloc[active_steps],
+        0.010,  # 10 kW expressed in MW
+        rtol=1e-4,
+        err_msg="Gas input must be 10 kW — determined by coupling (1.0 * alpha)",
+    )
+
+    # Coupling: P_power = -ETA_POWER * alpha = -0.3 * 0.010 MW = -0.003 MW = -3 kW
+    np.testing.assert_allclose(
+        power_schedule.iloc[active_steps],
+        -0.003,  # -3 kW expressed in MW
+        rtol=1e-4,
+        err_msg="Power output must be -3 kW — determined by coupling (-0.3 * alpha)",
     )

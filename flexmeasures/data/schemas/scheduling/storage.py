@@ -255,6 +255,34 @@ class StorageFlexModelSchema(Schema):
         metadata=dict(description="Commodity label for this device/asset."),
     )
 
+    coupling = fields.Str(
+        data_key="coupling",
+        required=False,
+        load_default=None,
+        metadata=dict(
+            description="Name of the coupling group this device belongs to. "
+            "Devices sharing the same coupling name are constrained to have "
+            "proportionally related flows via a hard equality constraint. "
+            "Use together with 'coupling-coefficient' to set the ratio.",
+            example="chp",
+        ),
+    )
+    coupling_coefficient = fields.Float(
+        data_key="coupling-coefficient",
+        required=False,
+        load_default=1.0,
+        metadata=dict(
+            description="Positive coupling magnitude for this device within its coupling group. "
+            "The optimizer introduces a decision variable 'alpha' per group per time step "
+            "and constrains every device by P[d] == coeff * alpha. "
+            "The sign of coeff is inferred internally from directional capacities: "
+            "consumption-capacity = 0 implies output (negative), production-capacity = 0 implies input (positive). "
+            "Example: a CHP with gas input (1.0), heat output (0.5) and power output (0.3). "
+            "Defaults to 1.0.",
+            example=0.5,
+        ),
+    )
+
     def __init__(
         self,
         start: datetime,
