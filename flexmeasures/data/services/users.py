@@ -211,6 +211,20 @@ def remove_cookie_and_token_access(user: User):
     user_datastore.reset_user_access(user)
 
 
+def reset_token_access(user: User):
+    """
+    Rotate only the auth token uniquifier for a user, invalidating outstanding
+    API tokens without affecting existing browser sessions.
+
+    Use this when you want to revoke API tokens without logging the user out
+    of their current browser session.
+
+    Does not commit the session.
+    """
+    user_datastore = SQLAlchemySessionUserDatastore(db.session, User, Role)
+    user_datastore.set_token_uniquifier(user)
+
+
 def delete_user(user: User):
     """
     Delete the user (and also his assets and power measurements!).
