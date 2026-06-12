@@ -542,7 +542,7 @@ function buildHistogramOption(elementId, data, opts) {
     return null;
   }
   const container = document.getElementById(elementId);
-  container.style.height = TOP_OFFSET + 360 + BOTTOM_OFFSET + "px";
+  container.style.height = TOP_OFFSET + 400 + BOTTOM_OFFSET + "px";
 
   const values = rows.map((r) => r.event_value);
   const lo = Math.min(...values);
@@ -575,22 +575,25 @@ function buildHistogramOption(elementId, data, opts) {
       name: label,
       type: "bar",
       data: counts,
-      barGap: "-100%", // overlay sources, as in the Vega-Lite histogram
+      stack: "counts", // stack sources, as in the Vega-Lite histogram
+      barCategoryGap: "0%", // contiguous bins, as in the Vega-Lite histogram
       itemStyle: { opacity: 0.7 },
       animation: false,
     });
   }
 
   return {
-    grid: { top: TOP_OFFSET + 20, height: 320, left: GRID_LEFT, right: opts.legendsBelow ? 30 : LEGEND_WIDTH + 40 },
+    grid: { top: TOP_OFFSET + 60, height: 320, left: GRID_LEFT, right: opts.legendsBelow ? 30 : LEGEND_WIDTH + 40 },
     series: series,
     xAxis: {
       type: "category",
       data: binLabels,
+      position: "top", // bin labels at the top, as in the Vega-Lite histogram
       name: yAxisTitle(sensorType, [unit]),
       nameLocation: "middle",
-      nameGap: 50,
-      axisLabel: { rotate: 30, fontSize: 10 },
+      nameGap: 40,
+      nameTextStyle: { fontSize: 12, fontWeight: "bold", color: "#222" },
+      axisLabel: { fontSize: 11 },
     },
     yAxis: {
       type: "value",
@@ -605,7 +608,7 @@ function buildHistogramOption(elementId, data, opts) {
       orient: opts.legendsBelow ? "horizontal" : "vertical",
       right: opts.legendsBelow ? undefined : 8,
       left: opts.legendsBelow ? GRID_LEFT : undefined,
-      top: opts.legendsBelow ? TOP_OFFSET + 360 : TOP_OFFSET + 20,
+      top: opts.legendsBelow ? TOP_OFFSET + 395 : TOP_OFFSET + 60,
       textStyle: { width: LEGEND_WIDTH - 40, overflow: "truncate", fontSize: 11 },
       tooltip: { show: true },
     },
