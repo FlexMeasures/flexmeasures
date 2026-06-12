@@ -1340,6 +1340,10 @@ class MetaStorageScheduler(Scheduler):
             self.flex_model = {}
 
         self.collect_flex_config()
+        self._deserialize_flex_context()
+        self._deserialize_flex_model()
+
+    def _deserialize_flex_context(self):
         if isinstance(self.flex_context, dict):
             # Load the one flex-context for electricity
             self.flex_context = FlexContextSchema().load(self.flex_context)
@@ -1376,6 +1380,8 @@ class MetaStorageScheduler(Scheduler):
             raise TypeError(
                 f"Unsupported type of flex-context: '{type(self.flex_context)}'"
             )
+
+    def _deserialize_flex_model(self):
         if isinstance(self.flex_model, dict):
             if self.sensor.generic_asset.asset_type.name in storage_asset_types:
                 self.ensure_soc_at_start()
