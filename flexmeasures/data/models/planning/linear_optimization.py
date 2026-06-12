@@ -130,9 +130,11 @@ def device_scheduler(  # noqa C901
     else:
         ems_constraints_list = list(ems_constraints)
         if ems_constraint_groups is None:
-            ems_constraint_device_groups = [all_devices for _ in ems_constraints_list]
+            raise ValueError(
+                "When passing multiple EMS constraint DataFrames, you must also specify ems_constraint_groups."
+            )
         else:
-            ems_constraint_device_groups = [list(g) for g in ems_constraint_groups]
+            ems_constraint_device_groups = ems_constraint_groups
 
     # map device -> primary stock group (used for per-device stock bounds)
     # and map stock group -> all member devices (used for stock accumulation).

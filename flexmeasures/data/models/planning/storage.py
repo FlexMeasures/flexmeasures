@@ -652,7 +652,7 @@ class MetaStorageScheduler(Scheduler):
                 )
 
             # Hard EMS-level capacity constraint for this commodity's device group.
-            # As on `main`: with a breach price set, the physical power capacity is the
+            # If a breach price is set, the physical power capacity is the
             # hard limit (the contracted capacity is then only softly penalised via the
             # breach commitments above); otherwise the contracted capacity itself is the
             # hard limit.
