@@ -73,9 +73,6 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``production-price``
      - |PRODUCTION_PRICE.example|
      - .. include:: ../_autodoc/PRODUCTION_PRICE.rst
-   * - ``gas-price``
-     - |GAS_PRICE.example|
-     - .. include:: ../_autodoc/GAS_PRICE.rst
    * - ``site-power-capacity``
      - |SITE_POWER_CAPACITY.example|
      - .. include:: ../_autodoc/SITE_POWER_CAPACITY.rst
