@@ -118,11 +118,13 @@ def device_scheduler(  # noqa C901
         ems_constraints_list = [ems_constraints]
         ems_constraint_device_groups = [all_devices]
     else:
-        ems_constraints_list = list(ems_constraints)
+        ems_constraints_list = ems_constraints
         if ems_constraint_groups is None:
-            raise ValueError(
-                "When passing multiple EMS constraint DataFrames, you must also specify ems_constraint_groups."
-            )
+            if len(ems_constraints_list) > 1:
+                raise ValueError(
+                    "When passing multiple EMS constraint DataFrames, you must also specify ems_constraint_groups."
+                )
+            ems_constraint_device_groups = [all_devices for _ in ems_constraints_list]
         else:
             ems_constraint_device_groups = ems_constraint_groups
 
