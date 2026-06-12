@@ -23,6 +23,7 @@ from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
     SensorReference,
+    SensorReferenceSchema,
 )
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.units import UnitField
@@ -143,6 +144,8 @@ class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
 
 
 class SharedSchema(Schema):
+    """Shared schema for fields common across commodities in flex-context and commodity-context."""
+
     consumption_price = VariableQuantityField(
         "/MWh",
         required=False,
@@ -233,51 +236,7 @@ class SharedSchema(Schema):
         metadata=metadata.SITE_PEAK_PRODUCTION_PRICE.to_dict(),
     )
 
-    commitments = fields.Nested(
-        CommitmentSchema,
-        data_key="commitments",
-        required=False,
-        many=True,
-        metadata=metadata.COMMITMENTS.to_dict(),
-    )
-
-    inflexible_device_sensors = fields.List(
-        SensorIdField(),
-        data_key="inflexible-device-sensors",
-        metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
-    )
-
-
-class CommodityFlexContextSchema(SharedSchema):
-    commodity = fields.Str(
-        required=False,
-        load_default="electricity",
-        data_key="commodity",
-        metadata=metadata.COMMODITY_FLEX_CONTEXT.to_dict(),
-    )
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        commodity_field = self.fields.pop("commodity")
-        self.fields = OrderedDict(
-            [("commodity", commodity_field), *self.fields.items()]
-        )
-
-
-class FlexContextSchema(SharedSchema):
-    """This schema defines fields that provide context to the portfolio to be optimized."""
-
-    commodity_contexts = fields.Nested(
-        CommodityFlexContextSchema,
-        data_key="commodities",
-        required=False,
-        many=True,
-        metadata=dict(
-            description="For multi-commodity scheduling problems, the above fields can be set here per commodity.",
-        ),
-    )
-    # Device commitments
+    # Breach prices for device capacity constraints
     consumption_breach_price = VariableQuantityField(
         "/MW",
         data_key="consumption-breach-price",
@@ -306,12 +265,13 @@ class FlexContextSchema(SharedSchema):
         value_validator=validate.Range(min=0),
         metadata=metadata.SOC_MAXIMA_BREACH_PRICE.to_dict(),
     )
+
+    # Relaxation fields
     relax_constraints = fields.Bool(
         data_key="relax-constraints",
         load_default=False,
         metadata=metadata.RELAX_CONSTRAINTS.to_dict(),
     )
-    # Dev fields
     relax_soc_constraints = fields.Bool(
         data_key="relax-soc-constraints",
         load_default=False,
@@ -328,17 +288,32 @@ class FlexContextSchema(SharedSchema):
         metadata=metadata.RELAX_SITE_CAPACITY_CONSTRAINTS.to_dict(),
     )
 
-    # Energy commitments
-    # todo: deprecated since flexmeasures==0.23
-    consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
-    production_price_sensor = SensorIdField(data_key="production-price-sensor")
-
-    # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
-    aggregate_power = VariableQuantityField(
-        to_unit="MW",
-        data_key="aggregate-power",
+    commitments = fields.Nested(
+        CommitmentSchema,
+        data_key="commitments",
         required=False,
-        metadata=metadata.AGGREGATE_POWER.to_dict(),
+        many=True,
+        metadata=metadata.COMMITMENTS.to_dict(),
+    )
+
+    inflexible_device_sensors = fields.List(
+        SensorIdField(),
+        data_key="inflexible-device-sensors",
+        metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
+    )
+
+    # Aggregate output sensors
+    aggregate_consumption = fields.Nested(
+        SensorReferenceSchema,
+        required=False,
+        data_key="aggregate-consumption",
+        metadata=metadata.AGGREGATE_CONSUMPTION.to_dict(),
+    )
+    aggregate_production = fields.Nested(
+        SensorReferenceSchema,
+        required=False,
+        data_key="aggregate-production",
+        metadata=metadata.AGGREGATE_PRODUCTION.to_dict(),
     )
 
     def set_default_breach_prices(
@@ -356,6 +331,57 @@ class FlexContextSchema(SharedSchema):
                 + self.declared_fields[field].to_unit.split("/")[-1]
             )
         return data
+
+
+class CommodityFlexContextSchema(SharedSchema):
+    commodity = fields.Str(
+        required=False,
+        load_default="electricity",
+        data_key="commodity",
+        metadata=metadata.COMMODITY_FLEX_CONTEXT.to_dict(),
+    )
+
+    # For flex-context listings (per commodity), default relax_constraints to True
+    relax_constraints = fields.Bool(
+        data_key="relax-constraints",
+        load_default=True,
+        metadata=metadata.RELAX_CONSTRAINTS.to_dict(),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        commodity_field = self.fields.pop("commodity")
+        self.fields = OrderedDict(
+            [("commodity", commodity_field), *self.fields.items()]
+        )
+
+
+class FlexContextSchema(SharedSchema):
+    """This schema defines fields that provide context to the portfolio to be optimized."""
+
+    commodity_contexts = fields.Nested(
+        CommodityFlexContextSchema,
+        data_key="commodities",
+        required=False,
+        many=True,
+        metadata=dict(
+            description="For multi-commodity scheduling problems, the above fields can be set here per commodity.",
+        ),
+    )
+
+    # Energy commitments
+    # todo: deprecated since flexmeasures==0.23
+    consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
+    production_price_sensor = SensorIdField(data_key="production-price-sensor")
+
+    # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
+    aggregate_power = VariableQuantityField(
+        to_unit="MW",
+        data_key="aggregate-power",
+        required=False,
+        metadata=metadata.AGGREGATE_POWER.to_dict(),
+    )
 
     @validates("aggregate_power")
     def validate_aggregate_power_is_sensor(
