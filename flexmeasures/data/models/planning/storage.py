@@ -1301,6 +1301,8 @@ class MetaStorageScheduler(Scheduler):
             for d, flex_model_d in enumerate(flex_model):
                 commitment = FlowCommitment(
                     device=d,
+                    # todo: is flex_model_d guaranteed to have "commodity? Consider defaulting the device commodity to "electricity"
+                    # todo: should there not be something matching the "commodity" from the commitment_spec (default to "electricity") to the device commodity?
                     device_group=flex_model_d["commodity"],
                     **commitment_spec,
                 )
