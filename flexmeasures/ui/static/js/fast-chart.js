@@ -197,13 +197,25 @@ function groupData(data, groupSpec) {
       .points.push([row.event_start, row.event_value, row.belief_horizon]);
   }
 
+  // Mirror the Vega-Lite legend encoding:
+  // - multi-sensor (asset) charts: one legend entry per sensor, labeled
+  //   "sensor (asset)", with sources distinguished by line style;
+  // - single-sensor (sensor page) charts: one legend entry per source.
+  const uniqueSensorKeys = new Set();
+  for (const group of groups) {
+    for (const s of group.series.values()) {
+      uniqueSensorKeys.add(s.sensorDescription || s.sensorName);
+    }
+  }
+  const nameBySensor = uniqueSensorKeys.size > 1;
+
   return groups.map((group) => {
     const series = [];
     for (const s of group.series.values()) {
       s.points.sort((a, b) => a[0] - b[0]);
-      // Series names must be globally unique, so that each subplot's legend
-      // only toggles its own series (names are shared state across legends).
-      s.name = s.sensorName + " · " + s.sourceLabel;
+      // Series sharing a name (same sensor, several sources) toggle together
+      // via their shared legend entry, as in the Vega-Lite charts.
+      s.name = nameBySensor ? s.sensorDescription || s.sensorName : s.sourceLabel;
       s.sensorType = group.sensorType || s.sensorName;
       series.push(s);
     }
@@ -213,9 +225,30 @@ function groupData(data, groupSpec) {
       units: Array.from(group.units),
       sensorType: group.sensorType,
       multiSensor: group.sensorNames.size > 1,
+      nameBySensor: nameBySensor,
       series: series,
     };
   });
+}
+
+// Colors per sensor, matching the Vega-Lite charts' category scheme
+const SENSOR_COLORS = [
+  "#1f77b4", "#ff7f0e", "#d62728", "#76b7b2", "#2ca02c",
+  "#bcbd22", "#9467bd", "#f7b6d2", "#8c564b", "#c7c7c7",
+  "#17becf", "#e377c2", "#aec7e8", "#ffbb78", "#98df8a",
+  "#ff9896", "#c5b0d5", "#c49c94", "#dbdb8d", "#9edae5",
+];
+
+// Line styles per source type, as in the Vega-Lite charts' "Source" legend
+function lineTypeForSource(source) {
+  const type = String(source.display_type || source.type || "").toLowerCase();
+  if (type.includes("forecast")) {
+    return "dotted";
+  }
+  if (type.includes("schedul")) {
+    return "dashed";
+  }
+  return "solid";
 }
 
 // Keep only the rows of the source with the most data (as the Vega-Lite heatmaps do)
@@ -392,6 +425,7 @@ function buildLineBarOption(elementId, groups, opts) {
   const legends = [];
   const series = [];
   const seriesMeta = [];
+  const sensorColor = new Map();
 
   groups.forEach((group, i) => {
     const top = TOP_OFFSET + i * (GRID_HEIGHT + gridGap);
@@ -412,12 +446,8 @@ function buildLineBarOption(elementId, groups, opts) {
     if (!legendsBelow) {
       legends.push({
         // One vertical legend beside each subplot, listing only its own series
-        data: group.series.map((s) => s.name),
+        data: Array.from(new Set(group.series.map((s) => s.name))),
         type: "scroll",
-        // For single-sensor subplots the sensor is already in the title, so only show the source
-        formatter: group.multiSensor
-          ? undefined
-          : (name) => name.split(" · ").slice(1).join(" · ") || name,
         tooltip: { show: true }, // hover reveals truncated names in full
         orient: "vertical",
         right: 8,
@@ -462,6 +492,14 @@ function buildLineBarOption(elementId, groups, opts) {
         emphasis: { focus: "series" },
         animation: false,
       };
+      // One color per sensor: series of the same sensor share their legend
+      // entry's color, and sources are told apart by line style instead
+      if (group.nameBySensor) {
+        if (!sensorColor.has(s.name)) {
+          sensorColor.set(s.name, SENSOR_COLORS[sensorColor.size % SENSOR_COLORS.length]);
+        }
+        entry.color = sensorColor.get(s.name);
+      }
       if (isBar) {
         Object.assign(entry, {
           barGap: "-100%", // overlay sources, as in the Vega-Lite bar chart
@@ -473,7 +511,7 @@ function buildLineBarOption(elementId, groups, opts) {
           step: "start", // events hold their value for the duration of the event
           showSymbol: false,
           sampling: "lttb", // downsample to the available pixels, preserving peaks
-          lineStyle: { width: 2.2 },
+          lineStyle: { width: 2.2, type: lineTypeForSource(s.source) },
         });
       }
       // Replay ruler: a vertical line at the current belief time
@@ -495,7 +533,7 @@ function buildLineBarOption(elementId, groups, opts) {
   if (legendsBelow) {
     // One combined legend below all subplots, as in the Vega-Lite charts
     legends.push({
-      data: seriesMeta.map((s) => s.name),
+      data: Array.from(new Set(seriesMeta.map((s) => s.name))),
       type: "plain", // wraps into multiple rows
       orient: "horizontal",
       left: GRID_LEFT,
@@ -508,11 +546,33 @@ function buildLineBarOption(elementId, groups, opts) {
     });
   }
 
+  // Source line-style key, as in the Vega-Lite charts' "Source" legend
+  let sourceKey = null;
+  if (opts.chartType !== "bar_chart" && groups[0].nameBySensor) {
+    const lineTypes = new Set(seriesMeta.map((s) => lineTypeForSource(s.source)));
+    if (lineTypes.size > 1) {
+      const parts = [];
+      if (lineTypes.has("dotted")) parts.push("┄ forecaster");
+      if (lineTypes.has("dashed")) parts.push("╌ scheduler");
+      if (lineTypes.has("solid")) parts.push("─ other");
+      sourceKey = {
+        type: "text",
+        left: GRID_LEFT,
+        top: legendsBelow ? bottomLegendTop + legendHeight + 4 : 16,
+        style: { text: "Source:  " + parts.join("    "), fontSize: 11, fill: "#555" },
+      };
+      if (legendsBelow) {
+        container.style.height = bottomLegendTop + legendHeight + 36 + "px";
+      }
+    }
+  }
+
   const allAxisIndices = xAxes.map((_, i) => i);
   const toolbox = toolboxFeatures(elementId, opts.datasetName);
   toolbox.feature.dataZoom.xAxisIndex = allAxisIndices;
 
   return {
+    graphic: sourceKey ? [sourceKey] : undefined,
     grid: grids,
     title: titles,
     xAxis: xAxes,
