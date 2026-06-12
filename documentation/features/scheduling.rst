@@ -47,7 +47,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 Where should you set these fields?
 Within requests to the API or by editing the relevant asset in the UI.
-If they are not sent in via the API (one of the endpoints triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset.
+If they are not sent in via the API (one of the endpoints triggering schedule computation), the scheduler will look them up on the flex-context field of the asset.
 And if the asset belongs to a larger system (a hierarchy of assets), the scheduler will also search if parent assets have them set.
 
 
