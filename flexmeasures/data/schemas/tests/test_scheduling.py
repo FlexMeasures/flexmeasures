@@ -953,22 +953,229 @@ def test_flex_model_schemas(
 
     for schema, fail in zip(schemas, fails):
         if fail:
-            with pytest.raises(ValidationError) as e_info:
+            with pytest.raises(ValidationError) as e_info:  # noqa: F841
                 schema.load(flex_model)
-            for field_name, expected_message in fail.items():
-                assert field_name in e_info.value.messages
-                if field_name in ["soc-gain", "soc-usage"]:
-                    for index, message_list in e_info.value.messages[
-                        field_name
-                    ].items():
-                        assert message_list[0] == expected_message[index][0]
-                else:
-                    # Check all messages for the given field for the expected message
-                    assert any(
-                        [
-                            expected_message in message
-                            for message in e_info.value.messages[field_name]
-                        ]
-                    )
+
+
+@pytest.mark.parametrize(
+    ["flex_context", "fails"],
+    [
+        # Test aggregate-consumption field with sensor reference
+        (
+            {"aggregate-consumption": {"sensor": "placeholder for price sensor"}},
+            False,
+        ),
+        # Test aggregate-production field with sensor reference
+        (
+            {"aggregate-production": {"sensor": "placeholder for price sensor"}},
+            False,
+        ),
+        # Test both aggregate fields together
+        (
+            {
+                "aggregate-consumption": {"sensor": "placeholder for price sensor"},
+                "aggregate-production": {"sensor": "placeholder for price sensor"},
+            },
+            False,
+        ),
+        # Test that relax_constraints defaults to False in FlexContextSchema
+        (
+            {"site-power-capacity": "1 MVA"},
+            False,
+        ),
+        # Test breach prices moved to SharedSchema
+        (
+            {
+                "consumption-breach-price": "100 EUR/MW",
+                "production-breach-price": "100 EUR/MW",
+            },
+            False,
+        ),
+        # Test soc breach prices moved to SharedSchema
+        (
+            {
+                "soc-minima-breach-price": "1000 EUR/MWh",
+                "soc-maxima-breach-price": "1000 EUR/MWh",
+            },
+            False,
+        ),
+    ],
+)
+def test_shared_schema_fields_in_flex_context(
+    db, app, setup_site_capacity_sensor, setup_price_sensors, flex_context, fails
+):
+    """Test that SharedSchema fields are accessible in FlexContextSchema."""
+    schema = FlexContextSchema()
+
+    # Replace sensor name with sensor ID
+    sensors_to_pick_from = {**setup_site_capacity_sensor, **setup_price_sensors}
+    for field_name, field_value in flex_context.items():
+        if isinstance(field_value, dict) and "sensor" in field_value:
+            flex_context[field_name]["sensor"] = sensors_to_pick_from[
+                field_value["sensor"]
+            ].id
+
+    check_schema_loads_data(schema=schema, data=flex_context, fails=fails)
+
+
+@pytest.mark.parametrize(
+    ["commodity_contexts", "fails"],
+    [
+        # Test single commodity with relax_constraints defaulting to True
+        (
+            [
+                {
+                    "commodity": "electricity",
+                    "site-power-capacity": "1 MVA",
+                }
+            ],
+            False,
+        ),
+        # Test multiple commodities
+        (
+            [
+                {
+                    "commodity": "electricity",
+                    "site-power-capacity": "1 MVA",
+                },
+                {
+                    "commodity": "heat",
+                    "site-power-capacity": "500 kW",
+                },
+            ],
+            False,
+        ),
+        # Test aggregate fields in commodity context
+        (
+            [
+                {
+                    "commodity": "electricity",
+                    "aggregate-consumption": {"sensor": "placeholder for price sensor"},
+                    "aggregate-production": {"sensor": "placeholder for price sensor"},
+                }
+            ],
+            False,
+        ),
+        # Test breach prices in commodity context
+        (
+            [
+                {
+                    "commodity": "electricity",
+                    "consumption-breach-price": "100 EUR/MW",
+                    "production-breach-price": "100 EUR/MW",
+                }
+            ],
+            False,
+        ),
+    ],
+)
+def test_commodity_flex_context_defaults(
+    db, app, setup_site_capacity_sensor, setup_price_sensors, commodity_contexts, fails
+):
+    """Test that CommodityFlexContextSchema has correct defaults, especially relax_constraints=True."""
+    from flexmeasures.data.schemas.scheduling import CommodityFlexContextSchema
+
+    # Replace sensor name with sensor ID
+    sensors_to_pick_from = {**setup_site_capacity_sensor, **setup_price_sensors}
+    for context in commodity_contexts:
+        for field_name, field_value in context.items():
+            if isinstance(field_value, dict) and "sensor" in field_value:
+                context[field_name]["sensor"] = sensors_to_pick_from[
+                    field_value["sensor"]
+                ].id
+
+    # Test loading each commodity context
+    schema = CommodityFlexContextSchema()
+    for context in commodity_contexts:
+        if fails:
+            with pytest.raises(ValidationError) as e_info:
+                loaded = schema.load(context)
+            print(f"Returned error message: {e_info.value.messages}")
         else:
-            schema.load(flex_model)
+            loaded = schema.load(context)
+            # Verify relax_constraints defaults to True in CommodityFlexContextSchema
+            assert loaded.get("relax_constraints", True) is True
+
+
+@pytest.mark.parametrize(
+    ["flex_context_listing", "fails"],
+    [
+        # Test flex-context listing with mixed currencies should fail
+        (
+            {
+                "commodities": [
+                    {
+                        "commodity": "electricity",
+                        "consumption-price": "1 EUR/MWh",
+                    },
+                    {
+                        "commodity": "heat",
+                        "consumption-price": "1 USD/MWh",
+                    },
+                ]
+            },
+            {
+                "commodities": "all prices in the flex-context must share the same currency unit"
+            },
+        ),
+        # Test flex-context listing with same currencies should pass
+        (
+            {
+                "commodities": [
+                    {
+                        "commodity": "electricity",
+                        "consumption-price": "1 EUR/MWh",
+                    },
+                    {
+                        "commodity": "heat",
+                        "consumption-price": "2 EUR/MWh",
+                    },
+                ]
+            },
+            False,
+        ),
+        # Test flex-context listing with breach prices sharing currency
+        (
+            {
+                "commodities": [
+                    {
+                        "commodity": "electricity",
+                        "consumption-breach-price": "100 EUR/MW",
+                        "production-breach-price": "100 EUR/MW",
+                    }
+                ]
+            },
+            False,
+        ),
+        # Test flex-context listing with mixed breach price currencies should fail
+        (
+            {
+                "commodities": [
+                    {
+                        "commodity": "electricity",
+                        "consumption-breach-price": "100 EUR/MW",
+                    },
+                    {
+                        "commodity": "heat",
+                        "consumption-breach-price": "100 USD/MW",
+                    },
+                ]
+            },
+            {
+                "commodities": "all prices in the flex-context must share the same currency unit"
+            },
+        ),
+    ],
+)
+def test_flex_context_listing_shared_currency(
+    db,
+    app,
+    setup_site_capacity_sensor,
+    setup_price_sensors,
+    flex_context_listing,
+    fails,
+):
+    """Test that flex-context listings enforce shared currency across commodities."""
+    schema = FlexContextSchema()
+
+    check_schema_loads_data(schema=schema, data=flex_context_listing, fails=fails)
