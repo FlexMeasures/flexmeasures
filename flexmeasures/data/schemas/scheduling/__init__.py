@@ -247,6 +247,58 @@ class SharedSchema(Schema):
         metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
     )
 
+    @validates_schema(pass_original=True)
+    def _try_to_convert_price_units(self, data: dict, original_data: dict, **kwargs):
+        """Convert price units to the same unit and scale if they can (incl. same currency)."""
+
+        shared_currency_unit = None
+        previous_field_name = None
+        for field in self.declared_fields:
+            if field[-5:] == "price" and field in data:
+                price_field = self.declared_fields[field]
+                price_unit = price_field._get_unit(data[field])
+                currency_unit = str(
+                    (
+                        ur.Quantity(price_unit) / ur.Quantity(f"1{price_field.to_unit}")
+                    ).units
+                )
+
+                if shared_currency_unit is None:
+                    shared_currency_unit = str(
+                        ur.Quantity(currency_unit).to_base_units().units
+                    )
+                    previous_field_name = price_field.data_key
+                if not units_are_convertible(currency_unit, shared_currency_unit):
+                    field_name = price_field.data_key
+                    original_price_unit = price_field._get_original_unit(
+                        original_data[field_name], data[field]
+                    )
+                    error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit + price_field.to_unit}' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{original_price_unit}') for the '{field_name}' field."
+                    if shared_currency_unit not in price_unit:
+                        error_message += f" Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
+                    raise ValidationError(error_message, field_name=field_name)
+        if shared_currency_unit is not None:
+            data["shared_currency_unit"] = shared_currency_unit
+        elif sensor := data.get("consumption_price_sensor"):
+            data["shared_currency_unit"] = self._to_currency_per_mwh(sensor.unit)
+        elif sensor := data.get("production_price_sensor"):
+            data["shared_currency_unit"] = self._to_currency_per_mwh(sensor.unit)
+        else:
+            data["shared_currency_unit"] = "EUR"
+        return data
+
+    @staticmethod
+    def _to_currency_per_mwh(price_unit: str) -> str:
+        """Convert a price unit to a base currency used to express that price per MWh.
+
+        >>> FlexContextSchema()._to_currency_per_mwh("EUR/MWh")
+        'EUR'
+        >>> FlexContextSchema()._to_currency_per_mwh("EUR/kWh")
+        'EUR'
+        """
+        currency = str(ur.Quantity(price_unit + " * MWh").to_base_units().units)
+        return currency
+
 
 class CommodityFlexContextSchema(SharedSchema):
     commodity = fields.Str(
@@ -422,7 +474,6 @@ class FlexContextSchema(SharedSchema):
         # make sure that the prices fields are valid price units
 
         # All prices must share the same unit
-        data = self._try_to_convert_price_units(data, original_data)
         shared_currency = ur.Quantity(data["shared_currency_unit"])
 
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
@@ -465,57 +516,6 @@ class FlexContextSchema(SharedSchema):
             )
 
         return data
-
-    def _try_to_convert_price_units(self, data: dict, original_data: dict):
-        """Convert price units to the same unit and scale if they can (incl. same currency)."""
-
-        shared_currency_unit = None
-        previous_field_name = None
-        for field in self.declared_fields:
-            if field[-5:] == "price" and field in data:
-                price_field = self.declared_fields[field]
-                price_unit = price_field._get_unit(data[field])
-                currency_unit = str(
-                    (
-                        ur.Quantity(price_unit) / ur.Quantity(f"1{price_field.to_unit}")
-                    ).units
-                )
-
-                if shared_currency_unit is None:
-                    shared_currency_unit = str(
-                        ur.Quantity(currency_unit).to_base_units().units
-                    )
-                    previous_field_name = price_field.data_key
-                if not units_are_convertible(currency_unit, shared_currency_unit):
-                    field_name = price_field.data_key
-                    original_price_unit = price_field._get_original_unit(
-                        original_data[field_name], data[field]
-                    )
-                    error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit + price_field.to_unit}' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{original_price_unit}') for the '{field_name}' field."
-                    if shared_currency_unit not in price_unit:
-                        error_message += f" Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
-                    raise ValidationError(error_message, field_name=field_name)
-        if shared_currency_unit is not None:
-            data["shared_currency_unit"] = shared_currency_unit
-        elif sensor := data.get("consumption_price_sensor"):
-            data["shared_currency_unit"] = self._to_currency_per_mwh(sensor.unit)
-        elif sensor := data.get("production_price_sensor"):
-            data["shared_currency_unit"] = self._to_currency_per_mwh(sensor.unit)
-        else:
-            data["shared_currency_unit"] = "EUR"
-        return data
-
-    @staticmethod
-    def _to_currency_per_mwh(price_unit: str) -> str:
-        """Convert a price unit to a base currency used to express that price per MWh.
-
-        >>> FlexContextSchema()._to_currency_per_mwh("EUR/MWh")
-        'EUR'
-        >>> FlexContextSchema()._to_currency_per_mwh("EUR/kWh")
-        'EUR'
-        """
-        currency = str(ur.Quantity(price_unit + " * MWh").to_base_units().units)
-        return currency
 
 
 EXAMPLE_UNIT_TYPES: Dict[str, list[str]] = {
