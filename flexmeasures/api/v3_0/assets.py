@@ -96,12 +96,14 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
         kwargs["exclude"] = ["asset"]
         super().__init__(*args, **kwargs)
 
-    flex_context = fields.Nested(
-        flex_context_schema_openAPI,
+    flex_context = fields.List(
+        fields.Nested(
+            flex_context_schema_openAPI(),
+        ),
         required=True,
         data_key="flex-context",
         metadata=dict(
-            description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+            description="Flex-context per commodity. The flex-context is validated according to the scheduler's `FlexContextSchema`.",
         ),
     )
     flex_model = fields.List(

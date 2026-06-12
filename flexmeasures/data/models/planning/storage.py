@@ -8,7 +8,7 @@ from typing import Type
 import pandas as pd
 import numpy as np
 from flask import current_app
-
+from marshmallow import ValidationError
 
 from flexmeasures import Asset, Sensor
 from flexmeasures.data import db
@@ -32,6 +32,7 @@ from flexmeasures.data.models.planning.utils import (
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import (
+    CommodityFlexContextSchema,
     FlexContextSchema,
     MultiSensorFlexModelSchema,
 )
@@ -1300,6 +1301,8 @@ class MetaStorageScheduler(Scheduler):
             for d, flex_model_d in enumerate(flex_model):
                 commitment = FlowCommitment(
                     device=d,
+                    # todo: is flex_model_d guaranteed to have "commodity? Consider defaulting the device commodity to "electricity"
+                    # todo: should there not be something matching the "commodity" from the commitment_spec (default to "electricity") to the device commodity?
                     device_group=flex_model_d["commodity"],
                     **commitment_spec,
                 )
@@ -1337,8 +1340,48 @@ class MetaStorageScheduler(Scheduler):
             self.flex_model = {}
 
         self.collect_flex_config()
-        self.flex_context = FlexContextSchema().load(self.flex_context)
+        self._deserialize_flex_context()
+        self._deserialize_flex_model()
 
+    def _deserialize_flex_context(self):
+        if isinstance(self.flex_context, dict):
+            # Load the one flex-context for electricity
+            self.flex_context = FlexContextSchema().load(self.flex_context)
+        elif isinstance(self.flex_context, list):
+            # Load each flex-context per commodity
+            for g, commodity_flex_context in enumerate(self.flex_context):
+                self.flex_context[g] = CommodityFlexContextSchema().load(
+                    commodity_flex_context
+                )
+
+            # Ensure all flex-contexts share the same currency unit
+            # todo: move this into a validator for FlexContextSchema.commodity_contexts?
+            shared_currency_unit = None
+            for commodity_flex_context in self.flex_context:
+                shared_currency_unit = commodity_flex_context["shared_currency_unit"]
+                if shared_currency_unit is None:
+                    shared_currency_unit = commodity_flex_context[
+                        "shared_currency_unit"
+                    ]
+                elif (
+                    commodity_flex_context["shared_currency_unit"]
+                    != shared_currency_unit
+                ):
+                    raise ValidationError(
+                        f"All prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
+                    )
+
+            # Nest the flex-contexts per commodity under the commodity_contexts field
+            self.flex_context = dict(
+                commodity_contexts=self.flex_context,
+                shared_currency_unit=shared_currency_unit,
+            )
+        else:
+            raise TypeError(
+                f"Unsupported type of flex-context: '{type(self.flex_context)}'"
+            )
+
+    def _deserialize_flex_model(self):
         if isinstance(self.flex_model, dict):
             if self.sensor.generic_asset.asset_type.name in storage_asset_types:
                 self.ensure_soc_at_start()
