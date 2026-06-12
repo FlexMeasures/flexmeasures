@@ -15,7 +15,7 @@ from flask import current_app
 def merge_or_append(
     item: dict[str, Any],
     items: list[dict[str, Any]],
-    match_key: str | None = None,
+    match_key: str,
     match_value: str | None = None,
 ) -> None:
     """Merge `item` into the first dictionary in `items` with the same value for `key`, preserving its position in the sequence.
