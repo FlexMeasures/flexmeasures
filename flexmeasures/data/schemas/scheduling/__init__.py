@@ -536,7 +536,7 @@ class FlexContextSchema(SharedSchema):
         # make sure that the prices fields are valid price units
 
         # All prices must share the same unit
-        self._try_to_convert_price_units(data, original_data)
+        data = self._try_to_convert_price_units(data, original_data)
         shared_currency = ur.Quantity(data["shared_currency_unit"])
 
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
