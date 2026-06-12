@@ -190,10 +190,9 @@ The field may define (a sensor recording) contractual penalties, or a theoretica
 
 COMMODITY = MetaData(
     description="""Commodity type for this storage flex-model.
-Allowed values are ``electricity`` and ``gas``.
 Defaults to ``electricity``.
 """,
-    example="electricity",
+    examples=["electricity", "gas"],
 )
 CONSUMPTION = MetaData(
     description="""Sensor used to record the scheduled power as seen from a consumption perspective.

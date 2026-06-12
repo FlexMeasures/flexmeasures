@@ -249,8 +249,8 @@ class SharedSchema(Schema):
 class CommodityFlexContextSchema(SharedSchema):
     commodity = fields.Str(
         required=True,
-        validate=validate.OneOf(["electricity", "gas"]),
         data_key="commodity",
+        metadata=metadata.COMMODITY.to_dict(),
     )
 
 
@@ -512,6 +512,7 @@ class FlexContextSchema(SharedSchema):
 
 
 EXAMPLE_UNIT_TYPES: Dict[str, list[str]] = {
+    "commodity": ["electricity", "gas"],
     "energy-price": ["EUR/MWh", "JPY/kWh", "USD/MWh", "and other currencies."],
     "power-price": ["EUR/kW", "JPY/kW", "USD/kW", "and other currencies."],
     "power": ["MW", "kW"],
@@ -801,7 +802,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
             "backend": "typeOne",
             "ui": "One fixed value only.",
         },
-        "options": ["electricity", "gas"],
+        "example-units": EXAMPLE_UNIT_TYPES["commodity"],
     },
 }
 
