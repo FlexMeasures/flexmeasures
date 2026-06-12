@@ -80,6 +80,8 @@ def test_ui_flexcontext_schema():
         "consumption-price-sensor",
         "production-price-sensor",
         "commodities",  # todo: https://github.com/FlexMeasures/flexmeasures/issues/2230
+        "aggregate-consumption",  # todo: add UI support for aggregate fields
+        "aggregate-production",  # todo: add UI support for aggregate fields
     ]
 
     schema_keys = []
