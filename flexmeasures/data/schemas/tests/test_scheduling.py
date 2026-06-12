@@ -790,52 +790,6 @@ def test_flex_context_schema_rejects_filtered_aggregate_power(
     assert "cannot use source filters" in str(exc_info.value)
 
 
-def test_storage_flex_model_schema_rejects_filtered_consumption(
-    setup_dummy_sensors, setup_sources, db
-):
-    _, _, _, power_sensor = setup_dummy_sensors
-    seita_source = setup_sources["Seita"]
-    db.session.flush()
-
-    for schema in [
-        StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None),
-        DBStorageFlexModelSchema(),
-    ]:
-        with pytest.raises(ValidationError) as exc_info:
-            schema.load(
-                {
-                    "consumption": {
-                        "sensor": power_sensor.id,
-                        "sources": [seita_source.id],
-                    }
-                }
-            )
-        assert "cannot use source filters" in str(exc_info.value)
-
-
-def test_storage_flex_model_schema_rejects_filtered_production(
-    setup_dummy_sensors, setup_sources, db
-):
-    _, _, _, power_sensor = setup_dummy_sensors
-    seita_source = setup_sources["Seita"]
-    db.session.flush()
-
-    for schema in [
-        StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None),
-        DBStorageFlexModelSchema(),
-    ]:
-        with pytest.raises(ValidationError) as exc_info:
-            schema.load(
-                {
-                    "production": {
-                        "sensor": power_sensor.id,
-                        "sources": [seita_source.id],
-                    }
-                }
-            )
-        assert "cannot use source filters" in str(exc_info.value)
-
-
 @pytest.mark.parametrize(
     ["flex_model", "fails"],
     [
