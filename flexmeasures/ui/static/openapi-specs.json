@@ -6163,6 +6163,15 @@
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",
         "properties": {
+          "commodity": {
+            "type": "string",
+            "default": "electricity",
+            "description": "Commodity on which this device acts.\nDefaults to <code>\"electricity\"</code>.\n",
+            "examples": [
+              "electricity",
+              "gas"
+            ]
+          },
           "consumption": {
             "description": "Sensor used to record the scheduled power as seen from a consumption perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nDepending on which output sensors are defined:\n\n- <strong>Only</strong> <code>consumption</code> <strong>defined</strong>: the full power schedule is stored on this sensor using the\n  consumption-positive sign convention (consumption positive, production negative).\n- <strong>Only</strong> <code>production</code> <strong>defined</strong>: the full power schedule is stored on the production sensor\n  with the production-positive convention (production positive, consumption negative).\n- <strong>Both defined</strong>: only the non-negative part of the schedule is stored on this sensor (zero for\n  time steps with net production), and only the non-positive part (sign-flipped) is stored on the\n  production sensor.\n",
             "example": {
@@ -6319,15 +6328,6 @@
               }
             ],
             "items": {}
-          },
-          "commodity": {
-            "type": "string",
-            "default": "electricity",
-            "description": "Commodity on which this device acts.\nDefaults to <code>\"electricity\"</code>.\n",
-            "examples": [
-              "electricity",
-              "gas"
-            ]
           },
           "sensor": {
             "type": "integer",
