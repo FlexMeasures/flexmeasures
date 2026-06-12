@@ -27,7 +27,7 @@
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { decompressChartData, checkDSTTransitions, checkSourceMasking } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
-    import { renderFastChart, disposeFastChart } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
+    import { renderFastChart, disposeFastChart, setFastChartReplayTime } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
     import { beginChartLoad, recordRender, finishChartLoad } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-perf.js') }}?v={{ flexmeasures_version }}";
 
     // Global variables (Module scoped)
@@ -214,8 +214,9 @@
                         item.classList.remove('active');
                     }
                 });
-                // Chart types only apply to the Vega-Lite chart
+                // In fast mode, re-render with the newly selected chart type
                 if (fastMode) {
+                    updateFastChart();
                     return;
                 }
                 // Reload daterange
@@ -683,6 +684,17 @@
         }
     }
 
+    // Options for the fast chart renderer, mirroring the Vega-Lite chart settings
+    function fastChartOptions() {
+        return {
+            groupSpec: fastChartGroupSpec,
+            // chart types (bar/histogram/heatmap) only apply on the sensor page
+            chartType: ('{{ active_page }}' === 'sensors') ? chartType : 'line',
+            legendsBelow: {{ 'true' if session.get("keep_legends_below_graphs") else 'false' }},
+            datasetName: datasetName,
+        };
+    }
+
     // Re-render the fast chart from the most recently fetched data (no-op outside fast mode)
     function updateFastChart() {
         if (!fastMode || !previousResult || !previousResult.data) { return; }
@@ -691,7 +703,7 @@
         const fastDiv = document.getElementById(fastChartElementId);
         if (vegaDiv) { vegaDiv.style.display = 'none'; }
         if (fastDiv) { fastDiv.style.display = 'block'; }
-        renderFastChart(fastChartElementId, previousResult.data, { groupSpec: fastChartGroupSpec });
+        renderFastChart(fastChartElementId, previousResult.data, fastChartOptions());
     }
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
@@ -737,18 +749,7 @@
         });
     }
 
-    function replayUnavailableInFastMode() {
-        if (fastMode) {
-            showToast("Replay needs the standard chart. Switch off the fast chart to use replay.", "info");
-            return true;
-        }
-        return false;
-    }
-
     function stepReplay() {
-        if (replayUnavailableInFastMode()) {
-            return;
-        }
         if (toggle.classList.contains('stopped')) {
             startReplay();
             pauseReplay();
@@ -761,9 +762,6 @@
     }
 
     function toggleReplay() {
-        if (replayUnavailableInFastMode()) {
-            return;
-        }
         if (toggle.classList.contains('stopped')) {
             startReplay();
         } else if (toggle.classList.contains('playing')) {
@@ -792,6 +790,14 @@
         controller.abort();
         controller = new AbortController();
         signal = controller.signal;
+
+        // In fast mode: clear the replay ruler and re-render the most recent data
+        if (fastMode) {
+            setFastChartReplayTime(fastChartElementId, null);
+            updateFastChart();
+            document.getElementById('replay-time').innerHTML = '';
+            return;
+        }
 
         // Remove replay ruler and replay time
         if (!vegaView) {
@@ -878,21 +884,26 @@
                 // Update beliefs in the replayed data given the new data
                 replayedData = updateBeliefs(replayedData, newData);
 
-                if (!vegaView) {
-                    break;
-                }
+                if (fastMode) {
+                    setFastChartReplayTime(fastChartElementId, beliefTime.getTime());
+                    renderFastChart(fastChartElementId, replayedData, fastChartOptions());
+                } else {
+                    if (!vegaView) {
+                        break;
+                    }
 
-                /** When selecting a longer time period (more than a week), the replay slows down a bit. This
-                 * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
-                 * loading that data into the graph takes 30-200 ms, depending on how much data is shown in the
-                 * graph. After trying different approaches, we fell back to the original approach of telling vega
-                 * to remove all previous data and to insert a completely new dataset at each iteration. Updating
-                 * the view with removing only a few data points (representing obsolete beliefs) and inserting only
-                 * a few data points (representing the most recent new beliefs) actually made it slower.
-                 */
-                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData));
-                vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({ 'belief_time': beliefTime }));
-                vegaView.run().finalize();
+                    /** When selecting a longer time period (more than a week), the replay slows down a bit. This
+                     * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
+                     * loading that data into the graph takes 30-200 ms, depending on how much data is shown in the
+                     * graph. After trying different approaches, we fell back to the original approach of telling vega
+                     * to remove all previous data and to insert a completely new dataset at each iteration. Updating
+                     * the view with removing only a few data points (representing obsolete beliefs) and inserting only
+                     * a few data points (representing the most recent new beliefs) actually made it slower.
+                     */
+                    vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData));
+                    vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({ 'belief_time': beliefTime }));
+                    vegaView.run().finalize();
+                }
 
                 document.getElementById('replay-time').innerHTML = beliefTime;
 
