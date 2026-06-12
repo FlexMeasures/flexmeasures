@@ -1358,16 +1358,10 @@ class MetaStorageScheduler(Scheduler):
             # Extend schedule period in case a target exceeds its end
             self.possibly_extend_end(soc_targets=self.flex_model.get("soc_targets"))
         elif isinstance(self.flex_model, list):
-            # todo: ensure_soc_min_max in case the device is a storage (see line 847)
             self.flex_model = MultiSensorFlexModelSchema(many=True).load(
                 self.flex_model
             )
             for d, sensor_flex_model in enumerate(self.flex_model):
-                # todo: this fails but I'm not sure about the reason(haven't looked into it deeply yet).
-                # sensor_flex_model["sensor_flex_model"] = self.ensure_soc_at_start(
-                #     flex_model=sensor_flex_model["sensor_flex_model"],
-                #     sensor=sensor_flex_model.get("sensor"),
-                # )
                 soc_sensor_id = (
                     sensor_flex_model["sensor_flex_model"]
                     .get("state-of-charge", {})
