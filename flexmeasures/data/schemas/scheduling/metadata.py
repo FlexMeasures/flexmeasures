@@ -50,11 +50,11 @@ COMMITMENTS = MetaData(
     example=[],
 )
 CONSUMPTION_PRICE = MetaData(
-    description="The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. [#old_consumption_price_field]_",
+    description="The commodity price (e.g. electricity price) applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. [#old_consumption_price_field]_",
     examples=[{"sensor": 5}, "0.29 EUR/kWh"],
 )
 PRODUCTION_PRICE = MetaData(
-    description="The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. [#old_production_price_field]_",
+    description="The commodity price (e.g. electricity price) applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. [#old_production_price_field]_",
     example="0.12 EUR/kWh",
 )
 SITE_POWER_CAPACITY = MetaData(
@@ -309,14 +309,14 @@ Defaults to 100% (no roundtrip loss). [#quantity_field]_
     example="90%",
 )
 CHARGING_EFFICIENCY = MetaData(
-    description="""One-way conversion efficiency from electricity to the storage's state of charge.
+    description="""One-way conversion efficiency from the commodity (e.g. electricity) to the storage's state of charge.
 Can be a percentage, a ratio in the range [0,1], or a coefficient of performance (>1).
 Defaults to 100% (no conversion loss).
 """,
     example=".9",
 )
 DISCHARGING_EFFICIENCY = MetaData(
-    description="""One-way conversion efficiency from the storage's state of charge to electricity.
+    description="""One-way conversion efficiency from the storage's state of charge to the commodity (e.g. electricity).
 Defaults to 100% (no conversion loss).""",
     example="90%",
 )
