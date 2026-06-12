@@ -759,21 +759,16 @@ def test_building_solver_day_2(
         soc_max, ur.Quantity(battery.get_attribute("soc-max")).to("MWh").magnitude
     )
 
-    if market_scenario == "dynamic contract":
-        # Result after 8 hours: Sell what you begin with (high prices drive full discharge)
-        assert soc_schedule.loc[start + timedelta(hours=8)] == soc_min_value
-        # Result after second 8 hour-interval: Buy as much as possible (low prices)
-        assert soc_schedule.loc[start + timedelta(hours=16)] == soc_max_value
-        # Result at end of day: Sold out at end of planning horizon
-        assert soc_schedule.iloc[-1] == soc_min_value
-    else:
-        # fixed contract: inflexible devices are not included in the energy commitment
-        # coupling under the new multi-commodity scheduler, so price-based scheduling
-        # drives the result independently of the inflexible load profile.
-        # The battery partially discharges early and fully discharges near end of day.
-        assert soc_schedule.loc[start + timedelta(hours=8)] == 2.0
-        assert soc_schedule.loc[start + timedelta(hours=16)] == 2.0
-        assert soc_schedule.iloc[-1] == soc_min_value
+    # In both scenarios the battery should fully discharge in the first 8 hours,
+    # fully charge in the next 8, and fully discharge again in the last 8 (driven by
+    # 1) the dynamic price profile, or 2) the net-consumption/net-production profile of
+    # the inflexible devices, which are part of the electricity commodity device group).
+    # Result after 8 hours: discharged as far as possible.
+    assert soc_schedule.loc[start + timedelta(hours=8)] == soc_min_value
+    # Result after second 8 hour-interval: charged as far as possible.
+    assert soc_schedule.loc[start + timedelta(hours=16)] == soc_max_value
+    # Result at end of day: discharged as far as possible.
+    assert soc_schedule.iloc[-1] == soc_min_value
 
 
 def test_soc_bounds_timeseries(db, add_battery_assets):
@@ -1388,8 +1383,14 @@ def test_capacity(
     assert all(device_constraints[0]["derivative min"] == -expected_capacity)
     assert all(device_constraints[0]["derivative max"] == expected_capacity)
 
-    assert all(ems_constraints["derivative min"] == expected_site_production_capacity)
-    assert all(ems_constraints["derivative max"] == expected_site_consumption_capacity)
+    # EMS constraints are kept per commodity; this single-battery case has only the
+    # default "electricity" commodity, so its constraints are in ems_constraints[0].
+    assert all(
+        ems_constraints[0]["derivative min"] == expected_site_production_capacity
+    )
+    assert all(
+        ems_constraints[0]["derivative max"] == expected_site_consumption_capacity
+    )
 
 
 @pytest.mark.parametrize(
@@ -1669,7 +1670,8 @@ def test_battery_power_capacity_as_sensor(
 
     data_to_solver = scheduler._prepare()
     device_constraints = data_to_solver[5][0]
-    ems_constraints = data_to_solver[6]
+    # EMS constraints are kept per commodity; index [0] selects the "electricity" group.
+    ems_constraints = data_to_solver[6][0]
 
     assert all(device_constraints["derivative min"].values == expected_production)
     assert all(device_constraints["derivative max"].values == expected_consumption)

@@ -137,7 +137,7 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
 
     # Assert costs
     expected_ev_costs = 2.2375
-    expected_battery_costs = -7.565
+    expected_battery_costs = -4.415
     assert (
         ev_costs == expected_ev_costs
     ), f"EV cost should be {expected_ev_costs} €, got {ev_costs} €"

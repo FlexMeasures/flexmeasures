@@ -764,9 +764,18 @@ def test_mixed_gas_and_electricity_assets(app, db):
     ]
 
     flex_context = {
-        "consumption-price": "100 EUR/MWh",  # electricity price
-        "production-price": "100 EUR/MWh",
-        "gas-price": "50 EUR/MWh",  # gas price
+        "commodities": [
+            {
+                "commodity": "electricity",
+                "consumption-price": "100 EUR/MWh",  # electricity price
+                "production-price": "100 EUR/MWh",
+            },
+            {
+                "commodity": "gas",
+                "consumption-price": "50 EUR/MWh",  # gas price
+                "production-price": "50 EUR/MWh",
+            },
+        ]
     }
 
     scheduler = StorageScheduler(
