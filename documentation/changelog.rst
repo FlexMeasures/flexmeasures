@@ -11,11 +11,14 @@ New features
 -------------
 * Floor off-clock API datetimes to a non-instantaneous sensor's resolution by default when ingesting sensor data, uploading sensor data, and handling scheduler flex-model timed events; configurable with the ``floor_datetimes_to_resolution`` sensor attribute [see `PR #2146 <https://www.github.com/FlexMeasures/flexmeasures/pull/2146>`_]
 * Sensor references in flex-model and flex-context support various ways of filtering by source [see `PR #2209 <https://www.github.com/FlexMeasures/flexmeasures/pull/2209>`_]
+* New opt-in "Fast chart" mode on asset and sensor pages: a canvas-based chart (powered by Apache ECharts) with LTTB downsampling, mouse-wheel zooming, panning and a range slider, for much snappier interaction on dense time series
 
 
 Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_ and `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_]
+* Faster chart rendering: Vega-Lite charts now render to canvas instead of SVG, and the bundled vega (5.22.1 → 5.33.1), vega-lite (5.5.0 → 5.23.0) and vega-embed (6.21.0 → 6.29.0) versions were upgraded, picking up several years of performance improvements
+* Chart load performance reports: pages that load a chart now show a small report panel (and console log) with network, render and total timings per load; chart spec and data requests bypass the browser HTTP cache so every load measures a real call
 * Prepare the ``device_scheduler`` to deal with commitments per device group [see `PR #1934 <https://www.github.com/FlexMeasures/flexmeasures/pull/1934>`_]
 * Documentation section on the modelling choice for recording measurements, forecasts and schedules under one or multiple sensors [see `PR #2217 <https://www.github.com/FlexMeasures/flexmeasures/pull/2217>`_]
 
