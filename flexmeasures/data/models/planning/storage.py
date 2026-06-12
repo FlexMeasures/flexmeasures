@@ -101,7 +101,13 @@ class MetaStorageScheduler(Scheduler):
         if "electricity" not in commodity_contexts:
             commodity_contexts["electricity"] = {}
             for key, value in self.flex_context.items():
-                if key not in ("gas_price", "relax_constraints"):
+                if key not in (
+                    "gas_price",
+                    "relax_constraints",
+                    "relax_soc_constraints",
+                    "relax_capacity_constraints",
+                    "relax_site_capacity_constraints",
+                ):
                     commodity_contexts["electricity"][key] = value
 
         return commodity_contexts
