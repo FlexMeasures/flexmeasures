@@ -1783,10 +1783,20 @@ class AssetAPI(FlaskView):
         # permission is sufficient (any account member may add children to an asset).
         # When creating a top-level asset (no parent), we fall back to the account-level
         # create-children check, which requires account-admin or consultant.
+        # Special case: public-to-public copies (both None) require site admin.
         if resolved_parent is not None:
             check_access(resolved_parent, "create-children")
-        else:
+        elif resolved_account is not None:
             check_access(resolved_account, "create-children")
+        else:
+            # Public asset copy (account_id=None, parent_asset_id=None).
+            # Only site admins may create public assets.
+            if not running_as_cli() and not user_has_admin_access(
+                current_user, "update"
+            ):
+                raise Forbidden(
+                    "Only site admins may create public assets (account_id=None)."
+                )
 
         try:
             new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)

@@ -439,7 +439,7 @@ def _update_sensor_refs_in_subtree(
 
 def _copy_asset_subtree(
     source_asset: GenericAsset,
-    destination_account_id: int,
+    destination_account_id: int | None,
     destination_parent_asset_id: int | None,
     asset_schema: AssetSchema,
     add_copy_suffix: bool,
@@ -492,7 +492,7 @@ def _copy_asset_subtree(
 
 def _determine_copy_name(
     source_name: str,
-    destination_account_id: int,
+    destination_account_id: int | None,
     destination_parent_asset_id: int | None,
 ) -> str:
     """Return the next available copy name for the destination context.
@@ -583,13 +583,19 @@ def copy_asset(
         asset_schema = AssetSchema()
 
         if account is None and parent_asset is None:
-            target_account_id = int(asset.account_id)
+            target_account_id = (
+                int(asset.account_id) if asset.account_id is not None else None
+            )
             target_parent_asset_id = asset.parent_asset_id
         elif account is not None and parent_asset is None:
             target_account_id = int(account.id)
             target_parent_asset_id = None
         elif account is None and parent_asset is not None:
-            target_account_id = int(parent_asset.account_id)
+            target_account_id = (
+                int(parent_asset.account_id)
+                if parent_asset.account_id is not None
+                else None
+            )
             target_parent_asset_id = int(parent_asset.id)
         else:
             target_account_id = int(account.id)

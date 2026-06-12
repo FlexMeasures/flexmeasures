@@ -380,14 +380,13 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
 
             // Attach listener after button is added to DOM
             const btn = col.querySelector(".js-copy-from-tab-btn");
-            btn.addEventListener("click", function () {
+            btn.addEventListener("click", async function () {
                 const assetId = btn.dataset.assetId;
                 let url = "/api/v3_0/assets/" + assetId + "/copy";
                 if (parentAssetId) {
-                    url += "?parent_id=" + parentAssetId;
-                } else {
-                    url += "?parent_id=" + assetId;
+                    url += "?parent=" + parentAssetId;
                 }
+
                 btn.disabled = true;
                 showToast("Creating asset from template…", "info");
                 fetch(url, { method: "POST", credentials: "same-origin" })
@@ -398,7 +397,7 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
                     .then(function (data) {
                         showToast("Asset created successfully.", "success");
                         setTimeout(function () {
-                            window.location.href = "/assets/" + data.asset + "/properties";
+                           window.location.href = "/assets/" + data.asset + "/properties";
                         }, 2000);
                     })
                     .catch(function (err) {
