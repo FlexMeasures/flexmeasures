@@ -6323,10 +6323,6 @@
           "commodity": {
             "type": "string",
             "default": "electricity",
-            "enum": [
-              "electricity",
-              "gas"
-            ],
             "description": "Commodity on which this device acts.\nDefaults to <code>\"electricity\"</code>.\n",
             "examples": [
               "electricity",
