@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from collections import OrderedDict
 from datetime import timedelta
 from typing import Any, Callable, Dict
 
@@ -140,9 +142,141 @@ class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
     pass
 
 
-class FlexContextSchema(Schema):
+class SharedSchema(Schema):
+    consumption_price = VariableQuantityField(
+        "/MWh",
+        required=False,
+        data_key="consumption-price",
+        return_magnitude=False,
+        metadata=metadata.CONSUMPTION_PRICE.to_dict(),
+    )
+
+    production_price = VariableQuantityField(
+        "/MWh",
+        required=False,
+        data_key="production-price",
+        return_magnitude=False,
+        metadata=metadata.PRODUCTION_PRICE.to_dict(),
+    )
+
+    ems_power_capacity_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-power-capacity",
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_POWER_CAPACITY.to_dict(),
+    )
+
+    ems_consumption_capacity_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-consumption-capacity",
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_CONSUMPTION_CAPACITY.to_dict(),
+    )
+
+    ems_production_capacity_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-production-capacity",
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PRODUCTION_CAPACITY.to_dict(),
+    )
+
+    ems_consumption_breach_price = VariableQuantityField(
+        "/MW",
+        data_key="site-consumption-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_CONSUMPTION_BREACH_PRICE.to_dict(),
+    )
+
+    ems_production_breach_price = VariableQuantityField(
+        "/MW",
+        data_key="site-production-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PRODUCTION_BREACH_PRICE.to_dict(),
+    )
+
+    ems_peak_consumption_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-peak-consumption",
+        value_validator=validate.Range(min=0),
+        load_default=ur.Quantity("0 kW"),
+        metadata=metadata.SITE_PEAK_CONSUMPTION.to_dict(),
+    )
+
+    ems_peak_consumption_price = VariableQuantityField(
+        "/MW",
+        data_key="site-peak-consumption-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PEAK_CONSUMPTION_PRICE.to_dict(),
+    )
+
+    ems_peak_production_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-peak-production",
+        value_validator=validate.Range(min=0),
+        load_default=ur.Quantity("0 kW"),
+        metadata=metadata.SITE_PEAK_PRODUCTION.to_dict(),
+    )
+
+    ems_peak_production_price = VariableQuantityField(
+        "/MW",
+        data_key="site-peak-production-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PEAK_PRODUCTION_PRICE.to_dict(),
+    )
+
+    commitments = fields.Nested(
+        CommitmentSchema,
+        data_key="commitments",
+        required=False,
+        many=True,
+        metadata=metadata.COMMITMENTS.to_dict(),
+    )
+
+    inflexible_device_sensors = fields.List(
+        SensorIdField(),
+        data_key="inflexible-device-sensors",
+        metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
+    )
+
+
+class CommodityFlexContextSchema(SharedSchema):
+    commodity = fields.Str(
+        required=False,
+        load_default="electricity",
+        data_key="commodity",
+        metadata=metadata.COMMODITY_FLEX_CONTEXT.to_dict(),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        commodity_field = self.fields.pop("commodity")
+        self.fields = OrderedDict(
+            [("commodity", commodity_field), *self.fields.items()]
+        )
+
+
+class FlexContextSchema(SharedSchema):
     """This schema defines fields that provide context to the portfolio to be optimized."""
 
+    commodity_contexts = fields.Nested(
+        CommodityFlexContextSchema,
+        data_key="commodities",
+        required=False,
+        many=True,
+        metadata=dict(
+            description="For multi-commodity scheduling problems, the above fields can be set here per commodity.",
+        ),
+    )
     # Device commitments
     consumption_breach_price = VariableQuantityField(
         "/MW",
@@ -195,109 +329,11 @@ class FlexContextSchema(Schema):
     )
 
     # Energy commitments
-    ems_power_capacity_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-power-capacity",
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_POWER_CAPACITY.to_dict(),
-    )
     # todo: deprecated since flexmeasures==0.23
     consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
     production_price_sensor = SensorIdField(data_key="production-price-sensor")
-    consumption_price = VariableQuantityField(
-        "/MWh",
-        required=False,
-        data_key="consumption-price",
-        return_magnitude=False,
-        metadata=metadata.CONSUMPTION_PRICE.to_dict(),
-    )
-    production_price = VariableQuantityField(
-        "/MWh",
-        required=False,
-        data_key="production-price",
-        return_magnitude=False,
-        metadata=metadata.PRODUCTION_PRICE.to_dict(),
-    )
 
-    # Capacity breach commitments
-    ems_production_capacity_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-production-capacity",
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_PRODUCTION_CAPACITY.to_dict(),
-    )
-    ems_consumption_capacity_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-consumption-capacity",
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_CONSUMPTION_CAPACITY.to_dict(),
-    )
-    ems_consumption_breach_price = VariableQuantityField(
-        "/MW",
-        data_key="site-consumption-breach-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_CONSUMPTION_BREACH_PRICE.to_dict(),
-    )
-    ems_production_breach_price = VariableQuantityField(
-        "/MW",
-        data_key="site-production-breach-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_PRODUCTION_BREACH_PRICE.to_dict(),
-    )
-
-    # Peak consumption commitment
-    ems_peak_consumption_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-peak-consumption",
-        value_validator=validate.Range(min=0),
-        load_default=ur.Quantity("0 kW"),
-        metadata=metadata.SITE_PEAK_CONSUMPTION.to_dict(),
-    )
-    ems_peak_consumption_price = VariableQuantityField(
-        "/MW",
-        data_key="site-peak-consumption-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_PEAK_CONSUMPTION_PRICE.to_dict(),
-    )
-
-    # Peak production commitment
-    ems_peak_production_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-peak-production",
-        value_validator=validate.Range(min=0),
-        load_default=ur.Quantity("0 kW"),
-        metadata=metadata.SITE_PEAK_PRODUCTION.to_dict(),
-    )
-    ems_peak_production_price = VariableQuantityField(
-        "/MW",
-        data_key="site-peak-production-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_PEAK_PRODUCTION_PRICE.to_dict(),
-    )
     # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
-
-    commitments = fields.Nested(
-        CommitmentSchema,
-        data_key="commitments",
-        required=False,
-        many=True,
-        metadata=metadata.COMMITMENTS.to_dict(),
-    )
-
-    inflexible_device_sensors = fields.List(
-        SensorIdField(),
-        data_key="inflexible-device-sensors",
-        metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
-    )
     aggregate_power = VariableQuantityField(
         to_unit="MW",
         data_key="aggregate-power",
@@ -483,6 +519,7 @@ class FlexContextSchema(Schema):
 
 
 EXAMPLE_UNIT_TYPES: Dict[str, list[str]] = {
+    "commodity": ["electricity", "gas"],
     "energy-price": ["EUR/MWh", "JPY/kWh", "USD/MWh", "and other currencies."],
     "power-price": ["EUR/kW", "JPY/kW", "USD/kW", "and other currencies."],
     "power": ["MW", "kW"],
@@ -760,6 +797,15 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "commodity": {
+        "default": "electricity",
+        "description": rst_to_openapi(metadata.COMMODITY_FLEX_MODEL.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "One fixed value only.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["commodity"],
+    },
 }
 
 
@@ -908,7 +954,17 @@ class MultiSensorFlexModelSchema(Schema):
             and data["sensor"].asset != data["asset"]
         ):
             raise ValidationError("Sensor does not belong to asset.")
-        if "sensor" not in data and "asset" not in data:
+        # if (
+        #     "state-of-charge" in data["sensor_flex_model"]
+        #     and "asset" in data
+        #     and data["sensor_flex_model"]["state-of-charge"].asset != data["asset"]
+        # ):
+        #     raise ValidationError("Sensor does not belong to asset.")
+        if (
+            "sensor" not in data
+            and "state-of-charge" not in data["sensor_flex_model"]
+            and "asset" not in data
+        ):
             raise ValidationError("Specify either a sensor or an asset.")
 
     @pre_load

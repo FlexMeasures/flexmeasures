@@ -29,6 +29,8 @@ from flexmeasures.utils.unit_utils import (
     is_energy_unit,
 )
 
+ALLOWED_COMMODITIES = {"electricity", "gas"}
+
 #  Telling type hints what to expect after schema parsing
 SoCTarget = TypedDict(
     "SoCTarget",
@@ -93,6 +95,12 @@ class StorageFlexModelSchema(Schema):
     asset = GenericAssetIdField(
         required=False,
         metadata=dict(description="ID of the asset that is requested to be scheduled."),
+    )
+
+    commodity = fields.Str(
+        data_key="commodity",
+        load_default="electricity",
+        metadata=metadata.COMMODITY_FLEX_MODEL.to_dict(),
     )
 
     consumption = fields.Nested(
@@ -404,6 +412,11 @@ class StorageFlexModelSchema(Schema):
                     f"Fields `{field}` and `roundtrip_efficiency` are mutually exclusive."
                 )
 
+    @validates("commodity")
+    def validate_commodity(self, commodity: str, **kwargs):
+        if not isinstance(commodity, str) or not commodity.strip():
+            raise ValidationError("commodity must be a non-empty string.")
+
     @post_load
     def post_load_sequence(self, data: dict, **kwargs) -> dict:
         """Perform some checks and corrections after we loaded."""
@@ -556,6 +569,14 @@ class DBStorageFlexModelSchema(Schema):
         required=False,
         value_validator=validate.Range(min=0),
         metadata={"deprecated field": "production_capacity"},
+    )
+
+    commodity = fields.Str(
+        required=False,
+        data_key="commodity",
+        load_default="electricity",
+        validate=OneOf(["electricity", "gas"]),
+        metadata=dict(description="Commodity label for this device/asset."),
     )
 
     mapped_schema_keys: dict

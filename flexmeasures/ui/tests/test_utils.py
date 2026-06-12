@@ -79,6 +79,7 @@ def test_ui_flexcontext_schema():
         "relax-site-capacity-constraints",
         "consumption-price-sensor",
         "production-price-sensor",
+        "commodities",  # todo: https://github.com/FlexMeasures/flexmeasures/issues/2230
     ]
 
     schema_keys = []

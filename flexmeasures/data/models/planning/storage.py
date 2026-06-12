@@ -78,6 +78,31 @@ class MetaStorageScheduler(Scheduler):
 
         return self.compute()
 
+    def _get_commodity_contexts(self) -> dict[str, dict]:
+        """Return commodity-specific flex-contexts.
+
+        Supports the new format:
+
+            "commodities": [
+                {"commodity": "electricity", ...},
+                {"commodity": "gas", ...},
+            ]
+
+        and keeps backwards compatibility with old top-level fields.
+        """
+
+        commodity_contexts = {}
+
+        for commodity_context in self.flex_context.get("commodity_contexts", []):
+            commodity = commodity_context["commodity"]
+            commodity_contexts[commodity] = commodity_context
+
+        # Backwards-compatible electricity defaults from old top-level fields.
+        if "electricity" not in commodity_contexts:
+            commodity_contexts["electricity"] = self.flex_context
+
+        return commodity_contexts
+
     def _prepare(self, skip_validation: bool = False) -> tuple:  # noqa: C901
         """This function prepares the required data to compute the schedule:
             - price data
@@ -96,13 +121,100 @@ class MetaStorageScheduler(Scheduler):
         resolution = self.resolution
         belief_time = self.belief_time
 
+        # For backwards compatibility with the single asset scheduler
+        # Track whether we started with a single dict (single-sensor mode) or a list
+        is_single_sensor_mode = not isinstance(self.flex_model, list)
+        flex_model = self.flex_model.copy()
+        if not isinstance(flex_model, list):
+            flex_model = [flex_model]
+
+        # Identify stock models: entries not defining a power sensor, but only a (state-of-charge) sensor
+        self.stock_models = {}
+
+        device_models = []  # everything except stock models
+        stock_models = {}  # stock models only
+
+        missing_soc_sensor_i = -len(flex_model)
+        for fm in flex_model:
+
+            # stock model: entry in the flex-model list where the sensor key is the state-of-charge sensor of the device (e.g. a stock)
+            # Only apply this detection in multi-device mode; in single-sensor mode the power sensor is self.sensor (not in the fm dict)
+            if (
+                not is_single_sensor_mode
+                and fm.get("sensor") is None
+                and (soc_sensor := fm.get("state_of_charge"))
+            ):
+                stock_models[
+                    soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
+                ] = fm
+                continue
+
+            """
+            [
+              {
+                "sensor": 1,
+                "charging-efficiency": 0.9,
+                "state-of-charge": {"sensor": 2},
+              },
+              {
+                "sensor": 3,
+                "charging-efficiency": 0.9,
+                "state-of-charge": {"sensor": 2},
+              },
+              {
+                "state-of-charge": {"sensor": 2},
+                "storage-efficiency": 0.99,
+              },
+            ]
+            """
+
+            # Check if this is a stock-only model (no power sensor)
+            # Stock-only entries have SOC parameters but no power sensor
+            # Only apply in multi-device mode; single-sensor mode devices have no "sensor" key by design
+            soc_sensor = fm.get("state_of_charge")
+            if (
+                not is_single_sensor_mode
+                and fm.get("sensor") is None
+                and soc_sensor is not None
+            ):
+                # This is a stock-only entry, add to stock_models only
+                soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
+                stock_models[soc_id] = fm
+                continue
+
+            # device model: entry in the flex-model list where the sensor key is the power sensor of the device (e.g. a feeder)
+            device_models.append(fm)
+
+            # If this device has state-of-charge parameters (soc-at-start, soc-min, etc.),
+            # also create a stock model entry so those parameters are properly captured
+            if soc_sensor is not None:
+                soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
+                # Check if there are SOC parameters in this device entry
+                has_soc_params = any(
+                    param in fm
+                    for param in ["soc_at_start", "soc_min", "soc_max", "soc_targets"]
+                )
+                if has_soc_params:
+                    stock_models[soc_id] = fm
+            elif fm.get("state_of_charge") is None:
+                stock_models[missing_soc_sensor_i] = fm
+                missing_soc_sensor_i += 1
+
+        flex_model = device_models
+        self.stock_models = stock_models
+        self._device_models = (
+            device_models  # Store filtered model for later use in _build_soc_schedule
+        )
+
+        # Rebuild stock_groups using only device_models (which have sensors)
+        # This ensures the mapping aligns with the device indices
+        self.stock_groups = self._build_stock_groups(device_models)
+
         # List the asset(s) and sensor(s) being scheduled
         if self.asset is not None:
             if not isinstance(self.flex_model, list):
                 self.flex_model = [self.flex_model]
-            sensors: list[Sensor | None] = [
-                flex_model_d.get("sensor") for flex_model_d in self.flex_model
-            ]
+            sensors: list[Sensor | None] = [fm.get("sensor") for fm in device_models]
             assets: list[Asset | None] = [  # noqa: F841
                 s.asset if s is not None else flex_model_d.get("asset")
                 for s, flex_model_d in zip(sensors, self.flex_model)
@@ -120,31 +232,44 @@ class MetaStorageScheduler(Scheduler):
             asset = self.sensor.generic_asset
             assets = [asset]  # noqa: F841
 
-        # For backwards compatibility with the single asset scheduler
-        flex_model = self.flex_model.copy()
-        if not isinstance(flex_model, list):
-            flex_model = [flex_model]
+        num_flexible_devices = len(device_models)
 
-        # total number of flexible devices D described in the flex-model
-        num_flexible_devices = len(flex_model)
+        soc_at_start = [None] * num_flexible_devices
+        soc_targets = [None] * num_flexible_devices
+        soc_min = [None] * num_flexible_devices
+        soc_max = [None] * num_flexible_devices
+        soc_minima = [None] * num_flexible_devices
+        soc_maxima = [None] * num_flexible_devices
+        soc_gain = [None] * num_flexible_devices
+        soc_usage = [None] * num_flexible_devices
+        prefer_charging_sooner = [None] * num_flexible_devices
+        prefer_curtailing_later = [None] * num_flexible_devices
 
-        soc_at_start = [flex_model_d.get("soc_at_start") for flex_model_d in flex_model]
-        soc_targets = [flex_model_d.get("soc_targets") for flex_model_d in flex_model]
-        soc_min = [flex_model_d.get("soc_min") for flex_model_d in flex_model]
-        soc_max = [flex_model_d.get("soc_max") for flex_model_d in flex_model]
-        soc_minima = [flex_model_d.get("soc_minima") for flex_model_d in flex_model]
-        soc_maxima = [flex_model_d.get("soc_maxima") for flex_model_d in flex_model]
+        # Assign SOC constraints from stock model to the first device in each group
+        for stock_id, devices in self.stock_groups.items():
+
+            stock_model = self.stock_models.get(stock_id)
+
+            if stock_model is None:
+                continue
+
+            d0 = devices[0]
+
+            soc_at_start[d0] = stock_model.get("soc_at_start")
+            soc_targets[d0] = stock_model.get("soc_targets")
+            soc_min[d0] = stock_model.get("soc_min")
+            soc_max[d0] = stock_model.get("soc_max")
+            soc_minima[d0] = stock_model.get("soc_minima")
+            soc_maxima[d0] = stock_model.get("soc_maxima")
+            soc_gain[d0] = stock_model.get("soc_gain")
+            soc_usage[d0] = stock_model.get("soc_usage")
+            prefer_charging_sooner[d0] = stock_model.get("prefer_charging_sooner")
+            prefer_curtailing_later[d0] = stock_model.get("prefer_curtailing_later")
+
+        # todo: move storage-efficiency into a shared parameter for the first device belonging to a shared storage
         storage_efficiency = [
             flex_model_d.get("storage_efficiency") for flex_model_d in flex_model
         ]
-        prefer_charging_sooner = [
-            flex_model_d.get("prefer_charging_sooner") for flex_model_d in flex_model
-        ]
-        prefer_curtailing_later = [
-            flex_model_d.get("prefer_curtailing_later") for flex_model_d in flex_model
-        ]
-        soc_gain = [flex_model_d.get("soc_gain") for flex_model_d in flex_model]
-        soc_usage = [flex_model_d.get("soc_usage") for flex_model_d in flex_model]
         consumption = [flex_model_d.get("consumption") for flex_model_d in flex_model]
         production = [flex_model_d.get("production") for flex_model_d in flex_model]
         consumption_capacity = [
@@ -161,279 +286,392 @@ class MetaStorageScheduler(Scheduler):
         ]
 
         # Get info from flex-context
-        consumption_price_sensor = self.flex_context.get("consumption_price_sensor")
-        production_price_sensor = self.flex_context.get("production_price_sensor")
-        consumption_price = self.flex_context.get(
-            "consumption_price", consumption_price_sensor
-        )
-        production_price = self.flex_context.get(
-            "production_price", production_price_sensor
-        )
-        # fallback to using the consumption price, for backwards compatibility
-        if production_price is None:
-            production_price = consumption_price
         inflexible_device_sensors = self.flex_context.get(
             "inflexible_device_sensors", []
         )
 
-        # Fetch the device's power capacity (required Sensor attribute)
+        # Fetch the device's power capacity required by the device constraints.
         power_capacity_in_mw = self._get_device_power_capacity(flex_model, assets)
 
-        # Check for known prices or price forecasts
-        up_deviation_prices = get_continuous_series_sensor_or_quantity(
-            variable_quantity=consumption_price,
-            unit=self.flex_context["shared_currency_unit"] + "/MWh",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fill_sides=True,
-        ).to_frame(name="event_value")
-        ensure_prices_are_not_empty(up_deviation_prices, consumption_price)
-        down_deviation_prices = get_continuous_series_sensor_or_quantity(
-            variable_quantity=production_price,
-            unit=self.flex_context["shared_currency_unit"] + "/MWh",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fill_sides=True,
-        ).to_frame(name="event_value")
-        ensure_prices_are_not_empty(down_deviation_prices, production_price)
-
+        # Convert to UTC before fetching time series.
         start = pd.Timestamp(start).tz_convert("UTC")
         end = pd.Timestamp(end).tz_convert("UTC")
 
-        # Create Series with EMS capacities
-        ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_context.get("ems_power_capacity_in_mw"),
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            resolve_overlaps="min",
-        )
-        ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_context.get("ems_consumption_capacity_in_mw"),
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            max_value=ems_power_capacity_in_mw,
-            resolve_overlaps="min",
-        )
-        ems_production_capacity = -1 * get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_context.get("ems_production_capacity_in_mw"),
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            max_value=ems_power_capacity_in_mw,
-            resolve_overlaps="min",
-        )
-
-        # Set up commitments to optimise for
+        # Set up commitments to optimise for.
         commitments = self.convert_to_commitments(
-            query_window=(start, end), resolution=resolution, beliefs_before=belief_time
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=belief_time,
+            flex_model=flex_model,
         )
 
         index = initialize_index(start, end, resolution)
         commitment_quantities = initialize_series(0, start, end, resolution)
 
-        # Convert energy prices to EUR/(deviation of commitment, which is in MW)
-        commitment_upwards_deviation_price = (
-            up_deviation_prices.loc[start : end - resolution]["event_value"]
-            * resolution
-            / pd.Timedelta("1h")
+        # EMS constraints are kept per commodity (one device group per commodity).
+        #
+        # The site-power / site-consumption / site-production capacities
+        # are enforced as hard EMS-level constraints (derivative max/min). Because each
+        # commodity has its own set of devices, ``ems_constraints`` is a list of
+        # DataFrames and ``ems_constraint_groups`` lists the device indices each
+        # DataFrame applies to. The device_scheduler then bounds the summed flow of each
+        # commodity's devices separately (instead of summing across all commodities).
+        #
+        # The commodity-specific breach/peak penalties below remain modelled as
+        # FlowCommitments on top of these hard constraints.
+        ems_constraints: list[pd.DataFrame] = []
+        ems_constraint_groups: list[list[int]] = []
+
+        def device_list_series(
+            devices: list[int], index: pd.DatetimeIndex
+        ) -> pd.Series:
+            return pd.Series([tuple(devices)] * len(index), index=index, name="device")
+
+        commodity_to_devices = {}
+        for d, flex_model_d in enumerate(flex_model):
+            commodity = flex_model_d.get("commodity", "electricity")
+            commodity_to_devices.setdefault(commodity, []).append(d)
+
+        # inflexible devices are electricity by default
+        number_flexible_devices = len(flex_model)
+        number_inflexible_devices = len(
+            self.flex_context.get("inflexible_device_sensors", [])
         )
-        commitment_downwards_deviation_price = (
-            down_deviation_prices.loc[start : end - resolution]["event_value"]
-            * resolution
-            / pd.Timedelta("1h")
+        num_flexible_devices = len(flex_model)
+        commodity_to_devices["electricity"] += list(
+            range(
+                number_flexible_devices,
+                number_flexible_devices + number_inflexible_devices,
+            )
         )
 
-        # Set up commitments DataFrame
-        commitment = FlowCommitment(
-            name="energy",
-            quantity=commitment_quantities,
-            upwards_deviation_price=commitment_upwards_deviation_price,
-            downwards_deviation_price=commitment_downwards_deviation_price,
-            index=index,
-        )
-        commitments.append(commitment)
+        commodity_contexts = self._get_commodity_contexts()
+        price_frames_by_commodity = {}
 
-        # Set up peak commitments
-        if self.flex_context.get("ems_peak_consumption_price") is not None:
-            ems_peak_consumption = get_continuous_series_sensor_or_quantity(
-                variable_quantity=self.flex_context.get("ems_peak_consumption_in_mw"),
+        for commodity, devices in commodity_to_devices.items():
+            commodity_devices = device_list_series(devices, index)
+            commodity_context = commodity_contexts.get(commodity, {})
+
+            # Get info from commodity_context
+            consumption_price_sensor = commodity_context.get("consumption_price_sensor")
+            production_price_sensor = commodity_context.get("production_price_sensor")
+            consumption_price = commodity_context.get(
+                "consumption_price", consumption_price_sensor
+            )
+            production_price = commodity_context.get(
+                "production_price", production_price_sensor
+            )
+
+            if production_price is None:
+                production_price = consumption_price
+
+            if consumption_price is None:
+                raise ValueError(
+                    f"Missing consumption price for commodity '{commodity}'."
+                )
+
+            # Energy prices for this commodity.
+            up_deviation_prices = get_continuous_series_sensor_or_quantity(
+                variable_quantity=consumption_price,
+                unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fill_sides=True,
+            ).to_frame(name="event_value")
+            ensure_prices_are_not_empty(up_deviation_prices, consumption_price)
+
+            down_deviation_prices = get_continuous_series_sensor_or_quantity(
+                variable_quantity=production_price,
+                unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fill_sides=True,
+            ).to_frame(name="event_value")
+            ensure_prices_are_not_empty(down_deviation_prices, production_price)
+
+            price_frames_by_commodity[commodity] = up_deviation_prices
+
+            # Convert energy prices to price per MW deviation for one resolution step.
+            up_price = (
+                up_deviation_prices.loc[start : end - resolution]["event_value"]
+                * resolution
+                / pd.Timedelta("1h")
+            )
+            down_price = (
+                down_deviation_prices.loc[start : end - resolution]["event_value"]
+                * resolution
+                / pd.Timedelta("1h")
+            )
+
+            commitments.append(
+                FlowCommitment(
+                    name=f"{commodity} net energy",
+                    quantity=commitment_quantities,
+                    upwards_deviation_price=up_price,
+                    downwards_deviation_price=down_price,
+                    commodity=commodity,
+                    index=index,
+                    device=commodity_devices,
+                    device_group=commodity,
+                )
+            )
+
+            # Commodity-specific site capacities.
+            # These are not written into ems_constraints. Instead, they are added as
+            # FlowCommitments that only aggregate the devices of this commodity.
+            ems_power_capacity = get_continuous_series_sensor_or_quantity(
+                variable_quantity=commodity_context.get("ems_power_capacity_in_mw"),
                 unit="MW",
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
-                fill_sides=True,
-            )
-            ems_peak_consumption_price = self.flex_context.get(
-                "ems_peak_consumption_price"
-            )
-            ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_peak_consumption_price,
-                unit=self.flex_context["shared_currency_unit"] + "/MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
+                resolve_overlaps="min",
             )
 
-            # Set up commitments DataFrame
-            commitment = FlowCommitment(
-                name="consumption peak",
-                quantity=ems_peak_consumption,
-                # positive price because breaching in the upwards (consumption) direction is penalized
-                upwards_deviation_price=ems_peak_consumption_price,
-                _type="any",
-                index=index,
-            )
-            commitments.append(commitment)
-        if self.flex_context.get("ems_peak_production_price") is not None:
-            ems_peak_production = get_continuous_series_sensor_or_quantity(
-                variable_quantity=self.flex_context.get("ems_peak_production_in_mw"),
+            ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
+                variable_quantity=commodity_context.get(
+                    "ems_consumption_capacity_in_mw"
+                ),
                 unit="MW",
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
-                fill_sides=True,
+                max_value=ems_power_capacity,
+                resolve_overlaps="min",
             )
-            ems_peak_production_price = self.flex_context.get(
-                "ems_peak_production_price"
-            )
-            ems_peak_production_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_peak_production_price,
-                unit=self.flex_context["shared_currency_unit"] + "/MW",
+
+            ems_production_capacity = -1 * get_continuous_series_sensor_or_quantity(
+                variable_quantity=commodity_context.get(
+                    "ems_production_capacity_in_mw"
+                ),
+                unit="MW",
                 query_window=(start, end),
                 resolution=resolution,
                 beliefs_before=belief_time,
-                fill_sides=True,
+                max_value=ems_power_capacity,
+                resolve_overlaps="min",
             )
 
-            # Set up commitments DataFrame
-            commitment = FlowCommitment(
-                name="production peak",
-                quantity=-ems_peak_production,  # production is negative quantity
-                # negative price because peaking in the downwards (production) direction is penalized
-                downwards_deviation_price=-ems_peak_production_price,
-                _type="any",
-                index=index,
+            # Commodity-specific peak consumption commitment.
+            if commodity_context.get("ems_peak_consumption_price") is not None:
+                ems_peak_consumption = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=commodity_context.get(
+                        "ems_peak_consumption_in_mw"
+                    ),
+                    unit="MW",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
+                    fill_sides=True,
+                )
+                ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=commodity_context.get(
+                        "ems_peak_consumption_price"
+                    ),
+                    unit=self.flex_context["shared_currency_unit"] + "/MW",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                )
+
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} consumption peak",
+                        quantity=ems_peak_consumption,
+                        upwards_deviation_price=ems_peak_consumption_price,
+                        _type="any",
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
+                )
+
+            # Commodity-specific peak production commitment.
+            if commodity_context.get("ems_peak_production_price") is not None:
+                ems_peak_production = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=commodity_context.get(
+                        "ems_peak_production_in_mw"
+                    ),
+                    unit="MW",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    max_value=np.inf,  # np.nan -> np.inf to ignore commitment if no quantity is given
+                    fill_sides=True,
+                )
+                ems_peak_production_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=commodity_context.get(
+                        "ems_peak_production_price"
+                    ),
+                    unit=self.flex_context["shared_currency_unit"] + "/MW",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                )
+
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} production peak",
+                        quantity=-ems_peak_production,  # production is negative quantity
+                        # negative price because peaking in the downwards (production) direction is penalized
+                        downwards_deviation_price=-ems_peak_production_price,
+                        _type="any",
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
+                )
+
+            # Set up capacity breach commitments and EMS capacity constraints
+            ems_consumption_breach_price = commodity_context.get(
+                "ems_consumption_breach_price"
             )
-            commitments.append(commitment)
-
-        # Set up capacity breach commitments and EMS capacity constraints
-        ems_consumption_breach_price = self.flex_context.get(
-            "ems_consumption_breach_price"
-        )
-
-        ems_production_breach_price = self.flex_context.get(
-            "ems_production_breach_price"
-        )
-
-        ems_constraints = initialize_df(
-            StorageScheduler.COLUMNS, start, end, resolution
-        )
-        if ems_consumption_breach_price is not None:
-
-            # Convert to Series
-            any_ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_consumption_breach_price,
-                unit=self.flex_context["shared_currency_unit"] + "/MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
-            all_ems_consumption_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_consumption_breach_price,
-                unit=self.flex_context["shared_currency_unit"]
-                + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
+            ems_production_breach_price = commodity_context.get(
+                "ems_production_breach_price"
             )
 
-            # Set up commitments DataFrame to penalize any breach
-            commitment = FlowCommitment(
-                name="any consumption breach",
-                quantity=ems_consumption_capacity,
-                # positive price because breaching in the upwards (consumption) direction is penalized
-                upwards_deviation_price=any_ems_consumption_breach_price,
-                _type="any",
-                index=index,
-            )
-            commitments.append(commitment)
+            # Commodity-specific site consumption breach.
+            if ems_consumption_breach_price is not None:
 
-            # Set up commitments DataFrame to penalize each breach
-            commitment = FlowCommitment(
-                name="all consumption breaches",
-                quantity=ems_consumption_capacity,
-                # positive price because breaching in the upwards (consumption) direction is penalized
-                upwards_deviation_price=all_ems_consumption_breach_price,
-                index=index,
-            )
-            commitments.append(commitment)
+                # Convert to Series
+                any_ems_consumption_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=ems_consumption_breach_price,
+                        unit=self.flex_context["shared_currency_unit"] + "/MW",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                all_ems_consumption_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=ems_consumption_breach_price,
+                        unit=self.flex_context["shared_currency_unit"]
+                        + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
 
-            # Take the physical capacity as a hard constraint
-            ems_constraints["derivative max"] = ems_power_capacity_in_mw
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} any consumption breach",
+                        quantity=ems_consumption_capacity,
+                        # positive price because breaching in the upwards (consumption) direction is penalized
+                        upwards_deviation_price=any_ems_consumption_breach_price,
+                        _type="any",
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
+                )
+
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} all consumption breaches",
+                        quantity=ems_consumption_capacity,
+                        # positive price because breaching in the upwards (consumption) direction is penalized
+                        upwards_deviation_price=all_ems_consumption_breach_price,
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
+                )
+
+            # Commodity-specific site production breach.
+            if ems_production_breach_price is not None:
+
+                # Convert to Series
+                any_ems_production_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=ems_production_breach_price,
+                        unit=self.flex_context["shared_currency_unit"] + "/MW",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                all_ems_production_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=ems_production_breach_price,
+                        unit=self.flex_context["shared_currency_unit"]
+                        + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+
+                # Set up commitments DataFrame to penalize any breach
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} any production breach",
+                        quantity=ems_production_capacity,
+                        # negative price because breaching in the downwards (production) direction is penalized
+                        downwards_deviation_price=-any_ems_production_breach_price,
+                        _type="any",
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
+                )
+                # Set up commitments DataFrame to penalize each breach
+                commitments.append(
+                    FlowCommitment(
+                        name=f"{commodity} all production breaches",
+                        quantity=ems_production_capacity,
+                        # negative price because breaching in the downwards (production) direction is penalized
+                        downwards_deviation_price=-all_ems_production_breach_price,
+                        index=index,
+                        device=commodity_devices,
+                        device_group=commodity,
+                        commodity=commodity,
+                    )
+                )
+
+            # Hard EMS-level capacity constraint for this commodity's device group.
+            # If a breach price is set, the physical power capacity is the
+            # hard limit (the contracted capacity is then only softly penalised via the
+            # breach commitments above); otherwise the contracted capacity itself is the
+            # hard limit.
+            commodity_ems_constraints = initialize_df(
+                StorageScheduler.COLUMNS, start, end, resolution
+            )
+            if ems_consumption_breach_price is not None:
+                commodity_ems_constraints["derivative max"] = ems_power_capacity
+            else:
+                commodity_ems_constraints["derivative max"] = ems_consumption_capacity
+            if ems_production_breach_price is not None:
+                commodity_ems_constraints["derivative min"] = -ems_power_capacity
+            else:
+                commodity_ems_constraints["derivative min"] = ems_production_capacity
+            ems_constraints.append(commodity_ems_constraints)
+            ems_constraint_groups.append(list(devices))
+
+        # Keep one price frame for later preference logic.
+        # The existing "prefer charging sooner" code uses `up_deviation_prices`.
+        # Prefer electricity prices if available, otherwise use the first commodity price.
+        if "electricity" in price_frames_by_commodity:
+            up_deviation_prices = price_frames_by_commodity["electricity"]
+        elif price_frames_by_commodity:
+            up_deviation_prices = next(iter(price_frames_by_commodity.values()))
         else:
-            # Take the contracted capacity as a hard constraint
-            ems_constraints["derivative max"] = ems_consumption_capacity
-
-        if ems_production_breach_price is not None:
-
-            # Convert to Series
-            any_ems_production_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_production_breach_price,
-                unit=self.flex_context["shared_currency_unit"] + "/MW",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
-            all_ems_production_breach_price = get_continuous_series_sensor_or_quantity(
-                variable_quantity=ems_production_breach_price,
-                unit=self.flex_context["shared_currency_unit"]
-                + "/MW*h",  # from EUR/MWh to EUR/MW/resolution
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            )
-
-            # Set up commitments DataFrame to penalize any breach
-            commitment = FlowCommitment(
-                name="any production breach",
-                quantity=ems_production_capacity,
-                # negative price because breaching in the downwards (production) direction is penalized
-                downwards_deviation_price=-any_ems_production_breach_price,
-                _type="any",
-                index=index,
-            )
-            commitments.append(commitment)
-
-            # Set up commitments DataFrame to penalize each breach
-            commitment = FlowCommitment(
-                name="all production breaches",
-                quantity=ems_production_capacity,
-                # negative price because breaching in the downwards (production) direction is penalized
-                downwards_deviation_price=-all_ems_production_breach_price,
-                index=index,
-            )
-            commitments.append(commitment)
-
-            # Take the physical capacity as a hard constraint
-            ems_constraints["derivative min"] = -ems_power_capacity_in_mw
-        else:
-            # Take the contracted capacity as a hard constraint
-            ems_constraints["derivative min"] = ems_production_capacity
-
+            raise ValueError("No commodity prices were available.")
         # Commitments per device
 
         # StockCommitment per device to prefer a full storage by penalizing not being full
@@ -651,7 +889,15 @@ class MetaStorageScheduler(Scheduler):
                 # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
                 soc_maxima[d] = None
 
-            if soc_at_start[d] is not None:
+            # only apply SOC constraints to the first device of a shared stock
+            apply_soc_constraints = True
+
+            for stock_id, devices in self.stock_groups.items():
+                if d in devices and d != devices[0]:
+                    apply_soc_constraints = False
+                    break
+
+            if soc_at_start[d] is not None and apply_soc_constraints:
                 device_constraints[d] = add_storage_constraints(
                     start,
                     end,
@@ -964,6 +1210,42 @@ class MetaStorageScheduler(Scheduler):
                         + message
                     )
 
+        # --- apply shared stock groups
+        # Store original stock_delta values for use in _build_soc_schedule
+        original_stock_deltas = [
+            device_constraints[d]["stock delta"].copy()
+            for d in range(len(device_constraints))
+        ]
+
+        if hasattr(self, "stock_groups") and self.stock_groups:
+            for stock_id, devices in self.stock_groups.items():
+
+                if len(devices) <= 1:
+                    continue
+
+                d0 = devices[0]
+
+                # Combine all stock_deltas on the primary device
+                # This ensures the optimizer sees a single shared stock
+                combined_delta = sum(
+                    device_constraints[d]["stock delta"] for d in devices
+                )
+                device_constraints[d0]["stock delta"] = combined_delta
+
+                # Secondary devices: zero out stock_delta (it's now in primary) but keep power contribution
+                for d in devices[1:]:
+                    # Zero out stock_delta since it's now in primary device's combined_delta
+                    device_constraints[d]["stock delta"] = 0
+
+                    # disable stock bounds for secondary devices
+                    device_constraints[d]["equals"] = np.nan
+                    device_constraints[d]["min"] = np.nan
+                    device_constraints[d]["max"] = np.nan
+
+        # Store original stock_deltas for use in _build_soc_schedule
+        self.original_stock_deltas = original_stock_deltas
+        # Device indices each EMS constraint DataFrame applies to (one group per commodity).
+        self.ems_constraint_groups = ems_constraint_groups
         return (
             sensors,
             start,
@@ -977,6 +1259,7 @@ class MetaStorageScheduler(Scheduler):
 
     def convert_to_commitments(
         self,
+        flex_model,
         **timing_kwargs,
     ) -> list[FlowCommitment | StockCommitment]:
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
@@ -1014,7 +1297,13 @@ class MetaStorageScheduler(Scheduler):
             commitment_spec["index"] = initialize_index(
                 start, end, timing_kwargs["resolution"]
             )
-            commitments.append(FlowCommitment(**commitment_spec))
+            for d, flex_model_d in enumerate(flex_model):
+                commitment = FlowCommitment(
+                    device=d,
+                    device_group=flex_model_d["commodity"],
+                    **commitment_spec,
+                )
+                commitments.append(commitment)
 
         return commitments
 
@@ -1069,18 +1358,25 @@ class MetaStorageScheduler(Scheduler):
             # Extend schedule period in case a target exceeds its end
             self.possibly_extend_end(soc_targets=self.flex_model.get("soc_targets"))
         elif isinstance(self.flex_model, list):
-            # todo: ensure_soc_min_max in case the device is a storage (see line 847)
             self.flex_model = MultiSensorFlexModelSchema(many=True).load(
                 self.flex_model
             )
             for d, sensor_flex_model in enumerate(self.flex_model):
-                sensor_flex_model["sensor_flex_model"] = self.ensure_soc_at_start(
-                    flex_model=sensor_flex_model["sensor_flex_model"],
-                    sensor=sensor_flex_model.get("sensor"),
+                soc_sensor_id = (
+                    sensor_flex_model["sensor_flex_model"]
+                    .get("state-of-charge", {})
+                    .get("sensor", None)
                 )
+                soc_sensor = None
+                if soc_sensor_id is not None:
+                    soc_sensor = Sensor.query.filter_by(id=soc_sensor_id).first()
                 self.flex_model[d] = StorageFlexModelSchema(
                     start=self.start,
-                    sensor=sensor_flex_model.get("sensor"),
+                    sensor=(
+                        sensor_flex_model.get("sensor")
+                        if sensor_flex_model.get("sensor") is not None
+                        else soc_sensor
+                    ),
                     default_soc_unit=sensor_flex_model["sensor_flex_model"].get(
                         "soc-unit"
                     ),
@@ -1093,6 +1389,7 @@ class MetaStorageScheduler(Scheduler):
                     soc_targets=self.flex_model[d].get("soc_targets"),
                     sensor=self.flex_model[d]["sensor"],
                 )
+            self.stock_groups = self._build_stock_groups(self.flex_model)
 
         else:
             raise TypeError(
@@ -1588,61 +1885,114 @@ class StorageScheduler(MetaStorageScheduler):
     @staticmethod
     def _build_soc_schedule(
         flex_model: list[dict],
-        ems_schedule: pd.DataFrame,
+        ems_schedule: list[pd.Series],
         soc_at_start: list[float],
         device_constraints: list,
         resolution: timedelta,
+        stock_groups: dict[int, list[int]],
     ) -> dict:
-        """Build the state-of-charge schedule for each device that has a state-of-charge sensor.
+        """Build the state-of-charge schedule for each stock group.
 
-        Converts the integrated power schedule from MWh to the sensor's unit.
-        For sensors with a '%' unit, the soc-max flex-model field is used as capacity.
-        If soc-max is missing or zero for a '%' sensor, the schedule is skipped with a warning.
+        Supports both:
+        - original logic: one device per stock group
+        - local/shared-stock logic: multiple devices contribute to one shared stock
 
-        Note: soc-max is a QuantityField (not a VariableQuantityField), so it is always a float
-        after deserialization and cannot be a sensor reference. The isinstance guard below is
-        therefore a defensive check for forward-compatibility.
+        For shared stock groups, each device contribution is integrated separately with
+        its own efficiencies and stock delta, then summed on top of the shared initial stock.
+
+        Converts the integrated stock schedule from MWh to the state-of-charge sensor unit.
+        For '%' sensors, the soc-max flex-model field is used as capacity.
         """
         soc_schedule = {}
-        for d, flex_model_d in enumerate(flex_model):
-            state_of_charge_sensor = flex_model_d.get("state_of_charge", None)
+
+        for stock_id, devices in stock_groups.items():
+            if not devices:
+                continue
+
+            d0 = devices[0]
+            flex_model_d0 = flex_model[d0]
+
+            state_of_charge_sensor = flex_model_d0.get("state_of_charge")
             if isinstance(state_of_charge_sensor, SensorReference):
                 state_of_charge_sensor = state_of_charge_sensor.sensor
             if not isinstance(state_of_charge_sensor, Sensor):
                 continue
+
+            # Build the SoC series for this stock group
+            if len(devices) > 1:
+                soc_contributions = []
+                reference_index = None
+
+                for d in devices:
+                    contribution = integrate_time_series(
+                        series=ems_schedule[d],
+                        initial_stock=0,
+                        stock_delta=device_constraints[d]["stock delta"]
+                        * resolution
+                        / timedelta(hours=1),
+                        up_efficiency=device_constraints[d]["derivative up efficiency"],
+                        down_efficiency=device_constraints[d][
+                            "derivative down efficiency"
+                        ],
+                        storage_efficiency=device_constraints[d]["efficiency"]
+                        .astype(float)
+                        .fillna(1),
+                    )
+                    soc_contributions.append(contribution)
+
+                    if reference_index is None:
+                        reference_index = contribution.index
+
+                initial_stock = soc_at_start[d0] if soc_at_start[d0] is not None else 0
+                soc = pd.Series(
+                    [
+                        initial_stock
+                        + sum(contrib.iloc[i] for contrib in soc_contributions)
+                        for i in range(len(soc_contributions[0]))
+                    ],
+                    index=reference_index,
+                )
+            else:
+                soc = integrate_time_series(
+                    series=ems_schedule[d0],
+                    initial_stock=soc_at_start[d0],
+                    stock_delta=device_constraints[d0]["stock delta"]
+                    * resolution
+                    / timedelta(hours=1),
+                    up_efficiency=device_constraints[d0]["derivative up efficiency"],
+                    down_efficiency=device_constraints[d0][
+                        "derivative down efficiency"
+                    ],
+                    storage_efficiency=device_constraints[d0]["efficiency"]
+                    .astype(float)
+                    .fillna(1),
+                )
+
+            # Convert to sensor unit
             soc_unit = state_of_charge_sensor.unit
             capacity = None
             if soc_unit == "%":
-                soc_max = flex_model_d.get("soc_max")
+                soc_max = flex_model_d0.get("soc_max")
                 if isinstance(soc_max, (Sensor, SensorReference)):
                     raise ValueError(
-                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
-                        "soc-max as a sensor reference is not supported for '%' unit conversion. "
-                        "Skipping state-of-charge schedule."
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor "
+                        f"{state_of_charge_sensor.id}: soc-max as a sensor reference is "
+                        "not supported for '%' unit conversion."
                     )
                 if not soc_max:
                     raise ValueError(
-                        f"Cannot convert state-of-charge schedule to '%' unit for sensor {state_of_charge_sensor.id}: "
-                        "soc-max is missing or zero. Skipping state-of-charge schedule."
+                        f"Cannot convert state-of-charge schedule to '%' unit for sensor "
+                        f"{state_of_charge_sensor.id}: soc-max is missing or zero."
                     )
-                capacity = f"{soc_max} MWh"  # all flex model fields are in MWh by now
+                capacity = f"{soc_max} MWh"
+
             soc_schedule[state_of_charge_sensor] = convert_units(
-                integrate_time_series(
-                    series=ems_schedule[d],
-                    initial_stock=soc_at_start[d],
-                    stock_delta=device_constraints[d]["stock delta"]
-                    * resolution
-                    / timedelta(hours=1),
-                    up_efficiency=device_constraints[d]["derivative up efficiency"],
-                    down_efficiency=device_constraints[d]["derivative down efficiency"],
-                    storage_efficiency=device_constraints[d]["efficiency"]
-                    .astype(float)
-                    .fillna(1),
-                ),
+                soc,
                 from_unit="MWh",
                 to_unit=soc_unit,
                 capacity=capacity,
             )
+
         return soc_schedule
 
     @staticmethod
@@ -1748,18 +2098,24 @@ class StorageScheduler(MetaStorageScheduler):
             commitments,
         ) = self._prepare(skip_validation=skip_validation)
 
+        initial_stock = [0] * len(soc_at_start)
+
+        for stock_id, devices in self.stock_groups.items():
+            d0 = devices[0]
+            s = soc_at_start[d0]
+
+            value = s * (timedelta(hours=1) / resolution) if s is not None else 0
+
+            for d in devices:
+                initial_stock[d] = value
+
         ems_schedule, expected_costs, scheduler_results, model = device_scheduler(
             device_constraints=device_constraints,
             ems_constraints=ems_constraints,
+            ems_constraint_groups=self.ems_constraint_groups,
             commitments=commitments,
-            initial_stock=[
-                (
-                    soc_at_start_d * (timedelta(hours=1) / resolution)
-                    if soc_at_start_d is not None
-                    else 0
-                )
-                for soc_at_start_d in soc_at_start
-            ],
+            initial_stock=initial_stock,
+            stock_groups=self.stock_groups,
         )
         if "infeasible" in (tc := scheduler_results.solver.termination_condition):
             raise InfeasibleProblemException(tc)
@@ -1792,18 +2148,31 @@ class StorageScheduler(MetaStorageScheduler):
             if sensor is not None
         }
 
-        flex_model = self.flex_model.copy()
+        # Use the filtered device_models (stored during _prepare) not self.flex_model
+        # because stock_groups was rebuilt with device indices, not original indices
+        flex_model_for_soc = getattr(self, "_device_models", None)
+        if flex_model_for_soc is None:
+            # Fallback: reconstruct if not available (shouldn't happen in normal flow)
+            flex_model_for_soc = (
+                self.flex_model.copy()
+                if isinstance(self.flex_model, dict)
+                else [fm for fm in self.flex_model if fm.get("sensor") is not None]
+            )
 
-        if not isinstance(self.flex_model, list):
-            flex_model["sensor"] = sensors[0]
-            flex_model = [flex_model]
+        if not isinstance(flex_model_for_soc, list):
+            flex_model_for_soc = [flex_model_for_soc]
 
         soc_schedule = self._build_soc_schedule(
-            flex_model, ems_schedule, soc_at_start, device_constraints, resolution
+            flex_model=flex_model_for_soc,
+            ems_schedule=ems_schedule,
+            soc_at_start=soc_at_start,
+            device_constraints=device_constraints,
+            stock_groups=self.stock_groups,
+            resolution=resolution,
         )
 
         consumption_production_schedule = self._build_consumption_production_schedules(
-            flex_model, ems_schedule
+            flex_model_for_soc, ems_schedule
         )
 
         # Resample each device schedule to the resolution of the device's power sensor
@@ -1875,7 +2244,7 @@ class StorageScheduler(MetaStorageScheduler):
             # Determine which sensors are consumption vs. production output sensors
             consumption_output_sensors = {
                 flex_model_d["consumption"]["sensor"]
-                for flex_model_d in flex_model
+                for flex_model_d in flex_model_for_soc
                 if isinstance(flex_model_d.get("consumption"), dict)
                 and "sensor" in flex_model_d["consumption"]
             }
