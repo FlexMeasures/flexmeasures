@@ -4556,6 +4556,19 @@
         ],
         "additionalProperties": false
       },
+      "OutputSensorReference": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer",
+            "description": "ID of the sensor on which the data is recorded."
+          }
+        },
+        "required": [
+          "sensor"
+        ],
+        "additionalProperties": false
+      },
       "FlexContextOpenAPISchema": {
         "type": "object",
         "properties": {
@@ -4700,14 +4713,14 @@
             "example": {
               "sensor": 9
             },
-            "$ref": "#/components/schemas/SensorReference"
+            "$ref": "#/components/schemas/OutputSensorReference"
           },
           "aggregate-production": {
             "description": "Sensor used to record the aggregate production schedule of all flexible and inflexible devices involved when scheduling this asset.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nSee <code>aggregate-consumption</code> for the full description of the split logic when both sensors are defined.\n",
             "example": {
               "sensor": 10
             },
-            "$ref": "#/components/schemas/SensorReference"
+            "$ref": "#/components/schemas/OutputSensorReference"
           }
         },
         "additionalProperties": false
@@ -6090,14 +6103,14 @@
             "example": {
               "sensor": 14
             },
-            "$ref": "#/components/schemas/SensorReference"
+            "$ref": "#/components/schemas/OutputSensorReference"
           },
           "production": {
             "description": "Sensor used to record the scheduled power as seen from a production perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nSee <code>consumption</code> for the full description of the split logic when both sensors are defined.\n",
             "example": {
               "sensor": 15
             },
-            "$ref": "#/components/schemas/SensorReference"
+            "$ref": "#/components/schemas/OutputSensorReference"
           },
           "soc-at-start": {
             "type": "string",

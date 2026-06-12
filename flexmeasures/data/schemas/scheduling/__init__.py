@@ -23,7 +23,7 @@ from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
     SensorReference,
-    SensorReferenceSchema,
+    OutputSensorReferenceSchema,
 )
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.units import UnitField
@@ -304,13 +304,13 @@ class SharedSchema(Schema):
 
     # Aggregate output sensors
     aggregate_consumption = fields.Nested(
-        SensorReferenceSchema,
+        OutputSensorReferenceSchema,
         required=False,
         data_key="aggregate-consumption",
         metadata=metadata.AGGREGATE_CONSUMPTION.to_dict(),
     )
     aggregate_production = fields.Nested(
-        SensorReferenceSchema,
+        OutputSensorReferenceSchema,
         required=False,
         data_key="aggregate-production",
         metadata=metadata.AGGREGATE_PRODUCTION.to_dict(),
