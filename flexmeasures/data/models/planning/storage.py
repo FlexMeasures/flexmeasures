@@ -315,18 +315,19 @@ class MetaStorageScheduler(Scheduler):
         index = initialize_index(start, end, resolution)
         commitment_quantities = initialize_series(0, start, end, resolution)
 
-        # Keep EMS constraints global only.
+        # EMS constraints are kept per commodity (one device group per commodity).
         #
-        # Important:
-        # Do NOT put commodity-specific site-consumption-capacity or
-        # site-production-capacity into ems_constraints, because these constraints
-        # are applied to the sum of all devices in device_scheduler.
+        # The site-power / site-consumption / site-production capacities
+        # are enforced as hard EMS-level constraints (derivative max/min). Because each
+        # commodity has its own set of devices, ``ems_constraints`` is a list of
+        # DataFrames and ``ems_constraint_groups`` lists the device indices each
+        # DataFrame applies to. The device_scheduler then bounds the summed flow of each
+        # commodity's devices separately (instead of summing across all commodities).
         #
-        # Commodity-specific capacities are modelled below as FlowCommitments
-        # with device=commodity_devices.
-        ems_constraints = initialize_df(
-            StorageScheduler.COLUMNS, start, end, resolution
-        )
+        # The commodity-specific breach/peak penalties below remain modelled as
+        # FlowCommitments on top of these hard constraints.
+        ems_constraints: list[pd.DataFrame] = []
+        ems_constraint_groups: list[list[int]] = []
 
         def device_list_series(
             devices: list[int], index: pd.DatetimeIndex
@@ -649,6 +650,25 @@ class MetaStorageScheduler(Scheduler):
                         commodity=commodity,
                     )
                 )
+
+            # Hard EMS-level capacity constraint for this commodity's device group.
+            # If a breach price is set, the physical power capacity is the
+            # hard limit (the contracted capacity is then only softly penalised via the
+            # breach commitments above); otherwise the contracted capacity itself is the
+            # hard limit.
+            commodity_ems_constraints = initialize_df(
+                StorageScheduler.COLUMNS, start, end, resolution
+            )
+            if ems_consumption_breach_price is not None:
+                commodity_ems_constraints["derivative max"] = ems_power_capacity
+            else:
+                commodity_ems_constraints["derivative max"] = ems_consumption_capacity
+            if ems_production_breach_price is not None:
+                commodity_ems_constraints["derivative min"] = -ems_power_capacity
+            else:
+                commodity_ems_constraints["derivative min"] = ems_production_capacity
+            ems_constraints.append(commodity_ems_constraints)
+            ems_constraint_groups.append(list(devices))
 
         # Keep one price frame for later preference logic.
         # The existing "prefer charging sooner" code uses `up_deviation_prices`.
@@ -1231,6 +1251,8 @@ class MetaStorageScheduler(Scheduler):
 
         # Store original stock_deltas for use in _build_soc_schedule
         self.original_stock_deltas = original_stock_deltas
+        # Device indices each EMS constraint DataFrame applies to (one group per commodity).
+        self.ems_constraint_groups = ems_constraint_groups
         return (
             sensors,
             start,
@@ -2103,6 +2125,7 @@ class StorageScheduler(MetaStorageScheduler):
         ems_schedule, expected_costs, scheduler_results, model = device_scheduler(
             device_constraints=device_constraints,
             ems_constraints=ems_constraints,
+            ems_constraint_groups=self.ems_constraint_groups,
             commitments=commitments,
             initial_stock=initial_stock,
             stock_groups=self.stock_groups,

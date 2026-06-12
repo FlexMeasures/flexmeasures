@@ -35,7 +35,7 @@ infinity = float("inf")
 
 def device_scheduler(  # noqa C901
     device_constraints: list[pd.DataFrame],
-    ems_constraints: pd.DataFrame,
+    ems_constraints: pd.DataFrame | list[pd.DataFrame],
     commitment_quantities: list[pd.Series] | None = None,
     commitment_downwards_deviation_price: list[pd.Series] | list[float] | None = None,
     commitment_upwards_deviation_price: list[pd.Series] | list[float] | None = None,
@@ -43,6 +43,7 @@ def device_scheduler(  # noqa C901
     initial_stock: float | list[float] = 0,
     stock_groups: dict[int, list[int]] | None = None,
     coupling_groups: dict[str, list[tuple[int, float]]] | None = None,
+    ems_constraint_groups: list[list[int]] | None = None,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -65,6 +66,13 @@ def device_scheduler(  # noqa C901
     :param ems_constraints:     EMS constraints are on an EMS level. Handled constraints (listed by column name):
                                     derivative max: maximum flow
                                     derivative min: minimum flow
+                                May be a single DataFrame (the constraint is applied to the summed flow of all devices),
+                                or a list of DataFrames (one per device group). In the latter case, ``ems_constraint_groups``
+                                lists the device indices each DataFrame applies to. The StorageScheduler uses one device
+                                group per commodity, so each commodity gets its own EMS-level capacity constraint.
+    :param ems_constraint_groups: For each EMS constraint DataFrame, the list of device indices it applies to. When omitted,
+                                each EMS constraint is applied to the summed flow of all devices (legacy behaviour). A device
+                                may appear in more than one group.
     :param commitments:         Commitments are on an EMS level by default. Handled parameters (listed by column name):
                                     quantity:                   for example, 5.5
                                     downwards deviation price:  10.1
@@ -110,6 +118,23 @@ def device_scheduler(  # noqa C901
     # Workaround for https://github.com/pandas-dev/pandas/issues/53643. Was: resolution = pd.to_timedelta(device_constraints[0].index.freq)
     resolution = pd.to_timedelta(device_constraints[0].index.freq).to_pytimedelta()
     end = device_constraints[0].index.to_pydatetime()[-1] + resolution
+
+    # Normalise EMS constraints to a list of (DataFrame, device-group) pairs.
+    # A single DataFrame (legacy behaviour) applies to the summed flow of all devices;
+    # a list of DataFrames applies one EMS-level constraint per device group, as set up
+    # per commodity by the StorageScheduler.
+    all_devices = list(range(len(device_constraints)))
+    if isinstance(ems_constraints, pd.DataFrame):
+        ems_constraints_list = [ems_constraints]
+        ems_constraint_device_groups = [all_devices]
+    else:
+        ems_constraints_list = list(ems_constraints)
+        if ems_constraint_groups is None:
+            raise ValueError(
+                "When passing multiple EMS constraint DataFrames, you must also specify ems_constraint_groups."
+            )
+        else:
+            ems_constraint_device_groups = ems_constraint_groups
 
     # map device -> primary stock group (used for per-device stock bounds)
     # and map stock group -> all member devices (used for stock accumulation).
@@ -417,15 +442,15 @@ def device_scheduler(  # noqa C901
         else:
             return np.nanmax([min_v, equal_v])
 
-    def ems_derivative_max_select(m, j):
-        v = ems_constraints["derivative max"].iloc[j]
+    def ems_derivative_max_select(m, g, j):
+        v = ems_constraints_list[g]["derivative max"].iloc[j]
         if np.isnan(v):
             return infinity
         else:
             return v
 
-    def ems_derivative_min_select(m, j):
-        v = ems_constraints["derivative min"].iloc[j]
+    def ems_derivative_min_select(m, g, j):
+        v = ems_constraints_list[g]["derivative min"].iloc[j]
         if np.isnan(v):
             return -infinity
         else:
@@ -511,8 +536,15 @@ def device_scheduler(  # noqa C901
     model.device_derivative_min = Param(
         model.d, model.j, initialize=device_derivative_min_select
     )
-    model.ems_derivative_max = Param(model.j, initialize=ems_derivative_max_select)
-    model.ems_derivative_min = Param(model.j, initialize=ems_derivative_min_select)
+    model.eg = RangeSet(
+        0, len(ems_constraints_list) - 1, doc="Set of EMS constraint (device) groups"
+    )
+    model.ems_derivative_max = Param(
+        model.eg, model.j, initialize=ems_derivative_max_select
+    )
+    model.ems_derivative_min = Param(
+        model.eg, model.j, initialize=ems_derivative_min_select
+    )
     model.device_efficiency = Param(model.d, model.j, initialize=device_efficiency)
     model.device_derivative_down_efficiency = Param(
         model.d, model.j, initialize=device_derivative_down_efficiency
@@ -656,8 +688,15 @@ def device_scheduler(  # noqa C901
         """Derivative down if sign points down, derivative not down if sign points up."""
         return -m.device_power_down[d, j] <= Md * (1 - m.device_power_sign[d, j])
 
-    def ems_derivative_bounds(m, j):
-        return m.ems_derivative_min[j], sum(m.ems_power[:, j]), m.ems_derivative_max[j]
+    def ems_derivative_bounds(m, g, j):
+        devices = ems_constraint_device_groups[g]
+        if not devices:
+            return Constraint.Skip
+        return (
+            m.ems_derivative_min[g, j],
+            sum(m.ems_power[d, j] for d in devices),
+            m.ems_derivative_max[g, j],
+        )
 
     def commitment_up_derivative_sign(m, c):
         """Up deviation active only if sign points up."""
@@ -750,7 +789,7 @@ def device_scheduler(  # noqa C901
     model.device_power_down_sign = Constraint(
         model.d, model.j, rule=device_down_derivative_sign
     )
-    model.ems_power_bounds = Constraint(model.j, rule=ems_derivative_bounds)
+    model.ems_power_bounds = Constraint(model.eg, model.j, rule=ems_derivative_bounds)
     if not convex_cost_curve:
         model.commitment_up_derivative_sign_con = Constraint(
             model.c, rule=commitment_up_derivative_sign
