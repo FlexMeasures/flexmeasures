@@ -6363,10 +6363,10 @@
             "example": "PT2H",
             "format": "duration"
           },
-          "flex_model": {
+          "flex-model": {
             "type": "array",
+            "description": "Flex-model per device (identified by `sensor`). The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
             "items": {
-              "description": "Flex-model per device (identified by `sensor`). The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
               "$ref": "#/components/schemas/StorageFlexModelSchemaOpenAPI"
             }
           },
@@ -6386,6 +6386,7 @@
         },
         "required": [
           "flex-context",
+          "flex-model",
           "start"
         ],
         "additionalProperties": false
