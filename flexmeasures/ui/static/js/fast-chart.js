@@ -24,9 +24,9 @@
 import { convertToCSV } from "./data-utils.js";
 
 const GRID_HEIGHT = 220; // height of each subplot in px
-const SIDE_GRID_GAP = 56; // vertical space between subplots (axis labels + titles)
+const SIDE_GRID_GAP = 82; // vertical space between subplots (two-line x-axis labels + next title)
 const TOP_OFFSET = 48; // room for the toolbox and the first subplot title
-const BOTTOM_OFFSET = 78; // room for the slider and the last x-axis labels
+const BOTTOM_OFFSET = 92; // room for the slider and the last two-line x-axis labels
 const GRID_LEFT = 70; // room for the y-axis labels
 const LEGEND_WIDTH = 190; // width of the legend column beside each subplot
 
@@ -509,6 +509,21 @@ function buildLineBarOption(elementId, groups, opts) {
       axisLine: { onZero: false },
       axisPointer: { show: true }, // vertical ruler, as in the Vega-Lite charts
       splitLine: { show: true, lineStyle: { opacity: 0.5 } },
+      minInterval: 6 * 3600 * 1000, // at most one tick per 6h so 12:00 labels appear
+      axisLabel: {
+        formatter: (value) => {
+          const d = new Date(value);
+          const h = d.getHours(), m = d.getMinutes();
+          if (h === 0 && m === 0) {
+            const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+            const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            if (d.getDate() === 1) return MONTHS[d.getMonth()];
+            return DAYS[d.getDay()] + "\n" + String(d.getDate()).padStart(2, "0");
+          }
+          return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+        },
+      },
     });
     yAxes.push({
       type: "value",
