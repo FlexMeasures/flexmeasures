@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from collections import OrderedDict
 from datetime import timedelta
 from typing import Any, Callable, Dict
 
@@ -252,6 +254,14 @@ class CommodityFlexContextSchema(SharedSchema):
         data_key="commodity",
         metadata=metadata.COMMODITY.to_dict(),
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        commodity_field = self.fields.pop("commodity")
+        self.fields = OrderedDict(
+            [("commodity", commodity_field), *self.fields.items()]
+        )
 
 
 class FlexContextSchema(SharedSchema):
