@@ -252,7 +252,7 @@ class CommodityFlexContextSchema(SharedSchema):
     commodity = fields.Str(
         required=True,
         data_key="commodity",
-        metadata=metadata.COMMODITY.to_dict(),
+        metadata=metadata.COMMODITY_FLEX_CONTEXT.to_dict(),
     )
 
     def __init__(self, *args, **kwargs):
@@ -795,7 +795,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
     "commodity": {
         "default": "electricity",
-        "description": rst_to_openapi(metadata.COMMODITY.description),
+        "description": rst_to_openapi(metadata.COMMODITY_FLEX_MODEL.description),
         "types": {
             "backend": "typeOne",
             "ui": "One fixed value only.",

@@ -58,6 +58,9 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - Field
      - Example value
      - Description
+   * - ``commodity``
+     - |COMMODITY_FLEX_CONTEXT.example|
+     - .. include:: ../_autodoc/COMMODITY_FLEX_CONTEXT.rst
    * - ``inflexible-device-sensors``
      - |INFLEXIBLE_DEVICE_SENSORS.example|
      - .. include:: ../_autodoc/INFLEXIBLE_DEVICE_SENSORS.rst
@@ -187,8 +190,8 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - Example value
      - Description
    * - ``commodity``
-     - |COMMODITY.example|
-     - .. include:: ../_autodoc/COMMODITY.rst
+     - |COMMODITY_FLEX_MODEL.example|
+     - .. include:: ../_autodoc/COMMODITY_FLEX_MODEL.rst
    * - ``consumption``
      - |CONSUMPTION.example|
      - .. include:: ../_autodoc/CONSUMPTION.rst

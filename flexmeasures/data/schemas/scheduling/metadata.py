@@ -27,6 +27,12 @@ class MetaData:
 # FLEX-CONTEXT
 
 
+COMMODITY_FLEX_CONTEXT = MetaData(
+    description="""Commodity to which this part of the flex-context applies.
+Defaults to ``"electricity"``.
+""",
+    examples=["electricity", "gas"],
+)
 INFLEXIBLE_DEVICE_SENSORS = MetaData(
     description="""Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
 For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.
@@ -183,9 +189,9 @@ The field may define (a sensor recording) contractual penalties, or a theoretica
 
 # FLEX-MODEL
 
-COMMODITY = MetaData(
-    description="""Commodity type for this storage flex-model.
-Defaults to ``electricity``.
+COMMODITY_FLEX_MODEL = MetaData(
+    description="""Commodity on which this device acts.
+Defaults to ``"electricity"``.
 """,
     examples=["electricity", "gas"],
 )

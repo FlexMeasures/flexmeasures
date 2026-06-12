@@ -252,7 +252,7 @@ class StorageFlexModelSchema(Schema):
         data_key="commodity",
         load_default="electricity",
         validate=OneOf(["electricity", "gas"]),
-        metadata=dict(description="Commodity label for this device/asset."),
+        metadata=metadata.COMMODITY_FLEX_MODEL.to_dict(),
     )
 
     def __init__(

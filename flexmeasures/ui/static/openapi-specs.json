@@ -4561,7 +4561,7 @@
         "properties": {
           "commodity": {
             "type": "string",
-            "description": "Commodity type for this storage flex-model.\nDefaults to ``electricity``.\n",
+            "description": "Commodity to which this part of the flex-context applies.\nDefaults to ``\"electricity\"``.\n",
             "examples": [
               "electricity",
               "gas"
@@ -6327,7 +6327,11 @@
               "electricity",
               "gas"
             ],
-            "description": "Commodity label for this device/asset."
+            "description": "Commodity on which this device acts.\nDefaults to <code>\"electricity\"</code>.\n",
+            "examples": [
+              "electricity",
+              "gas"
+            ]
           },
           "sensor": {
             "type": "integer",
