@@ -175,9 +175,10 @@ class Config(object):
     FLEXMEASURES_REDIS_DB_NR: int = 0  # Redis per default has 16 databases, [0-15]
     FLEXMEASURES_REDIS_PASSWORD: str | None = None
     FLEXMEASURES_JS_VERSIONS: dict = dict(
-        vega="5.22.1",
-        vegaembed="6.21.0",
-        vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
+        vega="5.33.1",
+        vegaembed="6.29.0",
+        vegalite="5.23.0",  # the bar chart issue we had with 5.6.0 (https://github.com/vega/vega-lite/issues/8496) was fixed in 5.6.1
+        echarts="5.6.0",  # used for the fast (canvas-based) chart mode
         currencysymbolmap="5.1.0",
         jsoneditor="2.15.2",
         leaflet="1.9.4",
