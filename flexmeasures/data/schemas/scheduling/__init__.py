@@ -396,6 +396,42 @@ class FlexContextSchema(SharedSchema):
         if not isinstance(aggregate_power, Sensor):
             raise ValidationError("The `aggregate-power` field can only be a Sensor.")
 
+    @validates("commodity_contexts")
+    def validate_commodity_contexts_shared_currency(
+        self, commodity_contexts: list[dict], **kwargs
+    ):
+        """Validate that all prices across commodity contexts share the same currency."""
+        if not commodity_contexts:
+            return
+
+        shared_currency_unit = None
+
+        for context in commodity_contexts:
+            # Check all price fields in this context
+            for field_name, field_value in context.items():
+                if field_name.endswith("_price") and field_value is not None:
+                    # Get the price unit
+                    if hasattr(field_value, "units"):
+                        price_unit = str(field_value.units)
+                    elif isinstance(field_value, ur.Quantity):
+                        price_unit = str(field_value.units)
+                    else:
+                        continue
+
+                    # Extract currency from the price unit
+                    # Price units are typically like "EUR/MWh" or "USD/MW"
+                    # Split by "/" and take first part as currency
+                    currency_unit = price_unit.split("/")[0].strip()
+
+                    if shared_currency_unit is None:
+                        shared_currency_unit = str(
+                            ur.Quantity(currency_unit).to_base_units().units
+                        )
+                    elif not units_are_convertible(currency_unit, shared_currency_unit):
+                        raise ValidationError(
+                            "all prices in the flex-context must share the same currency unit"
+                        )
+
     @validates_schema(pass_original=True)
     def check_prices(self, data: dict, original_data: dict, **kwargs):
         """Check assumptions about prices.

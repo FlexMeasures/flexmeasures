@@ -962,19 +962,19 @@ def test_flex_model_schemas(
     [
         # Test aggregate-consumption field with sensor reference
         (
-            {"aggregate-consumption": {"sensor": "placeholder for price sensor"}},
+            {"aggregate-consumption": {"sensor": "consumption-price in SEK/MWh"}},
             False,
         ),
         # Test aggregate-production field with sensor reference
         (
-            {"aggregate-production": {"sensor": "placeholder for price sensor"}},
+            {"aggregate-production": {"sensor": "production-price in SEK/MWh"}},
             False,
         ),
         # Test both aggregate fields together
         (
             {
-                "aggregate-consumption": {"sensor": "placeholder for price sensor"},
-                "aggregate-production": {"sensor": "placeholder for price sensor"},
+                "aggregate-consumption": {"sensor": "consumption-price in SEK/MWh"},
+                "aggregate-production": {"sensor": "production-price in SEK/MWh"},
             },
             False,
         ),
@@ -1011,9 +1011,11 @@ def test_shared_schema_fields_in_flex_context(
     sensors_to_pick_from = {**setup_site_capacity_sensor, **setup_price_sensors}
     for field_name, field_value in flex_context.items():
         if isinstance(field_value, dict) and "sensor" in field_value:
-            flex_context[field_name]["sensor"] = sensors_to_pick_from[
-                field_value["sensor"]
-            ].id
+            sensor_name = field_value["sensor"]
+            if sensor_name in sensors_to_pick_from:
+                flex_context[field_name]["sensor"] = sensors_to_pick_from[
+                    sensor_name
+                ].id
 
     check_schema_loads_data(schema=schema, data=flex_context, fails=fails)
 
@@ -1050,8 +1052,8 @@ def test_shared_schema_fields_in_flex_context(
             [
                 {
                     "commodity": "electricity",
-                    "aggregate-consumption": {"sensor": "placeholder for price sensor"},
-                    "aggregate-production": {"sensor": "placeholder for price sensor"},
+                    "aggregate-consumption": {"sensor": "consumption-price in SEK/MWh"},
+                    "aggregate-production": {"sensor": "production-price in SEK/MWh"},
                 }
             ],
             False,
@@ -1080,9 +1082,9 @@ def test_commodity_flex_context_defaults(
     for context in commodity_contexts:
         for field_name, field_value in context.items():
             if isinstance(field_value, dict) and "sensor" in field_value:
-                context[field_name]["sensor"] = sensors_to_pick_from[
-                    field_value["sensor"]
-                ].id
+                sensor_name = field_value["sensor"]
+                if sensor_name in sensors_to_pick_from:
+                    context[field_name]["sensor"] = sensors_to_pick_from[sensor_name].id
 
     # Test loading each commodity context
     schema = CommodityFlexContextSchema()
