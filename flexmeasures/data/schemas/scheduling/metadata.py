@@ -27,6 +27,12 @@ class MetaData:
 # FLEX-CONTEXT
 
 
+COMMODITY_FLEX_CONTEXT = MetaData(
+    description="""Commodity to which this part of the flex-context applies.
+Defaults to ``"electricity"``.
+""",
+    examples=["electricity", "gas"],
+)
 INFLEXIBLE_DEVICE_SENSORS = MetaData(
     description="""Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
 For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.
@@ -44,18 +50,12 @@ COMMITMENTS = MetaData(
     example=[],
 )
 CONSUMPTION_PRICE = MetaData(
-    description="The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. [#old_consumption_price_field]_",
-    example={"sensor": 5},
-    # examples=[{"sensor": 5}, "0.29 EUR/kWh"],  # todo: waiting for https://github.com/marshmallow-code/apispec/pull/999
+    description="The commodity price (e.g. electricity price) applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. [#old_consumption_price_field]_",
+    examples=[{"sensor": 5}, "0.29 EUR/kWh"],
 )
 PRODUCTION_PRICE = MetaData(
-    description="The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. [#old_production_price_field]_",
+    description="The commodity price (e.g. electricity price) applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. [#old_production_price_field]_",
     example="0.12 EUR/kWh",
-)
-GAS_PRICE = MetaData(
-    description="The gas price applied to the site's aggregate gas consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem",
-    example={"sensor": 6},
-    # example="0.09 EUR/kWh",
 )
 SITE_POWER_CAPACITY = MetaData(
     description="""Maximum achievable power at the site's grid connection point, in either direction.
@@ -189,12 +189,11 @@ The field may define (a sensor recording) contractual penalties, or a theoretica
 
 # FLEX-MODEL
 
-COMMODITY = MetaData(
-    description="""Commodity type for this storage flex-model.
-Allowed values are ``electricity`` and ``gas``.
-Defaults to ``electricity``.
+COMMODITY_FLEX_MODEL = MetaData(
+    description="""Commodity on which this device acts.
+Defaults to ``"electricity"``.
 """,
-    example="electricity",
+    examples=["electricity", "gas"],
 )
 CONSUMPTION = MetaData(
     description="""Sensor used to record the scheduled power as seen from a consumption perspective.
@@ -310,14 +309,14 @@ Defaults to 100% (no roundtrip loss). [#quantity_field]_
     example="90%",
 )
 CHARGING_EFFICIENCY = MetaData(
-    description="""One-way conversion efficiency from electricity to the storage's state of charge.
+    description="""One-way conversion efficiency from the commodity (e.g. electricity) to the storage's state of charge.
 Can be a percentage, a ratio in the range [0,1], or a coefficient of performance (>1).
 Defaults to 100% (no conversion loss).
 """,
     example=".9",
 )
 DISCHARGING_EFFICIENCY = MetaData(
-    description="""One-way conversion efficiency from the storage's state of charge to electricity.
+    description="""One-way conversion efficiency from the storage's state of charge to the commodity (e.g. electricity).
 Defaults to 100% (no conversion loss).""",
     example="90%",
 )

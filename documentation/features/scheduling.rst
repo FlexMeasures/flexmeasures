@@ -5,8 +5,8 @@ Scheduling
 
 Scheduling is the main value-drive of FlexMeasures. We have two major types of schedulers built-in, for storage devices (usually batteries or hot water storage) and processes (usually in industry).
 
-FlexMeasures computes schedules for energy systems that consist of multiple devices that consume and/or produce electricity.
-We model a device as an asset with a power sensor, and compute schedules only for flexible devices, while taking into account inflexible devices.
+FlexMeasures computes schedules for energy systems that consist of multiple devices that consume and/or produce a commodity (e.g. electricity or gas).
+We model a device as an asset with a consumption/production sensor recording power values, and compute schedules only for flexible devices, while taking into account inflexible devices.
 
 .. contents::
     :local:
@@ -39,6 +39,7 @@ The flex-context
 
 The ``flex-context`` is independent of the type of flexible device that is optimized, or which scheduler is used.
 With the flexibility context, we aim to describe the system in which the flexible assets operate, such as its physical and contractual limitations.
+For multi-commodity scheduling problems, the flex-context can be defined separately per commodity (e.g. electricity and gas), using the ``commodities`` field.
 
 Fields can have fixed values, but some fields can also point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
 The full list of flex-context fields follows below.
@@ -46,7 +47,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 Where should you set these fields?
 Within requests to the API or by editing the relevant asset in the UI.
-If they are not sent in via the API (one of the endpoints triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset.
+If they are not sent in via the API (one of the endpoints triggering schedule computation), the scheduler will look them up on the flex-context field of the asset.
 And if the asset belongs to a larger system (a hierarchy of assets), the scheduler will also search if parent assets have them set.
 
 
@@ -58,6 +59,9 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - Field
      - Example value
      - Description
+   * - ``commodity``
+     - |COMMODITY_FLEX_CONTEXT.example|
+     - .. include:: ../_autodoc/COMMODITY_FLEX_CONTEXT.rst
    * - ``inflexible-device-sensors``
      - |INFLEXIBLE_DEVICE_SENSORS.example|
      - .. include:: ../_autodoc/INFLEXIBLE_DEVICE_SENSORS.rst
@@ -70,9 +74,6 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``production-price``
      - |PRODUCTION_PRICE.example|
      - .. include:: ../_autodoc/PRODUCTION_PRICE.rst
-   * - ``gas-price``
-     - |GAS_PRICE.example|
-     - .. include:: ../_autodoc/GAS_PRICE.rst
    * - ``site-power-capacity``
      - |SITE_POWER_CAPACITY.example|
      - .. include:: ../_autodoc/SITE_POWER_CAPACITY.rst
@@ -187,8 +188,8 @@ For more details on the possible formats for field values, see :ref:`variable_qu
      - Example value
      - Description
    * - ``commodity``
-     - |COMMODITY.example|
-     - .. include:: ../_autodoc/COMMODITY.rst
+     - |COMMODITY_FLEX_MODEL.example|
+     - .. include:: ../_autodoc/COMMODITY_FLEX_MODEL.rst
    * - ``consumption``
      - |CONSUMPTION.example|
      - .. include:: ../_autodoc/CONSUMPTION.rst

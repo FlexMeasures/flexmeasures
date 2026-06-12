@@ -97,6 +97,12 @@ class StorageFlexModelSchema(Schema):
         metadata=dict(description="ID of the asset that is requested to be scheduled."),
     )
 
+    commodity = fields.Str(
+        data_key="commodity",
+        load_default="electricity",
+        metadata=metadata.COMMODITY_FLEX_MODEL.to_dict(),
+    )
+
     consumption = fields.Nested(
         SensorReferenceSchema,
         metadata=metadata.CONSUMPTION.to_dict(),
@@ -247,12 +253,6 @@ class StorageFlexModelSchema(Schema):
         required=False,
         validate=validate.Length(min=1),
         metadata=metadata.SOC_USAGE.to_dict(),
-    )
-    commodity = fields.Str(
-        data_key="commodity",
-        load_default="electricity",
-        validate=OneOf(["electricity", "gas"]),
-        metadata=dict(description="Commodity label for this device/asset."),
     )
 
     def __init__(
