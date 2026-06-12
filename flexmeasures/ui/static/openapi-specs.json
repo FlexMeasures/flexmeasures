@@ -4561,6 +4561,7 @@
         "properties": {
           "commodity": {
             "type": "string",
+            "default": "electricity",
             "description": "Commodity to which this part of the flex-context applies.\nDefaults to ``\"electricity\"``.\n",
             "examples": [
               "electricity",
@@ -4642,9 +4643,6 @@
             }
           }
         },
-        "required": [
-          "commodity"
-        ],
         "additionalProperties": false
       },
       "FlexContextOpenAPISchema": {
