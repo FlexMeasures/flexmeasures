@@ -251,7 +251,6 @@ class StorageFlexModelSchema(Schema):
     commodity = fields.Str(
         data_key="commodity",
         load_default="electricity",
-        validate=OneOf(["electricity", "gas"]),
         metadata=metadata.COMMODITY_FLEX_MODEL.to_dict(),
     )
 
