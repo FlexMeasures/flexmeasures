@@ -5,8 +5,8 @@ Scheduling
 
 Scheduling is the main value-drive of FlexMeasures. We have two major types of schedulers built-in, for storage devices (usually batteries or hot water storage) and processes (usually in industry).
 
-FlexMeasures computes schedules for energy systems that consist of multiple devices that consume and/or produce electricity.
-We model a device as an asset with a power sensor, and compute schedules only for flexible devices, while taking into account inflexible devices.
+FlexMeasures computes schedules for energy systems that consist of multiple devices that consume and/or produce a commodity (e.g. electricity or gas).
+We model a device as an asset with a consumption/production sensor recording power values, and compute schedules only for flexible devices, while taking into account inflexible devices.
 
 .. contents::
     :local:
