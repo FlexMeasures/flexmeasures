@@ -977,7 +977,7 @@ def test_shared_schema_fields_in_flex_context(
 @pytest.mark.parametrize(
     ["commodity_contexts", "fails"],
     [
-        # Test single commodity with relax_constraints defaulting to True
+        # Test single commodity pass validation and defaults relax_constraints to True
         (
             [
                 {
@@ -987,7 +987,7 @@ def test_shared_schema_fields_in_flex_context(
             ],
             False,
         ),
-        # Test multiple commodities
+        # Likewise for multiple commodities, relax_constraints should default to True for each
         (
             [
                 {
@@ -1001,7 +1001,7 @@ def test_shared_schema_fields_in_flex_context(
             ],
             False,
         ),
-        # Test aggregate fields in commodity context
+        # Test aggregate fields in commodity context pass validation
         (
             [
                 {
@@ -1012,7 +1012,7 @@ def test_shared_schema_fields_in_flex_context(
             ],
             False,
         ),
-        # Test breach prices in commodity context
+        # Test breach prices in commodity context pass validation
         (
             [
                 {
@@ -1097,7 +1097,7 @@ def test_commodity_flex_context_defaults(
                     {
                         "commodity": "electricity",
                         "consumption-breach-price": "100 EUR/MW",
-                        "production-breach-price": "100 EUR/MW",
+                        "production-breach-price": "10 cEUR/kW",
                     }
                 ]
             },
