@@ -1001,7 +1001,7 @@ def test_shared_schema_fields_in_flex_context(
             ],
             False,
         ),
-        # Test aggregate fields in commodity context
+        # Test aggregate fields in commodity context pass validation
         (
             [
                 {
