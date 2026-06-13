@@ -6364,12 +6364,14 @@
           },
           "flex-model": {
             "type": "array",
+            "default": [],
             "description": "Flex-model per device (identified by `sensor`). The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
             "items": {
               "$ref": "#/components/schemas/StorageFlexModelSchemaOpenAPI"
             }
           },
           "flex-context": {
+            "default": {},
             "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
             "$ref": "#/components/schemas/FlexContextOpenAPISchema"
           },
@@ -6384,8 +6386,6 @@
           }
         },
         "required": [
-          "flex-context",
-          "flex-model",
           "start"
         ],
         "additionalProperties": false
