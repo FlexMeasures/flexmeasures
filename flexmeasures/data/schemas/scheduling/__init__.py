@@ -592,6 +592,24 @@ EXAMPLE_UNIT_TYPES: Dict[str, list[str]] = {
 }
 
 UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
+    "aggregate-consumption": {
+        "default": None,
+        "description": rst_to_openapi(metadata.AGGREGATE_CONSUMPTION.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor which records the scheduled aggregate consumption.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "aggregate-production": {
+        "default": None,
+        "description": rst_to_openapi(metadata.AGGREGATE_PRODUCTION.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor which records the scheduled aggregate production.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
     "consumption-price": {
         "default": None,  # Refers to default value of the field
         "description": rst_to_openapi(metadata.CONSUMPTION_PRICE.description),
