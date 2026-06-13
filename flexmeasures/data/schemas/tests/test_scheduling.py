@@ -1012,7 +1012,7 @@ def test_shared_schema_fields_in_flex_context(
             ],
             False,
         ),
-        # Test breach prices in commodity context
+        # Test breach prices in commodity context pass validation
         (
             [
                 {
