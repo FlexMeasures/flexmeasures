@@ -21,6 +21,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Allow flex-model and flex-context to be missing from scheduling requests, because by now the whole flex-config can be defined on assets (in the db) instead [see `PR #xxxx <https://www.github.com/FlexMeasures/flexmeasures/pull/xxxx>`_]
 
 
 v0.33.0 | June 1, 2026
