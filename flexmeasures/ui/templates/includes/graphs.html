@@ -691,6 +691,8 @@
             // chart types (bar/histogram/heatmap) only apply on the sensor page
             chartType: ('{{ active_page }}' === 'sensors') ? chartType : 'line',
             legendsBelow: {{ 'true' if session.get("keep_legends_below_graphs") else 'false' }},
+            // sensor page always shows legend below (single sensor, sources are the legend entries)
+            isSensorPage: ('{{ active_page }}' === 'sensors'),
             datasetName: datasetName,
         };
     }

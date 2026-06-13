@@ -23,12 +23,16 @@
 
 import { convertToCSV } from "./data-utils.js";
 
+// Global text style matching Vega-Lite: Poppins font, 16 px labels (Vega's FONT_SIZE = 16)
+const CHART_FONT = "Poppins, sans-serif";
+const FONT_SIZE = 16;
+
 const GRID_HEIGHT = 220; // height of each subplot in px
 const SIDE_GRID_GAP = 82; // vertical space between subplots (two-line x-axis labels + next title)
 const TOP_OFFSET = 48; // room for the toolbox and the first subplot title
 const BOTTOM_OFFSET = 92; // room for the slider and the last two-line x-axis labels
 const GRID_LEFT = 70; // room for the y-axis labels
-const LEGEND_WIDTH = 190; // width of the legend column beside each subplot
+const LEGEND_WIDTH = 220; // width of the legend column beside each subplot
 
 // Diverging color scale approximating Vega's "blueorange" scheme (centered at 0)
 const BLUE_ORANGE = ["#2166ac", "#67a9cf", "#d1e5f0", "#f7f7f7", "#fee0b6", "#f1a340", "#b35806"];
@@ -220,13 +224,14 @@ function groupData(data, groupSpec) {
         source: source,
         unit: unit,
         points: [],
+        eventStarts: [], // kept for resolution inference (not sent to ECharts)
       });
     }
+    const ser = group.series.get(seriesKey);
     // Third dimension carries the belief horizon (ms) for the tooltip;
     // LTTB sampling selects original points, so it survives downsampling.
-    group.series
-      .get(seriesKey)
-      .points.push([row.event_start, row.event_value, row.belief_horizon]);
+    ser.points.push([row.event_start, row.event_value, row.belief_horizon]);
+    ser.eventStarts.push(row.event_start);
   }
 
   // Mirror the Vega-Lite legend encoding:
@@ -264,11 +269,10 @@ function groupData(data, groupSpec) {
 }
 
 // Colors per sensor, matching the Vega-Lite charts' category scheme
+// Vega-Lite's default categorical color scheme (tableau10), so sensor colors match the old charts
 const SENSOR_COLORS = [
-  "#1f77b4", "#ff7f0e", "#d62728", "#76b7b2", "#2ca02c",
-  "#bcbd22", "#9467bd", "#f7b6d2", "#8c564b", "#c7c7c7",
-  "#17becf", "#e377c2", "#aec7e8", "#ffbb78", "#98df8a",
-  "#ff9896", "#c5b0d5", "#c49c94", "#dbdb8d", "#9edae5",
+  "#4c78a8", "#f58518", "#e45756", "#72b7b2", "#54a24b",
+  "#eeca3b", "#b279a2", "#ff9da6", "#9d755d", "#bab0ac",
 ];
 
 // Line styles per source type, as in the Vega-Lite charts' "Source" legend.
@@ -308,19 +312,20 @@ function mostPrevalentSourceRows(rows) {
   return rows.filter((row) => (row.source ? row.source.id : null) === bestSid);
 }
 
-// Smallest positive gap between consecutive event starts (the sensor resolution)
-function inferResolutionMs(rows) {
-  const starts = Array.from(new Set(rows.map((r) => r.event_start))).sort((a, b) => a - b);
+// Smallest positive gap between consecutive event starts (the sensor resolution).
+// Accepts either raw data rows (with .event_start) or a plain array of timestamps.
+function inferResolutionMs(rowsOrTimestamps) {
+  const starts = Array.from(
+    new Set(
+      rowsOrTimestamps.map((x) => (typeof x === "number" ? x : x.event_start))
+    )
+  ).sort((a, b) => a - b);
   let res = Infinity;
   for (let i = 1; i < starts.length; i++) {
     const gap = starts[i] - starts[i - 1];
-    if (gap > 0 && gap < res) {
-      res = gap;
-    }
+    if (gap > 0 && gap < res) res = gap;
   }
-  if (!isFinite(res)) {
-    res = 60 * 60 * 1000;
-  }
+  if (!isFinite(res)) res = 60 * 60 * 1000;
   return Math.max(res, 60 * 1000); // at least 1 minute, to bound the number of cells
 }
 
@@ -437,15 +442,19 @@ function seriesTooltipFormatter(seriesMeta) {
 function buildLineBarOption(elementId, groups, opts) {
   const instance = instances[elementId];
   const container = document.getElementById(elementId);
-  const legendsBelow = !!opts.legendsBelow;
+  // Sensor page: legend always below (single sensor, sources are the legend entries)
+  const legendsBelow = !!opts.legendsBelow || opts.isSensorPage;
   const gridGap = SIDE_GRID_GAP;
   const gridRight = legendsBelow ? 30 : LEGEND_WIDTH + 40;
   const containerWidth = container.clientWidth || 800;
   const plotCenter = (GRID_LEFT + containerWidth - gridRight) / 2;
 
-  // The Source key (line-style legend) is shown on sensor-colored line charts,
-  // where sources are told apart by line style; it sits in a strip at the top.
-  const showSourceKey = opts.chartType !== "bar_chart" && groups[0].nameBySensor;
+  // The Source key is only shown when multiple source types are actually present,
+  // matching Vega-Lite which only adds the strokeDash legend when needed.
+  const allSourceTypes = new Set(
+    groups.flatMap((g) => g.series.map((s) => lineTypeForSource(s.source)))
+  );
+  const showSourceKey = opts.chartType !== "bar_chart" && groups[0].nameBySensor && allSourceTypes.size > 1;
   const topOffset = TOP_OFFSET + (showSourceKey ? SOURCE_KEY_HEIGHT : 0);
 
   // Vertical layout: subplots, then (in legends-below mode) the slider and
@@ -500,7 +509,7 @@ function buildLineBarOption(elementId, groups, opts) {
         align: "left",
         itemWidth: 18,
         itemGap: 6,
-        textStyle: { width: LEGEND_WIDTH - 40, overflow: "truncate", fontSize: 11 },
+        textStyle: { fontSize: FONT_SIZE },
       });
     }
     xAxes.push({
@@ -531,13 +540,12 @@ function buildLineBarOption(elementId, groups, opts) {
       name: yAxisTitle(group.sensorType, group.units), // e.g. "Power (kW)"
       nameLocation: "end",
       nameTextStyle: {
-        fontSize: 12,
+        fontSize: FONT_SIZE,
         fontWeight: "bold",
         color: "#222",
         align: "left",
         padding: [0, 0, 4, -GRID_LEFT + 16],
       },
-      scale: true,
       splitLine: { show: true, lineStyle: { opacity: 0.7 } },
     });
     group.series.forEach((s, j) => {
@@ -566,8 +574,13 @@ function buildLineBarOption(elementId, groups, opts) {
           itemStyle: { opacity: 0.7 },
         });
       } else {
+        // Match Vega-Lite: use step-after for sensors with a fixed event duration
+        // (resolution > 0), and linear for instantaneous sensors (resolution ≈ 0)
+        // so that ramps / gradual curves are visible, just as in the old charts.
+        const seriesResMs = inferResolutionMs(s.eventStarts || []);
+        const isInstantaneous = seriesResMs <= 60 * 1000; // ≤ 1 min → treat as instantaneous
         Object.assign(entry, {
-          step: "start", // events hold their value for the duration of the event
+          ...(isInstantaneous ? {} : { step: "end" }), // step-after for interval data
           showSymbol: false,
           sampling: "lttb", // downsample to the available pixels, preserving peaks
           lineStyle: { width: 2.2, type: lineTypeForSource(s.source) },
@@ -600,7 +613,7 @@ function buildLineBarOption(elementId, groups, opts) {
       top: bottomLegendTop,
       itemWidth: 18,
       itemGap: 12,
-      textStyle: { fontSize: 11 },
+      textStyle: { fontSize: FONT_SIZE },
       tooltip: { show: true },
     });
   }
@@ -615,6 +628,7 @@ function buildLineBarOption(elementId, groups, opts) {
   toolbox.feature.dataZoom.xAxisIndex = allAxisIndices;
 
   return {
+    textStyle: { fontFamily: CHART_FONT, fontSize: FONT_SIZE },
     graphic: sourceKey ? [sourceKey] : undefined,
     grid: grids,
     title: titles,
@@ -710,14 +724,14 @@ function buildHistogramOption(elementId, data, opts) {
       name: yAxisTitle(sensorType, [unit]),
       nameLocation: "middle",
       nameGap: 40,
-      nameTextStyle: { fontSize: 12, fontWeight: "bold", color: "#222" },
-      axisLabel: { fontSize: 11 },
+      nameTextStyle: { fontSize: FONT_SIZE, fontWeight: "bold", color: "#222" },
+      axisLabel: { fontSize: FONT_SIZE },
     },
     yAxis: {
       type: "value",
       name: "Count",
       nameLocation: "end",
-      nameTextStyle: { fontSize: 12, fontWeight: "bold", color: "#222", align: "left", padding: [0, 0, 4, -GRID_LEFT + 16] },
+      nameTextStyle: { fontSize: FONT_SIZE, fontWeight: "bold", color: "#222", align: "left", padding: [0, 0, 4, -GRID_LEFT + 16] },
       splitLine: { show: true, lineStyle: { opacity: 0.7 } },
     },
     legend: {
@@ -727,7 +741,7 @@ function buildHistogramOption(elementId, data, opts) {
       right: opts.legendsBelow ? undefined : 8,
       left: opts.legendsBelow ? GRID_LEFT : undefined,
       top: opts.legendsBelow ? TOP_OFFSET + 395 : TOP_OFFSET + 60,
-      textStyle: { width: LEGEND_WIDTH - 40, overflow: "truncate", fontSize: 11 },
+      textStyle: { fontSize: FONT_SIZE },
       tooltip: { show: true },
     },
     tooltip: {
@@ -744,6 +758,7 @@ function buildHistogramOption(elementId, data, opts) {
         ]);
       },
     },
+    textStyle: { fontFamily: CHART_FONT, fontSize: FONT_SIZE },
     toolbox: toolboxFeatures(elementId, opts.datasetName),
   };
 }
@@ -822,7 +837,7 @@ function buildHeatmapOption(elementId, data, opts) {
       inverse: true, // earliest at the top, as in the Vega-Lite heatmaps
       name: yAxisTitle(sensorType, [unit]),
       nameLocation: "end",
-      nameTextStyle: { fontSize: 12, fontWeight: "bold", color: "#222", align: "left", padding: [0, 0, 4, -94] },
+      nameTextStyle: { fontSize: FONT_SIZE, fontWeight: "bold", color: "#222", align: "left", padding: [0, 0, 4, -94] },
     },
     visualMap: {
       type: "continuous",
@@ -852,6 +867,7 @@ function buildHeatmapOption(elementId, data, opts) {
         ]);
       },
     },
+    textStyle: { fontFamily: CHART_FONT, fontSize: FONT_SIZE },
     toolbox: toolboxFeatures(elementId, opts.datasetName),
     series: [
       {
