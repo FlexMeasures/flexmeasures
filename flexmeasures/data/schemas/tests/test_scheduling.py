@@ -987,7 +987,7 @@ def test_shared_schema_fields_in_flex_context(
             ],
             False,
         ),
-        # Test multiple commodities
+        # Likewise for multiple commodities, relax_constraints should default to True for each
         (
             [
                 {
