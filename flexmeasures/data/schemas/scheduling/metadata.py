@@ -67,7 +67,7 @@ AGGREGATE_PRODUCTION = MetaData(
 
 The sign convention is determined by the key name, and is stored on the sensor itself using the ``consumption_is_positive`` attribute.
 
-See ``aggregate-consumption`` for the full description of the split logic when both sensors are defined.
+See the ``aggregate-consumption`` field for the full description of the split logic when both sensors are defined.
 """,
     example={"sensor": 11},
 )
@@ -243,7 +243,7 @@ PRODUCTION = MetaData(
 
 The sign convention is determined by the key name, and is stored on the sensor itself using the ``consumption_is_positive`` attribute.
 
-See ``consumption`` for the full description of the split logic when both sensors are defined.
+See the ``consumption`` field for the full description of the split logic when both sensors are defined.
 """,
     example={"sensor": 15},
 )
