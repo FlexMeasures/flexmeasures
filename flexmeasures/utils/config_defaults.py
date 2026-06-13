@@ -72,6 +72,8 @@ class Config(object):
     SECURITY_TOKEN_MAX_AGE: int = 60 * 60 * 6  # six hours
     SECURITY_TRACKABLE: bool = False  # this is more in line with modern privacy law
     SECURITY_PASSWORD_SALT: str | None = None
+    FLEXMEASURES_SECRETS_ENCRYPTION_KEY: str | None = None
+    FLEXMEASURES_SECRETS_ENCRYPTION_KEY_ID: str = "default"
 
     # Two Factor Authentication
     SECURITY_TWO_FACTOR_ENABLED_METHODS = [

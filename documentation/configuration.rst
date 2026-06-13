@@ -508,6 +508,29 @@ Extra password salt (a.k.a. pepper)
 
 Default: ``None`` (falls back to ``SECRET_KEY``\ )
 
+FLEXMEASURES_SECRETS_ENCRYPTION_KEY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Dedicated key used to encrypt connection secrets stored for accounts and assets,
+for example credentials and tokens used by plugins to connect to external
+platforms. The value can be any non-empty string; FlexMeasures derives a
+Fernet-compatible key from it.
+
+Production deployments must set this separately from ``SECRET_KEY`` so Flask
+session signing and stored external-platform credentials can be rotated
+independently. If unset outside of production, secret handling falls back to
+``SECRET_KEY``.
+
+Default: ``None`` (falls back to ``SECRET_KEY`` outside of production)
+
+FLEXMEASURES_SECRETS_ENCRYPTION_KEY_ID
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Identifier stored next to encrypted connection secrets to support future key
+rotation workflows.
+
+Default: ``default``
+
 SECURITY_TOKEN_AUTHENTICATION_HEADER
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

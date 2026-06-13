@@ -256,6 +256,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     dev/setup-and-guidelines
     dev/ci
     dev/auth
+    dev/connection-secrets
     dev/dependency-management
     dev/api
     dev/automated-deploy-via-GHActions
@@ -288,4 +289,3 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
 .. * :ref:`genindex`
 .. * :ref:`modindex`
 .. * :ref:`search`
-

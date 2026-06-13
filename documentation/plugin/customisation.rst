@@ -228,6 +228,77 @@ There is a ``record_once`` function on Blueprints which can help with this. An e
     
 
 
+Storing connection secrets
+---------------------------
+
+Plugins which connect FlexMeasures accounts or assets to external platforms often
+need to store credentials, refresh tokens, access tokens or connection-specific
+passwords. Store such values in the ``secrets`` JSON field of the relevant
+account or asset, rather than in ``attributes`` or plugin configuration files.
+
+The ``secrets`` field is intended to be write-only from API and UI flows: users
+can provide or replace secret values, but normal responses should return only
+redacted metadata such as whether a value is set and when it expires. Trusted
+server-side plugin code can decrypt and use the value when it performs work for
+the account or asset.
+
+Use ``flexmeasures.utils.secrets_utils`` for secret handling:
+
+.. code-block:: python
+
+    from flexmeasures.utils.secrets_utils import (
+        SecretsEncryptor,
+        get_secret,
+        redact_secrets,
+        set_secret,
+    )
+
+    encryptor = SecretsEncryptor.from_current_app()
+
+    my_account.secrets = set_secret(
+        my_account.secrets,
+        "3rdparty-platform.refresh_token",
+        refresh_token,
+        encryptor=encryptor,
+        metadata={"expires_at": refresh_token_expires_at.isoformat()},
+    )
+
+    refresh_token = get_secret(
+        my_account.secrets,
+        "3rdparty-platform.refresh_token",
+        encryptor=encryptor,
+    )
+
+    response_payload = redact_secrets(asset.secrets)
+
+The encrypted values are protected by
+``FLEXMEASURES_SECRETS_ENCRYPTION_KEY``. This setting accepts an arbitrary
+non-empty string, which FlexMeasures derives into a Fernet-compatible key. In
+development and tests, FlexMeasures can fall back to ``SECRET_KEY``. Production
+installations must set a dedicated encryption key so session signing can be
+rotated independently from stored connection credentials.
+
+Token lifecycle strategies
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+External platforms do not all follow the same token refresh semantics. Keep the
+provider-specific HTTP calls in your plugin, and use FlexMeasures utilities only
+for encryption, redaction and updating stored token state.
+
+The following token lifecycle patterns are supported by
+``TokenRefreshResult`` and ``apply_token_refresh_result``:
+
+* A refresh operation returns a new access token
+* A refresh operation rotates the refresh token
+* A refresh operation extends an existing access token without returning a new token
+* Access tokens are minted separately from refresh-token rotation
+
+For multi-worker deployments, plugins should cache short-lived access tokens in
+``secrets`` with an ``expires_at`` value and refresh them before they expire. A
+provider-specific helper can use a database lock around refresh work so only one
+worker refreshes a token while other workers reuse the updated token state.
+
+
 Using a custom favicon icon
 ----------------------------
 

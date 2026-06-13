@@ -69,6 +69,7 @@ class Account(db.Model, AuthModelMixin):
     secondary_color = Column(String(7), default=None)
     logo_url = Column(String(255), default=None)
     attributes = Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
+    secrets = Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
     annotations = db.relationship(
         "Annotation",
         secondary="annotations_accounts",
