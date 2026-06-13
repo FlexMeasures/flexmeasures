@@ -65,15 +65,15 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``inflexible-device-sensors``
      - |INFLEXIBLE_DEVICE_SENSORS.example|
      - .. include:: ../_autodoc/INFLEXIBLE_DEVICE_SENSORS.rst
-   * - ``aggregate-power``
-     - |AGGREGATE_POWER.example|
-     - .. include:: ../_autodoc/AGGREGATE_POWER.rst
    * - ``aggregate-consumption``
      - |AGGREGATE_CONSUMPTION.example|
      - .. include:: ../_autodoc/AGGREGATE_CONSUMPTION.rst
    * - ``aggregate-production``
      - |AGGREGATE_PRODUCTION.example|
      - .. include:: ../_autodoc/AGGREGATE_PRODUCTION.rst
+   * - ``aggregate-power``
+     - |AGGREGATE_POWER.example|
+     - .. include:: ../_autodoc/AGGREGATE_POWER.rst
    * - ``consumption-price``
      - |CONSUMPTION_PRICE.example|
      - .. include:: ../_autodoc/CONSUMPTION_PRICE.rst
