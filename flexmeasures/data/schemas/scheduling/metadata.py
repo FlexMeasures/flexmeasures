@@ -42,7 +42,9 @@ Must be a list of integers.
     example=[3, 4],
 )
 AGGREGATE_POWER = MetaData(
-    description="""Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.""",
+    description="""[Deprecated field] Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.
+To avoid using the field, use ``aggregate-consumption`` or ``aggregate-production`` instead, which make clear the sign convention.
+""",
     example={"sensor": 9},
 )
 AGGREGATE_CONSUMPTION = MetaData(
