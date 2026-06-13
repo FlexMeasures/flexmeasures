@@ -60,7 +60,7 @@ Depending on which output sensors are defined:
   time steps with net production), and only the non-positive part (sign-flipped) is stored on the
   aggregate-production sensor.
 """,
-    example={"sensor": 9},
+    example={"sensor": 10},
 )
 AGGREGATE_PRODUCTION = MetaData(
     description="""Sensor used to record the aggregate production schedule of all flexible and inflexible devices involved when scheduling this asset.
@@ -69,7 +69,7 @@ The sign convention is determined by the key name, and is stored on the sensor i
 
 See ``aggregate-consumption`` for the full description of the split logic when both sensors are defined.
 """,
-    example={"sensor": 10},
+    example={"sensor": 11},
 )
 COMMITMENTS = MetaData(
     description="Prior commitments. Support for this field in the UI is still under further development, but you can find more information in :ref:`commitments`.",
