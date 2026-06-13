@@ -1097,7 +1097,7 @@ def test_commodity_flex_context_defaults(
                     {
                         "commodity": "electricity",
                         "consumption-breach-price": "100 EUR/MW",
-                        "production-breach-price": "100 EUR/MW",
+                        "production-breach-price": "10 cEUR/kW",
                     }
                 ]
             },
