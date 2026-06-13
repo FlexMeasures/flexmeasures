@@ -977,7 +977,7 @@ def test_shared_schema_fields_in_flex_context(
 @pytest.mark.parametrize(
     ["commodity_contexts", "fails"],
     [
-        # Test single commodity with relax_constraints defaulting to True
+        # Test single commodity pass validation and defaults relax_constraints to True
         (
             [
                 {
