@@ -6094,7 +6094,7 @@
             "example": "7 kWh"
           },
           "power-capacity": {
-            "description": "Device-level power constraint. How much power can be applied to this asset.",
+            "description": "Symmetric device-level power constraint. How much power can be applied to this asset in either direction.\nIf omitted, the scheduler infers this limit from the greatest of <code>consumption-capacity</code> and <code>production-capacity</code> when either is configured, before falling back to <code>site-power-capacity</code>.\nWhen exactly one of <code>consumption-capacity</code> or <code>production-capacity</code> is configured to non-zero capacity, the missing opposite capacity defaults to zero.",
             "example": "50 kVA",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
