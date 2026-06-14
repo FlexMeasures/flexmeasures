@@ -1563,7 +1563,8 @@ class MetaStorageScheduler(Scheduler):
                 resolution=resolution,
                 beliefs_before=beliefs_before,
                 min_value=0,
-                resolve_overlaps="min",
+                # Normally, we'd resolve overlapping time series segments for capacities with "min", but here our goal is to find the maximum capacity.
+                resolve_overlaps="max",
             )
             for capacity in capacities
         ]
