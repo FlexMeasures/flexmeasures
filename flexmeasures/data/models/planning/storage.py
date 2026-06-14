@@ -1548,7 +1548,7 @@ class MetaStorageScheduler(Scheduler):
 
     @staticmethod
     def _is_non_zero_capacity(
-        capacity: str | int | float | ur.Quantity | Sensor | SensorReference | list
+        capacity: str | int | float | ur.Quantity | Sensor | SensorReference | list,
     ) -> bool:
         """Return whether a configured capacity should imply zero capacity in the opposite direction."""
         if isinstance(capacity, (Sensor, SensorReference)):
