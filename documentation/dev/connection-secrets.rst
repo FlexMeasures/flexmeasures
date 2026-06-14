@@ -1,4 +1,4 @@
-.. _connection-secrets-dev:
+.. _connection_secrets_dev:
 
 Connection secrets and token schemes
 ====================================
@@ -83,18 +83,6 @@ When updating secrets, prefer partial updates with clear semantics:
 
 This avoids accidental credential deletion when users edit unrelated connection
 metadata.
-
-
-Initiate token refresh cycles on startup
------------------------------------------
-
-Most providers will require true credentials only in the first interaction:
-username & password to get the access & refresh token, for example.
-From then, on the refresh token helps to get by, as long as it does not expire.
-
-A CLI command can be written for this login and seeding of the token refresh cycle.
-If no current token is in the database, let your plugin code fail explicitly by
-requiring the user to call this CLI command.
 
 
 Provider strategies

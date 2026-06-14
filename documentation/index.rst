@@ -244,6 +244,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     plugin/introduction
     plugin/showcase
     plugin/customisation
+    plugin/storing-platform-secrets
 
 
 .. toctree::
@@ -256,9 +257,9 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     dev/setup-and-guidelines
     dev/ci
     dev/auth
-    dev/connection-secrets
     dev/dependency-management
     dev/api
+    dev/connection-secrets
     dev/automated-deploy-via-GHActions
 
 .. autosummary::
