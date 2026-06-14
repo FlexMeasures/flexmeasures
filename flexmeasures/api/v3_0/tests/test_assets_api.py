@@ -278,6 +278,21 @@ def test_fetch_asset_sensors(
         assert response.json["data"][0]["name"] == expected_name_of_first_sensor
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_fetch_asset_sensors_forbidden_without_asset_read_access(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    supplier_asset_id = setup_api_test_data["some gas sensor"].generic_asset_id
+
+    response = client.get(url_for("AssetAPI:asset_sensors", id=supplier_asset_id))
+
+    assert response.status_code == 403
+
+
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_fetch_asset_sensors_can_filter_by_sensor_id(
     client,

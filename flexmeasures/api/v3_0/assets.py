@@ -423,6 +423,7 @@ class AssetAPI(FlaskView):
         location="path",
     )
     @use_kwargs(AssetPaginationSchema, location="query")
+    @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
     def asset_sensors(
         self,
