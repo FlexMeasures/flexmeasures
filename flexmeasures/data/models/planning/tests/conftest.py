@@ -105,7 +105,7 @@ def building(db, setup_accounts, setup_markets) -> GenericAsset:
         building_type = GenericAssetType(name="building")
     db.session.add(building_type)
     building = GenericAsset(
-        name="building",
+        name="planning building",
         generic_asset_type=building_type,
         owner=setup_accounts["Prosumer"],
         flex_context={
