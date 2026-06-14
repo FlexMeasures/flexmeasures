@@ -1407,6 +1407,8 @@ def test_capacity(
         ),
         ({"consumption-capacity": "700 kW"}, 0.7, 0, 0.7),
         ({"production-capacity": "300 kW"}, 0.3, -0.3, 0),
+        ({"consumption-capacity": "0 kW"}, 2, -2, 0),
+        ({"production-capacity": "0 kW"}, 2, 0, 2),
     ],
 )
 def test_device_power_capacity_uses_directional_capacity_before_site_fallback(
@@ -1445,7 +1447,11 @@ def test_device_power_capacity_uses_directional_capacity_before_site_fallback(
         beliefs_before=scheduler.belief_time,
     )[0]
 
-    assert np.allclose(power_capacity.values, expected_capacity)
+    if isinstance(power_capacity, ur.Quantity):
+        actual_capacity = power_capacity.to("MW").magnitude
+    else:
+        actual_capacity = power_capacity.values
+    assert np.allclose(actual_capacity, expected_capacity)
 
     device_constraints = scheduler._prepare(skip_validation=True)[5]
 
@@ -1889,7 +1895,6 @@ def test_battery_stock_delta_sensor(
         "roundtrip-efficiency": 1,
         "storage-efficiency": 1,
         "production-capacity": "0kW",
-        "consumption-capacity": f"{capacity}MW",
         "soc-at-start": 0,
     }
     if stock_delta_sensor is not None:
@@ -2081,7 +2086,6 @@ def test_battery_storage_efficiency_sensor(
             "roundtrip-efficiency": 1,
             "storage-efficiency": {"sensor": storage_efficiency_sensor_obj.id},
             "production-capacity": "0kW",
-            "consumption-capacity": "2MW",
             "soc-at-start": 0,
         },
     )
@@ -2163,7 +2167,6 @@ def test_add_storage_constraint_from_sensor(
         "soc-min": 0,
         "roundtrip-efficiency": 1,
         "production-capacity": "0kW",
-        "consumption-capacity": "2MW",
         "soc-at-start": soc_at_start,
     }
 

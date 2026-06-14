@@ -1528,13 +1528,41 @@ class MetaStorageScheduler(Scheduler):
     @staticmethod
     def _default_missing_directional_capacity_to_zero(flex_model_d: dict) -> None:
         """Given a missing capacity opposite a non-zero directional capacity, default the missing capacity to zero."""
-        has_consumption_capacity = flex_model_d.get("consumption_capacity") is not None
-        has_production_capacity = flex_model_d.get("production_capacity") is not None
+        consumption_capacity = flex_model_d.get("consumption_capacity")
+        production_capacity = flex_model_d.get("production_capacity")
+        has_consumption_capacity = consumption_capacity is not None
+        has_production_capacity = production_capacity is not None
 
-        if has_consumption_capacity and not has_production_capacity:
+        if (
+            has_consumption_capacity
+            and not has_production_capacity
+            and MetaStorageScheduler._is_non_zero_capacity(consumption_capacity)
+        ):
             flex_model_d["production_capacity"] = ur.Quantity("0 MW")
-        elif has_production_capacity and not has_consumption_capacity:
+        elif (
+            has_production_capacity
+            and not has_consumption_capacity
+            and MetaStorageScheduler._is_non_zero_capacity(production_capacity)
+        ):
             flex_model_d["consumption_capacity"] = ur.Quantity("0 MW")
+
+    @staticmethod
+    def _is_non_zero_capacity(
+        capacity: str | int | float | ur.Quantity | Sensor | SensorReference | list
+    ) -> bool:
+        """Return whether a configured capacity should imply zero capacity in the opposite direction."""
+        if isinstance(capacity, (Sensor, SensorReference)):
+            return True
+        if isinstance(capacity, list):
+            return any(
+                MetaStorageScheduler._is_non_zero_capacity(event["value"])
+                for event in capacity
+            )
+        if isinstance(capacity, str):
+            capacity = ur.Quantity(capacity)
+        if isinstance(capacity, ur.Quantity):
+            return bool(np.any(capacity.magnitude != 0))
+        return capacity != 0
 
     def _get_largest_device_capacity(
         self,
@@ -1570,6 +1598,11 @@ class MetaStorageScheduler(Scheduler):
         ]
         largest_capacity = pd.concat(capacity_series, axis=1).max(axis=1)
         if largest_capacity.isna().all():
+            return None
+        if (
+            len(configured_capacity_fields) == 1
+            and largest_capacity.fillna(0).eq(0).all()
+        ):
             return None
         return largest_capacity
 
