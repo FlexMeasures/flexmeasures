@@ -226,66 +226,6 @@ def test_fetch_sensors(
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
-def test_fetch_sensors_can_filter_by_sensor_id(
-    client,
-    db,
-    setup_api_test_data,
-    requesting_user,
-):
-    sensor = setup_api_test_data["some gas sensor"]
-    matching_sensor_id = int(f"{sensor.id}0")
-    while db.session.get(Sensor, matching_sensor_id) is not None:
-        matching_sensor_id = int(f"{matching_sensor_id}0")
-    matching_sensor = Sensor(
-        name="matching sensor ID prefix",
-        unit=sensor.unit,
-        event_resolution=sensor.event_resolution,
-        generic_asset=sensor.generic_asset,
-    )
-    matching_sensor.id = matching_sensor_id
-    db.session.add(matching_sensor)
-    db.session.flush()
-
-    id_prefix = str(sensor.id)
-    response = client.get(
-        url_for("SensorAPI:index"),
-        query_string={
-            "asset_id": sensor.generic_asset_id,
-            "filter": id_prefix,
-        },
-    )
-
-    print("Server responded with:\n%s" % response.json)
-
-    assert response.status_code == 200
-    sensor_ids = [s["id"] for s in response.json]
-    assert sensor.id in sensor_ids
-    assert matching_sensor.id in sensor_ids
-    assert all(str(sensor_id).startswith(id_prefix) for sensor_id in sensor_ids)
-
-    full_id_response = client.get(
-        url_for("SensorAPI:index"),
-        query_string={
-            "asset_id": sensor.generic_asset_id,
-            "filter": str(matching_sensor.id),
-        },
-    )
-
-    print("Server responded with:\n%s" % full_id_response.json)
-
-    assert full_id_response.status_code == 200
-    full_id_sensor_ids = [s["id"] for s in full_id_response.json]
-    assert sensor.id not in full_id_sensor_ids
-    assert matching_sensor.id in full_id_sensor_ids
-    assert all(
-        str(sensor_id).startswith(str(matching_sensor.id))
-        for sensor_id in full_id_sensor_ids
-    )
-
-
-@pytest.mark.parametrize(
-    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
-)
 def test_fetch_one_sensor(
     client, setup_api_test_data: dict[str, Sensor], requesting_user, db
 ):

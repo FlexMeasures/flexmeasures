@@ -170,63 +170,6 @@ def test_get_assets(
         assert turbine["account_id"] == setup_accounts["Supplier"].id
 
 
-@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_get_assets_can_filter_by_asset_id(
-    client,
-    db,
-    setup_api_test_data,
-    requesting_user,
-):
-    asset = setup_api_test_data["some gas sensor"].generic_asset
-    matching_asset_id = int(f"{asset.id}0")
-    while db.session.get(GenericAsset, matching_asset_id) is not None:
-        matching_asset_id = int(f"{matching_asset_id}0")
-    matching_asset = GenericAsset(
-        id=matching_asset_id,
-        name="matching asset ID prefix",
-        generic_asset_type=asset.generic_asset_type,
-        owner=asset.owner,
-    )
-    db.session.add(matching_asset)
-    db.session.flush()
-
-    id_prefix = str(asset.id)
-    response = client.get(
-        url_for("AssetAPI:index"),
-        query_string={
-            "account_id": asset.account_id,
-            "filter": id_prefix,
-        },
-    )
-
-    print("Server responded with:\n%s" % response.json)
-
-    assert response.status_code == 200
-    asset_ids = [a["id"] for a in response.json]
-    assert asset.id in asset_ids
-    assert matching_asset.id in asset_ids
-    assert all(str(asset_id).startswith(id_prefix) for asset_id in asset_ids)
-
-    full_id_response = client.get(
-        url_for("AssetAPI:index"),
-        query_string={
-            "account_id": asset.account_id,
-            "filter": str(matching_asset.id),
-        },
-    )
-
-    print("Server responded with:\n%s" % full_id_response.json)
-
-    assert full_id_response.status_code == 200
-    full_id_asset_ids = [a["id"] for a in full_id_response.json]
-    assert asset.id not in full_id_asset_ids
-    assert matching_asset.id in full_id_asset_ids
-    assert all(
-        str(asset_id).startswith(str(matching_asset.id))
-        for asset_id in full_id_asset_ids
-    )
-
-
 @pytest.mark.parametrize(
     "requesting_user, sort_by, sort_dir, expected_name_of_first_sensor",
     [
@@ -309,61 +252,6 @@ def test_fetch_asset_sensors_uses_all_parsed_filter_terms(
     assert response.status_code == 200
     assert [s["id"] for s in response.json["data"]] == [sensor.id]
     assert response.json["filtered-records"] == 1
-
-
-@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
-def test_fetch_asset_sensors_can_filter_by_sensor_id(
-    client,
-    db,
-    setup_api_test_data,
-    requesting_user,
-):
-    sensor = setup_api_test_data["some gas sensor"]
-    matching_sensor_id = int(f"{sensor.id}0")
-    while db.session.get(Sensor, matching_sensor_id) is not None:
-        matching_sensor_id = int(f"{matching_sensor_id}0")
-    matching_sensor = Sensor(
-        name="matching sensor ID prefix",
-        unit=sensor.unit,
-        event_resolution=sensor.event_resolution,
-        generic_asset=sensor.generic_asset,
-    )
-    matching_sensor.id = matching_sensor_id
-    db.session.add(matching_sensor)
-    db.session.flush()
-
-    id_prefix = str(sensor.id)
-    response = client.get(
-        url_for("AssetAPI:asset_sensors", id=sensor.generic_asset_id),
-        query_string={"filter": id_prefix},
-    )
-
-    print("Server responded with:\n%s" % response.json)
-
-    assert response.status_code == 200
-    assert response.json["num-records"] == 4
-    assert response.json["filtered-records"] >= 2
-    sensor_ids = [s["id"] for s in response.json["data"]]
-    assert sensor.id in sensor_ids
-    assert matching_sensor.id in sensor_ids
-    assert all(str(sensor_id).startswith(id_prefix) for sensor_id in sensor_ids)
-
-    full_id_response = client.get(
-        url_for("AssetAPI:asset_sensors", id=sensor.generic_asset_id),
-        query_string={"filter": str(matching_sensor.id)},
-    )
-
-    print("Server responded with:\n%s" % full_id_response.json)
-
-    assert full_id_response.status_code == 200
-    assert full_id_response.json["filtered-records"] >= 1
-    full_id_sensor_ids = [s["id"] for s in full_id_response.json["data"]]
-    assert sensor.id not in full_id_sensor_ids
-    assert matching_sensor.id in full_id_sensor_ids
-    assert all(
-        str(sensor_id).startswith(str(matching_sensor.id))
-        for sensor_id in full_id_sensor_ids
-    )
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)

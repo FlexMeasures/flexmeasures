@@ -15,7 +15,7 @@ from flask_sqlalchemy.pagination import SelectPagination
 from marshmallow import fields, post_load, ValidationError, Schema, validate
 
 from webargs.flaskparser import use_kwargs, use_args
-from sqlalchemy import cast, select, func, or_, String
+from sqlalchemy import select, func, or_
 
 from flexmeasures.data.services.generic_assets import (
     create_asset,
@@ -47,6 +47,7 @@ from flexmeasures.data.queries.generic_assets import (
     filter_assets_under_root,
     query_assets_by_search_terms,
 )
+from flexmeasures.data.queries.utils import id_prefix_filter
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.generic_assets import (
@@ -93,7 +94,7 @@ sensors_schema = SensorSchema(many=True)
 def sensor_term_filter(term: str):
     filters = [Sensor.name.ilike(f"%{term}%")]
     if term.isdecimal():
-        filters.append(cast(Sensor.id, String).like(f"{term}%"))
+        filters.append(id_prefix_filter(Sensor.id, term))
     return or_(*filters)
 
 

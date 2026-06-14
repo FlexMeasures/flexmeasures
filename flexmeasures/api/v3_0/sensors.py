@@ -16,7 +16,7 @@ from marshmallow import fields, pre_load, Schema, ValidationError, validates_sch
 import marshmallow.validate as validate
 from rq.job import Job, JobStatus, NoSuchJobError
 from webargs.flaskparser import use_args, use_kwargs
-from sqlalchemy import cast, delete, select, or_, String
+from sqlalchemy import delete, select, or_
 
 from flexmeasures.api.common.responses import (
     request_processed,
@@ -50,7 +50,7 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.queries.utils import simplify_index
+from flexmeasures.data.queries.utils import id_prefix_filter, simplify_index
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorSchema,
@@ -99,7 +99,7 @@ def sensor_search_term_filter(term: str):
         GenericAsset.name.ilike(f"%{term}%"),
     ]
     if term.isdecimal():
-        filters.append(cast(Sensor.id, String).like(f"{term}%"))
+        filters.append(id_prefix_filter(Sensor.id, term))
     return or_(*filters)
 
 
