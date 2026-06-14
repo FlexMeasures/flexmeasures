@@ -505,10 +505,7 @@ class AssetAPI(FlaskView):
         query = select(Sensor).filter(query_statement)
 
         if filter:
-            search_terms = filter[0].split(" ")
-            query = query.filter(
-                or_(*(sensor_term_filter(term) for term in search_terms))
-            )
+            query = query.filter(or_(*(sensor_term_filter(term) for term in filter)))
 
         if sort_by is not None:
             valid_sort_columns = {
