@@ -1073,6 +1073,7 @@
           {
             "in": "query",
             "name": "filter",
+            "description": "Return only sensors where a search term is present in the sensor name, account name, asset name, or is a prefix of the sensor ID.",
             "schema": {
               "type": "string"
             },
@@ -2594,7 +2595,7 @@
     "/api/v3_0/assets/{id}/sensors": {
       "get": {
         "summary": "Return all sensors under an asset.",
-        "description": "This endpoint returns all sensors under an asset.\n\nThe endpoint supports pagination of the sensor list using the `page` and `per_page` query parameters.\n\n- If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.\n- If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).\n- If a search 'filter' is provided, the response will filter out sensors where a search term is either present in their name or is a prefix of their ID.\nThe response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data\n",
+        "description": "This endpoint returns all sensors under an asset.\n\nThe endpoint supports pagination of the sensor list using the `page` and `per_page` query parameters.\n\n- If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.\n- If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).\n- If a search 'filter' is provided, the response will return only sensors where a search term is either present in their name or is a prefix of their ID.\nThe response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2632,7 +2633,7 @@
           {
             "in": "query",
             "name": "filter",
-            "description": "Filter results by this keyword.",
+            "description": "Return only sensors where a search term is present in the sensor name or is a prefix of the sensor ID.",
             "schema": {
               "type": "string"
             },
@@ -3476,7 +3477,7 @@
     "/api/v3_0/assets": {
       "get": {
         "summary": "List assets accessible by the user.",
-        "description": "This endpoint returns all assets that are accessible by the user after applying optional filters.\n\n  - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n  - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).\n  - The `depth` query parameter can be used to search only a max number of descendant generations from the root.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will filter out assets where each search term is either present in their name or account name, or is a prefix of their ID.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n\nPer default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).\nYou can use the `fields` query parameter to specify a custom set of fields to include in the response.\n",
+        "description": "This endpoint returns all assets that are accessible by the user after applying optional filters.\n\n  - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n  - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).\n  - The `depth` query parameter can be used to search only a max number of descendant generations from the root.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will return only assets where each search term is either present in their name or account name, or is a prefix of their ID.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n\nPer default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).\nYou can use the `fields` query parameter to specify a custom set of fields to include in the response.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3505,7 +3506,7 @@
           {
             "in": "query",
             "name": "filter",
-            "description": "Filter results by this keyword.",
+            "description": "Return only assets where each search term is present in the asset name or account name, or is a prefix of the asset ID.",
             "schema": {
               "type": "string"
             },
@@ -4857,7 +4858,7 @@
           },
           "filter": {
             "type": "string",
-            "description": "Filter results by this keyword."
+            "description": "Return only assets where each search term is present in the asset name or account name, or is a prefix of the asset ID."
           },
           "sort_by": {
             "type": "string",

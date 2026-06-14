@@ -229,7 +229,12 @@ class SensorKwargsSchema(Schema):
     per_page = fields.Int(
         required=False, validate=validate.Range(min=1), load_default=10
     )
-    filter = SearchFilterField(required=False)
+    filter = SearchFilterField(
+        required=False,
+        metadata=dict(
+            description="Return only sensors where a search term is present in the sensor name, account name, asset name, or is a prefix of the sensor ID.",
+        ),
+    )
     unit = UnitField(required=False)
 
 
