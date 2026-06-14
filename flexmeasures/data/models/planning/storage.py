@@ -1527,7 +1527,7 @@ class MetaStorageScheduler(Scheduler):
 
     @staticmethod
     def _default_missing_directional_capacity_to_zero(flex_model_d: dict) -> None:
-        """Default the missing opposite directional capacity to zero."""
+        """Given a missing capacity opposite a non-zero directional capacity, default the missing capacity to zero."""
         has_consumption_capacity = flex_model_d.get("consumption_capacity") is not None
         has_production_capacity = flex_model_d.get("production_capacity") is not None
 
