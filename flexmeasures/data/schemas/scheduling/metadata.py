@@ -342,7 +342,7 @@ When exactly one of ``consumption-capacity`` or ``production-capacity`` is confi
     example="50 kVA",
 )
 CONSUMPTION_CAPACITY = MetaData(
-    description="""Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_""",
+    description="Device-level power constraint on consumption. How much power can be drawn by this asset. [#minimum_overlap]_",
     example={"sensor": 56},
 )
 PRODUCTION_CAPACITY = MetaData(
