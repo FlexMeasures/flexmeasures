@@ -21,7 +21,7 @@ from flexmeasures.data.schemas.attributes import validate_special_attributes
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import (
@@ -40,6 +40,18 @@ def fm_edit_data():
 
 @fm_edit_data.command("attribute", cls=DeprecatedOptionsCommand)
 @with_appcontext
+@click.option(
+    "--account",
+    "--account-id",
+    "accounts",
+    required=False,
+    multiple=True,
+    type=AccountIdField(),
+    cls=DeprecatedOption,
+    deprecated=["--asset-id"],
+    preferred="--asset",
+    help="Add/edit attribute to this account. Follow up with the account's ID.",
+)
 @click.option(
     "--asset",
     "--asset-id",
@@ -122,6 +134,7 @@ def fm_edit_data():
 )
 def edit_attribute(
     attribute_key: str,
+    accounts: list[Account],
     assets: list[GenericAsset],
     sensors: list[Sensor],
     attribute_null_value: bool,
@@ -134,8 +147,10 @@ def edit_attribute(
 ):
     """Edit (or add) an asset attribute or sensor attribute."""
 
-    if not assets and not sensors:
-        raise ValueError("Missing flag: pass at least one --asset-id or --sensor-id.")
+    if not accounts and not assets and not sensors:
+        raise ValueError(
+            "Missing flag: pass at least one --account, --asset or --sensor."
+        )
 
     # Parse attribute value
     attribute_value = parse_attribute_value(
@@ -152,6 +167,12 @@ def edit_attribute(
     validate_special_attributes(attribute_key, attribute_value)
 
     # Set attribute
+    for account in accounts:
+        AuditLog.add_record_for_attribute_update(
+            attribute_key, attribute_value, "account", account
+        )
+        account.attributes[attribute_key] = attribute_value
+        db.session.add(account)
     for asset in assets:
         AssetAuditLog.add_record_for_attribute_update(
             attribute_key, attribute_value, "asset", asset

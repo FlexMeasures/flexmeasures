@@ -62,6 +62,43 @@ class AuditLog(db.Model, AuthModelMixin):
     )
 
     @classmethod
+    def add_record_for_attribute_update(
+        cls,
+        attribute_key: str,
+        attribute_value: float | int | bool | str | list | dict | None,
+        entity_type: str,
+        account_or_user: Account | User,
+    ) -> None:
+        """Add audit log record about account or user attribute update.
+
+        :param attribute_key: attribute key to update
+        :param attribute_value: new attribute value
+        :param entity_type: 'account' or 'user'
+        :param account_or_user: account or user object
+        """
+        current_user_id, current_user_name = get_current_user_id_name()
+
+        old_value = account_or_user.attributes.get(attribute_key)
+        if entity_type == "user":
+            event = f"Updated user '{account_or_user.name}': {account_or_user.id}; "
+            affected_account_id = (account_or_user.account_id,)
+        else:
+            event = f"Updated account '{account_or_user.name}': {account_or_user.id}; "
+            affected_account_id = account_or_user.id
+        event += f"Attr '{attribute_key}' To {attribute_value} From {old_value}"
+
+        audit_log = cls(
+            event_datetime=server_now(),
+            event=truncate_string(
+                event, 500
+            ),  # we truncate the event string if it exceeds 500 characters by adding ellipses in the middle
+            active_user_id=current_user_id,
+            active_user_name=current_user_name,
+            affected_account_id=affected_account_id,
+        )
+        db.session.add(audit_log)
+
+    @classmethod
     def user_table_acl(cls, user: User):
         """
         Table-level access rules for user-affecting audit logs. Use directly in check_access or in @permission_required_for_context with pass_ctx_to_loader, ctx_loader=AuditLog.user_acl.

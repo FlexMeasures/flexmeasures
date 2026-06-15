@@ -5,7 +5,7 @@ import timely_beliefs as tb
 from sqlalchemy import select
 
 from flexmeasures.cli.tests.utils import check_command_ran_without_error, to_flags
-from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.cli.tests.utils import get_click_commands
 from flexmeasures.tests.utils import get_test_sensor
@@ -65,6 +65,33 @@ def test_update_one_asset_attribute(app, db, setup_generic_assets):
     assert db.session.execute(
         select(AssetAuditLog).filter_by(
             affected_asset_id=asset.id,
+            event=event,
+            active_user_id=None,
+            active_user_name=None,
+        )
+    ).scalar_one_or_none()
+
+
+def test_update_one_account_attribute(app, db, setup_generic_assets):
+    from flexmeasures.cli.data_edit import edit_attribute
+
+    db.session.flush()
+    account = setup_generic_assets["test_battery"].owner
+    cli_input = {
+        "account": account.id,
+        "attribute": "some-attribute",
+        "str": "some-new-value",
+    }
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(edit_attribute, to_flags(cli_input))
+    check_command_ran_without_error(result)
+    assert "Success" in result.output, result.exception
+
+    event = f"Updated account '{account.name}': {account.id}; Attr 'some-attribute' To some-new-value From None"
+    assert db.session.execute(
+        select(AuditLog).filter_by(
+            affected_account_id=account.id,
             event=event,
             active_user_id=None,
             active_user_name=None,
