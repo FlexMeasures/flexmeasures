@@ -69,6 +69,7 @@ from flexmeasures.api.common.responses import (
     request_processed,
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
+from flexmeasures.data.config import most_recent_beliefs_mview
 from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
 from flexmeasures.auth.policy import check_access, user_has_admin_access
@@ -947,6 +948,7 @@ class AssetAPI(FlaskView):
                 required=False, load_default=False
             ),
             "most_recent_beliefs_only": fields.Boolean(required=False),
+            "use_materialized_view": fields.Boolean(required=False, load_default=True),
             "compress_json": fields.Boolean(required=False),
         },
         location="query",
@@ -988,6 +990,7 @@ class AssetAPI(FlaskView):
             - Assets
         """
         sensors = SensorsToShowSchema.flatten(asset.validate_sensors_to_show())
+        kwargs["most_recent_beliefs_mview"] = most_recent_beliefs_mview
         return asset.chart_data_json(sensors=sensors, **kwargs)
 
     @route("/<id>/auditlog")
