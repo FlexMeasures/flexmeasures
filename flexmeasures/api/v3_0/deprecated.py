@@ -3,6 +3,14 @@ from flask_classful import FlaskView, route
 from flask_security import auth_required, current_user
 from webargs.flaskparser import use_args
 
+
+def _deprecation_headers():
+    return {
+        "Deprecation": "true",
+        "Sunset": "Sat, 01 Jan 2025 00:00:00 GMT",
+        "Link": '</sensors/{id}/data>; rel="successor-version"',
+    }
+
 from flexmeasures.api.common.schemas.sensor_data import (
     GetSensorDataSchema,
     GetSensorDataSchemaEntityAddress,
@@ -53,7 +61,7 @@ class SensorEntityAddressAPI(FlaskView):
             sensor_data_description
         )
         d, s = request_processed()
-        return dict(**response, **d), s
+        return dict(**response, **d), s, _deprecation_headers()
 
     @route("/data", methods=["POST"])
     @use_args(
@@ -81,4 +89,4 @@ class SensorEntityAddressAPI(FlaskView):
             f"User {current_user} called the deprecated endpoint /sensors/data for sensor {sensor_id}. Should start using /sensors/{sensor_id}/data."
         )
         response, code = save_and_enqueue(bdf)
-        return response, code
+        return response, code, _deprecation_headers()
