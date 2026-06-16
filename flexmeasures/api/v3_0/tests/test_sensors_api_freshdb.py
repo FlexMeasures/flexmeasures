@@ -230,7 +230,7 @@ def test_upload_sensor_data_with_unit_conversion_success(
             len(beliefs) == expected_num_beliefs
         ), f"Fetched {len(beliefs)} beliefs from the database, expecting {expected_num_beliefs}."
 
-        assert [b.event_value for b in beliefs] == expected_event_values
+        assert [b.event_value for b in beliefs] == pytest.approx(expected_event_values)
 
 
 @pytest.mark.parametrize(

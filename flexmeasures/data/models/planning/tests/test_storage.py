@@ -7,7 +7,10 @@ import numpy as np
 import pandas as pd
 
 from flexmeasures.data.models.planning import Scheduler
-from flexmeasures.data.models.planning.storage import StorageScheduler
+from flexmeasures.data.models.planning.storage import (
+    StorageScheduler,
+    project_off_tick_soc_constraints,
+)
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.tests.utils import (
@@ -288,6 +291,338 @@ def test_battery_relaxation(add_battery_assets, db):
         costs["all consumption breaches device 0"],
         device_power_breach_price * consumption_capacity_in_mw * 1000 * 4,
     )  # 100 EUR/(kW*h) * 0.025 MW * 1000 kW/MW * 4 hours
+
+
+def test_off_tick_soc_target_is_projected_to_scheduling_ticks(add_battery_assets, db):
+    """Off-tick targets become a next-tick target and a reachable previous-tick bound."""
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1, 16, 45))
+    end = tz.localize(datetime(2015, 1, 1, 17, 15))
+    resolution = timedelta(minutes=15)
+
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": "0 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "0.04 MW",
+            "consumption-capacity": "0.04 MW",
+            "production-capacity": "0 MW",
+            "roundtrip-efficiency": 1,
+            "storage-efficiency": 1,
+            "soc-targets": [
+                {
+                    "datetime": "2015-01-01T17:12:00+01:00",
+                    "value": "1 MWh",
+                }
+            ],
+        },
+        flex_context={
+            "consumption-price": "0 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "1 MW",
+        },
+    )
+
+    _, _, _, _, _, device_constraints, _, _ = scheduler._prepare(skip_validation=True)
+    storage_constraints = device_constraints[0].tz_convert(tz)
+
+    assert pd.isna(
+        storage_constraints.loc[start, "equals"]
+    ), "off-tick targets should not become exact constraints on the previous tick"
+    assert storage_constraints.loc[start, "min"] == pytest.approx(
+        0.992 * 4
+    ), "previous tick should allow charging the missing 0.008 MWh before the target time"
+    assert storage_constraints.loc[start + resolution, "equals"] == pytest.approx(
+        4
+    ), "next tick should carry the projected exact target"
+
+
+def test_off_tick_soc_target_is_projected_for_instantaneous_sensor(
+    add_battery_assets, db
+):
+    """Off-tick projection also applies when the scheduled sensor is instantaneous."""
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+    instantaneous_power_sensor = Sensor(
+        name="instantaneous-power",
+        generic_asset=battery.generic_asset,
+        event_resolution=timedelta(0),
+        unit="MW",
+    )
+    db.session.add(instantaneous_power_sensor)
+    db.session.flush()
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1, 16, 45))
+    end = tz.localize(datetime(2015, 1, 1, 17, 15))
+    resolution = timedelta(minutes=15)
+
+    scheduler = StorageScheduler(
+        instantaneous_power_sensor,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": "0 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "0.04 MW",
+            "consumption-capacity": "0.04 MW",
+            "production-capacity": "0 MW",
+            "roundtrip-efficiency": 1,
+            "storage-efficiency": 1,
+            "soc-targets": [
+                {
+                    "datetime": "2015-01-01T17:12:00+01:00",
+                    "value": "1 MWh",
+                }
+            ],
+        },
+        flex_context={
+            "consumption-price": "0 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "1 MW",
+        },
+    )
+
+    _, _, _, _, _, device_constraints, _, _ = scheduler._prepare(skip_validation=True)
+    storage_constraints = device_constraints[0].tz_convert(tz)
+
+    assert storage_constraints.loc[start, "min"] == pytest.approx(
+        0.992 * 4
+    ), "instantaneous sensors should still project the previous-tick minimum"
+    assert storage_constraints.loc[start + resolution, "equals"] == pytest.approx(
+        4
+    ), "instantaneous sensors should still project the exact target to the next tick"
+
+
+@pytest.mark.parametrize(
+    "soc_minima, soc_maxima, expected_previous_value, expected_next_value",
+    [
+        (
+            [
+                {
+                    "datetime": "2015-01-01T17:12:00+01:00",
+                    "start": "2015-01-01T17:12:00+01:00",
+                    "end": "2015-01-01T17:12:00+01:00",
+                    "value": 1,
+                }
+            ],
+            None,
+            0.992,
+            1,
+        ),
+        (
+            None,
+            [
+                {
+                    "datetime": "2015-01-01T17:12:00+01:00",
+                    "start": "2015-01-01T17:12:00+01:00",
+                    "end": "2015-01-01T17:12:00+01:00",
+                    "value": 0.5,
+                }
+            ],
+            0.5,
+            0.502,
+        ),
+    ],
+)
+def test_off_tick_soc_bounds_are_projected_to_scheduling_ticks(
+    soc_minima,
+    soc_maxima,
+    expected_previous_value,
+    expected_next_value,
+):
+    """Off-tick minima and maxima are projected as reachable bounds on surrounding ticks."""
+    tz = pytz.timezone("Europe/Amsterdam")
+    resolution = timedelta(minutes=15)
+    previous_tick = pd.Timestamp(tz.localize(datetime(2015, 1, 1, 17)))
+    next_tick = previous_tick + resolution
+    capacity = pd.Series(
+        0.04, index=pd.date_range(previous_tick, next_tick, freq=resolution)
+    )
+
+    _, projected_maxima, projected_minima = project_off_tick_soc_constraints(
+        soc_targets=None,
+        soc_maxima=soc_maxima,
+        soc_minima=soc_minima,
+        consumption_capacity=capacity,
+        production_capacity=pd.Series(0, index=capacity.index),
+        resolution=resolution,
+        soc_min=0,
+        soc_max=1,
+    )
+
+    projected_events = projected_minima or projected_maxima
+
+    assert _soc_event_value_at(projected_events, previous_tick) == pytest.approx(
+        expected_previous_value
+    ), "previous tick should use the capacity-adjusted projected SoC bound"
+    assert _soc_event_value_at(projected_events, next_tick) == pytest.approx(
+        expected_next_value
+    ), "next tick should use the projected SoC bound implied by reachability"
+
+
+def test_off_tick_soc_projection_accepts_missing_global_bounds():
+    """Missing global SoC bounds leave projected off-tick bounds unclamped."""
+    tz = pytz.timezone("Europe/Amsterdam")
+    resolution = timedelta(minutes=15)
+    previous_tick = pd.Timestamp(tz.localize(datetime(2015, 1, 1, 17)))
+    next_tick = previous_tick + resolution
+    capacity = pd.Series(
+        0.04, index=pd.date_range(previous_tick, next_tick, freq=resolution)
+    )
+
+    _, projected_maxima, projected_minima = project_off_tick_soc_constraints(
+        soc_targets=[
+            {
+                "datetime": "2015-01-01T17:12:00+01:00",
+                "start": "2015-01-01T17:12:00+01:00",
+                "end": "2015-01-01T17:12:00+01:00",
+                "value": 0.5,
+            }
+        ],
+        soc_maxima=None,
+        soc_minima=None,
+        consumption_capacity=capacity,
+        production_capacity=capacity,
+        resolution=resolution,
+        soc_min=None,
+        soc_max=None,
+    )
+
+    assert _soc_event_value_at(projected_minima, previous_tick) == pytest.approx(
+        0.492
+    ), "missing global soc-min should not clamp the projected previous-tick minimum"
+    assert _soc_event_value_at(projected_maxima, previous_tick) == pytest.approx(
+        0.508
+    ), "missing global soc-max should not clamp the projected previous-tick maximum"
+
+
+def _soc_event_value_at(events, dt):
+    matches = [
+        event
+        for event in events
+        if pd.Timestamp(event["start"]) == dt and pd.Timestamp(event["end"]) == dt
+    ]
+    assert len(matches) == 1, "projection should create exactly one event per tick"
+    return matches[0]["value"]
+
+
+def test_off_tick_soc_bounds_are_merged_on_the_same_scheduling_tick():
+    """Projected bounds sharing a tick keep the stricter minimum or maximum."""
+    tz = pytz.timezone("Europe/Amsterdam")
+    resolution = timedelta(minutes=15)
+    previous_tick = pd.Timestamp(tz.localize(datetime(2015, 1, 1, 17)))
+    next_tick = previous_tick + resolution
+    capacity = pd.Series(
+        0, index=pd.date_range(previous_tick, next_tick, freq=resolution)
+    )
+
+    _, projected_maxima, projected_minima = project_off_tick_soc_constraints(
+        soc_targets=None,
+        soc_maxima=[
+            {
+                "datetime": tz.localize(datetime(2015, 1, 1, 17, 4)),
+                "start": tz.localize(datetime(2015, 1, 1, 17, 4)),
+                "end": tz.localize(datetime(2015, 1, 1, 17, 4)),
+                "value": 0.8,
+            },
+            {
+                "datetime": tz.localize(datetime(2015, 1, 1, 17, 8)),
+                "start": tz.localize(datetime(2015, 1, 1, 17, 8)),
+                "end": tz.localize(datetime(2015, 1, 1, 17, 8)),
+                "value": 0.6,
+            },
+        ],
+        soc_minima=[
+            {
+                "datetime": tz.localize(datetime(2015, 1, 1, 17, 4)),
+                "start": tz.localize(datetime(2015, 1, 1, 17, 4)),
+                "end": tz.localize(datetime(2015, 1, 1, 17, 4)),
+                "value": 0.4,
+            },
+            {
+                "datetime": tz.localize(datetime(2015, 1, 1, 17, 8)),
+                "start": tz.localize(datetime(2015, 1, 1, 17, 8)),
+                "end": tz.localize(datetime(2015, 1, 1, 17, 8)),
+                "value": 0.7,
+            },
+        ],
+        consumption_capacity=capacity,
+        production_capacity=capacity,
+        resolution=resolution,
+        soc_min=0,
+        soc_max=1,
+    )
+
+    assert _soc_event_value_at(projected_minima, previous_tick) == pytest.approx(
+        0.7
+    ), "merged minima should keep the stricter lower bound on the previous tick"
+    assert _soc_event_value_at(projected_minima, next_tick) == pytest.approx(
+        0.7
+    ), "merged minima should keep the stricter lower bound on the next tick"
+    assert _soc_event_value_at(projected_maxima, previous_tick) == pytest.approx(
+        0.6
+    ), "merged maxima should keep the stricter upper bound on the previous tick"
+    assert _soc_event_value_at(projected_maxima, next_tick) == pytest.approx(
+        0.6
+    ), "merged maxima should keep the stricter upper bound on the next tick"
+
+
+def test_off_tick_soc_constraints_enable_relax_soc_constraints(add_battery_assets, db):
+    """Off-tick SoC constraints enable relaxation because projection can add bounds."""
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1, 16, 45))
+    end = tz.localize(datetime(2015, 1, 1, 17, 15))
+    resolution = timedelta(minutes=15)
+
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": "0 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "0.04 MW",
+            "soc-targets": [
+                {
+                    "datetime": "2015-01-01T17:12:00+01:00",
+                    "value": "1 MWh",
+                }
+            ],
+        },
+        flex_context={
+            "consumption-price": "0 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "relax-soc-constraints": False,
+        },
+    )
+
+    scheduler.deserialize_config()
+
+    assert (
+        scheduler.flex_context["relax_soc_constraints"] is True
+    ), "off-tick SoC constraints should automatically enable SoC relaxation"
+    assert (
+        scheduler.flex_context["soc_minima_breach_price"] is not None
+    ), "auto-enabled SoC relaxation should include a minima breach price"
+    assert (
+        scheduler.flex_context["soc_maxima_breach_price"] is not None
+    ), "auto-enabled SoC relaxation should include a maxima breach price"
 
 
 def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(

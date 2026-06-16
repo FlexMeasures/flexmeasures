@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import re
 import copy
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Type
+from typing import Literal, Type
 
 import pandas as pd
 import numpy as np
@@ -35,6 +36,10 @@ from flexmeasures.data.schemas.scheduling import (
     FlexContextSchema,
     MultiSensorFlexModelSchema,
 )
+from flexmeasures.data.schemas.scheduling.utils import (
+    is_on_schedule_tick,
+    should_project_off_tick_soc_constraints,
+)
 from flexmeasures.data.schemas.sensors import SensorReference, VariableQuantityField
 from flexmeasures.utils.calculations import (
     integrate_time_series,
@@ -45,6 +50,36 @@ from flexmeasures.utils.unit_utils import ur, convert_units
 
 
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
+
+SocBoundType = Literal["min", "max"]
+SocProjectionTick = Literal["previous", "next"]
+SocCapacityType = Literal["consumption", "production"]
+SocCapacityPeriod = Literal["before", "after"]
+
+
+@dataclass(frozen=True)
+class SocProjectionRule:
+    bound_type: SocBoundType
+    tick: SocProjectionTick
+    capacity: SocCapacityType
+    period: SocCapacityPeriod
+    sign: int
+
+
+SOC_PROJECTION_POLICIES = {
+    "soc-targets": (
+        SocProjectionRule("min", "previous", "consumption", "before", -1),
+        SocProjectionRule("max", "previous", "production", "before", +1),
+    ),
+    "soc-minima": (
+        SocProjectionRule("min", "previous", "consumption", "before", -1),
+        SocProjectionRule("min", "next", "production", "after", -1),
+    ),
+    "soc-maxima": (
+        SocProjectionRule("max", "previous", "production", "before", +1),
+        SocProjectionRule("max", "next", "consumption", "after", +1),
+    ),
+}
 
 
 class MetaStorageScheduler(Scheduler):
@@ -651,22 +686,6 @@ class MetaStorageScheduler(Scheduler):
                 # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
                 soc_maxima[d] = None
 
-            if soc_at_start[d] is not None:
-                device_constraints[d] = add_storage_constraints(
-                    start,
-                    end,
-                    resolution,
-                    soc_at_start[d],
-                    soc_targets[d],
-                    soc_maxima[d],
-                    soc_minima[d],
-                    soc_max[d],
-                    soc_min[d],
-                )
-            else:
-                # No need to validate non-existing storage constraints
-                skip_validation = True
-
             power_capacity_in_mw[d] = get_continuous_series_sensor_or_quantity(
                 variable_quantity=power_capacity_in_mw[d],
                 unit="MW",
@@ -682,6 +701,9 @@ class MetaStorageScheduler(Scheduler):
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_positive"
             ):
+                production_capacity_d = pd.Series(
+                    0, index=power_capacity_in_mw[d].index
+                )
                 device_constraints[d]["derivative min"] = 0
             else:
                 production_capacity_d = get_continuous_series_sensor_or_quantity(
@@ -750,6 +772,9 @@ class MetaStorageScheduler(Scheduler):
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_negative"
             ):
+                consumption_capacity_d = pd.Series(
+                    0, index=power_capacity_in_mw[d].index
+                )
                 device_constraints[d]["derivative max"] = 0
             else:
                 consumption_capacity_d = get_continuous_series_sensor_or_quantity(
@@ -813,6 +838,40 @@ class MetaStorageScheduler(Scheduler):
                 else:
                     # consumption-capacity will become a hard constraint
                     device_constraints[d]["derivative max"] = consumption_capacity_d
+
+            if soc_at_start[d] is not None:
+                if should_project_off_tick_soc_constraints(sensor_d):
+                    (
+                        soc_targets[d],
+                        soc_maxima[d],
+                        soc_minima[d],
+                    ) = project_off_tick_soc_constraints(
+                        soc_targets[d],
+                        soc_maxima[d],
+                        soc_minima[d],
+                        consumption_capacity_d,
+                        production_capacity_d,
+                        resolution,
+                        soc_min[d],
+                        soc_max[d],
+                    )
+
+                storage_constraints = add_storage_constraints(
+                    start,
+                    end,
+                    resolution,
+                    soc_at_start[d],
+                    soc_targets[d],
+                    soc_maxima[d],
+                    soc_minima[d],
+                    soc_max[d],
+                    soc_min[d],
+                )
+                for column in ("equals", "min", "max"):
+                    device_constraints[d][column] = storage_constraints[column]
+            else:
+                # No need to validate non-existing storage constraints
+                skip_validation = True
 
             all_stock_delta = []
 
@@ -1048,7 +1107,8 @@ class MetaStorageScheduler(Scheduler):
             self.flex_model = {}
 
         self.collect_flex_config()
-        self.flex_context = FlexContextSchema().load(self.flex_context)
+        if self.flex_context is None:
+            self.flex_context = {}
 
         if isinstance(self.flex_model, dict):
             if self.sensor.generic_asset.asset_type.name in storage_asset_types:
@@ -1060,11 +1120,16 @@ class MetaStorageScheduler(Scheduler):
                 self.ensure_soc_min_max()
 
             # Now it's time to check if our flex configuration holds up to schemas
-            self.flex_model = StorageFlexModelSchema(
+            schema = StorageFlexModelSchema(
                 start=self.start,
                 sensor=self.sensor,
                 default_soc_unit=self.flex_model.get("soc-unit"),
-            ).load(self.flex_model)
+                schedule_resolution=self.resolution,
+                default_resolution=self.default_resolution,
+            )
+            self.flex_model = schema.load(self.flex_model)
+            if schema.has_off_tick_soc_constraints:
+                self.enable_relax_soc_constraints()
 
             # Extend schedule period in case a target exceeds its end
             self.possibly_extend_end(soc_targets=self.flex_model.get("soc_targets"))
@@ -1078,13 +1143,18 @@ class MetaStorageScheduler(Scheduler):
                     flex_model=sensor_flex_model["sensor_flex_model"],
                     sensor=sensor_flex_model.get("sensor"),
                 )
-                self.flex_model[d] = StorageFlexModelSchema(
+                schema = StorageFlexModelSchema(
                     start=self.start,
                     sensor=sensor_flex_model.get("sensor"),
                     default_soc_unit=sensor_flex_model["sensor_flex_model"].get(
                         "soc-unit"
                     ),
-                ).load(sensor_flex_model["sensor_flex_model"])
+                    schedule_resolution=self.resolution,
+                    default_resolution=self.default_resolution,
+                )
+                self.flex_model[d] = schema.load(sensor_flex_model["sensor_flex_model"])
+                if schema.has_off_tick_soc_constraints:
+                    self.enable_relax_soc_constraints()
                 self.flex_model[d]["sensor"] = sensor_flex_model.get("sensor")
                 self.flex_model[d]["asset"] = sensor_flex_model.get("asset")
 
@@ -1099,7 +1169,13 @@ class MetaStorageScheduler(Scheduler):
                 f"Unsupported type of flex-model: '{type(self.flex_model)}'"
             )
 
+        self.flex_context = FlexContextSchema().load(self.flex_context)
+
         return self.flex_model
+
+    def enable_relax_soc_constraints(self) -> None:
+        """Relax SoC constraints when off-tick SoC events require scheduling-tick projection."""
+        self.flex_context["relax-soc-constraints"] = True
 
     def has_soc_at_start(self) -> bool:
         return (
@@ -1917,6 +1993,302 @@ def create_constraint_violations_message(constraint_violations: list) -> str:
         message = message[:-1]
 
     return message
+
+
+def _soc_value_in_mwh(value: ur.Quantity | float | int) -> float:
+    if isinstance(value, ur.Quantity):
+        return value.to("MWh").magnitude
+    return float(value)
+
+
+def _optional_soc_value_in_mwh(value: ur.Quantity | float | int | None) -> float | None:
+    if value is None:
+        return None
+    return _soc_value_in_mwh(value)
+
+
+def _clamp_soc_min(value: float, soc_min: float | None) -> float:
+    return value if soc_min is None else max(soc_min, value)
+
+
+def _clamp_soc_max(value: float, soc_max: float | None) -> float:
+    return value if soc_max is None else min(soc_max, value)
+
+
+def _soc_event_at(
+    soc_event: dict[str, datetime | float],
+    dt: pd.Timestamp,
+    value: float,
+) -> dict[str, datetime | float]:
+    shifted_event = copy.copy(soc_event)
+    shifted_event["value"] = value
+    shifted_event["start"] = dt.to_pydatetime()
+    shifted_event["end"] = dt.to_pydatetime()
+    if "datetime" in shifted_event:
+        shifted_event["datetime"] = dt.to_pydatetime()
+    shifted_event.pop("duration", None)
+    return shifted_event
+
+
+def _energy_capacity_between(
+    capacity: pd.Series,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    resolution: timedelta,
+) -> float:
+    if end <= start:
+        return 0
+
+    if capacity.index.tz is not None:
+        start = start.tz_convert(capacity.index.tz)
+        end = end.tz_convert(capacity.index.tz)
+
+    capacity = capacity.astype(float).fillna(0)
+    tick = start.floor(resolution)
+    energy = 0.0
+    while tick < end:
+        next_tick = tick + resolution
+        overlap_start = max(start, tick)
+        overlap_end = min(end, next_tick)
+        if overlap_end > overlap_start and tick in capacity.index:
+            energy += float(capacity.loc[tick]) * (
+                (overlap_end - overlap_start) / pd.Timedelta(hours=1)
+            )
+        tick = next_tick
+    return energy
+
+
+def _tick_for_projection_rule(
+    rule: SocProjectionRule,
+    previous_tick: pd.Timestamp,
+    next_tick: pd.Timestamp,
+) -> pd.Timestamp:
+    return previous_tick if rule.tick == "previous" else next_tick
+
+
+def _capacity_for_projection_rule(
+    rule: SocProjectionRule,
+    consumption_capacity: pd.Series,
+    production_capacity: pd.Series,
+) -> pd.Series:
+    return (
+        consumption_capacity if rule.capacity == "consumption" else production_capacity
+    )
+
+
+def _capacity_period_for_projection_rule(
+    rule: SocProjectionRule,
+    previous_tick: pd.Timestamp,
+    event_time: pd.Timestamp,
+    next_tick: pd.Timestamp,
+) -> tuple[pd.Timestamp, pd.Timestamp]:
+    if rule.period == "before":
+        return previous_tick, event_time
+    return event_time, next_tick
+
+
+def _clamp_projected_soc_value(
+    value: float,
+    rule: SocProjectionRule,
+    soc_min: float | None,
+    soc_max: float | None,
+) -> float:
+    if rule.bound_type == "min":
+        return _clamp_soc_min(value, soc_min)
+    return _clamp_soc_max(value, soc_max)
+
+
+def _add_projected_soc_bound(
+    projected_minima: list[dict[str, datetime | float]],
+    projected_maxima: list[dict[str, datetime | float]],
+    soc_event: dict[str, datetime | float],
+    rule: SocProjectionRule,
+    event_time: pd.Timestamp,
+    previous_tick: pd.Timestamp,
+    next_tick: pd.Timestamp,
+    consumption_capacity: pd.Series,
+    production_capacity: pd.Series,
+    resolution: timedelta,
+    soc_min: float | None,
+    soc_max: float | None,
+) -> None:
+    capacity_start, capacity_end = _capacity_period_for_projection_rule(
+        rule, previous_tick, event_time, next_tick
+    )
+    capacity = _capacity_for_projection_rule(
+        rule, consumption_capacity, production_capacity
+    )
+    projected_value = _soc_value_in_mwh(soc_event["value"]) + rule.sign * (
+        _energy_capacity_between(capacity, capacity_start, capacity_end, resolution)
+    )
+    projected_soc_events = (
+        projected_minima if rule.bound_type == "min" else projected_maxima
+    )
+    _add_soc_bound(
+        projected_soc_events,
+        _soc_event_at(
+            soc_event,
+            _tick_for_projection_rule(rule, previous_tick, next_tick),
+            _clamp_projected_soc_value(projected_value, rule, soc_min, soc_max),
+        ),
+        bound_type=rule.bound_type,
+    )
+
+
+def _add_soc_bound(
+    soc_events: list[dict[str, datetime | float]],
+    soc_event: dict[str, datetime | float],
+    bound_type: str,
+) -> None:
+    for existing_event in soc_events:
+        if existing_event.get("start") == soc_event.get("start") and existing_event.get(
+            "end"
+        ) == soc_event.get("end"):
+            existing_value = _soc_value_in_mwh(existing_event["value"])
+            soc_value = _soc_value_in_mwh(soc_event["value"])
+            existing_event["value"] = (
+                max(existing_value, soc_value)
+                if bound_type == "min"
+                else min(existing_value, soc_value)
+            )
+            return
+    soc_events.append(soc_event)
+
+
+def _projected_soc_events_or_original(
+    original_soc_events: (
+        list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None
+    ),
+    projected_soc_events: list[dict[str, datetime | float]],
+) -> list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None:
+    if isinstance(original_soc_events, list):
+        return projected_soc_events
+    if original_soc_events is None and projected_soc_events:
+        return projected_soc_events
+    return original_soc_events
+
+
+def project_off_tick_soc_constraints(
+    soc_targets: (
+        list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None
+    ),
+    soc_maxima: (
+        list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None
+    ),
+    soc_minima: (
+        list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None
+    ),
+    consumption_capacity: pd.Series,
+    production_capacity: pd.Series,
+    resolution: timedelta,
+    soc_min: ur.Quantity | float | None,
+    soc_max: ur.Quantity | float | None,
+) -> tuple[
+    list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
+    list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
+    list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
+]:
+    """Project off-tick point-like SoC constraints onto scheduling ticks.
+
+    The scheduler can only enforce constraints at its fixed scheduling resolution.
+    Point-like ``soc-targets``, ``soc-minima`` and ``soc-maxima`` that fall between
+    two scheduling ticks are therefore replaced by constraints on the previous and
+    next tick that preserve reachability using the available charge and discharge
+    capacity between the original event time and those ticks.
+
+    ``soc-targets`` are projected to an exact target on the next tick, plus
+    capacity-adjusted lower and upper bounds on the previous tick. ``soc-minima``
+    become lower bounds on both surrounding ticks, and ``soc-maxima`` become upper
+    bounds on both surrounding ticks. If multiple projected bounds land on the same
+    tick, the stricter lower or upper bound is kept.
+
+    Returns ``(soc_targets, soc_maxima, soc_minima)`` with projected list-based
+    timed events. Non-list specifications such as sensors, series, fixed
+    quantities, or ``None`` are returned unchanged unless projected bounds need to
+    be added to a missing list.
+    """
+
+    if not any(
+        isinstance(soc_events, list) and soc_events
+        for soc_events in (soc_targets, soc_maxima, soc_minima)
+    ):
+        return soc_targets, soc_maxima, soc_minima
+
+    projected_minima = copy.deepcopy(soc_minima) if isinstance(soc_minima, list) else []
+    projected_maxima = copy.deepcopy(soc_maxima) if isinstance(soc_maxima, list) else []
+
+    soc_min_value = _optional_soc_value_in_mwh(soc_min)
+    soc_max_value = _optional_soc_value_in_mwh(soc_max)
+
+    if isinstance(soc_targets, list):
+        projected_targets = []
+        for soc_target in soc_targets:
+            if soc_target["start"] != soc_target["end"] or is_on_schedule_tick(
+                soc_target["end"], resolution
+            ):
+                projected_targets.append(copy.copy(soc_target))
+                continue
+
+            target_time = pd.Timestamp(soc_target["end"])
+            previous_tick = target_time.floor(resolution)
+            next_tick = target_time.ceil(resolution)
+            target_value = _soc_value_in_mwh(soc_target["value"])
+
+            projected_targets.append(_soc_event_at(soc_target, next_tick, target_value))
+            for rule in SOC_PROJECTION_POLICIES["soc-targets"]:
+                _add_projected_soc_bound(
+                    projected_minima,
+                    projected_maxima,
+                    soc_target,
+                    rule,
+                    target_time,
+                    previous_tick,
+                    next_tick,
+                    consumption_capacity,
+                    production_capacity,
+                    resolution,
+                    soc_min_value,
+                    soc_max_value,
+                )
+    else:
+        projected_targets = soc_targets
+
+    for field_name, soc_events in (
+        ("soc-minima", soc_minima),
+        ("soc-maxima", soc_maxima),
+    ):
+        if not isinstance(soc_events, list):
+            continue
+        for soc_event in copy.deepcopy(soc_events):
+            if soc_event["start"] != soc_event["end"] or is_on_schedule_tick(
+                soc_event["end"], resolution
+            ):
+                continue
+
+            event_time = pd.Timestamp(soc_event["end"])
+            previous_tick = event_time.floor(resolution)
+            next_tick = event_time.ceil(resolution)
+            for rule in SOC_PROJECTION_POLICIES[field_name]:
+                _add_projected_soc_bound(
+                    projected_minima,
+                    projected_maxima,
+                    soc_event,
+                    rule,
+                    event_time,
+                    previous_tick,
+                    next_tick,
+                    consumption_capacity,
+                    production_capacity,
+                    resolution,
+                    soc_min_value,
+                    soc_max_value,
+                )
+
+    return (
+        projected_targets,
+        _projected_soc_events_or_original(soc_maxima, projected_maxima),
+        _projected_soc_events_or_original(soc_minima, projected_minima),
+    )
 
 
 def build_device_soc_values(
