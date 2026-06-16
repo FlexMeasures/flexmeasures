@@ -1047,7 +1047,27 @@ def test_shared_schema_fields_in_flex_context(
             ],
             False,
         ),
-        # Test aggregate fields in commodity context
+        # Test aggregate-consumption sensor reference
+        (
+            [
+                {
+                    "commodity": "electricity",
+                    "aggregate-consumption": {"sensor": "consumption-price in SEK/MWh"},
+                }
+            ],
+            False,
+        ),
+        # Test aggregate-production sensor reference
+        (
+            [
+                {
+                    "commodity": "electricity",
+                    "aggregate-production": {"sensor": "production-price in SEK/MWh"},
+                }
+            ],
+            False,
+        ),
+        # Test both aggregate sensors together
         (
             [
                 {
@@ -1071,10 +1091,19 @@ def test_shared_schema_fields_in_flex_context(
         ),
     ],
 )
-def test_commodity_flex_context_defaults(
+def test_commodity_flex_context_schema_validation(
     db, app, setup_site_capacity_sensor, setup_price_sensors, commodity_contexts, fails
 ):
-    """Test that CommodityFlexContextSchema has correct defaults, especially relax_constraints=True."""
+    """Schema validation test for CommodityFlexContextSchema.
+
+    Verifies that the schema correctly:
+    - Accepts valid commodity contexts with various field combinations
+    - Defaults relax_constraints to True (different from FlexContextSchema which defaults to False)
+    - Accepts aggregate-consumption and aggregate-production sensor references
+
+    Note: This test only validates schema parsing. For tests that verify aggregate sensors
+    actually get filled with data during scheduling, see test_aggregate_sensor_data_filling_*.
+    """
     from flexmeasures.data.schemas.scheduling import CommodityFlexContextSchema
 
     # Replace sensor name with sensor ID
@@ -1097,6 +1126,14 @@ def test_commodity_flex_context_defaults(
             loaded = schema.load(context)
             # Verify relax_constraints defaults to True in CommodityFlexContextSchema
             assert loaded.get("relax_constraints", True) is True
+
+            # If aggregate sensors were specified, verify they were parsed correctly
+            if "aggregate-consumption" in context:
+                assert "aggregate_consumption" in loaded
+                assert "sensor" in loaded["aggregate_consumption"]
+            if "aggregate-production" in context:
+                assert "aggregate_production" in loaded
+                assert "sensor" in loaded["aggregate_production"]
 
 
 @pytest.mark.parametrize(
