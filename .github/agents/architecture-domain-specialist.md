@@ -591,3 +591,13 @@ After each assignment:
 - **Schema parity gap**: The PR added `account_id` to `BeliefsSearchConfigSchema` but not to `Input` (io.py). These two schemas both expose `Sensor.search_beliefs` parameters; omitting a parameter from one creates a silent gap. The architecture agent must check both schemas on any search_beliefs parameter addition.
 - **Documentation vs. implementation mismatch**: The `reporting.rst` docs stated reporters can filter by `account_id`, but this only works if `Input` also has the field. Docs that outrun schema support mislead users. Always verify the full schema chain before documenting a feature.
 - **DataSource account_id=None for non-user sources**: The existing invariant (reporters/schedulers/forecasters have `account_id=None`) limits the usefulness of `account_id` filtering: it only matches user-type sources. PRs adding `account_id` filters should either document this limitation explicitly or reconsider the invariant.
+
+**Session 2026-06-16 (PR #2235 — flex-context per commodity as list)**:
+
+- **Per-commodity aggregate schedule pattern**: StorageScheduler now supports per-commodity aggregate power flow computation via `_compute_commodity_aggregate_schedules` method. Reconstructs commodity-to-devices mapping from device models, then sums `ems_schedule` for devices in each commodity. Key implementation details:
+  - Extract `aggregate-consumption` and `aggregate-production` sensors from commodity contexts
+  - Apply split logic: consumption sensor gets ≥0 part, production sensor gets ≤0 part (if both defined)
+  - If only one sensor defined, gets full aggregate schedule (sign inversion handled by `make_schedule`)
+  - Maintains backwards compatibility: when no `commodity_contexts`, all devices treated as electricity
+- **Commodity-to-devices mapping**: Device models carry `commodity` field. Rebuild mapping by iterating over device models, grouping by commodity. Handle edge cases: missing commodity (default to "electricity"), missing models, out-of-range device indices.
+- **Integration with existing flow**: Called after device schedule accumulation (line 2261-2264), before unit conversion. Aggregate schedules added to `storage_schedule` dict like device schedules, allowing uniform downstream processing.
