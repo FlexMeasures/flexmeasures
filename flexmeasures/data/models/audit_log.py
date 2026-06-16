@@ -69,22 +69,13 @@ class AuditLog(db.Model, AuthModelMixin):
         attribute_key: str,
         attribute_value: float | int | bool | str | list | dict | None,
         account_or_user: Account | User,
-        entity_type: str | None = None,
     ) -> None:
         """Add audit log record about account or user attribute update.
 
         :param attribute_key:   attribute key to update
         :param attribute_value: new attribute value
         :param account_or_user: account or user object
-        :param entity_type:     [deprecated]
         """
-        if entity_type is not None:
-            warnings.warn(
-                "'entity_type' is deprecated and will be removed in a future release. "
-                "The type is now inferred from 'account_or_user'.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
         current_user_id, current_user_name = get_current_user_id_name()
 
         old_value = account_or_user.attributes.get(attribute_key)
