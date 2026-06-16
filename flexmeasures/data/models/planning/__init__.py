@@ -14,7 +14,7 @@ from flask import current_app
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
-from flexmeasures.utils.coding_utils import deprecated
+from flexmeasures.utils.coding_utils import deprecated, merge_or_append
 from .exceptions import WrongEntityException
 
 
@@ -284,8 +284,19 @@ class Scheduler:
             asset = self.asset
         else:
             asset = self.sensor.generic_asset
+
+        # Merge the passed flex_context with the db_flex_context by matching commodities
         db_flex_context = asset.get_flex_context()
-        self.flex_context = {**db_flex_context, **self.flex_context}
+        if isinstance(self.flex_context, dict):
+            self.flex_context = {**db_flex_context, **self.flex_context}
+        elif isinstance(self.flex_context, list):
+            # Currently, db_flex_context is always a dict describing only electricity
+            merge_or_append(
+                db_flex_context,
+                self.flex_context,
+                match_key="commodity",
+                match_value="electricity",
+            )
 
         # Merge the passed flex_model with the db_flex_model by matching asset IDs
         db_flex_model = asset.get_flex_model()
