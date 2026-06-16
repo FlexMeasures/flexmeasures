@@ -165,19 +165,19 @@ def edit_attribute(
     # Set attribute
     for account in accounts:
         AuditLog.add_record_for_attribute_update(
-            attribute_key, attribute_value, "account", account
+            attribute_key, attribute_value, account
         )
         account.attributes[attribute_key] = attribute_value
         db.session.add(account)
     for asset in assets:
         AssetAuditLog.add_record_for_attribute_update(
-            attribute_key, attribute_value, "asset", asset
+            attribute_key, attribute_value, asset
         )
         asset.attributes[attribute_key] = attribute_value
         db.session.add(asset)
     for sensor in sensors:
         AssetAuditLog.add_record_for_attribute_update(
-            attribute_key, attribute_value, "sensor", sensor
+            attribute_key, attribute_value, sensor
         )
         sensor.attributes[attribute_key] = attribute_value
         db.session.add(sensor)

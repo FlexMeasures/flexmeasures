@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import warnings
+
 from flask_security import current_user
 from flask_security.core import AnonymousUser
 from sqlalchemy import DateTime, Column, Integer, String, ForeignKey
@@ -66,27 +68,34 @@ class AuditLog(db.Model, AuthModelMixin):
         cls,
         attribute_key: str,
         attribute_value: float | int | bool | str | list | dict | None,
-        entity_type: str,
         account_or_user: Account | User,
+        entity_type: str | None = None,
     ) -> None:
         """Add audit log record about account or user attribute update.
 
-        :param attribute_key: attribute key to update
+        :param attribute_key:   attribute key to update
         :param attribute_value: new attribute value
-        :param entity_type: 'account' or 'user'
         :param account_or_user: account or user object
+        :param entity_type:     [deprecated]
         """
+        if entity_type is not None:
+            warnings.warn(
+                "'entity_type' is deprecated and will be removed in a future release. "
+                "The type is now inferred from 'account_or_user'.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         current_user_id, current_user_name = get_current_user_id_name()
 
         old_value = account_or_user.attributes.get(attribute_key)
-        if entity_type == "user":
+        if isinstance(account_or_user, User):
             event = f"Updated user '{account_or_user.name}': {account_or_user.id}; "
             affected_account_id = (account_or_user.account_id,)
-        elif entity_type == "account":
+        elif isinstance(account_or_user, Account):
             event = f"Updated account '{account_or_user.name}': {account_or_user.id}; "
             affected_account_id = account_or_user.id
         else:
-            raise ValueError(f"Unknown entity type '{entity_type}'")
+            raise TypeError(f"Expected Account or User, got {type(account_or_user)!r}")
         event += f"Attr '{attribute_key}' To {attribute_value} From {old_value}"
 
         audit_log = cls(
@@ -191,27 +200,34 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         cls,
         attribute_key: str,
         attribute_value: float | int | bool | str | list | dict | None,
-        entity_type: str,
         asset_or_sensor: GenericAsset | Sensor,
+        entity_type: str | None = None,
     ) -> None:
         """Add audit log record about asset or sensor attribute update.
 
-        :param attribute_key: attribute key to update
+        :param attribute_key:   attribute key to update
         :param attribute_value: new attribute value
-        :param entity_type: 'asset' or 'sensor'
         :param asset_or_sensor: asset or sensor object
+        :param entity_type:     [deprecated]
         """
+        if entity_type is not None:
+            warnings.warn(
+                "'entity_type' is deprecated and will be removed in a future release. "
+                "The type is now inferred from 'asset_or_sensor'.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         current_user_id, current_user_name = get_current_user_id_name()
 
         old_value = asset_or_sensor.attributes.get(attribute_key)
-        if entity_type == "sensor":
+        if isinstance(asset_or_sensor, Sensor):
             event = f"Updated sensor '{asset_or_sensor.name}': {asset_or_sensor.id}; "
             affected_asset_id = (asset_or_sensor.generic_asset_id,)
-        elif entity_type == "asset":
+        elif isinstance(asset_or_sensor, GenericAsset):
             event = f"Updated asset '{asset_or_sensor.name}': {asset_or_sensor.id}; "
             affected_asset_id = asset_or_sensor.id
         else:
-            raise ValueError(f"Unknown entity type '{entity_type}'")
+            raise TypeError(f"Expected Asset or Sensor, got {type(asset_or_sensor)!r}")
         event += f"Attr '{attribute_key}' To {attribute_value} From {old_value}"
 
         audit_log = cls(
