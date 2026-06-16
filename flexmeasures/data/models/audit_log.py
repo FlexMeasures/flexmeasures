@@ -82,9 +82,11 @@ class AuditLog(db.Model, AuthModelMixin):
         if entity_type == "user":
             event = f"Updated user '{account_or_user.name}': {account_or_user.id}; "
             affected_account_id = (account_or_user.account_id,)
-        else:
+        elif entity_type == "account":
             event = f"Updated account '{account_or_user.name}': {account_or_user.id}; "
             affected_account_id = account_or_user.id
+        else:
+            raise ValueError(f"Unknown entity type '{entity_type}'")
         event += f"Attr '{attribute_key}' To {attribute_value} From {old_value}"
 
         audit_log = cls(
@@ -205,9 +207,11 @@ class AssetAuditLog(db.Model, AuthModelMixin):
         if entity_type == "sensor":
             event = f"Updated sensor '{asset_or_sensor.name}': {asset_or_sensor.id}; "
             affected_asset_id = (asset_or_sensor.generic_asset_id,)
-        else:
+        elif entity_type == "asset":
             event = f"Updated asset '{asset_or_sensor.name}': {asset_or_sensor.id}; "
             affected_asset_id = asset_or_sensor.id
+        else:
+            raise ValueError(f"Unknown entity type '{entity_type}'")
         event += f"Attr '{attribute_key}' To {attribute_value} From {old_value}"
 
         audit_log = cls(
