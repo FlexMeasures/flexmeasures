@@ -290,7 +290,7 @@ class MetaStorageScheduler(Scheduler):
         ]
 
         # Get info from flex-context
-        inflexible_device_sensors = self.flex_context.get(
+        inflexible_device_sensors: list[Sensor] = self.flex_context.get(
             "inflexible_device_sensors", []
         )
 
