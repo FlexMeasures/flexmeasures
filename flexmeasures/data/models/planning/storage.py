@@ -2079,6 +2079,128 @@ class StorageScheduler(MetaStorageScheduler):
                 )
         return schedules
 
+    def _compute_commodity_aggregate_schedules(
+        self,
+        storage_schedule: dict,
+        ems_schedule: pd.DataFrame,
+        sensors: list[Sensor | None],
+    ) -> None:
+        """Compute per-commodity aggregate power flows for aggregate-consumption and aggregate-production sensors.
+
+        This method populates the storage_schedule dict with aggregate schedules for each commodity
+        that defines aggregate-consumption and/or aggregate-production sensors in its commodity context.
+
+        The sign convention and split logic follows the same pattern as _build_consumption_production_schedules:
+        - Only aggregate-consumption defined: full aggregate schedule (consumption +, production -)
+        - Only aggregate-production defined: full aggregate schedule (consumption +, production -)
+          (sign will be flipped by make_schedule based on consumption_is_positive=False)
+        - Both defined: consumption sensor gets non-negative part, production sensor gets non-positive part
+          (sign will be flipped for production by make_schedule)
+
+        For backwards compatibility, when no commodity_contexts are defined, all devices are treated
+        as electricity devices and use the top-level flex-context fields.
+
+        :param storage_schedule: Dict to populate with aggregate schedules (will be modified in-place)
+        :param ems_schedule:     DataFrame of per-device power schedules in MW (consumption positive)
+        :param sensors:          List of sensors corresponding to device indices
+        """
+        # Get the device models to reconstruct commodity_to_devices mapping
+        flex_model = getattr(self, "_device_models", None)
+        if flex_model is None:
+            # Fallback: reconstruct if not available (shouldn't happen in normal flow)
+            flex_model = (
+                self.flex_model.copy()
+                if isinstance(self.flex_model, dict)
+                else [fm for fm in self.flex_model if fm.get("sensor") is not None]
+            )
+        if not isinstance(flex_model, list):
+            flex_model = [flex_model]
+
+        # Reconstruct commodity_to_devices mapping
+        commodity_to_devices = {}
+        for d, flex_model_d in enumerate(flex_model):
+            commodity = flex_model_d.get("commodity", "electricity")
+            commodity_to_devices.setdefault(commodity, []).append(d)
+
+        # Add inflexible devices to electricity commodity
+        inflexible_device_sensors = self.flex_context.get(
+            "inflexible_device_sensors", []
+        )
+        number_flexible_devices = len(flex_model)
+        commodity_to_devices.setdefault("electricity", []).extend(
+            list(
+                range(
+                    number_flexible_devices,
+                    number_flexible_devices + len(inflexible_device_sensors),
+                )
+            )
+        )
+
+        # Get commodity contexts (handles backwards compatibility)
+        commodity_contexts = self._get_commodity_contexts()
+
+        # Process each commodity
+        for commodity, devices in commodity_to_devices.items():
+            commodity_context = commodity_contexts.get(commodity, {})
+
+            # Get aggregate sensors for this commodity
+            aggregate_consumption_field = commodity_context.get("aggregate_consumption")
+            aggregate_production_field = commodity_context.get("aggregate_production")
+
+            # Extract sensor objects
+            aggregate_consumption_sensor = (
+                aggregate_consumption_field.get("sensor")
+                if isinstance(aggregate_consumption_field, dict)
+                and "sensor" in aggregate_consumption_field
+                else None
+            )
+            aggregate_production_sensor = (
+                aggregate_production_field.get("sensor")
+                if isinstance(aggregate_production_field, dict)
+                and "sensor" in aggregate_production_field
+                else None
+            )
+
+            # Skip if no aggregate sensors defined for this commodity
+            if (
+                aggregate_consumption_sensor is None
+                and aggregate_production_sensor is None
+            ):
+                continue
+
+            # Sum the schedules for all devices in this commodity
+            # ems_schedule is a list of Series, one per device
+            commodity_aggregate = sum(
+                ems_schedule[d] for d in devices if d < len(ems_schedule)
+            )
+
+            # Apply split logic based on which sensors are defined
+            if (
+                aggregate_consumption_sensor is not None
+                and aggregate_production_sensor is None
+            ):
+                # Only consumption sensor: full aggregate schedule
+                # (consumption positive, production negative)
+                storage_schedule[aggregate_consumption_sensor] = commodity_aggregate
+
+            elif (
+                aggregate_production_sensor is not None
+                and aggregate_consumption_sensor is None
+            ):
+                # Only production sensor: full aggregate schedule in native convention
+                # make_schedule will flip the sign via consumption_is_positive=False
+                storage_schedule[aggregate_production_sensor] = commodity_aggregate
+
+            else:
+                # Both sensors defined: split into consumption (>=0) and production (<=0) parts
+                # make_schedule will flip the sign for production sensor via consumption_is_positive=False
+                storage_schedule[aggregate_consumption_sensor] = (
+                    commodity_aggregate.clip(lower=0)
+                )
+                storage_schedule[aggregate_production_sensor] = (
+                    commodity_aggregate.clip(upper=0)
+                )
+
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
@@ -2135,6 +2257,11 @@ class StorageScheduler(MetaStorageScheduler):
             storage_schedule[aggregate_power_sensor] = pd.concat(
                 ems_schedule, axis=1
             ).sum(axis=1)
+
+        # Compute per-commodity aggregate power flows for aggregate-consumption and aggregate-production sensors
+        self._compute_commodity_aggregate_schedules(
+            storage_schedule, ems_schedule, sensors
+        )
 
         # Convert each device schedule to the unit of the device's power sensor
         storage_schedule = {
