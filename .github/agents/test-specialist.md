@@ -657,3 +657,10 @@ After each assignment:
 **Session 2026-05-31 (Sentry `before_send` filtering)**:
 
 - **Integration hint shape coverage**: When testing Sentry `before_send` or filter behavior, cover the real hint shapes the SDK emits, especially `log_record` versus `exc_info`. Flask error handlers may log handled HTTP errors, and Sentry's logging integration captures those as log events rather than exception events.
+
+**Session 2026-06-16 (PR #2235 — aggregate sensor testing)**:
+
+- **Scheduler result format**: `scheduler.compute()` with `return_multiple=True` returns a list of dicts with keys `["sensor", "data", "unit", "name"]`. Tests must search this list for the target sensor, not assume `results[0]` is the desired result.
+- **Scheduler doesn't save to DB**: `scheduler.compute()` only returns results; it does NOT save to the database. To test DB storage, use `make_schedule()` service function or manually save beliefs. Most scheduler tests should verify results structure, not DB state.
+- **Unit handling in tests**: When comparing schedules across sensors with different units (e.g., battery in kW vs aggregate in MW), check the `"unit"` field in results and convert appropriately. Don't hardcode conversions without verifying units match expectations.
+- **Multi-device scheduler complexity**: StorageScheduler expects an Asset or Sensor object, not a list. Testing multi-device aggregation requires a more complex setup with a multi-device Asset configuration in the flex_model. Skip tests that require significant architectural changes until the pattern is clearer.
