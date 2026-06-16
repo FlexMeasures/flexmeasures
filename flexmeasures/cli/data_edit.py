@@ -38,18 +38,14 @@ def fm_edit_data():
     """FlexMeasures: Edit data."""
 
 
-@fm_edit_data.command("attribute", cls=DeprecatedOptionsCommand)
+@fm_edit_data.command("attribute")
 @with_appcontext
 @click.option(
     "--account",
-    "--account-id",
     "accounts",
     required=False,
     multiple=True,
     type=AccountIdField(),
-    cls=DeprecatedOption,
-    deprecated=["--asset-id"],
-    preferred="--asset",
     help="Add/edit attribute to this account. Follow up with the account's ID.",
 )
 @click.option(
