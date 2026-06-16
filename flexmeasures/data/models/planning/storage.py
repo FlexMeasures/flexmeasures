@@ -402,10 +402,12 @@ class MetaStorageScheduler(Scheduler):
             if production_price is None:
                 production_price = consumption_price
 
-            if consumption_price is None:
-                raise ValueError(
-                    f"Missing consumption price for commodity '{commodity}'."
-                )
+            # todo: log info statement if commodity has no associated prices
+            # todo: raise if none of the commodities (or maybe electricity specifically) has prices
+            # if consumption_price is None:
+            #     raise ValueError(
+            #         f"Missing consumption price for commodity '{commodity}'."
+            #     )
 
             # Energy prices for this commodity.
             up_deviation_prices = get_continuous_series_sensor_or_quantity(
@@ -416,7 +418,8 @@ class MetaStorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 fill_sides=True,
             ).to_frame(name="event_value")
-            ensure_prices_are_not_empty(up_deviation_prices, consumption_price)
+            # todo: see above todo
+            # ensure_prices_are_not_empty(up_deviation_prices, consumption_price)
 
             down_deviation_prices = get_continuous_series_sensor_or_quantity(
                 variable_quantity=production_price,
@@ -426,7 +429,8 @@ class MetaStorageScheduler(Scheduler):
                 beliefs_before=belief_time,
                 fill_sides=True,
             ).to_frame(name="event_value")
-            ensure_prices_are_not_empty(down_deviation_prices, production_price)
+            # todo: see above todo
+            # ensure_prices_are_not_empty(down_deviation_prices, production_price)
 
             price_frames_by_commodity[commodity] = up_deviation_prices
 
