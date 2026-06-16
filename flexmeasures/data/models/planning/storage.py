@@ -2155,11 +2155,11 @@ class StorageScheduler(MetaStorageScheduler):
         ems_schedule, expected_costs, scheduler_results, model = device_scheduler(
             device_constraints=device_constraints,
             ems_constraints=ems_constraints,
-            ems_constraint_groups=self.ems_constraint_groups,
             commitments=commitments,
             initial_stock=initial_stock,
             stock_groups=self.stock_groups,
             coupling_groups=self.coupling_groups if self.coupling_groups else None,
+            ems_constraint_groups=self.ems_constraint_groups,
         )
         if "infeasible" in (tc := scheduler_results.solver.termination_condition):
             raise InfeasibleProblemException(tc)
