@@ -3,7 +3,8 @@ from __future__ import annotations
 import re
 import copy
 from datetime import datetime, timedelta
-from typing import Type
+from itertools import chain
+from typing import Any, Type
 
 import pandas as pd
 import numpy as np
@@ -331,22 +332,54 @@ class MetaStorageScheduler(Scheduler):
         ) -> pd.Series:
             return pd.Series([tuple(devices)] * len(index), index=index, name="device")
 
+        # Set up a mapping between commodities and a list of enumerated flexible and inflexible devices
+        # 1. The enumeration starts with all flexible devices in the order that they are given in the flex-model
+        # 2. The enumeration continues with the inflexible devices referenced in the top-level flex-context, in the order given
+        # 3. Then the enumeration goes through the commodities under the commodity_contexts field, in the order given,
+        #    extending the enumeration with the inflexible devices referenced in these commodity contexts.
         commodity_to_devices = {}
+        # Step 1: enumerate the flexible devices
         for d, flex_model_d in enumerate(flex_model):
             commodity = flex_model_d.get("commodity", "electricity")
             commodity_to_devices.setdefault(commodity, []).append(d)
 
-        # inflexible devices are electricity by default
-        number_flexible_devices = len(flex_model)
-        number_inflexible_devices = len(
-            self.flex_context.get("inflexible_device_sensors", [])
-        )
+        # Step 2: enumerate the top-level inflexible devices (electric for backwards compatibility)
         num_flexible_devices = len(flex_model)
         commodity_to_devices["electricity"] += list(
             range(
-                number_flexible_devices,
-                number_flexible_devices + number_inflexible_devices,
+                num_flexible_devices,
+                num_flexible_devices + len(inflexible_device_sensors),
             )
+        )
+
+        # Step 3: enumerate the inflexible devices per commodity
+        def list_to_map(listing: list, key: Any) -> dict:
+            """Note: the key is retained in the map values."""
+            return {l[key]: l for l in listing}
+
+        # Move inflexible-device-sensors per commodity into the device listing for the commodity
+        commodity_mapping: dict[str, dict] = list_to_map(
+            self.flex_context.get("commodity_contexts", []), key="commodity"
+        )
+        inflexible_devices_per_commodity = {
+            com: con.get("inflexible_device_sensors", [])
+            for com, con in commodity_mapping.items()
+        }
+        num_devices = num_flexible_devices + len(inflexible_device_sensors)
+        for (
+            commodity,
+            commodity_inflexible_device_sensors,
+        ) in inflexible_devices_per_commodity.items():
+            commodity_to_devices[commodity] += list(
+                range(
+                    num_devices,
+                    num_devices + len(commodity_inflexible_device_sensors),
+                )
+            )
+            num_devices = num_devices + len(commodity_inflexible_device_sensors)
+
+        inflexible_device_sensors = inflexible_device_sensors + list(
+            chain.from_iterable(inflexible_devices_per_commodity.values())
         )
 
         commodity_contexts = self._get_commodity_contexts()
