@@ -4,11 +4,10 @@ import pandas as pd
 import timely_beliefs as tb
 from sqlalchemy import select
 
-from flexmeasures import Account, Asset, Sensor
 from flexmeasures.cli.tests.utils import check_command_ran_without_error, to_flags
 from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
 from flexmeasures.data.models.time_series import TimedBelief
-from flexmeasures.cli.tests.utils import get_click_commands
+from flexmeasures.cli.tests.utils import check_attribute_is_stored, get_click_commands
 from flexmeasures.tests.utils import get_test_sensor
 
 
@@ -44,12 +43,7 @@ def test_add_one_sensor_attribute(app, db, setup_markets):
     n_attributes_after = len(sensor.attributes)
 
     assert n_attributes_after == n_attributes_before + 1
-    assert (
-        db.session.execute(select(Sensor).filter_by(id=sensor.id))
-        .scalar_one_or_none()
-        .attributes["some new attribute"]
-        == 3
-    )
+    check_attribute_is_stored(sensor, "some new attribute", 3)
 
 
 def test_update_one_asset_attribute(app, db, setup_generic_assets):
@@ -77,12 +71,7 @@ def test_update_one_asset_attribute(app, db, setup_generic_assets):
             active_user_name=None,
         )
     ).scalar_one_or_none()
-    assert (
-        db.session.execute(select(Asset).filter_by(id=asset.id))
-        .scalar_one_or_none()
-        .attributes["some-attribute"]
-        == "some-new-value"
-    )
+    check_attribute_is_stored(asset, "some-attribute", "some-new-value")
 
 
 def test_update_one_account_attribute(app, db, setup_generic_assets):
@@ -110,12 +99,7 @@ def test_update_one_account_attribute(app, db, setup_generic_assets):
             active_user_name=None,
         )
     ).scalar_one_or_none()
-    assert (
-        db.session.execute(select(Account).filter_by(id=account.id))
-        .scalar_one_or_none()
-        .attributes["some-attribute"]
-        == "some-new-value"
-    )
+    check_attribute_is_stored(account, "some-attribute", "some-new-value")
 
 
 @pytest.mark.parametrize(
