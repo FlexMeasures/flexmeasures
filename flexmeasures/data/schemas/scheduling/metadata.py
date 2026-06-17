@@ -338,7 +338,9 @@ Boolean option only.
     example=True,
 )
 POWER_CAPACITY = MetaData(
-    description="Device-level power constraint. How much power can be applied to this asset. [#minimum_overlap]_",
+    description="""Symmetric device-level power constraint. How much power can be applied to this asset in either direction.
+If omitted, the scheduler infers this limit from the greatest of ``consumption-capacity`` and ``production-capacity`` when either is configured, before falling back to ``site-power-capacity``.
+When exactly one of ``consumption-capacity`` or ``production-capacity`` is configured to non-zero capacity, the missing opposite capacity defaults to zero. [#minimum_overlap]_""",
     example="50 kVA",
 )
 CONSUMPTION_CAPACITY = MetaData(

@@ -50,7 +50,7 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.queries.utils import simplify_index
+from flexmeasures.data.queries.utils import id_prefix_filter, simplify_index
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorSchema,
@@ -90,6 +90,17 @@ sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 annotation_schema = AnnotationSchema()
+
+
+def sensor_search_term_filter(term: str):
+    filters = [
+        Sensor.name.ilike(f"%{term}%"),
+        Account.name.ilike(f"%{term}%"),
+        GenericAsset.name.ilike(f"%{term}%"),
+    ]
+    if term.isdecimal():
+        filters.append(id_prefix_filter(Sensor.id, term))
+    return or_(*filters)
 
 
 REGRESSOR_CONFIG_FIELDS = {
@@ -218,7 +229,12 @@ class SensorKwargsSchema(Schema):
     per_page = fields.Int(
         required=False, validate=validate.Range(min=1), load_default=10
     )
-    filter = SearchFilterField(required=False)
+    filter = SearchFilterField(
+        required=False,
+        metadata=dict(
+            description="Return only sensors where a search term is present in the sensor name, account name, asset name, or is a prefix of the sensor ID.",
+        ),
+    )
     unit = UnitField(required=False)
 
 
@@ -330,7 +346,7 @@ class SensorAPI(FlaskView):
 
             Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
 
-            The `filter` parameter allows you to search for sensors by name or account name.
+            The `filter` parameter allows you to search for sensors by name, account name, asset name, or sensor ID prefix.
             The `unit` parameter allows you to filter by unit.
 
             For the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger
@@ -471,16 +487,7 @@ class SensorAPI(FlaskView):
 
         if filter is not None:
             sensor_query = sensor_query.filter(
-                or_(
-                    *(
-                        or_(
-                            Sensor.name.ilike(f"%{term}%"),
-                            Account.name.ilike(f"%{term}%"),
-                            GenericAsset.name.ilike(f"%{term}%"),
-                        )
-                        for term in filter
-                    )
-                )
+                or_(*(sensor_search_term_filter(term) for term in filter))
             )
 
         if unit:
