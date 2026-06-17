@@ -206,10 +206,30 @@ class GenericAsset(db.Model, AuthModelMixin):
         db.CheckConstraint(
             "parent_asset_id != id", name="generic_asset_self_reference_ck"
         ),
-        db.UniqueConstraint(
+        db.Index(
+            "generic_asset_name_parent_asset_id_key",
             "name",
             "parent_asset_id",
-            name="generic_asset_name_parent_asset_id_key",
+            unique=True,
+            postgresql_where=db.text("parent_asset_id IS NOT NULL"),
+            sqlite_where=db.text("parent_asset_id IS NOT NULL"),
+        ),
+        db.Index(
+            "generic_asset_root_account_id_name_key",
+            "account_id",
+            "name",
+            unique=True,
+            postgresql_where=db.text(
+                "parent_asset_id IS NULL AND account_id IS NOT NULL"
+            ),
+            sqlite_where=db.text("parent_asset_id IS NULL AND account_id IS NOT NULL"),
+        ),
+        db.Index(
+            "generic_asset_public_root_name_key",
+            "name",
+            unique=True,
+            postgresql_where=db.text("parent_asset_id IS NULL AND account_id IS NULL"),
+            sqlite_where=db.text("parent_asset_id IS NULL AND account_id IS NULL"),
         ),
         db.UniqueConstraint(
             "account_id",
