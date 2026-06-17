@@ -1114,30 +1114,6 @@ def test_add_storage_constraints_with_soc_max_missing_and_soc_maxima_has_gaps():
     )
 
 
-def test_ensure_soc_min_max_allows_missing_soc_max():
-    """Missing soc-max should remain unset when no fallback is available."""
-    scheduler = StorageScheduler.__new__(StorageScheduler)
-    scheduler.flex_model = {"soc-min": "0 MWh"}
-    scheduler.asset = None
-    scheduler.sensor = None
-
-    scheduler.ensure_soc_min_max()
-
-    assert scheduler.flex_model == {"soc-min": "0 MWh"}
-
-
-def test_ensure_soc_min_max_allows_missing_soc_min_and_soc_max():
-    """Missing soc-min and soc-max should remain unset when no fallback is available."""
-    scheduler = StorageScheduler.__new__(StorageScheduler)
-    scheduler.flex_model = {}
-    scheduler.asset = None
-    scheduler.sensor = None
-
-    scheduler.ensure_soc_min_max()
-
-    assert scheduler.flex_model == {}
-
-
 @pytest.mark.parametrize(
     "value_min1, value_equals1, value_max1, value_min2, value_equals2, value_max2, expected_constraint_type_violations",
     [

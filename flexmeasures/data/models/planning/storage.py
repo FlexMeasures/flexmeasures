@@ -1053,11 +1053,6 @@ class MetaStorageScheduler(Scheduler):
         if isinstance(self.flex_model, dict):
             if self.sensor.generic_asset.asset_type.name in storage_asset_types:
                 self.ensure_soc_at_start()
-            if (
-                self.sensor.generic_asset.asset_type.name in storage_asset_types
-                or self.has_soc_at_start()
-            ):
-                self.ensure_soc_min_max()
 
             # Now it's time to check if our flex configuration holds up to schemas
             self.flex_model = StorageFlexModelSchema(
@@ -1069,7 +1064,6 @@ class MetaStorageScheduler(Scheduler):
             # Extend schedule period in case a target exceeds its end
             self.possibly_extend_end(soc_targets=self.flex_model.get("soc_targets"))
         elif isinstance(self.flex_model, list):
-            # todo: ensure_soc_min_max in case the device is a storage (see line 847)
             self.flex_model = MultiSensorFlexModelSchema(many=True).load(
                 self.flex_model
             )
@@ -1412,41 +1406,6 @@ class MetaStorageScheduler(Scheduler):
                 [target["value"] for target in self.flex_model["soc-targets"]]
             )
         return min_target, max_target
-
-    def get_min_max_soc_from_asset(self) -> tuple[str | None, str | None]:
-        """This happens before deserializing the flex-model."""
-        if self.asset is not None:
-            return self.asset.flex_model.get("soc-min"), self.asset.flex_model.get(
-                "soc-max"
-            )
-        if self.sensor is not None:
-            return self.sensor.generic_asset.flex_model.get(
-                "soc-min"
-            ), self.sensor.generic_asset.flex_model.get("soc-max")
-        return None, None
-
-    def ensure_soc_min_max(self):
-        """
-        Fill in min and max SOC where fallbacks are available.
-        If not passed directly, then get defaults from asset or targets.
-        This happens before deserializing the flex-model.
-        """
-        soc_min_asset, soc_max_asset = self.get_min_max_soc_from_asset()
-        if "soc-min" not in self.flex_model or self.flex_model["soc-min"] is None:
-            if soc_min_asset is not None:
-                self.flex_model["soc-min"] = soc_min_asset
-            else:
-                self.flex_model.pop("soc-min", None)
-        if "soc-max" not in self.flex_model or self.flex_model["soc-max"] is None:
-            if soc_max_asset is not None:
-                self.flex_model["soc-max"] = soc_max_asset
-            else:
-                # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
-                _, max_target = self.get_min_max_targets()
-                if max_target is not None:
-                    self.flex_model["soc-max"] = max_target
-                else:
-                    self.flex_model.pop("soc-max", None)
 
     def _get_device_power_capacity(
         self, flex_model: list[dict], assets: list[Asset]
