@@ -229,7 +229,8 @@ Only kWh and MWh are allowed.
     example="kWh",
 )
 SOC_MIN = MetaData(
-    description="""A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).
+    description="""A constant and non-negotiable lower boundary for all SoC values in the schedule.
+If omitted, no lower boundary is applied.
 If used, this is regarded as an unsurpassable physical limitation.
 To set softer boundaries, use the ``soc-minima`` flex-model field instead together with the ``soc-minima-breach-price`` field in the flex-context. [#quantity_field]_
 """,
@@ -237,6 +238,7 @@ To set softer boundaries, use the ``soc-minima`` flex-model field instead togeth
 )
 SOC_MAX = MetaData(
     description="""A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).
+If omitted, no upper boundary is applied.
 If used, this is regarded as an unsurpassable physical limitation.
 To set softer boundaries, use the ``soc-maxima`` flex-model field instead together with the ``soc-maxima-breach-price`` field in the flex-context. [#quantity_field]_
 """,
