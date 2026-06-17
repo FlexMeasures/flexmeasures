@@ -207,28 +207,14 @@ The scheduler specialises each inverter for the operation it is best at:
 
 So, even though both inverters *can* both charge and discharge, the optimiser uses inverter 2 only to charge and inverter 1 only to discharge — each inverter ends up doing what it is most efficient at.
 
-Let's look at the whole battery at once. We can tell FlexMeasures which sensors to plot together on the **asset** by setting the battery's ``sensors_to_show`` attribute, grouping the two inverter power sensors into one panel and the shared state-of-charge sensor into another:
-
-.. code-block:: python
-
-    battery.sensors_to_show = [
-        {"title": "inverters", "sensors": [inverter_1_power.id, inverter_2_power.id]},
-        {"title": "shared storage", "sensors": [state_of_charge.id]},
-    ]
-
-The asset chart (the same Vega-Lite chart shown on the asset's page in the FlexMeasures UI) then renders both panels together:
-
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/multi-feed-asset.png
     :align: center
-    :alt: Asset-level chart of the battery, showing both inverters and the shared state of charge.
 |
 
 Reading the chart top to bottom:
 
 - **Inverters** (top panel) shows the power schedule of both feeds together. Inverter 2 (the 99%-efficient charger) runs at its full +20 kW from the start of the horizon and tapers off in a single partial step once the target is reached — it only ever charges. Inverter 1 (the 95%-efficient discharger) stays idle while the battery fills, then runs at -20 kW late in the horizon — it only ever discharges. Even though both inverters *can* do both, the optimiser specialises each for the operation it is most efficient at.
 - **Shared storage** (bottom panel) shows the *single* ``state-of-charge`` sensor that both inverters feed. It starts at the 20 kWh ``soc-at-start``, climbs while inverter 2 charges, reaches and briefly holds the 189 kWh target, and then falls as inverter 1 discharges — bottoming out at the 10 kWh ``soc-min``. This one curve is the combined effect of both feeds, which is exactly what "shared stock" means.
-
-Plotting the inverters and the shared stock on the same asset chart makes the coordination obvious: the rise in the bottom panel lines up with inverter 2's charging in the top panel, and the fall lines up with inverter 1's discharging.
 
 The net energy cost over the horizon is small (about 0.066 EUR at 100 EUR/MWh), and reflects only the energy lost to the inverter efficiencies, since charging and discharging happen at the same flat price.
 
