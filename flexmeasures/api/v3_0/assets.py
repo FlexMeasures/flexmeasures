@@ -47,6 +47,7 @@ from flexmeasures.data.queries.generic_assets import (
     filter_assets_under_root,
     query_assets_by_search_terms,
 )
+from flexmeasures.data.queries.utils import id_prefix_filter
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.generic_assets import (
@@ -88,6 +89,13 @@ default_list_assets_schema = AssetSchema(many=True, only=default_response_fields
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
 sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
+
+
+def sensor_term_filter(term: str):
+    filters = [Sensor.name.ilike(f"%{term}%")]
+    if term.isdecimal():
+        filters.append(id_prefix_filter(Sensor.id, term))
+    return or_(*filters)
 
 
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
@@ -293,7 +301,7 @@ class AssetAPI(FlaskView):
             The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
               - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
               - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
-              - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name.
+              - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will return only assets where each search term is either present in their name or account name, or is a prefix of their ID.
               The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)
 
             Per default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).
@@ -416,6 +424,7 @@ class AssetAPI(FlaskView):
         location="path",
     )
     @use_kwargs(AssetPaginationSchema, location="query")
+    @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
     def asset_sensors(
         self,
@@ -439,6 +448,7 @@ class AssetAPI(FlaskView):
 
             - If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.
             - If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).
+            - If a search 'filter' is provided, the response will return only sensors where a search term is either present in their name or is a prefix of their ID.
             The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
           security:
             - ApiKeyAuth: []
@@ -496,10 +506,7 @@ class AssetAPI(FlaskView):
         query = select(Sensor).filter(query_statement)
 
         if filter:
-            search_terms = filter[0].split(" ")
-            query = query.filter(
-                or_(*[Sensor.name.ilike(f"%{term}%") for term in search_terms])
-            )
+            query = query.filter(or_(*(sensor_term_filter(term) for term in filter)))
 
         if sort_by is not None:
             valid_sort_columns = {

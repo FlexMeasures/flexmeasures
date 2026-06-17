@@ -221,6 +221,39 @@ def test_fetch_asset_sensors(
         assert response.json["data"][0]["name"] == expected_name_of_first_sensor
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_fetch_asset_sensors_forbidden_without_asset_read_access(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    supplier_asset_id = setup_api_test_data["some gas sensor"].generic_asset_id
+
+    response = client.get(url_for("AssetAPI:asset_sensors", id=supplier_asset_id))
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_fetch_asset_sensors_uses_all_parsed_filter_terms(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.get(
+        url_for("AssetAPI:asset_sensors", id=sensor.generic_asset_id),
+        query_string={"filter": f"does-not-match {sensor.id}"},
+    )
+
+    assert response.status_code == 200
+    assert [s["id"] for s in response.json["data"]] == [sensor.id]
+    assert response.json["filtered-records"] == 1
+
+
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_asset_with_children(client, add_asset_with_children, requesting_user):
     """
