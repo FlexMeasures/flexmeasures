@@ -1,7 +1,6 @@
 from marshmallow import Schema, fields, validate
 
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
-from flexmeasures.api.common.schemas.search import SearchFilterField
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema
@@ -37,12 +36,6 @@ class PipedAssetFieldListField(fields.Str):
 
 
 class AssetAPIQuerySchema(PaginationSchema):
-    filter = SearchFilterField(
-        required=False,
-        metadata=dict(
-            description="Return only assets where each search term is present in the asset name or account name, or is a prefix of the asset ID.",
-        ),
-    )
     sort_by = fields.Str(
         required=False,
         validate=validate.OneOf(["id", "name", "owner"]),
@@ -113,12 +106,6 @@ class PublicAssetAPISchema(Schema):
 
 
 class AssetPaginationSchema(PaginationSchema):
-    filter = SearchFilterField(
-        required=False,
-        metadata=dict(
-            description="Return only sensors where a search term is present in the sensor name or is a prefix of the sensor ID.",
-        ),
-    )
     sort_by = fields.Str(
         required=False,
         validate=validate.OneOf(["id", "name", "resolution"]),

@@ -2633,7 +2633,7 @@
           {
             "in": "query",
             "name": "filter",
-            "description": "Return only sensors where a search term is present in the sensor name or is a prefix of the sensor ID.",
+            "description": "Filter results by this keyword.",
             "schema": {
               "type": "string"
             },
@@ -3506,7 +3506,7 @@
           {
             "in": "query",
             "name": "filter",
-            "description": "Return only assets where each search term is present in the asset name or account name, or is a prefix of the asset ID.",
+            "description": "Filter results by this keyword.",
             "schema": {
               "type": "string"
             },
@@ -4858,7 +4858,7 @@
           },
           "filter": {
             "type": "string",
-            "description": "Return only assets where each search term is present in the asset name or account name, or is a prefix of the asset ID."
+            "description": "Filter results by this keyword."
           },
           "sort_by": {
             "type": "string",
