@@ -4,6 +4,11 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v1.0.0 | July XX, 2026
+=================================
+
+* Add ``flexmeasures edit secret`` to store encrypted account or asset connection secrets.
+
 since v0.33.0 | June 01, 2026
 =================================
 

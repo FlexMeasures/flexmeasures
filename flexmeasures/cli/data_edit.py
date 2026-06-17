@@ -31,6 +31,7 @@ from flexmeasures.cli.utils import (
     abort,
 )
 from flexmeasures.utils.flexmeasures_inflection import pluralize
+from flexmeasures.utils.secrets_utils import store_account_secret, store_asset_secret
 
 
 @click.group("edit")
@@ -166,6 +167,83 @@ def edit_attribute(
         db.session.add(sensor)
     db.session.commit()
     click.secho("Successfully edited/added attribute.", **MsgStyle.SUCCESS)
+
+
+@fm_edit_data.command("secret", cls=DeprecatedOptionsCommand)
+@with_appcontext
+@click.option(
+    "--account",
+    "account",
+    required=False,
+    type=AccountIdField(),
+    help="Add/edit secret on this account. Follow up with the account's ID.",
+)
+@click.option(
+    "--asset",
+    "--asset-id",
+    "asset",
+    required=False,
+    type=AssetIdField(),
+    cls=DeprecatedOption,
+    deprecated=["--asset-id"],
+    preferred="--asset",
+    help="Add/edit secret on this asset. Follow up with the asset's ID.",
+)
+@click.option(
+    "--secret",
+    "secret_path",
+    required=True,
+    help="Add/edit this secret. Follow up with a dot-separated path.",
+)
+@click.option(
+    "--value",
+    "secret_value",
+    required=False,
+    type=str,
+    help="Set the secret to this string value.",
+)
+@click.option(
+    "--prompt",
+    "prompt_for_secret",
+    required=False,
+    is_flag=True,
+    default=False,
+    help="Prompt for the secret value without echoing it.",
+)
+@click.option(
+    "--metadata",
+    "metadata_json",
+    required=False,
+    type=str,
+    help="Non-secret metadata to store with the encrypted value, as a JSON object.",
+)
+def edit_secret(
+    account: Account | None,
+    asset: GenericAsset | None,
+    secret_path: str,
+    prompt_for_secret: bool,
+    secret_value: str | None = None,
+    metadata_json: str | None = None,
+):
+    """Edit (or add) an encrypted account or asset secret."""
+
+    if (account is None) == (asset is None):
+        raise ValueError("Pass exactly one of --account or --asset.")
+    if (secret_value is None) == (not prompt_for_secret):
+        raise ValueError("Pass exactly one of --value or --prompt.")
+    if prompt_for_secret:
+        secret_value = click.prompt("Secret value", hide_input=True)
+
+    metadata = parse_secret_metadata(metadata_json)
+
+    if account is not None:
+        store_account_secret(account, secret_path, secret_value, metadata=metadata)
+        db.session.add(account)
+    if asset is not None:
+        store_asset_secret(asset, secret_path, secret_value, metadata=metadata)
+        db.session.add(asset)
+    db.session.commit()
+    click.secho("Successfully edited/added secret.", **MsgStyle.SUCCESS)
 
 
 @fm_edit_data.command("resample-data", cls=DeprecatedOptionsCommand)
@@ -468,6 +546,19 @@ def parse_attribute_value(  # noqa: C901
             raise ValueError(f"{val} is not a dict.")
         return val
     return attribute_str_value
+
+
+def parse_secret_metadata(metadata_json: str | None = None) -> dict | None:
+    """Parse secret metadata from a JSON object."""
+    if metadata_json is None:
+        return None
+    try:
+        metadata = json.loads(metadata_json)
+    except json.decoder.JSONDecodeError as jde:
+        raise ValueError(f"Error parsing secret metadata: {jde}")
+    if not isinstance(metadata, dict):
+        raise ValueError("Secret metadata must be a JSON object.")
+    return metadata
 
 
 def single_true(iterable) -> bool:

@@ -159,13 +159,17 @@ Key configuration
 Encryption keys must come from host configuration, not from source control.
 They should be strong, environment-specific and available to every API process,
 worker and scheduled job that needs to decrypt connection secrets.
-Production deployments must set ``FLEXMEASURES_SECRETS_ENCRYPTION_KEY``; only
-non-production environments may fall back to ``SECRET_KEY``.
+Deployments must set ``FLEXMEASURES_SECRETS_ENCRYPTION_KEYS`` before
+connection secrets can be stored or decrypted. FlexMeasures does not fall back
+to ``SECRET_KEY`` for connection secrets.
 
-Hosts should plan for key rotation before production use. A practical approach
-is to support a primary key for new writes and one or more previous keys for
-reading existing payloads during a migration window. After all payloads have
-been re-encrypted with the primary key, old keys can be removed.
+Hosts should plan for key rotation before production use. Configure a keyring
+with IDs, for example ``{"1": "old-secret", "2": "current-secret"}``, in
+``FLEXMEASURES_SECRETS_ENCRYPTION_KEYS``. FlexMeasures writes new secrets with
+the highest numeric key ID, or the last key ID in lexical order if the IDs are
+not numeric. Previous keys remain available for decrypting existing payloads
+during a migration window. After all payloads have been re-encrypted with the
+current key, old keys can be removed.
 
 Changing the key without a migration plan can make existing connection secrets
 undecryptable. Document the operational steps for each deployment and test them

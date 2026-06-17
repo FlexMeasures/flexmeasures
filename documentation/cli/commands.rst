@@ -68,10 +68,20 @@ of which some are referred to in this documentation.
 
 ================================================= =======================================
 ``flexmeasures edit attribute``                   Edit (or add) an asset attribute or sensor attribute.
+``flexmeasures edit secret``                      Edit (or add) an encrypted account or asset secret.
 ``flexmeasures edit resample-data``               Assign a new event resolution to an existing sensor and resample its data accordingly.
 ``flexmeasures edit transfer-parenthood``         (Re)assign parent assets.
 ``flexmeasures edit transfer-ownership``          Transfer the ownership of an asset and its children to a different account.
 ================================================= =======================================
+
+``flexmeasures edit secret`` stores an encrypted secret on exactly one account
+or one asset. Use ``--prompt`` to avoid putting sensitive values in shell
+history.
+
+.. code-block:: console
+
+    flexmeasures edit secret --account 1 --secret platform.refresh_token --prompt
+    flexmeasures edit secret --asset 2 --secret platform.password --value "secret"
 
 
 ``delete`` - Delete data

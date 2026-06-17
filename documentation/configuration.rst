@@ -508,28 +508,22 @@ Extra password salt (a.k.a. pepper)
 
 Default: ``None`` (falls back to ``SECRET_KEY``\ )
 
-FLEXMEASURES_SECRETS_ENCRYPTION_KEY
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FLEXMEASURES_SECRETS_ENCRYPTION_KEYS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Dedicated key used to encrypt connection secrets stored for accounts and assets,
-for example credentials and tokens used by plugins to connect to external
-platforms. The value can be any non-empty string; FlexMeasures derives a
-Fernet-compatible key from it.
+Dictionary with key IDs mapped to key material, used to encrypt and decrypt
+connection secrets stored for accounts and assets. This follows the same shape
+as ``SECURITY_TOTP_SECRETS``, for example
+``{"1": "old-secret", "2": "current-secret"}``.
 
-Production deployments must set this separately from ``SECRET_KEY`` so Flask
-session signing and stored external-platform credentials can be rotated
-independently. If unset outside of production, secret handling falls back to
-``SECRET_KEY``.
+Newly encrypted values use the highest numeric key ID in this dictionary, or
+the last key ID in lexical order if the IDs are not numeric. Keep previous keys
+in this dictionary until all stored secrets have been re-encrypted with the
+current key.
 
-Default: ``None`` (falls back to ``SECRET_KEY`` outside of production)
+This setting must be configured before connection secrets can be stored or decrypted.
 
-FLEXMEASURES_SECRETS_ENCRYPTION_KEY_ID
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Identifier stored next to encrypted connection secrets to support future key
-rotation workflows.
-
-Default: ``default``
+Default: ``None``
 
 SECURITY_TOKEN_AUTHENTICATION_HEADER
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -9,6 +9,7 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.cli.tests.utils import get_click_commands
 from flexmeasures.tests.utils import get_test_sensor
+from flexmeasures.utils.secrets_utils import get_secret
 
 
 def test_add_one_sensor_attribute(app, db, setup_markets):
@@ -70,6 +71,90 @@ def test_update_one_asset_attribute(app, db, setup_generic_assets):
             active_user_name=None,
         )
     ).scalar_one_or_none()
+
+
+def test_edit_account_secret(app, db, setup_accounts):
+    from flexmeasures.cli.data_edit import edit_secret
+
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
+    account = setup_accounts["Prosumer"]
+    cli_input = {
+        "account": account.id,
+        "secret": "platform.refresh_token",
+        "value": "refresh-token-value",
+        "metadata": '{"expires_at": "2026-06-11T12:00:00+00:00"}',
+    }
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(edit_secret, to_flags(cli_input))
+    check_command_ran_without_error(result)
+    assert "Success" in result.output, result.exception
+    assert "refresh-token-value" not in result.output
+
+    db.session.refresh(account)
+    envelope = account.secrets["platform"]["refresh_token"]
+    assert envelope["ciphertext"] != "refresh-token-value"
+    assert envelope["expires_at"] == "2026-06-11T12:00:00+00:00"
+    assert get_secret(account.secrets, "platform.refresh_token") == (
+        "refresh-token-value"
+    )
+
+
+def test_edit_asset_secret(app, db, setup_generic_assets):
+    from flexmeasures.cli.data_edit import edit_secret
+
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
+    asset = setup_generic_assets["test_battery"]
+    cli_input = {
+        "asset": asset.id,
+        "secret": "platform.password",
+        "value": "password-value",
+    }
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(edit_secret, to_flags(cli_input))
+    check_command_ran_without_error(result)
+    assert "Success" in result.output, result.exception
+    assert "password-value" not in result.output
+
+    db.session.refresh(asset)
+    envelope = asset.secrets["platform"]["password"]
+    assert envelope["ciphertext"] != "password-value"
+    assert get_secret(asset.secrets, "platform.password") == "password-value"
+
+
+def test_edit_secret_rejects_account_and_asset(
+    app, setup_accounts, setup_generic_assets
+):
+    from flexmeasures.cli.data_edit import edit_secret
+
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
+    account = setup_accounts["Prosumer"]
+    asset = setup_generic_assets["test_battery"]
+    cli_input = {
+        "account": account.id,
+        "asset": asset.id,
+        "secret": "platform.password",
+        "value": "password-value",
+    }
+
+    runner = app.test_cli_runner()
+    with pytest.raises(ValueError, match="Pass exactly one of --account or --asset."):
+        runner.invoke(edit_secret, to_flags(cli_input))
+
+
+def test_edit_secret_rejects_missing_target(app):
+    from flexmeasures.cli.data_edit import edit_secret
+
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
+    cli_input = {
+        "secret": "platform.password",
+        "value": "password-value",
+    }
+
+    runner = app.test_cli_runner()
+    with pytest.raises(ValueError, match="Pass exactly one of --account or --asset."):
+        runner.invoke(edit_secret, to_flags(cli_input))
 
 
 @pytest.mark.parametrize(

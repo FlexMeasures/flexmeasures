@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import base64
+import json
+import os
+import sys
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
@@ -12,6 +15,10 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from flask import current_app
 
 from flexmeasures.utils.time_utils import as_utc_isoformat, server_now
+
+if TYPE_CHECKING:
+    from flexmeasures.data.models.generic_assets import GenericAsset
+    from flexmeasures.data.models.user import Account
 
 
 class SecretsError(Exception):
@@ -29,6 +36,216 @@ class SecretsDecryptionError(SecretsError):
 _KDF_OUTPUT_BYTES = 32
 _KDF_INFO = b"flexmeasures:connection-secrets:v1"
 _CIPHERTEXT_FIELD = "ciphertext"
+_CONNECTION_SECRETS_KEY_VALUE_GENERATOR = (
+    "import secrets; print(secrets.token_urlsafe(32))"
+)
+_CONNECTION_SECRETS_SETTING_GENERATOR = (
+    'import json, secrets; print(json.dumps({"1": secrets.token_urlsafe(32)}))'
+)
+_TOTP_SECRETS_KEY_VALUE_GENERATOR = (
+    "from passlib import totp; print(totp.generate_secret())"
+)
+_TOTP_SECRETS_SETTING_GENERATOR = 'import json; from passlib import totp; print(json.dumps({"1": totp.generate_secret()}))'
+
+
+def format_keyring_config_help(
+    setting_name: str,
+    *,
+    purpose: str,
+    filename: str | None = None,
+    key_value_generator_python: str = _CONNECTION_SECRETS_KEY_VALUE_GENERATOR,
+    setting_generator_python: str = _CONNECTION_SECRETS_SETTING_GENERATOR,
+) -> str:
+    """Return instructions for configuring a dictionary-based secret setting.
+
+    :param setting_name: Name of the FlexMeasures configuration setting.
+    :param purpose: Short explanation of what the setting protects.
+    :param filename: Optional instance-path file where the setting can be stored.
+    :param key_value_generator_python: Python snippet which prints one secret.
+    :param setting_generator_python: Python snippet which prints the JSON setting.
+    """
+    file_instructions = ""
+    if filename is not None:
+        file_instructions = f"""
+
+        OR you can create a secret key file (this example works only on Unix):
+
+        mkdir -p {os.path.dirname(filename)}
+        echo "{{\\"1\\": \\"$(python3 -c '{key_value_generator_python}')\\"}}" > {filename}
+        """
+    return f"""
+        Error: No {setting_name} set ({purpose}).
+
+        Configure {setting_name} as a JSON dictionary from key IDs to secret values.
+
+        You can add the {setting_name} setting to your conf file (this example works only on Unix):
+
+        echo "{setting_name}={{\\"1\\": \\"`python3 -c '{key_value_generator_python}'`\\"}}" >> ~/.flexmeasures.cfg
+
+        OR you can add an env var:
+
+        export {setting_name}='{{"1": "xxxxxxxxxxxxxxx"}}'
+        (on windows, use "set" instead of "export")
+        {file_instructions}
+
+        You can also use Python to create a good setting value:
+
+        python3 -c '{setting_generator_python}'
+
+        """
+
+
+def set_keyring_config(
+    app,
+    setting_name: str,
+    *,
+    filename: str | None = None,
+    purpose: str,
+    key_value_generator_python: str = _CONNECTION_SECRETS_KEY_VALUE_GENERATOR,
+    setting_generator_python: str = _CONNECTION_SECRETS_SETTING_GENERATOR,
+) -> None:
+    """Set a dictionary-based secret setting from config, environment or file.
+
+    :param app: Flask app whose config should receive the setting.
+    :param setting_name: Name of the FlexMeasures configuration setting.
+    :param filename: Optional filename in the app instance path.
+    :param purpose: Short explanation used in the setup help text.
+    :param key_value_generator_python: Python snippet which prints one secret.
+    :param setting_generator_python: Python snippet which prints the JSON setting.
+    """
+    if app.config.get(setting_name, None) is not None:
+        return
+    configured_value = os.environ.get(setting_name, None)
+    if configured_value is not None:
+        try:
+            app.config[setting_name] = json.loads(configured_value)
+            return
+        except json.JSONDecodeError:
+            app.logger.error(
+                f"Error: The environment variable {setting_name} is not valid JSON."
+            )
+            sys.exit(2)
+
+    path = os.path.join(app.instance_path, filename) if filename else None
+    if path is not None:
+        try:
+            with open(path) as keyring_file:
+                configured_value = json.loads(keyring_file.read())
+            if isinstance(configured_value, dict):
+                app.config[setting_name] = configured_value
+                return
+            log_keyring_config_error_and_exit(app, setting_name, path)
+        except json.JSONDecodeError:
+            log_keyring_config_error_and_exit(app, setting_name, path)
+        except (IOError, UnicodeDecodeError):
+            pass
+
+    app.logger.error(
+        format_keyring_config_help(
+            setting_name,
+            purpose=purpose,
+            filename=path,
+            key_value_generator_python=key_value_generator_python,
+            setting_generator_python=setting_generator_python,
+        )
+    )
+    sys.exit(2)
+
+
+def log_keyring_config_error_and_exit(app, setting_name: str, filename: str) -> None:
+    """Log invalid keyring-file instructions and exit app startup.
+
+    :param app: Flask app whose logger should receive the message.
+    :param setting_name: Name of the FlexMeasures configuration setting.
+    :param filename: File path containing an invalid value.
+    """
+    app.logger.error(
+        """
+        ERROR: The file %s exists but does not contain a valid dictionary for %s.
+
+        The correct format is:
+
+        {"1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+
+        """
+        % (filename, setting_name)
+    )
+    sys.exit(2)
+
+
+def set_totp_secrets(app, filename: str = "totp_secrets") -> None:
+    """Set the ``SECURITY_TOTP_SECRETS`` setting or exit app startup.
+
+    :param app: Flask app whose config should receive the setting.
+    :param filename: File name in the app instance path to check after config
+        and environment values.
+    """
+    set_keyring_config(
+        app,
+        "SECURITY_TOTP_SECRETS",
+        filename=filename,
+        purpose="required for two-factor authentication",
+        key_value_generator_python=_TOTP_SECRETS_KEY_VALUE_GENERATOR,
+        setting_generator_python=_TOTP_SECRETS_SETTING_GENERATOR,
+    )
+
+
+def set_secret_key(app, filename: str = "secret_key") -> None:
+    """Set the ``SECRET_KEY`` setting or exit app startup.
+
+    :param app: Flask app whose config should receive the setting.
+    :param filename: File name in the app instance path to check after config
+        and environment values.
+    """
+    secret_key = app.config.get("SECRET_KEY", None)
+    if secret_key is not None:
+        return
+    secret_key = os.environ.get("SECRET_KEY", None)
+    if secret_key is not None:
+        app.config["SECRET_KEY"] = secret_key
+        return
+    filename = os.path.join(app.instance_path, filename)
+    try:
+        with open(filename, "rb") as secret_key_file:
+            app.config["SECRET_KEY"] = secret_key_file.read()
+    except IOError:
+        app.logger.error(
+            """
+        Error: No secret key set.
+
+        You can add the SECRET_KEY setting to your conf file (this example works only on Unix):
+
+        echo "SECRET_KEY=\\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\\"" >> ~/.flexmeasures.cfg
+
+        OR you can add an env var:
+
+        export SECRET_KEY=xxxxxxxxxxxxxxx
+        (on windows, use "set" instead of "export")
+
+        OR you can create a secret key file (this example works only on Unix):
+
+        mkdir -p %s
+        head -c 24 /dev/urandom > %s
+
+        You can also use Python to create a good secret:
+
+        python3 -c "import secrets; print(secrets.token_urlsafe())"
+
+        """
+            % (os.path.dirname(filename), filename)
+        )
+
+        sys.exit(2)
+
+
+def connection_secrets_keyring_help() -> str:
+    """Return setup instructions for the connection secrets keyring."""
+    return format_keyring_config_help(
+        "FLEXMEASURES_SECRETS_ENCRYPTION_KEYS",
+        purpose="required before storing connection secrets",
+        key_value_generator_python=_CONNECTION_SECRETS_KEY_VALUE_GENERATOR,
+        setting_generator_python=_CONNECTION_SECRETS_SETTING_GENERATOR,
+    )
 
 
 def derive_fernet_key(secret: str, *, salt: str = "flexmeasures-secrets") -> bytes:
@@ -55,40 +272,63 @@ def derive_fernet_key(secret: str, *, salt: str = "flexmeasures-secrets") -> byt
 class SecretsEncryptor:
     """Encrypt and decrypt connection secrets with the configured master key.
 
-    :param encryption_key: Master key material used to derive the Fernet key.
-    :param key_id: Identifier stored with encrypted values for future rotation.
+    :param encryption_keys: Mapping from key IDs to master key material.
+    :param key_id: Identifier of the key used for new encryption. If empty, the
+        latest key ID in ``encryption_keys`` is used.
     """
 
-    encryption_key: str
-    key_id: str = "default"
+    encryption_keys: dict[str, str]
+    key_id: str = ""
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.encryption_keys, dict):
+            raise InvalidSecretsEncryptionKey(
+                "Secret encryption keys must be a non-empty dictionary."
+            )
+        encryption_keys = _normalize_keyring(self.encryption_keys)
+        key_id = self.key_id if self.key_id else _latest_key_id(encryption_keys)
+        if not encryption_keys:
+            raise InvalidSecretsEncryptionKey(
+                "Secret encryption keys must contain at least one non-empty string."
+            )
+        if not isinstance(key_id, str) or not key_id.strip():
+            raise InvalidSecretsEncryptionKey("Secret encryption key ID is required.")
+        if key_id not in encryption_keys:
+            raise InvalidSecretsEncryptionKey(
+                f"Secret encryption key {key_id!r} is not configured."
+            )
+        object.__setattr__(self, "encryption_keys", encryption_keys)
+        object.__setattr__(self, "key_id", key_id)
 
     @classmethod
     def from_current_app(cls) -> "SecretsEncryptor":
         """Create an encryptor from Flask configuration.
 
-        In production, ``FLEXMEASURES_SECRETS_ENCRYPTION_KEY`` is required. In
-        other environments, ``SECRET_KEY`` may be used as a fallback.
+        ``FLEXMEASURES_SECRETS_ENCRYPTION_KEYS`` must be configured before
+        connection secrets can be stored or decrypted.
         """
-        encryption_key = current_app.config.get("FLEXMEASURES_SECRETS_ENCRYPTION_KEY")
-        key_id = current_app.config.get(
-            "FLEXMEASURES_SECRETS_ENCRYPTION_KEY_ID", "default"
-        )
-        if not encryption_key:
-            if current_app.config.get("FLEXMEASURES_ENV") == "production":
-                raise InvalidSecretsEncryptionKey(
-                    "FLEXMEASURES_SECRETS_ENCRYPTION_KEY is required in production."
-                )
-            encryption_key = current_app.config.get("SECRET_KEY")
-        if not isinstance(key_id, str) or not key_id.strip():
+        encryption_keys = current_app.config.get("FLEXMEASURES_SECRETS_ENCRYPTION_KEYS")
+        if encryption_keys is None:
+            raise InvalidSecretsEncryptionKey(connection_secrets_keyring_help())
+        if not isinstance(encryption_keys, dict) or not encryption_keys:
             raise InvalidSecretsEncryptionKey(
-                "FLEXMEASURES_SECRETS_ENCRYPTION_KEY_ID must be non-empty."
+                "FLEXMEASURES_SECRETS_ENCRYPTION_KEYS must be a non-empty dictionary."
             )
-        return cls(encryption_key=encryption_key or "", key_id=key_id)
+        return cls(encryption_keys=encryption_keys)
 
     @property
     def fernet(self) -> Fernet:
-        """Fernet instance derived from the configured master key."""
-        return Fernet(derive_fernet_key(self.encryption_key))
+        """Fernet instance derived from the current master key."""
+        return self._fernet_for(self.key_id)
+
+    def _fernet_for(self, key_id: str) -> Fernet:
+        try:
+            encryption_key = self.encryption_keys[key_id]
+        except KeyError as exc:
+            raise InvalidSecretsEncryptionKey(
+                f"Secret encryption key {key_id!r} is not configured."
+            ) from exc
+        return Fernet(derive_fernet_key(encryption_key))
 
     def encrypt(self, value: str) -> dict[str, Any]:
         """Encrypt a string and return a JSON-serializable envelope.
@@ -119,11 +359,42 @@ class SecretsEncryptor:
         )
         if not isinstance(token, str) or not token:
             raise SecretsDecryptionError("Secret envelope does not contain ciphertext.")
-        try:
-            raw = self.fernet.decrypt(token.encode("utf-8"))
-        except InvalidToken as exc:
-            raise SecretsDecryptionError("Invalid secret token.") from exc
-        return raw.decode("utf-8")
+        if isinstance(envelope, dict) and isinstance(envelope.get("key_id"), str):
+            key_ids = [envelope["key_id"]]
+        else:
+            key_ids = [
+                self.key_id,
+                *[key for key in self.encryption_keys if key != self.key_id],
+            ]
+        for key_id in key_ids:
+            try:
+                raw = self._fernet_for(key_id).decrypt(token.encode("utf-8"))
+            except InvalidToken:
+                continue
+            return raw.decode("utf-8")
+        raise SecretsDecryptionError("Invalid secret token.")
+
+
+def _normalize_keyring(encryption_keys: dict[str, str]) -> dict[str, str]:
+    normalized_keys = {
+        str(key_id): key
+        for key_id, key in encryption_keys.items()
+        if isinstance(key, str) and key.strip()
+    }
+    if not normalized_keys:
+        raise InvalidSecretsEncryptionKey(
+            "FLEXMEASURES_SECRETS_ENCRYPTION_KEYS must contain non-empty string values."
+        )
+    return normalized_keys
+
+
+def _latest_key_id(encryption_keys: dict[str, str]) -> str:
+    numeric_key_ids = [
+        int(key_id) for key_id in encryption_keys if str(key_id).isdigit()
+    ]
+    if numeric_key_ids:
+        return str(max(numeric_key_ids))
+    return sorted(encryption_keys)[-1]
 
 
 def _path_parts(path: str | tuple[str, ...] | list[str]) -> list[str]:
@@ -165,6 +436,58 @@ def set_secret(
         envelope.update(metadata)
     current[parts[-1]] = envelope
     return updated
+
+
+def store_account_secret(
+    account: "Account",
+    path: str | tuple[str, ...] | list[str],
+    value: str,
+    *,
+    metadata: dict[str, Any] | None = None,
+    encryptor: SecretsEncryptor | None = None,
+) -> dict[str, Any]:
+    """Store an encrypted secret on an account and return its secrets dict.
+
+    :param account: Account whose ``secrets`` field should be updated.
+    :param path: Dot-separated path or sequence of keys where the value is stored.
+    :param value: Plaintext secret value to encrypt.
+    :param metadata: Optional non-secret metadata to store with the envelope.
+    :param encryptor: Optional encryptor; defaults to app configuration.
+    """
+    account.secrets = set_secret(
+        account.secrets,
+        path,
+        value,
+        metadata=metadata,
+        encryptor=encryptor,
+    )
+    return account.secrets
+
+
+def store_asset_secret(
+    asset: "GenericAsset",
+    path: str | tuple[str, ...] | list[str],
+    value: str,
+    *,
+    metadata: dict[str, Any] | None = None,
+    encryptor: SecretsEncryptor | None = None,
+) -> dict[str, Any]:
+    """Store an encrypted secret on an asset and return its secrets dict.
+
+    :param asset: Generic asset whose ``secrets`` field should be updated.
+    :param path: Dot-separated path or sequence of keys where the value is stored.
+    :param value: Plaintext secret value to encrypt.
+    :param metadata: Optional non-secret metadata to store with the envelope.
+    :param encryptor: Optional encryptor; defaults to app configuration.
+    """
+    asset.secrets = set_secret(
+        asset.secrets,
+        path,
+        value,
+        metadata=metadata,
+        encryptor=encryptor,
+    )
+    return asset.secrets
 
 
 def get_secret(

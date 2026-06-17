@@ -9,9 +9,13 @@ from flexmeasures.utils.secrets_utils import (
     TokenRefreshResult,
     apply_token_refresh_result,
     derive_fernet_key,
+    format_keyring_config_help,
     get_secret,
     redact_secrets,
     set_secret,
+    set_totp_secrets,
+    store_account_secret,
+    store_asset_secret,
 )
 
 
@@ -23,7 +27,7 @@ def test_derive_fernet_key_accepts_non_fernet_secret():
 
 
 def test_encrypt_decrypt_and_redact_secret():
-    encryptor = SecretsEncryptor("test-master-key", key_id="test-key")
+    encryptor = SecretsEncryptor({"test-key": "test-master-key"}, key_id="test-key")
     secrets = set_secret(
         {},
         "connection.refresh_token",
@@ -50,46 +54,172 @@ def test_encrypt_decrypt_and_redact_secret():
     }
 
 
+def test_store_account_secret_updates_account_secrets(setup_accounts):
+    encryptor = SecretsEncryptor({"1": "test-master-key"})
+    account = setup_accounts["Prosumer"]
+
+    store_account_secret(
+        account,
+        "platform.refresh_token",
+        "refresh-token-value",
+        metadata={"expires_at": "2026-06-11T12:00:00+00:00"},
+        encryptor=encryptor,
+    )
+
+    envelope = account.secrets["platform"]["refresh_token"]
+    assert envelope["ciphertext"] != "refresh-token-value"
+    assert envelope["expires_at"] == "2026-06-11T12:00:00+00:00"
+    assert get_secret(
+        account.secrets, "platform.refresh_token", encryptor=encryptor
+    ) == ("refresh-token-value")
+
+
+def test_store_asset_secret_updates_asset_secrets(setup_generic_assets):
+    encryptor = SecretsEncryptor({"1": "test-master-key"})
+    asset = setup_generic_assets["test_battery"]
+
+    store_asset_secret(
+        asset,
+        "platform.password",
+        "password-value",
+        encryptor=encryptor,
+    )
+
+    envelope = asset.secrets["platform"]["password"]
+    assert envelope["ciphertext"] != "password-value"
+    assert get_secret(asset.secrets, "platform.password", encryptor=encryptor) == (
+        "password-value"
+    )
+
+
 def test_decrypt_rejects_wrong_key():
     secrets = set_secret(
         {},
         "connection.password",
         "secret",
-        encryptor=SecretsEncryptor("first-key"),
+        encryptor=SecretsEncryptor({"1": "first-key"}),
     )
 
     with pytest.raises(SecretsDecryptionError):
         get_secret(
             secrets,
             "connection.password",
-            encryptor=SecretsEncryptor("second-key"),
+            encryptor=SecretsEncryptor({"1": "second-key"}),
         )
 
 
-def test_from_current_app_falls_back_to_secret_key_outside_production(app):
+def test_from_current_app_requires_keyring_outside_production(app):
     app.config["FLEXMEASURES_ENV"] = "testing"
-    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEY"] = None
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = None
     app.config["SECRET_KEY"] = "testing-secret-key"
-
-    encryptor = SecretsEncryptor.from_current_app()
-
-    assert encryptor.encryption_key == "testing-secret-key"
-
-
-def test_from_current_app_requires_dedicated_key_in_production(app):
-    app.config["FLEXMEASURES_ENV"] = "production"
-    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEY"] = None
-    app.config["SECRET_KEY"] = "production-secret-key"
 
     with pytest.raises(
         InvalidSecretsEncryptionKey,
-        match="FLEXMEASURES_SECRETS_ENCRYPTION_KEY is required in production",
+        match="No FLEXMEASURES_SECRETS_ENCRYPTION_KEYS set",
     ):
         SecretsEncryptor.from_current_app()
 
 
+def test_set_secret_requires_configured_keyring(app):
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = None
+
+    with pytest.raises(
+        InvalidSecretsEncryptionKey,
+        match="key IDs to secret values",
+    ):
+        set_secret({}, "connection.password", "secret")
+
+
+def test_format_keyring_config_help_mentions_setting_and_generator():
+    help_text = format_keyring_config_help(
+        "FLEXMEASURES_SECRETS_ENCRYPTION_KEYS",
+        purpose="required before storing connection secrets",
+    )
+
+    assert "FLEXMEASURES_SECRETS_ENCRYPTION_KEYS" in help_text
+    assert '{"1": "xxxxxxxxxxxxxxx"}' in help_text
+    assert "python3 -c" in help_text
+    assert "secrets.token_urlsafe" in help_text
+
+
+def test_set_totp_secrets_reads_environment(app, monkeypatch):
+    app.config["SECURITY_TOTP_SECRETS"] = None
+    monkeypatch.setenv("SECURITY_TOTP_SECRETS", '{"1": "totp-secret"}')
+
+    set_totp_secrets(app)
+
+    assert app.config["SECURITY_TOTP_SECRETS"] == {"1": "totp-secret"}
+
+
+def test_set_totp_secrets_reads_file(app, tmp_path):
+    app.config["SECURITY_TOTP_SECRETS"] = None
+    secret_file = tmp_path / "totp_secrets"
+    secret_file.write_text('{"1": "totp-secret"}')
+
+    set_totp_secrets(app, filename=str(secret_file))
+
+    assert app.config["SECURITY_TOTP_SECRETS"] == {"1": "totp-secret"}
+
+
+def test_from_current_app_uses_latest_key_from_keyring(app):
+    app.config["FLEXMEASURES_ENV"] = "production"
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {
+        "1": "old-secret-key",
+        "2": "current-secret-key",
+    }
+
+    encryptor = SecretsEncryptor.from_current_app()
+
+    assert encryptor.encryption_keys == {
+        "1": "old-secret-key",
+        "2": "current-secret-key",
+    }
+    assert encryptor.key_id == "2"
+
+
+def test_from_current_app_uses_lexical_latest_key_from_keyring(app):
+    app.config["FLEXMEASURES_ENV"] = "production"
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {
+        "2026-01": "old-secret-key",
+        "2026-06": "current-secret-key",
+    }
+
+    encryptor = SecretsEncryptor.from_current_app()
+
+    assert encryptor.key_id == "2026-06"
+
+
+def test_decrypt_uses_key_id_from_envelope():
+    old_encryptor = SecretsEncryptor(
+        {"1": "old-secret-key", "2": "current-secret-key"},
+        key_id="1",
+    )
+    current_encryptor = SecretsEncryptor(
+        {"1": "old-secret-key", "2": "current-secret-key"},
+        key_id="2",
+    )
+
+    envelope = old_encryptor.encrypt("old-secret-value")
+
+    assert current_encryptor.decrypt(envelope) == "old-secret-value"
+
+
+def test_decrypt_raw_token_can_try_all_configured_keys():
+    old_encryptor = SecretsEncryptor(
+        {"1": "old-secret-key", "2": "current-secret-key"},
+        key_id="1",
+    )
+    current_encryptor = SecretsEncryptor(
+        {"1": "old-secret-key", "2": "current-secret-key"},
+        key_id="2",
+    )
+    raw_token = old_encryptor.encrypt("old-secret-value")["ciphertext"]
+
+    assert current_encryptor.decrypt(raw_token) == "old-secret-value"
+
+
 def test_apply_token_refresh_result_can_update_tokens_and_metadata():
-    encryptor = SecretsEncryptor("token-key")
+    encryptor = SecretsEncryptor({"1": "token-key"})
     result = TokenRefreshResult(
         access_token="access-1",
         refresh_token="refresh-1",
@@ -122,7 +252,7 @@ def test_apply_token_refresh_result_can_update_tokens_and_metadata():
 
 
 def test_apply_token_refresh_result_can_extend_existing_access_token():
-    encryptor = SecretsEncryptor("token-key")
+    encryptor = SecretsEncryptor({"1": "token-key"})
     secrets = apply_token_refresh_result(
         {},
         "platform",
