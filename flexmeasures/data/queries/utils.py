@@ -26,6 +26,7 @@ def id_prefix_filter(id_column, prefix: str, max_digits: int = 10) -> BinaryExpr
     """Build an index-friendly integer filter for decimal ID prefixes."""
     prefix_value = int(prefix)
     if prefix != str(prefix_value):
+        # Match no ID rows for non-canonical digit strings like "01".
         return false()
     if prefix_value == 0:
         return id_column == 0
