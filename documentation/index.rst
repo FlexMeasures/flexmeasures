@@ -175,6 +175,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     tut/toy-example-expanded
     tut/toy-example-multiasset-curtailment
     tut/flex-model-v2g
+    tut/multi-feed-storage
     tut/toy-example-process
     tut/toy-example-reporter
     tut/posting_data
