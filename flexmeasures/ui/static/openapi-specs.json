@@ -6085,12 +6085,12 @@
           "soc-min": {
             "type": "string",
             "x-minimum": "0 MWh",
-            "description": "A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-minima</code> flex-model field instead together with the <code>soc-minima-breach-price</code> field in the flex-context.\n",
+            "description": "A constant and non-negotiable lower boundary for all SoC values in the schedule.\nIf omitted, no lower boundary is applied.\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-minima</code> flex-model field instead together with the <code>soc-minima-breach-price</code> field in the flex-context.\n",
             "example": "2.5 kWh"
           },
           "soc-max": {
             "type": "string",
-            "description": "A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-maxima</code> flex-model field instead together with the <code>soc-maxima-breach-price</code> field in the flex-context.\n",
+            "description": "A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf omitted, no upper boundary is applied.\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-maxima</code> flex-model field instead together with the <code>soc-maxima-breach-price</code> field in the flex-context.\n",
             "example": "7 kWh"
           },
           "power-capacity": {
