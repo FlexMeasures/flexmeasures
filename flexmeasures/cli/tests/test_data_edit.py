@@ -157,6 +157,16 @@ def test_edit_secret_rejects_missing_target(app):
         runner.invoke(edit_secret, to_flags(cli_input))
 
 
+def test_edit_secret_help_includes_examples(app):
+    from flexmeasures.cli.data_edit import edit_secret
+
+    result = app.test_cli_runner().invoke(edit_secret, ["--help"])
+
+    check_command_ran_without_error(result)
+    assert "Examples:" in result.output
+    assert "flexmeasures edit secret --account" in result.output
+
+
 @pytest.mark.parametrize(
     "event_starts_after, event_ends_before",
     (

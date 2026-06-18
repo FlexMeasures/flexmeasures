@@ -8,9 +8,11 @@ from flexmeasures.utils.secrets_utils import (
     InvalidSecretsEncryptionKey,
     TokenRefreshResult,
     apply_token_refresh_result,
+    delete_secret,
     derive_fernet_key,
     format_keyring_config_help,
     get_secret,
+    get_secret_paths,
     redact_secrets,
     set_secret,
     set_totp_secrets,
@@ -106,6 +108,45 @@ def test_decrypt_rejects_wrong_key():
             "connection.password",
             encryptor=SecretsEncryptor({"1": "second-key"}),
         )
+
+
+def test_delete_secret_removes_empty_parent_dicts():
+    secrets = {
+        "platform": {
+            "access_token": {"ciphertext": "access"},
+            "refresh_token": {"ciphertext": "refresh"},
+        }
+    }
+
+    secrets = delete_secret(secrets, "platform.access_token")
+    assert secrets == {"platform": {"refresh_token": {"ciphertext": "refresh"}}}
+
+    secrets = delete_secret(secrets, "platform.refresh_token")
+    assert secrets == {}
+
+
+def test_delete_secret_rejects_missing_path():
+    secrets = {"platform": {"access_token": {"ciphertext": "access"}}}
+
+    with pytest.raises(KeyError, match="Secret path does not exist"):
+        delete_secret(secrets, "platform.refresh_token")
+
+
+def test_get_secret_paths_returns_only_encrypted_value_paths():
+    secrets = {
+        "platform": {
+            "access_token": {"ciphertext": "access"},
+            "metadata": {"scope": "read"},
+            "nested": {
+                "password": {"ciphertext": "password"},
+            },
+        }
+    }
+
+    assert get_secret_paths(secrets) == [
+        "platform.access_token",
+        "platform.nested.password",
+    ]
 
 
 def test_from_current_app_requires_keyring_outside_production(app):

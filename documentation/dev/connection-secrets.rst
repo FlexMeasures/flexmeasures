@@ -34,6 +34,11 @@ Treat secrets as write-only in API and UI flows. Accept new or replacement
 values, but never return plaintext secrets. Responses should contain only
 redacted information such as whether a value is set and when it expires.
 
+For administrator-level maintenance, use ``flexmeasures edit secret`` to store
+or replace one account or asset secret and ``flexmeasures delete secret`` to
+remove one. Prefer the edit command's ``--prompt`` option so secret values do
+not enter shell history.
+
 
 Use the secret utilities
 ^^^^^^^^^^^^^^^^^^^^^^^^

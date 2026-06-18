@@ -225,7 +225,16 @@ def edit_secret(
     secret_value: str | None = None,
     metadata_json: str | None = None,
 ):
-    """Edit (or add) an encrypted account or asset secret."""
+    """Edit (or add) an encrypted account or asset secret.
+
+    The command accepts exactly one account or asset. Prefer ``--prompt`` over
+    ``--value`` to avoid putting sensitive values in shell history.
+
+    \b
+    Examples:
+      flexmeasures edit secret --account 1 --secret platform.refresh_token --prompt
+      flexmeasures edit secret --asset 2 --secret platform.password --value secret
+    """
 
     if (account is None) == (asset is None):
         raise ValueError("Pass exactly one of --account or --asset.")
@@ -233,6 +242,7 @@ def edit_secret(
         raise ValueError("Pass exactly one of --value or --prompt.")
     if prompt_for_secret:
         secret_value = click.prompt("Secret value", hide_input=True)
+    assert secret_value is not None
 
     metadata = parse_secret_metadata(metadata_json)
 

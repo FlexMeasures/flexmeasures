@@ -18,7 +18,7 @@ Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_ and `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_]
 * Prepare the ``device_scheduler`` to deal with commitments per device group [see `PR #1934 <https://www.github.com/FlexMeasures/flexmeasures/pull/1934>`_]
-* Support storing encryptedconnection secrets on account and assets, so plugins can manage 3rd party platform integrations. Includes utility functions, encryption key configuration and a CLI command to set secrets, as well.[see `PR #2236 <https://www.github.com/FlexMeasures/flexmeasures/pull/2236>`_]
+* Support storing encrypted connection secrets on account and assets, so plugins can manage 3rd party platform integrations. Includes utility functions, encryption key configuration and 2 CLI commands to set and delete secrets, as well.[see `PR #2236 <https://www.github.com/FlexMeasures/flexmeasures/pull/2236>`_]
 * Documentation section on the modelling choice for recording measurements, forecasts and schedules under one or multiple sensors [see `PR #2217 <https://www.github.com/FlexMeasures/flexmeasures/pull/2217>`_]
 
 Bugfixes

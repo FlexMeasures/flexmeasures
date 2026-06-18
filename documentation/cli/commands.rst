@@ -74,16 +74,6 @@ of which some are referred to in this documentation.
 ``flexmeasures edit transfer-ownership``          Transfer the ownership of an asset and its children to a different account.
 ================================================= =======================================
 
-``flexmeasures edit secret`` stores an encrypted secret on exactly one account
-or one asset. Use ``--prompt`` to avoid putting sensitive values in shell
-history.
-
-.. code-block:: console
-
-    flexmeasures edit secret --account 1 --secret platform.refresh_token --prompt
-    flexmeasures edit secret --asset 2 --secret platform.password --value "secret"
-
-
 ``delete`` - Delete data
 --------------
 
@@ -93,6 +83,7 @@ history.
 ``flexmeasures delete account``                   Delete a tenant account & also their users (with assets and power measurements).
 ``flexmeasures delete user``                      Delete a user & also their assets and power measurements.
 ``flexmeasures delete asset``                     Delete an asset & also its sensors and data.
+``flexmeasures delete secret``                    Delete one encrypted secret from an account or asset.
 ``flexmeasures delete sensor``                    Delete a sensor and all beliefs about it.
 ``flexmeasures delete beliefs``                   Delete time series data (beliefs).
 ``flexmeasures delete measurements``              Delete measurements (with horizon <= 0).

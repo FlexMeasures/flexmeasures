@@ -438,6 +438,40 @@ def set_secret(
     return updated
 
 
+def delete_secret(
+    secrets: dict[str, Any] | None,
+    path: str | tuple[str, ...] | list[str],
+) -> dict[str, Any]:
+    """Return a copy of ``secrets`` without the value at ``path``.
+
+    Empty dictionaries containing the deleted value are removed as well.
+
+    :param secrets: Existing secrets dictionary.
+    :param path: Dot-separated path or sequence of keys to remove.
+    :raises KeyError: If the path does not exist.
+    """
+    updated = deepcopy(secrets or {})
+    current: Any = updated
+    parents: list[tuple[dict[str, Any], str]] = []
+    parts = _path_parts(path)
+    for part in parts[:-1]:
+        if not isinstance(current, dict) or part not in current:
+            raise KeyError("Secret path does not exist.")
+        parents.append((current, part))
+        current = current[part]
+    if not isinstance(current, dict) or parts[-1] not in current:
+        raise KeyError("Secret path does not exist.")
+    del current[parts[-1]]
+
+    for parent, part in reversed(parents):
+        child = parent[part]
+        if isinstance(child, dict) and not child:
+            del parent[part]
+        else:
+            break
+    return updated
+
+
 def store_account_secret(
     account: "Account",
     path: str | tuple[str, ...] | list[str],
@@ -510,6 +544,27 @@ def get_secret(
             raise KeyError("Secret path does not exist.")
         current = current[part]
     return encryptor.decrypt(current)
+
+
+def get_secret_paths(secrets: dict[str, Any] | None) -> list[str]:
+    """Return sorted dot-separated paths to encrypted secret values.
+
+    :param secrets: Secrets dictionary containing encrypted envelopes.
+    :return: Secret paths without ciphertext or metadata values.
+    """
+    paths: list[str] = []
+
+    def _collect(value: Any, parts: list[str]) -> None:
+        if not isinstance(value, dict):
+            return
+        if _CIPHERTEXT_FIELD in value:
+            paths.append(".".join(parts))
+            return
+        for key, nested_value in value.items():
+            _collect(nested_value, [*parts, key])
+
+    _collect(secrets or {}, [])
+    return sorted(paths)
 
 
 def redact_secrets(secrets: dict[str, Any] | None) -> dict[str, Any]:
