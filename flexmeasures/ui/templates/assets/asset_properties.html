@@ -204,8 +204,9 @@
                         </table>
                     </div>
                     <div class="col-md-5">
-                        {% from "_macros.html" import render_attributes %}
+                        {% from "_macros.html" import render_attributes, render_secret_paths %}
                         {{ render_attributes(asset.attributes) }}
+                        {{ render_secret_paths(secret_paths) }}
                     </div>
                 </div>
             </div>

@@ -162,6 +162,7 @@ Properties page
 ---------------
 
 The properties page allows you to view and edit the properties of the asset.
+It shows attributes and secrets (no values) stored on this asset.
 
 You can also delete the asset by clicking on the "Delete this asset" button.
 
@@ -204,4 +205,3 @@ This is how the audit log looks for the history of actions taken on an asset:
 ..    :scale: 40%
 
 |
-

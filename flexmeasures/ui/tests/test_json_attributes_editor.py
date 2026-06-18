@@ -75,6 +75,33 @@ def test_asset_properties_page_shows_attributes_editor(
     assert EDITOR_MODAL_MARKER in response.data
 
 
+def test_asset_properties_page_shows_secret_paths_without_values(
+    db, client, setup_assets, as_admin
+):
+    user = find_user_by_email("flexmeasures-admin@seita.nl")
+    asset = user.account.generic_assets[0]
+    original_secrets = asset.secrets
+    asset.secrets = {
+        "platform": {
+            "access_token": {"ciphertext": "sensitive-ciphertext"},
+        }
+    }
+    db.session.commit()
+
+    try:
+        response = client.get(
+            url_for("AssetCrudUI:properties", id=asset.id),
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"Stored secret" in response.data
+        assert b"platform.access_token" in response.data
+        assert b"sensitive-ciphertext" not in response.data
+    finally:
+        asset.secrets = original_secrets
+        db.session.commit()
+
+
 # ---------------------------------------------------------------------------
 # Account page
 # ---------------------------------------------------------------------------
@@ -89,3 +116,27 @@ def test_account_page_shows_attributes_editor(db, client, as_prosumer_user1):
     assert response.status_code == 200
     assert EDITOR_BUTTON_MARKER in response.data
     assert EDITOR_MODAL_MARKER in response.data
+
+
+def test_account_page_shows_secret_paths_without_values(db, client, as_prosumer_user1):
+    account = current_user.account
+    original_secrets = account.secrets
+    account.secrets = {
+        "platform": {
+            "refresh_token": {"ciphertext": "sensitive-ciphertext"},
+        }
+    }
+    db.session.commit()
+
+    try:
+        response = client.get(
+            url_for("AccountCrudUI:get", account_id=account.id),
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b"Stored secret" in response.data
+        assert b"platform.refresh_token" in response.data
+        assert b"sensitive-ciphertext" not in response.data
+    finally:
+        account.secrets = original_secrets
+        db.session.commit()

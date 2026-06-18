@@ -204,6 +204,25 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
 </table>    
 {% endmacro %}
 
+{% macro render_secret_paths(secret_paths) %}
+{% if secret_paths %}
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th scope="col">Stored secret</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for path in secret_paths %}
+    <tr>
+      <td scope="row"><span class="font-monospace">{{ path }}</span></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endmacro %}
+
 {#
   Render a button that opens the JSON attributes editor modal.
   Call json_attributes_editor_modal() once on the same page to include the modal + JS.
@@ -515,4 +534,3 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
 }());
 </script>
 {% endmacro %}
-
