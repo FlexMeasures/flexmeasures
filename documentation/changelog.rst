@@ -12,8 +12,11 @@ v1.0.0 | July XX, 2026
 
 New features
 -------------
+* In the UI, asset and sensor lists can be filtered by ID prefix through API-backed search fields [see `PR #2231 <https://www.github.com/FlexMeasures/flexmeasures/pull/2231>`_]
 * Floor off-clock API datetimes to a non-instantaneous sensor's resolution by default when ingesting sensor data, uploading sensor data, and handling scheduler flex-model timed events; configurable with the ``floor_datetimes_to_resolution`` sensor attribute [see `PR #2146 <https://www.github.com/FlexMeasures/flexmeasures/pull/2146>`_]
 * Sensor references in flex-model and flex-context support various ways of filtering by source [see `PR #2209 <https://www.github.com/FlexMeasures/flexmeasures/pull/2209>`_]
+* Let storage scheduling infer missing ``power-capacity`` from directional device capacities before falling back to site capacity, and default the missing opposite capacity to zero when only a non-zero ``consumption-capacity`` or ``production-capacity`` is configured [see `PR #2222 <https://www.github.com/FlexMeasures/flexmeasures/pull/2222>`_]
+* CLI support for adding/editing account attributes [see `PR #2242 <https://www.github.com/FlexMeasures/flexmeasures/pull/2242>`_]
 
 
 Infrastructure / Support
@@ -26,6 +29,8 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Let storage scheduling treat missing constant SoC bounds as unconstrained lower or upper bounds [see `PR #2221 <https://www.github.com/FlexMeasures/flexmeasures/pull/2221>`_]
+* Allow root assets belonging to different accounts to share the same name, while keeping asset names unique among root assets within the same account and among children of the same parent [see `PR #2226 <https://www.github.com/FlexMeasures/flexmeasures/pull/2226>`_]
 
 
 v0.33.0 | June 1, 2026
@@ -69,6 +74,7 @@ Infrastructure / Support
 * Speed up sensor stats, especially potent when viewing sensors stats over a large sensor history [`PR #2173 <https://www.github.com/FlexMeasures/flexmeasures/pull/2173>`_]
 * Various smaller fixes in documenting scheduling endpoints and flex-model fields [`PR #2122 <https://www.github.com/FlexMeasures/flexmeasures/pull/2122>`_]
 * Add cross-cutting Copilot instruction files to ``.github/instructions/`` covering atomic commits, changelog format, docstrings, error handling, Marshmallow schemas, pre-commit hooks, testing, timezone awareness, and UI terminology [see `PR #2198 <https://www.github.com/FlexMeasures/flexmeasures/pull/2198>`_]
+* Ignore stale asset references in ``sensors_to_show`` so chart endpoints and the graph editor remain usable, and automatically prune those references when deleting assets [see `PR #2210 <https://www.github.com/FlexMeasures/flexmeasures/pull/2210>`_]
 
 Bugfixes
 -----------

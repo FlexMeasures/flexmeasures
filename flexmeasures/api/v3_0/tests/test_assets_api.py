@@ -221,6 +221,39 @@ def test_fetch_asset_sensors(
         assert response.json["data"][0]["name"] == expected_name_of_first_sensor
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_fetch_asset_sensors_forbidden_without_asset_read_access(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    supplier_asset_id = setup_api_test_data["some gas sensor"].generic_asset_id
+
+    response = client.get(url_for("AssetAPI:asset_sensors", id=supplier_asset_id))
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_fetch_asset_sensors_uses_all_parsed_filter_terms(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.get(
+        url_for("AssetAPI:asset_sensors", id=sensor.generic_asset_id),
+        query_string={"filter": f"does-not-match {sensor.id}"},
+    )
+
+    assert response.status_code == 200
+    assert [s["id"] for s in response.json["data"]] == [sensor.id]
+    assert response.json["filtered-records"] == 1
+
+
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_asset_with_children(client, add_asset_with_children, requesting_user):
     """
@@ -614,24 +647,31 @@ def test_consultancy_user_without_consultant_role(
 
 
 @pytest.mark.parametrize(
-    "parent_name, child_name, fails",
+    "parent_name, child_name, pre_existing_root, fails",
     [
-        ("parent", "child_4", False),
-        (None, "child_1", False),
-        (None, "child_1", True),
-        ("parent", "child_1", True),
+        ("parent", "child_4", False, False),
+        (None, "child_1", False, False),
+        (None, "duplicate_root_name", True, True),
+        ("parent", "child_1", False, True),
     ],
 )
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_post_an_asset_with_existing_name(
-    client, add_asset_with_children, parent_name, child_name, fails, requesting_user, db
+    client,
+    add_asset_with_children,
+    parent_name,
+    child_name,
+    pre_existing_root,
+    fails,
+    requesting_user,
+    db,
 ):
     """Catch DB error (Unique key violated) correctly.
 
     Cases:
         1) Create a child asset
         2) Create an orphan asset with a name that already exists under a parent asset
-        3) Create an orphan asset with an existing name.
+        3) Create an orphan asset with an existing root asset name in the same account.
         4) Create a child asset with a name that already exists among its siblings.
     """
 
@@ -650,9 +690,21 @@ def test_post_an_asset_with_existing_name(
     post_data["account_id"] = requesting_user.account_id
 
     if parent:
-        post_data["parent_asset_id"] = parent.parent_asset_id
+        post_data["parent_asset_id"] = parent.id
     else:
         post_data["parent_asset_id"] = None
+
+    if pre_existing_root:
+        db.session.add(
+            GenericAsset(
+                name=child_name,
+                generic_asset_type=add_asset_with_children[
+                    "child_1"
+                ].generic_asset_type,
+                account_id=requesting_user.account_id,
+            )
+        )
+        db.session.flush()
 
     asset_creation_response = client.post(
         url_for("AssetAPI:post"),

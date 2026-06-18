@@ -931,6 +931,189 @@ def test_add_storage_constraints(
     ].all()
 
 
+def test_add_storage_constraints_skips_global_minimum_when_soc_min_is_missing():
+    """Missing soc-min should not imply a zero lower bound."""
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.0
+    soc_max = 10
+    soc_min = None
+
+    storage_device_constraints = add_storage_constraints(
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets=None,
+        soc_maxima=None,
+        soc_minima=None,
+        soc_max=soc_max,
+        soc_min=soc_min,
+    )
+
+    assert storage_device_constraints["min"].isna().all()
+    assert (storage_device_constraints["max"] == soc_max).all()
+    assert (
+        validate_storage_constraints(
+            storage_device_constraints,
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            resolution=resolution,
+        )
+        == []
+    )
+
+
+def test_add_storage_constraints_skips_global_maximum_when_soc_max_is_missing():
+    """Missing soc-max should not imply a constant upper bound."""
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.0
+    soc_min = 0
+    soc_max = None
+
+    storage_device_constraints = add_storage_constraints(
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets=None,
+        soc_maxima=None,
+        soc_minima=None,
+        soc_max=soc_max,
+        soc_min=soc_min,
+    )
+
+    assert (storage_device_constraints["min"] == soc_min).all()
+    assert storage_device_constraints["max"].isna().all()
+    assert (
+        validate_storage_constraints(
+            storage_device_constraints,
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            resolution=resolution,
+        )
+        == []
+    )
+
+
+def test_add_storage_constraints_skips_bounds_when_soc_min_and_soc_max_are_missing():
+    """Missing soc-min and soc-max should not imply constant bounds."""
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.0
+    soc_min = None
+    soc_max = None
+
+    storage_device_constraints = add_storage_constraints(
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets=None,
+        soc_maxima=None,
+        soc_minima=None,
+        soc_max=soc_max,
+        soc_min=soc_min,
+    )
+
+    assert storage_device_constraints["min"].isna().all()
+    assert storage_device_constraints["max"].isna().all()
+    assert (
+        validate_storage_constraints(
+            storage_device_constraints,
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            resolution=resolution,
+        )
+        == []
+    )
+
+
+def test_add_storage_constraints_with_soc_min_missing_and_soc_minima_has_gaps():
+    """Timed minima should not turn missing soc-minima into a global lower bound."""
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+    resolution = timedelta(hours=1)
+    soc_at_start = 1.0
+    soc_max = 10
+    soc_min = None
+
+    soc_minima = initialize_series(np.nan, start, end, resolution)
+    soc_minima[start + resolution] = 4
+
+    storage_device_constraints = add_storage_constraints(
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets=None,
+        soc_maxima=None,
+        soc_minima=soc_minima,
+        soc_max=soc_max,
+        soc_min=soc_min,
+    )
+
+    assert storage_device_constraints["min"].notna().sum() == 1
+    assert storage_device_constraints["min"].dropna().iloc[0] == 3
+    assert storage_device_constraints["min"].isna().any()
+    assert (
+        validate_storage_constraints(
+            storage_device_constraints,
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            resolution=resolution,
+        )
+        == []
+    )
+
+
+def test_add_storage_constraints_with_soc_max_missing_and_soc_maxima_has_gaps():
+    """Timed maxima should not turn missing soc-max into a constant upper bound."""
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+    resolution = timedelta(hours=1)
+    soc_at_start = 1.0
+    soc_min = 0
+    soc_max = None
+
+    soc_maxima = initialize_series(np.nan, start, end, resolution)
+    soc_maxima[start + resolution] = 6
+
+    storage_device_constraints = add_storage_constraints(
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets=None,
+        soc_maxima=soc_maxima,
+        soc_minima=None,
+        soc_max=soc_max,
+        soc_min=soc_min,
+    )
+
+    assert storage_device_constraints["max"].notna().sum() == 1
+    assert storage_device_constraints["max"].dropna().iloc[0] == 5
+    assert storage_device_constraints["max"].isna().any()
+    assert (
+        validate_storage_constraints(
+            storage_device_constraints,
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            resolution=resolution,
+        )
+        == []
+    )
+
+
 @pytest.mark.parametrize(
     "value_min1, value_equals1, value_max1, value_min2, value_equals2, value_max2, expected_constraint_type_violations",
     [
@@ -1391,6 +1574,75 @@ def test_capacity(
 
 
 @pytest.mark.parametrize(
+    "configured_capacities, expected_capacity, expected_derivative_min, expected_derivative_max",
+    [
+        (
+            {"production-capacity": "300 kW", "consumption-capacity": "700 kW"},
+            0.7,
+            -0.3,
+            0.7,
+        ),
+        (
+            {"production-capacity": "1.1 MW", "consumption-capacity": "200 kW"},
+            1.1,
+            -1.1,
+            0.2,
+        ),
+        ({"consumption-capacity": "700 kW"}, 0.7, 0, 0.7),
+        ({"production-capacity": "300 kW"}, 0.3, -0.3, 0),
+        ({"consumption-capacity": "0 kW"}, 2, -2, 0),
+        ({"production-capacity": "0 kW"}, 2, 0, 2),
+    ],
+)
+def test_device_power_capacity_uses_directional_capacity_before_site_fallback(
+    db,
+    add_battery_assets,
+    configured_capacities,
+    expected_capacity,
+    expected_derivative_min,
+    expected_derivative_max,
+):
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    start = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 2))
+    end = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": 0,
+            "soc-min": 0,
+            "soc-max": 5,
+            **configured_capacities,
+        },
+        flex_context={"consumption-price": "1 EUR/MWh"},
+    )
+    scheduler.deserialize_config()
+
+    power_capacity = scheduler._get_device_power_capacity(
+        [scheduler.flex_model],
+        [battery.generic_asset],
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=scheduler.belief_time,
+    )[0]
+
+    if isinstance(power_capacity, ur.Quantity):
+        actual_capacity = power_capacity.to("MW").magnitude
+    else:
+        actual_capacity = power_capacity.values
+    assert np.allclose(actual_capacity, expected_capacity)
+
+    device_constraints = scheduler._prepare(skip_validation=True)[5]
+
+    assert np.allclose(device_constraints[0]["derivative min"], expected_derivative_min)
+    assert np.allclose(device_constraints[0]["derivative max"], expected_derivative_max)
+
+
+@pytest.mark.parametrize(
     ["soc_values", "log_message", "expected_num_targets"],
     [
         (
@@ -1507,7 +1759,7 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
             True,
             None,
             None,
-            # from the power sensor attribute 'consumption_capacity'
+            # from the power sensor attribute 'production_capacity'
             [-8] * 24 * 4,
             # from the flex model field 'consumption-capacity' (a sensor),
             # and when absent, defaulting to the max value from the power sensor attribute capacity_in_mw
@@ -1573,8 +1825,8 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
             None,
             # from the flex model field 'production-capacity' (a quantity)
             -0.01,
-            # from the asset attribute 'capacity_in_mw'
-            2,
+            # missing consumption-capacity defaults to zero when production-capacity is provided
+            0,
             False,
             False,
             -1.1,
