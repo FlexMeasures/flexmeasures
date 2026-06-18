@@ -95,7 +95,7 @@ def test_asset_trigger_and_get_schedule(
             json=message,
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
         job_id = trigger_schedule_response.json["schedule"]
 
     # look for scheduling jobs in queue

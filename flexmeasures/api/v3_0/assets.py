@@ -67,7 +67,7 @@ from flexmeasures.api.common.utils.api_utils import (
 )
 from flexmeasures.api.common.responses import (
     unprocessable_entity,
-    request_processed,
+    request_accepted_for_processing,
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
@@ -1479,8 +1479,8 @@ class AssetAPI(FlaskView):
                             site-consumption-capacity: {sensor: 32}
 
           responses:
-              200:
-                description: PROCESSED
+              202:
+                description: ACCEPTED (Scheduling job queued for processing)
                 content:
                   application/json:
                     schema:
@@ -1488,14 +1488,25 @@ class AssetAPI(FlaskView):
                     examples:
                       successful_response:
                         description: |
-                          This message indicates that the scheduling request has been processed without any error.
+                          This message indicates that the scheduling request has been accepted for processing (202 Accepted).
                           A scheduling job has been created with some Universally Unique Identifier (UUID),
                           which will be picked up by a worker.
-                          The given UUID may be used to obtain the resulting schedule for each flexible device: see [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
+                          The given UUID is returned in the canonical `job_id` field.
+                          For backward-compatibility, the legacy `schedule` field is also included but is deprecated;
+                          use `job_id` instead. The `_deprecated_fields` object provides migration guidance.
+                          The given UUID may be used to obtain the resulting schedule for each flexible device via [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
                         value:
-                          status: PROCESSED
+                          status: ACCEPTED
+                          job_id: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
                           schedule: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
-                          message: "Request has been processed."
+                          job_monitor_url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                          message: "Request has been accepted for processing."
+                          _deprecated_fields:
+                            schedule:
+                              use: "job_id"
+                              deprecated_since: "1.0.0"
+                              removal_date: "2.0.0"
+                              note: "The 'schedule' response field is deprecated; use 'job_id'"
               400:
                 description: INVALID_DATA
               401:
@@ -1536,9 +1547,9 @@ class AssetAPI(FlaskView):
         except ValueError as err:
             return unprocessable_entity(str(err))
 
-        response = dict(schedule=job.id)
-        d, s = request_processed()
-        return dict(**response, **d), s
+        # Keep legacy `schedule` key for backward compatibility; prefer `job_id`.
+        d, s = request_accepted_for_processing(job.id, legacy_key="schedule")
+        return d, s
 
     @route("/<id>/kpis", methods=["GET"])
     @use_kwargs(

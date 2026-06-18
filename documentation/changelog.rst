@@ -7,6 +7,9 @@ FlexMeasures Changelog
 v1.0.0 | July XX, 2026
 ============================
 
+.. warning:: As of this release we standardize asynchronous job responses to use the `job_id` field and return HTTP `202 Accepted` when a background job is queued. Legacy response fields such as ``schedule`` and ``forecast`` will be deprecated; clients should migrate to `job_id` (see the Infrastructure / Support section below for migration details).
+
+
 New features
 -------------
 * In the UI, asset and sensor lists can be filtered by ID prefix through API-backed search fields [see `PR #2231 <https://www.github.com/FlexMeasures/flexmeasures/pull/2231>`_]
@@ -18,6 +21,8 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Standardize job-trigger API responses to return `202 Accepted` and a canonical `job_id` field; legacy response fields such as ``schedule`` and ``forecast`` are preserved for backward-compatibility but marked deprecated with a migration guide in the API docs (see issue #2171).
+
 * Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_ and `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_]
 * Prepare the ``device_scheduler`` to deal with commitments per device group [see `PR #1934 <https://www.github.com/FlexMeasures/flexmeasures/pull/1934>`_]
 * Documentation section on the modelling choice for recording measurements, forecasts and schedules under one or multiple sensors [see `PR #2217 <https://www.github.com/FlexMeasures/flexmeasures/pull/2217>`_]
