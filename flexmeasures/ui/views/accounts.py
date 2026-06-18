@@ -18,7 +18,7 @@ from flexmeasures.ui.views import (
     ATTRIBUTES_FIELD_LABEL,
     ATTRIBUTES_FIELD_DESCRIPTION,
 )
-from flexmeasures.utils.secrets_utils import get_secret_paths
+from flexmeasures.utils.secrets_utils import get_secret_overview
 
 
 class AccountCrudUI(FlaskView):
@@ -79,7 +79,7 @@ class AccountCrudUI(FlaskView):
             asset_icon_map=ICON_MAPPING,
             attributes_label=ATTRIBUTES_FIELD_LABEL,
             attributes_description=ATTRIBUTES_FIELD_DESCRIPTION,
-            secret_paths=get_secret_paths(account.secrets),
+            stored_secrets=get_secret_overview(account.secrets),
             breadcrumb_info=get_breadcrumb_info(account),
         )
 

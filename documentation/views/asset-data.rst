@@ -162,7 +162,8 @@ Properties page
 ---------------
 
 The properties page allows you to view and edit the properties of the asset.
-It shows attributes and secrets (no values) stored on this asset.
+It lists stored secret names without exposing their values and shows a
+human-readable expiration time when one is available.
 
 You can also delete the asset by clicking on the "Delete this asset" button.
 

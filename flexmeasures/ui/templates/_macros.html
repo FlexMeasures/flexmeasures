@@ -204,18 +204,29 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
 </table>    
 {% endmacro %}
 
-{% macro render_secret_paths(secret_paths) %}
-{% if secret_paths %}
+{% macro render_stored_secrets(stored_secrets) %}
+{% if stored_secrets %}
+{% set show_expiry = stored_secrets | selectattr("expires_at", "defined") | list %}
 <table class="table table-striped">
   <thead>
     <tr>
       <th scope="col">Stored secret</th>
+      {% if show_expiry %}
+      <th scope="col">Expires</th>
+      {% endif %}
     </tr>
   </thead>
   <tbody>
-    {% for path in secret_paths %}
+    {% for secret in stored_secrets %}
     <tr>
-      <td scope="row"><span class="font-monospace">{{ path }}</span></td>
+      <td scope="row"><span class="font-monospace">{{ secret.path }}</span></td>
+      {% if show_expiry %}
+      <td>
+        {% if secret.expires_at is defined %}
+        {{ secret.expires_at | naturalized_datetime }}
+        {% endif %}
+      </td>
+      {% endif %}
     </tr>
     {% endfor %}
   </tbody>

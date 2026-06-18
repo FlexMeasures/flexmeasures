@@ -12,6 +12,7 @@ from flexmeasures.utils.secrets_utils import (
     derive_fernet_key,
     format_keyring_config_help,
     get_secret,
+    get_secret_overview,
     get_secret_paths,
     redact_secrets,
     set_secret,
@@ -146,6 +147,110 @@ def test_get_secret_paths_returns_only_encrypted_value_paths():
     assert get_secret_paths(secrets) == [
         "platform.access_token",
         "platform.nested.password",
+    ]
+
+
+def test_get_secret_overview_returns_sorted_strictly_allowlisted_fields():
+    secrets = {
+        "platform": {
+            "refresh_token": {
+                "ciphertext": "refresh",
+                "key_id": "key-id",
+                "created_at": "2026-06-01T12:00:00+00:00",
+                "updated_at": "2026-06-02T12:00:00+00:00",
+                "token_type": "Bearer",
+                "provider_metadata": {"scope": "read write"},
+            },
+            "access_token": {
+                "ciphertext": "access",
+                "expires_at": "2026-06-11T12:00:00+02:00",
+                "unexpected": "must-not-be-exposed",
+            },
+        }
+    }
+
+    overview = get_secret_overview(secrets)
+
+    assert overview == [
+        {
+            "path": "platform.access_token",
+            "expires_at": datetime.fromisoformat("2026-06-11T12:00:00+02:00"),
+        },
+        {"path": "platform.refresh_token"},
+    ]
+    assert all(set(secret) <= {"path", "expires_at"} for secret in overview)
+
+
+@pytest.mark.parametrize(
+    ("expires_at", "expected"),
+    [
+        (
+            "2026-06-11T12:00:00+02:00",
+            datetime.fromisoformat("2026-06-11T12:00:00+02:00"),
+        ),
+        (
+            "2026-06-11T10:00:00Z",
+            datetime(2026, 6, 11, 10, tzinfo=timezone.utc),
+        ),
+    ],
+)
+def test_get_secret_overview_accepts_aware_iso_expiry_timestamps(expires_at, expected):
+    secrets = {
+        "platform": {
+            "access_token": {
+                "ciphertext": "access",
+                "expires_at": expires_at,
+            }
+        }
+    }
+
+    overview = get_secret_overview(secrets)
+
+    assert overview == [
+        {
+            "path": "platform.access_token",
+            "expires_at": expected,
+        }
+    ]
+    assert overview[0]["expires_at"].tzinfo is not None
+
+
+@pytest.mark.parametrize(
+    "expires_at",
+    [
+        "not-a-datetime",
+        1781179200,
+        None,
+        "2026-06-11T12:00:00",
+    ],
+)
+def test_get_secret_overview_omits_invalid_or_naive_expiry(expires_at):
+    secrets = {
+        "platform": {
+            "access_token": {
+                "ciphertext": "access",
+                "expires_at": expires_at,
+            }
+        }
+    }
+
+    assert get_secret_overview(secrets) == [{"path": "platform.access_token"}]
+
+
+def test_get_secret_paths_remains_backward_compatible_with_secret_overview():
+    secrets = {
+        "z": {"secret": {"ciphertext": "z", "expires_at": "invalid"}},
+        "a": {
+            "secret": {
+                "ciphertext": "a",
+                "expires_at": "2026-06-11T10:00:00Z",
+            }
+        },
+    }
+
+    assert get_secret_paths(secrets) == ["a.secret", "z.secret"]
+    assert get_secret_paths(secrets) == [
+        secret["path"] for secret in get_secret_overview(secrets)
     ]
 
 

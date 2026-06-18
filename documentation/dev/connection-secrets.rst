@@ -50,6 +50,10 @@ credentials. For token refresh flows, prefer
 handle replacement tokens, rotated refresh tokens and providers that only
 extend the expiry of an existing token.
 
+Use :func:`flexmeasures.utils.secrets_utils.get_secret_overview` to build safe
+secret listings with their paths and optional expiration times, without
+exposing encrypted values or unrelated metadata.
+
 
 Refresh early in multi-worker deployments
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -7,7 +7,7 @@ import sys
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
@@ -46,6 +46,14 @@ _TOTP_SECRETS_KEY_VALUE_GENERATOR = (
     "from passlib import totp; print(totp.generate_secret())"
 )
 _TOTP_SECRETS_SETTING_GENERATOR = 'import json; from passlib import totp; print(json.dumps({"1": totp.generate_secret()}))'
+
+
+class _SecretOverviewRequired(TypedDict):
+    path: str
+
+
+class SecretOverview(_SecretOverviewRequired, total=False):
+    expires_at: datetime
 
 
 def format_keyring_config_help(
@@ -552,19 +560,47 @@ def get_secret_paths(secrets: dict[str, Any] | None) -> list[str]:
     :param secrets: Secrets dictionary containing encrypted envelopes.
     :return: Secret paths without ciphertext or metadata values.
     """
-    paths: list[str] = []
+    return [secret["path"] for secret in get_secret_overview(secrets)]
+
+
+def get_secret_overview(
+    secrets: dict[str, Any] | None,
+) -> list[SecretOverview]:
+    """Return safe information for listing stored secrets.
+
+    :param secrets: Secrets dictionary containing encrypted envelopes.
+    :return: Secret paths with optional expiry datetimes, without other metadata.
+    """
+    overview: list[SecretOverview] = []
 
     def _collect(value: Any, parts: list[str]) -> None:
         if not isinstance(value, dict):
             return
         if _CIPHERTEXT_FIELD in value:
-            paths.append(".".join(parts))
+            secret: SecretOverview = {"path": ".".join(parts)}
+            expires_at = value.get("expires_at")
+            if isinstance(expires_at, str):
+                try:
+                    parsed_expires_at = datetime.fromisoformat(
+                        f"{expires_at[:-1]}+00:00"
+                        if expires_at.endswith("Z")
+                        else expires_at
+                    )
+                except ValueError:
+                    pass
+                else:
+                    if (
+                        parsed_expires_at.tzinfo is not None
+                        and parsed_expires_at.utcoffset() is not None
+                    ):
+                        secret["expires_at"] = parsed_expires_at
+            overview.append(secret)
             return
         for key, nested_value in value.items():
             _collect(nested_value, [*parts, key])
 
     _collect(secrets or {}, [])
-    return sorted(paths)
+    return sorted(overview, key=lambda secret: secret["path"])
 
 
 def redact_secrets(secrets: dict[str, Any] | None) -> dict[str, Any]:
