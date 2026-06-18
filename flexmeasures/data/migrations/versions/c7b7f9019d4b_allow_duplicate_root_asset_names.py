@@ -24,6 +24,11 @@ def upgrade():
         type_="unique",
         if_exists=True,
     )
+    op.drop_index(
+        "generic_asset_name_parent_asset_id_key",
+        table_name="generic_asset",
+        if_exists=True,
+    )
     op.create_index(
         "generic_asset_name_parent_asset_id_key",
         "generic_asset",
