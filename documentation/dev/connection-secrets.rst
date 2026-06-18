@@ -1,176 +1,56 @@
 .. _connection_secrets_dev:
 
-Connection secrets and token schemes
-====================================
+Connection secrets
+==================
 
-This page gives plugin and service developers a generic pattern for storing
-connection secrets and implementing token lifecycles. It intentionally avoids
-provider-specific details, because each integration has its own authorization
-contract, expiry semantics and rotation rules.
+If you make a secure connection to an external platform, FlexMeasures can store credentials,
+API keys and tokens in the ``secrets`` JSON field of the account or asset that owns the connection.
+Each secret value is encrypted separately and stored together with metadata such as its encryption
+key ID and timestamps. Developers normally do not need to read or modify this
+JSON structure directly.
 
-Use this guidance when an integration needs to keep credentials, API keys,
-authorization tokens or other connection material on behalf of an organisation
-or asset.
-
-
-Encrypted JSON secrets
-----------------------
-
-Store connection secrets as encrypted JSON documents attached to the account or
-asset that owns the connection.
-
-Use account-level secrets for connection material that applies to the whole
-organisation, such as credentials for a tenant-wide integration. Use asset-level
-secrets for connection material that belongs to a single device, site or
-connection endpoint.
-
-The encrypted payload should contain only data needed to establish or refresh a
-connection. Keep non-secret metadata, such as a human-readable connection name,
-provider strategy identifier, external resource identifier or status flag, in
-normal model fields or unencrypted attributes where possible. This keeps list
-views and diagnostics useful without exposing credentials.
-
-Recommended JSON shape:
-
-.. code-block:: json
-
-    {
-      "example_strategy": {
-        "client_id": {
-          "ciphertext": "...",
-          "key_id": "default",
-          "created_at": "2026-06-11T12:00:00+00:00",
-          "updated_at": "2026-06-11T12:00:00+00:00"
-        },
-        "refresh_token": {
-          "ciphertext": "...",
-          "key_id": "default",
-          "expires_at": "2026-06-25T12:00:00+00:00"
-        },
-        "access_token": {
-          "ciphertext": "...",
-          "key_id": "default",
-          "expires_at": "2026-06-11T12:05:00+00:00",
-          "token_type": "Bearer"
-        },
-        "metadata": {
-          "strategy": "example-token-strategy",
-          "external_resource_id": "resource-123"
-        }
-      }
-    }
-
-The exact fields can differ per integration, but the storage format should stay
-JSON-serializable, versionable and explicit about timestamps. Store timestamps
-with timezone information.
+For implementation examples, token lifecycle strategies and manually seeding a
+credential through the CLI, see :ref:`storing_connection_secrets`. The complete
+utility API is available in :mod:`flexmeasures.utils.secrets_utils`.
 
 
-Write-only API and UI handling
-------------------------------
+Recommended practices
+---------------------
 
-Treat secret fields as write-only.
+Encryption key configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-API endpoints and UI forms may accept new secrets, but they should not return
-the decrypted values. Read responses should expose only safe metadata, for
-example whether a secret is configured, when a token expires, when the
-connection was last refreshed, or which strategy is active.
-
-When updating secrets, prefer partial updates with clear semantics:
-
-* Omitting a secret field leaves the existing encrypted value unchanged
-* Setting a supported secret field replaces that value
-* Clearing a secret requires an explicit clear action or explicit ``null`` value
-
-This avoids accidental credential deletion when users edit unrelated connection
-metadata.
+Configure :ref:`flexmeasures_secrets_encryption_keys` with strong,
+environment-specific key material and make the same keyring available to every
+API process, worker and scheduled job. FlexMeasures refuses to create or
+decrypt connection secrets without this setting. Keep previous keys available
+while encrypted values still refer to them.
 
 
-Provider strategies
--------------------
+Write-only API and UI
+^^^^^^^^^^^^^^^^^^^^^
 
-Implement provider behavior behind a strategy interface. The core application
-should not need to know whether a connection uses a static key, a short-lived
-access token, a refresh token, client credentials or another token lifecycle.
-
-A strategy should own at least these responsibilities:
-
-* Validate the encrypted JSON shape it expects
-* Decide whether the current access token can be reused
-* Refresh or reissue tokens when needed
-* Persist rotated tokens back to the encrypted JSON payload
-* Report safe metadata for API responses, UI pages and logs
-
-Design strategies so they can handle lifecycle variants without changing API
-contracts. Common variants include:
-
-* Static credentials with no token refresh
-* Short-lived access tokens derived from long-lived credentials
-* Refresh tokens that rotate on every refresh
-* Refresh tokens that expire after an absolute lifetime
-* One-time authorization codes that are exchanged for durable connection
-  material
-
-Do not log decrypted secrets or raw tokens. Log strategy names, connection IDs,
-expiry timestamps and error classes instead.
+Treat secrets as write-only in API and UI flows. Accept new or replacement
+values, but never return plaintext secrets. Responses should contain only
+redacted information such as whether a value is set and when it expires.
 
 
-Access-token caching across workers
------------------------------------
+Use the secret utilities
+^^^^^^^^^^^^^^^^^^^^^^^^
 
-Workers, API processes and scheduled jobs may all need the same connection.
-Avoid refreshing access tokens independently in every process.
-
-Persist encrypted access tokens with an ``expires_at`` value in ``secrets`` if
-they need to be reused across workers. The database then becomes the shared
-coordination point. Use a refresh margin that expires before the token itself,
-leaving enough room for clock differences and request retries.
-
-When the persisted token is missing or near expiry, acquire a short-lived
-database lock before refreshing the token. This prevents several workers from
-refreshing the same connection at the same time. After a successful refresh,
-persist the new encrypted access token and any durable rotated material, such as
-refresh tokens, to the encrypted JSON payload.
-
-Redis or another shared cache can still be used as an optimization, but the
-encrypted database payload should remain the durable source of truth for tokens
-and rotation metadata.
+Use :func:`flexmeasures.utils.secrets_utils.set_secret` for individual
+credentials. For token refresh flows, prefer
+:class:`flexmeasures.utils.secrets_utils.TokenRefreshResult` together with
+:func:`flexmeasures.utils.secrets_utils.apply_token_refresh_result`. They safely
+handle replacement tokens, rotated refresh tokens and providers that only
+extend the expiry of an existing token.
 
 
-Refresh-token rotation
-----------------------
+Refresh early in multi-worker deployments
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Some token schemes return a new refresh token whenever an access token is
-refreshed. Treat this as an atomic rotation:
-
-* Use the previous refresh token only for the refresh request
-* Persist the new refresh token immediately after a successful response
-* Replace any cached access token after the durable secret update succeeds
-* Keep enough error context to tell users that reconnecting may be required
-
-If the process crashes between receiving and persisting a rotated refresh token,
-the connection may no longer be recoverable automatically. Strategies should
-surface this state clearly and avoid repeated refresh attempts that will keep
-failing.
-
-
-Key configuration
------------------
-
-Encryption keys must come from host configuration, not from source control.
-They should be strong, environment-specific and available to every API process,
-worker and scheduled job that needs to decrypt connection secrets.
-Deployments must set ``FLEXMEASURES_SECRETS_ENCRYPTION_KEYS`` before
-connection secrets can be stored or decrypted. FlexMeasures does not fall back
-to ``SECRET_KEY`` for connection secrets.
-
-Hosts should plan for key rotation before production use. Configure a keyring
-with IDs, for example ``{"1": "old-secret", "2": "current-secret"}``, in
-``FLEXMEASURES_SECRETS_ENCRYPTION_KEYS``. FlexMeasures writes new secrets with
-the highest numeric key ID, or the last key ID in lexical order if the IDs are
-not numeric. Previous keys remain available for decrypting existing payloads
-during a migration window. After all payloads have been re-encrypted with the
-current key, old keys can be removed.
-
-Changing the key without a migration plan can make existing connection secrets
-undecryptable. Document the operational steps for each deployment and test them
-against a staging database before rotating production keys.
+Store reusable access tokens and their expiry metadata in ``secrets`` so all
+workers share the same token state. Refresh with time to spare before expiry to
+allow for clock differences, retries and concurrent workers. In high-traffic
+integrations, use database locking so only one worker performs a refresh. See
+the refresh-leeway example in :ref:`initiating_connection_tokens`.

@@ -508,6 +508,8 @@ Extra password salt (a.k.a. pepper)
 
 Default: ``None`` (falls back to ``SECRET_KEY``\ )
 
+.. _flexmeasures_secrets_encryption_keys:
+
 FLEXMEASURES_SECRETS_ENCRYPTION_KEYS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

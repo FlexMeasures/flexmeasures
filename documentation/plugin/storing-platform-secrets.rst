@@ -53,13 +53,16 @@ More details and best practices for storing connection secrets are in the :ref:`
 
 
 Token lifecycle strategies
----------------------------
+-----------------------------
 
-External platforms do not all follow the same token refresh semantics. Keep the
-provider-specific HTTP calls in your plugin, and use FlexMeasures utilities only
-for encryption, redaction and updating stored token state.
+External platforms do not all require the same interactions to maintain a connection.
+Initial login, token refresh and token expiry can all work rather differently.
+You could say, the implement different "token lifecycle strategies".
 
-The following token lifecycle patterns are supported by
+That's why our advice is t keep the provider-specific HTTP calls in your plugin,
+and use FlexMeasures utilities only for encryption, redaction and updating stored token state.
+
+The following token lifecycle strategies are supported by
 ``TokenRefreshResult`` and ``apply_token_refresh_result``:
 
 * A refresh operation returns a new access token: set
@@ -74,7 +77,7 @@ The following token lifecycle patterns are supported by
 
 Your task is to translate the HTTP response from the platform provider into a
 ``TokenRefreshResult`` and let FlexMeasures update the encrypted JSON state.
-For example:
+Let's look at an example:
 
 .. code-block:: python
 
@@ -129,15 +132,10 @@ Your plugin should also decide when to request a refreshed access token, e.g.:
     refresh_account.secrets = apply_token_refresh_result(...)
 
 
-For multi-worker deployments (a common architecture in FlexMeasures),
-the first worker to run into the need to refresh a token would do this, and the next
-worker job finds a fresh token.
 
-.. note:: In high traffic scenarios, there might be collisions and you might want to create a database lock so other workers know not to update\
-   the token and wait. FlexMeasures could provide utilities for this in the future.
+.. _initiating_connection_tokens:
 
-
-Initiate token refresh cycles on startup
+Initiating tokens (before app startup)
 -----------------------------------------
 
 Most providers will require the true credentials only in the first interaction:
