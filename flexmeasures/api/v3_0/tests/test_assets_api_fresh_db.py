@@ -44,6 +44,64 @@ def test_post_an_asset_as_admin(client, setup_api_fresh_test_data, requesting_us
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_post_root_asset_allows_existing_name_in_different_account(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
+    with AccountContext("Test Prosumer Account") as prosumer:
+        existing_asset = prosumer.generic_assets[0]
+        existing_name = existing_asset.name
+        asset_type_id = existing_asset.generic_asset_type_id
+
+    with AccountContext("Test Supplier Account") as supplier:
+        post_data = get_asset_post_data(
+            account_id=supplier.id,
+            asset_type_id=asset_type_id,
+        )
+    post_data["name"] = existing_name
+
+    response = client.post(
+        url_for("AssetAPI:post"),
+        json=post_data,
+    )
+
+    assert response.status_code == 201
+    assert response.json["name"] == existing_name
+    assert response.json["account_id"] == post_data["account_id"]
+    assert response.json["parent_asset_id"] is None
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_post_public_root_asset_rejects_existing_name(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
+    db = fresh_db
+    with AccountContext("Test Prosumer Account") as prosumer:
+        asset_type_id = prosumer.generic_assets[0].generic_asset_type_id
+
+    existing_name = "Existing public root asset"
+    db.session.add(
+        GenericAsset(
+            name=existing_name,
+            generic_asset_type_id=asset_type_id,
+            account_id=None,
+        )
+    )
+    db.session.flush()
+
+    post_data = get_asset_post_data(asset_type_id=asset_type_id)
+    post_data["name"] = existing_name
+    post_data.pop("account_id")
+
+    response = client.post(
+        url_for("AssetAPI:post"),
+        json=post_data,
+    )
+
+    assert response.status_code == 422
+    assert "already exists" in response.json["message"]["json"]["name"][0]
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_edit_an_asset(client, setup_api_fresh_test_data, requesting_user, db):
     with AccountContext("Test Supplier Account") as supplier:
         existing_asset = supplier.generic_assets[0]
@@ -60,6 +118,34 @@ def test_edit_an_asset(client, setup_api_fresh_test_data, requesting_user, db):
     assert updated_asset.latitude == 10  # changed value
     assert updated_asset.longitude == existing_asset.longitude
     assert updated_asset.name == existing_asset.name
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_root_asset_rejects_existing_name_in_same_account(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
+    db = fresh_db
+    with AccountContext("Test Prosumer Account") as prosumer:
+        existing_asset = prosumer.generic_assets[0]
+        existing_name = existing_asset.name
+        asset_type_id = existing_asset.generic_asset_type_id
+        account_id = prosumer.id
+
+    other_asset = GenericAsset(
+        name="Root asset to rename",
+        generic_asset_type_id=asset_type_id,
+        account_id=account_id,
+    )
+    db.session.add(other_asset)
+    db.session.flush()
+
+    response = client.patch(
+        url_for("AssetAPI:patch", id=other_asset.id),
+        json={"name": existing_name},
+    )
+
+    assert response.status_code == 422
+    assert "already exists" in response.json["message"]["json"]["name"][0]
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
