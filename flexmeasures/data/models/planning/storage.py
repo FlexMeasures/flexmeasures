@@ -2340,11 +2340,12 @@ class StorageScheduler(MetaStorageScheduler):
         aggregate_power_sensor = self.flex_context.get("aggregate_power", None)
         if isinstance(aggregate_power_sensor, Sensor):
             storage_schedule[aggregate_power_sensor] = pd.concat(
-                ems_schedule, axis=1  # todo: select only electric devices (flexible and inflexible)
+                ems_schedule,
+                axis=1,  # todo: select only electric devices (flexible and inflexible)
             ).sum(axis=1)
         # Compute per-commodity aggregate power flows for aggregate-consumption and aggregate-production sensors
         self._compute_commodity_aggregate_schedules(
-            storage_schedule, ems_schedule#, sensors
+            storage_schedule, ems_schedule  # , sensors
         )
 
         # Convert each device schedule to the unit of the device's power sensor
