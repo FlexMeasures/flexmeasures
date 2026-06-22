@@ -2206,19 +2206,39 @@ class StorageScheduler(MetaStorageScheduler):
             commodity = flex_model_d.get("commodity", "electricity")
             commodity_to_devices.setdefault(commodity, []).append(d)
 
-        # Add inflexible devices to electricity commodity
+        # Add inflexible devices to commodities, mirroring _prepare()'s device
+        # enumeration so the device indices line up with ems_schedule:
+        #   - top-level inflexible-device-sensors go to electricity (backwards compat),
+        #   - then each commodity context's own inflexible-device-sensors are appended to
+        #     that commodity, in the order the commodity contexts are given.
+        # Without step 2 below, a commodity's inflexible demand (e.g. a heat load) is left
+        # out of its aggregate schedule, so an aggregate-consumption sensor only reflects
+        # the flexible devices of that commodity.
         inflexible_device_sensors = self.flex_context.get(
             "inflexible_device_sensors", []
         )
         number_flexible_devices = len(flex_model)
         commodity_to_devices.setdefault("electricity", []).extend(
-            list(
-                range(
-                    number_flexible_devices,
-                    number_flexible_devices + len(inflexible_device_sensors),
-                )
+            range(
+                number_flexible_devices,
+                number_flexible_devices + len(inflexible_device_sensors),
             )
         )
+
+        # Per-commodity inflexible devices, enumerated after the top-level ones.
+        num_devices = number_flexible_devices + len(inflexible_device_sensors)
+        for commodity_context in self.flex_context.get("commodity_contexts", []):
+            commodity = commodity_context["commodity"]
+            commodity_inflexible_device_sensors = commodity_context.get(
+                "inflexible_device_sensors", []
+            )
+            commodity_to_devices.setdefault(commodity, []).extend(
+                range(
+                    num_devices,
+                    num_devices + len(commodity_inflexible_device_sensors),
+                )
+            )
+            num_devices += len(commodity_inflexible_device_sensors)
 
         # Get commodity contexts (handles backwards compatibility)
         commodity_contexts = self._get_commodity_contexts()
