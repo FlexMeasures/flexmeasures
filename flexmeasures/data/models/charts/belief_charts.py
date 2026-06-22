@@ -558,6 +558,8 @@ def _setup_event_value_field(sensor_type: str, unit: str) -> dict:
         event_value_field_definition["scale"] = dict(
             domain={"unionWith": [0, 105]}, nice=False
         )
+    else:
+        event_value_field_definition["scale"] = dict(zero=False)
     return event_value_field_definition
 
 
