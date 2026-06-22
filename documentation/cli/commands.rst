@@ -83,7 +83,7 @@ of which some are referred to in this documentation.
 ``flexmeasures delete account``                   Delete a tenant account & also their users (with assets and power measurements).
 ``flexmeasures delete user``                      Delete a user & also their assets and power measurements.
 ``flexmeasures delete asset``                     Delete an asset & also its sensors and data.
-``flexmeasures delete secret``                    Delete one encrypted secret from an account or asset.
+``flexmeasures delete secret``                    Delete an encrypted secret from an account or asset.
 ``flexmeasures delete sensor``                    Delete a sensor and all beliefs about it.
 ``flexmeasures delete beliefs``                   Delete time series data (beliefs).
 ``flexmeasures delete measurements``              Delete measurements (with horizon <= 0).
