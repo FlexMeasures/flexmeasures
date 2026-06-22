@@ -197,7 +197,6 @@ def edit_attribute(
 )
 @click.option(
     "--asset",
-    "--asset-id",
     "asset",
     required=False,
     type=AssetIdField(),
