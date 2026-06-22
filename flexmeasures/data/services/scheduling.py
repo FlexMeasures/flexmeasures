@@ -742,7 +742,7 @@ def make_schedule(  # noqa: C901
 
     if belief_time is None:
         belief_time = server_now()
-
+    return_multiple = scheduler_kwargs.pop("return_multiple", True)
     scheduler_params = dict(
         start=start,
         end=end,
@@ -750,7 +750,7 @@ def make_schedule(  # noqa: C901
         belief_time=belief_time,
         flex_model=flex_model,
         flex_context=flex_context,
-        return_multiple=True,
+        return_multiple=return_multiple,
         **scheduler_kwargs,
     )
 

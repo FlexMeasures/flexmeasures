@@ -139,7 +139,10 @@ def get_asset_or_sensor_from_ref(asset_or_sensor: dict):
 
     Sensor(id=2)
     """
-    if asset_or_sensor["class"] in (Asset.__name__, "Asset"):
+    if isinstance(asset_or_sensor, Asset) or asset_or_sensor["class"] in (
+        Asset.__name__,
+        "Asset",
+    ):
         klass = Asset
     elif asset_or_sensor["class"] == Sensor.__name__:
         klass = Sensor
@@ -147,8 +150,11 @@ def get_asset_or_sensor_from_ref(asset_or_sensor: dict):
         raise ValueError(
             f"Unrecognized class `{asset_or_sensor['class']}`. Please, consider using Asset or Sensor."
         )
-
-    return db.session.get(klass, asset_or_sensor["id"])
+    if not isinstance(asset_or_sensor, dict):
+        asset_or_sensor_id = asset_or_sensor.id
+    else:
+        asset_or_sensor_id = asset_or_sensor["id"]
+    return db.session.get(klass, asset_or_sensor_id)
 
 
 def get_or_create_model(
