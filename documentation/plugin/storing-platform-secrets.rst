@@ -153,6 +153,6 @@ explicitly and advise the user to call your login CLI command.
 
 Alternatively, you can manually store a known credential: Use ``flexmeasures edit secret`` with
 an account or asset ID, a dot-separated secret path and either ``--value`` or
-``--prompt`` (to paste the secret insted of typing it).
+``--prompt`` (to paste the secret instead of typing it).
 Use ``--metadata`` for non-secret JSON metadata such as expiry
 timestamps.
