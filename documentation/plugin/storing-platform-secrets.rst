@@ -3,7 +3,7 @@
 Storing connection secrets
 ==========================
 
-Plugins which connect FlexMeasures accounts or assets to external platforms often
+Plugins that connect FlexMeasures accounts or assets to external platforms often
 need to store credentials, refresh tokens, access tokens or connection-specific
 passwords. Store such values in the ``secrets`` JSON field of the relevant
 account or asset, rather than in ``attributes`` or plugin configuration files.
