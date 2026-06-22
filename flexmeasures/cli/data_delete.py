@@ -43,7 +43,7 @@ def fm_delete_data():
     """FlexMeasures: Delete data."""
 
 
-@fm_delete_data.command("secret", cls=DeprecatedOptionsCommand)
+@fm_delete_data.command("secret")
 @with_appcontext
 @click.option(
     "--account",
