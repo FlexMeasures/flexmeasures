@@ -7,8 +7,8 @@ FlexMeasures CLI Changelog
 since v1.0.0 | July XX, 2026
 =================================
 
-* Add ``flexmeasures edit secret`` to store encrypted account or asset connection secrets.
-* Add ``flexmeasures delete secret`` to remove one encrypted account or asset connection secret.
+* Add ``flexmeasures edit secret`` to store an encrypted secret on an account or asset.
+* Add ``flexmeasures delete secret`` to remove an encrypted secret from an account or asset.
 
 since v0.33.0 | June 01, 2026
 =================================
