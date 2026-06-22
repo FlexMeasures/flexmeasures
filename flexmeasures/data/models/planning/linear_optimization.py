@@ -866,6 +866,7 @@ def device_scheduler(  # noqa C901
             "primal_feasibility_tolerance": "1e-9",
             "dual_feasibility_tolerance": "1e-9",
             "mip_feasibility_tolerance": "1e-9",
+            "mip_detect_symmetry": "false",
         }
         # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
         if current_app.config["LOGGING_LEVEL"] == "INFO":
