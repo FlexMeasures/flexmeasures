@@ -694,7 +694,8 @@ def make_schedule(  # noqa: C901
     end: datetime | None = None,
     resolution: timedelta | None = None,
     asset_or_sensor: dict | None = None,
-    belief_time: datetime | None = None,
+    belief_time: datetime | None = None,  # a.k.a. beliefs_before
+    save_belief_time: datetime | None = None,
     flex_model: dict | None = None,
     flex_context: dict | None = None,
     flex_config_has_been_deserialized: bool = False,
@@ -817,7 +818,7 @@ def make_schedule(  # noqa: C901
         ts_value_schedule = [
             TimedBelief(
                 event_start=dt,
-                belief_time=belief_time,
+                belief_time=save_belief_time or belief_time,
                 event_value=sign * value,
                 sensor=result["sensor"],
                 source=data_source,
