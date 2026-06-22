@@ -147,7 +147,7 @@ refresh token and save it as a secret (see `set_secret()` and `apply_token_refre
 in utils/secrets_utils.py).
 The token lifecycle strategy (see above) will depend on the platform you connect to.
 
-Also advisable: If no current token is in the database, let your plugin code fail
+Also advisable: if no current token is in the database, let your plugin code fail
 explicitly and advise the user to call your login CLI command.
 
 
