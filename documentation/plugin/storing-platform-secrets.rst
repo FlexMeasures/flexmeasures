@@ -57,7 +57,7 @@ Token lifecycle strategies
 
 External platforms do not all require the same interactions to maintain a connection.
 Initial login, token refresh and token expiry can all work rather differently.
-You could say, the implement different "token lifecycle strategies".
+You could say that they implement different "token lifecycle strategies".
 
 That's why our advice is t keep the provider-specific HTTP calls in your plugin,
 and use FlexMeasures utilities only for encryption, redaction and updating stored token state.
