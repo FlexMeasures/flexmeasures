@@ -246,7 +246,7 @@ def edit_secret(
     \b
     Examples:
       flexmeasures edit secret --account 1 --secret platform.refresh_token --prompt
-      flexmeasures edit secret --asset 2 --secret platform.password --value secret
+      flexmeasures edit secret --asset 2 --secret platform.password --value secret --metadata '{"expires_at": "2026-06-24T02:00:00"}'
     """
 
     if (account is None) == (asset is None):
