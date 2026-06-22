@@ -186,7 +186,7 @@ def edit_attribute(
     click.secho("Successfully edited/added attribute.", **MsgStyle.SUCCESS)
 
 
-@fm_edit_data.command("secret", cls=DeprecatedOptionsCommand)
+@fm_edit_data.command("secret")
 @with_appcontext
 @click.option(
     "--account",
@@ -200,9 +200,6 @@ def edit_attribute(
     "asset",
     required=False,
     type=AssetIdField(),
-    cls=DeprecatedOption,
-    deprecated=["--asset-id"],
-    preferred="--asset",
     help="Add/edit secret on this asset. Follow up with the asset's ID.",
 )
 @click.option(

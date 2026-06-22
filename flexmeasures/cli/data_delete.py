@@ -54,13 +54,9 @@ def fm_delete_data():
 )
 @click.option(
     "--asset",
-    "--asset-id",
     "asset",
     required=False,
     type=AssetIdField(),
-    cls=DeprecatedOption,
-    deprecated=["--asset-id"],
-    preferred="--asset",
     help="Delete a secret from this asset. Follow up with the asset's ID.",
 )
 @click.option(
