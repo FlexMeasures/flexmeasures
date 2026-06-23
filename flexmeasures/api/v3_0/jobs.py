@@ -61,7 +61,7 @@ def _transform_sensor_keyed_to_asset_keyed(
     return list(asset_keyed.values())
 
 
-class JobResultAPI(FlaskView):
+class JobAPI(FlaskView):
     """Job result endpoints."""
 
     route_prefix = "/api/v3_0"
