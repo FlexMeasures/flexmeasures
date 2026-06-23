@@ -343,8 +343,12 @@ function toolboxFeatures(elementId, datasetName) {
     right: 16,
     feature: {
       dataZoom: { yAxisIndex: false },
-      restore: {},
-      saveAsImage: { name: datasetName || "flexmeasures-chart", title: "Save as PNG" },
+      mySavePNG: {
+        show: true,
+        title: "Save as PNG",
+        icon: "path://M4 5 L20 5 L20 19 L4 19 Z M8 14 L11 10 L13 13 L15 11 L18 15 L8 15 Z",
+        onclick: () => exportPNG(elementId, datasetName),
+      },
       mySaveCSV: {
         show: true,
         title: "Save as CSV",
@@ -382,6 +386,24 @@ function exportCSV(elementId, datasetName) {
   downloadBlob(content, "text/csv;charset=utf-8", (datasetName || "chart") + ".csv");
 }
 
+// Build the option used for image exports: no toolbox buttons, and "scroll"
+// legends switched to "plain" so every entry renders instead of just one page.
+function buildExportOption(lastOption) {
+  const legend = (
+    Array.isArray(lastOption.legend)
+      ? lastOption.legend
+      : lastOption.legend
+      ? [lastOption.legend]
+      : []
+  ).map((l) => Object.assign({}, l, { type: "plain" }));
+  return Object.assign({}, lastOption, {
+    animation: false,
+    backgroundColor: "#fff",
+    toolbox: { show: false },
+    legend: legend,
+  });
+}
+
 function exportSVG(elementId, datasetName) {
   const instance = instances[elementId];
   if (!instance || !instance.lastOption || typeof echarts === "undefined") {
@@ -395,10 +417,37 @@ function exportSVG(elementId, datasetName) {
     height: instance.chart.getHeight(),
   });
   try {
-    svgChart.setOption(Object.assign({}, instance.lastOption, { animation: false, backgroundColor: "#fff" }));
+    svgChart.setOption(buildExportOption(instance.lastOption));
     downloadBlob(svgChart.renderToSVGString(), "image/svg+xml", (datasetName || "chart") + ".svg");
   } finally {
     svgChart.dispose();
+  }
+}
+
+function exportPNG(elementId, datasetName) {
+  const instance = instances[elementId];
+  if (!instance || !instance.lastOption || typeof echarts === "undefined") {
+    return;
+  }
+  // Render to a detached canvas instance so the saved PNG shows all legend
+  // entries and no toolbox, instead of snapshotting the paginated on-screen chart.
+  const holder = document.createElement("div");
+  holder.style.width = instance.chart.getWidth() + "px";
+  holder.style.height = instance.chart.getHeight() + "px";
+  const pngChart = echarts.init(holder, null, { renderer: "canvas" });
+  try {
+    pngChart.setOption(buildExportOption(instance.lastOption));
+    const url = pngChart.getDataURL({
+      type: "png",
+      pixelRatio: 2,
+      backgroundColor: "#fff",
+    });
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = (datasetName || "chart") + ".png";
+    link.click();
+  } finally {
+    pngChart.dispose();
   }
 }
 
