@@ -633,6 +633,9 @@ function buildLineBarOption(elementId, groups, opts) {
       axisLine: { onZero: false },
       axisPointer: { show: true }, // vertical ruler, as in the Vega-Lite charts
       splitLine: { show: true, lineStyle: { opacity: 0.5 } },
+      // Finer (hourly) gridlines between the 6-hour major lines, as in Vega-Lite.
+      minorTick: { show: true, splitNumber: 6 },
+      minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
       minInterval: 6 * 3600 * 1000, // at most one tick per 6h so 12:00 labels appear
       axisLabel: {
         fontSize: FONT_SIZE,
@@ -665,6 +668,9 @@ function buildLineBarOption(elementId, groups, opts) {
       },
       axisLabel: { fontSize: FONT_SIZE, color: "#222" },
       splitLine: { show: true, lineStyle: { opacity: 0.7 } },
+      // Finer gridlines between the major value lines, as in Vega-Lite.
+      minorTick: { show: true, splitNumber: 2 },
+      minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
     });
     group.series.forEach((s, j) => {
       const isBar = opts.chartType === "bar_chart";
