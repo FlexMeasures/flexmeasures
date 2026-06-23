@@ -10,15 +10,37 @@ import timely_beliefs as tb
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import BinaryExpression, or_
 from sqlalchemy.sql.expression import null
-from sqlalchemy import select, Select
+from sqlalchemy import false, select, Select
 
 from flexmeasures.data.config import db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.user import Account
 from flexmeasures.utils import flexmeasures_inflection
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.cli import is_running as running_as_cli
 import flexmeasures.data.models.time_series as ts  # noqa: F401
+
+
+def id_prefix_filter(
+    id_column, prefix_digits: str, max_digits: int = 10
+) -> BinaryExpression:
+    """Build an index-friendly integer filter for decimal ID prefixes."""
+    prefix_value = int(prefix_digits)
+    if prefix_digits != str(prefix_value):
+        # Match no ID rows for non-canonical digit strings like "01".
+        return false()
+    if prefix_value == 0:
+        return id_column == 0
+
+    filters = [id_column == prefix_value]
+    num_prefix_digits = len(prefix_digits)
+    for digits in range(num_prefix_digits + 1, max_digits + 1):
+        factor = 10 ** (digits - num_prefix_digits)
+        lower_bound = prefix_value * factor
+        upper_bound = (prefix_value + 1) * factor
+        filters.append((id_column >= lower_bound) & (id_column < upper_bound))
+    return or_(*filters)
 
 
 def create_beliefs_query(
@@ -134,10 +156,19 @@ def user_source_criterion(
     return cls.source_id.not_in(ignorable_user_source_ids)
 
 
-def source_account_criterion(source_account_ids: int | list[int]) -> BinaryExpression:
-    """Criterion to collect only data from sources belonging to the given account IDs."""
+def source_account_criterion(
+    source_account_ids: int | list[int] | Account | list[Account],
+) -> BinaryExpression:
+    """Criterion to collect only data from sources belonging to the given account(s).
+
+    Accepts account IDs as integers or Account model instances (or a list of either).
+    """
     if not isinstance(source_account_ids, list):
         source_account_ids = [source_account_ids]
+    # Support both integer IDs and Account model instances
+    source_account_ids = [
+        a.id if not isinstance(a, int) else a for a in source_account_ids
+    ]
     return DataSource.account_id.in_(source_account_ids)
 
 

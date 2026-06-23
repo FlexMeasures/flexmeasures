@@ -9,6 +9,8 @@ description: Protects users and integrators by ensuring API changes are backward
 
 Protect FlexMeasures users and integrators by ensuring API changes are backwards compatible, properly versioned, and clearly documented. Review REST APIs, CLI commands, and integration points for breaking changes, deprecation handling, and migration paths. Ensure the FlexMeasures contract remains stable and trustworthy.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review
@@ -461,13 +463,12 @@ response.headers["X-API-Stability"] = "experimental"
 
 ### Must Make Atomic Commits
 
-When making API changes:
+See `.github/instructions/atomic-commits.instructions.md`. When making API changes:
 
-- **Separate API changes from tests** - One logical unit per commit
-- **Separate documentation updates** - API docs in separate commit
-- **Separate schema changes** - Don't mix multiple schema updates
-- **Never commit analysis files** - No `API_ANALYSIS.md` or similar
-- **Update agent instructions separately** - Own file, own commit
+- **Separate API changes from tests** — one logical unit per commit
+- **Separate documentation updates** — API docs in separate commit
+- **Separate schema changes** — don't mix multiple schema updates
+- **Update agent instructions separately** — own file, own commit
 
 ### Must Verify Backward Compatibility Claims
 

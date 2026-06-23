@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.32.0"
+    "version": "1.0.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -177,6 +177,9 @@
                       "timezone": "Europe/Amsterdam",
                       "event_resolution": "PT15M",
                       "entity_address": "ea1.2021-01.io.flexmeasures:fm1.14",
+                      "attributes": {
+                        "floor_datetimes_to_resolution": true
+                      },
                       "generic_asset_id": 1
                     }
                   },
@@ -321,23 +324,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "source": {
-                    "type": "integer",
-                    "description": "ID of the data source to delete data for. If not provided, data from all sources is deleted."
-                  },
-                  "start": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "Only delete data with event start at or after this datetime (ISO 8601)."
-                  },
-                  "until": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "Only delete data with event start before this datetime (ISO 8601)."
-                  }
-                }
+                "$ref": "#/components/schemas/DeleteSensorData"
               }
             }
           }
@@ -365,7 +352,7 @@
       },
       "get": {
         "summary": "Get sensor data",
-        "description": "The unit has to be convertible from the sensor's unit - e.g. you ask for kW, and the sensor's unit is MW.\n\nOptional parameters:\n\n- \"resolution\" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))\n- \"horizon\" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))\n- \"prior\" (the belief timing docs also apply here)\n- \"source\" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))\n- \"account\" (filter by the account ID linked to data sources)\n\nAn example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m\u00b3/h:\n\n  ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m\u00b3/h\n\n(you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).\n\n > <strong>Note:</strong> This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.\n",
+        "description": "The unit has to be convertible from the sensor's unit - e.g. you ask for kW, and the sensor's unit is MW.\n\nOptional parameters:\n\n- \"resolution\" (read [the docs about frequency and resolutions](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))\n- \"horizon\" (read [the docs about belief timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#tracking-the-recording-time-of-beliefs))\n- \"prior\" (the belief timing docs also apply here)\n- \"source\" (filter by data source ID, read [the docs about sources](https://flexmeasures.readthedocs.io/latest/api/notation.html#sources))\n- \"source-account\" (filter by the account ID linked to data sources)\n- \"source-type\" (filter by data source type)\n\nAn example query to fetch data for sensor with ID=1, for one hour starting June 7th 2021 at midnight, in 15 minute intervals, in m\u00b3/h:\n\n  ?start=2021-06-07T00:00:00+02:00&duration=PT1H&resolution=PT15M&unit=m\u00b3/h\n\n(you will probably need to escape the + in the timezone offset, depending on your HTTP client, and other characters like here in the unit, as well).\n\n > <strong>Note:</strong> This endpoint also accepts the query parameters as part of the JSON body. That is not conform to REST architecture, but it is easier for some developers.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -457,11 +444,22 @@
           },
           {
             "in": "query",
-            "name": "account",
+            "name": "source-account",
             "description": "Filter by the account linked to data sources.",
             "schema": {
               "type": "integer",
               "example": 3
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "source-type",
+            "description": "Filter by a specific data source type.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "forecaster"
             },
             "required": false
           }
@@ -489,7 +487,7 @@
       },
       "post": {
         "summary": "Post sensor data",
-        "description": "Send data values via JSON, where the duration and number of values determine the resolution.\n\nThe example request posts four values for a duration of one hour, where the first\nevent start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.\n\nThe sensor is the one with ID=1.\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to upsample lower resolutions.\nThe list of values may include null values.\n",
+        "description": "Send data values via JSON, where the duration and number of values determine the resolution.\n\nThe example request posts four values for a duration of one hour, where the first\nevent start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.\n\nThe sensor is the one with ID=1.\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to resample compatible resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
         "security": [
           {
             "ApiAuthKey": []
@@ -531,6 +529,9 @@
           }
         },
         "responses": {
+          "202": {
+            "description": "ACCEPTED"
+          },
           "200": {
             "description": "PROCESSED"
           },
@@ -542,6 +543,9 @@
           },
           "403": {
             "description": "INVALID_SENDER"
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE"
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
@@ -689,7 +693,7 @@
     "/api/v3_0/sensors/{id}/schedules/{uuid}": {
       "get": {
         "summary": "Get schedule for one device",
-        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n- \"unit\" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)\n",
+        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n- \"unit\" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)\n- \"sign-convention\" (controls how power values are signed in the response; see below)\n\n<strong>Sign convention</strong>\n\nBy default (<code>sign-convention: consumption-positive</code>), the endpoint always returns schedules where\nconsumption is positive and production is negative, regardless of how the values are stored in the database.\nThis is the most common convention and matches the perspective of a consumer.\n\nSet <code>sign-convention: production-positive</code> to flip the sign so that production is returned as\npositive and consumption as negative. This matches the perspective of a producer.\n\nSet <code>sign-convention: wysiwyg</code> (<em>what-you-see-is-what-you-get</em>) to return the values with the same sign\nas database values and what is seen in UI charts. The values will indicate exactly what is stored,\nwhich is itself determined by the sensor's <code>consumption_is_positive</code> attribute (if set)\nor by the scheduler's default storage convention (production positive in the database).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -734,6 +738,21 @@
             "example": "kW",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sign-convention",
+            "required": false,
+            "description": "Sign convention applied to power values in the response.\n- <code>consumption-positive</code> (default): consumption is positive, production is negative.\n- <code>production-positive</code>: production is positive, consumption is negative.\n- <code>wysiwyg</code> (<em>what-you-see-is-what-you-get</em>): sign of database values and as seen in UI charts.\n",
+            "example": "consumption-positive",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "consumption-positive",
+                "production-positive",
+                "wysiwyg"
+              ]
             }
           }
         ],
@@ -950,14 +969,14 @@
                     "description": "A successful response with sensor status data",
                     "value": [
                       {
-                        "staleness": "2 hours",
+                        "staleness": "PT2H",
                         "stale": true,
                         "staleness_since": "2024-01-15T14:30:00+00:00",
                         "reason": "data is outdated",
                         "source_type": "forecast",
                         "id": 64907,
                         "name": "temperature",
-                        "resolution": "5 minutes",
+                        "resolution": "PT5M",
                         "asset_name": "Building A",
                         "relation": "sensor belongs to this asset"
                       }
@@ -991,7 +1010,7 @@
     "/api/v3_0/sensors": {
       "get": {
         "summary": "Get list of sensors",
-        "description": "This endpoint returns all accessible sensors.\nBy default, \"accessible sensors\" means all sensors in the same account as the current user (if they have read permission to the account).\n\nYou can also specify an `account` (an ID parameter), if the user has read access to that account. In this case, all assets under the\nspecified account will be retrieved, and the sensors associated with these assets will be returned.\n\nAlternatively, you can filter by asset hierarchy by providing the `asset` parameter (ID). When this is set, all sensors on the specified\nasset and its sub-assets are retrieved, provided the user has read access to the asset.\n\n> <strong>Note:</strong> You can't set both account and asset at the same time, you can only have one set. The only exception is if the asset being specified is\n> part of the account that was set, then we allow to see sensors under that asset but then ignore the account (account = None).\n\nFinally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.\nThis is only possible if the user has the role of a consultant.\n\nOnly admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).\n\nThe `filter` parameter allows you to search for sensors by name or account name.\nThe `unit` parameter allows you to filter by unit.\n\nFor the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger\npagination, and the `per_page` parameter is used to specify the number of records per page. The default value for `page` is 1 and for `per_page` is 10.\n",
+        "description": "This endpoint returns all accessible sensors.\nBy default, \"accessible sensors\" means all sensors in the same account as the current user (if they have read permission to the account).\n\nYou can also specify an `account` (an ID parameter), if the user has read access to that account. In this case, all assets under the\nspecified account will be retrieved, and the sensors associated with these assets will be returned.\n\nAlternatively, you can filter by asset hierarchy by providing the `asset` parameter (ID). When this is set, all sensors on the specified\nasset and its sub-assets are retrieved, provided the user has read access to the asset.\n\n> <strong>Note:</strong> You can't set both account and asset at the same time, you can only have one set. The only exception is if the asset being specified is\n> part of the account that was set, then we allow to see sensors under that asset but then ignore the account (account = None).\n\nFinally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.\nThis is only possible if the user has the role of a consultant.\n\nOnly admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).\n\nThe `filter` parameter allows you to search for sensors by name, account name, asset name, or sensor ID prefix.\nThe `unit` parameter allows you to filter by unit.\n\nFor the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger\npagination, and the `per_page` parameter is used to specify the number of records per page. The default value for `page` is 1 and for `per_page` is 10.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1054,6 +1073,7 @@
           {
             "in": "query",
             "name": "filter",
+            "description": "Return only sensors where a search term is present in the sensor name, account name, asset name, or is a prefix of the sensor ID.",
             "schema": {
               "type": "string"
             },
@@ -1189,7 +1209,8 @@
                     "name": "power",
                     "event_resolution": "PT1H",
                     "unit": "kWh",
-                    "generic_asset_id": 1
+                    "generic_asset_id": 1,
+                    "attributes": "{\"floor_datetimes_to_resolution\": false}"
                   }
                 }
               }
@@ -1214,6 +1235,7 @@
                       "entity_address": "ea1.2023-08.localhost:fm1.1",
                       "event_resolution": "PT1H",
                       "generic_asset_id": 1,
+                      "attributes": "{\"floor_datetimes_to_resolution\": false}",
                       "timezone": "UTC",
                       "id": 2
                     }
@@ -1378,8 +1400,8 @@
     },
     "/api/v3_0/sensors/{id}/schedules/trigger": {
       "post": {
-        "summary": "Trigger scheduling job for one device",
-        "description": "Trigger FlexMeasures to create a schedule for this sensor.\nThe assumption is that this sensor is the power sensor on a flexible asset.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, see the [documentation on describing flexibility](https://flexmeasures.readthedocs.io/latest/features/scheduling.html#describing-flexibility).\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors).\nThe examples below illustrate how to describe a flexibility model and context.\n\n> <strong>Note:</strong> To schedule an EMS with multiple flexible sensors at once,\n> use the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger) instead.\n\nAbout the duration of the schedule and targets within the schedule:\n\n- The length of the schedule can be set explicitly through the 'duration' field.\n- Otherwise, it is set by the config setting `FLEXMEASURES_PLANNING_HORIZON`, which defaults to 48 hours.\n- If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\n- Finally, the schedule length is limited by the config setting `FLEXMEASURES_MAX_PLANNING_HORIZON`, which defaults to 2520 steps of the sensor's resolution. Targets that exceed the max planning horizon are not accepted.\n\nThe 'resolution' field governs how often setpoints are allowed to change.\nNote that the resulting schedule is still saved in the sensor resolution.\n\nAbout the scheduling algorithm being used:\n\n- The appropriate algorithm is chosen by FlexMeasures (based on asset type).\n- It's also possible to use custom schedulers and custom flexibility models.\n- If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
+        "summary": "Trigger scheduling job for one device. Deprecated.",
+        "description": "Trigger FlexMeasures to create a schedule for this sensor. Deprecated - please use the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger) instead.\n\nThe assumption is that this sensor is the power sensor on a flexible asset.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, see the [documentation on describing flexibility](https://flexmeasures.readthedocs.io/latest/features/scheduling.html#describing-flexibility).\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors).\nThe examples below illustrate how to describe a flexibility model and context.\n\n> <strong>Note:</strong> To schedule an EMS with multiple flexible sensors at once,\n> use the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger) instead.\n\nAbout the duration of the schedule and targets within the schedule:\n\n- The length of the schedule can be set explicitly through the 'duration' field.\n- Otherwise, it is set by the config setting `FLEXMEASURES_PLANNING_HORIZON`, which defaults to 48 hours.\n- If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\n- Finally, the schedule length is limited by the config setting `FLEXMEASURES_MAX_PLANNING_HORIZON`, which defaults to 2520 steps of the sensor's resolution. Targets that exceed the max planning horizon are not accepted.\n\nThe 'resolution' field governs how often setpoints are allowed to change.\nNote that the resulting schedule is still saved in the sensor resolution.\n\nAbout the scheduling algorithm being used:\n\n- The appropriate algorithm is chosen by FlexMeasures (based on asset type).\n- It's also possible to use custom schedulers and custom flexibility models.\n- If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1526,7 +1548,7 @@
     "/api/v3_0/sensors/{id}/data/upload": {
       "post": {
         "summary": "Upload sensor data by file",
-        "description": "The file should have columns for a timestamp (event_start) and a value (event_value).\nThe timestamp should be in ISO 8601 format.\nThe value should be a numeric value.\n\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to upsample lower resolutions.\nThe list of values may include null values.\n",
+        "description": "The file should have columns for a timestamp (event_start) and a value (event_value).\nThe timestamp should be in ISO 8601 format.\nThe value should be a numeric value.\n\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to resample compatible resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1557,6 +1579,9 @@
           }
         },
         "responses": {
+          "202": {
+            "description": "ACCEPTED"
+          },
           "200": {
             "description": "PROCESSED",
             "content": {
@@ -1627,6 +1652,9 @@
           },
           "403": {
             "description": "INVALID_SENDER"
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE"
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
@@ -2567,7 +2595,7 @@
     "/api/v3_0/assets/{id}/sensors": {
       "get": {
         "summary": "Return all sensors under an asset.",
-        "description": "This endpoint returns all sensors under an asset.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n\n- If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.\n- If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\nThe response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data\n",
+        "description": "This endpoint returns all sensors under an asset.\n\nThe endpoint supports pagination of the sensor list using the `page` and `per_page` query parameters.\n\n- If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.\n- If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).\n- If a search 'filter' is provided, the response will return only sensors where a search term is either present in their name or is a prefix of their ID.\nThe response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2643,38 +2671,34 @@
             "content": {
               "application/json": {
                 "examples": {
-                  "single_asset": {
-                    "summary": "One asset being returned in the response",
+                  "single_sensor": {
+                    "summary": "One sensor being returned in the response",
                     "value": {
                       "data": [
                         {
                           "id": 1,
-                          "name": "Test battery",
-                          "latitude": 10,
-                          "longitude": 100,
-                          "account_id": 2,
-                          "generic_asset_type": {
-                            "id": 1,
-                            "name": "battery"
-                          }
+                          "name": "Test battery power",
+                          "unit": "kW",
+                          "event_resolution": "PT15M",
+                          "generic_asset_id": 1,
+                          "timezone": "Europe/Amsterdam",
+                          "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42"
                         }
                       ]
                     }
                   },
-                  "paginated_assets": {
-                    "summary": "A paginated list of assets being returned in the response",
+                  "paginated_sensors": {
+                    "summary": "A paginated list of sensors being returned in the response",
                     "value": {
                       "data": [
                         {
                           "id": 1,
-                          "name": "Test battery",
-                          "latitude": 10,
-                          "longitude": 100,
-                          "account_id": 2,
-                          "generic_asset_type": {
-                            "id": 1,
-                            "name": "battery"
-                          }
+                          "name": "Test battery power",
+                          "unit": "kW",
+                          "event_resolution": "PT15M",
+                          "generic_asset_id": 1,
+                          "timezone": "Europe/Amsterdam",
+                          "entity_address": "ea1.2021-01.io.flexmeasures.company:fm1.42"
                         }
                       ],
                       "num-records": 1,
@@ -2823,7 +2847,7 @@
     "/api/v3_0/assets/{id}/copy": {
       "post": {
         "summary": "Copy an asset to a target account and/or parent.",
-        "description": "This endpoint creates a copy of an existing asset and optionally places it\nunder a `target` account and/or `parent` asset.\n\nResolution rules:\n\n- If both are omitted, the copy remains in the same account and keeps the same parent.\n- If `account` is provided and `parent` is omitted, parent defaults to `null`.\n- If `parent` is provided and `account` is omitted, account is derived from that parent.\n- If both are provided, it is possible to assign the copied asset to a different account than the parent.\n",
+        "description": "This endpoint creates a copy of an existing asset.\n\nThe asset copy will also have copies of child assets, including sensors and flex-configuration.\nNo beliefs will be copied.\n\nThe new asset can optionally be placed under a `target` account and/or `parent` asset.\n\nResolution rules:\n\n- If both `target` and `account` are omitted, the copy remains in the same account and keeps the same parent as the original.\n- If `account` is provided and `parent` is omitted, parent defaults to `null`.\n- If `parent` is provided and `account` is omitted, account is derived from that parent.\n- If both are provided, it is possible to assign the copied asset to a different account than the parent.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3453,7 +3477,7 @@
     "/api/v3_0/assets": {
       "get": {
         "summary": "List assets accessible by the user.",
-        "description": "This endpoint returns all assets that are accessible by the user after applying optional filters.\n\n  - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n  - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).\n  - The `depth` query parameter can be used to search only a max number of descendant generations from the root.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will filter out assets where each search term is either present in their name or account name.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n\nPer default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).\nYou can use the `fields` query parameter to specify a custom set of fields to include in the response.\n",
+        "description": "This endpoint returns all assets that are accessible by the user after applying optional filters.\n\n  - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n  - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).\n  - The `depth` query parameter can be used to search only a max number of descendant generations from the root.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will return only assets where each search term is either present in their name or account name, or is a prefix of their ID.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n\nPer default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).\nYou can use the `fields` query parameter to specify a custom set of fields to include in the response.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3870,7 +3894,14 @@
                         "consumption-capacity": {
                           "sensor": 42
                         },
-                        "production-capacity": "30 kW"
+                        "production-capacity": "30 kW",
+                        "soc-minima": [
+                          {
+                            "start": "2015-06-02T12:00:00+00:00",
+                            "end": "2015-06-02T13:00:00+00:00",
+                            "value": "10 kWh"
+                          }
+                        ]
                       },
                       {
                         "sensor": 932,
@@ -4181,9 +4212,220 @@
         ]
       }
     },
+    "/api/v3_0/jobs/{uuid}": {
+      "get": {
+        "summary": "Get the status of a background job",
+        "description": "Look up a background job by its UUID and see whether it is\nqueued, running, finished, or failed.\n\nThe response includes a status message plus job metadata such\nas the queue name, function name, timestamps, and the job\nresult when available.\n\nFailed jobs also include traceback information when the worker\nstored it with the job result.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uuid",
+            "required": true,
+            "description": "UUID of the background job.",
+            "example": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job status retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "QUEUED",
+                        "STARTED",
+                        "FINISHED",
+                        "FAILED",
+                        "DEFERRED",
+                        "SCHEDULED",
+                        "STOPPED",
+                        "CANCELED"
+                      ],
+                      "description": "Current status of the job."
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable description of the job status."
+                    },
+                    "result": {
+                      "description": "Return value of the job function, or null when not yet available.",
+                      "nullable": true
+                    },
+                    "func_name": {
+                      "type": "string",
+                      "description": "Fully-qualified name of the function executed by this job."
+                    },
+                    "origin": {
+                      "type": "string",
+                      "description": "Name of the queue the job was placed on."
+                    },
+                    "enqueued_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "description": "ISO-8601 timestamp of when the job was enqueued."
+                    },
+                    "started_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "description": "ISO-8601 timestamp of when the job started executing."
+                    },
+                    "ended_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "description": "ISO-8601 timestamp of when the job finished executing."
+                    },
+                    "exc_info": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Traceback information for failed jobs, or null otherwise."
+                    }
+                  }
+                },
+                "examples": {
+                  "queued": {
+                    "summary": "Queued job",
+                    "value": {
+                      "status": "QUEUED",
+                      "message": "Scheduling job waiting to be processed.",
+                      "result": null,
+                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "origin": "scheduling",
+                      "enqueued_at": "2026-04-28T10:00:00+00:00",
+                      "started_at": null,
+                      "ended_at": null,
+                      "exc_info": null
+                    }
+                  },
+                  "finished": {
+                    "summary": "Finished job",
+                    "value": {
+                      "status": "FINISHED",
+                      "message": "Scheduling job has finished.",
+                      "result": null,
+                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "origin": "scheduling",
+                      "enqueued_at": "2026-04-28T10:00:00+00:00",
+                      "started_at": "2026-04-28T10:00:01+00:00",
+                      "ended_at": "2026-04-28T10:00:05+00:00",
+                      "exc_info": null
+                    }
+                  },
+                  "failed": {
+                    "summary": "Failed job",
+                    "value": {
+                      "status": "FAILED",
+                      "message": "Scheduling job failed with ValueError: ...",
+                      "result": null,
+                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "origin": "scheduling",
+                      "enqueued_at": "2026-04-28T10:00:00+00:00",
+                      "started_at": "2026-04-28T10:00:01+00:00",
+                      "ended_at": "2026-04-28T10:00:02+00:00",
+                      "exc_info": "Traceback (most recent call last): ..."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ]
+      }
+    },
     "/api/v3_0": {},
     "/api/v3_0/sensors/data": {},
-    "/api/v3_0/docs/dist/{filename}": {},
+    "/api/v3_0/sources": {
+      "get": {
+        "summary": "List accessible data sources and defined source types.",
+        "description": "Returns the list of data sources accessible to the current user and\nthe defined source types.\n\n<strong>Access rules:</strong>\n\n- Admins see all data sources.\n- Users with the <code>consultant</code> role see sources belonging to their\n  own account and to any consultancy-client accounts for which their\n  account is the consultancy.\n- All other authenticated users see only sources belonging to their\n  own account, plus sources that have neither a <code>user_id</code> nor an\n  <code>account_id</code> (i.e. system/public sources).\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "only_latest",
+            "description": "If true, return only the most recent version of each source (grouped by name, type and model). Defaults to true. Determined by the highest model version string; ties are broken by the highest source id.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "example": {
+                  "types": [
+                    "user",
+                    "scheduler",
+                    "forecaster",
+                    "reporter",
+                    "demo script",
+                    "gateway",
+                    "market"
+                  ],
+                  "sources": [
+                    {
+                      "id": 1,
+                      "name": "Seita",
+                      "type": "scheduler",
+                      "model": "StorageScheduler",
+                      "version": "1.0",
+                      "description": "Seita's StorageScheduler model v1.0",
+                      "account_id": 2
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
     "/api/v3_0/docs/{path}": {},
     "/api/dev/sensor/{id}": {},
     "/api/dev/sensor/{id}/chart": {},
@@ -4213,6 +4455,50 @@
           "sensor": {
             "type": "integer",
             "description": "ID of the sensor on which the data is recorded."
+          },
+          "source-types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from sources with these source types (e.g. 'user', 'script', 'forecaster', 'scheduler').",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exclude-source-types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Exclude beliefs from sources with these source types.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sources": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from these data source IDs.",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "source-account": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from data sources linked to these account IDs.",
+            "items": {
+              "type": "integer"
+            }
           }
         },
         "required": [
@@ -5015,6 +5301,26 @@
         ],
         "additionalProperties": false
       },
+      "DeleteSensorData": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "integer",
+            "description": "ID of the data source to delete data for. If not provided, data from all sources is deleted."
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Only delete data with event start at or after this datetime (ISO 8601)."
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Only delete data with event end at or before this datetime (ISO 8601)."
+          }
+        },
+        "additionalProperties": false
+      },
       "Sensor1": {
         "type": "object",
         "properties": {
@@ -5488,8 +5794,8 @@
             "description": "Obsolete identifier from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/)."
           },
           "attributes": {
-            "description": "JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values.",
-            "example": "{consumption_is_positive: True}"
+            "description": "JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values, `floor_datetimes_to_resolution`, which controls whether off-clock datetimes are floored to a non-instantaneous sensor's resolution, and `frequency`, which rounds incoming instantaneous measurements to a configured Pandas frequency.",
+            "example": "{\"consumption_is_positive\": true, \"floor_datetimes_to_resolution\": true}"
           },
           "generic_asset_id": {
             "type": "integer",
@@ -5600,15 +5906,17 @@
           },
           "flex-model": {
             "type": "object",
+            "default": {},
             "description": "The flex-model is validated according to the scheduler's `FlexModelSchema`.",
             "additionalProperties": {}
           },
           "flex-context": {
             "type": "object",
+            "default": {},
             "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
             "additionalProperties": {}
           },
-          "force_new_job_creation": {
+          "force-new-job-creation": {
             "type": "boolean",
             "description": "If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered."
           }
@@ -5756,6 +6064,20 @@
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",
         "properties": {
+          "consumption": {
+            "description": "Sensor used to record the scheduled power as seen from a consumption perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nDepending on which output sensors are defined:\n\n- <strong>Only</strong> <code>consumption</code> <strong>defined</strong>: the full power schedule is stored on this sensor using the\n  consumption-positive sign convention (consumption positive, production negative).\n- <strong>Only</strong> <code>production</code> <strong>defined</strong>: the full power schedule is stored on the production sensor\n  with the production-positive convention (production positive, consumption negative).\n- <strong>Both defined</strong>: only the non-negative part of the schedule is stored on this sensor (zero for\n  time steps with net production), and only the non-positive part (sign-flipped) is stored on the\n  production sensor.\n",
+            "example": {
+              "sensor": 14
+            },
+            "$ref": "#/components/schemas/SensorReference"
+          },
+          "production": {
+            "description": "Sensor used to record the scheduled power as seen from a production perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nSee <code>consumption</code> for the full description of the split logic when both sensors are defined.\n",
+            "example": {
+              "sensor": 15
+            },
+            "$ref": "#/components/schemas/SensorReference"
+          },
           "soc-at-start": {
             "type": "string",
             "description": "The (estimated) state of charge at the beginning of the schedule (for storage devices, this defaults to 0).\nUsually added to each scheduling request.\n",
@@ -5764,16 +6086,16 @@
           "soc-min": {
             "type": "string",
             "x-minimum": "0 MWh",
-            "description": "A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-minima</code> flex-model field instead together with the <code>soc-minima-breach-price</code> field in the flex-context.\n",
+            "description": "A constant and non-negotiable lower boundary for all SoC values in the schedule.\nIf omitted, no lower boundary is applied.\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-minima</code> flex-model field instead together with the <code>soc-minima-breach-price</code> field in the flex-context.\n",
             "example": "2.5 kWh"
           },
           "soc-max": {
             "type": "string",
-            "description": "A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-maxima</code> flex-model field instead together with the <code>soc-maxima-breach-price</code> field in the flex-context.\n",
+            "description": "A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf omitted, no upper boundary is applied.\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-maxima</code> flex-model field instead together with the <code>soc-maxima-breach-price</code> field in the flex-context.\n",
             "example": "7 kWh"
           },
           "power-capacity": {
-            "description": "Device-level power constraint. How much power can be applied to this asset.",
+            "description": "Symmetric device-level power constraint. How much power can be applied to this asset in either direction.\nIf omitted, the scheduler infers this limit from the greatest of <code>consumption-capacity</code> and <code>production-capacity</code> when either is configured, before falling back to <code>site-power-capacity</code>.\nWhen exactly one of <code>consumption-capacity</code> or <code>production-capacity</code> is configured to non-zero capacity, the missing opposite capacity defaults to zero.",
             "example": "50 kVA",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
@@ -5803,19 +6125,26 @@
           },
           "soc-maxima": {
             "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nIf a <code>soc-maxima-breach-price</code> is defined, the <code>soc-maxima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
-            "example": {
-              "value": "51 kWh",
-              "start": "2024-02-05T12:00:00+01:00",
-              "end": "2024-02-05T13:30:00+01:00"
-            },
+            "example": [
+              {
+                "value": "51 kWh",
+                "start": "2024-02-05T12:00:00+01:00",
+                "end": "2024-02-05T13:30:00+01:00"
+              }
+            ],
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima": {
-            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nIf a <code>soc-minima-breach-price</code> is defined, the <code>soc-minima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
+            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nIf a <code>soc-minima-breach-price</code> is defined, the <code>soc-minima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.. Both single points in time and ranges are possible, see example.",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",
                 "value": "8.2 kWh"
+              },
+              {
+                "value": "51 kWh",
+                "start": "2024-02-05T12:00:00+01:00",
+                "end": "2024-02-05T13:30:00+01:00"
               }
             ],
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
@@ -5840,7 +6169,7 @@
             "example": "kWh"
           },
           "state-of-charge": {
-            "description": "Sensor used to record the scheduled state of charge. If <code>soc-at-start</code> is omitted, FlexMeasures will also use this field to infer the starting state of charge. For this use case, the field may also contain a time series specification instead. When a sensor is used, its unit may be an energy unit (e.g. MWh or kWh) or a percentage (%). For sensors with a % unit, the <code>soc-max</code> flex-model field must be set to a non-zero value to allow converting between the energy-based schedule and a percentage.",
+            "description": "Sensor used to record the scheduled state of charge. If <code>soc-at-start</code> is omitted, FlexMeasures will also use this field to infer the starting state of charge. For this use case, the field may also contain a time series specification instead. When a sensor is used, its unit may be an energy unit (e.g. MWh or kWh) or a percentage (%). For sensors with a % unit, the <code>soc-max</code> flex-model field must be set to a non-zero value to allow converting between the energy-based schedule and a percentage. Also, the state-of-charge sensor's resolution should be instantaneous (i.e. `PT0M`).",
             "example": {
               "sensor": 12
             },
@@ -5864,7 +6193,7 @@
             "example": "90%"
           },
           "storage-efficiency": {
-            "description": "The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time.\nAs a result, each time step the energy is held longer leads to higher losses.\nThis setting is crucial to some sorts of energy storage, e.g. thermal buffers.\nTo give an example, when this setting is at 95% (or 0.95), this means a loss of 5% per time step. Defaults to 100% (no storage loss over time).\nNote that the storage efficiency used by the scheduler is applied over each time step equal to the sensor resolution.\nFor example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865.\n",
+            "description": "The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time.\nAs a result, each time step the energy is held longer leads to higher losses.\nThis setting is crucial to some sorts of energy storage, e.g. thermal buffers.\nTo give an example, when this setting is at 95% (or 0.95), this means a loss of 5% per time step. Defaults to 100% (no storage loss over time).\nNote that the storage efficiency used by the scheduler is applied over each time step equal to the scheduling resolution.\nFor example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865.\nAlternatively, to let FlexMeasures handle the conversion for you, record the storage-efficiency on a dedicated sensor (in this example, with a 24-hour event resolution).\nThen reference that sensor in the storage-efficiency field.\n",
             "example": "99.9%",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
@@ -5891,6 +6220,10 @@
               }
             ],
             "items": {}
+          },
+          "sensor": {
+            "type": "integer",
+            "description": "ID of the device's power sensor."
           }
         },
         "additionalProperties": false
@@ -5922,9 +6255,12 @@
             "example": "PT2H",
             "format": "duration"
           },
-          "flex-model": {
-            "description": "The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
-            "$ref": "#/components/schemas/StorageFlexModelSchemaOpenAPI"
+          "flex_model": {
+            "type": "array",
+            "items": {
+              "description": "Flex-model per device (identified by `sensor`). The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
+              "$ref": "#/components/schemas/StorageFlexModelSchemaOpenAPI"
+            }
           },
           "flex-context": {
             "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
@@ -5934,11 +6270,14 @@
             "type": "boolean",
             "default": false,
             "description": "If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previously scheduled assets as inflexible device."
+          },
+          "force-new-job-creation": {
+            "type": "boolean",
+            "description": "If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered."
           }
         },
         "required": [
           "flex-context",
-          "flex-model",
           "start"
         ],
         "additionalProperties": false

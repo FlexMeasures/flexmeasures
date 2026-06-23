@@ -417,6 +417,7 @@
         let savedGraphIndex; // keeps track of the graph that is currently selected
         let selectedGraphTitle; // keeps track of the graph title that is currently selected
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}&include_public_assets=true`;
+        let unavailablePlotCount = 0;
 
         // ==========================================
         // REACTIVE STATE MANAGEMENT
@@ -443,6 +444,26 @@
         const saveChangesBtn = document.getElementById("saveChangesBtn");
         const addPlotBtn = document.getElementById("addPlotBtn");
 
+        function graphAlreadyHasSensor(graph, sensorId) {
+            return (graph.plots || []).some((plot) => {
+                if (plot.sensor === sensorId) {
+                    return true;
+                }
+                if (Array.isArray(plot.sensors)) {
+                    return plot.sensors.includes(sensorId);
+                }
+                return false;
+            });
+        }
+
+        function graphAlreadyHasAssetReference(graph, payload) {
+            return (graph.plots || []).some((plot) =>
+                plot.asset === payload.asset &&
+                plot["flex-context"] === payload["flex-context"] &&
+                plot["flex-model"] === payload["flex-model"],
+            );
+        }
+
         saveChangesBtn.onclick = async function () {
             await updateAssetSensorsToShow();
         };
@@ -458,6 +479,11 @@
                 }
 
                 const sensorsToShowOldState = getSensorToShow();
+                const selectedGraph = sensorsToShowOldState[index];
+                if (graphAlreadyHasAssetReference(selectedGraph, payload)) {
+                    showToast("This asset reference is already added to this graph.", "warning");
+                    return;
+                }
                 sensorsToShowOldState[index].plots.push(payload);
                 setSensorToShow(sensorsToShowOldState);
             } else {
@@ -797,8 +823,19 @@
                 } else if ("asset" in plot) {
                     const plotHeader = document.createElement("h5");
                     plotHeader.className = "pt-2 fs-[1rem]";
-                    const asset = await getAsset(plot.asset);
-                    plotHeader.innerHTML = `<b>${asset.name}: ${plot["flex-model"] || plot["flex-context"]}</b>`;
+                    let asset = null;
+                    try {
+                        asset = await getAsset(plot.asset);
+                    } catch (_error) {
+                        asset = null;
+                    }
+                    if (!asset || !asset.name) {
+                        unavailablePlotCount += 1;
+                        plotHeader.innerHTML = `<b>Asset ${plot.asset}: ${plot["flex-model"] || plot["flex-context"]} (Not available)</b>`;
+                        plotHeader.classList.add("text-warning");
+                    } else {
+                        plotHeader.innerHTML = `<b>${asset.name}: ${plot["flex-model"] || plot["flex-context"]}</b>`;
+                    }
                     const assetPlotContent = await renderAssetPlotCard(plot, removePlotOrSensor, index, plotIndex);
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(assetPlotContent);
@@ -877,6 +914,7 @@
 
             const graphList = document.getElementById("graphList");
             graphList.innerHTML = "";
+            unavailablePlotCount = 0;
             const oldSensorsToShow = getSensorToShow();
             const newSensorsToShow = [];
 
@@ -904,6 +942,14 @@
                     oldSensorsToShow.length,
                 );
                 graphList.appendChild(graphCard);
+            }
+
+            if (unavailablePlotCount > 0) {
+                const warning = document.createElement("div");
+                warning.className = "alert alert-warning mt-2";
+                warning.setAttribute("role", "alert");
+                warning.textContent = `${unavailablePlotCount} saved plot${unavailablePlotCount > 1 ? "s are" : " is"} not available anymore. You can remove or update these references.`;
+                graphList.prepend(warning);
             }
 
             sensorsToShow = newSensorsToShow;
@@ -1152,6 +1198,11 @@
             const oldSensorsToShow = getSensorToShow();
 
             if (editingIndex()) {
+                const selectedGraph = oldSensorsToShow[editingIndex()];
+                if (graphAlreadyHasSensor(selectedGraph, id)) {
+                    showToast("This sensor is already added to this graph.", "warning");
+                    return;
+                }
                 oldSensorsToShow[editingIndex()]["plots"].push({ sensor: id });
             } else {
                 const newAsset = {
@@ -1180,6 +1231,10 @@
             // renderGraphCards();
 
             const oldSensorsToShow = getSensorToShow();
+            if (graphAlreadyHasSensor(oldSensorsToShow[graphIndex], sensorId)) {
+                showToast("This sensor is already added to this graph.", "warning");
+                return;
+            }
             oldSensorsToShow[graphIndex].plots.push({ sensor: sensorId });
             setSensorToShow(oldSensorsToShow);
         }

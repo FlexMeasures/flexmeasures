@@ -221,6 +221,39 @@ def test_fetch_asset_sensors(
         assert response.json["data"][0]["name"] == expected_name_of_first_sensor
 
 
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_fetch_asset_sensors_forbidden_without_asset_read_access(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    supplier_asset_id = setup_api_test_data["some gas sensor"].generic_asset_id
+
+    response = client.get(url_for("AssetAPI:asset_sensors", id=supplier_asset_id))
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_fetch_asset_sensors_uses_all_parsed_filter_terms(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.get(
+        url_for("AssetAPI:asset_sensors", id=sensor.generic_asset_id),
+        query_string={"filter": f"does-not-match {sensor.id}"},
+    )
+
+    assert response.status_code == 200
+    assert [s["id"] for s in response.json["data"]] == [sensor.id]
+    assert response.json["filtered-records"] == 1
+
+
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_asset_with_children(client, add_asset_with_children, requesting_user):
     """
@@ -267,12 +300,20 @@ def test_get_public_assets(
 def test_alter_an_asset(
     client, setup_api_test_data, setup_accounts, requesting_user, db
 ):
-    # without being an account-admin, no asset can be created ...
+    # Without being an account-admin, no top-level asset can be created.
     with AccountContext("Test Prosumer Account") as prosumer:
         prosumer_asset = prosumer.generic_assets[0]
+        prosumer_asset_type_id = prosumer_asset.generic_asset_type_id
+        prosumer_id = prosumer.id
     asset_creation_response = client.post(
         url_for("AssetAPI:post"),
-        json={},
+        json={
+            "name": "Should be forbidden top-level asset",
+            "latitude": 30.1,
+            "longitude": 100.42,
+            "generic_asset_type_id": prosumer_asset_type_id,
+            "account_id": prosumer_id,
+        },
     )
     print(f"Creation Response: {asset_creation_response.json}")
     assert asset_creation_response.status_code == 403
@@ -606,24 +647,31 @@ def test_consultancy_user_without_consultant_role(
 
 
 @pytest.mark.parametrize(
-    "parent_name, child_name, fails",
+    "parent_name, child_name, pre_existing_root, fails",
     [
-        ("parent", "child_4", False),
-        (None, "child_1", False),
-        (None, "child_1", True),
-        ("parent", "child_1", True),
+        ("parent", "child_4", False, False),
+        (None, "child_1", False, False),
+        (None, "duplicate_root_name", True, True),
+        ("parent", "child_1", False, True),
     ],
 )
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_post_an_asset_with_existing_name(
-    client, add_asset_with_children, parent_name, child_name, fails, requesting_user, db
+    client,
+    add_asset_with_children,
+    parent_name,
+    child_name,
+    pre_existing_root,
+    fails,
+    requesting_user,
+    db,
 ):
     """Catch DB error (Unique key violated) correctly.
 
     Cases:
         1) Create a child asset
         2) Create an orphan asset with a name that already exists under a parent asset
-        3) Create an orphan asset with an existing name.
+        3) Create an orphan asset with an existing root asset name in the same account.
         4) Create a child asset with a name that already exists among its siblings.
     """
 
@@ -642,9 +690,21 @@ def test_post_an_asset_with_existing_name(
     post_data["account_id"] = requesting_user.account_id
 
     if parent:
-        post_data["parent_asset_id"] = parent.parent_asset_id
+        post_data["parent_asset_id"] = parent.id
     else:
         post_data["parent_asset_id"] = None
+
+    if pre_existing_root:
+        db.session.add(
+            GenericAsset(
+                name=child_name,
+                generic_asset_type=add_asset_with_children[
+                    "child_1"
+                ].generic_asset_type,
+                account_id=requesting_user.account_id,
+            )
+        )
+        db.session.flush()
 
     asset_creation_response = client.post(
         url_for("AssetAPI:post"),
@@ -1213,3 +1273,125 @@ def test_copy_asset_api_rejects_copy_to_descendant(
         "cannot copy an asset to itself or any of its descendants"
         in response.json["message"]["json"]
     )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_regular_user_cannot_create_public_asset(
+    client, setup_api_test_data, setup_accounts, setup_markets, requesting_user
+):
+    """A plain account member must not be able to create a public asset (account_id=None).
+
+    Only site admins may create assets without an owning account. Omitting account_id
+    from the request body must be treated the same as sending account_id=null.
+    """
+    epex_asset = setup_markets["epex_da"].generic_asset
+    assert epex_asset.account_id is None, "epex must be a public asset"
+
+    post_data = {
+        "name": "Unauthorized public asset",
+        "latitude": 10.0,
+        "longitude": 20.0,
+        "generic_asset_type_id": epex_asset.generic_asset_type_id,
+        # account_id deliberately omitted → public asset
+    }
+    response = client.post(url_for("AssetAPI:post"), json=post_data)
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_regular_user_cannot_create_child_of_public_asset(
+    client, setup_api_test_data, setup_accounts, setup_markets, requesting_user
+):
+    """A plain account member must not be able to create a child asset under a public
+    (account-less) parent. The parent's create-children ACL must deny non-admins.
+    """
+    epex_asset = setup_markets["epex_da"].generic_asset
+    assert epex_asset.account_id is None, "epex must be a public asset"
+
+    prosumer_account = setup_accounts["Prosumer"]
+    post_data = {
+        "name": "Unauthorized child of public asset",
+        "latitude": 10.0,
+        "longitude": 20.0,
+        "generic_asset_type_id": epex_asset.generic_asset_type_id,
+        "account_id": prosumer_account.id,
+        "parent_asset_id": epex_asset.id,
+    }
+    response = client.post(url_for("AssetAPI:post"), json=post_data)
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_regular_user_can_create_child_asset(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """A plain (non-admin) account member can create a child asset under a parent
+    asset that belongs to their own account.
+
+    ``GenericAsset.create-children`` is open to every member of the owning
+    account, so the check succeeds for any Prosumer account member.
+    """
+    prosumer_account = setup_accounts["Prosumer"]
+    parent = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    assert parent is not None, "Battery asset must exist in the Prosumer account"
+
+    post_data = {
+        "name": "Test child battery (auth-fix test 1)",
+        "latitude": 30.1,
+        "longitude": 100.42,
+        "generic_asset_type_id": parent.generic_asset_type_id,
+        "account_id": prosumer_account.id,
+        "parent_asset_id": parent.id,
+    }
+    response = client.post(url_for("AssetAPI:post"), json=post_data)
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 201
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_account_admin_cannot_create_child_under_cross_account_parent(
+    client, setup_api_test_data, setup_accounts, requesting_user, db
+):
+    """An account-admin of the Prosumer account must not be able to create a child
+    asset whose *parent* belongs to the Supplier account.
+
+    ``GenericAsset.create-children`` only allows members of the account that
+    owns the parent asset. A Prosumer account-admin is not a Supplier account
+    member, so the request must be rejected.
+    """
+    turbine = db.session.scalars(
+        select(GenericAsset).filter_by(name="Test wind turbine")
+    ).first()
+    assert turbine is not None, "Wind turbine asset must exist in the Supplier account"
+
+    prosumer_account = setup_accounts["Prosumer"]
+
+    # account_id is set to the user's own account – the schema requires non-site-admins
+    # to only create assets for their own account, so this is the only valid value.
+    # The security hole is that the parent belongs to a *different* account.
+    post_data = {
+        "name": "Cross-account child (auth-fix test 2)",
+        "latitude": 30.1,
+        "longitude": 100.42,
+        "generic_asset_type_id": turbine.generic_asset_type_id,
+        "account_id": prosumer_account.id,
+        "parent_asset_id": turbine.id,
+    }
+    response = client.post(url_for("AssetAPI:post"), json=post_data)
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 403

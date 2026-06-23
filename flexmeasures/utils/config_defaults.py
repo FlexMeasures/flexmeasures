@@ -9,7 +9,15 @@ and confidential settings can be set via the <app-env>-conf.py file.
 from __future__ import annotations
 
 from datetime import timedelta
+import json
 import logging
+
+
+class CustomEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if hasattr(obj, "isoformat"):
+            return obj.isoformat()
+        return super().default(obj)
 
 
 class Config(object):
@@ -95,6 +103,9 @@ class Config(object):
     RQ_DASHBOARD_POLL_INTERVAL: int = (
         3000  # Web interface poll period for updates in ms
     )
+    # Set a custom encoder when rq-dashboard job metadata contains objects
+    # that default JSON encoding cannot serialize.
+    RQ_DASHBOARD_JSON_ENCODER: type[json.JSONEncoder] = CustomEncoder
 
     SENTRY_DSN: str | None = None
     # Place additional Sentry config here.
@@ -102,6 +113,9 @@ class Config(object):
     # you probably want to adjust this.
     FLEXMEASURES_SENTRY_CONFIG: dict = dict(traces_sample_rate=0.33)
     FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY: bool = True
+    FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS: list[str] = (
+        []
+    )  # Deprecated. Use FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS instead.
     FLEXMEASURES_MONITORING_MAIL_RECIPIENTS: list[str] = []
 
     FLEXMEASURES_PLATFORM_NAME: str | list[str | tuple[str, list[str]]] = "FlexMeasures"
@@ -152,6 +166,9 @@ class Config(object):
     FLEXMEASURES_JOB_CACHE_TTL: int = (
         3600  # Time to live for the job caching keys in seconds. Set a negative timedelta to persist forever.
     )
+    FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES: int | None = (
+        3.1 * 1024 * 1024
+    )  # up to 3MB are allowed per request
     FLEXMEASURES_TASK_CHECK_AUTH_TOKEN: str | None = None
     FLEXMEASURES_REDIS_URL: str = "localhost"
     FLEXMEASURES_REDIS_PORT: int = 6379

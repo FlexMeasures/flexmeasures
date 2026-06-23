@@ -185,8 +185,34 @@ The field may define (a sensor recording) contractual penalties, or a theoretica
 # FLEX-MODEL
 
 
+CONSUMPTION = MetaData(
+    description="""Sensor used to record the scheduled power as seen from a consumption perspective.
+
+The sign convention is determined by the key name, and is stored on the sensor itself using the ``consumption_is_positive`` attribute.
+
+Depending on which output sensors are defined:
+
+- **Only** ``consumption`` **defined**: the full power schedule is stored on this sensor using the
+  consumption-positive sign convention (consumption positive, production negative).
+- **Only** ``production`` **defined**: the full power schedule is stored on the production sensor
+  with the production-positive convention (production positive, consumption negative).
+- **Both defined**: only the non-negative part of the schedule is stored on this sensor (zero for
+  time steps with net production), and only the non-positive part (sign-flipped) is stored on the
+  production sensor.
+""",
+    example={"sensor": 14},
+)
+PRODUCTION = MetaData(
+    description="""Sensor used to record the scheduled power as seen from a production perspective.
+
+The sign convention is determined by the key name, and is stored on the sensor itself using the ``consumption_is_positive`` attribute.
+
+See ``consumption`` for the full description of the split logic when both sensors are defined.
+""",
+    example={"sensor": 15},
+)
 STATE_OF_CHARGE = MetaData(
-    description="Sensor used to record the scheduled state of charge. If ``soc-at-start`` is omitted, FlexMeasures will also use this field to infer the starting state of charge. For this use case, the field may also contain a time series specification instead. When a sensor is used, its unit may be an energy unit (e.g. MWh or kWh) or a percentage (%). For sensors with a % unit, the ``soc-max`` flex-model field must be set to a non-zero value to allow converting between the energy-based schedule and a percentage.",
+    description="Sensor used to record the scheduled state of charge. If ``soc-at-start`` is omitted, FlexMeasures will also use this field to infer the starting state of charge. For this use case, the field may also contain a time series specification instead. When a sensor is used, its unit may be an energy unit (e.g. MWh or kWh) or a percentage (%). For sensors with a % unit, the ``soc-max`` flex-model field must be set to a non-zero value to allow converting between the energy-based schedule and a percentage. Also, the state-of-charge sensor's resolution should be instantaneous (i.e. `PT0M`).",
     example={"sensor": 12},
 )
 SOC_AT_START = MetaData(
@@ -203,7 +229,8 @@ Only kWh and MWh are allowed.
     example="kWh",
 )
 SOC_MIN = MetaData(
-    description="""A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).
+    description="""A constant and non-negotiable lower boundary for all SoC values in the schedule.
+If omitted, no lower boundary is applied.
 If used, this is regarded as an unsurpassable physical limitation.
 To set softer boundaries, use the ``soc-minima`` flex-model field instead together with the ``soc-minima-breach-price`` field in the flex-context. [#quantity_field]_
 """,
@@ -211,6 +238,7 @@ To set softer boundaries, use the ``soc-minima`` flex-model field instead togeth
 )
 SOC_MAX = MetaData(
     description="""A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).
+If omitted, no upper boundary is applied.
 If used, this is regarded as an unsurpassable physical limitation.
 To set softer boundaries, use the ``soc-maxima`` flex-model field instead together with the ``soc-maxima-breach-price`` field in the flex-context. [#quantity_field]_
 """,
@@ -219,18 +247,27 @@ To set softer boundaries, use the ``soc-maxima`` flex-model field instead togeth
 SOC_MINIMA = MetaData(
     description="""Set points that form lower boundaries, e.g. to target a full car battery in the morning.
 If a ``soc-minima-breach-price`` is defined, the ``soc-minima`` become soft constraints in the optimization problem.
-Otherwise, they become hard constraints. [#maximum_overlap]_""",
-    example=[{"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"}],
+Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points in time and ranges are possible, see example.""",
+    example=[
+        {"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"},
+        {
+            "value": "51 kWh",
+            "start": "2024-02-05T12:00:00+01:00",
+            "end": "2024-02-05T13:30:00+01:00",
+        },
+    ],
 )
 SOC_MAXIMA = MetaData(
     description="""Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.
 If a ``soc-maxima-breach-price`` is defined, the ``soc-maxima`` become soft constraints in the optimization problem.
 Otherwise, they become hard constraints. [#minimum_overlap]_""",
-    example={
-        "value": "51 kWh",
-        "start": "2024-02-05T12:00:00+01:00",
-        "end": "2024-02-05T13:30:00+01:00",
-    },
+    example=[
+        {
+            "value": "51 kWh",
+            "start": "2024-02-05T12:00:00+01:00",
+            "end": "2024-02-05T13:30:00+01:00",
+        }
+    ],
 )
 SOC_TARGETS = MetaData(
     description="""
@@ -280,8 +317,10 @@ STORAGE_EFFICIENCY = MetaData(
 As a result, each time step the energy is held longer leads to higher losses.
 This setting is crucial to some sorts of energy storage, e.g. thermal buffers.
 To give an example, when this setting is at 95% (or 0.95), this means a loss of 5% per time step. Defaults to 100% (no storage loss over time).
-Note that the storage efficiency used by the scheduler is applied over each time step equal to the sensor resolution.
+Note that the storage efficiency used by the scheduler is applied over each time step equal to the scheduling resolution.
 For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
+Alternatively, to let FlexMeasures handle the conversion for you, record the storage-efficiency on a dedicated sensor (in this example, with a 24-hour event resolution).
+Then reference that sensor in the storage-efficiency field.
 """,
     example="99.9%",
 )
@@ -299,7 +338,9 @@ Boolean option only.
     example=True,
 )
 POWER_CAPACITY = MetaData(
-    description="Device-level power constraint. How much power can be applied to this asset. [#minimum_overlap]_",
+    description="""Symmetric device-level power constraint. How much power can be applied to this asset in either direction.
+If omitted, the scheduler infers this limit from the greatest of ``consumption-capacity`` and ``production-capacity`` when either is configured, before falling back to ``site-power-capacity``.
+When exactly one of ``consumption-capacity`` or ``production-capacity`` is configured to non-zero capacity, the missing opposite capacity defaults to zero. [#minimum_overlap]_""",
     example="50 kVA",
 )
 CONSUMPTION_CAPACITY = MetaData(
