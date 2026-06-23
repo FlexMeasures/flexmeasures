@@ -14,6 +14,7 @@ New features
 * Sensor references in flex-model and flex-context support various ways of filtering by source [see `PR #2209 <https://www.github.com/FlexMeasures/flexmeasures/pull/2209>`_]
 * Let storage scheduling infer missing ``power-capacity`` from directional device capacities before falling back to site capacity, and default the missing opposite capacity to zero when only a non-zero ``consumption-capacity`` or ``production-capacity`` is configured [see `PR #2222 <https://www.github.com/FlexMeasures/flexmeasures/pull/2222>`_]
 * CLI support for adding/editing account attributes [see `PR #2242 <https://www.github.com/FlexMeasures/flexmeasures/pull/2242>`_]
+* Improve chart axis domain for event values not around zero [see `PR #2244 <https://www.github.com/FlexMeasures/flexmeasures/pull/2244>`_]
 
 
 Infrastructure / Support
