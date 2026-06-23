@@ -546,7 +546,7 @@ function buildLineBarOption(elementId, groups, opts) {
       left: plotCenter,
       textAlign: "center",
       top: top - 42,
-      textStyle: { fontSize: 15, color: "#222" },
+      textStyle: { fontSize: Math.round(FONT_SIZE * 1.25), color: "#222" }, // matches Vega-Lite title size (20 px)
     });
     if (!legendsBelow) {
       const legendNames = Array.from(new Set(group.series.map((s) => s.name)));
@@ -585,6 +585,8 @@ function buildLineBarOption(elementId, groups, opts) {
       splitLine: { show: true, lineStyle: { opacity: 0.5 } },
       minInterval: 6 * 3600 * 1000, // at most one tick per 6h so 12:00 labels appear
       axisLabel: {
+        fontSize: FONT_SIZE,
+        color: "#222",
         formatter: (value) => {
           const d = new Date(value);
           const h = d.getHours(), m = d.getMinutes();
@@ -611,6 +613,7 @@ function buildLineBarOption(elementId, groups, opts) {
         align: "left",
         padding: [0, 0, 4, -GRID_LEFT + 16],
       },
+      axisLabel: { fontSize: FONT_SIZE, color: "#222" },
       splitLine: { show: true, lineStyle: { opacity: 0.7 } },
     });
     group.series.forEach((s, j) => {
