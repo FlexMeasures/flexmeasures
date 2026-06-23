@@ -42,15 +42,43 @@ const instances = {};
 
 /* ============================== formatting ============================== */
 
+// Build a label for a single source. Mirrors the Vega-Lite "source_legend_label"
+// transform: keep source.name visible, and only when sources share a name do we
+// fall back (handled in computeSourceLabels). On its own this returns the name.
 function sourceLabel(source) {
-  if (source.description) {
-    return source.description;
+  return source.name || "source " + source.id;
+}
+
+// Compute legend labels for a set of sources, mirroring the Vega-Lite chart:
+// show only source.name when names are unique, and append the shortest
+// distinguishing detail (type / model / version, else the id) when they collide.
+// Returns a Map keyed by source.id.
+function computeSourceLabels(sources) {
+  const byId = new Map();
+  for (const s of sources) {
+    if (s && s.id != null) byId.set(s.id, s);
   }
-  let label = source.name || "source " + source.id;
-  if (source.model) {
-    label += " (" + source.model + ")";
+  const uniqueSources = Array.from(byId.values());
+
+  const nameCount = new Map();
+  for (const s of uniqueSources) {
+    const name = s.name || "source " + s.id;
+    nameCount.set(name, (nameCount.get(name) || 0) + 1);
   }
-  return label;
+
+  const labels = new Map();
+  for (const s of uniqueSources) {
+    const name = s.name || "source " + s.id;
+    if (nameCount.get(name) === 1) {
+      labels.set(s.id, name); // unique name → just the name, as in Vega-Lite
+      continue;
+    }
+    // Duplicate names: append the shortest available distinguishing detail.
+    const detail =
+      s.display_type || s.type || s.model || (s.version ? "v" + s.version : "");
+    labels.set(s.id, detail ? name + " (" + detail + ")" : name + " (ID: " + s.id + ")");
+  }
+  return labels;
 }
 
 function capFirst(s) {
@@ -246,13 +274,22 @@ function groupData(data, groupSpec) {
   }
   const nameBySensor = uniqueSensorKeys.size > 1;
 
+  // Source legend labels, disambiguated only when names collide (as in Vega-Lite).
+  const allSources = [];
+  for (const group of groups) {
+    for (const s of group.series.values()) allSources.push(s.source);
+  }
+  const sourceLabels = computeSourceLabels(allSources);
+
   return groups.map((group) => {
     const series = [];
     for (const s of group.series.values()) {
       s.points.sort((a, b) => a[0] - b[0]);
       // Series sharing a name (same sensor, several sources) toggle together
       // via their shared legend entry, as in the Vega-Lite charts.
-      s.name = nameBySensor ? s.sensorDescription || s.sensorName : s.sourceLabel;
+      const srcLabel =
+        (s.source && sourceLabels.get(s.source.id)) || s.sourceLabel;
+      s.name = nameBySensor ? s.sensorDescription || s.sensorName : srcLabel;
       s.sensorType = group.sensorType || s.sensorName;
       series.push(s);
     }
@@ -510,18 +547,31 @@ function buildLineBarOption(elementId, groups, opts) {
   // one combined legend at the very bottom, as in the Vega-Lite charts
   const lastGridBottom =
     topOffset + groups.length * GRID_HEIGHT + (groups.length - 1) * gridGap;
-  // Bottom legend stacks vertically (one entry per row) as in the Vega-Lite
-  // charts, so its height grows with the number of distinct sensor entries.
+  // Bottom legend: stack vertically (one entry per row) when there are many
+  // entries (asset charts with several sensors), as in the Vega-Lite charts;
+  // keep it horizontal for a few entries (e.g. the sensor page's sources).
   const numLegendEntries = new Set(
     groups.flatMap((g) => g.series.map((s) => s.name))
   ).size;
-  const legendHeight = numLegendEntries * 24 + 8;
+  const bottomLegendVertical = numLegendEntries > 4;
+  const itemsPerRow = Math.max(Math.floor((containerWidth - GRID_LEFT - 30) / 220), 1);
+  const legendHeight = bottomLegendVertical
+    ? numLegendEntries * 24 + 8
+    : Math.ceil(numLegendEntries / itemsPerRow) * 24 + 8;
   const sliderTop = lastGridBottom + 36;
-  const bottomLegendTop = sliderTop + 28 + 18;
+  const bottomLegendTitleTop = sliderTop + 28 + 14; // "Source"/"Sensor" heading
+  const legendTitleHeight = 24;
+  const bottomLegendTop = bottomLegendTitleTop + legendTitleHeight;
 
+  // The container is a ".card" with vertical padding; under border-box sizing
+  // that padding shrinks the usable canvas, which would clip the bottom legend
+  // on short single-plot (sensor-page) charts. Add it back so nothing is cut off.
+  const cs = window.getComputedStyle(container);
+  const verticalPadding =
+    (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
   container.style.height = legendsBelow
-    ? bottomLegendTop + legendHeight + 12 + "px"
-    : topOffset + groups.length * (GRID_HEIGHT + gridGap) + BOTTOM_OFFSET + "px";
+    ? bottomLegendTop + legendHeight + 12 + verticalPadding + "px"
+    : topOffset + groups.length * (GRID_HEIGHT + gridGap) + BOTTOM_OFFSET + verticalPadding + "px";
 
   const grids = [];
   const xAxes = [];
@@ -670,17 +720,36 @@ function buildLineBarOption(elementId, groups, opts) {
     });
   });
 
+  // Title above the bottom legend: "Sensor" for multi-sensor (asset) charts,
+  // "Source" for single-sensor (sensor page) charts, as in the Vega-Lite charts.
+  const bottomLegendTitle = legendsBelow
+    ? {
+        type: "text",
+        left: GRID_LEFT,
+        top: bottomLegendTitleTop,
+        style: {
+          text: groups[0].nameBySensor ? "Sensor" : "Source",
+          font: "bold " + FONT_SIZE + "px " + CHART_FONT,
+          fill: "#222",
+        },
+      }
+    : null;
+
   if (legendsBelow) {
     // One combined legend below all subplots, stacked vertically (one entry per
     // row) as in the Vega-Lite charts rather than wrapping horizontally.
     legends.push({
+      // "plain" (not "scroll"): the container height already grows to fit every
+      // entry (see legendHeight), so all entries show without pagination
+      // controls that would otherwise eat the space and hide the items.
       data: Array.from(new Set(seriesMeta.map((s) => s.name))),
-      type: "scroll",
-      orient: "vertical",
+      type: "plain",
+      orient: bottomLegendVertical ? "vertical" : "horizontal",
       left: GRID_LEFT,
+      right: bottomLegendVertical ? undefined : 30,
       top: bottomLegendTop,
       itemWidth: 18,
-      itemGap: 6,
+      itemGap: bottomLegendVertical ? 6 : 12,
       textStyle: { fontSize: FONT_SIZE },
       tooltip: { show: true },
     });
@@ -697,7 +766,7 @@ function buildLineBarOption(elementId, groups, opts) {
 
   return {
     textStyle: { fontFamily: CHART_FONT, fontSize: FONT_SIZE },
-    graphic: sourceKey ? [sourceKey] : undefined,
+    graphic: [sourceKey, bottomLegendTitle].filter(Boolean),
     grid: grids,
     title: titles,
     xAxis: xAxes,
