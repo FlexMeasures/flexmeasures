@@ -10,6 +10,55 @@ from flask_security import auth_required
 
 from flexmeasures.api.common.responses import unrecognized_event
 from flexmeasures.api.common.utils.api_utils import job_status_description
+from flexmeasures.data import db
+from flexmeasures.data.models.time_series import Sensor
+
+
+def _transform_sensor_keyed_to_asset_keyed(
+    sensor_keyed_targets: dict,
+) -> list[dict]:
+    """Transform sensor-keyed constraint targets to asset-keyed format.
+
+    Converts results keyed by sensor ID (from SchedulingJobResult) to asset-keyed format
+    suitable for the jobs API, including both asset and sensor information in each entry.
+
+    Args:
+        sensor_keyed_targets: Dict keyed by sensor ID string, with constraint info as values
+
+    Returns:
+        List of dicts, each with "asset", "sensor", and constraint keys ("soc-minima", "soc-maxima")
+    """
+    if not sensor_keyed_targets:
+        return []
+
+    asset_keyed: dict[int, dict] = {}
+
+    for sensor_id_str, constraints in sensor_keyed_targets.items():
+        # Fetch the sensor to get its asset
+        try:
+            sensor = db.session.get(Sensor, int(sensor_id_str))
+            if sensor is None:
+                continue
+            asset = sensor.generic_asset
+            if asset is None:
+                continue
+        except (ValueError, TypeError):
+            continue
+
+        asset_id = asset.id
+
+        # Initialize or update the asset entry
+        if asset_id not in asset_keyed:
+            asset_keyed[asset_id] = {
+                "asset": asset_id,
+                "sensor": sensor.id,
+            }
+
+        # Add constraint information
+        for constraint_type, constraint_data in constraints.items():
+            asset_keyed[asset_id][constraint_type] = constraint_data
+
+    return list(asset_keyed.values())
 
 
 class JobResultAPI(FlaskView):
@@ -268,10 +317,25 @@ class JobResultAPI(FlaskView):
             job, f"{scheduler_info.get('scheduler', 'Unknown')} was used."
         )
 
-        # Extract the scheduling result if available
+        # Extract the scheduling result if available and transform to asset-keyed format
         scheduling_result = job.meta.get("scheduling_result")
         if scheduling_result:
-            result_dict = scheduling_result
+            # scheduling_result is a SchedulingJobResult object with sensor-keyed data
+            # Transform it to asset-keyed format for the API response
+            unmet_list = _transform_sensor_keyed_to_asset_keyed(
+                scheduling_result.get("unresolved_targets", {})
+                if isinstance(scheduling_result, dict)
+                else scheduling_result.unresolved_targets
+            )
+            resolved_list = _transform_sensor_keyed_to_asset_keyed(
+                scheduling_result.get("resolved_targets", {})
+                if isinstance(scheduling_result, dict)
+                else scheduling_result.resolved_targets
+            )
+            result_dict = {
+                "unmet": unmet_list,
+                "resolved": resolved_list,
+            }
         else:
             result_dict = {"unmet": [], "resolved": []}
 
