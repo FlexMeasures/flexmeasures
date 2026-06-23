@@ -131,6 +131,23 @@ def register_rq_dashboard(app):
 
 def add_jinja_filters(app):
     from flexmeasures.ui.utils.view_utils import asset_icon_name, username, accountname
+    from flexmeasures.data.models.charts.belief_charts import (
+        determine_shared_sensor_type,
+    )
+
+    def shared_sensor_type(sensors):
+        """Mirror the Vega-Lite y-axis title logic: if all sensors share a
+        sensor type use it, otherwise derive the dimension from the shared unit
+        (e.g. a group of kW sensors becomes "power").
+
+        ``sensor_type`` is normally set lazily inside the chart methods, so we
+        populate it here (as ``get_attribute("sensor_type", name)``) before
+        delegating to the shared helper.
+        """
+        sensors = list(sensors)
+        for sensor in sensors:
+            sensor.sensor_type = sensor.get_attribute("sensor_type", sensor.name)
+        return determine_shared_sensor_type(sensors)
 
     app.jinja_env.filters["zip"] = zip  # Allow zip function in templates
     app.jinja_env.add_extension(
@@ -143,6 +160,7 @@ def add_jinja_filters(app):
     app.jinja_env.filters["capitalize"] = capitalize
     app.jinja_env.filters["pluralize"] = pluralize
     app.jinja_env.filters["parameterize"] = parameterize
+    app.jinja_env.filters["shared_sensor_type"] = shared_sensor_type
     app.jinja_env.filters["isnull"] = pd.isnull
     app.jinja_env.filters["hide_nan_if_desired"] = lambda x: (
         ""

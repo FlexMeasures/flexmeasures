@@ -87,10 +87,13 @@
         {% elif item.sensor is defined and item.sensor %}
         {% set entry.sensors = [item.sensor] %}
         {% endif %}
-        {# y-axis title source: sensor_type of the first real (DB-backed) sensor; fixed-value sensors (negative ids) only have a name #}
+        {# y-axis title source: shared sensor type of the real (DB-backed) sensors. #}
+        {# If they don't share one type, derive the dimension from the shared unit #}
+        {# (e.g. a group of kW sensors becomes "power"), matching the Vega-Lite charts. #}
+        {# Fixed-value sensors (negative ids) only have a name. #}
         {% set real_sensors = entry.sensors | selectattr("id", "gt", 0) | list %}
         {% if real_sensors %}
-        {% set entry_sensor_type = real_sensors[0].get_attribute("sensor_type", real_sensors[0].name) %}
+        {% set entry_sensor_type = real_sensors | shared_sensor_type %}
         {% elif entry.sensors %}
         {% set entry_sensor_type = entry.sensors[0].name %}
         {% else %}

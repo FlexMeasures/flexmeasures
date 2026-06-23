@@ -461,9 +461,12 @@ function buildLineBarOption(elementId, groups, opts) {
   // one combined legend at the very bottom, as in the Vega-Lite charts
   const lastGridBottom =
     topOffset + groups.length * GRID_HEIGHT + (groups.length - 1) * gridGap;
-  const numSeries = groups.reduce((sum, g) => sum + g.series.length, 0);
-  const itemsPerRow = Math.max(Math.floor((containerWidth - GRID_LEFT - 30) / 220), 1);
-  const legendHeight = Math.ceil(numSeries / itemsPerRow) * 24 + 8;
+  // Bottom legend stacks vertically (one entry per row) as in the Vega-Lite
+  // charts, so its height grows with the number of distinct sensor entries.
+  const numLegendEntries = new Set(
+    groups.flatMap((g) => g.series.map((s) => s.name))
+  ).size;
+  const legendHeight = numLegendEntries * 24 + 8;
   const sliderTop = lastGridBottom + 36;
   const bottomLegendTop = sliderTop + 28 + 18;
 
@@ -497,19 +500,32 @@ function buildLineBarOption(elementId, groups, opts) {
       textStyle: { fontSize: 15, color: "#222" },
     });
     if (!legendsBelow) {
+      const legendNames = Array.from(new Set(group.series.map((s) => s.name)));
+      // Vertically center the legend beside its subplot rather than pinning it
+      // to the top of the chart. Estimate the rendered height (one row per entry)
+      // and offset from the grid top by half the leftover space.
+      const rowHeight = FONT_SIZE + 6; // font size + itemGap between rows
+      const legendContentHeight = legendNames.length * rowHeight;
+      const legendTop = top + Math.max(0, (GRID_HEIGHT - legendContentHeight) / 2);
       legends.push({
         // One vertical legend beside each subplot, listing only its own series
-        data: Array.from(new Set(group.series.map((s) => s.name))),
+        data: legendNames,
         type: "scroll",
         tooltip: { show: true }, // hover reveals truncated names in full
         orient: "vertical",
         right: 8,
-        top: top,
+        top: legendTop,
         height: GRID_HEIGHT,
         align: "left",
         itemWidth: 18,
         itemGap: 6,
-        textStyle: { fontSize: FONT_SIZE },
+        textStyle: {
+          fontSize: FONT_SIZE,
+          // Truncate long names with an ellipsis, e.g. "sensor-007 (bulk...)".
+          // The full name is still revealed on hover via the legend tooltip.
+          width: LEGEND_WIDTH - 30,
+          overflow: "truncate",
+        },
       });
     }
     xAxes.push({
@@ -603,16 +619,16 @@ function buildLineBarOption(elementId, groups, opts) {
   });
 
   if (legendsBelow) {
-    // One combined legend below all subplots, as in the Vega-Lite charts
+    // One combined legend below all subplots, stacked vertically (one entry per
+    // row) as in the Vega-Lite charts rather than wrapping horizontally.
     legends.push({
       data: Array.from(new Set(seriesMeta.map((s) => s.name))),
-      type: "plain", // wraps into multiple rows
-      orient: "horizontal",
+      type: "scroll",
+      orient: "vertical",
       left: GRID_LEFT,
-      right: 30,
       top: bottomLegendTop,
       itemWidth: 18,
-      itemGap: 12,
+      itemGap: 6,
       textStyle: { fontSize: FONT_SIZE },
       tooltip: { show: true },
     });
