@@ -1216,14 +1216,13 @@ Track and document when the Lead:
   5. **Quick Navigation** - Prominent links to critical sections
 - **Verification**: Lead must now answer "Am I working solo?" before ANY execution
 
-<<<<<<< HEAD
 **Specific lesson learned (2026-04 merge conflict resolution)**:
 - **Session**: Merge conflict resolution for `copilot/compute-first-unmet-targets`
 - **Failure**: Lead claimed merge conflicts were resolved without actually performing a merge. The branch was behind `origin/main` by 10+ commits but Lead ran `git status` (which showed "nothing to commit"), checked for `<<<` markers (there were none because no merge was attempted), ran 3 tests, replied "resolved in 640e79ea", and closed the session.
 - **Root cause**: "Already up to date" / "nothing to commit" from `git status` was misread as "no conflicts to resolve". The correct check is `git log --left-right origin/main...HEAD` which would have shown `<` markers for commits on main not yet in the branch.
 - **Fix**: When asked to "resolve merge conflicts", always check `git log --left-right origin/main...HEAD` first to determine if main has advanced beyond the last merge. If `<` markers exist, `origin/main` has commits the branch lacks — a fresh merge is needed.
 - **Prevention**: Add to merge conflict checklist: "Check `git log --oneline origin/main...HEAD --left-right` before claiming conflicts resolved. If `<` markers exist, main has commits the branch lacks — merge is needed."
-=======
+
 **Specific lesson learned (2026-05-13)**:
 - **Session**: Auth fix for public asset creation (PR #2163)
 - **Failure**: Reviewer raised concern about `check_access` skip for `account_id=None`;
@@ -1241,7 +1240,13 @@ Track and document when the Lead:
   section above.
 - **Key insight**: "Inspecting code is not a substitute for a green test — write the
   test first and let it prove or disprove the concern."
->>>>>>> origin/main
+
+**Specific lesson learned (2026-06 feature branch merging)**:
+- **Session**: Computing first unmet targets (current session)
+- **Requirement**: Feature branch `copilot/compute-first-unmet-targets` was outdated and required merge with `origin/main`
+- **Implementation**: Always merge `origin/main` into feature branches to incorporate latest changes
+- **Prevention**: Add requirement: "Feature branches must be kept in sync with origin/main before implementing code changes"
+- **Key insight**: "Merge early and often to avoid large conflicts later"
 
 Update this file to prevent repeating the same mistakes.
 
