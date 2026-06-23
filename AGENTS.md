@@ -1247,6 +1247,21 @@ Track and document when the Lead:
 - **Implementation**: Always merge `origin/main` into feature branches to incorporate latest changes
 - **Prevention**: Add requirement: "Feature branches must be kept in sync with origin/main before implementing code changes"
 - **Key insight**: "Merge early and often to avoid large conflicts later"
+- **Execution**: Merged origin/main successfully, resolved 3 merge conflicts (AGENTS.md, jobs.py, storage.py)
+- **Code changes made**:
+  - Added _transform_sensor_keyed_to_asset_keyed() helper function in jobs.py
+  - Updated GET /api/v3_0/jobs/<uuid> endpoint to return asset-keyed scheduling results
+  - Results now include both asset ID and sensor ID, with asset as primary key
+  - First step of two-part implementation: fetch from job.meta, return in result field (complete)
+  - Second step (move to job.return_value()) deferred for separate commit
+- **Patterns discovered**:
+  - SchedulingJobResult uses sensor-keyed format internally for storage
+  - Job results stored in job.meta via to_dict() serialization
+  - API transformation layer converts sensor-keyed to asset-keyed format for consistency
+- **Code review insights**:
+  - FlaskView classes with route_prefix don't need explicit registration if pattern matches
+  - Import conflicts during merge can be resolved by aligning class names with expectations
+  - Asset references are more meaningful for API consumers than sensor-only references
 
 Update this file to prevent repeating the same mistakes.
 
