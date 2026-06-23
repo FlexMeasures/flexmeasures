@@ -9,9 +9,36 @@ class SchedulingJobResult:
 
     JSON serializable to enable storage in RQ job metadata and retrieval via the API.
 
-    Note: ``soc-targets`` are modelled as hard constraints in the scheduler, meaning
-    the scheduler will not allow any deviation from them by definition. Therefore,
-    unmet ``soc-targets`` are not reported here.
+    This class represents the constraint analysis results produced by the scheduler when optimizing
+    a device with state-of-charge constraints. Results are available through two API endpoints:
+
+    1. Via ``GET /api/v3_0/sensors/<id>/schedules/<uuid>``: Embedded in ``scheduling_result`` field,
+       keyed by sensor ID (sensor-keyed format).
+    2. Via ``GET /api/v3_0/jobs/<uuid>``: As part of the ``result`` object with ``unmet`` and ``resolved``
+       arrays, keyed by asset ID (asset-keyed format).
+
+    The asset-keyed format is used for the standalone jobs endpoint to provide a cleaner API that groups
+    results by asset rather than sensor ID.
+
+    **Important Notes:**
+
+    - ``soc-targets`` are modelled as hard constraints in the scheduler, meaning the scheduler will not
+      allow any deviation from them by definition. Therefore, unmet ``soc-targets`` are not reported here.
+    - Results are only populated if a state-of-charge sensor is configured on the scheduled device.
+    - Empty dicts/arrays in results mean either all constraints were satisfied or no constraints were defined.
+
+    **API Usage:**
+
+    For constraint analysis, consumers should use the ``GET /api/v3_0/jobs/<uuid>`` endpoint, which
+    provides results in a standardized asset-keyed format. This is especially useful when:
+
+    - Inspecting constraint violations without needing the full schedule.
+    - Building dashboards or dashboards that display constraint status across multiple devices.
+    - Diagnosing scheduling issues related to constraint violations.
+    - Integrating scheduling results into fleet management or monitoring systems.
+
+    See :ref:`scheduling_constraint_results` in the scheduling documentation for usage examples
+    and interpretation guidance.
     """
 
     unresolved_targets: dict = field(default_factory=dict)

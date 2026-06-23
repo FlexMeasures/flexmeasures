@@ -946,6 +946,11 @@ class SensorAPI(FlaskView):
 
                           Requires a ``state-of-charge`` sensor to be set on the device.
 
+                          **See also:** For more detailed constraint analysis, use the
+                          [GET /api/v3_0/jobs/<uuid>](#/Jobs/get_api_v3_0_jobs__uuid_) endpoint,
+                          which provides structured information about unmet and resolved constraints
+                          organized by asset.
+
                           The ``unresolved_targets`` field lists soft SoC constraints that could
                           not be satisfied, keyed by state-of-charge sensor ID string.
                           An empty ``{}`` means all targets were met (or no constraints were

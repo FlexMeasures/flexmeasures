@@ -356,8 +356,161 @@ An empty ``{}`` means no constraints of that type were defined.
 
 For full technical details of the response schema, refer to the API endpoint documentation for ``GET /sensors/<id>/schedules/<uuid>``.
 
+For detailed constraint analysis and asset-keyed results, use the ``GET /api/v3_0/jobs/<uuid>`` endpoint, which provides structured information about unmet and resolved constraints organized by asset.
 
-Work on other schedulers
+
+.. _scheduling_constraint_results:
+
+Accessing constraint results
+-----------------------------
+
+When a schedule is computed for a device with state-of-charge constraints, FlexMeasures analyzes whether the constraints can be met.
+The constraint analysis results are available through two endpoints:
+
+1. **Via the sensor schedule endpoint** (``GET /sensors/<id>/schedules/<uuid>``):
+   Returns the schedule (power values over time) for one specific sensor, including an embedded ``scheduling_result`` field with constraint analysis.
+
+2. **Via the jobs endpoint** (``GET /api/v3_0/jobs/<uuid>``):
+   Returns detailed constraint analysis for all assets involved in the scheduling job, organized by asset ID.
+   This endpoint is useful when you want to inspect constraint violations without retrieving the full schedule.
+
+The constraint results use a consistent structure across both endpoints. The structure distinguishes between:
+
+- **Unmet constraints**: Soft constraints that could not be satisfied during optimization.
+- **Resolved constraints**: Soft constraints that were satisfied with some margin.
+
+Each constraint result includes:
+
+- ``datetime``: ISO 8601 UTC timestamp when the constraint was tightest (for resolved constraints) or first violated (for unmet constraints).
+- ``unmet`` (unmet only): Magnitude of the violation (shortage for minima, excess for maxima).
+- ``margin`` (resolved only): Headroom remaining at the tightest point.
+
+
+Example: Constraint results from a battery scheduling job
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Suppose you schedule a battery device (asset ID 42, SoC sensor ID 17) with the following constraints:
+
+- **soc-minima**: Battery must stay above 10 kWh
+- **soc-maxima**: Battery must not exceed 100 kWh
+
+If the optimization cannot satisfy the minimum constraint at 10:30 UTC (falling short by 260 kWh),
+but does satisfy the maximum constraint with a 40 kWh margin at 12:00 UTC,
+the constraint results would show:
+
+**Response via GET /api/v3_0/jobs/<uuid>:**
+
+.. code-block:: json
+
+    {
+        "result": {
+            "unmet": [
+                {
+                    "asset": 42,
+                    "sensor": 17,
+                    "soc-minima": [
+                        {
+                            "datetime": "2024-01-15T10:30:00+00:00",
+                            "unmet": "260.0 kWh"
+                        }
+                    ]
+                }
+            ],
+            "resolved": [
+                {
+                    "asset": 42,
+                    "sensor": 17,
+                    "soc-maxima": [
+                        {
+                            "datetime": "2024-01-15T12:00:00+00:00",
+                            "margin": "40.0 kWh"
+                        }
+                    ]
+                }
+            ]
+        },
+        "status": "PROCESSED",
+        "message": "Scheduling job processed successfully",
+        "scheduler_info": {"scheduler": "StorageScheduler"}
+    }
+
+**Response via GET /sensors/17/schedules/<uuid>:**
+
+The same constraint results would be embedded in the ``scheduling_result`` field, keyed by sensor ID instead of asset ID:
+
+.. code-block:: json
+
+    {
+        "values": [2.15, 3, 2, ...],
+        "start": "2024-01-15T10:00:00+00:00",
+        "duration": "PT24H",
+        "unit": "kW",
+        "scheduling_result": {
+            "unresolved_targets": {
+                "17": {
+                    "soc-minima": {
+                        "datetime": "2024-01-15T10:30:00+00:00",
+                        "unmet": "260.0 kWh"
+                    }
+                }
+            },
+            "resolved_targets": {
+                "17": {
+                    "soc-maxima": {
+                        "datetime": "2024-01-15T12:00:00+00:00",
+                        "margin": "40.0 kWh"
+                    }
+                }
+            }
+        }
+    }
+
+
+Interpreting constraint results for optimization decisions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When constraints are all met:**
+
+An empty ``unmet`` array (or empty ``unresolved_targets`` dict) indicates successful optimization.
+However, check the ``margin`` values in ``resolved`` (or ``resolved_targets``) to understand how tight the constraints were:
+
+- Large margins (e.g., 500 kWh) suggest the device has significant flexibility headroom.
+- Small margins (e.g., 5 kWh) indicate the constraints were nearly violated.
+- Zero margin would mean the device hit the exact constraint limit.
+
+*Use case*: If you see very small margins, you may want to relax constraints or provide additional flexibility to create a more robust schedule.
+
+**When constraints are unmet:**
+
+Unmet constraints indicate the optimization problem was over-constrained. Common causes:
+
+- Insufficient device capacity to meet all constraints within the planning horizon.
+- Conflicting constraints (e.g., a very high minimum and a very tight planning window).
+- Inflexible demand patterns preventing the device from reaching desired states.
+
+The ``unmet`` values tell you how much shortfall exists:
+
+- For ``soc-minima`` violations: The shortage in kWh. The device could not charge enough.
+- For ``soc-maxima`` violations: The excess in kWh. The device could not discharge enough.
+
+*Use case*: If a battery is reporting 260 kWh shortage for a planned trip, you may need to:
+- Extend the planning horizon to allow more time for charging.
+- Install a larger battery.
+- Reduce the minimum SoC requirement.
+- Use external charge points.
+
+**When no constraints are defined:**
+
+If ``unmet`` and ``resolved`` are both empty, no state-of-charge constraints were set,
+or the device has no state-of-charge sensor configured.
+This is normal for devices without storage or for simpler scheduling scenarios.
+
+.. note:: Hard constraints (``soc-targets``) are never reported in results because the scheduler
+          enforces them strictly by definition. If a hard constraint cannot be met, the entire
+          scheduling job will fail, not produce results with violations.
+
+
+
 --------------------------
 
 We believe the two schedulers (and their flex-models) we describe here are covering a lot of use cases already.
