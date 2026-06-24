@@ -135,6 +135,7 @@ def test_edit_asset_secret(app, db, setup_generic_assets):
 
     app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
     asset = setup_generic_assets["test_battery"]
+    db.session.flush()
     cli_input = {
         "asset": asset.id,
         "secret": "platform.password",
@@ -154,13 +155,14 @@ def test_edit_asset_secret(app, db, setup_generic_assets):
 
 
 def test_edit_secret_rejects_account_and_asset(
-    app, setup_accounts, setup_generic_assets
+    app, db, setup_accounts, setup_generic_assets
 ):
     from flexmeasures.cli.data_edit import edit_secret
 
     app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
     account = setup_accounts["Prosumer"]
     asset = setup_generic_assets["test_battery"]
+    db.session.flush()
     cli_input = {
         "account": account.id,
         "asset": asset.id,

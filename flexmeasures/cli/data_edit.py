@@ -248,7 +248,6 @@ def edit_secret(
       flexmeasures edit secret --account 1 --secret platform.refresh_token --prompt
       flexmeasures edit secret --asset 2 --secret platform.password --value secret --metadata '{"expires_at": "2026-06-24T02:00:00"}'
     """
-
     if (account is None) == (asset is None):
         raise ValueError("Pass exactly one of --account or --asset.")
     if (secret_value is None) == (not prompt_for_secret):
