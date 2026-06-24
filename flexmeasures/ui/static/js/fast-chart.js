@@ -760,6 +760,8 @@ function buildLineBarOption(elementId, groups, opts) {
           ...(isInstantaneous ? {} : { step: "end" }), // step-after for interval data
           showSymbol: false,
           sampling: "lttb", // downsample to the available pixels, preserving peaks
+          large: true, // batched canvas path: faster redraws while panning/zooming
+          largeThreshold: 1000,
           lineStyle: { width: 2.2, type: lineTypeForSource(s.source) },
         });
       }
@@ -848,10 +850,14 @@ function buildLineBarOption(elementId, groups, opts) {
     },
     toolbox: toolbox,
     dataZoom: [
-      { type: "inside", xAxisIndex: allAxisIndices }, // mouse-wheel zoom and drag-to-pan
+      // Mouse-wheel zoom and drag-to-pan. throttle coalesces rapid wheel/drag
+      // ticks so we redraw at most every ~80 ms instead of on every event.
+      { type: "inside", xAxisIndex: allAxisIndices, throttle: 80 },
+      // Range slider: realtime:false redraws only on drag-release (no mid-drag
+      // re-render of all series); a light gray ghost shows the pending window.
       legendsBelow
-        ? { type: "slider", xAxisIndex: allAxisIndices, top: sliderTop, height: 28 }
-        : { type: "slider", xAxisIndex: allAxisIndices, bottom: 14, height: 28 },
+        ? { type: "slider", xAxisIndex: allAxisIndices, top: sliderTop, height: 28, realtime: false, throttle: 80 }
+        : { type: "slider", xAxisIndex: allAxisIndices, bottom: 14, height: 28, realtime: false, throttle: 80 },
     ],
   };
 }
