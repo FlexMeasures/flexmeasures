@@ -27,7 +27,7 @@ The image below shows an example architecture, and you can see that this allows 
 ..    :scale: 40%
 
 
-See also :ref:`docker-compose` for inspiration, though docker compose is more commonly used for development.
+See also :ref:`docker-compose` for inspiration, though docker compose is more commonly used for development or for hobbyist production systems.
 
 
 WSGI configuration
