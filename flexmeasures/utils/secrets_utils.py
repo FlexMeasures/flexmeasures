@@ -103,24 +103,16 @@ def format_keyring_config_help(
         """
 
 
-def set_keyring_config(
-    app,
-    setting_name: str,
-    *,
-    filename: str | None = None,
-    purpose: str,
-    key_value_generator_python: str = _CONNECTION_SECRETS_KEY_VALUE_GENERATOR,
-    setting_generator_python: str = _CONNECTION_SECRETS_SETTING_GENERATOR,
-) -> None:
-    """Set a dictionary-based secret setting from config, environment or file.
+def set_totp_secrets(app, filename: str = "totp_secrets") -> None:
+    """Set the ``SECURITY_TOTP_SECRETS`` setting or exit app startup.
 
     :param app: Flask app whose config should receive the setting.
-    :param setting_name: Name of the FlexMeasures configuration setting.
-    :param filename: Optional filename in the app instance path.
-    :param purpose: Short explanation used in the setup help text.
-    :param key_value_generator_python: Python snippet which prints one secret.
-    :param setting_generator_python: Python snippet which prints the JSON setting.
+    :param filename: File name in the app instance path to check after config
+        and environment values.
     """
+    setting_name = "SECURITY_TOTP_SECRETS"
+    purpose = "required for two-factor authentication"
+
     if app.config.get(setting_name, None) is not None:
         return
     configured_value = os.environ.get(setting_name, None)
@@ -153,8 +145,8 @@ def set_keyring_config(
             setting_name,
             purpose=purpose,
             filename=path,
-            key_value_generator_python=key_value_generator_python,
-            setting_generator_python=setting_generator_python,
+            key_value_generator_python=_TOTP_SECRETS_KEY_VALUE_GENERATOR,
+            setting_generator_python=_TOTP_SECRETS_SETTING_GENERATOR,
         )
     )
     sys.exit(2)
@@ -179,23 +171,6 @@ def log_keyring_config_error_and_exit(app, setting_name: str, filename: str) -> 
         % (filename, setting_name)
     )
     sys.exit(2)
-
-
-def set_totp_secrets(app, filename: str = "totp_secrets") -> None:
-    """Set the ``SECURITY_TOTP_SECRETS`` setting or exit app startup.
-
-    :param app: Flask app whose config should receive the setting.
-    :param filename: File name in the app instance path to check after config
-        and environment values.
-    """
-    set_keyring_config(
-        app,
-        "SECURITY_TOTP_SECRETS",
-        filename=filename,
-        purpose="required for two-factor authentication",
-        key_value_generator_python=_TOTP_SECRETS_KEY_VALUE_GENERATOR,
-        setting_generator_python=_TOTP_SECRETS_SETTING_GENERATOR,
-    )
 
 
 def set_secret_key(app, filename: str = "secret_key") -> None:
@@ -244,16 +219,6 @@ def set_secret_key(app, filename: str = "secret_key") -> None:
         )
 
         sys.exit(2)
-
-
-def connection_secrets_keyring_help() -> str:
-    """Return setup instructions for the connection secrets keyring."""
-    return format_keyring_config_help(
-        "FLEXMEASURES_SECRETS_ENCRYPTION_KEYS",
-        purpose="required before storing connection secrets",
-        key_value_generator_python=_CONNECTION_SECRETS_KEY_VALUE_GENERATOR,
-        setting_generator_python=_CONNECTION_SECRETS_SETTING_GENERATOR,
-    )
 
 
 def derive_fernet_key(secret: str, *, salt: str = "flexmeasures-secrets") -> bytes:
@@ -317,7 +282,13 @@ class SecretsEncryptor:
         """
         encryption_keys = current_app.config.get("FLEXMEASURES_SECRETS_ENCRYPTION_KEYS")
         if encryption_keys is None:
-            raise InvalidSecretsEncryptionKey(connection_secrets_keyring_help())
+            help_msg = format_keyring_config_help(
+                "FLEXMEASURES_SECRETS_ENCRYPTION_KEYS",
+                purpose="required before storing connection secrets",
+                key_value_generator_python=_CONNECTION_SECRETS_KEY_VALUE_GENERATOR,
+                setting_generator_python=_CONNECTION_SECRETS_SETTING_GENERATOR,
+            )
+            raise InvalidSecretsEncryptionKey(help_msg)
         if not isinstance(encryption_keys, dict) or not encryption_keys:
             raise InvalidSecretsEncryptionKey(
                 "FLEXMEASURES_SECRETS_ENCRYPTION_KEYS must be a non-empty dictionary."
@@ -384,6 +355,7 @@ class SecretsEncryptor:
 
 
 def _normalize_keyring(encryption_keys: dict[str, str]) -> dict[str, str]:
+    """Return a copy of the keyring with non-empty string values only."""
     normalized_keys = {
         str(key_id): key
         for key_id, key in encryption_keys.items()
@@ -397,6 +369,7 @@ def _normalize_keyring(encryption_keys: dict[str, str]) -> dict[str, str]:
 
 
 def _latest_key_id(encryption_keys: dict[str, str]) -> str:
+    """Return the latest key ID from a keyring (dictionary of encryption keys)."""
     numeric_key_ids = [
         int(key_id) for key_id in encryption_keys if str(key_id).isdigit()
     ]
@@ -406,6 +379,7 @@ def _latest_key_id(encryption_keys: dict[str, str]) -> str:
 
 
 def _path_parts(path: str | tuple[str, ...] | list[str]) -> list[str]:
+    """Return a list of non-empty string parts from a dot-separated path or sequence."""
     if isinstance(path, str):
         parts = [part for part in path.split(".") if part]
     else:

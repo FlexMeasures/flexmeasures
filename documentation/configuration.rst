@@ -513,7 +513,7 @@ Default: ``None`` (falls back to ``SECRET_KEY``\ )
 FLEXMEASURES_SECRETS_ENCRYPTION_KEYS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Dictionary with key IDs mapped to key material, used to encrypt and decrypt
+Keyring (dictionary with key IDs mapped to key material), used to encrypt and decrypt
 connection secrets stored for accounts and assets. This follows the same shape
 as ``SECURITY_TOTP_SECRETS``, for example
 ``{"1": "old-secret", "2": "current-secret"}``.
