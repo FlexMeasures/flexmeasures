@@ -9,7 +9,7 @@ from flask_json import as_json
 from flask_security import auth_required
 
 from flexmeasures.api.common.responses import unrecognized_event
-from flexmeasures.api.common.utils.api_utils import job_status_description
+from flexmeasures.data.services.utils import job_status_description
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 
