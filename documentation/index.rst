@@ -99,8 +99,8 @@ What FlexMeasures does
 
 .. _use_cases_and_users:
 
-Use cases & Users
-------------------
+FlexMeasures in practice
+------------------------
 
 .. tabs::
 
@@ -114,13 +114,13 @@ Use cases & Users
 
         You decide what to optimize for ― prices, CO₂, peaks.
 
-        It becomes even more interesting to use FlexMeasures in *integrated scenarios* with increased complexity. For example, in modern domestic/office settings that combine solar panels, electric heating and EV charging, in industry settings that optimize for self-consumption of local solar panels, or when consumers can engage with multiple markets simultaneously.
+        It becomes even more interesting to use FlexMeasures in *integrated scenarios* with increased complexity. For example, in modern domestic/office settings that combine solar panels, heating (with electricity or gas) and EV charging, in industry settings that optimize for self-consumption of local solar panels, or when consumers can engage with multiple markets simultaneously.
 
         In these cases, our goal is that FlexMeasures helps you to achieve *"value stacking"*, which is often required to achieve a positive business case. Multiple sources of value can combine with multiple types of assets.
 
   .. tab:: Users
 
-        As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling.
+        As possible users, we see IoT or energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers. Also, medium/large industrials who are looking for smart decision support in their internal digital toolchain, servicing electrification.
 
         However, even small companies and hobby projects might find FlexMeasures useful! We are constantly improving the ease of use.
 
@@ -136,6 +136,16 @@ Use cases & Users
         ..    :scale: 40%
 
         This image should also make clear how to extend FlexMeasures on the edges to make it work for your exact use case ― by gateway integration, plugins and using FlexMeasures via its API.
+
+  .. tab:: Hosts
+
+        FlexMeasures is dockerized. In the cloud, FlexMeasures can be hosted on a single web server or on a scalable infrastructure.
+        We recommend that several FlexMeasures containers are run, with different main tasks, which you can scale as required.
+        See an example setup below or go to :ref:`deployment` for more information.
+
+        .. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/refs/heads/main/architecture/cloud-hosting-FlexMeasures-scalable.drawio.png
+            :align: center
+        ..    :scale: 40%
 
 
 
