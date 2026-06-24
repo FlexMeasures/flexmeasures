@@ -76,7 +76,6 @@ from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
     get_data_source_for_job,
 )
-from flexmeasures.data.models.planning.storage import SCHEDULING_RESULT_KEY
 from flexmeasures.utils.time_utils import duration_isoformat
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
 from flexmeasures.utils.unit_utils import convert_units
@@ -1081,6 +1080,11 @@ class SensorAPI(FlaskView):
             as database values and what is seen in UI charts. The values will indicate exactly what is stored,
             which is itself determined by the sensor's ``consumption_is_positive`` attribute (if set)
             or by the scheduler's default storage convention (production positive in the database).
+
+            **Constraint analysis**
+
+            For detailed constraint analysis (unmet and resolved constraints), use the
+            [GET /api/v3_0/jobs/<uuid>](#/Jobs/get_api_v3_0_jobs__uuid_) endpoint.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1148,52 +1152,6 @@ class SensorAPI(FlaskView):
                       scheduler_info:
                         type: object
                         description: Information about the scheduler that executed the job.
-                        additionalProperties: true
-
-                      scheduling_result:
-                        type: object
-                        description: |
-                          Additional results produced by the scheduler.
-                          This field is left out for jobs created before this field was introduced.
-
-                          Requires a ``state-of-charge`` sensor to be set on the device.
-
-                          **See also:** For more detailed constraint analysis, use the
-                          [GET /api/v3_0/jobs/<uuid>](#/Jobs/get_api_v3_0_jobs__uuid_) endpoint,
-                          which provides structured information about unmet and resolved constraints
-                          organized by asset.
-
-                          The ``unresolved_targets`` field lists soft SoC constraints that could
-                          not be satisfied, keyed by state-of-charge sensor ID string.
-                          An empty ``{}`` means all targets were met (or no constraints were
-                          defined).
-
-                          Each per-sensor entry may have ``"soc-minima"`` and/or ``"soc-maxima"``
-                          sub-keys (only present when a violation exists), each with:
-
-                          - ``"datetime"``: ISO 8601 UTC timestamp of the first violation.
-                          - ``"unmet"``: Always-positive shortage/excess in kWh, e.g.
-                            ``"260.0 kWh"``.  For ``soc-minima`` this is the shortage (SoC fell
-                            short by this amount); for ``soc-maxima`` this is the excess (SoC
-                            exceeded the target by this amount).
-
-                          The ``resolved_targets`` field lists soft SoC constraints that WERE
-                          satisfied, keyed by state-of-charge sensor ID string.
-                          An empty ``{}`` means no constraints of that type were defined.
-
-                          Each per-sensor entry may have ``"soc-minima"`` and/or ``"soc-maxima"``
-                          sub-keys (only present when the constraint type was defined and met),
-                          each with:
-
-                          - ``"datetime"``: ISO 8601 UTC timestamp of the tightest constraint
-                            slot (smallest positive margin).
-                          - ``"margin"``: Always-positive headroom in kWh, e.g. ``"40.0 kWh"``.
-                            For ``soc-minima`` this is how far above the minimum the SoC was;
-                            for ``soc-maxima`` this is how far below the maximum the SoC was.
-
-                          Note: ``soc-targets`` are modelled as hard constraints, so the
-                          scheduler will never allow a deviation from them by definition.
-                          They are therefore not reported here.
                         additionalProperties: true
 
                       values:
@@ -1364,17 +1322,12 @@ class SensorAPI(FlaskView):
             unit=unit,
         )
 
-        # Returns None if the job predates the scheduling_result feature (no meta key),
-        # or the dict with unresolved_targets if computed.
-        scheduling_result = job.meta.get(SCHEDULING_RESULT_KEY)
         d, s = request_processed(scheduler_info_msg)
         response_body = dict(
             scheduler_info=scheduler_info,
             **response,
             **d,
         )
-        if scheduling_result is not None:
-            response_body["scheduling_result"] = scheduling_result
         return (
             response_body,
             s,
