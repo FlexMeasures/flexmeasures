@@ -328,41 +328,7 @@ The schedule
 
 A schedule produced by FlexMeasures is a series of power values for each flexible device (represented by its power sensor), covering the scheduling window at the scheduling resolution.
 
-Besides the power values themselves, FlexMeasures also returns additional scheduling metadata in a ``scheduling_result`` field.  This field is populated when the device has a ``state-of-charge`` sensor configured (via the ``state-of-charge`` field in the flex model).
-
-**Unresolved targets** (``unresolved_targets``)
-
-The ``unresolved_targets`` field lists soft SoC constraints (``soc-minima`` and/or ``soc-maxima``) that could *not* be satisfied, keyed by state-of-charge sensor ID.  For each violated constraint type, it reports:
-
-- ``"datetime"``: the ISO 8601 UTC timestamp of the first violation.
-- ``"unmet"``: the magnitude of the violation in kWh (always positive).
-  For ``soc-minima`` this is the shortage (SoC fell short by this amount);
-  for ``soc-maxima`` this is the excess (SoC exceeded the target by this amount).
-
-An empty ``{}`` means all constraints of that type were satisfied (or none were defined).
-
-*Example use case*: for EV charging, if the battery could not be fully charged for a planned trip, the ``unresolved_targets`` field will report how much charge is missing.  The fleet operator can then plan to use public charge points to make up the difference.
-
-**Resolved targets** (``resolved_targets``)
-
-The ``resolved_targets`` field lists soft SoC constraints that *were* satisfied, keyed by state-of-charge sensor ID.  For each met constraint type, it reports the tightest (smallest-margin) slot:
-
-- ``"datetime"``: the ISO 8601 UTC timestamp of the tightest constraint slot.
-- ``"margin"``: the headroom available at that slot in kWh (always positive).
-  For ``soc-minima`` this is how far above the minimum the SoC was;
-  for ``soc-maxima`` this is how far below the maximum the SoC was.
-
-An empty ``{}`` means no constraints of that type were defined.
-
-.. note:: Setting a ``state-of-charge`` sensor on the device is required to populate
-          ``unresolved_targets`` and ``resolved_targets``.  Configure it via the
-          ``state-of-charge`` field in the device's flex model, e.g.
-          ``"state-of-charge": {"sensor": <sensor_id>}``.  See the flex-model
-          documentation for the StorageScheduler for details.
-
-For full technical details of the response schema, refer to the API endpoint documentation for ``GET /sensors/<id>/schedules/<uuid>``.
-
-For detailed constraint analysis and asset-keyed results, use the ``GET /api/v3_0/jobs/<uuid>`` endpoint, which provides structured information about unmet and resolved constraints organized by asset.
+For detailed constraint analysis (unmet and resolved constraints), use the ``GET /api/v3_0/jobs/<uuid>`` endpoint, which provides structured information about constraints organized by asset. See the :ref:`scheduling_constraint_results` section below for details.
 
 
 .. _scheduling_constraint_results:
@@ -371,16 +337,11 @@ Accessing constraint results
 -----------------------------
 
 When a schedule is computed for a device with state-of-charge constraints, FlexMeasures analyzes whether the constraints can be met.
-The constraint analysis results are available through two endpoints:
 
-1. **Via the sensor schedule endpoint** (``GET /sensors/<id>/schedules/<uuid>``):
-   Returns the schedule (power values over time) for one specific sensor, including an embedded ``scheduling_result`` field with constraint analysis.
+Use the **jobs endpoint** (``GET /api/v3_0/jobs/<uuid>``) to retrieve detailed constraint analysis for all assets involved in the scheduling job, organized by asset ID.
+This endpoint is useful when you want to inspect constraint violations without retrieving the full schedule.
 
-2. **Via the jobs endpoint** (``GET /api/v3_0/jobs/<uuid>``):
-   Returns detailed constraint analysis for all assets involved in the scheduling job, organized by asset ID.
-   This endpoint is useful when you want to inspect constraint violations without retrieving the full schedule.
-
-The constraint results use a consistent structure across both endpoints. The structure distinguishes between:
+The constraint results distinguish between:
 
 - **Unmet constraints**: Soft constraints that could not be satisfied during optimization.
 - **Resolved constraints**: Soft constraints that were satisfied with some margin.
@@ -440,45 +401,14 @@ the constraint results would show:
         "scheduler_info": {"scheduler": "StorageScheduler"}
     }
 
-**Response via GET /sensors/17/schedules/<uuid>:**
-
-The same constraint results would be embedded in the ``scheduling_result`` field, keyed by sensor ID instead of asset ID:
-
-.. code-block:: json
-
-    {
-        "values": [2.15, 3, 2, ...],
-        "start": "2024-01-15T10:00:00+00:00",
-        "duration": "PT24H",
-        "unit": "kW",
-        "scheduling_result": {
-            "unresolved_targets": {
-                "17": {
-                    "soc-minima": {
-                        "datetime": "2024-01-15T10:30:00+00:00",
-                        "unmet": "260.0 kWh"
-                    }
-                }
-            },
-            "resolved_targets": {
-                "17": {
-                    "soc-maxima": {
-                        "datetime": "2024-01-15T12:00:00+00:00",
-                        "margin": "40.0 kWh"
-                    }
-                }
-            }
-        }
-    }
-
 
 Interpreting constraint results for optimization decisions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When constraints are all met:**
 
-An empty ``unmet`` array (or empty ``unresolved_targets`` dict) indicates successful optimization.
-However, check the ``margin`` values in ``resolved`` (or ``resolved_targets``) to understand how tight the constraints were:
+An empty ``unmet`` array indicates successful optimization.
+However, check the ``margin`` values in ``resolved`` to understand how tight the constraints were:
 
 - Large margins (e.g., 500 kWh) suggest the device has significant flexibility headroom.
 - Small margins (e.g., 5 kWh) indicate the constraints were nearly violated.
