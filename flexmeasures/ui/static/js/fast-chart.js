@@ -523,11 +523,62 @@ function seriesTooltipFormatter(seriesMeta) {
   };
 }
 
+/* ============================== annotations ============================== */
+
+// Parse the annotation records (start, end, content) fetched for the sensor page
+// into sorted {start, end, label} entries with epoch-ms bounds.
+function normalizeAnnotations(raw) {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  return raw
+    .map((a) => ({
+      start: new Date(a.start).getTime(),
+      end: new Date(a.end).getTime(),
+      label: Array.isArray(a.content) ? a.content.join("\n") : (a.content || ""),
+    }))
+    .filter((a) => isFinite(a.start) && isFinite(a.end))
+    .sort((a, b) => a.start - b.start);
+}
+
+// Build the markArea config for the annotation shades. The band at hoverIdx is
+// highlighted (secondary-hover color, label shown); the rest are gray at 0.3 opacity,
+// matching Vega-Lite's SHADE_LAYER (default --gray) and TEXT_LAYER (label on hover).
+function buildAnnotationMarkArea(annotations, hoverIdx) {
+  const cs = getComputedStyle(document.documentElement);
+  const grayColor = cs.getPropertyValue("--gray").trim() || "#bbb";
+  const hoverColor = cs.getPropertyValue("--secondary-hover-color").trim() || "#f5a623";
+  return {
+    silent: true, // hover is handled via the updateAxisPointer listener instead
+    animation: false,
+    data: annotations.map((a, idx) => {
+      const hovered = idx === hoverIdx;
+      return [
+        {
+          xAxis: a.start,
+          itemStyle: { color: hovered ? hoverColor : grayColor, opacity: hovered ? 0.7 : 0.3 },
+          label: {
+            show: hovered,
+            position: ["50%", "100%"], // centered, at the bottom of the band
+            offset: [0, 34], // push below the x-axis labels, like Vega's text layer
+            align: "center",
+            verticalAlign: "top",
+            fontSize: FONT_SIZE,
+            fontStyle: "italic",
+            color: "#333",
+            formatter: () => a.label,
+          },
+        },
+        { xAxis: a.end },
+      ];
+    }),
+  };
+}
+
 /* ============================== line / bar charts ============================== */
 
 function buildLineBarOption(elementId, groups, opts) {
   const instance = instances[elementId];
   const container = document.getElementById(elementId);
+  const annotations = normalizeAnnotations(opts.annotations);
   // Sensor page: legend always below (single sensor, sources are the legend entries)
   const legendsBelow = !!opts.legendsBelow || opts.isSensorPage;
   const gridGap = SIDE_GRID_GAP;
@@ -558,7 +609,9 @@ function buildLineBarOption(elementId, groups, opts) {
   const legendHeight = bottomLegendVertical
     ? numLegendEntries * 24 + 8
     : Math.ceil(numLegendEntries / itemsPerRow) * 24 + 8;
-  const sliderTop = lastGridBottom + 36;
+  // Reserve a strip below the x-axis labels for the hovered annotation's name.
+  const annotGap = annotations.length > 0 ? 28 : 0;
+  const sliderTop = lastGridBottom + 36 + annotGap;
   const bottomLegendTitleTop = sliderTop + 28 + 14; // "Source"/"Sensor" heading
   const legendTitleHeight = 24;
   const bottomLegendTop = bottomLegendTitleTop + legendTitleHeight;
@@ -720,6 +773,12 @@ function buildLineBarOption(elementId, groups, opts) {
           lineStyle: { color: "#555", width: 1.5, type: "solid" },
           label: { show: false },
         };
+      }
+      // Annotation shades on the first series of each subplot. Gray at 0.3 opacity by
+      // default; the zrender mousemove handler in renderFastChart recolors the hovered
+      // band and reveals its label, matching Vega-Lite's SHADE_LAYER/TEXT_LAYER.
+      if (j === 0 && annotations.length > 0) {
+        entry.markArea = buildAnnotationMarkArea(annotations, -1);
       }
       series.push(entry);
       seriesMeta.push(s);
@@ -1074,6 +1133,63 @@ export function renderFastChart(elementId, data, options) {
   instance.lastOption = option;
   instance.chart.resize(); // pick up container size changes before drawing
   instance.chart.setOption(option, { notMerge: true });
+
+  wireAnnotationHover(instance, opts);
+}
+
+// Highlight the annotation band under the cursor (color + label), matching Vega-Lite.
+// markArea.emphasis does not fire because axisPointer intercepts mouse events, so we
+// react to ECharts' updateAxisPointer event (which provides the x-axis value directly)
+// and recolor the band that contains it. globalout on the canvas clears the highlight.
+function wireAnnotationHover(instance, opts) {
+  const annotations = normalizeAnnotations(opts.annotations);
+  const chart = instance.chart;
+  const zr = chart.getZr();
+
+  // Drop any handlers from a previous render before deciding whether to add new ones.
+  if (instance.onAnnotPointer) {
+    chart.off("updateAxisPointer", instance.onAnnotPointer);
+    zr.off("globalout", instance.onAnnotOut);
+    instance.onAnnotPointer = null;
+    instance.onAnnotOut = null;
+  }
+  if (annotations.length === 0) return;
+
+  // The markArea lives on the first series of each subplot; collect their indices.
+  const seriesList = chart.getOption().series || [];
+  const markAreaSeriesIdx = seriesList.reduce((acc, s, idx) => {
+    if (s.markArea) acc.push(idx);
+    return acc;
+  }, []);
+  if (markAreaSeriesIdx.length === 0) return;
+
+  let activeIdx = -1;
+  const lastSeriesIdx = markAreaSeriesIdx[markAreaSeriesIdx.length - 1];
+  const setHover = (newIdx) => {
+    if (newIdx === activeIdx) return;
+    activeIdx = newIdx;
+    // setOption merges series by position, so build an array up to the last
+    // markArea-bearing series; only those carry a new markArea, the rest pass through.
+    const seriesPatch = [];
+    for (let i = 0; i <= lastSeriesIdx; i++) {
+      seriesPatch.push(
+        markAreaSeriesIdx.includes(i)
+          ? { markArea: buildAnnotationMarkArea(annotations, newIdx) }
+          : {}
+      );
+    }
+    chart.setOption({ series: seriesPatch });
+  };
+
+  instance.onAnnotPointer = (ev) => {
+    const axisInfo = (ev.axesInfo || []).find((a) => a.axisDim === "x") || (ev.axesInfo || [])[0];
+    if (!axisInfo) { setHover(-1); return; }
+    const xVal = axisInfo.value;
+    setHover(annotations.findIndex((a) => xVal >= a.start && xVal <= a.end));
+  };
+  instance.onAnnotOut = () => setHover(-1);
+  chart.on("updateAxisPointer", instance.onAnnotPointer);
+  zr.on("globalout", instance.onAnnotOut);
 }
 
 /**

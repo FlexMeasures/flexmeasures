@@ -697,6 +697,7 @@
             // sensor page always shows legend below (single sensor, sources are the legend entries)
             isSensorPage: ('{{ active_page }}' === 'sensors'),
             datasetName: datasetName,
+            annotations: (previousResult && previousResult.annotations) ? previousResult.annotations : [],
         };
     }
 
