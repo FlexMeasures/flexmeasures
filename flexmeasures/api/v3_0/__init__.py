@@ -41,7 +41,11 @@ from flexmeasures.api.v3_0.assets import (
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.data.schemas.sensors import QuantitySchema, TimeSeriesSchema
-from flexmeasures.data.schemas.account import AccountSchema
+from flexmeasures.data.schemas.account import (
+    AccountSchema,
+    AccountCreateSchema,
+    AccountPatchSchema,
+)
 from flexmeasures.api.v3_0.accounts import AccountAPIQuerySchema
 from flexmeasures.api.v3_0.users import UserAPIQuerySchema, AuthRequestSchema
 from flexmeasures.utils.doc_utils import rst_to_openapi
@@ -160,6 +164,8 @@ def create_openapi_specs(app: Flask):
         ("CopyAssetSchema", CopyAssetSchema),
         ("DefaultAssetViewJSONSchema", DefaultAssetViewJSONSchema),
         ("AccountSchema", AccountSchema(partial=True)),
+        ("AccountCreateSchema", AccountCreateSchema()),
+        ("AccountPatchSchema", AccountPatchSchema()),
         ("AccountAPIQuerySchema", AccountAPIQuerySchema),
         ("AuthRequestSchema", AuthRequestSchema),
     ]

@@ -1828,10 +1828,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Account1"
+                "$ref": "#/components/schemas/AccountPatchSchema"
               },
               "example": {
                 "name": "Test Account Updated",
+                "account_roles": [
+                  1,
+                  3
+                ],
                 "primary_color": "#1a3443",
                 "secondary_color": "#f1a122",
                 "logo_url": "https://example.com/logo.png",
@@ -1994,6 +1998,47 @@
           },
           "400": {
             "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Accounts"
+        ]
+      },
+      "post": {
+        "summary": "Create a new account.",
+        "description": "Create a new account with a required name.\n\n- Admin users can create accounts.\n- Consultant users can create accounts only if their account has the\n  `CONSULTANCY_ACCOUNT_ROLE` account role.\n- For consultant users, the newly created account is automatically\n  linked to their own account as consultancy account.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "Account fields for creation.",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountCreateSchema"
+              },
+              "example": {
+                "name": "New Customer Account",
+                "consultancy_account_id": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "PROCESSED"
           },
           "401": {
             "description": "UNAUTHORIZED"
@@ -5247,6 +5292,64 @@
         },
         "additionalProperties": false
       },
+      "AccountCreateSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "consultancy_account_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "AccountPatchSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "primary_color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "secondary_color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "logo_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "consultancy_account_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "attributes": {},
+          "account_roles": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "AccountAPIQuerySchema": {
         "type": "object",
         "properties": {
@@ -5946,62 +6049,6 @@
             "type": "string"
           }
         },
-        "additionalProperties": false
-      },
-      "Account1": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "readOnly": true
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 100
-          },
-          "primary_color": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 7
-          },
-          "secondary_color": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 7
-          },
-          "logo_url": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 255
-          },
-          "attributes": {
-            "default": "{}"
-          },
-          "account_roles": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AccountRole"
-            }
-          },
-          "consultancy_account_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "name"
-        ],
         "additionalProperties": false
       },
       "User": {
