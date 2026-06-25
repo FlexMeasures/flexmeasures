@@ -174,7 +174,8 @@ def test_battery_relaxation(add_battery_assets, db):
     """Check that resolving SoC breaches is more important than resolving device power breaches.
 
     The battery is still charging with 25 kW between noon and 4 PM, when the consumption capacity is supposed to be 0.
-    It is still charging because resolving the still unmatched SoC minima takes precedence (via breach prices).
+    It is still charging because resolving the still unmatched SoC minima takes precedence
+    through the default SoC breach prices.
     """
     _, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
@@ -252,7 +253,6 @@ def test_battery_relaxation(add_battery_assets, db):
             "site-peak-production-price": series_to_ts_specs(
                 pd.Series(260, production_prices.index), unit="EUR/MW"
             ),
-            "soc-minima-breach-price": "6000 EUR/kWh",  # high breach price (to mimic a hard constraint)
             "consumption-breach-price": f"{device_power_breach_price} EUR/kW",  # lower breach price (thus prioritizing minimizing soc breaches)
             "production-breach-price": f"{device_power_breach_price} EUR/kW",  # lower breach price (thus prioritizing minimizing soc breaches)
         },
