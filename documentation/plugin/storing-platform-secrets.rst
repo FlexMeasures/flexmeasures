@@ -8,6 +8,20 @@ need to store credentials, refresh tokens, access tokens or connection-specific
 passwords. Store such values in the ``secrets`` JSON field of the relevant
 account or asset, rather than in ``attributes`` or plugin configuration files.
 
+Secrets live in a dictionary and if you store more than one secret per connected platform,
+they are indentified by a dot-separated path, for example:
+
+.. code-block:: json
+
+    {
+        "3rdparty-platform": {
+            "refresh_token": "encrypted-value",
+            "access_token": "encrypted-value",
+            "access_token_expires_at": "2024-06-01T12:00:00Z"
+        }
+    }
+
+
 The ``secrets`` field is intended to be write-only from API and UI flows: users
 can provide or replace secret values, but normal responses should return only
 redacted metadata such as whether a value is set and when it expires. Trusted
