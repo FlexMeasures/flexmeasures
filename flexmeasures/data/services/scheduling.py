@@ -803,6 +803,16 @@ def make_schedule(  # noqa: C901
         if "sensor" not in result:
             continue
 
+        # Skip inflexible-device schedules: the EMS fixes inflexible devices to the
+        # power values read from their sensors, so the resulting "schedule" merely
+        # mirrors the forecast/measurement already stored on those sensors. Writing
+        # it back here would only duplicate that input under the scheduler's data
+        # source without added value. These results are still returned by
+        # `Scheduler.compute(return_multiple=True)`, so callers that want to route
+        # them to dedicated output sensors can still do so.
+        if result.get("name") == "inflexible_device_schedule":
+            continue
+
         # Ensure consumption_is_positive is set before resolving the sign.
         # At job-creation time this is already done eagerly; calling it here again
         # acts as a safety net for direct make_schedule invocations and raises a
