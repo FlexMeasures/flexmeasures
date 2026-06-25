@@ -4583,13 +4583,13 @@
           "relax-constraints": {
             "type": "boolean",
             "default": false,
-            "description": "If True (default is <code>False</code>), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to <code>True</code> to enable the default prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
+            "description": "If True (default is <code>False</code>), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nSoC minima/maxima are already relaxed by default through <code>relax-soc-constraints</code>.\nSet this field to <code>True</code> to also enable the default site and device capacity breach prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
             "example": true
           },
           "relax-soc-constraints": {
             "type": "boolean",
-            "default": false,
-            "description": "If True, avoids not meeting SoC minima/maxima as a relaxed constraint.",
+            "default": true,
+            "description": "If True (default), avoids not meeting SoC minima/maxima as relaxed constraints. Set this to False to keep SoC minima/maxima as hard constraints unless breach prices are supplied explicitly.",
             "example": true
           },
           "relax-capacity-constraints": {
