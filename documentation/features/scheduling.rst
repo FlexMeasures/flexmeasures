@@ -337,3 +337,49 @@ Here are some thoughts on further innovation:
   This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes.
   Thoughts welcome :)
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.
+
+
+
+Inspecting schedules
+-----------------------
+
+It can be crucial to inspect how your scheduling job is doing.
+Here are some ways to do that:
+
+Errors
+^^^^^^^
+
+FlexMeasures will validate flex-config and asset & sensor IDs before starting the job,
+and let you know (in the console or API response) what went wrong.
+
+
+The asset status page
+^^^^^^^^^^^^^^^^^^^^^
+
+Each asset has a status page where you can find recent jobs, and the "Info" button will give you a lot 
+og insight into its configuration.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_status_page_job_info.png
+    :align: center
+..    :scale: 40%
+
+|
+
+
+Checking the status via the API
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There is an API endpoint specifically for checking status, result and configuration info for jobs:
+``GET /api/v3_0/jobs/{uuid}`` will return JSON with information, including the flex config and exception info.
+
+
+The RQ-dashboard
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Internally, jobs are queued with the python-rq library. For this, a job dashboard is available, which 
+users with the ``admin`` role can access via the menu. You find your jobs via the queues, see screesnhot below.
+Clicking a job gives you more information.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_rq_dashboard.png
+    :align: center
+..    :scale: 40%
