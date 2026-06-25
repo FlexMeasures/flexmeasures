@@ -22,6 +22,7 @@ Infrastructure / Support
 * Prepare the ``device_scheduler`` to deal with commitments per device group [see `PR #1934 <https://www.github.com/FlexMeasures/flexmeasures/pull/1934>`_]
 * Documentation section on the modelling choice for recording measurements, forecasts and schedules under one or multiple sensors [see `PR #2217 <https://www.github.com/FlexMeasures/flexmeasures/pull/2217>`_]
 * Document suggested cloud architecture [see `PR #2245 <https://www.github.com/FlexMeasures/flexmeasures/pull/2245>`_]
+* Document the ``TRUSTED_HOSTS`` setting to safeguard against host poisoning from clients [see `PR #2246 <https://www.github.com/FlexMeasures/flexmeasures/pull/2246>`_]
 
 Bugfixes
 -----------
