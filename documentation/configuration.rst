@@ -574,6 +574,14 @@ When ``FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY`` is set to ``True``, the ``<m
 Default: ``False``
 
 
+TRUSTED_HOSTS
+^^^^^^^^^^^^^^
+
+A Flask setting you should use to prevent host header poisoning. Read more at :ref:`security-best-practices-for-hosts`.
+
+Default: ``None``
+
+
 .. _mail-config:
 
 Mail
