@@ -10,22 +10,17 @@ key ID and timestamps. Developers normally do not need to read or modify this
 JSON structure directly.
 
 For implementation examples, token lifecycle strategies and manually seeding a
-credential through the CLI, see :ref:`storing_connection_secrets`. The complete
-utility API is available in :mod:`flexmeasures.utils.secrets_utils`.
+credential through the CLI, see :ref:`storing_connection_secrets`. 
+
+The encrypted values are protected by
+``FLEXMEASURES_SECRETS_ENCRYPTION_KEYS``, see :ref:`flexmeasures_secrets_encryption_keys` 
+ This setting accepts arbitrary non-empty strings, which FlexMeasures derives into Fernet-compatible keys.
+Hosts must configure this keyring before secrets can be stored
+- FlexMeasures will print a warning if it is not set and hints how to initialize it.
 
 
 Recommended practices
 ---------------------
-
-Encryption key configuration
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Configure :ref:`flexmeasures_secrets_encryption_keys` with strong,
-environment-specific key material and make the same keyring available to every
-API process, worker and scheduled job. FlexMeasures refuses to create or
-decrypt connection secrets without this setting. Keep previous keys available
-while encrypted values still refer to them.
-
 
 Write-only API and UI
 ^^^^^^^^^^^^^^^^^^^^^
@@ -43,6 +38,8 @@ not enter shell history.
 Use the secret utilities
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
+FlexMeasures provides a complete utility API in :mod:`flexmeasures.utils.secrets_utils`.
+
 Use :func:`flexmeasures.utils.secrets_utils.set_secret` for individual
 credentials. For token refresh flows, prefer
 :class:`flexmeasures.utils.secrets_utils.TokenRefreshResult` together with
@@ -53,6 +50,14 @@ extend the expiry of an existing token.
 Use :func:`flexmeasures.utils.secrets_utils.get_secret_overview` to build safe
 secret listings with their paths and optional expiration times, without
 exposing encrypted values or unrelated metadata.
+When ``expires_at`` is stored without a timezone offset, FlexMeasures treats it
+as UTC when rendering the overview.
+
+Store secrets at one or two path levels only: a top-level namespace such as a
+provider name, optionally followed by a secret name within that namespace.
+String paths therefore look like ``provider`` or ``provider.refresh_token``.
+If a secret name itself contains a dot, pass the path as a tuple or list of
+parts instead of a dot-separated string.
 
 
 Refresh early in multi-worker deployments

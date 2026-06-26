@@ -111,6 +111,59 @@ def test_decrypt_rejects_wrong_key():
         )
 
 
+def test_set_secret_rejects_paths_deeper_than_two_parts():
+    encryptor = SecretsEncryptor({"1": "test-master-key"})
+
+    with pytest.raises(
+        ValueError,
+        match="at most two parts",
+    ):
+        set_secret(
+            {},
+            "platform.tokens.refresh",
+            "secret",
+            encryptor=encryptor,
+        )
+
+
+def test_set_secret_accepts_sequence_paths_with_dots_in_secret_name():
+    encryptor = SecretsEncryptor({"1": "test-master-key"})
+
+    secrets = set_secret(
+        {},
+        ("platform", "token.v2"),
+        "secret",
+        encryptor=encryptor,
+    )
+
+    assert get_secret(secrets, ("platform", "token.v2"), encryptor=encryptor) == (
+        "secret"
+    )
+    assert get_secret_paths(secrets) == ["platform.token.v2"]
+
+
+def test_set_secret_rejects_storing_nested_secret_under_existing_secret():
+    encryptor = SecretsEncryptor({"1": "test-master-key"})
+    secrets = set_secret({}, "platform", "root-secret", encryptor=encryptor)
+
+    with pytest.raises(
+        ValueError,
+        match="conflicts with a secret already stored at platform",
+    ):
+        set_secret(secrets, "platform.refresh_token", "secret", encryptor=encryptor)
+
+
+def test_set_secret_rejects_storing_root_secret_over_existing_namespace():
+    encryptor = SecretsEncryptor({"1": "test-master-key"})
+    secrets = set_secret({}, "platform.refresh_token", "secret", encryptor=encryptor)
+
+    with pytest.raises(
+        ValueError,
+        match="conflicts with nested secrets stored under the same name",
+    ):
+        set_secret(secrets, "platform", "root-secret", encryptor=encryptor)
+
+
 def test_delete_secret_removes_empty_parent_dicts():
     secrets = {
         "platform": {
@@ -138,15 +191,13 @@ def test_get_secret_paths_returns_only_encrypted_value_paths():
         "platform": {
             "access_token": {"ciphertext": "access"},
             "metadata": {"scope": "read"},
-            "nested": {
-                "password": {"ciphertext": "password"},
-            },
-        }
+        },
+        "password": {"ciphertext": "password"},
     }
 
     assert get_secret_paths(secrets) == [
+        "password",
         "platform.access_token",
-        "platform.nested.password",
     ]
 
 
@@ -181,12 +232,44 @@ def test_get_secret_overview_returns_sorted_strictly_allowlisted_fields():
     assert all(set(secret) <= {"path", "expires_at"} for secret in overview)
 
 
+def test_get_secret_overview_lists_only_supported_one_or_two_level_secrets():
+    secrets = {
+        "platform": {
+            "refresh_token": {
+                "ciphertext": "refresh",
+                "nested": {
+                    "swallowed-before": {"ciphertext": "should-not-appear"},
+                },
+            },
+            "metadata": {"scope": "read write"},
+        },
+        "standalone": {
+            "ciphertext": "standalone",
+            "expires_at": "2026-06-11T12:00:00+00:00",
+        },
+    }
+
+    assert get_secret_overview(secrets) == [
+        {
+            "path": "platform.refresh_token",
+        },
+        {
+            "path": "standalone",
+            "expires_at": datetime.fromisoformat("2026-06-11T12:00:00+00:00"),
+        },
+    ]
+
+
 @pytest.mark.parametrize(
     ("expires_at", "expected"),
     [
         (
             "2026-06-11T12:00:00+02:00",
             datetime.fromisoformat("2026-06-11T12:00:00+02:00"),
+        ),
+        (
+            "2026-06-11T12:00:00",
+            datetime(2026, 6, 11, 12, tzinfo=timezone.utc),
         ),
         (
             "2026-06-11T10:00:00Z",
@@ -217,14 +300,9 @@ def test_get_secret_overview_accepts_aware_iso_expiry_timestamps(expires_at, exp
 
 @pytest.mark.parametrize(
     "expires_at",
-    [
-        "not-a-datetime",
-        1781179200,
-        None,
-        "2026-06-11T12:00:00",
-    ],
+    ["not-a-datetime", 1781179200, None],
 )
-def test_get_secret_overview_omits_invalid_or_naive_expiry(expires_at):
+def test_get_secret_overview_omits_invalid_expiry(expires_at):
     secrets = {
         "platform": {
             "access_token": {

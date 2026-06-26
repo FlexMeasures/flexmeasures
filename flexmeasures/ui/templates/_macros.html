@@ -223,7 +223,7 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
       {% if show_expiry %}
       <td>
         {% if secret.expires_at is defined %}
-        {{ secret.expires_at | naturalized_datetime }}
+        <span title="{{ secret.expires_at.isoformat() }}">{{ secret.expires_at | naturalized_datetime }}</span>
         {% endif %}
       </td>
       {% endif %}

@@ -59,10 +59,12 @@ def assert_secret_metadata_is_safely_rendered(response_data: bytes) -> None:
     human_expiry = naturalized_datetime_str(
         datetime.fromisoformat(SECRET_EXPIRES_AT)
     ).encode()
+    expiry_title = f'title="{SECRET_EXPIRES_AT}"'.encode()
     assert b"Expires" in stored_secrets_table
     assert human_expiry in expiring_secret_row.group()
     assert human_expiry not in secret_without_expiry_row.group()
-    assert SECRET_EXPIRES_AT.encode() not in response_data
+    assert expiry_title in expiring_secret_row.group()
+    assert expiry_title not in secret_without_expiry_row.group()
     for marker in SECRET_METADATA_MARKERS:
         assert marker not in response_data
 

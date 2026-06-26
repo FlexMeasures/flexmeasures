@@ -6,7 +6,7 @@ import os
 import sys
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -379,14 +379,24 @@ def _latest_key_id(encryption_keys: dict[str, str]) -> str:
 
 
 def _path_parts(path: str | tuple[str, ...] | list[str]) -> list[str]:
-    """Return a list of non-empty string parts from a dot-separated path or sequence."""
+    """Return one or two non-empty string parts from a secret path."""
     if isinstance(path, str):
         parts = [part for part in path.split(".") if part]
     else:
         parts = list(path)
     if not parts or any(not isinstance(part, str) or not part for part in parts):
         raise ValueError("Secret path must contain at least one non-empty string part.")
+    if len(parts) > 2:
+        raise ValueError(
+            "Secret path must contain at most two parts. "
+            "Use a tuple or list if a secret name itself contains dots."
+        )
     return parts
+
+
+def _is_secret_envelope(value: Any) -> bool:
+    """Return whether ``value`` looks like an encrypted secret envelope."""
+    return isinstance(value, dict) and _CIPHERTEXT_FIELD in value
 
 
 def set_secret(
@@ -407,16 +417,35 @@ def set_secret(
     """
     encryptor = encryptor or SecretsEncryptor.from_current_app()
     updated = deepcopy(secrets or {})
-    current = updated
     parts = _path_parts(path)
-    for part in parts[:-1]:
-        current = current.setdefault(part, {})
-        if not isinstance(current, dict):
-            raise ValueError(f"Secret path conflicts with non-object value at {part}.")
     envelope = encryptor.encrypt(value)
     if metadata:
         envelope.update(metadata)
-    current[parts[-1]] = envelope
+    if len(parts) == 1:
+        existing = updated.get(parts[0])
+        if (
+            isinstance(existing, dict)
+            and not _is_secret_envelope(existing)
+            and existing
+        ):
+            raise ValueError(
+                f"Secret path {parts[0]} conflicts with nested secrets stored under the same name."
+            )
+        updated[parts[0]] = envelope
+        return updated
+
+    namespace, secret_name = parts
+    existing_namespace = updated.get(namespace)
+    if _is_secret_envelope(existing_namespace):
+        raise ValueError(
+            f"Secret path {namespace}.{secret_name} conflicts with a secret already stored at {namespace}."
+        )
+    if existing_namespace is None:
+        updated[namespace] = {}
+        existing_namespace = updated[namespace]
+    if not isinstance(existing_namespace, dict):
+        raise ValueError(f"Secret path conflicts with non-object value at {namespace}.")
+    existing_namespace[secret_name] = envelope
     return updated
 
 
@@ -521,10 +550,13 @@ def get_secret(
     """
     encryptor = encryptor or SecretsEncryptor.from_current_app()
     current: Any = secrets or {}
-    for part in _path_parts(path):
+    parts = _path_parts(path)
+    for part in parts:
         if not isinstance(current, dict) or part not in current:
             raise KeyError("Secret path does not exist.")
         current = current[part]
+    if not _is_secret_envelope(current):
+        raise KeyError("Secret path does not exist.")
     return encryptor.decrypt(current)
 
 
@@ -547,33 +579,37 @@ def get_secret_overview(
     """
     overview: list[SecretOverview] = []
 
-    def _collect(value: Any, parts: list[str]) -> None:
-        if not isinstance(value, dict):
-            return
-        if _CIPHERTEXT_FIELD in value:
-            secret: SecretOverview = {"path": ".".join(parts)}
-            expires_at = value.get("expires_at")
-            if isinstance(expires_at, str):
-                try:
-                    parsed_expires_at = datetime.fromisoformat(
-                        f"{expires_at[:-1]}+00:00"
-                        if expires_at.endswith("Z")
-                        else expires_at
-                    )
-                except ValueError:
-                    pass
-                else:
-                    if (
-                        parsed_expires_at.tzinfo is not None
-                        and parsed_expires_at.utcoffset() is not None
-                    ):
-                        secret["expires_at"] = parsed_expires_at
-            overview.append(secret)
-            return
-        for key, nested_value in value.items():
-            _collect(nested_value, [*parts, key])
+    def _append_overview(path: str, value: dict[str, Any]) -> None:
+        secret: SecretOverview = {"path": path}
+        expires_at = value.get("expires_at")
+        if isinstance(expires_at, str):
+            try:
+                parsed_expires_at = datetime.fromisoformat(
+                    f"{expires_at[:-1]}+00:00"
+                    if expires_at.endswith("Z")
+                    else expires_at
+                )
+            except ValueError:
+                pass
+            else:
+                if (
+                    parsed_expires_at.tzinfo is None
+                    or parsed_expires_at.utcoffset() is None
+                ):
+                    parsed_expires_at = parsed_expires_at.replace(tzinfo=timezone.utc)
+                secret["expires_at"] = parsed_expires_at
+        overview.append(secret)
 
-    _collect(secrets or {}, [])
+    for key, value in (secrets or {}).items():
+        if _is_secret_envelope(value):
+            _append_overview(key, value)
+            continue
+        if not isinstance(value, dict):
+            continue
+        for nested_key, nested_value in value.items():
+            if _is_secret_envelope(nested_value):
+                _append_overview(f"{key}.{nested_key}", nested_value)
+
     return sorted(overview, key=lambda secret: secret["path"])
 
 
