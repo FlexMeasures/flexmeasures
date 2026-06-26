@@ -19,6 +19,7 @@ Secrets live in a dictionary and support one or two path levels. For example:
         }
     }
 
+(where "encrypted-value" is not the actual string you pass in, FlexMeasures handles the encryption seamlessly)
 
 The ``secrets`` field is intended to be write-only from API and UI flows: users
 can provide or replace secret values, but normal responses should return only
