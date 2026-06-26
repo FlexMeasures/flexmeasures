@@ -1,7 +1,16 @@
 {% macro show_tree(assets, current_asset_name) %}
-  <div class="container pb-4">
+  <div class="container pb-4" style="position: relative;">
     <div id="view-scroll" style="width: 100%; height: 75vh; min-height: 500px; overflow-y: auto; overflow-x: hidden; border-radius: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc; box-shadow: inset 0 2px 4px 0 rgba(0,0,0,0.06);">
-      <div id="view" style="width: 100%; height: 100%;"></div>
+      <div id="view-zoom" style="width: 100%; height: 100%; transform-origin: center center; transition: transform 0.12s ease;">
+        <div id="view" style="width: 100%; height: 100%;"></div>
+      </div>
+    </div>
+    <!-- Zoom controls (overlaid on the top-right of the tree) -->
+    <div class="btn-group btn-group-sm" role="group" aria-label="Zoom"
+         style="position: absolute; top: 12px; right: 24px; z-index: 5; box-shadow: 0 1px 4px rgba(0,0,0,0.15);">
+      <button type="button" id="treeZoomOut" class="btn btn-light border" title="Zoom out">&minus;</button>
+      <button type="button" id="treeZoomReset" class="btn btn-light border" title="Reset zoom">Reset</button>
+      <button type="button" id="treeZoomIn" class="btn btn-light border" title="Zoom in">+</button>
     </div>
   </div>
 
@@ -38,7 +47,8 @@
 
       var scrollDom = document.getElementById('view-scroll');
       var chartDom = document.getElementById('view');
-      var myChart = echarts.init(chartDom);
+      // SVG renderer so the tree stays crisp when zoomed in via CSS transform.
+      var myChart = echarts.init(chartDom, null, { renderer: 'svg' });
 
       // Count the leaf nodes. In a horizontal tree, every leaf occupies its own
       // vertical slot, so the leaf count is what determines how tightly nodes
@@ -237,6 +247,22 @@
           window.location.href = params.data.link;
         }
       });
+
+      // ===== Zoom controls =====
+      // Zoom scales the WHOLE tree (nodes + spacing) with a CSS transform, kept
+      // crisp by the SVG renderer. The gray container stays a fixed size; zooming
+      // out shrinks the whole tree centered within it, zooming in overflows it so
+      // the scroll container can pan around.
+      var zoomLayer = document.getElementById('view-zoom');
+      var zoomLevel = 1;
+      var ZOOM_MIN = 0.3, ZOOM_MAX = 2.5, ZOOM_STEP = 0.2;
+      function setZoom(z) {
+        zoomLevel = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+        zoomLayer.style.transform = 'scale(' + zoomLevel + ')';
+      }
+      document.getElementById('treeZoomIn').addEventListener('click', function() { setZoom(zoomLevel + ZOOM_STEP); });
+      document.getElementById('treeZoomOut').addEventListener('click', function() { setZoom(zoomLevel - ZOOM_STEP); });
+      document.getElementById('treeZoomReset').addEventListener('click', function() { setZoom(1); });
     };
   </script>
 {% endmacro %}
