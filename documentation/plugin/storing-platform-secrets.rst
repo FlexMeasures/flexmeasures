@@ -8,16 +8,14 @@ need to store credentials, refresh tokens, access tokens or connection-specific
 passwords. Store such values in the ``secrets`` JSON field of the relevant
 account or asset, rather than in ``attributes`` or plugin configuration files.
 
-Secrets live in a dictionary and support one or two path levels. If you store
-more than one secret per connected platform, identify them by distinct names, for example:
+Secrets live in a dictionary and support one or two path levels. For example:
 
 .. code-block:: json
 
     {
         "3rdparty-platform": {
             "refresh_token": "encrypted-value",
-            "access_token": "encrypted-value",
-            "access_token_expires_at": "2024-06-01T12:00:00Z"
+            "access_token": "encrypted-value"
         }
     }
 
@@ -57,7 +55,9 @@ Use ``flexmeasures.utils.secrets_utils`` for secret handling:
 
     response_payload = redact_secrets(my_account.secrets)
 
-Here you can see that you can pass a dot-separated path to name secrets into two levels.
+The metadata string ``expires_at`` (see example above) is useful to add, as it will be used by the token handling and also shown in the UI.
+FlexMeasures will also handle ``created-at`` and ``updated-at`` metadata automatically.
+
 More details and best practices for storing connection secrets are in the :ref:`connection_secrets_dev` section.
 
 
@@ -161,7 +161,7 @@ explicitly and advise the user to call your login CLI command.
 
 
 Alternatively, you can manually store a known credential: Use ``flexmeasures edit secret`` with
-an account or asset ID, a one- or two-part secret path and either ``--value`` or
-``--prompt`` (to paste the secret instead of typing it).
+an account or asset ID, plus either ``--secret`` or one or two ``--secret-path``
+options, and either ``--value`` or ``--prompt`` (to paste the secret instead of typing it).
 Use ``--metadata`` for non-secret JSON metadata such as expiry
 timestamps.

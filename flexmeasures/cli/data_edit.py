@@ -1,10 +1,8 @@
-"""
-CLI commands for editing data
-"""
+"""CLI commands for editing data."""
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import click
 import pandas as pd
@@ -32,6 +30,22 @@ from flexmeasures.cli.utils import (
 )
 from flexmeasures.utils.flexmeasures_inflection import pluralize
 from flexmeasures.utils.secrets_utils import store_account_secret, store_asset_secret
+
+
+def _resolve_secret_path(
+    secret: str | None, secret_path_parts: tuple[str, ...]
+) -> str | tuple[str, ...]:
+    """Normalize CLI secret path arguments to a utility-friendly path."""
+    if secret is not None and secret_path_parts:
+        raise ValueError("Pass either --secret or --secret-path, not both.")
+    if secret is None and not secret_path_parts:
+        raise ValueError("Pass either --secret or --secret-path.")
+    if len(secret_path_parts) > 2:
+        raise ValueError("Pass --secret-path at most twice.")
+    if secret_path_parts:
+        return secret_path_parts
+    assert secret is not None
+    return secret
 
 
 @click.group("edit")
@@ -204,9 +218,16 @@ def edit_attribute(
 )
 @click.option(
     "--secret",
-    "secret_path",
-    required=True,
-    help="Add/edit this secret. Follow up with a dot-separated path.",
+    "secret",
+    required=False,
+    help="Add/edit this secret. Follow up with a secret name. Can also be a dot-separated path (maximally one dot), so the secret can be stored under a platform name (part before the dot).",
+)
+@click.option(
+    "--secret-path",
+    "secret_path_parts",
+    required=False,
+    multiple=True,
+    help="Add/edit secret with this path part. Pass once or twice. Use this instead of --secret if your secret name contains a dot.",
 )
 @click.option(
     "--value",
@@ -233,7 +254,8 @@ def edit_attribute(
 def edit_secret(
     account: Account | None,
     asset: GenericAsset | None,
-    secret_path: str,
+    secret: str | None,
+    secret_path_parts: tuple[str, ...],
     prompt_for_secret: bool,
     secret_value: str | None = None,
     metadata_json: str | None = None,
@@ -246,12 +268,14 @@ def edit_secret(
     \b
     Examples:
       flexmeasures edit secret --account 1 --secret platform.refresh_token --prompt
+      flexmeasures edit secret --asset 2 --secret-path platform --secret-path token.v2 --prompt
       flexmeasures edit secret --asset 2 --secret platform.password --value secret --metadata '{"expires_at": "2026-06-24T02:00:00"}'
     """
     if (account is None) == (asset is None):
         raise ValueError("Pass exactly one of --account or --asset.")
     if (secret_value is None) == (not prompt_for_secret):
         raise ValueError("Pass exactly one of --value or --prompt.")
+    resolved_secret_path = _resolve_secret_path(secret, secret_path_parts)
     if prompt_for_secret:
         secret_value = click.prompt("Secret value", hide_input=True)
     assert secret_value is not None
@@ -259,10 +283,12 @@ def edit_secret(
     metadata = parse_secret_metadata(metadata_json)
 
     if account is not None:
-        store_account_secret(account, secret_path, secret_value, metadata=metadata)
+        store_account_secret(
+            account, resolved_secret_path, secret_value, metadata=metadata
+        )
         db.session.add(account)
     if asset is not None:
-        store_asset_secret(asset, secret_path, secret_value, metadata=metadata)
+        store_asset_secret(asset, resolved_secret_path, secret_value, metadata=metadata)
         db.session.add(asset)
     db.session.commit()
     click.secho("Successfully edited/added secret.", **MsgStyle.SUCCESS)
@@ -580,6 +606,18 @@ def parse_secret_metadata(metadata_json: str | None = None) -> dict | None:
         raise ValueError(f"Error parsing secret metadata: {jde}")
     if not isinstance(metadata, dict):
         raise ValueError("Secret metadata must be a JSON object.")
+    expires_at = metadata.get("expires_at")
+    if expires_at is not None:
+        if not isinstance(expires_at, str):
+            raise ValueError("Secret metadata field 'expires_at' must be a string.")
+        try:
+            datetime.fromisoformat(
+                f"{expires_at[:-1]}+00:00" if expires_at.endswith("Z") else expires_at
+            )
+        except ValueError as exc:
+            raise ValueError(
+                "Secret metadata field 'expires_at' must be a valid ISO datetime."
+            ) from exc
     return metadata
 
 

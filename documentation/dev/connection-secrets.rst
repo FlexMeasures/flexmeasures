@@ -31,8 +31,9 @@ redacted information such as whether a value is set and when it expires.
 
 For administrator-level maintenance, use ``flexmeasures edit secret`` to store
 or replace one account or asset secret and ``flexmeasures delete secret`` to
-remove one. Prefer the edit command's ``--prompt`` option so secret values do
-not enter shell history.
+remove one. Use ``--secret`` for dot-separated paths or ``--secret-path`` once
+or twice. Prefer the edit command's ``--prompt`` option so secret values do not
+enter shell history.
 
 
 Use the secret utilities
@@ -57,7 +58,7 @@ Store secrets at one or two path levels only: a top-level namespace such as a
 provider name, optionally followed by a secret name within that namespace.
 String paths therefore look like ``provider`` or ``provider.refresh_token``.
 If a secret name itself contains a dot, pass the path as a tuple or list of
-parts instead of a dot-separated string.
+parts, or use ``--secret-path`` in the CLI.
 
 
 Refresh early in multi-worker deployments

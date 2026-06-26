@@ -130,6 +130,34 @@ def test_edit_account_secret(app, db, setup_accounts):
     )
 
 
+def test_edit_secret_accepts_naive_iso_expires_at_metadata(app, db, setup_accounts):
+    from flexmeasures.cli.data_edit import edit_secret
+
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
+    account = setup_accounts["Prosumer"]
+    runner = app.test_cli_runner()
+
+    result = runner.invoke(
+        edit_secret,
+        [
+            "--account",
+            str(account.id),
+            "--secret",
+            "platform.refresh_token",
+            "--value",
+            "refresh-token-value",
+            "--metadata",
+            '{"expires_at": "2026-06-11T12:00:00"}',
+        ],
+    )
+
+    check_command_ran_without_error(result)
+    db.session.refresh(account)
+    assert account.secrets["platform"]["refresh_token"]["expires_at"] == (
+        "2026-06-11T12:00:00"
+    )
+
+
 def test_edit_asset_secret(app, db, setup_generic_assets):
     from flexmeasures.cli.data_edit import edit_secret
 
@@ -154,6 +182,36 @@ def test_edit_asset_secret(app, db, setup_generic_assets):
     assert get_secret(asset.secrets, "platform.password") == "password-value"
 
 
+def test_edit_secret_accepts_secret_path_with_dot_in_leaf(
+    app, db, setup_generic_assets
+):
+    from flexmeasures.cli.data_edit import edit_secret
+
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
+    asset = setup_generic_assets["test_battery"]
+    db.session.flush()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        edit_secret,
+        [
+            "--asset",
+            str(asset.id),
+            "--secret-path",
+            "platform",
+            "--secret-path",
+            "token.v2",
+            "--value",
+            "password-value",
+        ],
+    )
+
+    check_command_ran_without_error(result)
+    assert "password-value" not in result.output
+    db.session.refresh(asset)
+    assert get_secret(asset.secrets, ("platform", "token.v2")) == "password-value"
+
+
 def test_edit_secret_rejects_account_and_asset(
     app, db, setup_accounts, setup_generic_assets
 ):
@@ -173,6 +231,82 @@ def test_edit_secret_rejects_account_and_asset(
     runner = app.test_cli_runner()
     with pytest.raises(ValueError, match="Pass exactly one of --account or --asset."):
         runner.invoke(edit_secret, to_flags(cli_input))
+
+
+def test_edit_secret_rejects_invalid_iso_expires_at_metadata(app, db, setup_accounts):
+    from flexmeasures.cli.data_edit import edit_secret
+
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
+    account = setup_accounts["Prosumer"]
+    runner = app.test_cli_runner()
+
+    with pytest.raises(
+        ValueError,
+        match="Secret metadata field 'expires_at' must be a valid ISO datetime.",
+    ):
+        runner.invoke(
+            edit_secret,
+            [
+                "--account",
+                str(account.id),
+                "--secret",
+                "platform.refresh_token",
+                "--value",
+                "refresh-token-value",
+                "--metadata",
+                '{"expires_at": "not-a-datetime"}',
+            ],
+        )
+
+
+def test_edit_secret_rejects_secret_and_secret_path_together(app, db, setup_accounts):
+    from flexmeasures.cli.data_edit import edit_secret
+
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
+    account = setup_accounts["Prosumer"]
+    runner = app.test_cli_runner()
+
+    with pytest.raises(
+        ValueError, match="Pass either --secret or --secret-path, not both."
+    ):
+        runner.invoke(
+            edit_secret,
+            [
+                "--account",
+                str(account.id),
+                "--secret",
+                "platform.password",
+                "--secret-path",
+                "platform",
+                "--value",
+                "password-value",
+            ],
+        )
+
+
+def test_edit_secret_rejects_more_than_two_secret_path_parts(app, db, setup_accounts):
+    from flexmeasures.cli.data_edit import edit_secret
+
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
+    account = setup_accounts["Prosumer"]
+    runner = app.test_cli_runner()
+
+    with pytest.raises(ValueError, match="Pass --secret-path at most twice."):
+        runner.invoke(
+            edit_secret,
+            [
+                "--account",
+                str(account.id),
+                "--secret-path",
+                "platform",
+                "--secret-path",
+                "nested",
+                "--secret-path",
+                "token",
+                "--value",
+                "password-value",
+            ],
+        )
 
 
 def test_edit_secret_rejects_missing_target(app):
@@ -197,6 +331,7 @@ def test_edit_secret_help_includes_examples(app):
     check_command_ran_without_error(result)
     assert "Examples:" in result.output
     assert "flexmeasures edit secret --account" in result.output
+    assert "--secret-path platform --secret-path token.v2" in result.output
 
 
 @pytest.mark.parametrize(
