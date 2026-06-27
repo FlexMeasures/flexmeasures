@@ -375,31 +375,32 @@ function yAxisTitle(sensorType, units) {
     : unitLabel;
 }
 
-function toolboxFeatures(elementId, datasetName) {
-  return {
-    right: 16,
-    feature: {
-      dataZoom: { yAxisIndex: false },
-      mySavePNG: {
-        show: true,
-        title: "Save as PNG",
-        icon: "path://M4 5 L20 5 L20 19 L4 19 Z M8 14 L11 10 L13 13 L15 11 L18 15 L8 15 Z",
-        onclick: () => exportPNG(elementId, datasetName),
-      },
-      mySaveCSV: {
-        show: true,
-        title: "Save as CSV",
-        icon: "path://M5 2 L13 2 L17 6 L17 20 L5 20 Z M7 11 L15 11 M7 14 L15 14 M7 17 L15 17",
-        onclick: () => exportCSV(elementId, datasetName),
-      },
-      mySaveSVG: {
-        show: true,
-        title: "Save as SVG",
-        icon: "path://M5 2 L13 2 L17 6 L17 20 L5 20 Z M7 12 L11 17 L15 9",
-        onclick: () => exportSVG(elementId, datasetName),
-      },
-    },
+function toolboxFeatures(elementId, datasetName, isSensorPage) {
+  const dataZoom = { yAxisIndex: false };
+  const savePNG = {
+    show: true,
+    title: "Save as PNG",
+    icon: "path://M4 5 L20 5 L20 19 L4 19 Z M8 14 L11 10 L13 13 L15 11 L18 15 L8 15 Z",
+    onclick: () => exportPNG(elementId, datasetName),
   };
+  const saveCSV = {
+    show: true,
+    title: "Save as CSV",
+    icon: "path://M5 2 L13 2 L17 6 L17 20 L5 20 Z M7 11 L15 11 M7 14 L15 14 M7 17 L15 17",
+    onclick: () => exportCSV(elementId, datasetName),
+  };
+  const saveSVG = {
+    show: true,
+    title: "Save as SVG",
+    icon: "path://M5 2 L13 2 L17 6 L17 20 L5 20 Z M7 12 L11 17 L15 9",
+    onclick: () => exportSVG(elementId, datasetName),
+  };
+  // Toolbox icons render in key order. On the sensor page, place SVG between the
+  // dataZoom (zoom/reset) icons and PNG; elsewhere keep PNG, CSV, SVG.
+  const feature = isSensorPage
+    ? { dataZoom: dataZoom, mySaveSVG: saveSVG, mySavePNG: savePNG, mySaveCSV: saveCSV }
+    : { dataZoom: dataZoom, mySavePNG: savePNG, mySaveCSV: saveCSV, mySaveSVG: saveSVG };
+  return { right: 16, feature: feature };
 }
 
 function downloadBlob(content, mimeType, filename) {
@@ -433,11 +434,23 @@ function buildExportOption(lastOption) {
       ? [lastOption.legend]
       : []
   ).map((l) => Object.assign({}, l, { type: "plain" }));
+  // Render every series in a single synchronous pass. Heatmaps use progressive
+  // rendering (cells drawn across animation frames); the export reads the
+  // canvas/SVG immediately after setOption, so without this a large heatmap
+  // (e.g. a year of data, > 5000 cells) loses every cell past the first chunk.
+  const series = (
+    Array.isArray(lastOption.series)
+      ? lastOption.series
+      : lastOption.series
+      ? [lastOption.series]
+      : []
+  ).map((s) => Object.assign({}, s, { progressive: 0, animation: false }));
   return Object.assign({}, lastOption, {
     animation: false,
     backgroundColor: "#fff",
     toolbox: { show: false },
     legend: legend,
+    series: series,
   });
 }
 
@@ -828,7 +841,7 @@ function buildLineBarOption(elementId, groups, opts) {
   const sourceKey = showSourceKey ? buildSourceKey(GRID_LEFT, 6) : null;
 
   const allAxisIndices = xAxes.map((_, i) => i);
-  const toolbox = toolboxFeatures(elementId, opts.datasetName);
+  const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage);
   toolbox.feature.dataZoom.xAxisIndex = allAxisIndices;
 
   return {
@@ -967,7 +980,7 @@ function buildHistogramOption(elementId, data, opts) {
       },
     },
     textStyle: { fontFamily: CHART_FONT, fontSize: FONT_SIZE },
-    toolbox: toolboxFeatures(elementId, opts.datasetName),
+    toolbox: toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage),
   };
 }
 
@@ -1076,7 +1089,7 @@ function buildHeatmapOption(elementId, data, opts) {
       },
     },
     textStyle: { fontFamily: CHART_FONT, fontSize: FONT_SIZE },
-    toolbox: toolboxFeatures(elementId, opts.datasetName),
+    toolbox: toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage),
     series: [
       {
         type: "heatmap",
