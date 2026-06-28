@@ -377,7 +377,7 @@ def test_get_schedule_infeasible_storage_job_without_fallback(
     assert capacity == 2
     assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
 
-    # check that no retired storage fallback schedule has been saved before
+    # check that no storage fallback schedule has been saved before
     models = [
         source.model for source in charging_station.search_beliefs().sources.unique()
     ]
