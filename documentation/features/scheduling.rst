@@ -268,13 +268,12 @@ However, here are some tips to model a buffer correctly:
    - Set ``charging-efficiency`` to the sensor describing the :abbr:`COP (coefficient of performance)` values.
    - Set ``storage-efficiency`` to a value below 100% to model (heat) loss.
 
-What happens if the flex model describes an infeasible problem for the storage scheduler? Excellent question!
-It is highly important for robust operation that these situations remain visible.
+If the flex model describes an infeasible problem for the storage scheduler, the failure should remain visible.
 By default, ``soc-minima`` and ``soc-maxima`` are relaxed into soft constraints, so the scheduler can still return a useful schedule when these boundaries cannot be fully met.
 Exact ``soc-targets`` and physical ``soc-min`` / ``soc-max`` bounds remain hard constraints.
 If those hard constraints make the problem infeasible, the scheduling job fails instead of producing a fallback schedule.
 
-It is important to take note of these failures. Often, mis-configured flex models are the reason.
+It is important to take note of these failures. Often, misconfigured flex models are the reason.
 
 For a hands-on tutorial on using some of the storage flex-model fields, head over to :ref:`tut_v2g` use case and `the API documentation for triggering schedules <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_.
 

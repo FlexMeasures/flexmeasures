@@ -248,7 +248,8 @@ To set softer boundaries, use the ``soc-maxima`` flex-model field instead togeth
 SOC_MINIMA = MetaData(
     description="""Set points that form lower boundaries, e.g. to target a full car battery in the morning.
 The ``soc-minima`` are soft constraints in the optimization problem by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-minima-breach-price``.
-Set ``relax-soc-constraints`` to ``False`` to keep them as hard constraints unless ``soc-minima-breach-price`` is supplied explicitly. [#maximum_overlap]_. Both single points in time and ranges are possible, see example.""",
+Set ``relax-soc-constraints`` to ``False`` to keep them as hard constraints unless ``soc-minima-breach-price`` is supplied explicitly [#maximum_overlap]_.
+Both single points in time and ranges are possible, see example.""",
     example=[
         {"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"},
         {
