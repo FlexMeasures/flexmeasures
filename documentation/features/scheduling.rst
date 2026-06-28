@@ -370,7 +370,7 @@ Checking the status via the API
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 There is an API endpoint specifically for checking status, result and configuration info for jobs:
-``GET /api/v3_0/jobs/{uuid}`` will return JSON with information, including the flex config and exception info.
+``GET /api/v3_0/jobs/{uuid}`` returns JSON with the job status, result, queue and function metadata, timestamps, and exception traceback information for failed jobs.
 
 
 The RQ-dashboard
