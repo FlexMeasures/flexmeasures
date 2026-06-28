@@ -357,7 +357,7 @@ The asset status page
 ^^^^^^^^^^^^^^^^^^^^^
 
 Each asset has a status page where you can find recent jobs, and the "Info" button will give you a lot 
-og insight into its configuration.
+of insight into its configuration.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_status_page_job_info.png
     :align: center
@@ -377,7 +377,7 @@ The RQ-dashboard
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Internally, jobs are queued with the python-rq library. For this, a job dashboard is available, which 
-users with the ``admin`` role can access via the menu. You find your jobs via the queues, see screesnhot below.
+users with the ``admin`` role can access via the menu. You find your jobs via the queues, see screenshot below.
 Clicking a job gives you more information.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_rq_dashboard.png
