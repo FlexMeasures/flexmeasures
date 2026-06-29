@@ -7,6 +7,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 from marshmallow import ValidationError
+from sqlalchemy import inspect as sa_inspect
 
 from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.data_sources import DataSource
@@ -18,10 +19,25 @@ from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
 )
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+from flexmeasures.data.models.forecasting.pipelines.train_predict import (
+    run_train_predict_cycle_job,
+)
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
+
+
+def _contains_orm_instance(value) -> bool:
+    inspection = sa_inspect(value, raiseerr=False)
+    if inspection is not None and hasattr(inspection, "object"):
+        return True
+
+    if isinstance(value, dict):
+        return any(_contains_orm_instance(v) for v in value.values())
+    if isinstance(value, (list, tuple, set)):
+        return any(_contains_orm_instance(v) for v in value)
+    return False
 
 
 def test_custom_lgbm_falls_back_when_daily_lag_is_under_sampled():
@@ -335,6 +351,50 @@ def test_train_predict_pipeline(  # noqa: C901
                 assert hasattr(pipeline, attr)
 
         if as_job:
+            queued_job = app.queues["forecasting"].fetch_job(pipeline_returns["job_id"])
+            assert queued_job is not None
+            if not queued_job.dependency_ids:
+                queued_cycle_job_ids = [queued_job.id]
+            else:
+                queued_cycle_job_ids = queued_job.kwargs.get("cycle_job_ids", [])
+
+            for job_id in queued_cycle_job_ids:
+                queued_cycle_job = app.queues["forecasting"].fetch_job(job_id)
+                assert queued_cycle_job is not None
+                assert queued_cycle_job.func == run_train_predict_cycle_job
+                assert not _contains_orm_instance(queued_cycle_job.kwargs)
+                assert isinstance(
+                    queued_cycle_job.kwargs["parameters"]["sensor_id"], int
+                )
+                assert isinstance(
+                    queued_cycle_job.kwargs["parameters"]["sensor_to_save_id"], int
+                )
+                assert all(
+                    isinstance(sensor_id, int)
+                    for sensor_id in queued_cycle_job.kwargs["config"][
+                        "future_regressor_ids"
+                    ]
+                )
+                assert all(
+                    isinstance(sensor_id, int)
+                    for sensor_id in queued_cycle_job.kwargs["config"][
+                        "past_regressor_ids"
+                    ]
+                )
+                for timing_field in (
+                    "predict_start",
+                    "end_date",
+                    "predict_period_in_hours",
+                    "max_forecast_horizon",
+                    "forecast_frequency",
+                    "save_belief_time",
+                    "m_viewpoints",
+                ):
+                    assert (
+                        queued_cycle_job.kwargs["parameters"][timing_field]
+                        == pipeline._parameters[timing_field]
+                    )
+
             work_on_rq(
                 app.queues["forecasting"], exc_handler=handle_forecasting_exception
             )
