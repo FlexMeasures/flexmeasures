@@ -508,6 +508,25 @@ Extra password salt (a.k.a. pepper)
 
 Default: ``None`` (falls back to ``SECRET_KEY``\ )
 
+.. _flexmeasures_secrets_encryption_keys:
+
+FLEXMEASURES_SECRETS_ENCRYPTION_KEYS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Keyring (dictionary with key IDs mapped to key material), used to encrypt and decrypt
+connection secrets stored for accounts and assets. This follows the same shape
+as ``SECURITY_TOTP_SECRETS``, for example
+``{"1": "old-secret", "2": "current-secret"}``.
+
+Newly encrypted values use the highest numeric key ID in this dictionary, or
+the last key ID in lexical order if the IDs are not numeric. Keep previous keys
+in this dictionary until all stored secrets have been re-encrypted with the
+current key.
+
+This setting must be configured before connection secrets can be stored or decrypted.
+
+Default: ``None``
+
 SECURITY_TOKEN_AUTHENTICATION_HEADER
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

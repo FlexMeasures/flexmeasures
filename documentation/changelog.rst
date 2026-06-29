@@ -7,6 +7,8 @@ FlexMeasures Changelog
 v1.0.0 | July XX, 2026
 ============================
 
+.. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+
 New features
 -------------
 * In the UI, asset and sensor lists can be filtered by ID prefix through API-backed search fields [see `PR #2231 <https://www.github.com/FlexMeasures/flexmeasures/pull/2231>`_]
@@ -15,11 +17,11 @@ New features
 * Let storage scheduling infer missing ``power-capacity`` from directional device capacities before falling back to site capacity, and default the missing opposite capacity to zero when only a non-zero ``consumption-capacity`` or ``production-capacity`` is configured [see `PR #2222 <https://www.github.com/FlexMeasures/flexmeasures/pull/2222>`_]
 * CLI support for adding/editing account attributes [see `PR #2242 <https://www.github.com/FlexMeasures/flexmeasures/pull/2242>`_]
 
-
 Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_, `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_ and `PR #2243 <https://www.github.com/FlexMeasures/flexmeasures/pull/2243>`_]
 * Prepare the ``device_scheduler`` to deal with commitments per device group [see `PR #1934 <https://www.github.com/FlexMeasures/flexmeasures/pull/1934>`_]
+* Support storing encrypted connection secrets on organisations and assets, including utility functions, encryption key configuration, CLI commands to set and delete secrets, and UI tables that show stored secret names and optional expiration times without exposing their values [see `PR #2236 <https://www.github.com/FlexMeasures/flexmeasures/pull/2236>`_]
 * Documentation section on the modelling choice for recording measurements, forecasts and schedules under one or multiple sensors [see `PR #2217 <https://www.github.com/FlexMeasures/flexmeasures/pull/2217>`_]
 * Document suggested cloud architecture [see `PR #2245 <https://www.github.com/FlexMeasures/flexmeasures/pull/2245>`_]
 * Document the ``TRUSTED_HOSTS`` setting to safeguard against host poisoning from clients [see `PR #2246 <https://www.github.com/FlexMeasures/flexmeasures/pull/2246>`_]

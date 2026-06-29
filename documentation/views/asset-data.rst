@@ -162,6 +162,8 @@ Properties page
 ---------------
 
 The properties page allows you to view and edit the properties of the asset.
+It lists stored secret names without exposing their values and shows a
+human-readable expiration time when one is available.
 
 You can also delete the asset by clicking on the "Delete this asset" button.
 
@@ -204,4 +206,3 @@ This is how the audit log looks for the history of actions taken on an asset:
 ..    :scale: 40%
 
 |
-
