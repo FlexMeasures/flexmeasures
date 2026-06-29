@@ -353,19 +353,6 @@ FlexMeasures will validate flex-config and asset & sensor IDs before starting th
 and let you know (in the console or API response) what went wrong.
 
 
-The asset status page
-^^^^^^^^^^^^^^^^^^^^^
-
-Each asset has a status page where you can find recent jobs, and the "Info" button will give you a lot 
-of insight into its configuration.
-
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_status_page_job_info.png
-    :align: center
-..    :scale: 40%
-
-|
-
-
 Checking the status via the API
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -379,15 +366,32 @@ Checking the status via the API
 There is also a CLI command, which basically mirrors what the API endpoint does (see above). Here is an example call:
 
 .. code-block:: bash
+
     flexmeasures jobs inspect-job --job 40ac6f2e-690d-4865-8203-429e54179112
 
 
-The RQ-dashboard
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The asset status page: listing jobs and more info
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Each asset has a status page where you can find recent jobs which were run in the context of this asset.
+Clicking the "Info" button will give you a lot more insights into the jobs' configuration than the above methods.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_status_page_job_info.png
+    :align: center
+..    :scale: 40%
+
+|
+
+
+The RQ-dashboard: complete overview
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Internally, jobs are queued with the python-rq library. For this, a job dashboard is available, which 
-users with the ``admin`` role can access via the menu. You find your jobs via the queues, see screenshot below.
-Clicking a job gives you more information.
+users with the ``admin`` role can access via the menu. This gives a complete overview over all jobs 
+running in FlexMeasures.
+
+You find your jobs via the queues, see screenshot below.
+Clicking a job gives you more information, similar to the status page.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_rq_dashboard.png
     :align: center
