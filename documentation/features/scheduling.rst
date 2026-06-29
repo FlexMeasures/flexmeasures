@@ -373,6 +373,15 @@ There is an API endpoint specifically for checking status, result and configurat
 ``GET /api/v3_0/jobs/{uuid}`` returns JSON with the job status, result, queue and function metadata, timestamps, and exception traceback information for failed jobs.
 
 
+Checking the status via the API
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There is also a CLI command, which basically mirrors what the API endpoint does (see above). Here is an example call:
+
+.. code-block:: bash
+    flexmeasures jobs inspect-job --job 40ac6f2e-690d-4865-8203-429e54179112
+
+
 The RQ-dashboard
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
