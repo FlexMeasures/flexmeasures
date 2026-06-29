@@ -190,8 +190,19 @@ Below is a fictious example, where the toy battery (from our tutorial) has sched
 
 |
    
-Hovering over the traffic light will tell you how long ago this most recent entry is and why the light is red, yellow or green. For jobs, you can also get more information (e.g. error message).
+Hovering over the traffic light will tell you how long ago this most recent entry is and why the light is red, yellow or green.
 
+For jobs, you can also get more information (e.g. error message) by hovering over the traffic light.
+
+You can also click the "Info" button, to see much information about how the scheduling or forecasting job
+was configured. Here is an example:
+
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_status_page_job_info.png
+    :align: center
+..    :scale: 40%
+
+|
 
 .. _view_asset_auditlog:
 
