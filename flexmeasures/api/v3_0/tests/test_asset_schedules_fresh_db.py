@@ -11,6 +11,7 @@ from rq.job import Job
 from flexmeasures import Sensor
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.planning.tests.utils import check_constraints
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.scheduling import (
     handle_scheduling_exception,
@@ -290,3 +291,342 @@ def test_asset_trigger_and_get_schedule(
                 sum(power_schedule[cheapest_hour * 4 : (cheapest_hour + 1) * 4]) > 0
             ), "we expect to charge in the cheapest hour"
             assert_almost_equal(power_schedule, expected_uni_schedule)
+
+
+@pytest.mark.xfail(
+    reason="StorageScheduler does not yet populate aggregate-consumption/production sensors"
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_asset_trigger_and_get_aggregate_schedule(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    setup_roles_users_fresh_db,
+    add_charging_station_assets_fresh_db,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    """Test aggregate-consumption and aggregate-production flex-context fields.
+
+    This test verifies the interface for aggregate-consumption and aggregate-production
+    flex-context fields and checks whether they are populated with aggregate power flows.
+
+    Current Status: MISSING IMPLEMENTATION
+    The StorageScheduler currently does NOT populate aggregate-consumption and
+    aggregate-production sensors with data. This test documents the expected behavior once
+    the logic is implemented in StorageScheduler._compute_aggregate_schedules() (or similar).
+
+    Expected behavior when implemented:
+    1. Aggregate-consumption sensor receives the summed consumption schedule (positive values)
+    2. Aggregate-production sensor receives the summed production schedule (positive values)
+    3. The data source is correctly set to the scheduler
+    4. Sign convention matches the scheduler's output (consumption positive, production negative internally)
+    """
+    # Set up charging hub with aggregate sensors
+    bidirectional_charging_station = add_charging_station_assets_fresh_db[
+        "Test charging station (bidirectional)"
+    ]
+    charging_hub = bidirectional_charging_station.parent_asset
+
+    # Create aggregate consumption and production sensors on the hub
+    aggregate_consumption_sensor = Sensor(
+        name="aggregate-consumption",
+        generic_asset=charging_hub,
+        unit="MW",
+        event_resolution=pd.Timedelta(minutes=15),
+    )
+    aggregate_production_sensor = Sensor(
+        name="aggregate-production",
+        generic_asset=charging_hub,
+        unit="MW",
+        event_resolution=pd.Timedelta(minutes=15),
+    )
+    fresh_db.session.add(aggregate_consumption_sensor)
+    fresh_db.session.add(aggregate_production_sensor)
+    fresh_db.session.flush()
+
+    # Set up price sensor
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+
+    # Create flex-model with both charging stations
+    bidirectional_charging_station = add_charging_station_assets_fresh_db[
+        "Test charging station (bidirectional)"
+    ]
+    charging_station = add_charging_station_assets_fresh_db["Test charging station"]
+
+    sensor_1 = bidirectional_charging_station.sensors[0]
+    sensor_2 = charging_station.sensors[0]
+    bi_soc_sensor = add_charging_station_assets_fresh_db["bi-soc"]
+    uni_soc_sensor = add_charging_station_assets_fresh_db["uni-soc"]
+
+    # Build the message with aggregate sensors in flex-context
+    message = message_for_trigger_schedule(resolution="PT30M")
+    message["flex-context"] = {
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
+        "site-power-capacity": "1 TW",
+        "aggregate-consumption": {"sensor": aggregate_consumption_sensor.id},
+        "aggregate-production": {"sensor": aggregate_production_sensor.id},
+    }
+
+    # Set up flex-models for both charging stations
+    CP_1_flex_model = message["flex-model"].copy()
+    CP_1_flex_model["state-of-charge"] = {"sensor": bi_soc_sensor.id}
+    CP_1_flex_model["sensor"] = sensor_1.id
+
+    CP_2_flex_model = message["flex-model"].copy()
+    CP_2_flex_model["state-of-charge"] = {"sensor": uni_soc_sensor.id}
+    CP_2_flex_model["sensor"] = sensor_2.id
+
+    message["flex-model"] = [CP_1_flex_model, CP_2_flex_model]
+
+    # Trigger the schedule
+    assert len(app.queues["scheduling"]) == 0
+    with app.test_client() as client:
+        trigger_response = client.post(
+            url_for("AssetAPI:trigger_schedule", id=charging_hub.id),
+            json=message,
+        )
+        assert trigger_response.status_code == 200
+        job_id = trigger_response.json["schedule"]
+
+    # Process the scheduling queue
+    scheduled_jobs = app.queues["scheduling"].jobs
+    scheduling_job = scheduled_jobs[0]
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+    assert (
+        Job.fetch(job_id, connection=app.queues["scheduling"].connection).is_finished
+        is True
+    )
+
+    # Verify scheduler data source was created
+    scheduling_job.refresh()
+    scheduler_source = get_data_source_for_job(scheduling_job)
+    assert scheduler_source is not None
+
+    # Verify aggregate-consumption sensor got filled with data
+    consumption_beliefs = (
+        TimedBelief.query.filter(
+            TimedBelief.sensor_id == aggregate_consumption_sensor.id
+        )
+        .filter(TimedBelief.source_id == scheduler_source.id)
+        .all()
+    )
+    assert len(consumption_beliefs) > 0, "aggregate-consumption sensor should have data"
+
+    # Extract consumption schedule (consumption is positive in the scheduler)
+    consumption_schedule = pd.Series(
+        [
+            -v.event_value for v in consumption_beliefs
+        ],  # Negate because DB stores consumption as negative
+        index=pd.DatetimeIndex([v.event_start for v in consumption_beliefs]),
+    )
+
+    # Verify aggregate-production sensor got filled with data
+    production_beliefs = (
+        TimedBelief.query.filter(
+            TimedBelief.sensor_id == aggregate_production_sensor.id
+        )
+        .filter(TimedBelief.source_id == scheduler_source.id)
+        .all()
+    )
+    assert len(production_beliefs) > 0, "aggregate-production sensor should have data"
+
+    # Extract production schedule (production is negative in the scheduler, but stored as positive in DB for production sensors)
+    production_schedule = pd.Series(
+        [v.event_value for v in production_beliefs],
+        index=pd.DatetimeIndex([v.event_start for v in production_beliefs]),
+    )
+
+    # Verify sign conventions: some values should be positive (consumption), some negative (production)
+    # At least one consumption value should be positive
+    assert (
+        consumption_schedule > 0
+    ).any(), "consumption schedule should have some positive values"
+
+    # For a test with charging, we might not have discharge, so production could be all zeros
+    # But we still verify the schedule structure is correct
+    assert (
+        production_schedule >= 0
+    ).all(), "production schedule should have non-negative values (production flows are positive)"
+
+
+@pytest.mark.xfail(
+    reason="StorageScheduler does not yet populate aggregate-consumption/production sensors"
+)
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_asset_trigger_with_multi_commodity_flex_context(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    setup_roles_users_fresh_db,
+    add_charging_station_assets_fresh_db,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    """Test aggregate-consumption/production with multi-commodity flex-context (list format).
+
+    This test verifies the interface for aggregate sensors in multi-commodity scheduling,
+    where flex-context is a list of commodity-specific contexts.
+
+    Current Status: MISSING IMPLEMENTATION
+    Similar to test_asset_trigger_and_get_aggregate_schedule, the StorageScheduler does NOT
+    currently populate aggregate sensors for multi-commodity flex-contexts. This test documents
+    the expected behavior and verifies the infrastructure works correctly.
+
+    Expected behavior when implemented:
+    1. Aggregate-consumption and aggregate-production work with multi-commodity flex-context (list format)
+    2. Each commodity has its own aggregate sensors
+    3. Aggregate sensors for electricity correctly receive summed schedules
+    4. Aggregate sensors for heat correctly receive summed schedules (if applicable)
+    """
+    # Set up charging hub
+    bidirectional_cs = add_charging_station_assets_fresh_db[
+        "Test charging station (bidirectional)"
+    ]
+    charging_hub = bidirectional_cs.parent_asset
+
+    # Create aggregate sensors for electricity commodity
+    agg_consumption_electricity = Sensor(
+        name="aggregate-consumption-electricity",
+        generic_asset=charging_hub,
+        unit="MW",
+        event_resolution=pd.Timedelta(minutes=15),
+    )
+    agg_production_electricity = Sensor(
+        name="aggregate-production-electricity",
+        generic_asset=charging_hub,
+        unit="MW",
+        event_resolution=pd.Timedelta(minutes=15),
+    )
+
+    # Create aggregate sensors for heat commodity
+    agg_consumption_heat = Sensor(
+        name="aggregate-consumption-heat",
+        generic_asset=charging_hub,
+        unit="MW",
+        event_resolution=pd.Timedelta(minutes=15),
+    )
+    agg_production_heat = Sensor(
+        name="aggregate-production-heat",
+        generic_asset=charging_hub,
+        unit="MW",
+        event_resolution=pd.Timedelta(minutes=15),
+    )
+    fresh_db.session.add(agg_consumption_electricity)
+    fresh_db.session.add(agg_production_electricity)
+    fresh_db.session.add(agg_consumption_heat)
+    fresh_db.session.add(agg_production_heat)
+    fresh_db.session.flush()
+
+    # Set up price sensors
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+
+    # Get the charging stations
+    bidirectional_cs = add_charging_station_assets_fresh_db[
+        "Test charging station (bidirectional)"
+    ]
+    charging_station = add_charging_station_assets_fresh_db["Test charging station"]
+
+    sensor_1 = bidirectional_cs.sensors[0]
+    sensor_2 = charging_station.sensors[0]
+    bi_soc_sensor = add_charging_station_assets_fresh_db["bi-soc"]
+    uni_soc_sensor = add_charging_station_assets_fresh_db["uni-soc"]
+
+    # Build the message with multi-commodity flex-context (list of dicts)
+    message = message_for_trigger_schedule(resolution="PT30M")
+
+    # Multi-commodity flex-context as a LIST of commodity contexts
+    message["flex-context"] = [
+        {
+            "commodity": "electricity",
+            "consumption-price": {"sensor": price_sensor_id},
+            "production-price": {"sensor": price_sensor_id},
+            "site-power-capacity": "1 TW",
+            "aggregate-consumption": {"sensor": agg_consumption_electricity.id},
+            "aggregate-production": {"sensor": agg_production_electricity.id},
+        },
+        {
+            "commodity": "heat",
+            "consumption-price": {"sensor": price_sensor_id},
+            "aggregate-consumption": {"sensor": agg_consumption_heat.id},
+            "aggregate-production": {"sensor": agg_production_heat.id},
+        },
+    ]
+
+    # Set up flex-models for both charging stations (both will use electricity commodity, but message allows multi-commodity)
+    CP_1_flex_model = message["flex-model"].copy()
+    CP_1_flex_model["state-of-charge"] = {"sensor": bi_soc_sensor.id}
+    CP_1_flex_model["sensor"] = sensor_1.id
+    CP_1_flex_model["commodity"] = "electricity"  # Explicitly set commodity
+
+    CP_2_flex_model = message["flex-model"].copy()
+    CP_2_flex_model["state-of-charge"] = {"sensor": uni_soc_sensor.id}
+    CP_2_flex_model["sensor"] = sensor_2.id
+    CP_2_flex_model["commodity"] = "electricity"  # Explicitly set commodity
+
+    message["flex-model"] = [CP_1_flex_model, CP_2_flex_model]
+
+    # Trigger the schedule
+    assert len(app.queues["scheduling"]) == 0
+    with app.test_client() as client:
+        trigger_response = client.post(
+            url_for("AssetAPI:trigger_schedule", id=charging_hub.id),
+            json=message,
+        )
+        assert trigger_response.status_code == 200
+        job_id = trigger_response.json["schedule"]
+
+    # Process the scheduling queue
+    scheduled_jobs = app.queues["scheduling"].jobs
+    scheduling_job = scheduled_jobs[0]
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+    assert (
+        Job.fetch(job_id, connection=app.queues["scheduling"].connection).is_finished
+        is True
+    )
+
+    # Verify scheduler data source
+    scheduling_job.refresh()
+    scheduler_source = get_data_source_for_job(scheduling_job)
+    assert scheduler_source is not None
+
+    # Verify electricity aggregate-consumption sensor got filled with data
+    electricity_consumption_beliefs = (
+        TimedBelief.query.filter(
+            TimedBelief.sensor_id == agg_consumption_electricity.id
+        )
+        .filter(TimedBelief.source_id == scheduler_source.id)
+        .all()
+    )
+    assert (
+        len(electricity_consumption_beliefs) > 0
+    ), "electricity aggregate-consumption sensor should have data"
+
+    # Verify electricity aggregate-production sensor got filled with data
+    electricity_production_beliefs = (
+        TimedBelief.query.filter(TimedBelief.sensor_id == agg_production_electricity.id)
+        .filter(TimedBelief.source_id == scheduler_source.id)
+        .all()
+    )
+    assert (
+        len(electricity_production_beliefs) > 0
+    ), "electricity aggregate-production sensor should have data"
+
+    # Verify data types are correct (should be numeric)
+    consumption_values = [v.event_value for v in electricity_consumption_beliefs]
+    production_values = [v.event_value for v in electricity_production_beliefs]
+
+    assert all(
+        isinstance(v, (int, float)) or v is None for v in consumption_values
+    ), "consumption values should be numeric"
+    assert all(
+        isinstance(v, (int, float)) or v is None for v in production_values
+    ), "production values should be numeric"
+
+    # Note: heat aggregate sensors may not have data if the scheduler doesn't compute aggregates for
+    # unused commodities, which is expected behavior. The test verifies the electricity commodity works.
