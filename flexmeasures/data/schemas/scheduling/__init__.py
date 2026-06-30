@@ -180,7 +180,7 @@ class FlexContextSchema(Schema):
     # Dev fields
     relax_soc_constraints = fields.Bool(
         data_key="relax-soc-constraints",
-        load_default=False,
+        load_default=True,
         metadata=metadata.RELAX_SOC_CONSTRAINTS.to_dict(),
     )
     relax_capacity_constraints = fields.Bool(
@@ -358,7 +358,9 @@ class FlexContextSchema(Schema):
             for field_var, field in self.declared_fields.items()
         }
         if any(
-            field_map[field] in data and data[field_map[field]]
+            field in original_data
+            and field_map[field] in data
+            and data[field_map[field]]
             for field in (
                 "soc-minima-breach-price",
                 "soc-maxima-breach-price",
@@ -391,8 +393,7 @@ class FlexContextSchema(Schema):
 
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
         if (
-            data["relax_soc_constraints"]
-            or data["relax_constraints"]
+            (data["relax_soc_constraints"] or data["relax_constraints"])
             and not data.get("soc_minima_breach_price")
             and not data.get("soc_maxima_breach_price")
         ):
@@ -404,8 +405,7 @@ class FlexContextSchema(Schema):
 
         # Fill in default capacity breach prices when asked to relax capacity constraints, unless already set explicitly.
         if (
-            data["relax_capacity_constraints"]
-            or data["relax_constraints"]
+            (data["relax_capacity_constraints"] or data["relax_constraints"])
             and not data.get("consumption_breach_price")
             and not data.get("production_breach_price")
         ):
@@ -417,8 +417,7 @@ class FlexContextSchema(Schema):
 
         # Fill in default site capacity breach prices when asked to relax site capacity constraints, unless already set explicitly.
         if (
-            data["relax_site_capacity_constraints"]
-            or data["relax_constraints"]
+            (data["relax_site_capacity_constraints"] or data["relax_constraints"])
             and not data.get("ems_consumption_breach_price")
             and not data.get("ems_production_breach_price")
         ):
@@ -764,6 +763,11 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
 
 
 class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
+    relax_soc_constraints = fields.Bool(
+        data_key="relax-soc-constraints",
+        load_default=False,
+        metadata=metadata.RELAX_SOC_CONSTRAINTS.to_dict(),
+    )
 
     commitments = fields.Nested(
         DBCommitmentSchema, data_key="commitments", required=False, many=True

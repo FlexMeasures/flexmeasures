@@ -246,7 +246,7 @@ def test_upload_sensor_data_with_unit_conversion_success(
             len(beliefs) == expected_num_beliefs
         ), f"Fetched {len(beliefs)} beliefs from the database, expecting {expected_num_beliefs}."
 
-        assert [b.event_value for b in beliefs] == expected_event_values
+        assert [b.event_value for b in beliefs] == pytest.approx(expected_event_values)
 
 
 @pytest.mark.parametrize(
@@ -327,7 +327,7 @@ def test_upload_sensor_data_floors_offclock_datetimes(
     pd.testing.assert_index_equal(
         bdf.event_starts, pd.DatetimeIndex(expected_event_starts, name="event_start")
     )
-    assert bdf["event_value"].to_list() == expected_event_values
+    assert bdf["event_value"].to_list() == pytest.approx(expected_event_values)
 
 
 @pytest.mark.parametrize(

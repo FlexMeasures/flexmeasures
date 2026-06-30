@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import copy
 from datetime import datetime, timedelta
-from typing import Type
 
 import pandas as pd
 import numpy as np
@@ -26,7 +25,6 @@ from flexmeasures.data.models.planning.utils import (
     initialize_series,
     initialize_df,
     get_power_values,
-    fallback_charging_policy,
     get_continuous_series_sensor_or_quantity,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
@@ -1582,80 +1580,9 @@ class MetaStorageScheduler(Scheduler):
         return q
 
 
-class StorageFallbackScheduler(MetaStorageScheduler):
-    __version__ = "3"
-    __author__ = "Seita"
-
-    def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
-        """Schedule a battery or Charge Point by just starting to charge, discharge, or do neither,
-           depending on the first target state of charge and the capabilities of the Charge Point.
-           For the resulting consumption schedule, consumption is defined as positive values.
-
-           Note that this ignores any cause of the infeasibility.
-
-        :param skip_validation: If True, skip validation of constraints specified in the data.
-        :returns:               The computed schedule.
-        """
-
-        (
-            sensors,
-            start,
-            end,
-            resolution,
-            soc_at_start,
-            device_constraints,
-            ems_constraints,
-            commitments,
-        ) = self._prepare(skip_validation=skip_validation)
-
-        # Fallback policy if the problem was unsolvable
-        storage_schedule = {
-            sensor: fallback_charging_policy(
-                sensor, device_constraints[d], start, end, resolution
-            )
-            for d, sensor in enumerate(sensors)
-            if sensor is not None
-        }
-
-        # Convert each device schedule to the unit of the device's power sensor
-        storage_schedule = {
-            sensor: convert_units(
-                storage_schedule[sensor],
-                "MW",
-                sensor.unit,
-                event_resolution=sensor.event_resolution,
-            )
-            for sensor in sensors
-            if sensor is not None
-        }
-
-        # Round schedule
-        if self.round_to_decimals:
-            storage_schedule = {
-                sensor: storage_schedule[sensor].round(self.round_to_decimals)
-                for sensor in sensors
-                if sensor is not None
-            }
-
-        if self.return_multiple:
-            return [
-                {
-                    "name": "storage_schedule",
-                    "sensor": sensor,
-                    "data": storage_schedule[sensor],
-                }
-                for sensor in sensors
-                if sensor is not None
-            ]
-        else:
-            return storage_schedule[sensors[0]]
-
-
 class StorageScheduler(MetaStorageScheduler):
     __version__ = "8"
     __author__ = "Seita"
-
-    fallback_scheduler_class: Type[Scheduler] = StorageFallbackScheduler
 
     @staticmethod
     def _build_soc_schedule(

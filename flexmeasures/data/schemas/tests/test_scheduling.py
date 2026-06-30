@@ -517,6 +517,48 @@ def test_flex_context_schema(
     check_schema_loads_data(schema=schema, data=flex_context, fails=fails)
 
 
+def test_flex_context_schema_relaxes_soc_constraints_by_default():
+    loaded_flex_context = FlexContextSchema().load({"consumption-price": "1 EUR/MWh"})
+
+    assert loaded_flex_context["relax_soc_constraints"] is True
+    assert loaded_flex_context["soc_minima_breach_price"].to(
+        "EUR/MWh"
+    ).magnitude == pytest.approx(1_000_000)
+    assert loaded_flex_context["soc_maxima_breach_price"].to(
+        "EUR/MWh"
+    ).magnitude == pytest.approx(1_000_000)
+    assert "consumption_breach_price" not in loaded_flex_context
+    assert "production_breach_price" not in loaded_flex_context
+    assert "ems_consumption_breach_price" not in loaded_flex_context
+    assert "ems_production_breach_price" not in loaded_flex_context
+
+
+def test_flex_context_schema_preserves_explicit_soc_breach_prices():
+    loaded_flex_context = FlexContextSchema().load(
+        {
+            "consumption-price": "1 EUR/MWh",
+            "soc-minima-breach-price": "5 EUR/kWh",
+            "soc-maxima-breach-price": "7 EUR/kWh",
+        }
+    )
+
+    assert loaded_flex_context["relax_soc_constraints"] is True
+    assert loaded_flex_context["soc_minima_breach_price"].to(
+        "EUR/kWh"
+    ).magnitude == pytest.approx(5)
+    assert loaded_flex_context["soc_maxima_breach_price"].to(
+        "EUR/kWh"
+    ).magnitude == pytest.approx(7)
+
+
+def test_db_flex_context_schema_does_not_relax_soc_constraints_by_default():
+    loaded_flex_context = DBFlexContextSchema().load({})
+
+    assert loaded_flex_context["relax_soc_constraints"] is False
+    assert "soc_minima_breach_price" not in loaded_flex_context
+    assert "soc_maxima_breach_price" not in loaded_flex_context
+
+
 def check_schema_loads_data(schema, data, fails):
     if fails:
         with pytest.raises(ValidationError) as e_info:

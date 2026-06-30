@@ -145,13 +145,14 @@ RELAX_CONSTRAINTS = MetaData(
 2. Avoid not meeting SoC minima/maxima.
 3. Avoid breaching the desired device consumption/production capacity.
 
-We recommend to set this field to ``True`` to enable the default prices and associated priorities as defined by FlexMeasures.
+SoC minima/maxima are already relaxed by default through ``relax-soc-constraints``.
+Set this field to ``True`` to also enable the default site and device capacity breach prices and associated priorities as defined by FlexMeasures.
 For tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have ``breach-price`` in their name).
 """,
     example=True,
 )
 RELAX_SOC_CONSTRAINTS = MetaData(
-    description="If True, avoids not meeting SoC minima/maxima as a relaxed constraint.",
+    description="If True (default), avoids not meeting SoC minima/maxima as relaxed constraints. Set this to False to keep SoC minima/maxima as hard constraints unless breach prices are supplied explicitly.",
     example=True,
 )
 RELAX_CAPACITY_CONSTRAINTS = MetaData(
@@ -246,8 +247,9 @@ To set softer boundaries, use the ``soc-maxima`` flex-model field instead togeth
 )
 SOC_MINIMA = MetaData(
     description="""Set points that form lower boundaries, e.g. to target a full car battery in the morning.
-If a ``soc-minima-breach-price`` is defined, the ``soc-minima`` become soft constraints in the optimization problem.
-Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points in time and ranges are possible, see example.""",
+The ``soc-minima`` are soft constraints in the optimization problem by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-minima-breach-price``.
+Set ``relax-soc-constraints`` to ``False`` to keep them as hard constraints unless ``soc-minima-breach-price`` is supplied explicitly [#maximum_overlap]_.
+Both single points in time and ranges are possible, see example.""",
     example=[
         {"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"},
         {
@@ -259,8 +261,8 @@ Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points
 )
 SOC_MAXIMA = MetaData(
     description="""Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.
-If a ``soc-maxima-breach-price`` is defined, the ``soc-maxima`` become soft constraints in the optimization problem.
-Otherwise, they become hard constraints. [#minimum_overlap]_""",
+The ``soc-maxima`` are soft constraints in the optimization problem by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-maxima-breach-price``.
+Set ``relax-soc-constraints`` to ``False`` to keep them as hard constraints unless ``soc-maxima-breach-price`` is supplied explicitly. [#minimum_overlap]_""",
     example=[
         {
             "value": "51 kWh",

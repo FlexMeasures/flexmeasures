@@ -4583,13 +4583,13 @@
           "relax-constraints": {
             "type": "boolean",
             "default": false,
-            "description": "If True (default is <code>False</code>), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to <code>True</code> to enable the default prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
+            "description": "If True (default is <code>False</code>), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nSoC minima/maxima are already relaxed by default through <code>relax-soc-constraints</code>.\nSet this field to <code>True</code> to also enable the default site and device capacity breach prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
             "example": true
           },
           "relax-soc-constraints": {
             "type": "boolean",
-            "default": false,
-            "description": "If True, avoids not meeting SoC minima/maxima as a relaxed constraint.",
+            "default": true,
+            "description": "If True (default), avoids not meeting SoC minima/maxima as relaxed constraints. Set this to False to keep SoC minima/maxima as hard constraints unless breach prices are supplied explicitly.",
             "example": true
           },
           "relax-capacity-constraints": {
@@ -6124,7 +6124,7 @@
             "example": true
           },
           "soc-maxima": {
-            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nIf a <code>soc-maxima-breach-price</code> is defined, the <code>soc-maxima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
+            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nThe <code>soc-maxima</code> are soft constraints in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-maxima-breach-price</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep them as hard constraints unless <code>soc-maxima-breach-price</code> is supplied explicitly.",
             "example": [
               {
                 "value": "51 kWh",
@@ -6135,7 +6135,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima": {
-            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nIf a <code>soc-minima-breach-price</code> is defined, the <code>soc-minima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.. Both single points in time and ranges are possible, see example.",
+            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nThe <code>soc-minima</code> are soft constraints in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-minima-breach-price</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep them as hard constraints unless <code>soc-minima-breach-price</code> is supplied explicitly.\nBoth single points in time and ranges are possible, see example.",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",
