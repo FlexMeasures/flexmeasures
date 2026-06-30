@@ -733,6 +733,8 @@ def test_asset_trigger_with_flex_context_commodity_not_used(
             url_for("AssetAPI:trigger_schedule", id=charging_hub.id),
             json=message,
         )
+        if trigger_response.status_code != 200:
+            print(f"Error response: {trigger_response.json}")
         assert trigger_response.status_code == 200
         job_id = trigger_response.json["schedule"]
 
