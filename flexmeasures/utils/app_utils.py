@@ -4,9 +4,6 @@ Utils for serving the FlexMeasures app
 
 from __future__ import annotations
 
-import os
-import sys
-import json
 from urllib.parse import urlsplit
 
 import click
