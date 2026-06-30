@@ -4,6 +4,7 @@ FlexMeasures Changelog
 **********************
 
 
+
 v1.0.0 | July XX, 2026
 ============================
 
@@ -28,6 +29,15 @@ Bugfixes
 -----------
 * Let storage scheduling treat missing constant SoC bounds as unconstrained lower or upper bounds [see `PR #2221 <https://www.github.com/FlexMeasures/flexmeasures/pull/2221>`_]
 * Allow root assets belonging to different accounts to share the same name, while keeping asset names unique among root assets within the same account and among children of the same parent [see `PR #2226 <https://www.github.com/FlexMeasures/flexmeasures/pull/2226>`_]
+
+
+v0.33.1 | June XX, 2026
+============================
+
+Infrastructure / Support
+----------------------
+* Filter handled untrusted-host ``SecurityError`` events out of Sentry, alongside the existing 404 filtering [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+
 
 
 v0.33.0 | June 1, 2026
