@@ -1221,7 +1221,7 @@ Track and document when the Lead:
 - **Failure**: Lead claimed merge conflicts were resolved without actually performing a merge. The branch was behind `origin/main` by 10+ commits but Lead ran `git status` (which showed "nothing to commit"), checked for `<<<` markers (there were none because no merge was attempted), ran 3 tests, replied "resolved in 640e79ea", and closed the session.
 - **Root cause**: "Already up to date" / "nothing to commit" from `git status` was misread as "no conflicts to resolve". The correct check is `git log --left-right origin/main...HEAD` which would have shown `<` markers for commits on main not yet in the branch.
 - **Fix**: When asked to "resolve merge conflicts", always check `git log --left-right origin/main...HEAD` first to determine if main has advanced beyond the last merge. If `<` markers exist, `origin/main` has commits the branch lacks — a fresh merge is needed.
-- **Prevention**: Add to merge conflict checklist: "Check `git log --oneline origin/main...HEAD --left-right` before claiming conflicts resolved. If `<` markers exist, main has commits the branch lacks — merge is needed."
+- **Prevention**: This rule is now in the Pre-Commit Verification checklist below.
 
 **Specific lesson learned (2026-05-13)**:
 - **Session**: Auth fix for public asset creation (PR #2163)
@@ -1261,7 +1261,6 @@ Track and document when the Lead:
 - **Code review insights**:
   - FlaskView classes with route_prefix don't need explicit registration if pattern matches
   - Import conflicts during merge can be resolved by aligning class names with expectations
-  - Asset references are more meaningful for API consumers than sensor-only references
 
 Update this file to prevent repeating the same mistakes.
 
@@ -1325,6 +1324,7 @@ This is a regression (see Regression Prevention section). You MUST:
 
 ### Pre-Commit Verification
 
+- [ ] **Branch in sync with main**: Run `git log --oneline origin/main...HEAD --left-right` — if `<` markers exist, `origin/main` has commits the branch lacks; merge before proceeding.
 - [ ] **All hooks pass**: `pre-commit run --all-files` (see `.github/instructions/pre-commit-hooks.instructions.md`)
 - [ ] **Changes committed**: If hooks modified files, changes included in commit
 

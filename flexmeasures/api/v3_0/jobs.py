@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+from redis.exceptions import ConnectionError as RedisConnectionError
 from rq.job import Job, NoSuchJobError
 from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
 
-from flexmeasures.api.common.responses import unrecognized_event
-from flexmeasures.data.services.utils import job_status_description
+from werkzeug.exceptions import Forbidden
+
+from flexmeasures.api.common.responses import invalid_sender
+from flexmeasures.auth.policy import check_access
+from flexmeasures.data.services.utils import (
+    failed_job_exc_info,
+    get_asset_or_sensor_from_ref,
+    job_status_description,
+)
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 
@@ -70,278 +78,93 @@ class JobAPI(FlaskView):
     @route("/jobs/<uuid>", methods=["GET"])
     @auth_required()
     @as_json
-    def get_job_result(self, uuid: str):
-        """
-        .. :quickref: Jobs; Get scheduling job result
+    def get_job_status(self, uuid: str):
+        """Return execution status details for a background job.
+
+        .. :quickref: Jobs; Get background job status
 
         ---
         get:
-          summary: Get scheduling job result details
+          summary: Get background job status details
           description: |
-            Retrieve detailed results from a scheduling job, including unmet and resolved constraints.
+            Retrieve execution status, timestamps, result details and queue metadata
+            for a background job.
 
-            This endpoint provides access to the scheduling result details that are produced by the scheduler
-            during optimization. The result includes information about soft state-of-charge constraints
-            (``soc-minima`` and ``soc-maxima``) that were either not met or were resolved with some margin.
-
-            **Note:** Results are only available if a state-of-charge sensor is configured on the scheduled device.
-            Hard constraints (``soc-targets``) are never reported here, as the scheduler enforces them strictly.
-
-            Use this endpoint to:
-
-            - Inspect which constraints could not be satisfied in the optimization
-            - Understand the tightest margin on constraints that were met
-            - Build dashboards showing constraint violations and margins
-            - Diagnose scheduling issues
-
-            For the full schedule (setpoints over time), use the
-            `GET /api/v3_0/sensors/<id>/schedules/<uuid>` endpoint.
-
+            Scheduling jobs may also include ``scheduling_result`` with soft
+            state-of-charge constraint analysis.
           security:
             - ApiKeyAuth: []
           parameters:
             - in: path
               name: uuid
               required: true
-              description: UUID of the scheduling job, returned by the scheduling trigger endpoints.
-              example: 5d28df1b-9f16-4177-ae43-6e750d80fad3
+              description: UUID of the background job.
               schema:
                 type: string
           responses:
             200:
-              description: SUCCESS - Job result retrieved successfully
-              content:
-                application/json:
-                  schema:
-                    type: object
-                    properties:
-                      result:
-                        type: object
-                        description: |
-                          Scheduling result containing unresolved and resolved constraint information.
-                        properties:
-                          unresolved:
-                            type: array
-                            items:
-                              type: object
-                            description: |
-                              Array of assets/sensors with unresolved soft constraints.
-                              Each entry contains state-of-charge sensor information and unresolved constraints.
-                              An empty array means all constraints were met.
-
-                              Each entry is an object with:
-
-                              - ``"asset"``: Asset ID (integer) identifying the device.
-                              - ``"sensor"``: (Optional) Sensor ID (integer) for the state-of-charge sensor.
-                              - ``"soc-minima"``: (Optional) Unresolved minimum SoC constraint.
-                                Only present if a violation exists.
-
-                                Fields:
-
-                                - ``"datetime"``: ISO 8601 UTC timestamp of the first violation.
-                                - ``"violation"``: Shortage amount as a string with unit, e.g. ``"260.0 kWh"``.
-                                  This is how far short the SoC fell below the minimum.
-
-                              - ``"soc-maxima"``: (Optional) Unresolved maximum SoC constraint.
-                                Only present if a violation exists.
-
-                                Fields:
-
-                                - ``"datetime"``: ISO 8601 UTC timestamp of the first violation.
-                                - ``"violation"``: Excess amount as a string with unit, e.g. ``"150.0 kWh"``.
-                                  This is how far the SoC exceeded the maximum.
-
-                            example:
-                              - asset: 42
-                                sensor: 17
-                                soc-minima:
-                                  datetime: "2024-01-15T10:30:00+00:00"
-                                  violation: "260.0 kWh"
-
-                          resolved:
-                            type: array
-                            items:
-                              type: object
-                            description: |
-                              Array of assets/sensors with resolved soft constraints and their margin.
-                              An empty array means no constraints were defined or none were met.
-
-                              Each entry is an object with:
-
-                              - ``"asset"``: Asset ID (integer) identifying the device.
-                              - ``"sensor"``: (Optional) Sensor ID (integer) for the state-of-charge sensor.
-                              - ``"soc-minima"``: (Optional) Resolved minimum SoC constraint.
-                                Only present if the constraint was defined and met.
-
-                                Fields:
-
-                                - ``"datetime"``: ISO 8601 UTC timestamp of the tightest constraint
-                                  slot (the one with the smallest positive margin).
-                                - ``"margin"``: Headroom as a string with unit, e.g. ``"40.0 kWh"``.
-                                  This is how far above the minimum the SoC stayed.
-
-                              - ``"soc-maxima"``: (Optional) Resolved maximum SoC constraint.
-                                Only present if the constraint was defined and met.
-
-                                Fields:
-
-                                - ``"datetime"``: ISO 8601 UTC timestamp of the tightest constraint
-                                  slot (the one with the smallest positive margin).
-                                - ``"margin"``: Headroom as a string with unit, e.g. ``"25.0 kWh"``.
-                                  This is how far below the maximum the SoC stayed.
-
-                            example:
-                              - asset: 42
-                                sensor: 17
-                                soc-maxima:
-                                  datetime: "2024-01-15T12:00:00+00:00"
-                                  margin: "40.0 kWh"
-
-                      status:
-                        type: string
-                        enum: ["PROCESSED", "PENDING", "FAILED"]
-                        description: |
-                          Status of the scheduling job.
-                          - "PROCESSED": Job completed successfully
-                          - "PENDING": Job is still running
-                          - "FAILED": Job failed during execution
-
-                      message:
-                        type: string
-                        description: Human-readable status message about the job.
-
-                      scheduler_info:
-                        type: object
-                        description: |
-                          Information about the scheduler that executed the job.
-                          Contains metadata such as the scheduler name and any scheduler-specific information.
-                        additionalProperties: true
-                        example:
-                          scheduler: "StorageScheduler"
-
-                  examples:
-                    constraints_met:
-                      summary: All constraints met - no violations
-                      description: |
-                        This response shows a device where all state-of-charge constraints were met,
-                        with some margin. Notice the empty ``unresolved`` array.
-                      value:
-                        result:
-                          unresolved: []
-                          resolved:
-                            - asset: 42
-                              sensor: 17
-                              soc-minima:
-                                datetime: "2024-01-15T08:00:00+00:00"
-                                margin: "150.0 kWh"
-                              soc-maxima:
-                                datetime: "2024-01-15T14:00:00+00:00"
-                                margin: "85.0 kWh"
-                        status: "PROCESSED"
-                        message: "Scheduling job processed successfully"
-                        scheduler_info:
-                          scheduler: "StorageScheduler"
-
-                    constraints_unresolved:
-                      summary: Some constraints could not be met
-                      description: |
-                        This response shows a device where minimum state-of-charge requirements could not
-                        be satisfied during the optimization horizon. The ``unresolved`` array shows the first
-                        violation and how much the constraint was missed by. Other constraints may still
-                        have been satisfied (shown in ``resolved``).
-                      value:
-                        result:
-                          unresolved:
-                            - asset: 42
-                              sensor: 17
-                              soc-minima:
-                                datetime: "2024-01-15T10:30:00+00:00"
-                                violation: "260.0 kWh"
-                          resolved:
-                            - asset: 42
-                              sensor: 17
-                              soc-maxima:
-                                datetime: "2024-01-15T12:00:00+00:00"
-                                margin: "40.0 kWh"
-                        status: "PROCESSED"
-                        message: "Scheduling job processed successfully"
-                        scheduler_info:
-                          scheduler: "StorageScheduler"
-
-                    no_constraints:
-                      summary: No state-of-charge constraints defined
-                      description: |
-                        This response shows a device with no state-of-charge constraints defined.
-                        Both ``unresolved`` and ``resolved`` are empty, but the job was processed successfully.
-                      value:
-                        result:
-                          unresolved: []
-                          resolved: []
-                        status: "PROCESSED"
-                        message: "Scheduling job processed successfully"
-                        scheduler_info:
-                          scheduler: "StorageScheduler"
-
-            400:
-              description: INVALID_TIMEZONE, INVALID_DOMAIN
+              description: SUCCESS - Job status retrieved successfully
             401:
               description: UNAUTHORIZED
             403:
               description: INVALID_SENDER
             404:
-              description: UNRECOGNIZED_EVENT - Job UUID not found or has expired
-            422:
-              description: UNPROCESSABLE_ENTITY
-
+              description: Job not found
+            503:
+              description: Job queues unavailable
           tags:
             - Jobs
         """
 
-        # Look up the scheduling job
+        try:
+            current_app.redis_connection.ping()
+        except RedisConnectionError:
+            return {
+                "status": "ERROR",
+                "message": "Job queues are currently unavailable.",
+            }, 503
+
         connection = current_app.queues["scheduling"].connection
 
         try:
             job = Job.fetch(uuid, connection=connection)
         except NoSuchJobError:
-            return unrecognized_event(uuid, "job")
+            return {"message": f"Job {uuid} not found."}, 404
 
-        scheduler_info = job.meta.get("scheduler_info", {})
+        asset_or_sensor_ref = job.meta.get("asset_or_sensor")
+        if asset_or_sensor_ref is not None:
+            try:
+                check_access(
+                    get_asset_or_sensor_from_ref(asset_or_sensor_ref),
+                    "read",
+                )
+            except Forbidden:
+                return invalid_sender()
 
-        job_status = "PENDING"
-        if job.is_finished:
-            job_status = "PROCESSED"
-        elif job.is_failed:
-            job_status = "FAILED"
-
-        message = job_status_description(
-            job, f"{scheduler_info.get('scheduler', 'Unknown')} was used."
-        )
-
-        # Extract the scheduling result if available and transform to asset-keyed format
         scheduling_result = job.meta.get("scheduling_result")
-        if scheduling_result:
-            # scheduling_result is a SchedulingJobResult object with sensor-keyed data
-            # Transform it to asset-keyed format for the API response
-            unresolved_list = _transform_sensor_keyed_to_asset_keyed(
-                scheduling_result.get("unresolved", {})
-                if isinstance(scheduling_result, dict)
-                else scheduling_result.unresolved
-            )
-            resolved_list = _transform_sensor_keyed_to_asset_keyed(
-                scheduling_result.get("resolved", {})
-                if isinstance(scheduling_result, dict)
-                else scheduling_result.resolved
-            )
-            result_dict = {
-                "unresolved": unresolved_list,
-                "resolved": resolved_list,
+        response = {
+            "status": getattr(job.get_status(), "name", str(job.get_status()).upper()),
+            "message": job_status_description(job),
+            "func_name": job.func_name,
+            "origin": job.origin,
+            "enqueued_at": job.enqueued_at.isoformat() if job.enqueued_at else None,
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "ended_at": job.ended_at.isoformat() if job.ended_at else None,
+            "result": job.return_value() if job.is_finished else None,
+            "exc_info": failed_job_exc_info(job),
+        }
+        if scheduling_result is not None:
+            response["scheduling_result"] = {
+                "unresolved": _transform_sensor_keyed_to_asset_keyed(
+                    scheduling_result.get("unresolved", {})
+                    if isinstance(scheduling_result, dict)
+                    else scheduling_result.unresolved
+                ),
+                "margins": _transform_sensor_keyed_to_asset_keyed(
+                    scheduling_result.get("resolved", {})
+                    if isinstance(scheduling_result, dict)
+                    else scheduling_result.resolved
+                ),
             }
-        else:
-            result_dict = {"unresolved": [], "resolved": []}
 
-        return {
-            "result": result_dict,
-            "status": job_status,
-            "message": message,
-            "scheduler_info": scheduler_info,
-        }, 200
+        return response, 200

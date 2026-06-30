@@ -328,7 +328,7 @@ The schedule
 
 A schedule produced by FlexMeasures is a series of power values for each flexible device (represented by its power sensor), covering the scheduling window at the scheduling resolution.
 
-For detailed constraint analysis (unresolved and resolved constraints), use the ``GET /api/v3_0/jobs/<uuid>`` endpoint, which provides structured information about constraints organized by asset. See the :ref:`scheduling_constraint_results` section below for details.
+For detailed constraint analysis (unresolved constraints and margins), use the ``GET /api/v3_0/jobs/<uuid>`` endpoint, which provides structured information about constraints organized by asset. See the :ref:`scheduling_constraint_results` section below for details.
 
 
 .. _scheduling_constraint_results:
@@ -341,16 +341,50 @@ When a schedule is computed for a device with state-of-charge constraints, FlexM
 Use the **jobs endpoint** (``GET /api/v3_0/jobs/<uuid>``) to retrieve detailed constraint analysis for all assets involved in the scheduling job, organized by asset ID.
 This endpoint is useful when you want to inspect constraint violations without retrieving the full schedule.
 
+Multi-asset scheduling workflow
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Consider a site (asset ID 123) with four assets, each with a power sensor:
+
+- **Sensors 1 & 2**: Inflexible devices (e.g. PV panel and building load)
+- **Sensors 3 & 4**: Flexible devices (e.g. a battery and an EV charger), each with a
+  state-of-charge sensor (sensors 5 and 6, respectively)
+
+The scheduling workflow looks like this:
+
+1. **Trigger the schedule** for site asset 123 via
+   ``POST /api/v3_0/assets/123/schedules/trigger``.
+   The endpoint returns a job UUID, e.g. ``"5d28df1b-9f16-4177-ae43-6e750d80fad3"``.
+
+2. **Retrieve the scheduled power series** for the flexible devices once scheduling is done,
+   via ``GET /api/v3_0/sensors/3/schedules/<uuid>`` and
+   ``GET /api/v3_0/sensors/4/schedules/<uuid>``.
+   Each response contains the power setpoints for that device:
+
+   .. code-block:: json
+
+       {
+           "values": [0.5, 1.0, 1.5, 0.0],
+           "start": "2024-01-15T08:00:00+00:00",
+           "duration": "PT4H",
+           "unit": "kW"
+       }
+
+3. **Retrieve constraint analysis** for all flexible assets via
+   ``GET /api/v3_0/jobs/<uuid>``.
+   The ``scheduling_result`` field in the response shows whether the
+   state-of-charge targets for sensors 5 and 6 could be met, and by how much.
+
 The constraint results distinguish between:
 
 - Constraints that were **unresolved**: Soft constraints that could not be satisfied during optimization.
-- **Resolved** constraints: Soft constraints that were satisfied with some margin.
+- Constraint **margins**: Soft constraints that were satisfied, with the headroom remaining reported.
 
 Each constraint result includes:
 
-- ``datetime``: ISO 8601 UTC timestamp when the constraint was tightest (for resolved constraints) or first violated (for unresolved constraints).
+- ``datetime``: ISO 8601 UTC timestamp when the constraint was tightest (for margin constraints) or first violated (for unresolved constraints).
 - ``violation`` (unresolved only): Magnitude of the violation (shortage for minima, excess for maxima).
-- ``margin`` (resolved only): Headroom remaining at the tightest point.
+- ``margin`` (margins only): Headroom remaining at the tightest point.
 
 
 Example: Constraint results from a battery scheduling job
@@ -370,7 +404,9 @@ the constraint results would show:
 .. code-block:: json
 
     {
-        "result": {
+        "status": "FINISHED",
+        "message": "Scheduling job finished.",
+        "scheduling_result": {
             "unresolved": [
                 {
                     "asset": 42,
@@ -381,7 +417,7 @@ the constraint results would show:
                     }
                 }
             ],
-            "resolved": [
+            "margins": [
                 {
                     "asset": 42,
                     "sensor": 17,
@@ -391,10 +427,7 @@ the constraint results would show:
                     }
                 }
             ]
-        },
-        "status": "PROCESSED",
-        "message": "Scheduling job processed successfully",
-        "scheduler_info": {"scheduler": "StorageScheduler"}
+        }
     }
 
 
@@ -404,7 +437,7 @@ Interpreting constraint results for optimization decisions
 **When constraints are all met:**
 
 An empty ``unresolved`` array indicates successful optimization.
-However, check the values in ``resolved`` to understand how tight the constraints were:
+However, check the values in ``margins`` to understand how tight the constraints were:
 
 - Large margins (e.g., 50 kWh) suggest the device has significant flexibility headroom.
 - Small margins (e.g., 5 kWh) indicate the constraints were nearly violated.
@@ -434,7 +467,7 @@ The ``violation`` values tell you how much shortfall exists:
 
 **When no constraints are defined:**
 
-If ``unresolved`` and ``resolved`` are both empty, no state-of-charge constraints were set.
+If ``unresolved`` and ``margins`` are both empty, no state-of-charge constraints were set.
 
 .. note:: Hard constraints (``soc-targets``) are never reported in results because the scheduler
           enforces them strictly by definition. If a hard constraint cannot be met, the entire
