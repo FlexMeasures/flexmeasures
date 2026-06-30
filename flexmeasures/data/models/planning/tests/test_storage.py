@@ -360,24 +360,24 @@ def test_unresolved_targets_soc_minima(add_battery_assets, db):
     scheduling_result = scheduling_result_entry["data"]
     assert isinstance(scheduling_result, SchedulingJobResult)
 
-    unresolved_targets = scheduling_result.unresolved_targets
+    unresolved = scheduling_result.unresolved
     assert (
-        str(soc_sensor.id) in unresolved_targets
+        str(soc_sensor.id) in unresolved
     ), "Expected an unresolved soc-minima since the target is unreachable"
-    assert "soc-minima" in unresolved_targets[str(soc_sensor.id)]
-    # The scheduled SoC should be below the 0.9 MWh target (unmet == 260.0 kWh shortage)
-    assert unresolved_targets[str(soc_sensor.id)]["soc-minima"]["unmet"] == "260.0 kWh"
+    assert "soc-minima" in unresolved[str(soc_sensor.id)]
+    # The scheduled SoC should be below the 0.9 MWh target (violation == 260.0 kWh shortage)
+    assert unresolved[str(soc_sensor.id)]["soc-minima"]["violation"] == "260.0 kWh"
     # The constraint is at 2015-01-02T00:00:00+01:00 = 2015-01-01T23:00:00+00:00 (UTC)
     assert (
-        unresolved_targets[str(soc_sensor.id)]["soc-minima"]["datetime"]
+        unresolved[str(soc_sensor.id)]["soc-minima"]["datetime"]
         == "2015-01-01T23:00:00+00:00"
     )
 
     # No soc-maxima was set, so it should not appear
-    assert "soc-maxima" not in unresolved_targets[str(soc_sensor.id)]
+    assert "soc-maxima" not in unresolved[str(soc_sensor.id)]
 
-    # No soc-maxima constraint defined, so resolved_targets should be empty
-    assert scheduling_result.resolved_targets == {}
+    # No soc-maxima constraint defined, so resolved should be empty
+    assert scheduling_result.resolved == {}
 
 
 def test_unresolved_targets_none_when_met(add_battery_assets, db):
@@ -441,16 +441,14 @@ def test_unresolved_targets_none_when_met(add_battery_assets, db):
     )
     assert scheduling_result_entry is not None
     scheduling_result = scheduling_result_entry["data"]
-    unresolved_targets = scheduling_result.unresolved_targets
+    unresolved = scheduling_result.unresolved
     # The minima target is met, so no unresolved targets expected
-    assert unresolved_targets == {}
+    assert unresolved == {}
 
-    # The soc-minima was met, so resolved_targets should report it
-    assert str(soc_sensor.id) in scheduling_result.resolved_targets
-    assert "soc-minima" in scheduling_result.resolved_targets[str(soc_sensor.id)]
-    margin_str = scheduling_result.resolved_targets[str(soc_sensor.id)]["soc-minima"][
-        "margin"
-    ]
+    # The soc-minima was met, so resolved should report it
+    assert str(soc_sensor.id) in scheduling_result.resolved
+    assert "soc-minima" in scheduling_result.resolved[str(soc_sensor.id)]
+    margin_str = scheduling_result.resolved[str(soc_sensor.id)]["soc-minima"]["margin"]
     # Margin should be a non-negative kWh string
     assert margin_str.endswith(" kWh")
     assert float(margin_str.replace(" kWh", "")) >= 0
@@ -521,24 +519,24 @@ def test_unresolved_targets_soc_maxima(add_battery_assets, db):
     )
     assert scheduling_result_entry is not None
 
-    unresolved_targets = scheduling_result_entry["data"].unresolved_targets
+    unresolved = scheduling_result_entry["data"].unresolved
     assert (
-        str(soc_sensor.id) in unresolved_targets
+        str(soc_sensor.id) in unresolved
     ), "Expected an unresolved soc-maxima since the target is unreachable"
-    assert "soc-maxima" in unresolved_targets[str(soc_sensor.id)]
-    # The scheduled SoC should be above the 0.5 MWh target (unmet == 160.0 kWh excess)
-    assert unresolved_targets[str(soc_sensor.id)]["soc-maxima"]["unmet"] == "160.0 kWh"
+    assert "soc-maxima" in unresolved[str(soc_sensor.id)]
+    # The scheduled SoC should be above the 0.5 MWh target (violation == 160.0 kWh excess)
+    assert unresolved[str(soc_sensor.id)]["soc-maxima"]["violation"] == "160.0 kWh"
     # The constraint is at 2015-01-02T00:00:00+01:00 = 2015-01-01T23:00:00+00:00 (UTC)
     assert (
-        unresolved_targets[str(soc_sensor.id)]["soc-maxima"]["datetime"]
+        unresolved[str(soc_sensor.id)]["soc-maxima"]["datetime"]
         == "2015-01-01T23:00:00+00:00"
     )
 
     # No soc-minima was set, so it should not appear
-    assert "soc-minima" not in unresolved_targets[str(soc_sensor.id)]
+    assert "soc-minima" not in unresolved[str(soc_sensor.id)]
 
-    # No soc-minima constraint defined, so resolved_targets should be empty
-    assert scheduling_result_entry["data"].resolved_targets == {}
+    # No soc-minima constraint defined, so resolved should be empty
+    assert scheduling_result_entry["data"].resolved == {}
 
 
 def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(

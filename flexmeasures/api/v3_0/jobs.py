@@ -118,72 +118,72 @@ class JobAPI(FlaskView):
                       result:
                         type: object
                         description: |
-                          Scheduling result containing unmet and resolved constraint information.
+                          Scheduling result containing unresolved and resolved constraint information.
                         properties:
-                          unmet:
+                          unresolved:
                             type: array
                             items:
                               type: object
                             description: |
-                              Array of assets/sensors with unmet soft constraints.
-                              Each entry contains state-of-charge sensor information and unmet constraints.
+                              Array of assets/sensors with unresolved soft constraints.
+                              Each entry contains state-of-charge sensor information and unresolved constraints.
                               An empty array means all constraints were met.
 
                               Each entry is an object with:
 
                               - ``"asset"``: Asset ID (integer) identifying the device.
                               - ``"sensor"``: (Optional) Sensor ID (integer) for the state-of-charge sensor.
-                              - ``"soc-minima"``: (Optional) Array of unmet minimum SoC constraints.
-                                Only present if violations exist.
+                              - ``"soc-minima"``: (Optional) Unresolved minimum SoC constraint.
+                                Only present if a violation exists.
 
-                                Each constraint violation has:
+                                Fields:
 
                                 - ``"datetime"``: ISO 8601 UTC timestamp of the first violation.
-                                - ``"unmet"``: Shortage amount as a string with unit, e.g. ``"260.0 kWh"``.
+                                - ``"violation"``: Shortage amount as a string with unit, e.g. ``"260.0 kWh"``.
                                   This is how far short the SoC fell below the minimum.
 
-                              - ``"soc-maxima"``: (Optional) Array of unmet maximum SoC constraints.
-                                Only present if violations exist.
+                              - ``"soc-maxima"``: (Optional) Unresolved maximum SoC constraint.
+                                Only present if a violation exists.
 
-                                Each constraint violation has:
+                                Fields:
 
                                 - ``"datetime"``: ISO 8601 UTC timestamp of the first violation.
-                                - ``"unmet"``: Excess amount as a string with unit, e.g. ``"150.0 kWh"``.
+                                - ``"violation"``: Excess amount as a string with unit, e.g. ``"150.0 kWh"``.
                                   This is how far the SoC exceeded the maximum.
 
                             example:
                               - asset: 42
                                 sensor: 17
                                 soc-minima:
-                                  - datetime: "2024-01-15T10:30:00+00:00"
-                                    unmet: "260.0 kWh"
+                                  datetime: "2024-01-15T10:30:00+00:00"
+                                  violation: "260.0 kWh"
 
                           resolved:
                             type: array
                             items:
                               type: object
                             description: |
-                              Array of assets/sensors with met soft constraints and their margin.
+                              Array of assets/sensors with resolved soft constraints and their margin.
                               An empty array means no constraints were defined or none were met.
 
                               Each entry is an object with:
 
                               - ``"asset"``: Asset ID (integer) identifying the device.
                               - ``"sensor"``: (Optional) Sensor ID (integer) for the state-of-charge sensor.
-                              - ``"soc-minima"``: (Optional) Array of met minimum SoC constraints.
-                                Only present if constraints were defined and met.
+                              - ``"soc-minima"``: (Optional) Resolved minimum SoC constraint.
+                                Only present if the constraint was defined and met.
 
-                                Each constraint has:
+                                Fields:
 
                                 - ``"datetime"``: ISO 8601 UTC timestamp of the tightest constraint
                                   slot (the one with the smallest positive margin).
                                 - ``"margin"``: Headroom as a string with unit, e.g. ``"40.0 kWh"``.
                                   This is how far above the minimum the SoC stayed.
 
-                              - ``"soc-maxima"``: (Optional) Array of met maximum SoC constraints.
-                                Only present if constraints were defined and met.
+                              - ``"soc-maxima"``: (Optional) Resolved maximum SoC constraint.
+                                Only present if the constraint was defined and met.
 
-                                Each constraint has:
+                                Fields:
 
                                 - ``"datetime"``: ISO 8601 UTC timestamp of the tightest constraint
                                   slot (the one with the smallest positive margin).
@@ -194,8 +194,8 @@ class JobAPI(FlaskView):
                               - asset: 42
                                 sensor: 17
                                 soc-maxima:
-                                  - datetime: "2024-01-15T12:00:00+00:00"
-                                    margin: "40.0 kWh"
+                                  datetime: "2024-01-15T12:00:00+00:00"
+                                  margin: "40.0 kWh"
 
                       status:
                         type: string
@@ -224,45 +224,45 @@ class JobAPI(FlaskView):
                       summary: All constraints met - no violations
                       description: |
                         This response shows a device where all state-of-charge constraints were met,
-                        with some margin. Notice the empty ``unmet`` array.
+                        with some margin. Notice the empty ``unresolved`` array.
                       value:
                         result:
-                          unmet: []
+                          unresolved: []
                           resolved:
                             - asset: 42
                               sensor: 17
                               soc-minima:
-                                - datetime: "2024-01-15T08:00:00+00:00"
-                                  margin: "150.0 kWh"
+                                datetime: "2024-01-15T08:00:00+00:00"
+                                margin: "150.0 kWh"
                               soc-maxima:
-                                - datetime: "2024-01-15T14:00:00+00:00"
-                                  margin: "85.0 kWh"
+                                datetime: "2024-01-15T14:00:00+00:00"
+                                margin: "85.0 kWh"
                         status: "PROCESSED"
                         message: "Scheduling job processed successfully"
                         scheduler_info:
                           scheduler: "StorageScheduler"
 
-                    constraints_unmet:
+                    constraints_unresolved:
                       summary: Some constraints could not be met
                       description: |
                         This response shows a device where minimum state-of-charge requirements could not
-                        be satisfied during the optimization horizon. The ``unmet`` array shows the first
+                        be satisfied during the optimization horizon. The ``unresolved`` array shows the first
                         violation and how much the constraint was missed by. Other constraints may still
                         have been satisfied (shown in ``resolved``).
                       value:
                         result:
-                          unmet:
+                          unresolved:
                             - asset: 42
                               sensor: 17
                               soc-minima:
-                                - datetime: "2024-01-15T10:30:00+00:00"
-                                  unmet: "260.0 kWh"
+                                datetime: "2024-01-15T10:30:00+00:00"
+                                violation: "260.0 kWh"
                           resolved:
                             - asset: 42
                               sensor: 17
                               soc-maxima:
-                                - datetime: "2024-01-15T12:00:00+00:00"
-                                  margin: "40.0 kWh"
+                                datetime: "2024-01-15T12:00:00+00:00"
+                                margin: "40.0 kWh"
                         status: "PROCESSED"
                         message: "Scheduling job processed successfully"
                         scheduler_info:
@@ -272,10 +272,10 @@ class JobAPI(FlaskView):
                       summary: No state-of-charge constraints defined
                       description: |
                         This response shows a device with no state-of-charge constraints defined.
-                        Both ``unmet`` and ``resolved`` are empty, but the job was processed successfully.
+                        Both ``unresolved`` and ``resolved`` are empty, but the job was processed successfully.
                       value:
                         result:
-                          unmet: []
+                          unresolved: []
                           resolved: []
                         status: "PROCESSED"
                         message: "Scheduling job processed successfully"
@@ -322,22 +322,22 @@ class JobAPI(FlaskView):
         if scheduling_result:
             # scheduling_result is a SchedulingJobResult object with sensor-keyed data
             # Transform it to asset-keyed format for the API response
-            unmet_list = _transform_sensor_keyed_to_asset_keyed(
-                scheduling_result.get("unresolved_targets", {})
+            unresolved_list = _transform_sensor_keyed_to_asset_keyed(
+                scheduling_result.get("unresolved", {})
                 if isinstance(scheduling_result, dict)
-                else scheduling_result.unresolved_targets
+                else scheduling_result.unresolved
             )
             resolved_list = _transform_sensor_keyed_to_asset_keyed(
-                scheduling_result.get("resolved_targets", {})
+                scheduling_result.get("resolved", {})
                 if isinstance(scheduling_result, dict)
-                else scheduling_result.resolved_targets
+                else scheduling_result.resolved
             )
             result_dict = {
-                "unmet": unmet_list,
+                "unresolved": unresolved_list,
                 "resolved": resolved_list,
             }
         else:
-            result_dict = {"unmet": [], "resolved": []}
+            result_dict = {"unresolved": [], "resolved": []}
 
         return {
             "result": result_dict,

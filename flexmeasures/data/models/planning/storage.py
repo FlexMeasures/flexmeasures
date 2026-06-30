@@ -1624,15 +1624,15 @@ class StorageScheduler(MetaStorageScheduler):
         :param start:             Start of the schedule.
         :param end:               End of the schedule.
         :param resolution:        Schedule resolution.
-        :returns: A tuple ``(unresolved_targets, resolved_targets)``.
+        :returns: A tuple ``(unresolved, resolved)``.
 
-                  ``unresolved_targets`` is keyed by state-of-charge sensor ID string.
+                  ``unresolved`` is keyed by state-of-charge sensor ID string.
                   Each value is a dict with keys ``"soc-minima"`` and/or ``"soc-maxima"``
                   (only present when a violation exists), each containing
-                  ``{"datetime": <ISO 8601 UTC string>, "unmet": "<value> kWh"}``
-                  where ``unmet`` is always positive.
+                  ``{"datetime": <ISO 8601 UTC string>, "violation": "<value> kWh"}``
+                  where ``violation`` is always positive.
 
-                  ``resolved_targets`` is also keyed by state-of-charge sensor ID string.
+                  ``resolved`` is also keyed by state-of-charge sensor ID string.
                   Each value is a dict with keys ``"soc-minima"`` and/or ``"soc-maxima"``
                   (only present when the constraint type was defined and fully met), each
                   containing ``{"datetime": <ISO 8601 UTC string>, "margin": "<value> kWh"}``
@@ -1680,7 +1680,7 @@ class StorageScheduler(MetaStorageScheduler):
                         unmet_kwh = round(float(violations[first_t]) * 1000, precision)
                         device_violations["soc-minima"] = {
                             "datetime": first_t.tz_convert("UTC").isoformat(),
-                            "unmet": f"{unmet_kwh} kWh",
+                            "violation": f"{unmet_kwh} kWh",
                         }
                     else:
                         # All minima met — record the tightest margin (min headroom above min).
@@ -1715,7 +1715,7 @@ class StorageScheduler(MetaStorageScheduler):
                         unmet_kwh = round(float(violations[first_t]) * 1000, precision)
                         device_violations["soc-maxima"] = {
                             "datetime": first_t.tz_convert("UTC").isoformat(),
-                            "unmet": f"{unmet_kwh} kWh",
+                            "violation": f"{unmet_kwh} kWh",
                         }
                     else:
                         # All maxima met — record the tightest margin (min headroom below max).
@@ -1837,7 +1837,7 @@ class StorageScheduler(MetaStorageScheduler):
             }
 
         if self.return_multiple:
-            unresolved_targets, resolved_targets = self._compute_unresolved_targets(
+            unresolved, resolved = self._compute_unresolved_targets(
                 flex_model, soc_schedule_mwh, start, end, resolution
             )
             storage_schedules = [
@@ -1875,8 +1875,8 @@ class StorageScheduler(MetaStorageScheduler):
                 {
                     "name": SCHEDULING_RESULT_KEY,
                     "data": SchedulingJobResult(
-                        unresolved_targets=unresolved_targets,
-                        resolved_targets=resolved_targets,
+                        unresolved=unresolved,
+                        resolved=resolved,
                     ),
                 }
             ]
