@@ -2233,9 +2233,14 @@ class StorageScheduler(MetaStorageScheduler):
 
             # Sum the schedules for all devices in this commodity
             # ems_schedule is a list of Series, one per device
-            commodity_aggregate = sum(
-                ems_schedule[d] for d in devices if d < len(ems_schedule)
-            )
+            device_indices = [d for d in devices if d < len(ems_schedule)]
+
+            # If no devices contribute to this commodity's aggregate, skip it
+            # (e.g., heat commodity with no heat devices)
+            if not device_indices:
+                continue
+
+            commodity_aggregate = sum(ems_schedule[d] for d in device_indices)
 
             # Apply split logic based on which sensors are defined
             if (
