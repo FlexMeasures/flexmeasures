@@ -360,21 +360,21 @@ def test_unresolved_targets_soc_minima(add_battery_assets, db):
     scheduling_result = scheduling_result_entry["data"]
     assert isinstance(scheduling_result, SchedulingJobResult)
 
+    asset_key = str(battery.generic_asset.id)
     unresolved = scheduling_result.unresolved
     assert (
-        str(soc_sensor.id) in unresolved
+        asset_key in unresolved
     ), "Expected an unresolved soc-minima since the target is unreachable"
-    assert "soc-minima" in unresolved[str(soc_sensor.id)]
+    assert "soc-minima" in unresolved[asset_key]
     # The scheduled SoC should be below the 0.9 MWh target (violation == 260.0 kWh shortage)
-    assert unresolved[str(soc_sensor.id)]["soc-minima"]["violation"] == "260.0 kWh"
+    assert unresolved[asset_key]["soc-minima"]["violation"] == "260.0 kWh"
     # The constraint is at 2015-01-02T00:00:00+01:00 = 2015-01-01T23:00:00+00:00 (UTC)
     assert (
-        unresolved[str(soc_sensor.id)]["soc-minima"]["datetime"]
-        == "2015-01-01T23:00:00+00:00"
+        unresolved[asset_key]["soc-minima"]["datetime"] == "2015-01-01T23:00:00+00:00"
     )
 
     # No soc-maxima was set, so it should not appear
-    assert "soc-maxima" not in unresolved[str(soc_sensor.id)]
+    assert "soc-maxima" not in unresolved[asset_key]
 
     # No soc-maxima constraint defined, so resolved should be empty
     assert scheduling_result.resolved == {}
@@ -441,14 +441,15 @@ def test_unresolved_targets_none_when_met(add_battery_assets, db):
     )
     assert scheduling_result_entry is not None
     scheduling_result = scheduling_result_entry["data"]
+    asset_key = str(battery.generic_asset.id)
     unresolved = scheduling_result.unresolved
     # The minima target is met, so no unresolved targets expected
     assert unresolved == {}
 
     # The soc-minima was met, so resolved should report it
-    assert str(soc_sensor.id) in scheduling_result.resolved
-    assert "soc-minima" in scheduling_result.resolved[str(soc_sensor.id)]
-    margin_str = scheduling_result.resolved[str(soc_sensor.id)]["soc-minima"]["margin"]
+    assert asset_key in scheduling_result.resolved
+    assert "soc-minima" in scheduling_result.resolved[asset_key]
+    margin_str = scheduling_result.resolved[asset_key]["soc-minima"]["margin"]
     # Margin should be a non-negative kWh string
     assert margin_str.endswith(" kWh")
     assert float(margin_str.replace(" kWh", "")) >= 0
@@ -519,24 +520,101 @@ def test_unresolved_targets_soc_maxima(add_battery_assets, db):
     )
     assert scheduling_result_entry is not None
 
+    asset_key = str(battery.generic_asset.id)
     unresolved = scheduling_result_entry["data"].unresolved
     assert (
-        str(soc_sensor.id) in unresolved
+        asset_key in unresolved
     ), "Expected an unresolved soc-maxima since the target is unreachable"
-    assert "soc-maxima" in unresolved[str(soc_sensor.id)]
+    assert "soc-maxima" in unresolved[asset_key]
     # The scheduled SoC should be above the 0.5 MWh target (violation == 160.0 kWh excess)
-    assert unresolved[str(soc_sensor.id)]["soc-maxima"]["violation"] == "160.0 kWh"
+    assert unresolved[asset_key]["soc-maxima"]["violation"] == "160.0 kWh"
     # The constraint is at 2015-01-02T00:00:00+01:00 = 2015-01-01T23:00:00+00:00 (UTC)
     assert (
-        unresolved[str(soc_sensor.id)]["soc-maxima"]["datetime"]
-        == "2015-01-01T23:00:00+00:00"
+        unresolved[asset_key]["soc-maxima"]["datetime"] == "2015-01-01T23:00:00+00:00"
     )
 
     # No soc-minima was set, so it should not appear
-    assert "soc-minima" not in unresolved[str(soc_sensor.id)]
+    assert "soc-minima" not in unresolved[asset_key]
 
     # No soc-minima constraint defined, so resolved should be empty
     assert scheduling_result_entry["data"].resolved == {}
+
+
+def test_unresolved_targets_no_soc_sensor(add_battery_assets, db):
+    """Regression: unresolved/resolved reporting works without a state_of_charge sensor.
+
+    A battery has ``soc-minima`` constraints but no ``state-of-charge`` sensor
+    configured in the flex model.  The production code must still produce
+    unresolved/resolved dicts keyed by the asset ID (not the SoC sensor ID).
+    """
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 0.4
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    consumption_prices = pd.Series(100, index=index)
+
+    # No "state-of-charge" key in flex_model — intentionally omitted.
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": f"{soc_at_start} MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "0.01 MVA",  # very limited: max gain 0.24 MWh over 24 h
+            "soc-minima": [
+                {
+                    "datetime": "2015-01-02T00:00:00+01:00",
+                    "value": "0.9 MWh",  # unreachable given the limited capacity
+                }
+            ],
+            "prefer-charging-sooner": False,
+        },
+        flex_context={
+            "consumption-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "production-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "site-power-capacity": "2 MW",
+            "soc-minima-breach-price": "1 EUR/kWh",  # soft constraint
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+
+    scheduling_result_entry = next(
+        (r for r in results if r.get("name") == "scheduling_result"), None
+    )
+    assert scheduling_result_entry is not None, "scheduling_result entry missing"
+
+    scheduling_result = scheduling_result_entry["data"]
+    assert isinstance(scheduling_result, SchedulingJobResult)
+
+    # Result must be keyed by the asset ID, not by a SoC sensor ID.
+    asset_key = str(battery.generic_asset.id)
+
+    unresolved = scheduling_result.unresolved
+    assert asset_key in unresolved, (
+        f"Expected unresolved keyed by asset ID {asset_key!r}; "
+        f"got keys: {list(unresolved.keys())}"
+    )
+    assert "soc-minima" in unresolved[asset_key]
+    assert unresolved[asset_key]["soc-minima"]["violation"] == "260.0 kWh"
+    assert (
+        unresolved[asset_key]["soc-minima"]["datetime"] == "2015-01-01T23:00:00+00:00"
+    )
+
+    # No soc-maxima constraint was set.
+    assert "soc-maxima" not in unresolved[asset_key]
+
+    # No soc-maxima constraint defined, so resolved should be empty.
+    assert scheduling_result.resolved == {}
 
 
 def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(
