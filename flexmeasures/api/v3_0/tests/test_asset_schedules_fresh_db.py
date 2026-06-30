@@ -615,17 +615,19 @@ def test_asset_trigger_with_multi_commodity_flex_context(
         .filter(TimedBelief.source_id == scheduler_source.id)
         .all()
     )
-    assert len(consumption_beliefs_elec) > 0, "electricity aggregate-consumption should have data"
+    assert (
+        len(consumption_beliefs_elec) > 0
+    ), "electricity aggregate-consumption should have data"
 
     # Verify electricity aggregate-production sensor got filled
     production_beliefs_elec = (
-        TimedBelief.query.filter(
-            TimedBelief.sensor_id == agg_production_electricity.id
-        )
+        TimedBelief.query.filter(TimedBelief.sensor_id == agg_production_electricity.id)
         .filter(TimedBelief.source_id == scheduler_source.id)
         .all()
     )
-    assert len(production_beliefs_elec) > 0, "electricity aggregate-production should have data"
+    assert (
+        len(production_beliefs_elec) > 0
+    ), "electricity aggregate-production should have data"
 
     # Verify heat aggregate-consumption sensor got filled
     consumption_beliefs_heat = (
@@ -633,7 +635,9 @@ def test_asset_trigger_with_multi_commodity_flex_context(
         .filter(TimedBelief.source_id == scheduler_source.id)
         .all()
     )
-    assert len(consumption_beliefs_heat) > 0, "heat aggregate-consumption should have data"
+    assert (
+        len(consumption_beliefs_heat) > 0
+    ), "heat aggregate-consumption should have data"
 
     # Verify data types are correct
     assert all(
@@ -760,7 +764,9 @@ def test_asset_trigger_with_flex_context_commodity_not_used(
         .filter(TimedBelief.source_id == scheduler_source.id)
         .all()
     )
-    assert len(consumption_beliefs_elec) > 0, "electricity aggregate-consumption should have data"
+    assert (
+        len(consumption_beliefs_elec) > 0
+    ), "electricity aggregate-consumption should have data"
 
     # Verify heat aggregate-consumption sensor is empty (no heat device)
     consumption_beliefs_heat = (
@@ -771,4 +777,3 @@ def test_asset_trigger_with_flex_context_commodity_not_used(
     assert (
         len(consumption_beliefs_heat) == 0
     ), "heat aggregate-consumption should be empty since no heat device was scheduled"
-
