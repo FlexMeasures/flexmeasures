@@ -1183,6 +1183,7 @@ def chart_for_chargepoint_sessions(
                         "value": "event_value",
                         "groupby": ["session_id", "asset", "asset_id"],
                     },
+                    {"filter": "datum['arrival'] > 0 && datum['departure'] > 0"},
                     {"filter": {"selection": "arr_dep"}},
                 ],
                 "selection": {
@@ -1281,6 +1282,7 @@ def chart_for_chargepoint_sessions(
                             "asset_id",
                         ],
                     },
+                    {"filter": "datum['plug in'] > 0 && datum['plug out'] > 0"},
                     {"filter": {"selection": "plugin_plugout"}},
                 ],
                 "selection": {
@@ -1374,6 +1376,9 @@ def chart_for_chargepoint_sessions(
                         "pivot": "sensor_name",
                         "value": "event_value",
                         "groupby": ["session_id", "asset", "asset_id"],
+                    },
+                    {
+                        "filter": "datum['start charging'] > 0 && datum['stop charging'] > 0"
                     },
                     {"filter": {"selection": "start_stop_charging"}},
                 ],
