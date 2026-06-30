@@ -48,26 +48,13 @@ def test_sentry_filter_passes_other_errors():
 
 
 def test_sentry_filter_drops_untrusted_host_security_error():
-    """Blacklisted untrusted-host SecurityErrors should be filtered out."""
-    event = {
-        "message": "Security Error",
-        "request": {"url": "https://0.0.0.0/admin/config.php"},
-    }
+    """Untrusted-host SecurityErrors with exc_info should still be reported."""
+    event = {"message": "Security Error"}
     hint = make_hint(
         SecurityError(
             "Host 'static.152.131.199.138.clients.your-server.de' is not trusted."
         )
     )
-    assert _sentry_filter_notfound(event, hint) is None
-
-
-def test_sentry_filter_passes_non_blacklisted_untrusted_host_security_error():
-    """Untrusted-host SecurityErrors on plausible app routes should still be reported."""
-    event = {
-        "message": "Security Error",
-        "request": {"url": "https://0.0.0.0/api/v3_0/sensors"},
-    }
-    hint = make_hint(SecurityError("Host '0.0.0.0' is not trusted."))
     assert _sentry_filter_notfound(event, hint) is event
 
 
@@ -96,28 +83,12 @@ def test_sentry_filter_passes_other_log_records():
 
 def test_sentry_filter_drops_untrusted_host_security_error_log_record():
     """Handled untrusted-host SecurityErrors are logged without exc_info."""
-    event = {
-        "message": "Security Error",
-        "request": {"url": "https://0.0.0.0/admin/config.php"},
-    }
+    event = {"message": "Security Error"}
     log_record = app_logger_record(
         "SecurityError - URL was: /admin/config.php - \"Host '0.0.0.0' is not trusted.\""
     )
     hint = {"log_record": log_record}
     assert _sentry_filter_notfound(event, hint) is None
-
-
-def test_sentry_filter_passes_non_blacklisted_untrusted_host_security_error_log_record():
-    """Handled untrusted-host SecurityErrors on app routes should still be reported."""
-    event = {
-        "message": "Security Error",
-        "request": {"url": "https://0.0.0.0/api/v3_0/assets"},
-    }
-    log_record = app_logger_record(
-        "SecurityError - URL was: /api/v3_0/assets - \"Host '0.0.0.0' is not trusted.\""
-    )
-    hint = {"log_record": log_record}
-    assert _sentry_filter_notfound(event, hint) is event
 
 
 def test_sentry_filter_drops_flask_404_logging_event():

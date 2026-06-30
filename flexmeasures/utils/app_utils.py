@@ -4,8 +4,6 @@ Utils for serving the FlexMeasures app
 
 from __future__ import annotations
 
-from urllib.parse import urlsplit
-
 import click
 from flask import Flask, current_app, redirect
 from flask.cli import FlaskGroup, with_appcontext
@@ -13,7 +11,7 @@ from flask_security import current_user
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.integrations.rq import RqIntegration
-from werkzeug.exceptions import NotFound, SecurityError
+from werkzeug.exceptions import NotFound
 
 from flexmeasures import __version__ as fm_version
 from flexmeasures.app import create as create_app
@@ -32,58 +30,24 @@ def flexmeasures_cli():
 
 # For the Sentry integration, a crucial task is to filter out noise before it reaches Sentry.
 # Limiting what gets sent to Sentry (by 95%) keeps your costs to what you are interested in.
-# We want to filter out 404s and most untrusted-host requests, which are common probes in the wild.
-
-# 404 probes (e.g. looking for /wp-login.php) are all ignored here (= not sent to Sentry))
-# For untrusted-host probes (setting request header for host to own URL), FlxMeasures handles them in the SecurityError exception handler.
-# But they often also are actually 404 probes, as well :/  - here we want to simply avoid sending the boring ones to Sentry.
-_SENTRY_IGNORED_UNTRUSTED_HOST_URL_PARTS = (
-    ".env",
-    ".php",
-    ".ssh",
-    "access.log",
-    ".pyprc",
-    ".yml",
-    ".xml",
-    ".json",
-    ".git",
-)
-
-
-def _get_sentry_event_path(event: dict) -> str:
-    """Extract the request path from a Sentry event if available."""
-    request_data = event.get("request", {})
-    url = request_data.get("url")
-    if url:
-        return urlsplit(url).path
-    return request_data.get("path", "")
-
-
-def _should_filter_untrusted_host_event(event: dict) -> bool:
-    """Filter only noisy untrusted-host probes for blacklisted URL patterns."""
-    request_path = _get_sentry_event_path(event).lower()
-    return any(
-        ignored_part in request_path
-        for ignored_part in _SENTRY_IGNORED_UNTRUSTED_HOST_URL_PARTS
-    )
+# We want to filter out 404s (also those who in addition use untrusted-host request headers),
+# which are common probes in the wild.
+# Note: errors may reach Sentry twice - as raised Exception plus if FlexMeasures logs the error (e.g. during handling it)
+#       With verbose=False, Sentry might only see the  logging event, not an Exception, as it is only visible in the LogRecord message rather than in hint["exc_info"].
 
 
 def _sentry_filter_notfound(event, hint):
     """Filter out noisy handled web errors to avoid inflating Sentry error budgets."""
     if "exc_info" in hint:
-        exc_type, exc_value, _tb = hint["exc_info"]
+        _exc_type, exc_value, _tb = hint["exc_info"]
         if isinstance(exc_value, NotFound):
-            return None
-        if (
-            isinstance(exc_value, SecurityError)
-            and str(exc_value).endswith(" is not trusted.")
-            and _should_filter_untrusted_host_event(event)
-        ):
             return None
     # FlexMeasures logs handled 404s with verbose=False to keep automated
     # scans for hackable URLs from overwhelming log files. Sentry receives
     # those as logging events, so the NotFound exception is only visible in
     # the LogRecord message rather than in hint["exc_info"].
+    # We also filter out handled SecurityErrors that are logged when untrusted-host
+    # request headers are used.
     log_record = hint.get("log_record")
     if log_record is not None:
         message = log_record.getMessage()
@@ -93,7 +57,6 @@ def _sentry_filter_notfound(event, hint):
             message.startswith("SecurityError - URL was: ")
             and " - \"Host '" in message
             and message.endswith("' is not trusted.\"")
-            and _should_filter_untrusted_host_event(event)
         ):
             return None
     return event
