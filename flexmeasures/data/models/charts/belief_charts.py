@@ -1224,14 +1224,6 @@ def chart_for_chargepoint_sessions(
                         "title": "Sessions",
                         "axis": {"labels": False, "ticks": False, "domain": False},
                     },
-                    "yOffset": {
-                        "field": "session_id",
-                        "type": "nominal",
-                        "bandPosition": 0.5,
-                        "scale": {
-                            "domain": {"selection": "arr_dep", "field": "session_id"}
-                        },
-                    },
                     "color": {
                         "field": "asset",
                         "type": "nominal",
@@ -1319,17 +1311,6 @@ def chart_for_chargepoint_sessions(
                         "title": "Sessions",
                         "axis": {"labels": False, "ticks": False, "domain": False},
                     },
-                    "yOffset": {
-                        "field": "session_id",
-                        "type": "nominal",
-                        "bandPosition": 0.5,
-                        "scale": {
-                            "domain": {
-                                "selection": "plugin_plugout",
-                                "field": "session_id",
-                            }
-                        },
-                    },
                     "color": {
                         "field": "asset",
                         "type": "nominal",
@@ -1412,17 +1393,6 @@ def chart_for_chargepoint_sessions(
                         },
                         "title": "Sessions",
                         "axis": {"labels": False, "ticks": False, "domain": False},
-                    },
-                    "yOffset": {
-                        "field": "session_id",
-                        "type": "nominal",
-                        "bandPosition": 0.5,
-                        "scale": {
-                            "domain": {
-                                "selection": "start_stop_charging",
-                                "field": "session_id",
-                            }
-                        },
                     },
                     "color": {
                         "field": "asset",
