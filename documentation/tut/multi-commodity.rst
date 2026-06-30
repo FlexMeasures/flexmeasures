@@ -74,27 +74,24 @@ Here, sensor ``1`` is the battery's power sensor, sensor ``2`` is the boiler's p
 A few things to note:
 
 - **The battery is a normal storage device** (``soc-at-start``, ``soc-min``, ``soc-max``, ``soc-targets``), tagged with ``"commodity": "electricity"``.
-- **The boiler is modelled as a fixed load.** With ``soc-min`` and ``soc-max`` both 0, it can store nothing; ``soc-usage`` of ``1 kW`` forces it to consume exactly 1 kW of gas every hour, which the optimiser cannot change. ``production-capacity`` of 0 kW means it can never feed back.
+- **The boiler is modelled as a fixed load.** With ``soc-min`` and ``soc-max`` both 0, it can store nothing; ``soc-usage`` of ``1 kW`` forces it to consume exactly 1 kW of gas every hour, which the optimiser cannot change. ``production-capacity`` of 0 kW means it can never produce gas.
 
 The prices live in the ``flex-context``. For a single commodity you would pass ``consumption-price`` and ``production-price`` directly. For **multiple commodities**, you instead provide a ``commodities`` list, one entry per commodity:
 
 .. code-block:: json
 
     {
-        "flex-context": {
-            "commodities": [
-                {
-                    "commodity": "electricity",
-                    "consumption-price": "100 EUR/MWh",
-                    "production-price": "100 EUR/MWh"
-                },
-                {
-                    "commodity": "gas",
-                    "consumption-price": "50 EUR/MWh",
-                    "production-price": "50 EUR/MWh"
-                }
-            ]
-        }
+        "flex-context": [
+            {
+                "commodity": "electricity",
+                "consumption-price": "100 EUR/MWh",
+                "production-price": "100 EUR/MWh"
+            },
+            {
+                "commodity": "gas",
+                "consumption-price": "50 EUR/MWh"
+            }
+        ]
     }
 
 Each device's costs are then evaluated against the prices of *its own* commodity: the battery against electricity, the boiler against gas.
@@ -157,20 +154,17 @@ We schedule on the **site asset**, so that FlexMeasures considers both devices t
                         "soc-at-start": 0.0
                     }
                 ],
-                "flex-context": {
-                    "commodities": [
-                        {
-                            "commodity": "electricity",
-                            "consumption-price": "100 EUR/MWh",
-                            "production-price": "100 EUR/MWh"
-                        },
-                        {
-                            "commodity": "gas",
-                            "consumption-price": "50 EUR/MWh",
-                            "production-price": "50 EUR/MWh"
-                        }
-                    ]
-                }
+                "flex-context": [
+                    {
+                        "commodity": "electricity",
+                        "consumption-price": "100 EUR/MWh",
+                        "production-price": "100 EUR/MWh"
+                    },
+                    {
+                        "commodity": "gas",
+                        "consumption-price": "50 EUR/MWh"
+                    }
+                ]
             }
 
     .. tab:: FlexMeasures Client
@@ -210,20 +204,17 @@ We schedule on the **site asset**, so that FlexMeasures considers both devices t
                         "soc-at-start": 0.0,
                     },
                 ],
-                flex_context={
-                    "commodities": [
-                        {
-                            "commodity": "electricity",
-                            "consumption-price": "100 EUR/MWh",
-                            "production-price": "100 EUR/MWh",
-                        },
-                        {
-                            "commodity": "gas",
-                            "consumption-price": "50 EUR/MWh",
-                            "production-price": "50 EUR/MWh",
-                        },
-                    ]
-                },
+                flex_context=[
+                    {
+                        "commodity": "electricity",
+                        "consumption-price": "100 EUR/MWh",
+                        "production-price": "100 EUR/MWh",
+                    },
+                    {
+                        "commodity": "gas",
+                        "consumption-price": "50 EUR/MWh",
+                    },
+                ],
             )
 
 The scheduler returns one schedule per device (stored on sensors ``1`` and ``2``) and a single commitment-cost result that breaks the cost down per commodity.
@@ -241,7 +232,7 @@ The asset chart shows both commodities together, with the battery's stock level 
 
 Reading the chart top to bottom:
 
-- **Battery power (electricity)** charges at its full 20 kW for the first three hours, then makes one partial-power step to land exactly on the 80 kWh target, and sits idle for the rest of the day. In the final hour it discharges at −20 kW. Because the electricity price is flat, there is no cheaper window to wait for, so it simply charges as early as possible (``prefer-charging-sooner`` is on by default).
+- **Battery power (electricity)** charges at its full 20 kW for the first three hours, then makes one partial-power step, which compensates for its charging efficiency losses to land exactly on the 80 kWh target, and then sits idle for the rest of the day. In the final hour it discharges at −20 kW. Because the electricity price is flat, there is no cheaper window to wait for, so it simply charges as early as possible (``prefer-charging-sooner`` is on by default).
 - **Battery state of charge** makes the effect of that power schedule explicit: the stock rises from the 20 kWh ``soc-at-start``, reaches the 80 kWh target during the morning, holds there through the idle hours, and drops in the final hour as the battery discharges. This is the charge level you would otherwise have to infer from the power curve.
 - **Gas boiler (gas)** runs at exactly 1 kW every single hour. The ``soc-usage`` field makes this a fixed load that the optimiser cannot shift — its only effect on the result is the gas cost it incurs.
 
@@ -263,7 +254,6 @@ The schedules match the cost figures reported by the scheduler:
     Total                                        =  5.52 EUR
 
 The commitment-cost result keeps these as separate entries — ``electricity net energy`` (≈ 4.32 EUR) and ``gas net energy`` (1.20 EUR) — so you can always see how much each commodity contributed.
-Because the gas price (50 EUR/MWh) is half the electricity price, serving the constant baseline with gas rather than electricity is the cheaper choice for that part of the load.
 
 .. note:: This same pattern extends to more devices and more commodities. Add further entries to the ``flex-model`` list (each with its ``commodity``) and a matching entry in the ``flex-context`` ``commodities`` list. As long as all commodities share one currency, FlexMeasures optimises them together and reports each commodity's cost on its own.
 
