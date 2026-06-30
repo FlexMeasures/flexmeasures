@@ -344,13 +344,13 @@ This endpoint is useful when you want to inspect constraint violations without r
 The constraint results distinguish between:
 
 - Constraints that were **unresolved**: Soft constraints that could not be satisfied during optimization.
-- Resolved constraint **margins**: Soft constraints that were satisfied with some margin.
+- **Resolved** constraints: Soft constraints that were satisfied with some margin.
 
 Each constraint result includes:
 
 - ``datetime``: ISO 8601 UTC timestamp when the constraint was tightest (for resolved constraints) or first violated (for unresolved constraints).
 - ``violation`` (unresolved only): Magnitude of the violation (shortage for minima, excess for maxima).
-- ``margin`` (margins only): Headroom remaining at the tightest point.
+- ``margin`` (resolved only): Headroom remaining at the tightest point.
 
 
 Example: Constraint results from a battery scheduling job
@@ -404,7 +404,7 @@ Interpreting constraint results for optimization decisions
 **When constraints are all met:**
 
 An empty ``unresolved`` array indicates successful optimization.
-However, check the values in ``margins`` to understand how tight the constraints were:
+However, check the values in ``resolved`` to understand how tight the constraints were:
 
 - Large margins (e.g., 50 kWh) suggest the device has significant flexibility headroom.
 - Small margins (e.g., 5 kWh) indicate the constraints were nearly violated.
