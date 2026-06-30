@@ -29,6 +29,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Allow flex-model and flex-context to be missing from scheduling requests, because by now the whole flex-config can be defined on assets (in the db) instead [see `PR #2237 <https://www.github.com/FlexMeasures/flexmeasures/pull/2237>`_]
 * Let storage scheduling treat missing constant SoC bounds as unconstrained lower or upper bounds [see `PR #2221 <https://www.github.com/FlexMeasures/flexmeasures/pull/2221>`_]
 * Allow root assets belonging to different accounts to share the same name, while keeping asset names unique among root assets within the same account and among children of the same parent [see `PR #2226 <https://www.github.com/FlexMeasures/flexmeasures/pull/2226>`_]
 
