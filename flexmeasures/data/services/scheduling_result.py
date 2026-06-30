@@ -22,23 +22,23 @@ class SchedulingJobResult:
     See :ref:`scheduling_constraint_results` in the scheduling documentation for usage examples
     and interpretation guidance.
 
-    The ``unresolved`` field holds per-sensor dicts keyed by ``"soc-minima"``/``"soc-maxima"``,
+    The ``unresolved`` field holds per-asset dicts keyed by ``"soc-minima"``/``"soc-maxima"``,
     each with ``"datetime"`` and ``"violation"`` keys. The ``resolved`` field holds the same structure
     but with ``"margin"`` instead of ``"violation"``.
     """
 
     unresolved: dict = field(default_factory=dict)
-    """First violated ``soc-minima`` and/or ``soc-maxima`` constraint per sensor.
+    """First violated ``soc-minima`` and/or ``soc-maxima`` constraint per asset.
 
-    Keyed by state-of-charge sensor ID string (``str(sensor.id)``). Each value is a dict with
+    Keyed by asset ID string (``str(asset.id)``). Each value is a dict with
     constraint-type keys (``"soc-minima"`` and/or ``"soc-maxima"``), each mapping to:
 
     - ``"datetime"``: ISO 8601 UTC timestamp of the first violated constraint.
     - ``"violation"``: Always-positive magnitude of the violation in kWh, e.g. ``"260.0 kWh"``.
       For ``soc-minima`` this is the shortage; for ``soc-maxima`` this is the excess.
 
-    An empty dict means all targets have been met (or no state-of-charge sensor is set).
-    Devices with no violations are absent from the outer dict.
+    An empty dict means all targets have been met (or no asset has state-of-charge constraints defined).
+    Assets with no violations are absent from the outer dict.
 
     Example::
 
@@ -50,9 +50,9 @@ class SchedulingJobResult:
     """
 
     resolved: dict = field(default_factory=dict)
-    """Tightest met ``soc-minima`` and/or ``soc-maxima`` constraint per sensor.
+    """Tightest met ``soc-minima`` and/or ``soc-maxima`` constraint per asset.
 
-    Keyed by state-of-charge sensor ID string (``str(sensor.id)``). Each value is a dict with
+    Keyed by asset ID string (``str(asset.id)``). Each value is a dict with
     constraint-type keys (``"soc-minima"`` and/or ``"soc-maxima"``), each mapping to:
 
     - ``"datetime"``: ISO 8601 UTC timestamp of the tightest constraint slot (smallest positive margin).
@@ -60,8 +60,8 @@ class SchedulingJobResult:
       For ``soc-minima`` this is how far above the minimum the SoC stayed;
       for ``soc-maxima`` this is how far below the maximum the SoC stayed.
 
-    An empty dict means no constraints of that type were defined (or no state-of-charge sensor is set).
-    Devices with no resolved constraints are absent from the outer dict.
+    An empty dict means no constraints of that type were defined (or no asset has state-of-charge constraints defined).
+    Assets with no resolved constraints are absent from the outer dict.
 
     Example::
 
