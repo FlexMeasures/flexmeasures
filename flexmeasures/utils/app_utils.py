@@ -35,7 +35,7 @@ def flexmeasures_cli():
 # We want to filter out 404s and most untrusted-host requests, which are common probes in the wild.
 
 # 404 probes (e.g. looking for /wp-login.php) are all ignored here (= not sent to Sentry))
-# For untrusted-host probes (setting request header for host to own URL), FlxMeasures handles them in the SecurityError exception handler.
+# For untrusted-host probes (setting request header for host to own URL), FlexMeasures handles them in the SecurityError exception handler.
 # But they often also are actually 404 probes, as well :/  - here we want to simply avoid sending the boring ones to Sentry.
 _SENTRY_IGNORED_UNTRUSTED_HOST_URL_PARTS = (
     ".env",
