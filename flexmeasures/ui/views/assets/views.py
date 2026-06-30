@@ -24,6 +24,7 @@ from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as Asset
 from flexmeasures.ui.utils.view_utils import ICON_MAPPING
 from flexmeasures.data.models.user import Account
 from flexmeasures.utils.time_utils import duration_isoformat
+from flexmeasures.utils.secrets_utils import get_secret_overview
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.views.assets.forms import NewAssetForm, AssetForm
 from flexmeasures.ui.views import (
@@ -475,4 +476,5 @@ class AssetCrudUI(FlaskView):
             current_page="Properties",
             attributes_label=ATTRIBUTES_FIELD_LABEL,
             attributes_description=ATTRIBUTES_FIELD_DESCRIPTION,
+            stored_secrets=get_secret_overview(asset.secrets),
         )
