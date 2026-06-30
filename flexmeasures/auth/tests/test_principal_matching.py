@@ -4,7 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from flexmeasures.auth.policy import user_matches_principals, can_modify_role
+from flexmeasures.auth.policy import (
+    CONSULTANT_ROLE,
+    can_modify_role,
+    user_matches_principals,
+)
 
 
 class MockAccount:
@@ -223,7 +227,10 @@ def test_can_modify_role(
         (
             make_mock_user(19, ["admin"], 1, []),
             make_mock_user(23, ["consultant"], 1, []),
-            [4, SimpleNamespace(name="unsupported-role")],
+            [
+                SimpleNamespace(name="unsupported-role"),
+                SimpleNamespace(name=CONSULTANT_ROLE),
+            ],
         ),
     ],
 )
