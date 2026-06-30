@@ -36,7 +36,7 @@ v0.33.1 | June XX, 2026
 
 Infrastructure / Support
 ----------------------
-* Filter handled untrusted-host ``SecurityError`` events out of Sentry, alongside the existing 404 filtering [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* Filter handled untrusted-host ``SecurityError`` events out of Sentry, alongside the existing 404 filtering [see `PR #2257 <https://www.github.com/FlexMeasures/flexmeasures/pull/2257>`_]
 
 
 
