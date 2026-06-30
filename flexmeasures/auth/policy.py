@@ -200,7 +200,7 @@ def check_account_role(user, principal: str) -> bool:
     return False
 
 
-def can_modify_role(
+def can_modify_role(  # noqa: C901
     user,
     roles_to_modify,
     modified_user,
@@ -228,30 +228,41 @@ def can_modify_role(
         else:
             roles.append(role)
 
-    can_modify_roles = []
+    if not roles:
+        return False
+
     for role in roles:
-        can_modify_this_role = False
         if role is None:
-            can_modify_roles.append(can_modify_this_role)
-            continue
+            return False
         if role.name == ADMIN_ROLE:
             # Nobody can do this here, only in CLI or directly in the DB.
-            can_modify_this_role = False
-        elif role.name == ADMIN_READER_ROLE:
-            can_modify_this_role = user.has_role(
-                ADMIN_ROLE
-            )  # only admins can change admin-reader status
-        elif role.name == ACCOUNT_ADMIN_ROLE:  # admins and consultants can do this
-            can_modify_this_role = user.has_role(ADMIN_ROLE) or (
+            return False
+        if role.name == ADMIN_READER_ROLE:
+            # only admins can change admin-reader status
+            if not user.has_role(ADMIN_ROLE):
+                return False
+            continue
+        if role.name == ACCOUNT_ADMIN_ROLE:
+            # admins and consultants can do this
+            if user.has_role(ADMIN_ROLE):
+                continue
+            if (
                 modified_user.account.consultancy_account is not None
                 and user.has_role(CONSULTANT_ROLE)
                 and user.account.id == modified_user.account.consultancy_account.id
-            )
-        elif role.name == CONSULTANT_ROLE:  # admins and account-admins can do this
-            can_modify_this_role = user.has_role(ADMIN_ROLE) or (
+            ):
+                continue
+            return False
+        if role.name == CONSULTANT_ROLE:
+            # admins and account-admins can do this
+            if user.has_role(ADMIN_ROLE):
+                continue
+            if (
                 user.has_role(ACCOUNT_ADMIN_ROLE)
                 and user.account.id == modified_user.account.id
-            )
-        can_modify_roles.append(can_modify_this_role)
+            ):
+                continue
+            return False
+        return False
 
-    return bool(can_modify_roles) and all(can_modify_roles)
+    return True
