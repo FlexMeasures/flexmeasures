@@ -9,7 +9,7 @@ from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
 from werkzeug.exceptions import Forbidden
-from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.policy import can_modify_role, check_access
 
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
@@ -460,8 +460,6 @@ class UserAPI(FlaskView):
                 )
             # if flexmeasures_roles is not empty, check if the user can modify the role
             if k == "flexmeasures_roles" and (v or len(v) == 0):
-                from flexmeasures.auth.policy import can_modify_role
-
                 current_roles = set(user.flexmeasures_roles)
                 new_roles = set(v)
 
