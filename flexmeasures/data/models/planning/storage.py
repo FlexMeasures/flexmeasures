@@ -1606,10 +1606,15 @@ class StorageScheduler(MetaStorageScheduler):
     ) -> tuple[dict, dict]:
         """Compute unmet and met SoC minima/maxima targets per device.
 
-        For each device that has a ``state_of_charge`` Sensor and ``soc-minima``
-        or ``soc-maxima`` constraints in the flex model, compares the computed MWh
-        SoC schedule against those constraints.  Devices without a
-        ``state_of_charge`` Sensor are skipped.
+        For each device that has ``soc-minima`` or ``soc-maxima`` constraints in
+        the flex model, compares the computed MWh SoC schedule against those
+        constraints.  Devices without a ``state_of_charge`` Sensor are included
+        as long as a device key can be determined from the power sensor.
+
+        The result is keyed by asset ID (``flex_model_d["sensor"].generic_asset.id``
+        when available) or falls back to sensor ID
+        (``flex_model_d["sensor"].id``).  Devices for which neither can be
+        determined are skipped.
 
         Constraints are evaluated over the window ``(start + resolution, end)`` (i.e.
         the first scheduled slot through the end of the schedule).  The ``start``
@@ -1626,13 +1631,15 @@ class StorageScheduler(MetaStorageScheduler):
         :param resolution:        Schedule resolution.
         :returns: A tuple ``(unresolved, resolved)``.
 
-                  ``unresolved`` is keyed by state-of-charge sensor ID string.
+                  ``unresolved`` is keyed by asset ID string (or sensor ID string
+                  as fallback).
                   Each value is a dict with keys ``"soc-minima"`` and/or ``"soc-maxima"``
                   (only present when a violation exists), each containing
                   ``{"datetime": <ISO 8601 UTC string>, "violation": "<value> kWh"}``
                   where ``violation`` is always positive.
 
-                  ``resolved`` is also keyed by state-of-charge sensor ID string.
+                  ``resolved`` is also keyed by asset ID string (or sensor ID string
+                  as fallback).
                   Each value is a dict with keys ``"soc-minima"`` and/or ``"soc-maxima"``
                   (only present when the constraint type was defined and fully met), each
                   containing ``{"datetime": <ISO 8601 UTC string>, "margin": "<value> kWh"}``
@@ -1649,11 +1656,21 @@ class StorageScheduler(MetaStorageScheduler):
             if soc_mwh is None:
                 continue
 
-            # Only use state-of-charge sensors as keys; skip devices without one.
-            state_of_charge_sensor = flex_model_d.get("state_of_charge")
-            if not isinstance(state_of_charge_sensor, Sensor):
+            # Determine device key: prefer asset ID, fall back to power sensor ID.
+            # Devices without a state-of-charge sensor are included as long as a
+            # key can be derived from the power sensor's generic asset (or the
+            # power sensor itself).
+            power_sensor = flex_model_d.get("sensor")
+            if (
+                power_sensor is not None
+                and hasattr(power_sensor, "generic_asset")
+                and power_sensor.generic_asset is not None
+            ):
+                device_key = str(power_sensor.generic_asset.id)
+            elif power_sensor is not None:
+                device_key = str(power_sensor.id)
+            else:
                 continue
-            device_key = str(state_of_charge_sensor.id)
 
             device_violations: dict = {}
             device_resolved: dict = {}
