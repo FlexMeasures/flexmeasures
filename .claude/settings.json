@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./instance/**)",
+      "Read(./flexmeasures-instance/**)",
+      "Read(**.sql)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)"
+    ]
+  },
+  "companyAnnouncements": [
+    "Welcome to FlexMeasures! Review our developer guidelines at flexmeasures.readthedocs.io/stable/dev/setup-and-guidelines.html",
+    "Reminder: use `uv tool install pre-commit and `pre-commit install` to auto-apply formatting and code style suggestions."
+  ]
+}

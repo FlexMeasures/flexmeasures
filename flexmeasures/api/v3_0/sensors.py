@@ -50,7 +50,7 @@ from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
-from flexmeasures.data.queries.utils import simplify_index
+from flexmeasures.data.queries.utils import id_prefix_filter, simplify_index
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.sensors import (  # noqa F401
     SensorSchema,
@@ -65,7 +65,10 @@ from flexmeasures.data.schemas.times import (
 )
 from flexmeasures.data.schemas import AssetIdField, SourceIdField
 from flexmeasures.api.common.schemas.search import SearchFilterField
-from flexmeasures.data.schemas.scheduling import GetScheduleSchema
+from flexmeasures.data.schemas.scheduling import (
+    GetScheduleSchema,
+    ScheduleSignConvention,
+)
 from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.data.services.sensors import get_sensor_stats
 from flexmeasures.data.services.sensors import delete_sensor as delete_sensor_and_data
@@ -87,6 +90,17 @@ sensors_schema = SensorSchema(many=True)
 sensor_schema = SensorSchema()
 partial_sensor_schema = SensorSchema(partial=True, exclude=["generic_asset_id"])
 annotation_schema = AnnotationSchema()
+
+
+def sensor_search_term_filter(term: str):
+    filters = [
+        Sensor.name.ilike(f"%{term}%"),
+        Account.name.ilike(f"%{term}%"),
+        GenericAsset.name.ilike(f"%{term}%"),
+    ]
+    if term.isdecimal():
+        filters.append(id_prefix_filter(Sensor.id, term))
+    return or_(*filters)
 
 
 REGRESSOR_CONFIG_FIELDS = {
@@ -215,7 +229,12 @@ class SensorKwargsSchema(Schema):
     per_page = fields.Int(
         required=False, validate=validate.Range(min=1), load_default=10
     )
-    filter = SearchFilterField(required=False)
+    filter = SearchFilterField(
+        required=False,
+        metadata=dict(
+            description="Return only sensors where a search term is present in the sensor name, account name, asset name, or is a prefix of the sensor ID.",
+        ),
+    )
     unit = UnitField(required=False)
 
 
@@ -327,7 +346,7 @@ class SensorAPI(FlaskView):
 
             Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
 
-            The `filter` parameter allows you to search for sensors by name or account name.
+            The `filter` parameter allows you to search for sensors by name, account name, asset name, or sensor ID prefix.
             The `unit` parameter allows you to filter by unit.
 
             For the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger
@@ -468,16 +487,7 @@ class SensorAPI(FlaskView):
 
         if filter is not None:
             sensor_query = sensor_query.filter(
-                or_(
-                    *(
-                        or_(
-                            Sensor.name.ilike(f"%{term}%"),
-                            Account.name.ilike(f"%{term}%"),
-                            GenericAsset.name.ilike(f"%{term}%"),
-                        )
-                        for term in filter
-                    )
-                )
+                or_(*(sensor_search_term_filter(term) for term in filter))
             )
 
         if unit:
@@ -537,7 +547,7 @@ class SensorAPI(FlaskView):
 
             The unit has to be convertible to the sensor's unit.
             The resolution of the data has to match the sensor's required resolution, but
-            FlexMeasures will attempt to upsample lower resolutions.
+            FlexMeasures will attempt to resample compatible resolutions.
             The list of values may include null values.
             The request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
             (3 MiB by default).
@@ -673,7 +683,7 @@ class SensorAPI(FlaskView):
             The sensor is the one with ID=1.
             The unit has to be convertible to the sensor's unit.
             The resolution of the data has to match the sensor's required resolution, but
-            FlexMeasures will attempt to upsample lower resolutions.
+            FlexMeasures will attempt to resample compatible resolutions.
             The list of values may include null values.
             The request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
             (3 MiB by default).
@@ -1040,6 +1050,7 @@ class SensorAPI(FlaskView):
         job_id: str,
         duration: timedelta,
         unit: str | None = None,
+        sign_convention: str = ScheduleSignConvention.CONSUMPTION_POSITIVE,
         **kwargs,
     ):
         """
@@ -1054,6 +1065,21 @@ class SensorAPI(FlaskView):
 
             - "duration" (6 hours by default; can be increased to plan further into the future)
             - "unit" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)
+            - "sign-convention" (controls how power values are signed in the response; see below)
+
+            **Sign convention**
+
+            By default (``sign-convention: consumption-positive``), the endpoint always returns schedules where
+            consumption is positive and production is negative, regardless of how the values are stored in the database.
+            This is the most common convention and matches the perspective of a consumer.
+
+            Set ``sign-convention: production-positive`` to flip the sign so that production is returned as
+            positive and consumption as negative. This matches the perspective of a producer.
+
+            Set ``sign-convention: wysiwyg`` (*what-you-see-is-what-you-get*) to return the values with the same sign
+            as database values and what is seen in UI charts. The values will indicate exactly what is stored,
+            which is itself determined by the sensor's ``consumption_is_positive`` attribute (if set)
+            or by the scheduler's default storage convention (production positive in the database).
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1095,6 +1121,21 @@ class SensorAPI(FlaskView):
               example: kW
               schema:
                 type: string
+            - in: query
+              name: sign-convention
+              required: false
+              description: |
+                Sign convention applied to power values in the response.
+                - ``consumption-positive`` (default): consumption is positive, production is negative.
+                - ``production-positive``: production is positive, consumption is negative.
+                - ``wysiwyg`` (*what-you-see-is-what-you-get*): sign of database values and as seen in UI charts.
+              example: consumption-positive
+              schema:
+                type: string
+                enum:
+                  - consumption-positive
+                  - production-positive
+                  - wysiwyg
           responses:
             200:
               description: PROCESSED
@@ -1221,12 +1262,25 @@ class SensorAPI(FlaskView):
         )
 
         sign = 1
-        if sensor.measures_power and not sensor.get_attribute(
-            "consumption_is_positive", False
-        ):
-            sign = -1
+        if sign_convention == ScheduleSignConvention.WYSIWYG:
+            # Return values without adjusting the sign of database values.
+            # No sign inversion: what's in the DB and what is seen in UI charts is what the caller receives.
+            pass
+        elif sensor.measures_power:
+            # Determine whether the database stores consumption as positive or negative.
+            db_consumption_is_positive = sensor.get_attribute(
+                "consumption_is_positive", False
+            )
+            if sign_convention == ScheduleSignConvention.CONSUMPTION_POSITIVE:
+                # Caller wants consumption positive. Invert if DB stores it as negative.
+                if not db_consumption_is_positive:
+                    sign = -1
+            elif sign_convention == ScheduleSignConvention.PRODUCTION_POSITIVE:
+                # Caller wants production positive. Invert if DB already stores consumption positive.
+                if db_consumption_is_positive:
+                    sign = -1
 
-        # For consumption schedules, positive values denote consumption. For the db, consumption is negative unless specified explicitly
+        # Apply sign to get the values in the requested convention
         consumption_schedule = sign * simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
             # for not in-built schedulers, we are not sure if they would store time series in the db
@@ -1304,6 +1358,8 @@ class SensorAPI(FlaskView):
                         timezone: Europe/Amsterdam
                         event_resolution: PT15M
                         entity_address: ea1.2021-01.io.flexmeasures:fm1.14
+                        attributes:
+                          floor_datetimes_to_resolution: true
                         generic_asset_id: 1
                     power_sensor:
                       summary: A power sensor recording average consumption every 5 minutes.
@@ -1367,6 +1423,7 @@ class SensorAPI(FlaskView):
                       "event_resolution": "PT1H"
                       "unit": "kWh"
                       "generic_asset_id": 1
+                      "attributes": '{"floor_datetimes_to_resolution": false}'
           responses:
             201:
               description: New Sensor
@@ -1383,6 +1440,7 @@ class SensorAPI(FlaskView):
                         "entity_address": "ea1.2023-08.localhost:fm1.1"
                         "event_resolution": "PT1H"
                         "generic_asset_id": 1
+                        "attributes": '{"floor_datetimes_to_resolution": false}'
                         "timezone": "UTC"
                         "id": 2
             400:

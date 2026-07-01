@@ -7,7 +7,7 @@ from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 from flexmeasures.utils.unit_utils import to_preferred, ur
 
 
-class MarshmallowClickMixin(click.ParamType):
+class MarshmallowClickMixin:
     def __init__(self, *args, **kwargs):
 
         metadata_keys = ["description", "example"]
@@ -21,6 +21,7 @@ class MarshmallowClickMixin(click.ParamType):
 
         super().__init__(*args, **kwargs)
         self.name = self.__class__.__name__
+        self.__name__ = self.name
 
     def get_metavar(self, param, **kwargs):
         return self.__class__.__name__
@@ -30,6 +31,13 @@ class MarshmallowClickMixin(click.ParamType):
             return self.deserialize(value, **kwargs)
         except ma.exceptions.ValidationError as e:
             raise click.exceptions.BadParameter(e, ctx=ctx, param=param)
+
+    def __call__(self, value):
+        """Support click.FuncParamType by behaving like a conversion callable."""
+        try:
+            return self.deserialize(value)
+        except ma.exceptions.ValidationError as e:
+            raise ValueError(e) from e
 
 
 class FMValidationError(ma.exceptions.ValidationError):

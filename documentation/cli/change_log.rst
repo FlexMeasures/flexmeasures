@@ -4,8 +4,15 @@
 FlexMeasures CLI Changelog
 **********************
 
-since v0.33.0 | May 27, 2026
+since v1.0.0 | July XX, 2026
 =================================
+
+* Add ``flexmeasures edit secret`` to store an encrypted secret on an account or asset.
+* Add ``flexmeasures delete secret`` to remove an encrypted secret from an account or asset.
+
+since v0.33.0 | June 01, 2026
+=================================
+
 * Add ``flexmeasures jobs inspect-job`` to show the job status and metadata information.
 
 since v0.31.1 | March 6, 2026

@@ -5,6 +5,7 @@ import json
 from http import HTTPStatus
 from typing import Any, TYPE_CHECKING
 
+from flask import current_app
 from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
 from marshmallow.validate import OneOf
@@ -196,7 +197,12 @@ class SensorsToShowSchema(fields.Field):
         if field_name in plot_config:
             value = plot_config[field_name]
             asset_id = plot_config.get("asset")
-            asset = GenericAssetIdField().deserialize(asset_id)
+            try:
+                asset = GenericAssetIdField().deserialize(asset_id)
+            except ValidationError:
+                if self.allow_missing_asset_flex_field:
+                    return
+                raise
 
             if asset is None:
                 raise ValidationError(f"Asset with ID {asset_id} does not exist.")
@@ -251,27 +257,71 @@ class SensorsToShowSchema(fields.Field):
         :param nested_list: A list containing sensor IDs, or dictionaries with `sensors` or `sensor` keys.
         :returns:           A unique list of sensor IDs, or a unique list of Sensors
         """
-        all_objects = []
+        all_objects: list[Any] = []
         for s in nested_list:
-            if isinstance(s, list):
-                all_objects.extend(s)
-            elif isinstance(s, int):
-                all_objects.append(s)
-            elif isinstance(s, dict):
-                if "plots" in s:
-                    for plot in s["plots"]:
-                        if "sensors" in plot:
-                            all_objects.extend(plot["sensors"])
-                        if "sensor" in plot:
-                            all_objects.append(plot["sensor"])
-                        if "asset" in plot:
-                            sensors, _ = extract_sensors_from_flex_config(plot)
-                            all_objects.extend(sensors)
-                elif "sensors" in s:
-                    all_objects.extend(s["sensors"])
-                elif "sensor" in s:
-                    all_objects.append(s["sensor"])
+            all_objects.extend(cls._flatten_entry(s))
         return list(dict.fromkeys(all_objects).keys())
+
+    @classmethod
+    def _flatten_entry(cls, entry: Any) -> list[Any]:
+        """Flatten one sensors_to_show entry into sensor IDs or Sensor objects."""
+        if isinstance(entry, list):
+            return entry
+        if isinstance(entry, int):
+            return [entry]
+        if isinstance(entry, dict):
+            return cls._flatten_dict_entry(entry)
+        return []
+
+    @classmethod
+    def _flatten_dict_entry(cls, entry: dict) -> list[Any]:
+        """Flatten one dictionary-form sensors_to_show entry."""
+        if "plots" in entry:
+            return cls._flatten_plots(entry["plots"])
+        if "sensors" in entry:
+            return entry["sensors"]
+        if "sensor" in entry:
+            return [entry["sensor"]]
+        return []
+
+    @classmethod
+    def _flatten_plots(cls, plots: list[dict]) -> list[Any]:
+        """Flatten a list of plot dictionaries to sensor IDs or Sensor objects."""
+        flattened: list[Any] = []
+        for plot in plots:
+            flattened.extend(cls._flatten_plot_entry(plot))
+        return flattened
+
+    @classmethod
+    def _flatten_plot_entry(cls, plot: dict) -> list[Any]:
+        """Flatten one plot dictionary to sensor IDs or Sensor objects."""
+        flattened: list[Any] = []
+
+        if "sensors" in plot:
+            flattened.extend(plot["sensors"])
+        if "sensor" in plot:
+            flattened.append(plot["sensor"])
+        if "asset" in plot:
+            flattened.extend(cls._flatten_asset_plot_entry(plot))
+
+        return flattened
+
+    @classmethod
+    def _flatten_asset_plot_entry(cls, plot: dict) -> list[Sensor]:
+        """Resolve flex-config sensor references for one asset plot.
+
+        Invalid stale references are skipped to keep chart rendering robust.
+        """
+        try:
+            sensors, _ = extract_sensors_from_flex_config(plot)
+        except ValidationError as err:
+            current_app.logger.warning(
+                "Skipping invalid asset plot reference %s while flattening sensors_to_show: %s",
+                plot,
+                err,
+            )
+            return []
+        return sensors
 
 
 class SensorKPIFieldSchema(ma.SQLAlchemySchema):
@@ -334,30 +384,69 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     @validates_schema(skip_on_field_errors=False)
     def validate_name_is_unique_under_parent(self, data, **kwargs):
         """
-        Validate that name is unique among siblings.
-        This is also checked by a db constraint.
+        Validate that name is unique in its asset context.
+        For child assets, names are unique among siblings.
+        For account-owned root assets, names are unique within the account.
+        For public root assets, names are unique globally.
+        This is also checked by db indexes.
         Here, we can only check if we have all information (a full form),
-        which usually is at creation time.
+        which usually is at creation time or when the existing asset is in context.
         """
 
-        if "name" in data:
-            parent_id = data.get("parent_asset_id", None)
+        context = getattr(self, "context", {})
+        current_asset = context.get("asset")
+        name = data.get("name", getattr(current_asset, "name", None))
+        if name is None:
+            return
 
+        parent_id = data.get(
+            "parent_asset_id", getattr(current_asset, "parent_asset_id", None)
+        )
+        current_editing_id = context.get("asset_id") or getattr(
+            current_asset, "id", None
+        )
+
+        if parent_id is not None:
             query = select(GenericAsset).filter_by(
-                name=data["name"],
+                name=name,
                 parent_asset_id=parent_id,
             )
+            err_msg = (
+                f"An asset with the name '{name}' already exists under parent asset "
+                f"{parent_id}"
+            )
+        else:
+            account_id = data.get(
+                "account_id", getattr(current_asset, "account_id", None)
+            )
+            if account_id is None:
+                query = select(GenericAsset).filter_by(
+                    name=name,
+                    account_id=None,
+                    parent_asset_id=None,
+                )
+                err_msg = (
+                    f"An asset with the name '{name}' already exists as a public "
+                    "top-level asset"
+                )
+            else:
+                query = select(GenericAsset).filter_by(
+                    name=name,
+                    account_id=account_id,
+                    parent_asset_id=None,
+                )
+                err_msg = (
+                    f"An asset with the name '{name}' already exists as a top-level "
+                    f"asset in account {account_id}"
+                )
 
-            current_editing_id = getattr(self, "context", {}).get("asset_id")
+        if current_editing_id is not None:
+            query = query.filter(GenericAsset.id != current_editing_id)
 
-            if current_editing_id is not None:
-                query = query.filter(GenericAsset.id != current_editing_id)
+        existing_asset = db.session.scalars(query).first()
 
-            existing_asset = db.session.scalars(query).first()
-
-            if existing_asset:
-                err_msg = f"An asset with the name '{data['name']}' already exists under parent asset {data.get('parent_asset_id')}"
-                raise ValidationError(err_msg, "name")
+        if existing_asset:
+            raise ValidationError(err_msg, "name")
 
     @validates("generic_asset_type_id")
     def validate_generic_asset_type(self, generic_asset_type_id: int, **kwargs):

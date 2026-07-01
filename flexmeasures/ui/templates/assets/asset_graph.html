@@ -417,6 +417,7 @@
         let savedGraphIndex; // keeps track of the graph that is currently selected
         let selectedGraphTitle; // keeps track of the graph title that is currently selected
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}&include_public_assets=true`;
+        let unavailablePlotCount = 0;
 
         // ==========================================
         // REACTIVE STATE MANAGEMENT
@@ -822,8 +823,19 @@
                 } else if ("asset" in plot) {
                     const plotHeader = document.createElement("h5");
                     plotHeader.className = "pt-2 fs-[1rem]";
-                    const asset = await getAsset(plot.asset);
-                    plotHeader.innerHTML = `<b>${asset.name}: ${plot["flex-model"] || plot["flex-context"]}</b>`;
+                    let asset = null;
+                    try {
+                        asset = await getAsset(plot.asset);
+                    } catch (_error) {
+                        asset = null;
+                    }
+                    if (!asset || !asset.name) {
+                        unavailablePlotCount += 1;
+                        plotHeader.innerHTML = `<b>Asset ${plot.asset}: ${plot["flex-model"] || plot["flex-context"]} (Not available)</b>`;
+                        plotHeader.classList.add("text-warning");
+                    } else {
+                        plotHeader.innerHTML = `<b>${asset.name}: ${plot["flex-model"] || plot["flex-context"]}</b>`;
+                    }
                     const assetPlotContent = await renderAssetPlotCard(plot, removePlotOrSensor, index, plotIndex);
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(assetPlotContent);
@@ -902,6 +914,7 @@
 
             const graphList = document.getElementById("graphList");
             graphList.innerHTML = "";
+            unavailablePlotCount = 0;
             const oldSensorsToShow = getSensorToShow();
             const newSensorsToShow = [];
 
@@ -929,6 +942,14 @@
                     oldSensorsToShow.length,
                 );
                 graphList.appendChild(graphCard);
+            }
+
+            if (unavailablePlotCount > 0) {
+                const warning = document.createElement("div");
+                warning.className = "alert alert-warning mt-2";
+                warning.setAttribute("role", "alert");
+                warning.textContent = `${unavailablePlotCount} saved plot${unavailablePlotCount > 1 ? "s are" : " is"} not available anymore. You can remove or update these references.`;
+                graphList.prepend(warning);
             }
 
             sensorsToShow = newSensorsToShow;

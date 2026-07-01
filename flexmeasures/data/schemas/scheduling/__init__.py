@@ -20,6 +20,7 @@ from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
+    SensorReference,
 )
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.units import UnitField
@@ -322,8 +323,14 @@ class FlexContextSchema(Schema):
 
     @validates("aggregate_power")
     def validate_aggregate_power_is_sensor(
-        self, aggregate_power: Sensor | list[dict] | ur.Quantity, **kwargs
+        self,
+        aggregate_power: Sensor | SensorReference | list[dict] | ur.Quantity,
+        **kwargs,
     ):
+        if isinstance(aggregate_power, SensorReference):
+            raise ValidationError(
+                "The `aggregate-power` field cannot use source filters."
+            )
         if not isinstance(aggregate_power, Sensor):
             raise ValidationError("The `aggregate-power` field can only be a Sensor.")
 
@@ -582,6 +589,24 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
 }
 
 UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
+    "consumption": {
+        "default": None,
+        "description": rst_to_openapi(metadata.CONSUMPTION.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor which records the scheduled consumption.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "production": {
+        "default": None,
+        "description": rst_to_openapi(metadata.PRODUCTION.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor which records the scheduled production.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
     "soc-min": {
         "default": None,
         "description": rst_to_openapi(metadata.SOC_MIN.description),
@@ -808,7 +833,7 @@ class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
                     f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
                     field_name=self.mapped_schema_keys[field],
                 )
-        elif isinstance(data[field], Sensor):
+        elif isinstance(data[field], (Sensor, SensorReference)):
             if not unit_validator(data[field].unit):
                 raise ValidationError(
                     f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
@@ -1002,11 +1027,49 @@ class AssetTriggerSchema(Schema):
         return data
 
 
+class ScheduleSignConvention:
+    """Named constants for the three sign-convention modes of the get_schedule endpoint.
+
+    :cvar CONSUMPTION_POSITIVE: Always return schedules with consumption as positive values
+                                and production as negative values.  This is the default and
+                                matches the view a *consumer* has of their device.
+    :cvar PRODUCTION_POSITIVE: Always return schedules with production as positive values
+                               and consumption as negative values.  This matches the view a
+                               *producer* (or generator) has of their device.
+    :cvar WYSIWYG: Return the raw values from the database without any sign inversion,
+                   regardless of the sensor's ``consumption_is_positive`` attribute.
+                   Useful when you want to see exactly what was stored.
+    """
+
+    CONSUMPTION_POSITIVE = "consumption-positive"
+    PRODUCTION_POSITIVE = "production-positive"
+    WYSIWYG = "wysiwyg"
+
+    ALL = (CONSUMPTION_POSITIVE, PRODUCTION_POSITIVE, WYSIWYG)
+
+
 class GetScheduleSchema(Schema):
     sensor = SensorIdField(required=True, data_key="id")
     job_id = fields.Str(required=True, data_key="uuid")
     duration = DurationField(load_default=timedelta(hours=6))
     unit = UnitField(load_default=None)
+    sign_convention = fields.Str(
+        data_key="sign-convention",
+        load_default=ScheduleSignConvention.CONSUMPTION_POSITIVE,
+        validate=validate.OneOf(ScheduleSignConvention.ALL),
+        metadata=dict(
+            description=(
+                "Controls the sign convention applied to schedule values in the response. "
+                f"``{ScheduleSignConvention.CONSUMPTION_POSITIVE}`` (default): consumption is always returned as positive values "
+                f"and production as negative values. "
+                f"``{ScheduleSignConvention.PRODUCTION_POSITIVE}``: production is always returned as positive values "
+                f"and consumption as negative values. "
+                f"``{ScheduleSignConvention.WYSIWYG}``: returns values with the same sign as database values and as seen in the UI charts, "
+                "without adjusting their sign for the sensor's ``consumption_is_positive`` attribute."
+            ),
+            example=ScheduleSignConvention.CONSUMPTION_POSITIVE,
+        ),
+    )
 
     @post_load
     def finalize_unit_and_duration(self, data, **kwargs):
