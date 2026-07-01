@@ -1821,17 +1821,15 @@ class StorageScheduler(MetaStorageScheduler):
         :param resolution:        Schedule resolution.
         :returns: A tuple ``(unresolved, resolved)``.
 
-                  ``unresolved`` is keyed by asset ID string (or sensor ID string
-                  as fallback).
+                  ``unresolved`` is keyed by asset ID string.
                   Each value is a dict with keys ``"soc-minima"`` and/or ``"soc-maxima"``
                   (only present when a violation exists), each containing
                   ``{"datetime": <ISO 8601 UTC string>, "violation": "<value> kWh"}``
                   where ``violation`` is always positive.
 
-                  ``resolved`` is also keyed by asset ID string (or sensor ID string
-                  as fallback).
+                  ``resolved`` is also keyed by asset ID string.
                   Each value is a dict with keys ``"soc-minima"`` and/or ``"soc-maxima"``
-                  (only present when the constraint type was defined and fully met), each
+                  (only present when the constraint type was defined and satisfied), each
                   containing ``{"datetime": <ISO 8601 UTC string>, "margin": "<value> kWh"}``
                   for the slot with the tightest (smallest positive) margin.
         """
