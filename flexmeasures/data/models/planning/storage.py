@@ -1752,6 +1752,7 @@ class StorageScheduler(MetaStorageScheduler):
         start: datetime,
         end: datetime,
         resolution: timedelta,
+        all: bool = True,
     ) -> tuple[list, list]:
         """Compute unmet and met SoC minima/maxima targets per device.
 
@@ -1776,15 +1777,23 @@ class StorageScheduler(MetaStorageScheduler):
         :param start:             Start of the schedule.
         :param end:               End of the schedule.
         :param resolution:        Schedule resolution.
+        :param all:               If True (the default), report every violated/met slot.
+                                   If False, report only the single most relevant slot
+                                   (the first violation, or the tightest margin).
+                                   Either way, the result holds a list.
         :returns: A tuple ``(unresolved, resolved)``.
 
                   ``unresolved`` is a list of dicts, each with ``"asset"`` field and constraint info.
-                  Each constraint entry: ``{"datetime": <ISO 8601 UTC string>, "violation": "<value> kWh"}``
+                  Each constraint entry is a list of dicts
+                  ``{"datetime": <ISO 8601 UTC string>, "violation": "<value> kWh"}``
+                  (one per violated slot, or just the first if ``all`` is False),
                   where ``violation`` is always positive.
 
                   ``resolved`` is also a list of dicts with ``"asset"`` field and constraint info.
-                  Each constraint entry: ``{"datetime": <ISO 8601 UTC string>, "margin": "<value> kWh"}``
-                  for the slot with the tightest (smallest positive) margin.
+                  Each constraint entry is a list of dicts
+                  ``{"datetime": <ISO 8601 UTC string>, "margin": "<value> kWh"}``
+                  (one per met slot, or just the slot with the tightest/smallest positive
+                  margin if ``all`` is False).
         """
         # Use the configured rounding precision, or the scheduler's default of 6.
         precision = self.round_to_decimals if self.round_to_decimals is not None else 6
@@ -1832,22 +1841,28 @@ class StorageScheduler(MetaStorageScheduler):
                     shortages = defined_minima - aligned_soc
                     violations = shortages[shortages > 0]
                     if not violations.empty:
-                        first_t = violations.index[0]
-                        unmet_kwh = round(float(violations[first_t]) * 1000, precision)
-                        device_violations["soc-minima"] = {
-                            "datetime": first_t.tz_convert("UTC").isoformat(),
-                            "violation": f"{unmet_kwh} kWh",
-                        }
+                        violation_times = (
+                            violations.index if all else [violations.index[0]]
+                        )
+                        device_violations["soc-minima"] = [
+                            {
+                                "datetime": t.tz_convert("UTC").isoformat(),
+                                "violation": f"{round(float(violations[t]) * 1000, precision)} kWh",
+                            }
+                            for t in violation_times
+                        ]
                     else:
-                        # All minima met — record the tightest margin (min headroom above min).
+                        # All minima met — margins are the headroom above the minimum.
                         # violations.empty guarantees shortages <= 0, so margins (soc - minima) >= 0.
                         margins = aligned_soc - defined_minima
-                        tightest_t = margins.idxmin()
-                        margin_kwh = round(float(margins[tightest_t]) * 1000, precision)
-                        device_resolved["soc-minima"] = {
-                            "datetime": tightest_t.tz_convert("UTC").isoformat(),
-                            "margin": f"{margin_kwh} kWh",
-                        }
+                        margin_times = margins.index if all else [margins.idxmin()]
+                        device_resolved["soc-minima"] = [
+                            {
+                                "datetime": t.tz_convert("UTC").isoformat(),
+                                "margin": f"{round(float(margins[t]) * 1000, precision)} kWh",
+                            }
+                            for t in margin_times
+                        ]
 
             # Check soc_maxima (first time slot where scheduled SoC > maxima)
             soc_maxima_d = flex_model_d.get("soc_maxima")
@@ -1867,22 +1882,28 @@ class StorageScheduler(MetaStorageScheduler):
                     excesses = aligned_soc - defined_maxima
                     violations = excesses[excesses > 0]
                     if not violations.empty:
-                        first_t = violations.index[0]
-                        unmet_kwh = round(float(violations[first_t]) * 1000, precision)
-                        device_violations["soc-maxima"] = {
-                            "datetime": first_t.tz_convert("UTC").isoformat(),
-                            "violation": f"{unmet_kwh} kWh",
-                        }
+                        violation_times = (
+                            violations.index if all else [violations.index[0]]
+                        )
+                        device_violations["soc-maxima"] = [
+                            {
+                                "datetime": t.tz_convert("UTC").isoformat(),
+                                "violation": f"{round(float(violations[t]) * 1000, precision)} kWh",
+                            }
+                            for t in violation_times
+                        ]
                     else:
-                        # All maxima met — record the tightest margin (min headroom below max).
+                        # All maxima met — margins are the headroom below the maximum.
                         # violations.empty guarantees excesses <= 0, so margins (maxima - soc) >= 0.
                         margins = defined_maxima - aligned_soc
-                        tightest_t = margins.idxmin()
-                        margin_kwh = round(float(margins[tightest_t]) * 1000, precision)
-                        device_resolved["soc-maxima"] = {
-                            "datetime": tightest_t.tz_convert("UTC").isoformat(),
-                            "margin": f"{margin_kwh} kWh",
-                        }
+                        margin_times = margins.index if all else [margins.idxmin()]
+                        device_resolved["soc-maxima"] = [
+                            {
+                                "datetime": t.tz_convert("UTC").isoformat(),
+                                "margin": f"{round(float(margins[t]) * 1000, precision)} kWh",
+                            }
+                            for t in margin_times
+                        ]
 
             if device_violations:
                 violation_entry = {"asset": asset_id}
