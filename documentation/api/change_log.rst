@@ -11,7 +11,7 @@ v3.0-32 | July XX, 2026
 - [**Breaking change**] For a finished scheduling job, the ``result`` field of ``GET /api/v3_0/jobs/<uuid>`` is now always an object, instead of the boolean ``true`` it used to return unconditionally on success.
   For a ``StorageScheduler`` job, it holds soft state-of-charge constraint analysis: ``unresolved`` and ``resolved`` arrays (each keyed by asset ID) with ``soc-minima``/``soc-maxima`` violations (with a ``violation`` magnitude) or satisfied constraints (with a ``margin`` headroom). Both arrays are simply empty (``{"unresolved": [], "resolved": []}``) when no such constraints were defined.
   Scheduling jobs using a different scheduler (e.g. ``ProcessScheduler``) return an empty object (``{}``) for now, pending their own result specification.
-  This may affect external integrators, such as custom scripts, FlexMeasures plugins and API client code, that check ``result === true`` (or ``result is True`` in Python) unconditionally on a finished scheduling job; such clients should instead check for a truthy ``result``, or explicitly handle the object shape.
+  This may affect external integrators, such as custom scripts, FlexMeasures plugins and API client code (the ``flexmeasures-client`` package is not affected), that check ``result === true`` (or ``result is True`` in Python) unconditionally on a finished scheduling job; such clients should instead check for a truthy ``result``, or explicitly handle the object shape.
 
 v3.0-31 | 2026-06-01
 """"""""""""""""""""
