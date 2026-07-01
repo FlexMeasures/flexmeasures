@@ -18,55 +18,44 @@ from flexmeasures.data.services.utils import (
     get_asset_or_sensor_from_ref,
     job_status_description,
 )
-from flexmeasures.data import db
-from flexmeasures.data.models.time_series import Sensor
 
 
-def _transform_sensor_keyed_to_asset_keyed(
-    sensor_keyed_targets: dict,
+def _transform_asset_keyed_to_list(
+    asset_keyed_targets: dict,
 ) -> list[dict]:
-    """Transform sensor-keyed constraint targets to asset-keyed format.
+    """Transform asset-keyed constraint targets to list format for API response.
 
-    Converts results keyed by sensor ID (from SchedulingJobResult) to asset-keyed format
-    suitable for the jobs API, including both asset and sensor information in each entry.
+    Storage produces results keyed by asset ID string (or sensor ID string as fallback
+    for devices without an asset). This converts them to a list format suitable for
+    the jobs API response.
 
     Args:
-        sensor_keyed_targets: Dict keyed by sensor ID string, with constraint info as values
+        asset_keyed_targets: Dict keyed by asset ID string (or sensor ID string),
+                            with constraint info as values
 
     Returns:
-        List of dicts, each with "asset", "sensor", and constraint keys ("soc-minima", "soc-maxima")
+        List of dicts, each with "asset" and constraint keys ("soc-minima", "soc-maxima")
     """
-    if not sensor_keyed_targets:
+    if not asset_keyed_targets:
         return []
 
-    asset_keyed: dict[int, dict] = {}
+    result = []
 
-    for sensor_id_str, constraints in sensor_keyed_targets.items():
-        # Fetch the sensor to get its asset
+    for asset_id_str, constraints in asset_keyed_targets.items():
         try:
-            sensor = db.session.get(Sensor, int(sensor_id_str))
-            if sensor is None:
-                continue
-            asset = sensor.generic_asset
-            if asset is None:
-                continue
+            asset_id = int(asset_id_str)
         except (ValueError, TypeError):
             continue
 
-        asset_id = asset.id
-
-        # Initialize or update the asset entry
-        if asset_id not in asset_keyed:
-            asset_keyed[asset_id] = {
-                "asset": asset_id,
-                "sensor": sensor.id,
-            }
+        entry = {"asset": asset_id}
 
         # Add constraint information
         for constraint_type, constraint_data in constraints.items():
-            asset_keyed[asset_id][constraint_type] = constraint_data
+            entry[constraint_type] = constraint_data
 
-    return list(asset_keyed.values())
+        result.append(entry)
+
+    return result
 
 
 class JobAPI(FlaskView):
@@ -155,12 +144,12 @@ class JobAPI(FlaskView):
         }
         if scheduling_result is not None:
             response["scheduling_result"] = {
-                "unresolved": _transform_sensor_keyed_to_asset_keyed(
+                "unresolved": _transform_asset_keyed_to_list(
                     scheduling_result.get("unresolved", {})
                     if isinstance(scheduling_result, dict)
                     else scheduling_result.unresolved
                 ),
-                "resolved": _transform_sensor_keyed_to_asset_keyed(
+                "resolved": _transform_asset_keyed_to_list(
                     scheduling_result.get("resolved", {})
                     if isinstance(scheduling_result, dict)
                     else scheduling_result.resolved
