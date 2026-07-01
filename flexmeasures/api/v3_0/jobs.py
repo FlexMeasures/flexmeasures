@@ -84,9 +84,10 @@ class JobAPI(FlaskView):
             with ``unresolved`` constraints that cannot be satisfied and ``resolved``
             constraints with available headroom.
 
-            **Note**: The scheduling_result is only available via the jobs endpoint
-            (this endpoint). It is not available through the sensor schedule endpoint
-            (which has been superseded for constraint analysis).
+            **Note**: Constraint analysis is exclusively available via this endpoint
+            (``GET /api/v3_0/jobs/<uuid>``). The sensor schedule endpoint
+            (``GET /api/v3_0/sensors/<id>/schedules/<job_id>``) returns power values
+            only and does not include constraint analysis results.
           security:
             - ApiKeyAuth: []
           parameters:

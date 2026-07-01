@@ -15,9 +15,10 @@ class SchedulingJobResult:
     via ``GET /api/v3_0/jobs/<uuid>`` in the ``scheduling_result`` field.
 
     **Backward Compatibility Note:**
-    Constraint analysis results were previously available via the sensor schedule endpoint
-    but are now only available through the jobs endpoint. Clients must migrate to use the jobs
-    endpoint for constraint analysis.
+    Constraint analysis is exclusively available via ``GET /api/v3_0/jobs/<uuid>``.
+    The sensor schedule endpoint (``GET /api/v3_0/sensors/<id>/schedules/<job_id>``)
+    returns power values only and does not include constraint analysis.
+    Clients requiring constraint analysis must use the jobs endpoint.
 
     **Structure:**
     Results contain two top-level fields:
@@ -34,7 +35,8 @@ class SchedulingJobResult:
     - ``"margin"`` (resolved only): Headroom in kWh
 
     **Important Notes:**
-    - ``soc-targets`` are modelled as hard constraints in the scheduler and are not reported here
+    - ``soc-targets`` are not included in SchedulingJobResult because they are modelled as
+      hard constraints strictly enforced by the scheduler
     - Empty structures mean either all constraints were satisfied or no constraints were defined
     - For usage examples and interpretation guidance, see :ref:`scheduling_constraint_results`
       in the scheduling documentation
