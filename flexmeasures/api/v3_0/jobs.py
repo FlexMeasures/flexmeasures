@@ -25,16 +25,14 @@ def _transform_asset_keyed_to_list(
 ) -> list[dict]:
     """Transform asset-keyed constraint targets to list format for API response.
 
-    Storage produces results keyed by asset ID string (or sensor ID string as fallback
-    for devices without an asset). This converts them to a list format suitable for
-    the jobs API response.
+    Converts internal storage format (dict keyed by asset ID) to the API response
+    format (list of dicts with explicit "asset" field).
 
     Args:
-        asset_keyed_targets: Dict keyed by asset ID string (or sensor ID string),
-                            with constraint info as values
+        asset_keyed_targets: Dict keyed by asset ID string, with constraint info as values
 
     Returns:
-        List of dicts, each with "asset" and constraint keys ("soc-minima", "soc-maxima")
+        List of dicts, each with "asset" field and constraint keys ("soc-minima", "soc-maxima")
     """
     if not asset_keyed_targets:
         return []
@@ -79,8 +77,14 @@ class JobAPI(FlaskView):
             Retrieve execution status, timestamps, result details and queue metadata
             for a background job.
 
-            Scheduling jobs may also include ``scheduling_result`` with soft
-            state-of-charge constraint analysis.
+            Scheduling jobs may include ``scheduling_result`` with soft
+            state-of-charge constraint analysis. Results are keyed by asset ID,
+            with ``unresolved`` constraints that cannot be satisfied and ``resolved``
+            constraints with available headroom.
+
+            **Note**: The scheduling_result is only available via the jobs endpoint
+            (this endpoint). It is not available through the sensor schedule endpoint
+            (which has been superseded for constraint analysis).
           security:
             - ApiKeyAuth: []
           parameters:
@@ -143,6 +147,8 @@ class JobAPI(FlaskView):
             "exc_info": failed_job_exc_info(job),
         }
         if scheduling_result is not None:
+            # Transform from internal asset-keyed format to API list format
+            # Each unresolved/resolved entry includes "asset" field with asset ID
             response["scheduling_result"] = {
                 "unresolved": _transform_asset_keyed_to_list(
                     scheduling_result.get("unresolved", {})
