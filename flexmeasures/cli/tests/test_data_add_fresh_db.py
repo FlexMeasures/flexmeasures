@@ -374,6 +374,51 @@ def test_add_account(
         assert result.exit_code == 1
 
 
+def test_add_process_toy_account_reuses_existing_root_assets(app, fresh_db):
+    from flexmeasures.cli.data_add import add_toy_account
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_toy_account)
+    assert result.exit_code == 0, result.output
+
+    result = runner.invoke(add_toy_account, ["--kind", "process"])
+    assert result.exit_code == 0, result.output
+
+    toy_account = fresh_db.session.execute(
+        select(Account).filter_by(name="Toy Account")
+    ).scalar_one()
+    root_buildings = (
+        fresh_db.session.execute(
+            select(Asset).filter_by(
+                name="toy-building",
+                owner=toy_account,
+                parent_asset_id=None,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    root_processes = (
+        fresh_db.session.execute(
+            select(Asset).filter_by(
+                name="toy-process",
+                owner=toy_account,
+                parent_asset_id=None,
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    assert len(root_buildings) == 1
+    assert len(root_processes) == 1
+    assert {sensor.name for sensor in root_processes[0].sensors} == {
+        "Power (Inflexible)",
+        "Power (Breakable)",
+        "Power (Shiftable)",
+    }
+
+
 @pytest.mark.parametrize("storage_power_capacity", ["sensor", "quantity", None])
 @pytest.mark.parametrize("storage_efficiency", ["sensor", "quantity", None])
 def test_add_storage_schedule(
