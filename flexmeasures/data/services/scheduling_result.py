@@ -9,36 +9,48 @@ class SchedulingJobResult:
 
     JSON serializable to enable storage in RQ job metadata and retrieval via the API.
 
-    Holds constraint analysis results produced by the scheduler when optimizing a device with
-    state-of-charge constraints. Results are available via ``GET /api/v3_0/jobs/<uuid>``,
-    as part of the ``result`` object with ``unresolved`` and ``resolved`` arrays, keyed by asset ID.
+    **Core Purpose:**
+    Holds constraint analysis results produced by the scheduler when optimizing devices with
+    state-of-charge constraints. Results are **keyed by asset ID** and available exclusively
+    via ``GET /api/v3_0/jobs/<uuid>`` in the ``scheduling_result`` field.
+
+    **Backward Compatibility Note:**
+    Constraint analysis results were previously available via the sensor schedule endpoint
+    but are now only available through the jobs endpoint. Clients must migrate to use the jobs
+    endpoint for constraint analysis.
+
+    **Structure:**
+    Results contain two top-level fields:
+    - ``unresolved``: Soft constraints that the scheduler could not satisfy
+    - ``resolved``: Soft constraints that were satisfied with available headroom
+
+    Each field is a dict keyed by asset ID, with constraint types as subkeys:
+    - ``"soc-minima"``: State-of-charge minimum constraint
+    - ``"soc-maxima"``: State-of-charge maximum constraint
+
+    Each constraint entry contains:
+    - ``"datetime"``: ISO 8601 UTC timestamp of first violation/tightest constraint
+    - ``"violation"`` (unresolved only): Magnitude of violation in kWh
+    - ``"margin"`` (resolved only): Headroom in kWh
 
     **Important Notes:**
-
-    - ``soc-targets`` are modelled as hard constraints in the scheduler, meaning the scheduler will not
-      allow any deviation from them by definition. Therefore, unresolved ``soc-targets`` are not reported here.
-    - Empty dicts/arrays in results mean either all constraints were satisfied or no constraints were defined.
-
-    See :ref:`scheduling_constraint_results` in the scheduling documentation for usage examples
-    and interpretation guidance.
-
-    The ``unresolved`` field holds per-asset dicts keyed by ``"soc-minima"``/``"soc-maxima"``,
-    each with ``"datetime"`` and ``"violation"`` keys. The ``resolved`` field holds the same structure
-    but with ``"margin"`` instead of ``"violation"``.
+    - ``soc-targets`` are modelled as hard constraints in the scheduler and are not reported here
+    - Empty structures mean either all constraints were satisfied or no constraints were defined
+    - For usage examples and interpretation guidance, see :ref:`scheduling_constraint_results`
+      in the scheduling documentation
     """
 
     unresolved: dict = field(default_factory=dict)
-    """First violated ``soc-minima`` and/or ``soc-maxima`` constraint per asset.
+    """First violated soft constraint per asset, keyed by asset ID.
 
-    Keyed by asset ID string (``str(asset.id)``). Each value is a dict with
-    constraint-type keys (``"soc-minima"`` and/or ``"soc-maxima"``), each mapping to:
+    Each asset maps to a dict with constraint-type keys (``"soc-minima"`` and/or ``"soc-maxima"``),
+    each containing:
 
-    - ``"datetime"``: ISO 8601 UTC timestamp of the first violated constraint.
-    - ``"violation"``: Always-positive magnitude of the violation in kWh, e.g. ``"260.0 kWh"``.
-      For ``soc-minima`` this is the shortage; for ``soc-maxima`` this is the excess.
+    - ``"datetime"``: ISO 8601 UTC timestamp of the first constraint violation.
+    - ``"violation"``: Always-positive magnitude of the violation in kWh.
+      For ``soc-minima``: shortage below minimum. For ``soc-maxima``: excess above maximum.
 
-    An empty dict means all targets have been met (or no asset has state-of-charge constraints defined).
-    Assets with no violations are absent from the outer dict.
+    Empty when all constraints satisfied or none defined. Assets with no violations are absent.
 
     Example::
 
@@ -50,18 +62,17 @@ class SchedulingJobResult:
     """
 
     resolved: dict = field(default_factory=dict)
-    """Tightest met ``soc-minima`` and/or ``soc-maxima`` constraint per asset.
+    """Tightest met soft constraint per asset, keyed by asset ID.
 
-    Keyed by asset ID string (``str(asset.id)``). Each value is a dict with
-    constraint-type keys (``"soc-minima"`` and/or ``"soc-maxima"``), each mapping to:
+    Each asset maps to a dict with constraint-type keys (``"soc-minima"`` and/or ``"soc-maxima"``),
+    each containing:
 
-    - ``"datetime"``: ISO 8601 UTC timestamp of the tightest constraint slot (smallest positive margin).
-    - ``"margin"``: Non-negative headroom in kWh, e.g. ``"40.0 kWh"``.
-      For ``soc-minima`` this is how far above the minimum the SoC stayed;
-      for ``soc-maxima`` this is how far below the maximum the SoC stayed.
+    - ``"datetime"``: ISO 8601 UTC timestamp of the tightest constraint (smallest positive margin).
+    - ``"margin"``: Non-negative headroom in kWh.
+      For ``soc-minima``: how far above minimum the SoC stayed.
+      For ``soc-maxima``: how far below maximum the SoC stayed.
 
-    An empty dict means no constraints of that type were defined (or no asset has state-of-charge constraints defined).
-    Assets with no resolved constraints are absent from the outer dict.
+    Empty when no constraints of that type defined. Assets with no resolved constraints are absent.
 
     Example::
 
