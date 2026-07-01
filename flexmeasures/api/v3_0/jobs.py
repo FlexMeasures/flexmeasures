@@ -89,7 +89,10 @@ class JobAPI(FlaskView):
             Scheduling jobs may additionally include a ``scheduling_result``
             field with soft state-of-charge constraint analysis: ``unresolved``
             lists constraints the scheduler could not satisfy, and ``resolved``
-            lists constraints that were satisfied with some margin. This is the
+            lists constraints that were satisfied with some margin. Each device
+            entry's ``soc-minima``/``soc-maxima`` value is a list, holding one
+            entry per violated slot (for ``unresolved``) or per met slot with
+            its margin (for ``resolved``), ordered chronologically. This is the
             only place constraint analysis is available — the sensor schedule
             endpoint (``GET /api/v3_0/sensors/<id>/schedules/<uuid>``) returns
             power values only.
@@ -196,8 +199,10 @@ class JobAPI(FlaskView):
                           unresolved:
                             - asset: 42
                               soc-minima:
-                                datetime: "2024-01-01T10:00:00+00:00"
-                                violation: "260.0 kWh"
+                                - datetime: "2024-01-01T10:00:00+00:00"
+                                  violation: "260.0 kWh"
+                                - datetime: "2024-01-01T10:15:00+00:00"
+                                  violation: "180.0 kWh"
                           resolved: []
                     failed:
                       summary: Failed job
