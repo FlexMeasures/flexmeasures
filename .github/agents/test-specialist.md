@@ -605,6 +605,43 @@ When fixing failing tests, ALWAYS follow this test-driven approach:
 - What pattern or pitfall should be remembered?
 - What verification step was missing?
 
+### Data Format Transformation Testing
+
+When testing API layers that transform data (e.g., sensor-keyed → asset-keyed):
+
+**Session learned (2026-03-24, PR #2072 — constraint analysis storage scheduler)**:
+- 1281 tests verified for constraint analysis changes
+- Tested asset-keyed vs sensor-keyed data formats
+- Confirmed storage scheduler interaction correctness
+
+**1. Verify key types explicitly**:
+- ✅ Type check first: `assert isinstance(result, dict), "Result must be a dict"`
+- ✅ Then verify key types: `assert all(isinstance(k, int) for k in result.keys()), "Keys must be asset IDs"`
+- ❌ `assert result is not None` (silent type mismatches when result is list, string, etc.)
+
+**2. Test both directions if bidirectional**:
+- Forward: input → output format
+- Reverse: output can be deserialized correctly
+- Verify data semantics survive round-trip without corruption
+
+**3. Use integration tests for transforms**:
+- Test actual job.meta serialization/deserialization
+- Verify end-to-end from storage to API response
+- Don't rely on mock-only tests for format validation
+- Test with real database fixtures, not just stubs
+
+**4. Prevent silent data corruption**:
+- Test assertions should verify data semantics, not just null checks
+- Example: If transforming sensor data to asset-keyed format, assert that asset IDs are correct (not sensor IDs)
+- Check constraint violations reference correct entity types
+- Verify cross-references maintain semantic integrity
+
+**Pattern Detection Tips**:
+- Format transforms often hide type errors (int vs string keys)
+- Mocks don't catch serialization/deserialization bugs
+- Data corruption is silent — assertions on intermediate values only
+- Integration tests catch edge cases mocks miss
+
 ## Interaction Rules
 
 - When a failing test reveals a production bug, fix the production code and escalate the area to the relevant domain specialist (Architecture, API, Data & Time) for a broader review.
