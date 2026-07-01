@@ -615,8 +615,9 @@ When testing API layers that transform data (e.g., sensor-keyed → asset-keyed)
 - Confirmed storage scheduler interaction correctness
 
 **1. Verify key types explicitly**:
-- ✅ `assert all(isinstance(k, int) for k in result.keys()), "Keys must be asset IDs"`
-- ❌ `assert result is not None` (silent type mismatches)
+- ✅ Type check first: `assert isinstance(result, dict), "Result must be a dict"`
+- ✅ Then verify key types: `assert all(isinstance(k, int) for k in result.keys()), "Keys must be asset IDs"`
+- ❌ `assert result is not None` (silent type mismatches when result is list, string, etc.)
 
 **2. Test both directions if bidirectional**:
 - Forward: input → output format
