@@ -6,7 +6,7 @@ from flask_security import login_required
 from werkzeug.exceptions import Forbidden, Unauthorized
 from sqlalchemy import select
 
-from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.policy import check_access, ADMIN_ROLE
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User, Role, Account
@@ -43,7 +43,8 @@ def render_user(user: User | None, msg: str | None = None):
 
     roles = {}
     for role in db.session.scalars(select(Role)).all():
-        roles[role.name] = role.id
+        if role.name != ADMIN_ROLE:
+            roles[role.name] = role.id
 
     user_roles = []
     if user is not None:

@@ -105,7 +105,7 @@ dependencies = [
     "rq-win>=0.4.2",
     # Below: minimum requirements solely here for security reasons
     "urllib3>=2.7.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/602 (and 603)
-    "cryptography>=46.0.7",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/598
+    "cryptography>=48.0.1",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/606
     "pyopenssl>=26.0.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/590
     "werkzeug>=3.1.6",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/587
     "pillow>=12.2.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/599
