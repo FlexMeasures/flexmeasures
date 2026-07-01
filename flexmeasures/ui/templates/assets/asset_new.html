@@ -147,10 +147,14 @@
                     </select>
                 </div>
                 <div class="col-md-4 d-flex align-items-center">
+                {% if not current_user.has_role('admin') %}
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="copyIncludePublic" checked>
                         <label class="form-check-label" for="copyIncludePublic">Include public assets</label>
                     </div>
+                {% else %}
+                    <input style="display: none;" class="form-check-input" type="checkbox" id="copyIncludePublic" checked>
+                {% endif %}
                 </div>
             </div>
 
@@ -241,7 +245,7 @@
 import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
 
 (function () {
-    const perPage = 10;
+    const perPage = 15;
     let parentAssetId = "{{ parent_asset_id }}";
     let currentPage = 1;
     let isLoading = false;
@@ -291,6 +295,7 @@ import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui
         const includePublic = document.getElementById("copyIncludePublic").checked;
 
         const params = new URLSearchParams({ page: page, per_page: perPage });
+        params.set("all_accessible", true);
         if (filter) params.set("filter", filter);
         if (assetTypeId) params.set("asset_type", assetTypeId);
         if (includePublic) params.set("include_public", "true");
