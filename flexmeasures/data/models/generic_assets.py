@@ -244,6 +244,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
+    secrets = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
     sensors_to_show = db.Column(
         MutableList.as_mutable(JSONB), nullable=False, default=[]
     )
@@ -303,6 +304,8 @@ class GenericAsset(db.Model, AuthModelMixin):
             self.flex_model = {}
         if self.attributes is None:
             self.attributes = {}
+        if self.secrets is None:
+            self.secrets = {}
 
         # For backwards compatibility, when setting attributes that served as flex-model fields,
         # move them to the flex_context (and don't store them as attributes)
