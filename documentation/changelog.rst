@@ -36,6 +36,7 @@ Bugfixes
 v0.33.1 | July XX, 2026
 ============================
 * Allow flex-model and flex-context to be missing from scheduling requests, because by now the whole flex-config can be defined on assets (in the db) instead [see `PR #2237 <https://www.github.com/FlexMeasures/flexmeasures/pull/2237>`_]
+* Fix Chart Point sessions chart [see `PR #2259 <https://www.github.com/FlexMeasures/flexmeasures/pull/2259>`_]
 
 
 v0.33.0 | June 1, 2026
