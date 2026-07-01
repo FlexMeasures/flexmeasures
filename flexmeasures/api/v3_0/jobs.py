@@ -20,44 +20,6 @@ from flexmeasures.data.services.utils import (
 )
 
 
-def _transform_asset_keyed_to_list(
-    asset_keyed_targets: dict,
-) -> list[dict]:
-    """Transform asset-keyed constraint targets to list format for API response.
-
-    Converts internal storage format (dict keyed by asset ID) to the API response
-    format (list of dicts with explicit "asset" field). The list format is more
-    natural for JSON consumers and avoids issues with numeric asset keys in JSON
-    serialization.
-
-    Args:
-        asset_keyed_targets: Dict keyed by asset ID string, with constraint info as values
-
-    Returns:
-        List of dicts, each with "asset" field and constraint keys ("soc-minima", "soc-maxima")
-    """
-    if not asset_keyed_targets:
-        return []
-
-    result = []
-
-    for asset_id_str, constraints in asset_keyed_targets.items():
-        try:
-            asset_id = int(asset_id_str)
-        except (ValueError, TypeError):
-            continue
-
-        entry = {"asset": asset_id}
-
-        # Add constraint information
-        for constraint_type, constraint_data in constraints.items():
-            entry[constraint_type] = constraint_data
-
-        result.append(entry)
-
-    return result
-
-
 class JobAPI(FlaskView):
     """Job result endpoints."""
 
@@ -80,8 +42,8 @@ class JobAPI(FlaskView):
             for a background job.
 
             Scheduling jobs may include ``scheduling_result`` with soft
-            state-of-charge constraint analysis. Results are keyed by asset ID,
-            with ``unresolved`` constraints that cannot be satisfied and ``resolved``
+            state-of-charge constraint analysis. Results are in list format with
+            ``unresolved`` constraints that cannot be satisfied and ``resolved``
             constraints with available headroom.
 
             **Note**: Constraint analysis is exclusively available via this endpoint
@@ -150,19 +112,17 @@ class JobAPI(FlaskView):
             "exc_info": failed_job_exc_info(job),
         }
         if scheduling_result is not None:
-            # Transform from internal asset-keyed format to API list format
-            # Each unresolved/resolved entry includes "asset" field with asset ID
+            # Constraint results are already in list format
+            if isinstance(scheduling_result, dict):
+                unresolved = scheduling_result.get("unresolved", [])
+                resolved = scheduling_result.get("resolved", [])
+            else:
+                unresolved = scheduling_result.unresolved
+                resolved = scheduling_result.resolved
+            
             response["scheduling_result"] = {
-                "unresolved": _transform_asset_keyed_to_list(
-                    scheduling_result.get("unresolved", {})
-                    if isinstance(scheduling_result, dict)
-                    else scheduling_result.unresolved
-                ),
-                "resolved": _transform_asset_keyed_to_list(
-                    scheduling_result.get("resolved", {})
-                    if isinstance(scheduling_result, dict)
-                    else scheduling_result.resolved
-                ),
+                "unresolved": unresolved,
+                "resolved": resolved,
             }
 
         return response, 200

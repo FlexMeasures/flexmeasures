@@ -1792,7 +1792,8 @@ class StorageScheduler(MetaStorageScheduler):
         start: datetime,
         end: datetime,
         resolution: timedelta,
-    ) -> tuple[dict, dict]:
+        all: bool = True,
+    ) -> tuple[list, list]:
         """Compute unmet and met SoC minima/maxima targets per device.
 
         For each device that has ``soc-minima`` or ``soc-maxima`` constraints in the flex model,
@@ -1800,9 +1801,8 @@ class StorageScheduler(MetaStorageScheduler):
         Devices without a ``state_of_charge`` Sensor are included
         as long as a device key can be determined from the power sensor.
 
-        The result is keyed by asset ID (``flex_model_d["sensor"].generic_asset.id`` when available)
-        or falls back to sensor ID (``flex_model_d["sensor"].id``).
-        Devices for which neither can be determined are skipped.
+        The result includes asset ID for each constraint.
+        Devices for which an asset ID cannot be determined are skipped.
 
         Constraints are evaluated over the window ``(start + resolution, end)`` (i.e.
         the first scheduled slot through the end of the schedule).
@@ -1817,25 +1817,22 @@ class StorageScheduler(MetaStorageScheduler):
         :param start:             Start of the schedule.
         :param end:               End of the schedule.
         :param resolution:        Schedule resolution.
+        :param all:               If True, include all results. If False, return single result per constraint type.
         :returns: A tuple ``(unresolved, resolved)``.
 
-                  ``unresolved`` is keyed by asset ID string.
-                  Each value is a dict with keys ``"soc-minima"`` and/or ``"soc-maxima"``
-                  (only present when a violation exists), each containing
-                  ``{"datetime": <ISO 8601 UTC string>, "violation": "<value> kWh"}``
+                  ``unresolved`` is a list of dicts, each with ``"asset"`` field and constraint info.
+                  Each constraint entry: ``{"datetime": <ISO 8601 UTC string>, "violation": "<value> kWh"}``
                   where ``violation`` is always positive.
 
-                  ``resolved`` is also keyed by asset ID string.
-                  Each value is a dict with keys ``"soc-minima"`` and/or ``"soc-maxima"``
-                  (only present when the constraint type was defined and satisfied), each
-                  containing ``{"datetime": <ISO 8601 UTC string>, "margin": "<value> kWh"}``
+                  ``resolved`` is also a list of dicts with ``"asset"`` field and constraint info.
+                  Each constraint entry: ``{"datetime": <ISO 8601 UTC string>, "margin": "<value> kWh"}``
                   for the slot with the tightest (smallest positive) margin.
         """
         # Use the configured rounding precision, or the scheduler's default of 6.
         precision = self.round_to_decimals if self.round_to_decimals is not None else 6
 
-        unresolved: dict = {}
-        resolved: dict = {}
+        unresolved: list = []
+        resolved: list = []
 
         for d, flex_model_d in enumerate(flex_model):
             soc_mwh = soc_schedule_mwh.get(d)
@@ -1852,9 +1849,7 @@ class StorageScheduler(MetaStorageScheduler):
                 and hasattr(power_sensor, "generic_asset")
                 and power_sensor.generic_asset is not None
             ):
-                device_key = str(power_sensor.generic_asset.id)
-            elif power_sensor is not None:
-                device_key = str(power_sensor.id)
+                asset_id = power_sensor.generic_asset.id
             else:
                 continue
 
@@ -1932,9 +1927,13 @@ class StorageScheduler(MetaStorageScheduler):
                         }
 
             if device_violations:
-                unresolved[device_key] = device_violations
+                violation_entry = {"asset": asset_id}
+                violation_entry.update(device_violations)
+                unresolved.append(violation_entry)
             if device_resolved:
-                resolved[device_key] = device_resolved
+                resolved_entry = {"asset": asset_id}
+                resolved_entry.update(device_resolved)
+                resolved.append(resolved_entry)
 
         return unresolved, resolved
 
