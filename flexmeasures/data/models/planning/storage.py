@@ -1712,17 +1712,16 @@ class StorageScheduler(MetaStorageScheduler):
     ) -> tuple[dict, dict]:
         """Build the state-of-charge schedule for each device that has a state-of-charge sensor.
 
-        Also computes the MWh SoC for devices that have ``soc-minima`` or ``soc-maxima``
-        constraints (even without a state-of-charge sensor) so that unresolved targets can be
-        checked later.
+        Also computes the MWh SoC for devices that have ``soc-minima`` or ``soc-maxima`` constraints
+        (even without a state-of-charge sensor) so that unresolved targets can be checked later.
 
         Converts the integrated power schedule from MWh to the sensor's unit.
         For sensors with a '%' unit, the soc-max flex-model field is used as capacity.
         If soc-max is missing or zero for a '%' sensor, the schedule is skipped with a warning.
 
         Note: soc-max is a QuantityField (not a VariableQuantityField), so it is always a float
-        after deserialization and cannot be a sensor reference. The isinstance guard below is
-        therefore a defensive check for forward-compatibility.
+        after deserialization and cannot be a sensor reference.
+        The isinstance guard below is therefore a defensive check for forward-compatibility.
 
         :returns: Tuple of (soc_schedule keyed by SoC sensor in sensor unit,
                             soc_schedule_mwh keyed by device index in MWh).
@@ -1796,23 +1795,22 @@ class StorageScheduler(MetaStorageScheduler):
     ) -> tuple[dict, dict]:
         """Compute unmet and met SoC minima/maxima targets per device.
 
-        For each device that has ``soc-minima`` or ``soc-maxima`` constraints in
-        the flex model, compares the computed MWh SoC schedule against those
-        constraints.  Devices without a ``state_of_charge`` Sensor are included
+        For each device that has ``soc-minima`` or ``soc-maxima`` constraints in the flex model,
+        compares the computed MWh SoC schedule against those constraints.
+        Devices without a ``state_of_charge`` Sensor are included
         as long as a device key can be determined from the power sensor.
 
-        The result is keyed by asset ID (``flex_model_d["sensor"].generic_asset.id``
-        when available) or falls back to sensor ID
-        (``flex_model_d["sensor"].id``).  Devices for which neither can be
-        determined are skipped.
+        The result is keyed by asset ID (``flex_model_d["sensor"].generic_asset.id`` when available)
+        or falls back to sensor ID (``flex_model_d["sensor"].id``).
+        Devices for which neither can be determined are skipped.
 
         Constraints are evaluated over the window ``(start + resolution, end)`` (i.e.
-        the first scheduled slot through the end of the schedule).  The ``start``
-        slot itself is the initial condition (``soc_at_start``), not a scheduled
-        value, so it is excluded.
+        the first scheduled slot through the end of the schedule).
+        The ``start`` slot itself is the initial condition (``soc_at_start``),
+        not a scheduled value, so it is excluded.
 
-        Note: ``soc-targets`` are modelled as hard constraints and are not checked
-        here, as by definition the scheduler will not allow any deviation from them.
+        Note: ``soc-targets`` are modelled as hard constraints and are not checked here,
+        as by definition the scheduler will not allow any deviation from them.
 
         :param flex_model:        The deserialized flex model (list of per-device dicts).
         :param soc_schedule_mwh:  MWh SoC schedule keyed by device index ``d``.
