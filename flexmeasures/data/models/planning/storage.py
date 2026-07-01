@@ -1680,8 +1680,8 @@ class StorageScheduler(MetaStorageScheduler):
         If soc-max is missing or zero for a '%' sensor, the schedule is skipped with a warning.
 
         Note: soc-max is a QuantityField (not a VariableQuantityField), so it is always a float
-        after deserialization and cannot be a sensor reference. The isinstance guard below is
-        therefore a defensive check for forward-compatibility.
+        after deserialization and cannot be a sensor reference.
+        The isinstance guard below is therefore a defensive check for forward-compatibility.
 
         :returns: Tuple of (soc_schedule keyed by SoC sensor in sensor unit,
                             soc_schedule_mwh keyed by device index in MWh).
@@ -1763,8 +1763,8 @@ class StorageScheduler(MetaStorageScheduler):
         The result includes asset ID for each constraint.
         Devices for which an asset ID cannot be determined are skipped.
 
-        Constraints are evaluated over the window ``(start + resolution, end)`` (i.e.
-        the first scheduled slot through the end of the schedule).
+        Constraints are evaluated over the window ``(start + resolution, end)``
+        (i.e. the first scheduled slot through the end of the schedule).
         The ``start`` slot itself is the initial condition (``soc_at_start``),
         not a scheduled value, so it is excluded.
 
