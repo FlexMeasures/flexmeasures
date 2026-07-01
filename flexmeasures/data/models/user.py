@@ -273,6 +273,8 @@ class User(db.Model, UserMixin, AuthModelMixin):
     tf_primary_method = db.Column(db.String(255), nullable=True, default="email")
     # Faster token checking
     fs_uniquifier = Column(String(64), unique=True, nullable=False)
+    # Separate token uniquifier so API tokens can be rotated independently of sessions
+    fs_token_uniquifier = Column(String(64), unique=True, nullable=True, index=True)
     timezone = Column(String(255), default="Europe/Amsterdam")
     account_id = Column(Integer, db.ForeignKey("account.id"), nullable=False)
 
