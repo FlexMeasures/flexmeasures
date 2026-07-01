@@ -239,9 +239,9 @@ def can_modify_role(  # noqa: C901
             return False
         if role.name == ADMIN_READER_ROLE:
             # only admins can change admin-reader status
-            if not user.has_role(ADMIN_ROLE):
-                return False
-            continue
+            if user.has_role(ADMIN_ROLE):
+                continue
+            return False
         if role.name == ACCOUNT_ADMIN_ROLE:
             # admins and consultants can do this
             if user.has_role(ADMIN_ROLE):
