@@ -377,14 +377,14 @@ The scheduling workflow looks like this:
 
 The constraint results distinguish between:
 
-- Constraints that were **unresolved**: Soft constraints that could not be satisfied during optimization.
-- Constraint **margins**: Soft constraints that were satisfied, with the headroom remaining reported.
+- Constraints that were **unresolved**: Soft constraints that could not be satisfied during optimization, with the shortfall or excess reported as its **violation**.
+- Constraints that were **resolved**: Soft constraints that were satisfied, with the headroom remaining reported as its **margin**.
 
 Each constraint result includes:
 
 - ``datetime``: ISO 8601 UTC timestamp when the constraint was tightest (for margin constraints) or first violated (for unresolved constraints).
 - ``violation`` (unresolved only): Magnitude of the violation (shortage for minima, excess for maxima).
-- ``margin`` (margins only): Headroom remaining at the tightest point.
+- ``margin`` (resolved only): Headroom remaining at the tightest point.
 
 
 Example: Constraint results from a battery scheduling job
@@ -437,7 +437,7 @@ Interpreting constraint results for optimization decisions
 **When constraints are all met:**
 
 An empty ``unresolved`` array indicates successful optimization.
-However, check the values in ``resolved`` to understand how tight the constraints were:
+However, check the margins in ``resolved`` to understand how tight the constraints were:
 
 - Large margins (e.g., 50 kWh) suggest the device has significant flexibility headroom.
 - Small margins (e.g., 5 kWh) indicate the constraints were nearly violated.
@@ -467,7 +467,7 @@ The ``violation`` values tell you how much shortfall exists:
 
 **When no constraints are defined:**
 
-If ``unresolved`` and ``margins`` are both empty, no state-of-charge constraints were set.
+If ``unresolved`` and ``resolved`` are both empty, no state-of-charge constraints were set.
 
 .. note:: Hard constraints (``soc-targets``) are never reported in results because the scheduler
           enforces them strictly by definition. If a hard constraint cannot be met, the entire
