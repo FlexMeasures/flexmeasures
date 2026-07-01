@@ -2174,8 +2174,8 @@ class StorageScheduler(MetaStorageScheduler):
 def create_constraint_violations_message(constraint_violations: list) -> str:
     """Create a human-readable message with the constraint_violations.
 
-    :param constraint_violations: list with the constraint violations
-    :return: human-readable message
+    :param constraint_violations:   List with the constraint violations.
+    :returns:                       Human-readable message.
     """
     message = ""
 
@@ -2533,7 +2533,7 @@ def get_pattern_match_word(word: str) -> str:
       - word boundary
       - arithmetic operations
 
-    :return: regex expression
+    :returns: regex expression
     """
 
     regex = r"(^|\s|$|\b|\+|\-|\*|\/\|\\)"
@@ -2544,9 +2544,9 @@ def get_pattern_match_word(word: str) -> str:
 def sanitize_expression(expression: str, columns: list) -> tuple[str, list]:
     """Wrap column in commas to accept arbitrary column names (e.g. with spaces).
 
-    :param expression: expression to sanitize
-    :param columns: list with the name of the columns of the input data for the expression.
-    :return: sanitized expression and columns (variables) used in the expression
+    :param expression:  Expression to sanitize.
+    :param columns:     List with the name of the columns of the input data for the expression.
+    :returns:           Sanitized expression and columns (variables) used in the expression.
     """
 
     _expression = copy.copy(expression)
@@ -2579,7 +2579,7 @@ def validate_constraint(
                                 No need to use the syntax `column` to reference
                                 column, just use the column name.
     :param round_to_decimals:   Number of decimals to round off to before validating constraints.
-    :return:                    List of constraint violations, specifying their time, constraint and violation.
+    :returns:                   List of constraint violations, specifying their time, constraint and violation.
     """
 
     constraint_expression = f"{lhs_expression} {inequality} {rhs_expression}"
