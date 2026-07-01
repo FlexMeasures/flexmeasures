@@ -380,11 +380,14 @@ The constraint results distinguish between:
 - Constraints that were **unresolved**: Soft constraints that could not be satisfied during optimization, with the shortfall or excess reported as their **violation**.
 - Constraints that were **resolved**: Soft constraints that were satisfied, with the headroom remaining reported as their **margin**.
 
-Each constraint result includes:
+For each device, the ``soc-minima``/``soc-maxima`` value under ``unresolved`` or ``resolved`` is a
+**list** of entries — one per violated slot (unresolved) or per met slot with its margin (resolved),
+ordered chronologically. By default, every violated or met slot is listed (this is not currently
+configurable via the API). Each list entry includes:
 
-- ``datetime``: ISO 8601 UTC timestamp when the constraint was tightest (for margin constraints) or first violated (for unresolved constraints).
-- ``violation`` (unresolved only): Magnitude of the violation (shortage for minima, excess for maxima).
-- ``margin`` (resolved only): Headroom remaining at the tightest point.
+- ``datetime``: ISO 8601 UTC timestamp of that slot.
+- ``violation`` (unresolved only): Magnitude of the violation at that slot (shortage for minima, excess for maxima).
+- ``margin`` (resolved only): Headroom remaining at that slot.
 
 
 Example: Constraint results from a battery scheduling job
@@ -395,8 +398,9 @@ Suppose you schedule a battery device (asset ID 42) with the following constrain
 - **soc-minima**: Battery must stay above 60 kWh
 - **soc-maxima**: Battery must not exceed 100 kWh
 
-If the optimization cannot satisfy the minimum constraint at 10:30 UTC (falling short by 20 kWh),
-but does satisfy the maximum constraint with a 40 kWh margin at 12:00 UTC,
+If the optimization cannot satisfy the minimum constraint at 10:30 UTC (falling short by 20 kWh)
+and again at 10:45 UTC (falling short by 15 kWh), but does satisfy the maximum constraint with
+margins of 40 kWh at 11:00 UTC and 35 kWh at 12:00 UTC,
 the constraint results would show:
 
 **Response via GET /api/v3_0/jobs/<uuid>:**
@@ -410,19 +414,31 @@ the constraint results would show:
             "unresolved": [
                 {
                     "asset": 42,
-                    "soc-minima": {
-                        "datetime": "2024-01-15T10:30:00+00:00",
-                        "violation": "20.0 kWh"
-                    }
+                    "soc-minima": [
+                        {
+                            "datetime": "2024-01-15T10:30:00+00:00",
+                            "violation": "20.0 kWh"
+                        },
+                        {
+                            "datetime": "2024-01-15T10:45:00+00:00",
+                            "violation": "15.0 kWh"
+                        }
+                    ]
                 }
             ],
             "resolved": [
                 {
                     "asset": 42,
-                    "soc-maxima": {
-                        "datetime": "2024-01-15T12:00:00+00:00",
-                        "margin": "40.0 kWh"
-                    }
+                    "soc-maxima": [
+                        {
+                            "datetime": "2024-01-15T11:00:00+00:00",
+                            "margin": "40.0 kWh"
+                        },
+                        {
+                            "datetime": "2024-01-15T12:00:00+00:00",
+                            "margin": "35.0 kWh"
+                        }
+                    ]
                 }
             ]
         }
