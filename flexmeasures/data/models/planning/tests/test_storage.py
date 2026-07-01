@@ -630,8 +630,10 @@ def test_unresolved_targets_no_soc_sensor(add_battery_assets, db):
     assert scheduling_result.resolved == []
 
 
-def test_unresolved_targets_all_flag_soc_minima_violations(add_battery_assets, db):
-    """Test the ``all`` flag of ``_compute_unresolved_targets`` for unresolved soc-minima.
+def test_unresolved_targets_most_relevant_only_flag_soc_minima_violations(
+    add_battery_assets, db
+):
+    """Test the ``most_relevant_only`` flag of ``_compute_unresolved_targets`` for unresolved soc-minima.
 
     A battery starts at 0.4 MWh with a very limited charging capacity (0.01 MW),
     so it can gain at most 0.01 * 24 = 0.24 MWh over the 24-hour schedule,
@@ -639,9 +641,9 @@ def test_unresolved_targets_all_flag_soc_minima_violations(add_battery_assets, d
     are set at different times, all of which are unreachable given this
     physical limit, regardless of how the scheduler distributes charging.
 
-    With the default ``all=True``, ``_compute_unresolved_targets`` reports every
-    violated slot (all three checkpoints, chronologically ordered).
-    With ``all=False``, it reports only the first (earliest) violation.
+    With the default ``most_relevant_only=False``, ``_compute_unresolved_targets``
+    reports every violated slot (all three checkpoints, chronologically ordered).
+    With ``most_relevant_only=True``, it reports only the first (earliest) violation.
     """
     _, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
@@ -697,16 +699,37 @@ def test_unresolved_targets_all_flag_soc_minima_violations(add_battery_assets, d
     )
 
     # Intercept the private helper to also capture what it would return with
-    # all=False, without affecting the (default all=True) result used by compute().
+    # most_relevant_only=True, without affecting the (default
+    # most_relevant_only=False) result used by compute().
     captured: dict = {}
     original = StorageScheduler._compute_unresolved_targets
 
-    def spy(self, flex_model, soc_schedule_mwh, start, end, resolution, all=True):
-        captured["all_false"] = original(
-            self, flex_model, soc_schedule_mwh, start, end, resolution, all=False
+    def spy(
+        self,
+        flex_model,
+        soc_schedule_mwh,
+        start,
+        end,
+        resolution,
+        most_relevant_only=False,
+    ):
+        captured["most_relevant_only"] = original(
+            self,
+            flex_model,
+            soc_schedule_mwh,
+            start,
+            end,
+            resolution,
+            most_relevant_only=True,
         )
         return original(
-            self, flex_model, soc_schedule_mwh, start, end, resolution, all=all
+            self,
+            flex_model,
+            soc_schedule_mwh,
+            start,
+            end,
+            resolution,
+            most_relevant_only=most_relevant_only,
         )
 
     with mock.patch.object(StorageScheduler, "_compute_unresolved_targets", spy):
@@ -719,7 +742,7 @@ def test_unresolved_targets_all_flag_soc_minima_violations(add_battery_assets, d
     scheduling_result = scheduling_result_entry["data"]
     asset_id = battery.generic_asset.id
 
-    # --- all=True (the default used by compute()) ---
+    # --- most_relevant_only=False (the default used by compute()) ---
     entry = next(
         (e for e in scheduling_result.unresolved if e["asset"] == asset_id), None
     )
@@ -739,21 +762,23 @@ def test_unresolved_targets_all_flag_soc_minima_violations(add_battery_assets, d
         assert v["violation"].endswith(" kWh")
         assert float(v["violation"].replace(" kWh", "")) > 0
 
-    # --- all=False ---
-    unresolved_all_false, _resolved_all_false = captured["all_false"]
-    entry_all_false = next(
-        (e for e in unresolved_all_false if e["asset"] == asset_id), None
+    # --- most_relevant_only=True ---
+    unresolved_most_relevant_only, _resolved_most_relevant_only = captured[
+        "most_relevant_only"
+    ]
+    entry_most_relevant_only = next(
+        (e for e in unresolved_most_relevant_only if e["asset"] == asset_id), None
     )
-    assert entry_all_false is not None
+    assert entry_most_relevant_only is not None
     # Only the first (earliest) violation should be reported.
-    assert len(entry_all_false["soc-minima"]) == 1
-    assert entry_all_false["soc-minima"][0] == violations[0]
+    assert len(entry_most_relevant_only["soc-minima"]) == 1
+    assert entry_most_relevant_only["soc-minima"][0] == violations[0]
 
 
-def test_unresolved_targets_all_flag_soc_minima_resolved_margins(
+def test_unresolved_targets_most_relevant_only_flag_soc_minima_resolved_margins(
     add_battery_assets, db
 ):
-    """Test the ``all`` flag of ``_compute_unresolved_targets`` for resolved (met) soc-minima.
+    """Test the ``most_relevant_only`` flag of ``_compute_unresolved_targets`` for resolved (met) soc-minima.
 
     A battery starts at 0.4 MWh with plenty of charging capacity, a positive
     consumption price, and a negative production price (so that neither charging
@@ -765,9 +790,9 @@ def test_unresolved_targets_all_flag_soc_minima_resolved_margins(
     stays there — leaving zero margin at the tighter checkpoint and a much larger
     margin at the slacker, later checkpoint.
 
-    With the default ``all=True``, both met slots are reported (chronologically
-    ordered). With ``all=False``, only the slot with the tightest (smallest) margin
-    is reported.
+    With the default ``most_relevant_only=False``, both met slots are reported
+    (chronologically ordered). With ``most_relevant_only=True``, only the slot
+    with the tightest (smallest) margin is reported.
     """
     _, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
@@ -822,16 +847,37 @@ def test_unresolved_targets_all_flag_soc_minima_resolved_margins(
     )
 
     # Intercept the private helper to also capture what it would return with
-    # all=False, without affecting the (default all=True) result used by compute().
+    # most_relevant_only=True, without affecting the (default
+    # most_relevant_only=False) result used by compute().
     captured: dict = {}
     original = StorageScheduler._compute_unresolved_targets
 
-    def spy(self, flex_model, soc_schedule_mwh, start, end, resolution, all=True):
-        captured["all_false"] = original(
-            self, flex_model, soc_schedule_mwh, start, end, resolution, all=False
+    def spy(
+        self,
+        flex_model,
+        soc_schedule_mwh,
+        start,
+        end,
+        resolution,
+        most_relevant_only=False,
+    ):
+        captured["most_relevant_only"] = original(
+            self,
+            flex_model,
+            soc_schedule_mwh,
+            start,
+            end,
+            resolution,
+            most_relevant_only=True,
         )
         return original(
-            self, flex_model, soc_schedule_mwh, start, end, resolution, all=all
+            self,
+            flex_model,
+            soc_schedule_mwh,
+            start,
+            end,
+            resolution,
+            most_relevant_only=most_relevant_only,
         )
 
     with mock.patch.object(StorageScheduler, "_compute_unresolved_targets", spy):
@@ -847,7 +893,7 @@ def test_unresolved_targets_all_flag_soc_minima_resolved_margins(
     # No violations expected: both checkpoints are met.
     assert scheduling_result.unresolved == []
 
-    # --- all=True (the default used by compute()) ---
+    # --- most_relevant_only=False (the default used by compute()) ---
     entry = next(
         (e for e in scheduling_result.resolved if e["asset"] == asset_id), None
     )
@@ -868,18 +914,20 @@ def test_unresolved_targets_all_flag_soc_minima_resolved_margins(
     tight_margin, slack_margin = margin_values
     assert tight_margin < slack_margin
 
-    # --- all=False ---
-    _unresolved_all_false, resolved_all_false = captured["all_false"]
-    entry_all_false = next(
-        (e for e in resolved_all_false if e["asset"] == asset_id), None
+    # --- most_relevant_only=True ---
+    _unresolved_most_relevant_only, resolved_most_relevant_only = captured[
+        "most_relevant_only"
+    ]
+    entry_most_relevant_only = next(
+        (e for e in resolved_most_relevant_only if e["asset"] == asset_id), None
     )
-    assert entry_all_false is not None
+    assert entry_most_relevant_only is not None
     # Only the tightest (smallest) margin slot should be reported.
-    assert len(entry_all_false["soc-minima"]) == 1
+    assert len(entry_most_relevant_only["soc-minima"]) == 1
     expected_tightest = min(
         margins, key=lambda m: float(m["margin"].replace(" kWh", ""))
     )
-    assert entry_all_false["soc-minima"][0] == expected_tightest
+    assert entry_most_relevant_only["soc-minima"][0] == expected_tightest
 
 
 def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(
