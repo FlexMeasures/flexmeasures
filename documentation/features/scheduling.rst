@@ -347,8 +347,8 @@ Multi-asset scheduling workflow
 Consider a site (asset ID 123) with four assets, each with a power sensor:
 
 - **Sensors 1 & 2**: Inflexible devices (e.g. PV panel and building load)
-- **Sensors 3 & 4**: Flexible devices (e.g. a battery and an EV charger), each with a
-  state-of-charge sensor (sensors 5 and 6, respectively)
+- **Sensors 3 & 4**: Flexible devices (e.g. a battery and an EV charger),
+  each with a state-of-charge sensor (sensors 5 and 6, respectively)
 
 The scheduling workflow looks like this:
 
@@ -357,8 +357,7 @@ The scheduling workflow looks like this:
    The endpoint returns a job UUID, e.g. ``"5d28df1b-9f16-4177-ae43-6e750d80fad3"``.
 
 2. **Retrieve the scheduled power series** for the flexible devices once scheduling is done,
-   via ``GET /api/v3_0/sensors/3/schedules/<uuid>`` and
-   ``GET /api/v3_0/sensors/4/schedules/<uuid>``.
+   via ``GET /api/v3_0/sensors/3/schedules/<uuid>`` and ``GET /api/v3_0/sensors/4/schedules/<uuid>``.
    Each response contains the power setpoints for that device:
 
    .. code-block:: json
@@ -370,25 +369,20 @@ The scheduling workflow looks like this:
            "unit": "kW"
        }
 
-3. **Retrieve constraint analysis** for all flexible assets via
-   ``GET /api/v3_0/jobs/<uuid>``.
-   The ``result`` field in the response shows whether the
-   state-of-charge targets for sensors 5 and 6 could be met, and by how much.
-   For a finished ``StorageScheduler`` job, ``result`` is always an object with
-   ``unresolved`` and ``resolved`` constraint analysis (as shown below); both
-   arrays are simply empty when the flex model defines no
-   ``soc-minima``/``soc-maxima``. Other scheduling jobs (e.g. ``ProcessScheduler``)
-   keep returning ``result: true`` on success, as before.
+3. **Retrieve constraint analysis** for all flexible assets via ``GET /api/v3_0/jobs/<uuid>``.
+   The ``result`` field in the response shows whether the state-of-charge targets for sensors 5 and 6 could be met, and by how much.
+   For a finished ``StorageScheduler`` job, ``result`` is always an object with ``unresolved`` and ``resolved`` constraint analysis (as shown below);
+   both arrays are simply empty when the flex model defines no ``soc-minima``/``soc-maxima``.
+   Other scheduling jobs (e.g. ``ProcessScheduler``) keep returning ``result: true`` on success, as before.
 
 The constraint results distinguish between:
 
 - Constraints that were **unresolved**: Soft constraints that could not be satisfied during optimization, with the shortfall or excess reported as their **violation**.
 - Constraints that were **resolved**: Soft constraints that were satisfied, with the headroom remaining reported as their **margin**.
 
-For each device, the ``soc-minima``/``soc-maxima`` value under ``unresolved`` or ``resolved`` is a
-**list** of entries — one per violated slot (unresolved) or per met slot with its margin (resolved),
-ordered chronologically. By default, every violated or met slot is listed (this is not currently
-configurable via the API). Each list entry includes:
+For each device, the ``soc-minima``/``soc-maxima`` value under ``unresolved`` or ``resolved`` is a **list** of entries — one per violated slot (unresolved) or per met slot with its margin (resolved), ordered chronologically.
+By default, every violated or met slot is listed (this is not currently configurable via the API).
+Each list entry includes:
 
 - ``datetime``: ISO 8601 UTC timestamp of that slot.
 - ``violation`` (unresolved only): Magnitude of the violation at that slot (shortage for minima, excess for maxima).
@@ -403,10 +397,8 @@ Suppose you schedule a battery device (asset ID 42) with the following constrain
 - **soc-minima**: Battery must stay above 60 kWh
 - **soc-maxima**: Battery must not exceed 100 kWh
 
-If the optimization cannot satisfy the minimum constraint at 10:30 UTC (falling short by 20 kWh)
-and again at 10:45 UTC (falling short by 15 kWh), but does satisfy the maximum constraint with
-margins of 40 kWh at 11:00 UTC and 35 kWh at 12:00 UTC,
-the constraint results would show:
+If the optimization cannot satisfy the minimum constraint at 10:30 UTC (falling short by 20 kWh) and again at 10:45 UTC (falling short by 15 kWh),
+but does satisfy the maximum constraint with margins of 40 kWh at 11:00 UTC and 35 kWh at 12:00 UTC, the constraint results would show:
 
 **Response via GET /api/v3_0/jobs/<uuid>:**
 
@@ -488,9 +480,8 @@ The ``violation`` values tell you how much shortfall exists:
 
 If ``unresolved`` and ``resolved`` are both empty, no state-of-charge constraints were set.
 
-.. note:: Hard constraints (``soc-targets``) are never reported in results because the scheduler
-          enforces them strictly by definition. If a hard constraint cannot be met, the entire
-          scheduling job will fail, not produce results with violations.
+.. note:: Hard constraints (``soc-targets``) are never reported in results because the scheduler enforces them strictly by definition.
+          If a hard constraint cannot be met, the entire scheduling job will fail, not produce results with violations.
 
 We believe the two schedulers (and their flex-models) we describe here are covering a lot of use cases already.
 Here are some thoughts on further innovation:
