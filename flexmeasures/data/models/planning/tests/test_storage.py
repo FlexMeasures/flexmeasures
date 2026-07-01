@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from unittest import mock
 
 import pytz
 import pytest
@@ -627,6 +628,258 @@ def test_unresolved_targets_no_soc_sensor(add_battery_assets, db):
 
     # No soc-maxima constraint defined, so resolved should be empty.
     assert scheduling_result.resolved == []
+
+
+def test_unresolved_targets_all_flag_soc_minima_violations(add_battery_assets, db):
+    """Test the ``all`` flag of ``_compute_unresolved_targets`` for unresolved soc-minima.
+
+    A battery starts at 0.4 MWh with a very limited charging capacity (0.01 MW),
+    so it can gain at most 0.01 * 24 = 0.24 MWh over the 24-hour schedule,
+    reaching a max SoC of ~0.64 MWh. Three soc-minima checkpoints of 0.9 MWh
+    are set at different times, all of which are unreachable given this
+    physical limit, regardless of how the scheduler distributes charging.
+
+    With the default ``all=True``, ``_compute_unresolved_targets`` reports every
+    violated slot (all three checkpoints, chronologically ordered).
+    With ``all=False``, it reports only the first (earliest) violation.
+    """
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+    soc_sensor = Sensor(
+        name="state-of-charge-all-flag-minima-test",
+        generic_asset=battery.generic_asset,
+        unit="MWh",
+        event_resolution=timedelta(0),
+    )
+    db.session.add(soc_sensor)
+    db.session.flush()
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 0.4
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    consumption_prices = pd.Series(100, index=index)
+
+    # All three checkpoints require 0.9 MWh, which is unreachable at any point
+    # in the schedule given the 0.01 MW charging limit (max reachable ~0.64 MWh).
+    violation_datetimes = [
+        "2015-01-01T06:00:00+01:00",
+        "2015-01-01T12:00:00+01:00",
+        "2015-01-02T00:00:00+01:00",
+    ]
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": f"{soc_at_start} MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "0.01 MVA",
+            "soc-minima": [
+                {"datetime": dt, "value": "0.9 MWh"} for dt in violation_datetimes
+            ],
+            "state-of-charge": {"sensor": soc_sensor.id},
+            "prefer-charging-sooner": False,
+        },
+        flex_context={
+            "consumption-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "production-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "site-power-capacity": "2 MW",
+            "soc-minima-breach-price": "1 EUR/kWh",  # soft constraint
+        },
+        return_multiple=True,
+    )
+
+    # Intercept the private helper to also capture what it would return with
+    # all=False, without affecting the (default all=True) result used by compute().
+    captured: dict = {}
+    original = StorageScheduler._compute_unresolved_targets
+
+    def spy(self, flex_model, soc_schedule_mwh, start, end, resolution, all=True):
+        captured["all_false"] = original(
+            self, flex_model, soc_schedule_mwh, start, end, resolution, all=False
+        )
+        return original(
+            self, flex_model, soc_schedule_mwh, start, end, resolution, all=all
+        )
+
+    with mock.patch.object(StorageScheduler, "_compute_unresolved_targets", spy):
+        results = scheduler.compute()
+
+    scheduling_result_entry = next(
+        (r for r in results if r.get("name") == "scheduling_result"), None
+    )
+    assert scheduling_result_entry is not None
+    scheduling_result = scheduling_result_entry["data"]
+    asset_id = battery.generic_asset.id
+
+    # --- all=True (the default used by compute()) ---
+    entry = next(
+        (e for e in scheduling_result.unresolved if e["asset"] == asset_id), None
+    )
+    assert entry is not None
+    assert "soc-minima" in entry
+    violations = entry["soc-minima"]
+    assert len(violations) == len(violation_datetimes), (
+        f"Expected all {len(violation_datetimes)} violated slots to be reported, "
+        f"got: {violations!r}"
+    )
+    expected_utc_datetimes = [
+        pd.Timestamp(dt).tz_convert("UTC").isoformat() for dt in violation_datetimes
+    ]
+    # Entries must be chronologically ordered and match the checkpoint datetimes.
+    assert [v["datetime"] for v in violations] == expected_utc_datetimes
+    for v in violations:
+        assert v["violation"].endswith(" kWh")
+        assert float(v["violation"].replace(" kWh", "")) > 0
+
+    # --- all=False ---
+    unresolved_all_false, _resolved_all_false = captured["all_false"]
+    entry_all_false = next(
+        (e for e in unresolved_all_false if e["asset"] == asset_id), None
+    )
+    assert entry_all_false is not None
+    # Only the first (earliest) violation should be reported.
+    assert len(entry_all_false["soc-minima"]) == 1
+    assert entry_all_false["soc-minima"][0] == violations[0]
+
+
+def test_unresolved_targets_all_flag_soc_minima_resolved_margins(
+    add_battery_assets, db
+):
+    """Test the ``all`` flag of ``_compute_unresolved_targets`` for resolved (met) soc-minima.
+
+    A battery starts at 0.4 MWh with plenty of charging capacity, a positive
+    consumption price, and a negative production price (so that neither charging
+    nor discharging is ever done without reason). Two soc-minima checkpoints are
+    set: an earlier, tighter one (0.5 MWh) and a later, much slacker one (0.1 MWh).
+    Both are met, but with different margins: the battery charges up to 0.5 MWh as
+    soon as possible (``prefer-charging-sooner`` defaults to True) to satisfy the
+    tighter, earlier checkpoint, and then has no incentive to move further, so it
+    stays there — leaving zero margin at the tighter checkpoint and a much larger
+    margin at the slacker, later checkpoint.
+
+    With the default ``all=True``, both met slots are reported (chronologically
+    ordered). With ``all=False``, only the slot with the tightest (smallest) margin
+    is reported.
+    """
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+    soc_sensor = Sensor(
+        name="state-of-charge-all-flag-margins-test",
+        generic_asset=battery.generic_asset,
+        unit="MWh",
+        event_resolution=timedelta(0),
+    )
+    db.session.add(soc_sensor)
+    db.session.flush()
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1))
+    end = tz.localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+    soc_at_start = 0.4
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    consumption_prices = pd.Series(100, index=index)
+    # A (small) negative production price means discharging (selling energy)
+    # incurs a cost rather than earning revenue, so the battery has no incentive
+    # to move away from a checkpoint once it has been satisfied.
+    production_prices = pd.Series(-1, index=index)
+
+    tight_datetime = "2015-01-01T06:00:00+01:00"
+    slack_datetime = "2015-01-02T00:00:00+01:00"
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": f"{soc_at_start} MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "2 MVA",
+            "soc-minima": [
+                {"datetime": tight_datetime, "value": "0.5 MWh"},
+                {"datetime": slack_datetime, "value": "0.1 MWh"},
+            ],
+            "state-of-charge": {"sensor": soc_sensor.id},
+        },
+        flex_context={
+            "consumption-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "production-price": series_to_ts_specs(production_prices, unit="EUR/MWh"),
+            "site-power-capacity": "2 MW",
+            "soc-minima-breach-price": "1 EUR/kWh",  # soft constraint
+        },
+        return_multiple=True,
+    )
+
+    # Intercept the private helper to also capture what it would return with
+    # all=False, without affecting the (default all=True) result used by compute().
+    captured: dict = {}
+    original = StorageScheduler._compute_unresolved_targets
+
+    def spy(self, flex_model, soc_schedule_mwh, start, end, resolution, all=True):
+        captured["all_false"] = original(
+            self, flex_model, soc_schedule_mwh, start, end, resolution, all=False
+        )
+        return original(
+            self, flex_model, soc_schedule_mwh, start, end, resolution, all=all
+        )
+
+    with mock.patch.object(StorageScheduler, "_compute_unresolved_targets", spy):
+        results = scheduler.compute()
+
+    scheduling_result_entry = next(
+        (r for r in results if r.get("name") == "scheduling_result"), None
+    )
+    assert scheduling_result_entry is not None
+    scheduling_result = scheduling_result_entry["data"]
+    asset_id = battery.generic_asset.id
+
+    # No violations expected: both checkpoints are met.
+    assert scheduling_result.unresolved == []
+
+    # --- all=True (the default used by compute()) ---
+    entry = next(
+        (e for e in scheduling_result.resolved if e["asset"] == asset_id), None
+    )
+    assert entry is not None
+    assert "soc-minima" in entry
+    margins = entry["soc-minima"]
+    assert (
+        len(margins) == 2
+    ), f"Expected both met slots to be reported, got: {margins!r}"
+    expected_utc_datetimes = [
+        pd.Timestamp(dt).tz_convert("UTC").isoformat()
+        for dt in (tight_datetime, slack_datetime)
+    ]
+    assert [m["datetime"] for m in margins] == expected_utc_datetimes
+    margin_values = [float(m["margin"].replace(" kWh", "")) for m in margins]
+    assert all(v >= 0 for v in margin_values)
+    # The tighter (earlier, higher-value) checkpoint should have the smaller margin.
+    tight_margin, slack_margin = margin_values
+    assert tight_margin < slack_margin
+
+    # --- all=False ---
+    _unresolved_all_false, resolved_all_false = captured["all_false"]
+    entry_all_false = next(
+        (e for e in resolved_all_false if e["asset"] == asset_id), None
+    )
+    assert entry_all_false is not None
+    # Only the tightest (smallest) margin slot should be reported.
+    assert len(entry_all_false["soc-minima"]) == 1
+    expected_tightest = min(
+        margins, key=lambda m: float(m["margin"].replace(" kWh", ""))
+    )
+    assert entry_all_false["soc-minima"][0] == expected_tightest
 
 
 def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(
