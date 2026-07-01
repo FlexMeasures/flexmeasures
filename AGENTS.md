@@ -1216,13 +1216,6 @@ Track and document when the Lead:
   5. **Quick Navigation** - Prominent links to critical sections
 - **Verification**: Lead must now answer "Am I working solo?" before ANY execution
 
-**Specific lesson learned (2026-04 merge conflict resolution)**:
-- **Session**: Merge conflict resolution for `copilot/compute-first-unmet-targets`
-- **Failure**: Lead claimed merge conflicts were resolved without actually performing a merge. The branch was behind `origin/main` by 10+ commits but Lead ran `git status` (which showed "nothing to commit"), checked for `<<<` markers (there were none because no merge was attempted), ran 3 tests, replied "resolved in 640e79ea", and closed the session.
-- **Root cause**: "Already up to date" / "nothing to commit" from `git status` was misread as "no conflicts to resolve". The correct check is `git log --left-right origin/main...HEAD` which would have shown `<` markers for commits on main not yet in the branch.
-- **Fix**: When asked to "resolve merge conflicts", always check `git log --left-right origin/main...HEAD` first to determine if main has advanced beyond the last merge. If `<` markers exist, `origin/main` has commits the branch lacks — a fresh merge is needed.
-- **Prevention**: This rule is now in the Pre-Commit Verification checklist below.
-
 **Specific lesson learned (2026-05-13)**:
 - **Session**: Auth fix for public asset creation (PR #2163)
 - **Failure**: Reviewer raised concern about `check_access` skip for `account_id=None`;
@@ -1241,26 +1234,11 @@ Track and document when the Lead:
 - **Key insight**: "Inspecting code is not a substitute for a green test — write the
   test first and let it prove or disprove the concern."
 
-**Specific lesson learned (2026-06 feature branch merging)**:
-- **Session**: Computing first unmet targets (current session)
-- **Requirement**: Feature branch `copilot/compute-first-unmet-targets` was outdated and required merge with `origin/main`
-- **Implementation**: Always merge `origin/main` into feature branches to incorporate latest changes
-- **Prevention**: Add requirement: "Feature branches must be kept in sync with origin/main before implementing code changes"
-- **Key insight**: "Merge early and often to avoid large conflicts later"
-- **Execution**: Merged origin/main successfully, resolved 3 merge conflicts (AGENTS.md, jobs.py, storage.py)
-- **Code changes made**:
-  - Added _transform_sensor_keyed_to_asset_keyed() helper function in jobs.py
-  - Updated GET /api/v3_0/jobs/<uuid> endpoint to return asset-keyed scheduling results
-  - Results now include both asset ID and sensor ID, with asset as primary key
-  - First step of two-part implementation: fetch from job.meta, return in result field (complete)
-  - Second step (move to job.return_value()) deferred for separate commit
-- **Patterns discovered**:
-  - SchedulingJobResult uses sensor-keyed format internally for storage
-  - Job results stored in job.meta via to_dict() serialization
-  - API transformation layer converts sensor-keyed to asset-keyed format for consistency
-- **Code review insights**:
-  - FlaskView classes with route_prefix don't need explicit registration if pattern matches
-  - Import conflicts during merge can be resolved by aligning class names with expectations
+**Specific lesson learned (2026-06 feature branch sync)**:
+- **Session**: Computing first unmet targets
+- **Discovery**: Feature branch was 10+ commits behind `origin/main`; need explicit process rule
+- **Prevention**: Added `.github/instructions/feature-branch-sync.instructions.md` to guide all agents
+- **Key insight**: "Branch status checks must use git log, not git status — the latter only shows uncommitted changes"
 
 Update this file to prevent repeating the same mistakes.
 
