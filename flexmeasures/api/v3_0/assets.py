@@ -106,7 +106,7 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
 
     flex_context = fields.Nested(
         flex_context_schema_openAPI,
-        required=True,
+        load_default={},
         data_key="flex-context",
         metadata=dict(
             description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
@@ -115,11 +115,11 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
     flex_model = fields.List(
         fields.Nested(
             storage_flex_model_schema_openAPI(exclude=["asset"]),
-            required=True,
-            data_key="flex-model",
-            metadata=dict(
-                description="Flex-model per device (identified by `sensor`). The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
-            ),
+        ),
+        load_default=[],
+        data_key="flex-model",
+        metadata=dict(
+            description="Flex-model per device (identified by `sensor`). The flex-model may (partly) also be defined on the asset, and sending it here overrides those settings for the schedule at hand. The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
         ),
     )
 
