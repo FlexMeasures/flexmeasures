@@ -1,55 +1,98 @@
-"""API endpoints for job management and results."""
-
 from __future__ import annotations
 
-from redis.exceptions import ConnectionError as RedisConnectionError
-from rq.job import Job, NoSuchJobError
+from datetime import datetime
+
 from flask import current_app
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required
+from redis.exceptions import ConnectionError as RedisConnectionError
+from rq.job import Job, JobStatus, NoSuchJobError
+from webargs.flaskparser import use_kwargs
+from marshmallow import fields
 
-from werkzeug.exceptions import Forbidden
-
-from flexmeasures.api.common.responses import invalid_sender
+from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
 from flexmeasures.auth.policy import check_access
-from flexmeasures.data.services.utils import (
-    failed_job_exc_info,
-    get_asset_or_sensor_from_ref,
-    job_status_description,
-)
+from flexmeasures.data import db
+from flexmeasures.data.models.planning.storage import SCHEDULING_RESULT_KEY
+from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.services.utils import get_asset_or_sensor_from_ref
+
+
+def _isoformat_or_none(dt: datetime | None) -> str | None:
+    """Return an ISO-8601 string for *dt*, or ``None`` when *dt* is absent."""
+    return dt.isoformat() if dt is not None else None
+
+
+def _job_read_context(job: Job):
+    """Resolve the asset or sensor whose read access governs this job."""
+    asset_or_sensor_ref = job.meta.get("asset_or_sensor") or job.kwargs.get(
+        "asset_or_sensor"
+    )
+    if asset_or_sensor_ref is not None:
+        return get_asset_or_sensor_from_ref(asset_or_sensor_ref)
+
+    sensor_id = job.meta.get("sensor_id")
+    if sensor_id is None:
+        forecast_kwargs = job.meta.get("forecast_kwargs", {})
+        if isinstance(forecast_kwargs, dict):
+            sensor_id = forecast_kwargs.get("sensor_id")
+    if sensor_id is None:
+        sensor_id = job.kwargs.get("sensor_id")
+
+    if sensor_id is None:
+        return None
+
+    return db.session.get(Sensor, sensor_id)
+
+
+def _job_queue_unavailable_response():
+    return (
+        dict(
+            status="ERROR",
+            message="Job queues are currently unavailable.",
+        ),
+        503,
+    )
 
 
 class JobAPI(FlaskView):
-    """Job result endpoints."""
+    """
+    Endpoint for querying the status of background jobs by UUID.
+    """
 
-    route_prefix = "/api/v3_0"
+    route_base = "/jobs"
     trailing_slash = False
 
-    @route("/jobs/<uuid>", methods=["GET"])
+    @route("/<uuid>", methods=["GET"])
     @auth_required()
+    @use_kwargs({"job_id": fields.Str(data_key="uuid", required=True)}, location="path")
     @as_json
-    def get_job_status(self, uuid: str):
-        """Return execution status details for a background job.
-
-        .. :quickref: Jobs; Get background job status
+    def get_job_status(self, job_id: str, **kwargs):
+        """
+        .. :quickref: Jobs; Get the status of a background job
 
         ---
         get:
-          summary: Get background job status details
+          summary: Get the status of a background job
           description: |
-            Retrieve execution status, timestamps, result details and queue metadata
-            for a background job.
+            Look up a background job by its UUID and see whether it is
+            queued, running, finished, or failed.
 
-            Scheduling jobs may include ``scheduling_result`` with soft
-            state-of-charge constraint analysis. Results are in list format with
-            ``unresolved`` constraints that cannot be satisfied and ``resolved``
-            constraints with available headroom.
+            The response includes a status message plus job metadata such
+            as the queue name, function name, timestamps, and the job
+            result when available.
 
-            **Note**: Constraint analysis is exclusively available via this endpoint
-            (``GET /api/v3_0/jobs/<uuid>``). The sensor schedule endpoint
-            (``GET /api/v3_0/sensors/<id>/schedules/<job_id>``) returns power values
-            only and does not include constraint analysis results.
+            Failed jobs also include traceback information when the worker
+            stored it with the job result.
+
+            Scheduling jobs may additionally include a ``scheduling_result``
+            field with soft state-of-charge constraint analysis: ``unresolved``
+            lists constraints the scheduler could not satisfy, and ``resolved``
+            lists constraints that were satisfied with some margin. This is the
+            only place constraint analysis is available — the sensor schedule
+            endpoint (``GET /api/v3_0/sensors/<id>/schedules/<uuid>``) returns
+            power values only.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -57,72 +100,176 @@ class JobAPI(FlaskView):
               name: uuid
               required: true
               description: UUID of the background job.
+              example: b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b
               schema:
                 type: string
           responses:
             200:
-              description: SUCCESS - Job status retrieved successfully
+              description: Job status retrieved successfully.
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum:
+                          - QUEUED
+                          - STARTED
+                          - FINISHED
+                          - FAILED
+                          - DEFERRED
+                          - SCHEDULED
+                          - STOPPED
+                          - CANCELED
+                        description: Current status of the job.
+                      message:
+                        type: string
+                        description: Human-readable description of the job status.
+                      result:
+                        description: Return value of the job function, or null when not yet available.
+                        nullable: true
+                      func_name:
+                        type: string
+                        description: Fully-qualified name of the function executed by this job.
+                      origin:
+                        type: string
+                        description: Name of the queue the job was placed on.
+                      enqueued_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        description: ISO-8601 timestamp of when the job was enqueued.
+                      started_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        description: ISO-8601 timestamp of when the job started executing.
+                      ended_at:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        description: ISO-8601 timestamp of when the job finished executing.
+                      exc_info:
+                        type: string
+                        nullable: true
+                        description: Traceback information for failed jobs, or null otherwise.
+                      scheduling_result:
+                        type: object
+                        nullable: true
+                        description: >
+                          Soft state-of-charge constraint analysis, present only for
+                          finished scheduling jobs. Omitted entirely for other job types.
+                        properties:
+                          unresolved:
+                            type: array
+                            description: Soft constraints the scheduler could not satisfy.
+                          resolved:
+                            type: array
+                            description: Soft constraints satisfied with some margin.
+                  examples:
+                    queued:
+                      summary: Queued job
+                      value:
+                        status: QUEUED
+                        message: "Scheduling job waiting to be processed."
+                        result: null
+                        func_name: "flexmeasures.data.services.scheduling.create_schedule"
+                        origin: scheduling
+                        enqueued_at: "2026-04-28T10:00:00+00:00"
+                        started_at: null
+                        ended_at: null
+                        exc_info: null
+                    finished:
+                      summary: Finished job
+                      value:
+                        status: FINISHED
+                        message: "Scheduling job has finished."
+                        result: null
+                        func_name: "flexmeasures.data.services.scheduling.create_schedule"
+                        origin: scheduling
+                        enqueued_at: "2026-04-28T10:00:00+00:00"
+                        started_at: "2026-04-28T10:00:01+00:00"
+                        ended_at: "2026-04-28T10:00:05+00:00"
+                        exc_info: null
+                        scheduling_result:
+                          unresolved:
+                            - asset: 42
+                              soc-minima:
+                                datetime: "2024-01-01T10:00:00+00:00"
+                                violation: "260.0 kWh"
+                          resolved: []
+                    failed:
+                      summary: Failed job
+                      value:
+                        status: FAILED
+                        message: "Scheduling job failed with ValueError: ..."
+                        result: null
+                        func_name: "flexmeasures.data.services.scheduling.create_schedule"
+                        origin: scheduling
+                        enqueued_at: "2026-04-28T10:00:00+00:00"
+                        started_at: "2026-04-28T10:00:01+00:00"
+                        ended_at: "2026-04-28T10:00:02+00:00"
+                        exc_info: "Traceback (most recent call last): ..."
+            404:
+              description: NOT_FOUND
             401:
               description: UNAUTHORIZED
             403:
               description: INVALID_SENDER
-            404:
-              description: Job not found
             503:
-              description: Job queues unavailable
+              description: SERVICE_UNAVAILABLE
           tags:
             - Jobs
         """
+        connection = current_app.redis_connection
 
         try:
-            current_app.redis_connection.ping()
-        except RedisConnectionError:
-            return {
-                "status": "ERROR",
-                "message": "Job queues are currently unavailable.",
-            }, 503
-
-        connection = current_app.queues["scheduling"].connection
-
-        try:
-            job = Job.fetch(uuid, connection=connection)
+            connection.ping()
+            job = Job.fetch(job_id, connection=connection)
+            read_context = _job_read_context(job)
+            if read_context is not None:
+                check_access(read_context, "read")
         except NoSuchJobError:
-            return {"message": f"Job {uuid} not found."}, 404
+            return (
+                dict(
+                    status="ERROR",
+                    message=f"Job {job_id} not found.",
+                ),
+                404,
+            )
+        except RedisConnectionError:
+            return _job_queue_unavailable_response()
 
-        asset_or_sensor_ref = job.meta.get("asset_or_sensor")
-        if asset_or_sensor_ref is not None:
-            try:
-                check_access(
-                    get_asset_or_sensor_from_ref(asset_or_sensor_ref),
-                    "read",
-                )
-            except Forbidden:
-                return invalid_sender()
+        try:
+            job_status = job.get_status()
+            status_name = (
+                job_status.name
+                if isinstance(job_status, JobStatus)
+                else str(job_status).upper()
+            )
 
-        scheduling_result = job.meta.get("scheduling_result")
-        response = {
-            "status": getattr(job.get_status(), "name", str(job.get_status()).upper()),
-            "message": job_status_description(job),
-            "func_name": job.func_name,
-            "origin": job.origin,
-            "enqueued_at": job.enqueued_at.isoformat() if job.enqueued_at else None,
-            "started_at": job.started_at.isoformat() if job.started_at else None,
-            "ended_at": job.ended_at.isoformat() if job.ended_at else None,
-            "result": job.return_value() if job.is_finished else None,
-            "exc_info": failed_job_exc_info(job),
-        }
+            # job.return_value is None when the job has not finished successfully
+            result = job.return_value()
+        except RedisConnectionError:
+            return _job_queue_unavailable_response()
+        except Exception:  # noqa: BLE001
+            result = None
+
+        response = dict(
+            status=status_name,
+            message=job_status_description(job),
+            result=result,
+            func_name=job.func_name,
+            origin=job.origin,
+            enqueued_at=_isoformat_or_none(job.enqueued_at),
+            started_at=_isoformat_or_none(job.started_at),
+            ended_at=_isoformat_or_none(job.ended_at),
+            exc_info=failed_job_exc_info(job),
+        )
+
+        scheduling_result = job.meta.get(SCHEDULING_RESULT_KEY)
         if scheduling_result is not None:
-            # Constraint results are already in list format
-            if isinstance(scheduling_result, dict):
-                unresolved = scheduling_result.get("unresolved", [])
-                resolved = scheduling_result.get("resolved", [])
-            else:
-                unresolved = scheduling_result.unresolved
-                resolved = scheduling_result.resolved
-            
-            response["scheduling_result"] = {
-                "unresolved": unresolved,
-                "resolved": resolved,
-            }
+            response["scheduling_result"] = scheduling_result
 
         return response, 200
