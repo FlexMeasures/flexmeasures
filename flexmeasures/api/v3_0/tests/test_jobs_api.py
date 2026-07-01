@@ -230,10 +230,11 @@ def test_get_job_status_finished(
     assert data["enqueued_at"] is not None
     assert data["started_at"] is not None
     assert data["ended_at"] is not None
-    # this is a StorageScheduler job, so `result` is always the soft SoC
-    # constraint analysis dict (not the boolean True returned by other
-    # schedulers, e.g. ProcessScheduler); since this flex model defines no
-    # soc-minima/soc-maxima, both arrays are simply empty here
+    # every finished scheduling job now returns an object (not the boolean
+    # True it used to return unconditionally); this is a StorageScheduler
+    # job, so `result` is the soft SoC constraint analysis dict, and since
+    # this flex model defines no soc-minima/soc-maxima, both arrays are
+    # simply empty here
     assert data["result"] == {"unresolved": [], "resolved": []}
     assert data["exc_info"] is None
 
