@@ -23,7 +23,7 @@ Run:
 
     uv run poe changelog-check
 
-This lists merged PRs since the last tag (via ``bin/list-merged-prs-since-tag.sh``), pre-formatted as changelog bullets.
+This lists merged PRs since the last tag (via ``ci/list-merged-prs-since-tag.sh``), pre-formatted as changelog bullets.
 It is read-only: it does not edit or commit anything.
 Review, categorize each entry into *New features* / *Infrastructure / Support* / *Bugfixes*,
 and paste them into ``documentation/changelog.rst`` (and ``documentation/cli/change_log.rst`` / ``documentation/api/change_log.rst`` where relevant).
