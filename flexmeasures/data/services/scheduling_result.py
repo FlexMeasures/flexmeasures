@@ -16,10 +16,10 @@ class SchedulingJobResult:
     Results contain two top-level fields:
     - ``unresolved``: List of soft constraints that the scheduler could not satisfy
       - Each entry is a dict with ``"asset"`` field (asset ID) and constraint-type keys (``"soc-minima"``, ``"soc-maxima"``)
-      - Each constraint: ``{"datetime": ISO 8601 UTC, "violation": "X kWh"}``
+      - Each constraint-type key holds a list of dicts, one per violated slot (chronologically ordered): ``{"datetime": ISO 8601 UTC, "violation": "X kWh"}``
     - ``resolved``: List of soft constraints that were satisfied with available headroom
       - Each entry is a dict with ``"asset"`` field and constraint-type keys
-      - Each constraint: ``{"datetime": ISO 8601 UTC, "margin": "X kWh"}``
+      - Each constraint-type key holds a list of dicts, one per met slot (chronologically ordered): ``{"datetime": ISO 8601 UTC, "margin": "X kWh"}``
 
     **Important:** ``soc-targets`` (hard constraints) are never included since they are strictly enforced by the scheduler.
     Only hard constraint failures cause job failure.
@@ -30,13 +30,18 @@ class SchedulingJobResult:
             "unresolved": [
                 {
                     "asset": 42,
-                    "soc-minima": {"datetime": "2024-01-01T10:00:00+00:00", "violation": "260.0 kWh"},
+                    "soc-minima": [
+                        {"datetime": "2024-01-01T10:00:00+00:00", "violation": "260.0 kWh"},
+                        {"datetime": "2024-01-01T10:15:00+00:00", "violation": "180.0 kWh"},
+                    ],
                 }
             ],
             "resolved": [
                 {
                     "asset": 42,
-                    "soc-maxima": {"datetime": "2024-01-01T12:00:00+00:00", "margin": "40.0 kWh"},
+                    "soc-maxima": [
+                        {"datetime": "2024-01-01T12:00:00+00:00", "margin": "40.0 kWh"},
+                    ],
                 }
             ]
         }
