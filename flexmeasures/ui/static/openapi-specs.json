@@ -4556,98 +4556,31 @@
         ],
         "additionalProperties": false
       },
-      "CommodityFlexContext": {
+      "OutputSensorReference": {
         "type": "object",
         "properties": {
-          "commodity": {
-            "type": "string",
-            "default": "electricity",
-            "description": "Commodity to which this part of the flex-context applies.\nDefaults to ``\"electricity\"``.\n",
-            "examples": [
-              "electricity",
-              "gas"
-            ]
-          },
-          "consumption-price": {
-            "description": "The commodity price (e.g. electricity price) applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem. [#old_consumption_price_field]_",
-            "examples": [
-              {
-                "sensor": 5
-              },
-              "0.29 EUR/kWh"
-            ]
-          },
-          "production-price": {
-            "description": "The commodity price (e.g. electricity price) applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. [#old_production_price_field]_",
-            "example": "0.12 EUR/kWh"
-          },
-          "site-power-capacity": {
-            "description": "Maximum achievable power at the site's grid connection point, in either direction.\nBecomes a hard constraint in the optimization problem, which is especially suitable for physical limitations. [#asymmetric]_ [#minimum_capacity_overlap]_\n",
-            "example": "45kVA"
-          },
-          "site-consumption-capacity": {
-            "description": "Maximum consumption power at the site's grid connection point.\nIf ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-consumption-capacity`` will be used. [#consumption]_\nIf a ``site-consumption-breach-price`` is defined, the ``site-consumption-capacity`` becomes a soft constraint in the optimization problem.\nOtherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_\n",
-            "example": "45kW"
-          },
-          "site-production-capacity": {
-            "description": "Maximum production power at the site's grid connection point.\nIf ``site-power-capacity`` is defined, the minimum between the ``site-power-capacity`` and ``site-production-capacity`` will be used. [#production]_\nIf a ``site-production-breach-price`` is defined, the ``site-production-capacity`` becomes a soft constraint in the optimization problem.\nOtherwise, it becomes a hard constraint. [#minimum_capacity_overlap]_\n",
-            "example": "0kW"
-          },
-          "site-consumption-breach-price": {
-            "description": "This **penalty value** is used to discourage the violation of the ``site-consumption-capacity`` constraint in the flex-context.\nIt effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\nThe field may define (a sensor recording) contractual penalties, or a theoretical penalty influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_\n",
-            "example": "1000 EUR/kW"
-          },
-          "site-production-breach-price": {
-            "description": "This **penalty value** is used to discourage the violation of the ``site-production-capacity`` constraint in the flex-context.\nIt effectively treats the capacity as a **soft constraint**, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\nThe field may define (a sensor recording) contractual penalties, or a theoretical penalty influencing how badly breaches should be avoided. [#penalty_field]_ [#breach_field]_\"\n",
-            "example": "1000 EUR/kW"
-          },
-          "site-peak-consumption": {
-            "default": "0.0 MW",
-            "description": "The site's previously achieved achieved peak consumption.\nThis value forms the baseline for new peak charges, since any peaks up to this level represent sunk costs.\nDefaults to 0 kW.\n",
-            "example": {
-              "sensor": 7
-            }
-          },
-          "site-peak-consumption-price": {
-            "description": "Per-kW price applied to any consumption that exceeds the site's previously achieved peak consumption.\nThis price reflects the cost of increasing the site\u2019s peak further and is used by the scheduler to motivate peak shaving.\nIt must use the same currency as the other price settings and cannot be negative.\nFor large connections, this price is usually stated explicitly on the tariff sheets of their network operator. [#penalty_field]_\n",
-            "example": "260 EUR/MW"
-          },
-          "site-peak-production": {
-            "default": "0.0 MW",
-            "description": "The site's previously achieved achieved peak production.\nThis value forms the baseline for new peak charges, since any peaks up to this level represent sunk costs.\nDefaults to 0 kW.\n",
-            "example": {
-              "sensor": 8
-            }
-          },
-          "site-peak-production-price": {
-            "description": "Per-kW price applied to any production that exceeds the site's previously achieved peak production.\nThis price reflects the cost of increasing the site\u2019s peak further and is used by the scheduler to motivate peak shaving.\nIt must use the same currency as the other price settings and cannot be negative.\nFor large connections, this price is usually stated explicitly on the tariff sheets of their network operator. [#penalty_field]_\n",
-            "example": "260 EUR/MW"
-          },
-          "commitments": {
-            "description": "Prior commitments. Support for this field in the UI is still under further development, but you can find more information in :ref:`commitments`.",
-            "example": [],
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Commitment"
-            }
-          },
-          "inflexible-device-sensors": {
-            "type": "array",
-            "description": "Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\nMust be a list of integers.\n",
-            "example": [
-              3,
-              4
-            ],
-            "items": {
-              "type": "integer"
-            }
+          "sensor": {
+            "type": "integer",
+            "description": "ID of the sensor on which the data is recorded."
           }
         },
+        "required": [
+          "sensor"
+        ],
         "additionalProperties": false
       },
       "FlexContextOpenAPISchema": {
         "type": "object",
         "properties": {
+          "commodity": {
+            "type": "string",
+            "default": "electricity",
+            "description": "Commodity to which this part of the flex-context applies.\nDefaults to <code>\"electricity\"</code>.\n",
+            "examples": [
+              "electricity",
+              "gas"
+            ]
+          },
           "consumption-price": {
             "description": "The commodity price (e.g. electricity price) applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem.",
             "examples": [
@@ -4712,32 +4645,6 @@
             "example": "260 EUR/MW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "commitments": {
-            "description": "Prior commitments. Support for this field in the UI is still under further development, but you can find more information in <a href=\"/ui/static/documentation/html/search.html?q=commitments\" target=\"_blank\">the docs</a>.",
-            "example": [],
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Commitment"
-            }
-          },
-          "inflexible-device-sensors": {
-            "type": "array",
-            "description": "Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\nMust be a list of integers.\n",
-            "example": [
-              3,
-              4
-            ],
-            "items": {
-              "type": "integer"
-            }
-          },
-          "commodities": {
-            "description": "For multi-commodity scheduling problems, the above fields can be set here per commodity.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CommodityFlexContext"
-            }
-          },
           "consumption-breach-price": {
             "description": "This <strong>penalty value</strong> is used to discourage the violation of the <code>consumption-capacity</code> constraint in the flex-model.\nIt effectively treats the capacity as a <strong>soft constraint</strong>, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
             "example": "10 EUR/kW",
@@ -4760,7 +4667,7 @@
           },
           "relax-constraints": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "description": "If True (default is <code>False</code>), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to <code>True</code> to enable the default prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
             "example": true
           },
@@ -4782,18 +4689,38 @@
             "description": "If True, avoids breaching the site consumption/production capacity as a relaxed constraint.",
             "example": true
           },
-          "consumption-price-sensor": {
-            "type": "integer"
+          "commitments": {
+            "description": "Prior commitments. Support for this field in the UI is still under further development, but you can find more information in <a href=\"/ui/static/documentation/html/search.html?q=commitments\" target=\"_blank\">the docs</a>.",
+            "example": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Commitment"
+            }
           },
-          "production-price-sensor": {
-            "type": "integer"
+          "inflexible-device-sensors": {
+            "type": "array",
+            "description": "Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\nMust be a list of integers.\n",
+            "example": [
+              3,
+              4
+            ],
+            "items": {
+              "type": "integer"
+            }
           },
-          "aggregate-power": {
-            "description": "Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.",
+          "aggregate-consumption": {
+            "description": "Sensor used to record the aggregate consumption schedule of all flexible and inflexible devices involved when scheduling this asset.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nDepending on which output sensors are defined:\n\n- <strong>Only</strong> <code>aggregate-consumption</code> <strong>defined</strong>: the full aggregate power schedule is stored on this sensor using the\n  consumption-positive sign convention (consumption positive, production negative).\n- <strong>Only</strong> <code>aggregate-production</code> <strong>defined</strong>: the full aggregate power schedule is stored on the aggregate-production sensor\n  with the production-positive convention (production positive, consumption negative).\n- <strong>Both defined</strong>: only the non-negative part of the aggregate schedule is stored on this sensor (zero for\n  time steps with net production), and only the non-positive part (sign-flipped) is stored on the\n  aggregate-production sensor.\n",
             "example": {
-              "sensor": 9
+              "sensor": 10
             },
-            "$ref": "#/components/schemas/SensorReference"
+            "$ref": "#/components/schemas/OutputSensorReference"
+          },
+          "aggregate-production": {
+            "description": "Sensor used to record the aggregate production schedule of all flexible and inflexible devices involved when scheduling this asset.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nSee the <code>aggregate-consumption</code> field for the full description of the split logic when both sensors are defined.\n",
+            "example": {
+              "sensor": 11
+            },
+            "$ref": "#/components/schemas/OutputSensorReference"
           }
         },
         "additionalProperties": false
@@ -6176,14 +6103,14 @@
             "example": {
               "sensor": 14
             },
-            "$ref": "#/components/schemas/SensorReference"
+            "$ref": "#/components/schemas/OutputSensorReference"
           },
           "production": {
-            "description": "Sensor used to record the scheduled power as seen from a production perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nSee <code>consumption</code> for the full description of the split logic when both sensors are defined.\n",
+            "description": "Sensor used to record the scheduled power as seen from a production perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nSee the <code>consumption</code> field for the full description of the split logic when both sensors are defined.\n",
             "example": {
               "sensor": 15
             },
-            "$ref": "#/components/schemas/SensorReference"
+            "$ref": "#/components/schemas/OutputSensorReference"
           },
           "soc-at-start": {
             "type": "string",
@@ -6371,9 +6298,12 @@
             }
           },
           "flex-context": {
-            "default": {},
-            "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
-            "$ref": "#/components/schemas/FlexContextOpenAPISchema"
+            "type": "array",
+            "default": [],
+            "description": "Flex-context per commodity. The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+            "items": {
+              "$ref": "#/components/schemas/FlexContextOpenAPISchema"
+            }
           },
           "sequential": {
             "type": "boolean",
