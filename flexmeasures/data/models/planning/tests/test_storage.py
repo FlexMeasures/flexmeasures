@@ -360,24 +360,23 @@ def test_unresolved_targets_soc_minima(add_battery_assets, db):
     scheduling_result = scheduling_result_entry["data"]
     assert isinstance(scheduling_result, SchedulingJobResult)
 
-    asset_key = str(battery.generic_asset.id)
+    asset_id = battery.generic_asset.id
     unresolved = scheduling_result.unresolved
+    entry = next((e for e in unresolved if e["asset"] == asset_id), None)
     assert (
-        asset_key in unresolved
+        entry is not None
     ), "Expected an unresolved soc-minima since the target is unreachable"
-    assert "soc-minima" in unresolved[asset_key]
+    assert "soc-minima" in entry
     # The scheduled SoC should be below the 0.9 MWh target (violation == 260.0 kWh shortage)
-    assert unresolved[asset_key]["soc-minima"]["violation"] == "260.0 kWh"
+    assert entry["soc-minima"]["violation"] == "260.0 kWh"
     # The constraint is at 2015-01-02T00:00:00+01:00 = 2015-01-01T23:00:00+00:00 (UTC)
-    assert (
-        unresolved[asset_key]["soc-minima"]["datetime"] == "2015-01-01T23:00:00+00:00"
-    )
+    assert entry["soc-minima"]["datetime"] == "2015-01-01T23:00:00+00:00"
 
     # No soc-maxima was set, so it should not appear
-    assert "soc-maxima" not in unresolved[asset_key]
+    assert "soc-maxima" not in entry
 
     # No soc-maxima constraint defined, so resolved should be empty
-    assert scheduling_result.resolved == {}
+    assert scheduling_result.resolved == []
 
 
 def test_unresolved_targets_none_when_met(add_battery_assets, db):
@@ -441,15 +440,18 @@ def test_unresolved_targets_none_when_met(add_battery_assets, db):
     )
     assert scheduling_result_entry is not None
     scheduling_result = scheduling_result_entry["data"]
-    asset_key = str(battery.generic_asset.id)
+    asset_id = battery.generic_asset.id
     unresolved = scheduling_result.unresolved
     # The minima target is met, so no unresolved targets expected
-    assert unresolved == {}
+    assert unresolved == []
 
     # The soc-minima was met, so resolved should report it
-    assert asset_key in scheduling_result.resolved
-    assert "soc-minima" in scheduling_result.resolved[asset_key]
-    margin_str = scheduling_result.resolved[asset_key]["soc-minima"]["margin"]
+    entry = next(
+        (e for e in scheduling_result.resolved if e["asset"] == asset_id), None
+    )
+    assert entry is not None
+    assert "soc-minima" in entry
+    margin_str = entry["soc-minima"]["margin"]
     # Margin should be a non-negative kWh string
     assert margin_str.endswith(" kWh")
     assert float(margin_str.replace(" kWh", "")) >= 0
@@ -520,24 +522,23 @@ def test_unresolved_targets_soc_maxima(add_battery_assets, db):
     )
     assert scheduling_result_entry is not None
 
-    asset_key = str(battery.generic_asset.id)
+    asset_id = battery.generic_asset.id
     unresolved = scheduling_result_entry["data"].unresolved
+    entry = next((e for e in unresolved if e["asset"] == asset_id), None)
     assert (
-        asset_key in unresolved
+        entry is not None
     ), "Expected an unresolved soc-maxima since the target is unreachable"
-    assert "soc-maxima" in unresolved[asset_key]
+    assert "soc-maxima" in entry
     # The scheduled SoC should be above the 0.5 MWh target (violation == 160.0 kWh excess)
-    assert unresolved[asset_key]["soc-maxima"]["violation"] == "160.0 kWh"
+    assert entry["soc-maxima"]["violation"] == "160.0 kWh"
     # The constraint is at 2015-01-02T00:00:00+01:00 = 2015-01-01T23:00:00+00:00 (UTC)
-    assert (
-        unresolved[asset_key]["soc-maxima"]["datetime"] == "2015-01-01T23:00:00+00:00"
-    )
+    assert entry["soc-maxima"]["datetime"] == "2015-01-01T23:00:00+00:00"
 
     # No soc-minima was set, so it should not appear
-    assert "soc-minima" not in unresolved[asset_key]
+    assert "soc-minima" not in entry
 
     # No soc-minima constraint defined, so resolved should be empty
-    assert scheduling_result_entry["data"].resolved == {}
+    assert scheduling_result_entry["data"].resolved == []
 
 
 def test_unresolved_targets_no_soc_sensor(add_battery_assets, db):
@@ -545,7 +546,7 @@ def test_unresolved_targets_no_soc_sensor(add_battery_assets, db):
 
     A battery has ``soc-minima`` constraints but no ``state-of-charge`` sensor
     configured in the flex model.  The production code must still produce
-    unresolved/resolved dicts keyed by the asset ID (not the SoC sensor ID).
+    unresolved/resolved entries keyed by the asset ID (not the SoC sensor ID).
     """
     _, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
@@ -597,24 +598,23 @@ def test_unresolved_targets_no_soc_sensor(add_battery_assets, db):
     assert isinstance(scheduling_result, SchedulingJobResult)
 
     # Result must be keyed by the asset ID, not by a SoC sensor ID.
-    asset_key = str(battery.generic_asset.id)
+    asset_id = battery.generic_asset.id
 
     unresolved = scheduling_result.unresolved
-    assert asset_key in unresolved, (
-        f"Expected unresolved keyed by asset ID {asset_key!r}; "
-        f"got keys: {list(unresolved.keys())}"
+    entry = next((e for e in unresolved if e["asset"] == asset_id), None)
+    assert entry is not None, (
+        f"Expected an unresolved entry for asset ID {asset_id!r}; "
+        f"got: {unresolved!r}"
     )
-    assert "soc-minima" in unresolved[asset_key]
-    assert unresolved[asset_key]["soc-minima"]["violation"] == "260.0 kWh"
-    assert (
-        unresolved[asset_key]["soc-minima"]["datetime"] == "2015-01-01T23:00:00+00:00"
-    )
+    assert "soc-minima" in entry
+    assert entry["soc-minima"]["violation"] == "260.0 kWh"
+    assert entry["soc-minima"]["datetime"] == "2015-01-01T23:00:00+00:00"
 
     # No soc-maxima constraint was set.
-    assert "soc-maxima" not in unresolved[asset_key]
+    assert "soc-maxima" not in entry
 
     # No soc-maxima constraint defined, so resolved should be empty.
-    assert scheduling_result.resolved == {}
+    assert scheduling_result.resolved == []
 
 
 def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(
