@@ -460,3 +460,5 @@ If your data structure is good, you should think about (continually) adding meas
 Then, you probably want to use FlexMeasures to generate forecasts and schedules! For this, read further in :ref:`tut_forecasting_scheduling`.
 
 One more consideration is to run FlexMeasures in a more professional way as a web service. Head on to :ref:`deployment`.
+
+Be sure to also read about :ref:`security-best-practices-for-hosts`!

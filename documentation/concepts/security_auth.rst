@@ -3,6 +3,14 @@
 Security aspects
 ====================================
 
+This page explains how security is handled in FlexMeasures. This deals with encryption, authentication and authorization.
+For hosts, we also provide some best practices.
+
+.. contents::
+    :local:
+    :depth: 1
+
+
 Data
 -------
 
@@ -10,7 +18,7 @@ A FlexMeasures server handles two types of data in its Postgres database - struc
 
 How these Postgres and Redis databases are set up and protected is up to the host. 
 
-More crucial to this documentation is that each FlexMeasures server connects to the Postgres database according to strict authentication and authorization rules, for reading and writing data. The remainder of this page describes how this is implemented.
+More crucial to this documentation is that each FlexMeasures server reads from and writes to the Postgres database according to strict authentication and authorization rules. Much of the remainder of this page describes how this is implemented.
 
 Finally, when sending data back and forth between clients (e.g. browsers) and the server, the FlexMeasures application communicates all data with HTTPS, the Hypertext Transfer Protocol encrypted by Transport Layer Security. This is used even if the application is accessed via ``http://``.
 
@@ -106,3 +114,14 @@ We plan to introduce some editing/creation capabilities in the future.
 
 Setting an account as the consultancy account is something only admins can do. 
 It is possible via the ``/accounts`` PATCH endpoint, but also in the UI. You can also specify a consultancy account when creating a client account, which for now happens only in the CLI: ``flexmeasures add account --name "Account2" --consultancy 1`` makes account 1 the consultancy account for account 2.
+
+
+.. _security-best-practices-for-hosts:
+
+Best security-practices for hosts
+-----------------------------
+
+* Use the ``TRUSTED_HOSTS`` setting (see the Flask docs on `the configuration <https://flask.palletsprojects.com/en/stable/config/#TRUSTED_HOSTS>`_ and on `the topic of host header validation <https://flask.palletsprojects.com/en/stable/web-security/#host-header-validation>`_) to specify on which hosts the platform is actually being provided.
+  As an example for why this is valuable: FlexMeasures constructs URLs, e.g. for password reset links. Client code could set its own ``Host`` request header to make these URLs lead to a different server.
+  If the client "poisons" the URLs for its own users this way, they are using the user's trust in the FlexMeasures host platform to hack them.
+  List your own domain in this setting, but also the IP of your load balancer, if you are using one.
