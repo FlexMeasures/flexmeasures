@@ -1264,6 +1264,33 @@ Track and document when the Lead:
 
 Update this file to prevent repeating the same mistakes.
 
+**Specific lesson learned (2026-07-01 PR #2072 review comments)**:
+- **Session**: Addressing PR #2072 unresolved review comments
+- **Failure Pattern**: Four of five agents (Test, Architecture, Documentation, Lead) did NOT update their instruction files after completing work
+- **Coordinator Finding**: "80% self-improvement failure rate" - critical governance violation
+- **Root Cause**: Self-improvement was not treated as mandatory, only the API Specialist recognized it as required
+- **What Happened**:
+  1. API Specialist updated `.github/agents/api-backward-compatibility-specialist.md` with data format mismatch detection pattern ✅
+  2. Test Specialist verified 1281 tests but did NOT update instructions ❌
+  3. Architecture Specialist reviewed asset keying but did NOT update instructions ❌
+  4. Documentation Specialist fixed docs but did NOT update instructions ❌
+  5. Lead made final docstring fix but did NOT update instructions ❌
+- **Fix Applied**: Prompted each agent individually to update instructions:
+  - Test Specialist: Added "Data Format Transformation Testing" pattern
+  - Architecture Specialist: Added "Asset ID Keying Pattern" with format mismatch prevention
+  - Documentation Specialist: Added "Cross-Document Consistency Pattern"
+  - Lead: Added multi-agent synthesis lesson to AGENTS.md
+- **Key Insight**: "Self-improvement is not optional - it must be explicitly enforced in the session close checklist"
+- **Prevention Added**:
+  1. Make self-improvement a blocking item in Session Close Checklist
+  2. Add explicit check: "All agents updated instructions: ❌ FAIL if any agent skipped"
+  3. Coordinator must flag self-improvement failures as governance violations
+- **Lessons Documented**: 
+  - Each specialist now has patterns documented for future similar work
+  - Data format transformation testing is now a checklist item
+  - Asset keying prevention is now architecture guidance
+  - Cross-document consistency is now a documented process
+
 ## Session Close Checklist (MANDATORY)
 
 **Before closing ANY session, the Lead MUST verify ALL items in this checklist.**
