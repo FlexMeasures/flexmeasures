@@ -367,10 +367,13 @@ def test_unresolved_targets_soc_minima(add_battery_assets, db):
         entry is not None
     ), "Expected an unresolved soc-minima since the target is unreachable"
     assert "soc-minima" in entry
+    # Only a single soc-minima datetime was defined in the flex model, so the
+    # violation list holds exactly one entry.
+    assert len(entry["soc-minima"]) == 1
     # The scheduled SoC should be below the 0.9 MWh target (violation == 260.0 kWh shortage)
-    assert entry["soc-minima"]["violation"] == "260.0 kWh"
+    assert entry["soc-minima"][0]["violation"] == "260.0 kWh"
     # The constraint is at 2015-01-02T00:00:00+01:00 = 2015-01-01T23:00:00+00:00 (UTC)
-    assert entry["soc-minima"]["datetime"] == "2015-01-01T23:00:00+00:00"
+    assert entry["soc-minima"][0]["datetime"] == "2015-01-01T23:00:00+00:00"
 
     # No soc-maxima was set, so it should not appear
     assert "soc-maxima" not in entry
@@ -451,7 +454,10 @@ def test_unresolved_targets_none_when_met(add_battery_assets, db):
     )
     assert entry is not None
     assert "soc-minima" in entry
-    margin_str = entry["soc-minima"]["margin"]
+    # Only a single soc-minima datetime was defined in the flex model, so the
+    # margin list holds exactly one entry.
+    assert len(entry["soc-minima"]) == 1
+    margin_str = entry["soc-minima"][0]["margin"]
     # Margin should be a non-negative kWh string
     assert margin_str.endswith(" kWh")
     assert float(margin_str.replace(" kWh", "")) >= 0
@@ -529,10 +535,13 @@ def test_unresolved_targets_soc_maxima(add_battery_assets, db):
         entry is not None
     ), "Expected an unresolved soc-maxima since the target is unreachable"
     assert "soc-maxima" in entry
+    # Only a single soc-maxima datetime was defined in the flex model, so the
+    # violation list holds exactly one entry.
+    assert len(entry["soc-maxima"]) == 1
     # The scheduled SoC should be above the 0.5 MWh target (violation == 160.0 kWh excess)
-    assert entry["soc-maxima"]["violation"] == "160.0 kWh"
+    assert entry["soc-maxima"][0]["violation"] == "160.0 kWh"
     # The constraint is at 2015-01-02T00:00:00+01:00 = 2015-01-01T23:00:00+00:00 (UTC)
-    assert entry["soc-maxima"]["datetime"] == "2015-01-01T23:00:00+00:00"
+    assert entry["soc-maxima"][0]["datetime"] == "2015-01-01T23:00:00+00:00"
 
     # No soc-minima was set, so it should not appear
     assert "soc-minima" not in entry
@@ -607,8 +616,11 @@ def test_unresolved_targets_no_soc_sensor(add_battery_assets, db):
         f"got: {unresolved!r}"
     )
     assert "soc-minima" in entry
-    assert entry["soc-minima"]["violation"] == "260.0 kWh"
-    assert entry["soc-minima"]["datetime"] == "2015-01-01T23:00:00+00:00"
+    # Only a single soc-minima datetime was defined in the flex model, so the
+    # violation list holds exactly one entry.
+    assert len(entry["soc-minima"]) == 1
+    assert entry["soc-minima"][0]["violation"] == "260.0 kWh"
+    assert entry["soc-minima"][0]["datetime"] == "2015-01-01T23:00:00+00:00"
 
     # No soc-maxima constraint was set.
     assert "soc-maxima" not in entry
