@@ -193,6 +193,13 @@ help = "Generate OpenAPI specifications"
 script = "flexmeasures.api.scripts.generate_open_api_specs"
 env = {FLEXMEASURES_ENV = "documentation", FLEXMEASURES_PLUGINS = ""}
 
+[tool.poe.tasks.changelog-check]
+help = "List merged PRs since the last tag, to help assemble changelog.rst entries (does not write any files)."
+shell = "bin/list-merged-prs-since-tag.sh"
+args = [
+    {name = "since", help = "Git tag to diff from (default: latest tag reachable from HEAD)", default = ""},
+]
+
 [dependency-groups]
 dev = [
     "black==24.8.0",
