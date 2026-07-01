@@ -40,21 +40,12 @@ v0.33.1 | July XX, 2026
 Bugfixes
 -----------
 * Allow flex-model and flex-context to be missing from scheduling requests, because by now the whole flex-config can be defined on assets (in the db) instead [see `PR #2237 <https://www.github.com/FlexMeasures/flexmeasures/pull/2237>`_]
+* Improve auth checks on editing user roles [see `PR #2228 <https://www.github.com/FlexMeasures/flexmeasures/pull/2228>`_]
 * Fix Chart Point sessions chart [see `PR #2259 <https://www.github.com/FlexMeasures/flexmeasures/pull/2259>`_]
 
 Infrastructure / Support
 ------------------------
 * Filter handled untrusted-host ``SecurityError`` events out of Sentry, alongside the existing 404 filtering [see `PR #2257 <https://www.github.com/FlexMeasures/flexmeasures/pull/2257>`_]
-
-
-
-v0.33.1 | June XX, 2026
-============================
-
-Bugfixes
------------
-* Improve auth checks on editing user roles [see `PR #2228 <https://www.github.com/FlexMeasures/flexmeasures/pull/2228>`_]
-
 
 
 v0.33.0 | June 1, 2026
