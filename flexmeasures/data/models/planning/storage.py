@@ -1068,11 +1068,6 @@ class MetaStorageScheduler(Scheduler):
         if isinstance(self.flex_model, dict):
             if self.sensor.generic_asset.asset_type.name in storage_asset_types:
                 self.ensure_soc_at_start()
-            if (
-                self.sensor.generic_asset.asset_type.name in storage_asset_types
-                or self.has_soc_at_start()
-            ):
-                self.ensure_soc_min_max()
 
             # Now it's time to check if our flex configuration holds up to schemas
             self.flex_model = StorageFlexModelSchema(
@@ -1084,7 +1079,6 @@ class MetaStorageScheduler(Scheduler):
             # Extend schedule period in case a target exceeds its end
             self.possibly_extend_end(soc_targets=self.flex_model.get("soc_targets"))
         elif isinstance(self.flex_model, list):
-            # todo: ensure_soc_min_max in case the device is a storage (see line 847)
             self.flex_model = MultiSensorFlexModelSchema(many=True).load(
                 self.flex_model
             )
@@ -1428,40 +1422,6 @@ class MetaStorageScheduler(Scheduler):
             )
         return min_target, max_target
 
-    def get_min_max_soc_from_asset(self) -> tuple[str | None, str | None]:
-        """This happens before deserializing the flex-model."""
-        if self.asset is not None:
-            return self.asset.flex_model.get("soc-min"), self.asset.flex_model.get(
-                "soc-max"
-            )
-        if self.sensor is not None:
-            return self.sensor.generic_asset.flex_model.get(
-                "soc-min"
-            ), self.sensor.generic_asset.flex_model.get("soc-max")
-        return None, None
-
-    def ensure_soc_min_max(self):
-        """
-        Make sure we have min and max SOC.
-        If not passed directly, then get default from asset or targets.
-        This happens before deserializing the flex-model.
-        """
-        soc_min_asset, soc_max_asset = self.get_min_max_soc_from_asset()
-        if "soc-min" not in self.flex_model or self.flex_model["soc-min"] is None:
-            # Default is 0 - can't drain the storage by more than it contains
-            self.flex_model["soc-min"] = soc_min_asset if soc_min_asset else 0
-        if "soc-max" not in self.flex_model or self.flex_model["soc-max"] is None:
-            self.flex_model["soc-max"] = soc_max_asset
-            # Lacking information about the battery's nominal capacity, we use the highest target value as the maximum state of charge
-            if self.flex_model["soc-max"] is None:
-                _, max_target = self.get_min_max_targets()
-                if max_target:
-                    self.flex_model["soc-max"] = max_target
-                else:
-                    raise ValueError(
-                        "Need maximal permitted state of charge, please specify soc-max or some soc-targets."
-                    )
-
     def _get_device_power_capacity(
         self,
         flex_model: list[dict],
@@ -1720,8 +1680,8 @@ class StorageScheduler(MetaStorageScheduler):
         If soc-max is missing or zero for a '%' sensor, the schedule is skipped with a warning.
 
         Note: soc-max is a QuantityField (not a VariableQuantityField), so it is always a float
-        after deserialization and cannot be a sensor reference.
-        The isinstance guard below is therefore a defensive check for forward-compatibility.
+        after deserialization and cannot be a sensor reference. The isinstance guard below is
+        therefore a defensive check for forward-compatibility.
 
         :returns: Tuple of (soc_schedule keyed by SoC sensor in sensor unit,
                             soc_schedule_mwh keyed by device index in MWh).
@@ -1792,7 +1752,6 @@ class StorageScheduler(MetaStorageScheduler):
         start: datetime,
         end: datetime,
         resolution: timedelta,
-        all: bool = True,
     ) -> tuple[list, list]:
         """Compute unmet and met SoC minima/maxima targets per device.
 
@@ -1817,7 +1776,6 @@ class StorageScheduler(MetaStorageScheduler):
         :param start:             Start of the schedule.
         :param end:               End of the schedule.
         :param resolution:        Schedule resolution.
-        :param all:               If True, include all results. If False, return single result per constraint type.
         :returns: A tuple ``(unresolved, resolved)``.
 
                   ``unresolved`` is a list of dicts, each with ``"asset"`` field and constraint info.
@@ -2173,15 +2131,6 @@ class StorageScheduler(MetaStorageScheduler):
                 }
                 for sensor, soc in soc_schedule.items()
             ]
-            scheduling_result = [
-                {
-                    "name": SCHEDULING_RESULT_KEY,
-                    "data": SchedulingJobResult(
-                        unresolved=unresolved,
-                        resolved=resolved,
-                    ),
-                }
-            ]
             # Determine which sensors are consumption vs. production output sensors
             consumption_output_sensors = {
                 flex_model_d["consumption"]["sensor"]
@@ -2202,6 +2151,15 @@ class StorageScheduler(MetaStorageScheduler):
                 }
                 for sensor, data in consumption_production_schedule.items()
             ]
+            scheduling_result = [
+                {
+                    "name": SCHEDULING_RESULT_KEY,
+                    "data": SchedulingJobResult(
+                        unresolved=unresolved,
+                        resolved=resolved,
+                    ),
+                }
+            ]
             return (
                 storage_schedules
                 + commitment_costs
@@ -2216,8 +2174,8 @@ class StorageScheduler(MetaStorageScheduler):
 def create_constraint_violations_message(constraint_violations: list) -> str:
     """Create a human-readable message with the constraint_violations.
 
-    :param constraint_violations:   List with the constraint violations.
-    :returns:                       Human-readable message.
+    :param constraint_violations: list with the constraint violations
+    :return: human-readable message
     """
     message = ""
 
@@ -2231,7 +2189,7 @@ def create_constraint_violations_message(constraint_violations: list) -> str:
 
 
 def build_device_soc_values(
-    soc_values: list[dict[str, datetime | float]] | pd.Series,
+    soc_values: ur.Quantity | list[dict[str, datetime | float]] | pd.Series | None,
     soc_at_start: float,
     start_of_schedule: datetime,
     end_of_schedule: datetime,
@@ -2257,6 +2215,22 @@ def build_device_soc_values(
     """
     if isinstance(soc_values, pd.Series):  # some tests prepare it this way
         device_values = soc_values
+    elif isinstance(soc_values, ur.Quantity):
+        device_values = initialize_series(
+            soc_values.magnitude,
+            start=start_of_schedule,
+            end=end_of_schedule,
+            resolution=resolution,
+            inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
+        )
+    elif soc_values is None:
+        device_values = initialize_series(
+            np.nan,
+            start=start_of_schedule,
+            end=end_of_schedule,
+            resolution=resolution,
+            inclusive="right",  # note that target values are indexed by their due date (i.e. inclusive="right")
+        )
     else:
         device_values = initialize_series(
             np.nan,
@@ -2339,8 +2313,8 @@ def add_storage_constraints(
     :param soc_targets:                 Exact targets for the state of charge at each time.
     :param soc_maxima:                  Maximum state of charge at each time.
     :param soc_minima:                  Minimum state of charge at each time.
-    :param soc_max:                     Maximum state of charge at all times.
-    :param soc_min:                     Minimum state of charge at all times.
+    :param soc_max:                     Maximum state of charge at all times, if configured.
+    :param soc_min:                     Minimum state of charge at all times, if configured.
     :returns:                           Constraints (StorageScheduler.COLUMNS) for a storage device, at each time step (index).
                                         See device_scheduler for possible column names.
     """
@@ -2439,8 +2413,8 @@ def validate_storage_constraints(
 
     :param constraints:         dataframe containing the constraints of a storage device
     :param soc_at_start:        State of charge at the start time.
-    :param soc_min:             Minimum state of charge at all times.
-    :param soc_max:             Maximum state of charge at all times.
+    :param soc_min:             Minimum state of charge at all times, if configured.
+    :param soc_max:             Maximum state of charge at all times, if configured.
     :param resolution:          Constant duration between the start of each time step.
     :returns:                   List of constraint violations, specifying their time, constraint and violation.
     """
@@ -2559,7 +2533,7 @@ def get_pattern_match_word(word: str) -> str:
       - word boundary
       - arithmetic operations
 
-    :returns: regex expression
+    :return: regex expression
     """
 
     regex = r"(^|\s|$|\b|\+|\-|\*|\/\|\\)"
@@ -2570,9 +2544,9 @@ def get_pattern_match_word(word: str) -> str:
 def sanitize_expression(expression: str, columns: list) -> tuple[str, list]:
     """Wrap column in commas to accept arbitrary column names (e.g. with spaces).
 
-    :param expression:  Expression to sanitize.
-    :param columns:     List with the name of the columns of the input data for the expression.
-    :returns:           Sanitized expression and columns (variables) used in the expression.
+    :param expression: expression to sanitize
+    :param columns: list with the name of the columns of the input data for the expression.
+    :return: sanitized expression and columns (variables) used in the expression
     """
 
     _expression = copy.copy(expression)
@@ -2605,7 +2579,7 @@ def validate_constraint(
                                 No need to use the syntax `column` to reference
                                 column, just use the column name.
     :param round_to_decimals:   Number of decimals to round off to before validating constraints.
-    :returns:                   List of constraint violations, specifying their time, constraint and violation.
+    :return:                    List of constraint violations, specifying their time, constraint and violation.
     """
 
     constraint_expression = f"{lhs_expression} {inequality} {rhs_expression}"
