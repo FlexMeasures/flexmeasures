@@ -704,12 +704,12 @@ def make_schedule(  # noqa: C901
     scheduler_specs: dict | None = None,
     dry_run: bool = False,
     **scheduler_kwargs: dict,
-) -> bool | dict:
+) -> dict:
     """
-    This function computes a schedule. It returns True if it ran successfully.
-    If the scheduler produced soft state-of-charge constraint analysis (see
-    ``SchedulingJobResult``), it instead returns that analysis as a dict with
-    ``unresolved`` and ``resolved`` keys.
+    This function computes a schedule. It returns a dict, empty on schedulers
+    that don't (yet) produce further analysis. If the scheduler produced soft
+    state-of-charge constraint analysis (see ``SchedulingJobResult``), the dict
+    instead holds that analysis under ``unresolved`` and ``resolved`` keys.
 
     It can be queued as a job (see create_scheduling_job).
     In that case, it will probably run on a different FlexMeasures node than where the job is created.
@@ -805,7 +805,7 @@ def make_schedule(  # noqa: C901
         rq_job.save_meta()
 
     # Save any result that specifies a sensor to save it to
-    scheduling_result_dict: dict | None = None
+    scheduling_result_dict: dict = {}
     for result in consumption_schedule:
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
@@ -852,7 +852,7 @@ def make_schedule(  # noqa: C901
         scheduler.persist_flex_model()
         db.session.commit()
 
-    return scheduling_result_dict if scheduling_result_dict is not None else True
+    return scheduling_result_dict
 
 
 def find_scheduler_class(asset_or_sensor: Asset | Sensor) -> type:

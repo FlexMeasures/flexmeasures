@@ -85,18 +85,17 @@ class JobAPI(FlaskView):
             Failed jobs also include traceback information when the worker
             stored it with the job result.
 
-            For a finished ``StorageScheduler`` job, ``result`` is an object
-            with soft state-of-charge constraint analysis: ``unresolved``
-            lists constraints the scheduler could not satisfy, and ``resolved``
-            lists constraints that were satisfied with some margin. Each device
-            entry's ``soc-minima``/``soc-maxima`` value is a list, holding one
-            entry per violated slot (for ``unresolved``) or per met slot with
-            its margin (for ``resolved``), ordered chronologically. Both arrays
-            are empty when the flex model defines no ``soc-minima``/``soc-maxima``.
-            Other scheduling jobs (e.g. ``ProcessScheduler``), and all other
-            job types, keep the boolean ``true`` a finished job used to return
-            unconditionally. This is the only place constraint analysis is
-            available — the sensor schedule endpoint
+            For a finished scheduling job, ``result`` is an object. For a
+            ``StorageScheduler`` job it holds soft state-of-charge constraint
+            analysis: ``unresolved`` lists constraints the scheduler could not
+            satisfy, and ``resolved`` lists constraints that were satisfied
+            with some margin. Each device entry's ``soc-minima``/``soc-maxima``
+            value is a list, holding one entry per violated slot (for
+            ``unresolved``) or per met slot with its margin (for ``resolved``),
+            ordered chronologically. Both arrays are empty when the flex model
+            defines no ``soc-minima``/``soc-maxima``, or when a scheduler other
+            than ``StorageScheduler`` was used. This is the only place
+            constraint analysis is available — the sensor schedule endpoint
             (``GET /api/v3_0/sensors/<id>/schedules/<uuid>``) returns power
             values only.
           security:
@@ -135,11 +134,12 @@ class JobAPI(FlaskView):
                       result:
                         description: >
                           Return value of the job function, or null when not yet
-                          available. For a finished ``StorageScheduler`` job, this
-                          is an object with ``unresolved``/``resolved`` soft
-                          state-of-charge constraint analysis (both arrays empty
-                          when the flex model defines no ``soc-minima``/``soc-maxima``).
-                          Other scheduling jobs and job types return ``true``.
+                          available. For a finished scheduling job, this is an
+                          object; a ``StorageScheduler`` job populates it with
+                          ``unresolved``/``resolved`` soft state-of-charge
+                          constraint analysis (empty arrays when the flex model
+                          defines no ``soc-minima``/``soc-maxima``, or when a
+                          scheduler other than ``StorageScheduler`` was used).
                         nullable: true
                       func_name:
                         type: string
