@@ -1752,7 +1752,7 @@ class StorageScheduler(MetaStorageScheduler):
         start: datetime,
         end: datetime,
         resolution: timedelta,
-        all: bool = True,
+        most_relevant_only: bool = False,
     ) -> tuple[list, list]:
         """Compute unmet and met SoC minima/maxima targets per device.
 
@@ -1777,23 +1777,23 @@ class StorageScheduler(MetaStorageScheduler):
         :param start:             Start of the schedule.
         :param end:               End of the schedule.
         :param resolution:        Schedule resolution.
-        :param all:               If True (the default), report every violated/met slot.
-                                   If False, report only the single most relevant slot
-                                   (the first violation, or the tightest margin).
-                                   Either way, the result holds a list.
+        :param most_relevant_only: If False (the default), report every violated/met slot.
+                                    If True, report only the single most relevant slot
+                                    (the first violation, or the tightest margin).
+                                    Either way, the result holds a list.
         :returns: A tuple ``(unresolved, resolved)``.
 
                   ``unresolved`` is a list of dicts, each with ``"asset"`` field and constraint info.
                   Each constraint entry is a list of dicts
                   ``{"datetime": <ISO 8601 UTC string>, "violation": "<value> kWh"}``
-                  (one per violated slot, or just the first if ``all`` is False),
+                  (one per violated slot, or just the first if ``most_relevant_only`` is True),
                   where ``violation`` is always positive.
 
                   ``resolved`` is also a list of dicts with ``"asset"`` field and constraint info.
                   Each constraint entry is a list of dicts
                   ``{"datetime": <ISO 8601 UTC string>, "margin": "<value> kWh"}``
                   (one per met slot, or just the slot with the tightest/smallest positive
-                  margin if ``all`` is False).
+                  margin if ``most_relevant_only`` is True).
         """
         # Use the configured rounding precision, or the scheduler's default of 6.
         precision = self.round_to_decimals if self.round_to_decimals is not None else 6
@@ -1842,7 +1842,9 @@ class StorageScheduler(MetaStorageScheduler):
                     violations = shortages[shortages > 0]
                     if not violations.empty:
                         violation_times = (
-                            violations.index if all else [violations.index[0]]
+                            [violations.index[0]]
+                            if most_relevant_only
+                            else violations.index
                         )
                         device_violations["soc-minima"] = [
                             {
@@ -1855,7 +1857,9 @@ class StorageScheduler(MetaStorageScheduler):
                         # All minima met — margins are the headroom above the minimum.
                         # violations.empty guarantees shortages <= 0, so margins (soc - minima) >= 0.
                         margins = aligned_soc - defined_minima
-                        margin_times = margins.index if all else [margins.idxmin()]
+                        margin_times = (
+                            [margins.idxmin()] if most_relevant_only else margins.index
+                        )
                         device_resolved["soc-minima"] = [
                             {
                                 "datetime": t.tz_convert("UTC").isoformat(),
@@ -1883,7 +1887,9 @@ class StorageScheduler(MetaStorageScheduler):
                     violations = excesses[excesses > 0]
                     if not violations.empty:
                         violation_times = (
-                            violations.index if all else [violations.index[0]]
+                            [violations.index[0]]
+                            if most_relevant_only
+                            else violations.index
                         )
                         device_violations["soc-maxima"] = [
                             {
@@ -1896,7 +1902,9 @@ class StorageScheduler(MetaStorageScheduler):
                         # All maxima met — margins are the headroom below the maximum.
                         # violations.empty guarantees excesses <= 0, so margins (maxima - soc) >= 0.
                         margins = defined_maxima - aligned_soc
-                        margin_times = margins.index if all else [margins.idxmin()]
+                        margin_times = (
+                            [margins.idxmin()] if most_relevant_only else margins.index
+                        )
                         device_resolved["soc-maxima"] = [
                             {
                                 "datetime": t.tz_convert("UTC").isoformat(),
