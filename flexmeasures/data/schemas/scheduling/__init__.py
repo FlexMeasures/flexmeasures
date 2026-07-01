@@ -1128,7 +1128,7 @@ class AssetTriggerSchema(Schema):
         data_key="flex-model",
         load_default=[],
     )
-    flex_context = fields.Dict(
+    flex_context = fields.Raw(
         required=False,
         data_key="flex-context",
         load_default={},
@@ -1146,6 +1146,37 @@ class AssetTriggerSchema(Schema):
             description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
         ),
     )
+
+    @pre_load
+    def normalize_flex_context_format(self, data, **kwargs):
+        """Normalize flex_context to always be a dict.
+
+        Accepts both:
+        - Single commodity dict: {"commodity": "electricity", ...}
+        - List of commodity dicts: [{"commodity": "electricity", ...}, {"commodity": "heat", ...}]
+        - MultiDict with multiple 'flex-context' entries (when JSON list is parsed by webargs)
+
+        If a list is provided, it is wrapped under the 'commodities' field.
+        If a dict is provided, it is kept as-is.
+        This ensures downstream code always sees a dict structure.
+        """
+        if "flex-context" in data:
+            raw_flex_context = data.get("flex-context")
+
+            # Check if data is a MultiDict with multiple 'flex-context' entries
+            # This happens when JSON contains a list which webargs converts to multiple entries
+            if hasattr(data, "getlist"):
+                # MultiDict case - get all values for 'flex-context'
+                flex_contexts = data.getlist("flex-context")
+                if len(flex_contexts) > 1:
+                    # Multiple commodities: wrap in a dict with commodity_contexts field
+                    data["flex-context"] = {"commodities": flex_contexts}
+                # If only 1 entry, leave as-is (it's already a dict)
+            elif isinstance(raw_flex_context, list):
+                # Regular list case
+                data["flex-context"] = {"commodities": raw_flex_context}
+            # else: already a dict, leave as-is
+        return data
 
     @validates_schema
     def check_flex_model_sensors(self, data, **kwargs):
