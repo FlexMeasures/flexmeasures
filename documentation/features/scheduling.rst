@@ -372,8 +372,7 @@ The scheduling workflow looks like this:
 3. **Retrieve constraint analysis** for all flexible assets via ``GET /api/v3_0/jobs/<uuid>``.
    The ``result`` field in the response shows whether the state-of-charge targets for sensors 5 and 6 could be met, and by how much.
    For a finished ``StorageScheduler`` job, ``result`` is always an object with ``unresolved`` and ``resolved`` constraint analysis (as shown below);
-   both arrays are simply empty when the flex model defines no ``soc-minima``/``soc-maxima``.
-   Other scheduling jobs (e.g. ``ProcessScheduler``) keep returning ``result: true`` on success, as before.
+   both arrays are simply empty when the flex model defines no ``soc-minima``/``soc-maxima``, or when a scheduler other than ``StorageScheduler`` was used.
 
 The constraint results distinguish between:
 
