@@ -8,7 +8,7 @@ class SchedulingJobResult:
     """Constraint analysis results from a scheduling job.
 
     Holds soft state-of-charge constraint analysis (unmet and satisfied targets) produced by the scheduler when optimizing storage devices.
-    Results are available exclusively via ``GET /api/v3_0/jobs/<uuid>`` in the ``scheduling_result`` field.
+    Results are available exclusively via ``GET /api/v3_0/jobs/<uuid>`` in the ``result`` field.
 
     The sensor schedule endpoint (``GET /api/v3_0/sensors/<id>/schedules/<job_id>``) returns power values only and does not include constraint analysis.
 

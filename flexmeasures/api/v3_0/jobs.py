@@ -14,7 +14,6 @@ from marshmallow import fields
 from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
-from flexmeasures.data.models.planning.storage import SCHEDULING_RESULT_KEY
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.utils import get_asset_or_sensor_from_ref
 
@@ -86,16 +85,20 @@ class JobAPI(FlaskView):
             Failed jobs also include traceback information when the worker
             stored it with the job result.
 
-            Scheduling jobs may additionally include a ``scheduling_result``
-            field with soft state-of-charge constraint analysis: ``unresolved``
+            For a finished ``StorageScheduler`` job, ``result`` is an object
+            with soft state-of-charge constraint analysis: ``unresolved``
             lists constraints the scheduler could not satisfy, and ``resolved``
             lists constraints that were satisfied with some margin. Each device
             entry's ``soc-minima``/``soc-maxima`` value is a list, holding one
             entry per violated slot (for ``unresolved``) or per met slot with
-            its margin (for ``resolved``), ordered chronologically. This is the
-            only place constraint analysis is available — the sensor schedule
-            endpoint (``GET /api/v3_0/sensors/<id>/schedules/<uuid>``) returns
-            power values only.
+            its margin (for ``resolved``), ordered chronologically. Both arrays
+            are empty when the flex model defines no ``soc-minima``/``soc-maxima``.
+            Other scheduling jobs (e.g. ``ProcessScheduler``), and all other
+            job types, keep the boolean ``true`` a finished job used to return
+            unconditionally. This is the only place constraint analysis is
+            available — the sensor schedule endpoint
+            (``GET /api/v3_0/sensors/<id>/schedules/<uuid>``) returns power
+            values only.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -130,7 +133,13 @@ class JobAPI(FlaskView):
                         type: string
                         description: Human-readable description of the job status.
                       result:
-                        description: Return value of the job function, or null when not yet available.
+                        description: >
+                          Return value of the job function, or null when not yet
+                          available. For a finished ``StorageScheduler`` job, this
+                          is an object with ``unresolved``/``resolved`` soft
+                          state-of-charge constraint analysis (both arrays empty
+                          when the flex model defines no ``soc-minima``/``soc-maxima``).
+                          Other scheduling jobs and job types return ``true``.
                         nullable: true
                       func_name:
                         type: string
@@ -157,19 +166,6 @@ class JobAPI(FlaskView):
                         type: string
                         nullable: true
                         description: Traceback information for failed jobs, or null otherwise.
-                      scheduling_result:
-                        type: object
-                        nullable: true
-                        description: >
-                          Soft state-of-charge constraint analysis, present only for
-                          finished scheduling jobs. Omitted entirely for other job types.
-                        properties:
-                          unresolved:
-                            type: array
-                            description: Soft constraints the scheduler could not satisfy.
-                          resolved:
-                            type: array
-                            description: Soft constraints satisfied with some margin.
                   examples:
                     queued:
                       summary: Queued job
@@ -188,14 +184,7 @@ class JobAPI(FlaskView):
                       value:
                         status: FINISHED
                         message: "Scheduling job has finished."
-                        result: null
-                        func_name: "flexmeasures.data.services.scheduling.create_schedule"
-                        origin: scheduling
-                        enqueued_at: "2026-04-28T10:00:00+00:00"
-                        started_at: "2026-04-28T10:00:01+00:00"
-                        ended_at: "2026-04-28T10:00:05+00:00"
-                        exc_info: null
-                        scheduling_result:
+                        result:
                           unresolved:
                             - asset: 42
                               soc-minima:
@@ -204,6 +193,12 @@ class JobAPI(FlaskView):
                                 - datetime: "2024-01-01T10:15:00+00:00"
                                   violation: "180.0 kWh"
                           resolved: []
+                        func_name: "flexmeasures.data.services.scheduling.create_schedule"
+                        origin: scheduling
+                        enqueued_at: "2026-04-28T10:00:00+00:00"
+                        started_at: "2026-04-28T10:00:01+00:00"
+                        ended_at: "2026-04-28T10:00:05+00:00"
+                        exc_info: null
                     failed:
                       summary: Failed job
                       value:
@@ -272,9 +267,5 @@ class JobAPI(FlaskView):
             ended_at=_isoformat_or_none(job.ended_at),
             exc_info=failed_job_exc_info(job),
         )
-
-        scheduling_result = job.meta.get(SCHEDULING_RESULT_KEY)
-        if scheduling_result is not None:
-            response["scheduling_result"] = scheduling_result
 
         return response, 200
