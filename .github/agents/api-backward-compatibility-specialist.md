@@ -219,6 +219,65 @@ value = params.get("sensor_to_save")
 - **Architecture Specialist**: Enforces "schema as source of truth" invariant
 - **API Specialist**: Verifies API documentation matches format
 
+#### Data Format Mismatch Pattern
+
+**Problem** (PR #2072 - Constraint Analysis):
+
+Data transformations between API layers can silently use incompatible key types:
+- Layer 1 produces asset-keyed results
+- Layer 2 expects sensor-keyed results
+- No schema validation catches the mismatch
+- Silent data corruption in API response
+
+**Manifestation**:
+```python
+# Layer 1: Produces asset_id keyed dict
+results = {asset_id: [values]}  # ✅ Correct
+
+# Layer 2: Function assumes sensor_id keys
+def _sensor_keyed_to_asset_keyed(sensor_keyed_results):  # ❌ Misleading name
+    # Actually receives asset-keyed data
+    # Treats asset_ids as sensor_ids
+    # Returns corrupted mapping
+```
+
+**Prevention Checklist**:
+
+1. **Function naming must indicate format**: Use clear names like `_asset_keyed_to_list()` not `_transform_results()`
+2. **Marshmallow schemas for transforms**: Add explicit response schemas, don't rely on inline OpenAPI:
+   ```python
+   class ConstraintAnalysisResponseSchema(Schema):
+       """Validates end-to-end data format"""
+       asset_id = fields.Int(required=True)
+       data = fields.Nested(ConstraintDataSchema, many=True)
+   ```
+3. **Integration tests verify data flow**: Test that end-to-end transformations preserve data semantics:
+   ```python
+   def test_constraint_analysis_returns_asset_keyed_results():
+       result = constraint_analysis_transform(asset_data)
+       assert all(isinstance(k, int) for k in result.keys()), "Keys must be asset IDs"
+       # NOT just: assert result is not None
+   ```
+4. **Document key types in docstrings**: Be explicit about what each layer expects/produces:
+   ```python
+   def analyze_constraints(data):
+       """Transform constraint results.
+       
+       Args:
+           data: asset_id -> constraint_list mapping
+       
+       Returns:
+           dict: asset_id -> formatted_constraints mapping (keys are asset IDs, not sensor IDs)
+       """
+   ```
+
+**Why This Matters for Backward Compatibility**:
+- Silent data corruption breaks client contracts subtly
+- Clients may succeed but get wrong data
+- Testing may pass with mismatched formats if tests don't validate keys
+- Makes it hard to reason about what the API actually returns
+- Requires coordination with clients to fix (breaking change)
+
 ### CLI Command Changes
 
 - [ ] **Argument changes**: Adding required args breaks scripts
