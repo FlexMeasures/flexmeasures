@@ -390,7 +390,7 @@ Each constraint result includes:
 Example: Constraint results from a battery scheduling job
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Suppose you schedule a battery device (asset ID 42, SoC sensor ID 17) with the following constraints:
+Suppose you schedule a battery device (asset ID 42) with the following constraints:
 
 - **soc-minima**: Battery must stay above 60 kWh
 - **soc-maxima**: Battery must not exceed 100 kWh
@@ -410,7 +410,6 @@ the constraint results would show:
             "unresolved": [
                 {
                     "asset": 42,
-                    "sensor": 17,
                     "soc-minima": {
                         "datetime": "2024-01-15T10:30:00+00:00",
                         "violation": "20.0 kWh"
@@ -420,7 +419,6 @@ the constraint results would show:
             "resolved": [
                 {
                     "asset": 42,
-                    "sensor": 17,
                     "soc-maxima": {
                         "datetime": "2024-01-15T12:00:00+00:00",
                         "margin": "40.0 kWh"
