@@ -26,7 +26,9 @@ def _transform_asset_keyed_to_list(
     """Transform asset-keyed constraint targets to list format for API response.
 
     Converts internal storage format (dict keyed by asset ID) to the API response
-    format (list of dicts with explicit "asset" field).
+    format (list of dicts with explicit "asset" field). The list format is more
+    natural for JSON consumers and avoids issues with numeric asset keys in JSON
+    serialization.
 
     Args:
         asset_keyed_targets: Dict keyed by asset ID string, with constraint info as values

@@ -377,8 +377,8 @@ The scheduling workflow looks like this:
 
 The constraint results distinguish between:
 
-- Constraints that were **unresolved**: Soft constraints that could not be satisfied during optimization, with the shortfall or excess reported as its **violation**.
-- Constraints that were **resolved**: Soft constraints that were satisfied, with the headroom remaining reported as its **margin**.
+- Constraints that were **unresolved**: Soft constraints that could not be satisfied during optimization, with the shortfall or excess reported as their **violation**.
+- Constraints that were **resolved**: Soft constraints that were satisfied, with the headroom remaining reported as their **margin**.
 
 Each constraint result includes:
 
