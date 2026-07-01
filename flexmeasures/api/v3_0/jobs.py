@@ -160,7 +160,7 @@ class JobAPI(FlaskView):
                     if isinstance(scheduling_result, dict)
                     else scheduling_result.unresolved
                 ),
-                "margins": _transform_sensor_keyed_to_asset_keyed(
+                "resolved": _transform_sensor_keyed_to_asset_keyed(
                     scheduling_result.get("resolved", {})
                     if isinstance(scheduling_result, dict)
                     else scheduling_result.resolved

@@ -417,7 +417,7 @@ the constraint results would show:
                     }
                 }
             ],
-            "margins": [
+            "resolved": [
                 {
                     "asset": 42,
                     "sensor": 17,
@@ -437,7 +437,7 @@ Interpreting constraint results for optimization decisions
 **When constraints are all met:**
 
 An empty ``unresolved`` array indicates successful optimization.
-However, check the values in ``margins`` to understand how tight the constraints were:
+However, check the values in ``resolved`` to understand how tight the constraints were:
 
 - Large margins (e.g., 50 kWh) suggest the device has significant flexibility headroom.
 - Small margins (e.g., 5 kWh) indicate the constraints were nearly violated.
