@@ -1,0 +1,94 @@
+
+# Manually-triggered QA workflow for release testing. It spins up the local
+# docker compose stack, then runs:
+#   - the toy tutorials 1-4, using the runner scripts kept in the
+#     FlexMeasures/tsc repo (tsc/scripts/run-tutorial*-in-docker.sh)
+#   - the HEMS walkthrough, using the example kept in the
+#     FlexMeasures/flexmeasures-client repo (examples/HEMS/HEMS_setup.py)
+#
+# This does not replace manual QA (e.g. UI login/graph checks, tutorial 5,
+# exploratory testing) -- see documentation/dev/release_process.rst.
+
+name: QA (release)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tsc-ref:
+        description: "Branch/tag/ref to use from FlexMeasures/tsc"
+        required: false
+        default: "main"
+      flexmeasures-client-ref:
+        description: "Branch/tag/ref to use from FlexMeasures/flexmeasures-client"
+        required: false
+        default: "main"
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout flexmeasures
+        uses: actions/checkout@v4
+
+      - name: Build and start the docker compose stack
+        run: docker compose up --build --detach --wait --wait-timeout 300
+
+      - name: Checkout tsc tutorial scripts
+        uses: actions/checkout@v4
+        with:
+          repository: FlexMeasures/tsc
+          ref: ${{ inputs.tsc-ref }}
+          sparse-checkout: tsc/scripts
+          sparse-checkout-cone-mode: false
+          path: tsc
+
+      - name: Run tutorials 1-4
+        run: |
+          for script in tsc/tsc/scripts/run-tutorial-in-docker.sh \
+                        tsc/tsc/scripts/run-tutorial2-in-docker.sh \
+                        tsc/tsc/scripts/run-tutorial3-in-docker.sh \
+                        tsc/tsc/scripts/run-tutorial4-in-docker.sh; do
+            echo "::group::Running $script"
+            # The scripts use `docker exec -it`, which requires a tty we don't have here.
+            sed 's/docker exec -it/docker exec -i/' "$script" | bash
+            echo "::endgroup::"
+          done
+
+      - name: Create HEMS admin account and user
+        run: |
+          OUTPUT=$(docker compose exec -T server flexmeasures add account --name "HEMS Admin Org")
+          echo "$OUTPUT"
+          ACCOUNT_ID=$(echo "$OUTPUT" | grep -oP '(?<=ID: )\d+')
+          docker compose exec -T server bash -c \
+            "printf 'admin\nadmin\n' | flexmeasures add user --username admin --email admin@admin.com --account $ACCOUNT_ID --roles admin"
+
+      - name: Checkout flexmeasures-client
+        uses: actions/checkout@v4
+        with:
+          repository: FlexMeasures/flexmeasures-client
+          ref: ${{ inputs.flexmeasures-client-ref }}
+          path: flexmeasures-client
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.10.9"
+          enable-cache: true
+
+      - name: Run the HEMS example against the running stack
+        working-directory: flexmeasures-client
+        run: |
+          uv sync
+          cd examples/HEMS
+          uv run --project .. python3 HEMS_setup.py
+
+      - name: Show stack logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down the stack
+        if: always()
+        run: docker compose down --volumes
