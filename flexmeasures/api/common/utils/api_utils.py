@@ -260,6 +260,34 @@ def convert_asset_json_fields(asset_kwargs):
     return asset_kwargs
 
 
+def _remove_template_copy_guidance(description: str | None) -> str | None:
+    """Strip template-specific copy instructions from an asset description."""
+    if not description:
+        return description
+
+    cleaned_description = re.sub(
+        r"\s*Copy this(?: asset)?\b.*?(?:\.\s*|$)",
+        "",
+        description,
+        flags=re.IGNORECASE,
+    ).strip()
+    return cleaned_description or None
+
+
+def _sanitize_copied_asset_kwargs(asset_kwargs: dict) -> dict:
+    """Turn a copied template into a regular asset payload."""
+    attributes = asset_kwargs.get("attributes")
+    if isinstance(attributes, dict) and "template" in attributes:
+        sanitized_attributes: dict = deepcopy(attributes)
+        sanitized_attributes.pop("template", None)
+        asset_kwargs["attributes"] = sanitized_attributes
+        asset_kwargs["description"] = _remove_template_copy_guidance(
+            asset_kwargs.get("description")
+        )
+
+    return asset_kwargs
+
+
 def _copy_direct_sensors(
     source_asset: GenericAsset, copied_asset: GenericAsset
 ) -> dict[int, int]:
@@ -465,6 +493,7 @@ def _copy_asset_subtree(
     # set external_id to None to avoid conflicts with unique constraint on (account_id, external_id)
     asset_kwargs["external_id"] = None
     asset_kwargs = convert_asset_json_fields(asset_kwargs)
+    asset_kwargs = _sanitize_copied_asset_kwargs(asset_kwargs)
 
     copied_asset = GenericAsset(**asset_kwargs)
     db.session.add(copied_asset)

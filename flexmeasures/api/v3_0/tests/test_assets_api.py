@@ -907,6 +907,50 @@ def test_copy_asset_increments_name_under_same_parent(
     assert third_copy.name == f"{battery.name} (Copy 3)"
 
 
+def test_copy_template_asset_drops_template_metadata(
+    setup_api_test_data, setup_accounts, db
+):
+    """Copying a template should yield a regular asset in the target account."""
+    prosumer_account = setup_accounts["Prosumer"]
+    battery = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    assert battery is not None
+
+    template_asset = GenericAsset(
+        name="Battery Template",
+        generic_asset_type_id=battery.generic_asset_type_id,
+        account_id=None,
+        description=(
+            "Single battery asset with example power and state-of-charge sensors, "
+            "plus a basic storage flex-model. Copy this to start modeling a battery."
+        ),
+        attributes={"template": {"key": "battery-template", "has_scenarios": False}},
+    )
+    db.session.add(template_asset)
+    db.session.flush()
+
+    assert template_asset.attributes["template"]["key"] == "battery-template"
+    assert "Copy this" in template_asset.description
+
+    copied_asset = copy_asset(template_asset, account=prosumer_account)
+
+    assert copied_asset.account_id == prosumer_account.id
+    assert copied_asset.parent_asset_id is None
+    assert copied_asset.attributes == {}
+    assert copied_asset.description == (
+        "Single battery asset with example power and state-of-charge sensors, "
+        "plus a basic storage flex-model."
+    )
+
+    # The source template stays available as a template for future copies.
+    assert template_asset.attributes["template"]["key"] == "battery-template"
+    assert "Copy this" in template_asset.description
+
+
 def test_copy_asset_to_another_account_preserves_config(
     setup_api_test_data, setup_accounts, setup_markets, setup_generic_asset_types, db
 ):
