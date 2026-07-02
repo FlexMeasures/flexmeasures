@@ -1,185 +1,269 @@
 {% macro show_tree(assets, current_asset_name) %}
-  <div class="container">
-    <div id="view"></div>
+  <div class="container pb-4" style="position: relative;">
+    <div id="view-scroll" style="width: 100%; height: 75vh; min-height: 500px; overflow-y: auto; overflow-x: hidden; border-radius: 8px; border: 1px solid #e2e8f0; background-color: #f8fafc; box-shadow: inset 0 2px 4px 0 rgba(0,0,0,0.06);">
+      <div id="view-zoom" style="width: 100%; height: 100%; transform-origin: center center; transition: transform 0.12s ease;">
+        <div id="view" style="width: 100%; height: 100%;"></div>
+      </div>
+    </div>
+    <!-- Zoom controls (overlaid on the top-right of the tree) -->
+    <div class="btn-group btn-group-sm" role="group" aria-label="Zoom"
+         style="position: absolute; top: 12px; right: 24px; z-index: 5; box-shadow: 0 1px 4px rgba(0,0,0,0.15);">
+      <button type="button" id="treeZoomOut" class="btn btn-light border" title="Zoom out">&minus;</button>
+      <button type="button" id="treeZoomReset" class="btn btn-light border" title="Reset zoom">Reset</button>
+      <button type="button" id="treeZoomIn" class="btn btn-light border" title="Zoom in">+</button>
+    </div>
   </div>
 
-
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script type="text/javascript">
   window.onload = function(){
 
   let assets = {{ assets | safe }};
   let currentAssetName = {{ current_asset_name | tojson }};
 
-  {# Vega Spec adapted from https://stackoverflow.com/a/76300309 #}
+      // 1. Build hierarchy from flat list
+      let assetMap = {};
+      let rootNodes = [];
 
+      assets.forEach(asset => {
+        assetMap[asset.id] = {
+          name: asset.name,
+          ...asset,
+          children: []
+        };
+      });
 
-treeSpecs = {
-  "$schema": "https://vega.github.io/schema/vega/v5.json",
-  "width": 1000,
-  "height": 650,
-  "padding": 0,
-  "autosize": {"type": "fit", "resize": false},
-  "signals": [
-    {"name": "nodeWidth", "value": 240},
-    {"name": "nodeHeight", "value": 40},
-    {"name": "verticalNodeGap", "value": 10},
-    {"name": "horizontalNodeGap", "value": 60},
-    {"name": "currentAssetName", "value": currentAssetName},
-    {
-      "name": "scaledNodeHeight",
-      "update": "abs(nodeHeight/ max(span(ydom),height))*height"
-    },
-    {"name": "scaledNodeWidth", "update": "(nodeWidth / span(xdom)) * width"},
-    {"name": "xrange", "update": "[0, width]"},
-    {"name": "yrange", "update": "[0, height]"},
-    {"name": "scaledFont13", "update": "(30/ span(xdom))*width"},
-    {"name": "scaledLimit", "update": "(30/ span(xdom))*width"},
-    {
-      "name": "xdom",
-      "update": "slice(xext)",
-    },
-    {
-      "name": "ydom",
-      "update": "slice(yext)",
-    },
-  ],
-  "data": [
-    {
-      "name": "tree",
-      "values": assets,
-      "transform": [
-        {"type": "stratify", "key": "id", "parentKey": "parent"},
-        {
-          "type": "tree",
-          "method": "tidy",
-          "size": [{"signal": "nodeHeight * 0.1"},
-                   {"signal": "width"}
-          ],
-          "separation": {"signal": "true"},
-          "nodeSize" : [
-            {"signal": "nodeHeight+verticalNodeGap"},
-            {"signal": "nodeWidth+horizontalNodeGap"}
-
-        ],
-          "as": ["y", "x", "depth", "children"],
-        },
-        {"type": "extent", "field": "x", "signal": "xext"},
-        {"type": "extent", "field": "y", "signal": "yext"}
-      ]
-    },
-    {
-      "name": "links",
-      "source": "tree",
-      "transform": [
-        {"type": "treelinks", "signal": "upstream"},
-        {
-          "type": "linkpath",
-          "orient": "horizontal",
-          "shape": {"signal": "'diagonal'"},
-          "sourceY": {"expr": "scale('yscale', datum.source.y)"},
-          "sourceX": {"expr": "scale('xscale', datum.source.x)"},
-          "targetY": {"expr": "scale('yscale', datum.target.y)"},
-          "targetX": {"expr": "scale('xscale', datum.target.x)"}
+      assets.forEach(asset => {
+        if (asset.parent === null || asset.parent === undefined) {
+          rootNodes.push(assetMap[asset.id]);
+        } else {
+          if (assetMap[asset.parent]) {
+            assetMap[asset.parent].children.push(assetMap[asset.id]);
+          } else {
+            rootNodes.push(assetMap[asset.id]);
+          }
         }
-      ]
-    }
-  ],
-  "scales": [
-    {
-      "name": "xscale",
-      "zero": false,
-      "domain": {"signal": "xdom"},
-      "range": {"signal": "xrange"}
-    },
-    {
-      "name": "yscale",
-      "zero": false,
-      "domain": {"signal": "ydom"},
-      "range": {"signal": "yrange"}
-    }
-  ],
-  "marks": [
-    {
-      "type": "path",
-      "from": {"data": "links"},
-      "encode": {
-        "update": {"path": {"field": "path"}, "stroke": {"value": "#aaa"}}
+      });
+
+      var scrollDom = document.getElementById('view-scroll');
+      var chartDom = document.getElementById('view');
+      // SVG renderer so the tree stays crisp when zoomed in via CSS transform.
+      var myChart = echarts.init(chartDom, null, { renderer: 'svg' });
+
+      // Count the leaf nodes. In a horizontal tree, every leaf occupies its own
+      // vertical slot, so the leaf count is what determines how tightly nodes
+      // are packed vertically - and therefore how large each box can be.
+      function countLeaves(roots) {
+        var n = 0;
+        (function walk(list) {
+          list.forEach(function(x) {
+            if (!x.children || x.children.length === 0) { n++; }
+            else { walk(x.children); }
+          });
+        })(roots);
+        return Math.max(n, 1);
       }
-    },
-    {
-      "name": "node",
-      "description": "The Parent Node",
-      "type": "group",
-      "clip": false,
-      "from": {"data": "tree"},
-      "encode": {
-        "update": {
-          "x": {"field": "x", "scale": "xscale"},
-          "width": {
-            "signal": "datum.name === currentAssetName ? scaledNodeWidth * 1.1 : scaledNodeWidth"
-          },
-          "yc": {"field": "y", "scale": "yscale"},
-          "height": {
-            "signal": "datum.name === currentAssetName ? scaledNodeHeight * 1.1 : scaledNodeHeight"
-          },
-          "fill": {
-            "signal": "datum.name === currentAssetName ? 'gold' : datum.name === 'Add asset' ? 'green' : 'lightblue'"
-          },
-          "stroke": {
-            "signal": "datum.name === currentAssetName ? 'darkorange' : 'black'"
-          },
-          "strokeWidth": {
-            "signal": "datum.name === currentAssetName ? 4 : 1"
-          },
-          "cornerRadius": {"value": 5},
-          "href": {"signal": "datum.link"},
-          "tooltip": {"signal": "datum.tooltip"}
+
+      function updateChart() {
+        var leaves = countLeaves(rootNodes);
+        var viewportH = scrollDom.clientHeight;
+
+        // Size each box to FIT the viewport: divide the usable height among the
+        // leaves, reserving a vertical gap per node. Clamp to a legible range so
+        // few assets get large boxes and many assets get small (but readable) ones.
+        var GAP_RATIO = 0.28;                 // vertical gap as a fraction of box
+        var fitBox    = (viewportH * 0.92 / leaves) / (1 + GAP_RATIO);
+        var BOX_SIZE  = Math.round(Math.max(50, Math.min(104, fitBox)));
+        var ICON_SIZE = Math.floor(BOX_SIZE * 0.26);
+        var FONT_SIZE = Math.max(8, Math.min(13, Math.round(BOX_SIZE * 0.13)));
+        var LINE_H    = FONT_SIZE + 2;
+
+        // Each node needs a vertical slot of box + gap. Boxes only stop shrinking
+        // at the 50px floor; past that the column is taller than the viewport, so
+        // we grow the canvas and let the container scroll instead of overlapping.
+        var SLOT    = Math.round(BOX_SIZE * (1 + GAP_RATIO));
+        var canvasH = Math.max(viewportH, leaves * SLOT);
+        chartDom.style.height = canvasH + 'px';
+        myChart.resize();
+
+        // How many text lines fit under the icon, inside the box?
+        var textBudget = BOX_SIZE - ICON_SIZE - 10;
+        var MAX_LINES  = Math.min(3, Math.max(1, Math.floor(textBudget / LINE_H)));
+        // Approx chars per line at this font (~0.56em average glyph width).
+        var charsPerLine = Math.max(4, Math.floor((BOX_SIZE - 12) / (FONT_SIZE * 0.56)));
+
+        // Deterministically wrap a name into at most MAX_LINES lines, breaking on
+        // spaces where possible and ellipsising the overflow. We do this ourselves
+        // rather than rely on ECharts' rich-text width wrapping, which proved
+        // unreliable for long names (they would overflow the box horizontally).
+        function wrapName(name) {
+          var words = String(name).split(/\s+/);
+          var lines = [];
+          var cur = '';
+          function pushHardWrapped(word) {
+            while (word.length > charsPerLine) {
+              lines.push(word.slice(0, charsPerLine));
+              word = word.slice(charsPerLine);
+            }
+            return word;
+          }
+          for (var i = 0; i < words.length; i++) {
+            var w = words[i];
+            var candidate = cur ? (cur + ' ' + w) : w;
+            if (candidate.length <= charsPerLine) {
+              cur = candidate;
+            } else {
+              if (cur) { lines.push(cur); cur = ''; }
+              if (w.length > charsPerLine) { w = pushHardWrapped(w); }
+              cur = w;
+            }
+          }
+          if (cur) lines.push(cur);
+          if (lines.length > MAX_LINES) {
+            lines = lines.slice(0, MAX_LINES);
+            var last = lines[MAX_LINES - 1];
+            lines[MAX_LINES - 1] = last.slice(0, Math.max(1, charsPerLine - 1)).trimEnd() + '…';
+          }
+          return lines.join('\n');
         }
-      },
-      "marks": [
-        {
-          "type": "text",
-          "interactive": false,
-          "name": "name",
-          "encode": {
-            "update": {
-              "x": {"signal": "(5/ span(xdom))*width + (scaledNodeWidth * 0.2)"},
-              "y": {"signal": "(5/ span(xdom))*width + (scaledNodeHeight * 0.15)"},
-              "fontWeight": {"value": "bold"},
-              "baseline": {"value": "line-top"},
-              "text": {"signal": "parent.name"},
-              "fontSize": {
-                "signal": "datum.name === currentAssetName ? scaledFont13 * 1.4 : scaledFont13"
-              },
-              "fill": {
-                "signal": "parent.name === currentAssetName ? 'black' : parent.name === 'Add asset' ? 'white' : 'darkblue'"
-              },
-              "limit": {"signal": "scaledNodeWidth-scaledLimit * 0.9 - (scaledNodeWidth * 0.2)"},
-              "font": {"value": "Calibri"},
-              "href": {"signal": "datum.link"},
-              "tooltip": {"signal": "parent.tooltip"}
+
+        // Enhance nodes with styles
+        function enrichNodeData(node) {
+          var isCurrent = node.name === currentAssetName;
+          var isAdd     = node.name === 'Add asset';
+
+          node.symbol     = 'roundRect';
+          node.symbolSize = isCurrent
+            ? [BOX_SIZE * 1.08, BOX_SIZE * 1.08]
+            : [BOX_SIZE, BOX_SIZE];
+
+          // Build rich-text dict so icon + text fit inside the symbol.
+          var displayName = wrapName(node.name);
+          var rich = {
+            text: {
+              width:      BOX_SIZE - 6,
+              overflow:   'truncate',
+              align:      'center',
+              fontSize:   FONT_SIZE,
+              lineHeight: LINE_H,
+              padding:    [2, 0, 0, 0]
             }
+          };
+          if (node.icon) {
+            rich['icon_' + node.id] = {
+              backgroundColor: { image: node.icon },
+              height: ICON_SIZE,
+              width:  ICON_SIZE,
+              align:  'center'
+            };
           }
-        },
-        {
-          "type": "image",
-          "encode": {
-            "update": {
-              "x": {"signal": "-(scaledNodeWidth * 0.001)"},
-              "y": {"signal": "-(scaledNodeHeight * 0.001)"},
-              "width": {"signal": "scaledNodeWidth * 0.002"},
-              "height": {"signal": "scaledNodeHeight * 0.002"},
-              "baseline": {"value": "line-top"},
-              "url": {"signal": "parent.icon"}
+
+          node.label = {
+            show:       true,
+            position:   'inside',
+            color:      isCurrent ? '#000000' : (isAdd ? '#ffffff' : '#1e293b'),
+            fontSize:   FONT_SIZE,
+            fontWeight: isCurrent ? 'bold' : '600',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            // Capture the node and its pre-wrapped name in a closure so the
+            // formatter emits the correct rich-text key and text per node.
+            formatter: (function(n, dn) {
+              return function() {
+                return n.icon
+                  ? ('{icon_' + n.id + '|}\n{text|' + dn + '}')
+                  : ('{text|' + dn + '}');
+              };
+            })(node, displayName),
+            rich: rich
+          };
+
+          node.itemStyle = {
+            color:       isCurrent ? '#fcd34d' : (isAdd ? '#10b981' : '#ffffff'),
+            borderColor: isCurrent ? '#f59e0b' : (isAdd ? '#047857' : '#cbd5e1'),
+            borderWidth: isCurrent ? 3 : 1,
+            borderRadius: 8,
+            shadowColor:   'rgba(0, 0, 0, 0.2)',
+            shadowBlur:    10,
+            shadowOffsetX: 2,
+            shadowOffsetY: 6
+          };
+
+          if (node.children && node.children.length > 0) {
+            node.children.forEach(enrichNodeData);
+          }
+        }
+
+        rootNodes.forEach(enrichNodeData);
+
+        var option = {
+          tooltip: {
+            trigger: 'item',
+            triggerOn: 'mousemove',
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            borderColor: '#e2e8f0',
+            borderWidth: 1,
+            textStyle: { color: '#334155' },
+            formatter: function(params) {
+              return params.data.tooltip || params.name;
             }
-          }
-        },
-      ]
-    }
-  ]
-}
-vegaEmbed("#view", treeSpecs, { renderer: "svg" })
-}
+          },
+          series: [
+            {
+              type: 'tree',
+              data: rootNodes,
+              top: '6%',
+              left: '12%',
+              bottom: '6%',
+              right: '14%',
+              symbol: 'roundRect',
+              expandAndCollapse: true,
+              animationDuration: 550,
+              animationDurationUpdate: 750,
+              // Pan only (drag). Vertical density is handled by container scroll,
+              // so wheel scrolls the list rather than fighting a zoom gesture.
+              roam: 'move',
+              initialTreeDepth: -1,
+              lineStyle: {
+                color: '#94a3b8',
+                width: 2,
+                curveness: 0.5
+              }
+            }
+          ]
+        };
+
+        myChart.setOption(option);
+      }
+
+      updateChart();
+
+      window.addEventListener('resize', function() {
+        myChart.resize();
+        updateChart();
+      });
+
+      myChart.on('click', function(params) {
+        if (params.data.link) {
+          window.location.href = params.data.link;
+        }
+      });
+
+      // ===== Zoom controls =====
+      // Zoom scales the WHOLE tree (nodes + spacing) with a CSS transform, kept
+      // crisp by the SVG renderer. The gray container stays a fixed size; zooming
+      // out shrinks the whole tree centered within it, zooming in overflows it so
+      // the scroll container can pan around.
+      var zoomLayer = document.getElementById('view-zoom');
+      var zoomLevel = 1;
+      var ZOOM_MIN = 0.3, ZOOM_MAX = 2.5, ZOOM_STEP = 0.2;
+      function setZoom(z) {
+        zoomLevel = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+        zoomLayer.style.transform = 'scale(' + zoomLevel + ')';
+      }
+      document.getElementById('treeZoomIn').addEventListener('click', function() { setZoom(zoomLevel + ZOOM_STEP); });
+      document.getElementById('treeZoomOut').addEventListener('click', function() { setZoom(zoomLevel - ZOOM_STEP); });
+      document.getElementById('treeZoomReset').addEventListener('click', function() { setZoom(1); });
+    };
   </script>
 {% endmacro %}
 
@@ -201,7 +285,7 @@ vegaEmbed("#view", treeSpecs, { renderer: "svg" })
   {% endif %}
   {% endfor %}
   </tbody>
-</table>    
+</table>
 {% endmacro %}
 
 {% macro render_stored_secrets(stored_secrets) %}
