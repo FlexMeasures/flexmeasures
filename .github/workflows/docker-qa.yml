@@ -1,26 +1,22 @@
 
 # Manually-triggered QA workflow for release testing. It spins up the local
 # docker compose stack, then runs:
-#   - the toy tutorials 1-4, using the runner scripts kept in the
-#     FlexMeasures/tsc repo (tsc/scripts/run-tutorial*-in-docker.sh)
+#   - the toy tutorials 1-5, using the runner scripts kept in this repo
+#     (documentation/tut/scripts/run-tutorial*-in-docker.sh)
 #   - the HEMS walkthrough, using the example kept in the
 #     FlexMeasures/flexmeasures-client repo (examples/HEMS/HEMS_setup.py),
 #     including its CLI-based report generation step (see
 #     flexmeasures-client's FLEXMEASURES_CLI_CMD/FLEXMEASURES_CLI_CONFIG_DIR
 #     support, used below to run that CLI inside the `server` container)
 #
-# This does not replace manual QA (e.g. UI login/graph checks, tutorial 5,
-# exploratory testing) -- see documentation/dev/release_process.rst.
+# This does not replace manual QA (e.g. UI login/graph checks, exploratory
+# testing) -- see documentation/dev/release_process.rst.
 
 name: QA (release)
 
 on:
   workflow_dispatch:
     inputs:
-      tsc-ref:
-        description: "Branch/tag/ref to use from FlexMeasures/tsc"
-        required: false
-        default: "main"
       flexmeasures-client-ref:
         description: "Branch/tag/ref to use from FlexMeasures/flexmeasures-client"
         required: false
@@ -61,21 +57,13 @@ jobs:
       - name: Build and start the docker compose stack
         run: docker compose up --build --detach --wait --wait-timeout 300
 
-      - name: Checkout tsc tutorial scripts
-        uses: actions/checkout@v4
-        with:
-          repository: FlexMeasures/tsc
-          ref: ${{ inputs.tsc-ref }}
-          sparse-checkout: tsc/scripts
-          sparse-checkout-cone-mode: false
-          path: tsc
-
-      - name: Run tutorials 1-4
+      - name: Run tutorials 1-5
         run: |
-          for script in tsc/tsc/scripts/run-tutorial-in-docker.sh \
-                        tsc/tsc/scripts/run-tutorial2-in-docker.sh \
-                        tsc/tsc/scripts/run-tutorial3-in-docker.sh \
-                        tsc/tsc/scripts/run-tutorial4-in-docker.sh; do
+          for script in documentation/tut/scripts/run-tutorial-in-docker.sh \
+                        documentation/tut/scripts/run-tutorial2-in-docker.sh \
+                        documentation/tut/scripts/run-tutorial3-in-docker.sh \
+                        documentation/tut/scripts/run-tutorial4-in-docker.sh \
+                        documentation/tut/scripts/run-tutorial5-in-docker.sh; do
             echo "::group::Running $script"
             # The scripts use `docker exec -it`, which requires a tty we don't have here.
             sed 's/docker exec -it/docker exec -i/' "$script" | bash

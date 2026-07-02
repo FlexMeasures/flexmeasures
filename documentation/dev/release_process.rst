@@ -1,7 +1,7 @@
 Release process
 ================
 
-This page describes how FlexMeasures releases are cut, and which parts are automated versus manual.
+This page describes how FlexMeasures releases are done, and which parts are automated versus manual.
 The canonical, most detailed checklist still lives in `FlexMeasures/tsc RELEASE.md <https://github.com/FlexMeasures/tsc/blob/main/RELEASE.md>`_.
 This page summarizes that flow and points out where CI now does the mechanical work.
 
@@ -14,7 +14,7 @@ Versioning is derived entirely from git tags via ``hatch-vcs`` (see ``pyproject.
 * ``uv sync --group dev --group test`` and ``uv run poe test``.
 * For MINOR/MAJOR releases, do QA using the Docker Compose stack, and write the accompanying blog post.
 
-  Tutorials 1-4 and the HEMS walkthrough can be run via the manually-triggered ``QA (release)`` GitHub Actions workflow (``.github/workflows/docker-qa.yml``). It spins up the local docker compose stack and runs the tutorial runner scripts from `FlexMeasures/tsc <https://github.com/FlexMeasures/tsc/tree/main/tsc/scripts>`_ and the HEMS example from `FlexMeasures/flexmeasures-client <https://github.com/FlexMeasures/flexmeasures-client/tree/main/examples/HEMS>`_ (both kept in their own repos, not duplicated here). Trigger it from the Actions tab; it does not run automatically. This does not replace manual UI login/graph checks, tutorial 5, or exploratory QA.
+  Tutorials 1-5 and the HEMS walkthrough can be run via the manually-triggered ``QA (release)`` GitHub Actions workflow (``.github/workflows/docker-qa.yml``). It spins up the local docker compose stack and runs the tutorial runner scripts from ``documentation/tut/scripts`` and the HEMS example from `FlexMeasures/flexmeasures-client <https://github.com/FlexMeasures/flexmeasures-client/tree/main/examples/HEMS>`_ (kept in its own repo, not duplicated here). Trigger it from the Actions tab; it does not run automatically. This does not replace manual UI login/graph checks or exploratory QA.
 
 2. Assemble the changelog (semi-automated)
 -------------------------------------------
@@ -25,7 +25,7 @@ Run:
 
     uv run poe changelog-check
 
-This lists merged PRs since the last tag (via ``ci/list-merged-prs-since-tag.sh``), pre-formatted as changelog bullets.
+This lists merged PRs since the last tag that aren't yet mentioned in a changelog file (via ``ci/list-merged-prs-since-tag.sh``, which cross-references PR numbers already linked in ``documentation/changelog.rst`` / ``cli/change_log.rst`` / ``api/change_log.rst``), pre-formatted as changelog bullets.
 It is read-only: it does not edit or commit anything.
 Review, categorize each entry into *New features* / *Infrastructure / Support* / *Bugfixes*,
 and paste them into ``documentation/changelog.rst`` (and ``documentation/cli/change_log.rst`` / ``documentation/api/change_log.rst`` where relevant).

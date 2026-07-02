@@ -28,7 +28,7 @@ jobs:
     environment:
       name: dockerhub
     steps:
-      - name: Determine version
+      - name: Determine version and image tags
         id: version
         run: |
           TAG="${{ github.event.release.tag_name || inputs.tag }}"
@@ -37,6 +37,21 @@ jobs:
             exit 1
           fi
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+          # `github.event.release.prerelease` is a boolean field GitHub sets
+          # on the `release` webhook payload, reflecting whether the "Set as
+          # a pre-release" checkbox was ticked when the GitHub Release was
+          # created. We only want stable releases to also claim `:latest`.
+          IMAGE_TAGS="lfenergy/flexmeasures:${TAG}"
+          if [ "${{ github.event.release.prerelease }}" != "true" ]; then
+            IMAGE_TAGS="${IMAGE_TAGS}
+          lfenergy/flexmeasures:latest"
+          fi
+          {
+            echo "image-tags<<EOF"
+            echo "$IMAGE_TAGS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v4
         with:
@@ -51,26 +66,18 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build and push (versioned tag)
+      - name: Build and push
+        # Built once, pushed under both tags: pushing `latest` re-tags the
+        # exact image just built and pushed under the version tag, rather
+        # than triggering a second (functionally identical, but distinct)
+        # build.
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: lfenergy/flexmeasures:${{ steps.version.outputs.tag }}
-
-      - name: Build and push (latest)
-        if: ${{ !github.event.release.prerelease }}
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: lfenergy/flexmeasures:latest
+          tags: ${{ steps.version.outputs.image-tags }}
 
       - name: Summary
         run: |
-          echo "Pushed lfenergy/flexmeasures:${{ steps.version.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ github.event.release.prerelease }}" != "true" ]; then
-            echo "Pushed lfenergy/flexmeasures:latest" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          echo "Pushed: ${{ steps.version.outputs.image-tags }}" >> "$GITHUB_STEP_SUMMARY"
