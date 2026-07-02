@@ -20,7 +20,7 @@ from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.sensors import (
     SensorReference,
-    SensorReferenceSchema,
+    OutputSensorReferenceSchema,
     VariableQuantityField,
 )
 from flexmeasures.utils.unit_utils import (
@@ -42,15 +42,6 @@ SoCTarget = TypedDict(
         "value": float,
     },
     total=False,  # not all are required (just value, which we can say in 3.11)
-)
-
-# Keys used by SensorReferenceSchema to carry source-filter options.
-# Present as non-None values when the caller added a source filter.
-_SENSOR_REFERENCE_SOURCE_FILTER_KEYS = (
-    "source_types",
-    "exclude_source_types",
-    "sources",
-    "source_account",
 )
 
 
@@ -97,12 +88,18 @@ class StorageFlexModelSchema(Schema):
         metadata=dict(description="ID of the asset that is requested to be scheduled."),
     )
 
+    commodity = fields.Str(
+        data_key="commodity",
+        load_default="electricity",
+        metadata=metadata.COMMODITY_FLEX_MODEL.to_dict(),
+    )
+
     consumption = fields.Nested(
-        SensorReferenceSchema,
+        OutputSensorReferenceSchema,
         metadata=metadata.CONSUMPTION.to_dict(),
     )
     production = fields.Nested(
-        SensorReferenceSchema,
+        OutputSensorReferenceSchema,
         metadata=metadata.PRODUCTION.to_dict(),
     )
 
@@ -248,12 +245,6 @@ class StorageFlexModelSchema(Schema):
         validate=validate.Length(min=1),
         metadata=metadata.SOC_USAGE.to_dict(),
     )
-    commodity = fields.Str(
-        data_key="commodity",
-        load_default="electricity",
-        validate=OneOf(["electricity", "gas"]),
-        metadata=dict(description="Commodity label for this device/asset."),
-    )
 
     def __init__(
         self,
@@ -350,20 +341,6 @@ class StorageFlexModelSchema(Schema):
                 "The `state-of-charge` field can only be a Sensor or a time series."
             )
 
-    @validates("consumption")
-    def validate_consumption_has_no_source_filters(self, value: dict, **kwargs):
-        if isinstance(value, dict) and any(
-            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
-        ):
-            raise ValidationError("The `consumption` field cannot use source filters.")
-
-    @validates("production")
-    def validate_production_has_no_source_filters(self, value: dict, **kwargs):
-        if isinstance(value, dict) and any(
-            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
-        ):
-            raise ValidationError("The `production` field cannot use source filters.")
-
     @validates("asset")
     def validate_asset(self, asset: Asset, **kwargs):
         if self.sensor is not None and self.sensor.asset != asset:
@@ -448,8 +425,8 @@ class DBStorageFlexModelSchema(Schema):
     Schema for flex-models stored in the db. Supports fixed quantities and sensor references, while disallowing time series specs.
     """
 
-    consumption = fields.Nested(SensorReferenceSchema)
-    production = fields.Nested(SensorReferenceSchema)
+    consumption = fields.Nested(OutputSensorReferenceSchema)
+    production = fields.Nested(OutputSensorReferenceSchema)
 
     soc_min = VariableQuantityField(
         to_unit="MWh",
@@ -590,20 +567,6 @@ class DBStorageFlexModelSchema(Schema):
             field: (self.declared_fields[field].data_key or field)
             for field in self.declared_fields
         }
-
-    @validates("consumption")
-    def validate_consumption_has_no_source_filters(self, value: dict, **kwargs):
-        if isinstance(value, dict) and any(
-            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
-        ):
-            raise ValidationError("The `consumption` field cannot use source filters.")
-
-    @validates("production")
-    def validate_production_has_no_source_filters(self, value: dict, **kwargs):
-        if isinstance(value, dict) and any(
-            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
-        ):
-            raise ValidationError("The `production` field cannot use source filters.")
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
