@@ -1,13 +1,13 @@
 .. _tut_multi_feed_storage:
 
-A flex-modeling tutorial for storage: Multiple feeds into shared stock
-----------------------------------------------------------------------
+A flex-modeling tutorial for storage: Multiple feeds into shared storage
+------------------------------------------------------------------------
 
 So far, our storage tutorials have considered a single power port charging and discharging a single battery.
 But what if a battery is fed by *more than one* inverter, each with its own power rating and efficiency?
 
 This is a common situation in practice: a single storage tank or battery pack is connected to several converters, and they all charge and discharge the *same* pool of energy.
-FlexMeasures supports this through what we call **multiple feeds into a shared stock**: several flexible devices are scheduled together, while they all point at one shared ``state-of-charge`` sensor.
+FlexMeasures supports this through what we call **multiple feeds into a shared storage**: several flexible devices are scheduled together, while they all point at one shared ``state-of-charge`` sensor.
 
 In this tutorial we will model exactly such a system and let the scheduler decide which inverter to use, and when, taking each inverter's efficiency into account.
 (For a more general introduction to flex modeling, see :ref:`describing_flexibility`. For a single-device storage walk-through, see :ref:`tut_v2g`.)
@@ -20,7 +20,7 @@ Consider a single battery with two inverters feeding it, and a single state-of-c
 
 - Both inverters can charge and discharge the battery, but with **different efficiencies**.
 - The battery has a **single state of charge** that both inverters affect.
-- The scheduler should recognise the shared stock and optimise accordingly, without duplicating baselines or costs.
+- The scheduler should recognise the shared storage and optimise accordingly, without duplicating baselines or costs.
 
 Concretely, we model:
 
@@ -35,9 +35,9 @@ The battery starts at 20 kWh, may not drop below 10 kWh or exceed 200 kWh, and h
 Building the flex model
 =======================
 
-The key idea is that the ``flex-model`` is a **list**, with one entry per flexible device, plus one entry that describes the shared stock.
+The key idea is that the ``flex-model`` is a **list**, with one entry per flexible device, plus one entry that describes the shared storage.
 Each inverter entry references its own power sensor *and* the same ``state-of-charge`` sensor.
-The final entry (without a power ``sensor``) carries the constraints that apply to the shared stock itself: the start, the bounds, and the target.
+The final entry (without a power ``sensor``) carries the constraints that apply to the shared storage itself: the start, the bounds, and the target.
 
 .. code-block:: json
 
@@ -73,8 +73,8 @@ Here, sensors ``1`` and ``2`` are the power sensors of inverter 1 and inverter 2
 
 A few things to note:
 
-- **Each device points at the same ``state-of-charge`` sensor.** This is what tells FlexMeasures that the devices share one stock. The scheduler links the energy balance of all feeds to that single state of charge, rather than tracking a separate stock per device.
-- **The shared-stock entry has no power ``sensor``.** It only carries the storage-level fields (``soc-at-start``, ``soc-min``, ``soc-max``, ``soc-targets``), which describe the battery as a whole and must therefore not be repeated per inverter.
+- **Each device points at the same ``state-of-charge`` sensor.** This is what tells FlexMeasures that the devices share one storage. The scheduler links the energy balance of all feeds to that single state of charge, rather than tracking a separate stock per device.
+- **The shared-storage entry has no power ``sensor``.** It only carries the storage-level fields (``soc-at-start``, ``soc-min``, ``soc-max``, ``soc-targets``), which describe the battery as a whole and must therefore not be repeated per inverter.
 - **Per-device efficiencies live in the device entries.** ``charging-efficiency`` and ``discharging-efficiency`` differ between the two inverters, which is exactly the difference the scheduler will exploit.
 
 .. note:: The ``state-of-charge`` sensor should have an instantaneous resolution (``PT0M``), since it records a stock value at a point in time rather than a quantity accumulated over an interval. See the ``state-of-charge`` field in :ref:`flex_models_and_schedulers`.
@@ -193,7 +193,7 @@ We schedule on the **battery asset**, so that FlexMeasures considers both invert
 
 
 The scheduler returns one schedule per inverter (stored on sensors ``1`` and ``2``), the resulting state of charge (stored on the shared ``state-of-charge`` sensor ``4``), and a single, aggregated commitment-cost result.
-Note that the costs are *not* duplicated per device: because the inverters feed one shared stock, FlexMeasures computes a single energy balance and a single cost.
+Note that the costs are *not* duplicated per device: because the inverters feed one shared storage, FlexMeasures computes a single energy balance and a single cost.
 
 
 What to expect
@@ -218,7 +218,7 @@ Reading the chart top to bottom:
 
 The net energy cost over the horizon is small (about 0.066 EUR at 100 EUR/MWh), and reflects only the energy lost to the inverter efficiencies, since charging and discharging happen at the same flat price.
 
-.. note:: This same pattern generalises beyond two inverters and beyond batteries. Any number of devices can feed a shared stock — for example, several heat pumps charging one thermal buffer — as long as each device entry references the same ``state-of-charge`` sensor and a single entry carries the shared-stock constraints.
+.. note:: This same pattern generalises beyond two inverters and beyond batteries. Any number of devices can feed a shared storage — for example, several heat pumps charging one thermal buffer — as long as each device entry references the same ``state-of-charge`` sensor and a single entry carries the shared-stock constraints.
 
-We hope this demonstration helped to illustrate how FlexMeasures schedules multiple feeds into a shared stock.
+We hope this demonstration helped to illustrate how FlexMeasures schedules multiple feeds into a shared storage.
 For modelling a single storage device in more depth, head back to :ref:`tut_v2g`.
