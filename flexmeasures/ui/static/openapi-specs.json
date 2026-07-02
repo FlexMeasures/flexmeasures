@@ -4706,6 +4706,13 @@
               "sensor": 9
             },
             "$ref": "#/components/schemas/SensorReference"
+          },
+          "gas-price": {
+            "description": "The gas price applied to the site's aggregate gas consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem",
+            "example": {
+              "sensor": 6
+            },
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           }
         },
         "additionalProperties": false
@@ -6235,6 +6242,15 @@
               }
             ],
             "items": {}
+          },
+          "commodity": {
+            "type": "string",
+            "default": "electricity",
+            "enum": [
+              "electricity",
+              "gas"
+            ],
+            "description": "Commodity label for this device/asset."
           },
           "sensor": {
             "type": "integer",
