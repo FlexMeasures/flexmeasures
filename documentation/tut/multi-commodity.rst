@@ -259,3 +259,4 @@ The commitment-cost result keeps these as separate entries — ``electricity net
 
 We hope this demonstration helped to illustrate multi-commodity scheduling.
 To revisit scheduling several devices that share a single commodity and stock, head back to :ref:`tut_multi_feed_storage`.
+Next, in :ref:`tut_toy_schedule_process`, we'll turn to something different: the optimal timing of processes with fixed energy work and duration.
