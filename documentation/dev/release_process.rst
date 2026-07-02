@@ -14,7 +14,7 @@ Versioning is derived entirely from git tags via ``hatch-vcs`` (see ``pyproject.
 * ``uv sync --group dev --group test`` and ``uv run poe test``.
 * For MINOR/MAJOR releases, do QA using the Docker Compose stack, and write the accompanying blog post.
 
-  Tutorials 1-4 and the HEMS walkthrough can be run via the manually-triggered ``QA (release)`` GitHub Actions workflow (``.github/workflows/qa-release.yml``). It spins up the local docker compose stack and runs the tutorial runner scripts from `FlexMeasures/tsc <https://github.com/FlexMeasures/tsc/tree/main/tsc/scripts>`_ and the HEMS example from `FlexMeasures/flexmeasures-client <https://github.com/FlexMeasures/flexmeasures-client/tree/main/examples/HEMS>`_ (both kept in their own repos, not duplicated here). Trigger it from the Actions tab; it does not run automatically. This does not replace manual UI login/graph checks, tutorial 5, or exploratory QA.
+  Tutorials 1-4 and the HEMS walkthrough can be run via the manually-triggered ``QA (release)`` GitHub Actions workflow (``.github/workflows/docker-qa.yml``). It spins up the local docker compose stack and runs the tutorial runner scripts from `FlexMeasures/tsc <https://github.com/FlexMeasures/tsc/tree/main/tsc/scripts>`_ and the HEMS example from `FlexMeasures/flexmeasures-client <https://github.com/FlexMeasures/flexmeasures-client/tree/main/examples/HEMS>`_ (both kept in their own repos, not duplicated here). Trigger it from the Actions tab; it does not run automatically. This does not replace manual UI login/graph checks, tutorial 5, or exploratory QA.
 
 2. Assemble the changelog (semi-automated)
 -------------------------------------------
@@ -47,7 +47,7 @@ Then create the GitHub Release from the new tag. This step is intentionally manu
 
 Publishing the GitHub Release (step 3) triggers two workflows:
 
-* ``.github/workflows/release.yml`` builds the package and publishes it to PyPI via trusted (OIDC) publishing, then runs a ``pypi-smoke-test`` job that installs the just-published version into a fresh virtual environment and verifies ``flexmeasures.__version__`` matches.
+* ``.github/workflows/pypi-publish.yml`` builds the package and publishes it to PyPI via trusted (OIDC) publishing, then runs a ``pypi-smoke-test`` job that installs the just-published version into a fresh virtual environment and verifies ``flexmeasures.__version__`` matches.
 * ``.github/workflows/docker-publish.yml`` builds and pushes the Docker image to Docker Hub, tagged ``lfenergy/flexmeasures:v<version>``, and additionally as ``lfenergy/flexmeasures:latest`` for stable (non-pre-release) releases.
 
 Check the Actions tab for both workflow runs to confirm they succeeded; also spot-check that the new version shows up on `PyPI <https://pypi.org/project/flexmeasures>`_, `Docker Hub <https://hub.docker.com/r/lfenergy/flexmeasures>`_, and that the ReadTheDocs build for the new tag completed.
