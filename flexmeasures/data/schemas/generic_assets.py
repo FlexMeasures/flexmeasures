@@ -349,6 +349,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     id = ma.auto_field(dump_only=True)
     name = fields.Str(required=True)
+    description = fields.Str(required=False, allow_none=True)
     account_id = ma.auto_field()
     owner = ma.Nested("AccountSchema", dump_only=True, only=("id", "name"))
     latitude = LatitudeField(allow_none=True)

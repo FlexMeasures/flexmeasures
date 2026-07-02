@@ -5018,6 +5018,12 @@
           "name": {
             "type": "string"
           },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "account_id": {
             "type": [
               "integer",
