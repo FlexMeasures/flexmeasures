@@ -1,0 +1,106 @@
+
+# Manually-triggered QA workflow for release testing. It spins up the local
+# docker compose stack, then runs:
+#   - the toy tutorials 1-5, using the runner scripts kept in this repo
+#     (documentation/tut/scripts/run-tutorial*-in-docker.sh)
+#   - the HEMS walkthrough, using the example kept in the
+#     FlexMeasures/flexmeasures-client repo (examples/HEMS/HEMS_setup.py),
+#     including its CLI-based report generation step (see
+#     flexmeasures-client's FLEXMEASURES_CLI_CMD/FLEXMEASURES_CLI_CONFIG_DIR
+#     support, used below to run that CLI inside the `server` container)
+#
+# This does not replace manual QA (e.g. UI login/graph checks, exploratory
+# testing) -- see documentation/dev/release_process.rst.
+
+name: QA (release)
+
+on:
+  workflow_dispatch:
+    inputs:
+      flexmeasures-client-ref:
+        description: "Branch/tag/ref to use from FlexMeasures/flexmeasures-client"
+        required: false
+        default: "main"
+
+permissions:
+  contents: read
+
+env:
+  # Picked up by every `docker compose` invocation in this job, so the HEMS
+  # configs bind mount (added via qa-hems-override.yml, see below) applies
+  # consistently across the `up`, `exec`, and `down` steps.
+  COMPOSE_FILE: docker-compose.yml:qa-hems-override.yml
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout flexmeasures
+        uses: actions/checkout@v4
+
+      - name: Checkout flexmeasures-client
+        uses: actions/checkout@v4
+        with:
+          repository: FlexMeasures/flexmeasures-client
+          ref: ${{ inputs.flexmeasures-client-ref }}
+          path: flexmeasures-client
+
+      - name: Add compose override to mount the HEMS configs directory
+        run: |
+          cat > qa-hems-override.yml <<EOF
+          services:
+            server:
+              volumes:
+                - ${{ github.workspace }}/flexmeasures-client/examples/HEMS/configs:/hems-configs:ro
+          EOF
+
+      - name: Build and start the docker compose stack
+        run: docker compose up --build --detach --wait --wait-timeout 300
+
+      - name: Run tutorials 1-5
+        run: |
+          for script in documentation/tut/scripts/run-tutorial-in-docker.sh \
+                        documentation/tut/scripts/run-tutorial2-in-docker.sh \
+                        documentation/tut/scripts/run-tutorial3-in-docker.sh \
+                        documentation/tut/scripts/run-tutorial4-in-docker.sh \
+                        documentation/tut/scripts/run-tutorial5-in-docker.sh; do
+            echo "::group::Running $script"
+            # The scripts use `docker exec -it`, which requires a tty we don't have here.
+            sed 's/docker exec -it/docker exec -i/' "$script" | bash
+            echo "::endgroup::"
+          done
+
+      - name: Create HEMS admin account and user
+        run: |
+          OUTPUT=$(docker compose exec -T server flexmeasures add account --name "HEMS Admin Org")
+          echo "$OUTPUT"
+          ACCOUNT_ID=$(echo "$OUTPUT" | grep -oP '(?<=ID: )\d+')
+          docker compose exec -T server bash -c \
+            "printf 'admin\nadmin\n' | flexmeasures add user --username admin --email admin@admin.com --account $ACCOUNT_ID --roles admin"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.10.9"
+          enable-cache: true
+
+      - name: Run the HEMS example against the running stack
+        working-directory: flexmeasures-client
+        env:
+          # Absolute -f paths, since this subprocess runs from
+          # flexmeasures-client/examples/HEMS, not the workspace root where
+          # COMPOSE_FILE's relative paths would otherwise resolve.
+          FLEXMEASURES_CLI_CMD: "docker compose -f ${{ github.workspace }}/docker-compose.yml -f ${{ github.workspace }}/qa-hems-override.yml exec -T server flexmeasures"
+          FLEXMEASURES_CLI_CONFIG_DIR: "/hems-configs"
+        run: |
+          uv sync
+          cd examples/HEMS
+          uv run --project .. python3 HEMS_setup.py
+
+      - name: Show stack logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down the stack
+        if: always()
+        run: docker compose down --volumes
