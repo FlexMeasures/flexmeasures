@@ -33,6 +33,7 @@ from flexmeasures.data.models.planning.storage import (
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.models.planning.process import ProcessScheduler
+from flexmeasures.data.services.scheduling_result import SchedulingJobResult
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
@@ -805,7 +806,7 @@ def make_schedule(  # noqa: C901
         rq_job.save_meta()
 
     # Save any result that specifies a sensor to save it to
-    scheduling_result_dict: dict = {}
+    scheduling_result_dict: dict = SchedulingJobResult().to_dict()
     for result in consumption_schedule:
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
