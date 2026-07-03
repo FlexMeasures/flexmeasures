@@ -301,9 +301,9 @@ def test_add_process(
     # call command
     result = runner.invoke(add_schedule, cli_input)
     check_command_ran_without_error(result)
-    # ProcessScheduler's make_schedule() call returns an empty dict (not the
-    # boolean True), which used to be falsy enough to silently suppress this
-    # message; confirm the message still appears.
+    # ProcessScheduler's make_schedule() call returns a dict (not the boolean
+    # True), which used to be falsy enough to silently suppress this message;
+    # confirm the message still appears.
     assert "New schedule is stored." in result.output
 
     process_power_sensor = db.session.get(Sensor, process_power_sensor_id)
