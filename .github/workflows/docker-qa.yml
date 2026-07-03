@@ -54,6 +54,18 @@ jobs:
                 - ${{ github.workspace }}/flexmeasures-client/examples/HEMS/configs:/hems-configs:ro
           EOF
 
+      # Runs before the docker compose stack comes up, since `docker compose up`
+      # bind-mounts docker-compose-data/dev-db, which the dev-db container then
+      # locks down to its own uid. setup-uv's cache-dependency-glob walks the
+      # whole workspace by default and would hit EACCES scanning that directory
+      # if this step ran later.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.10.9"
+          enable-cache: true
+          cache-dependency-glob: "flexmeasures-client/**/pyproject.toml"
+
       - name: Build and start the docker compose stack
         run: docker compose up --build --detach --wait --wait-timeout 300
 
@@ -77,12 +89,6 @@ jobs:
           ACCOUNT_ID=$(echo "$OUTPUT" | grep -oP '(?<=ID: )\d+')
           docker compose exec -T server bash -c \
             "printf 'admin\nadmin\n' | flexmeasures add user --username admin --email admin@admin.com --account $ACCOUNT_ID --roles admin"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          version: "0.10.9"
-          enable-cache: true
 
       - name: Run the HEMS example against the running stack
         working-directory: flexmeasures-client
