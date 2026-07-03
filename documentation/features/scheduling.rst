@@ -389,6 +389,8 @@ Clicking a job gives you more information, similar to the status page.
     :align: center
 ..    :scale: 40%
 
+|
+
 
 .. _scheduling_constraint_results:
 
