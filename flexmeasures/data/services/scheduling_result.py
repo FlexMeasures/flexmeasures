@@ -46,7 +46,7 @@ class SchedulingJobResult:
             ]
         }
 
-    For usage examples and interpretation guidance, see the "Accessing constraint results" section of the scheduling documentation (``documentation/features/scheduling.rst``).
+    For usage examples and interpretation guidance, see :ref:`scheduling_constraint_results`.
     """
 
     unresolved: list = field(default_factory=list)
