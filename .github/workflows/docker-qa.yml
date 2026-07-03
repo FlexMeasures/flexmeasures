@@ -37,6 +37,8 @@ jobs:
     steps:
       - name: Checkout flexmeasures
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags, required for hatch-vcs to resolve the version
 
       - name: Checkout flexmeasures-client
         uses: actions/checkout@v4
