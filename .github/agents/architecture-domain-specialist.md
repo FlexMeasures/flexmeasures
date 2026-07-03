@@ -679,7 +679,7 @@ When scheduling results or constraint analysis shift from sensor-keyed to asset-
 - **Documentation vs. implementation mismatch**: The `reporting.rst` docs stated reporters can filter by `account_id`, but this only works if `Input` also has the field. Docs that outrun schema support mislead users. Always verify the full schema chain before documenting a feature.
 - **DataSource account_id=None for non-user sources**: The existing invariant (reporters/schedulers/forecasters have `account_id=None`) limits the usefulness of `account_id` filtering: it only matches user-type sources. PRs adding `account_id` filters should either document this limitation explicitly or reconsider the invariant.
 
-**Session 2026-XX (PR #2072 — storage scheduler asset keying optimization)**:
+**Session 2026-07-02 (PR #2072 — storage scheduler asset keying optimization)**:
 
 - **Data flow format mismatches**: Storage scheduler optimization changed constraint analysis from sensor-keyed to asset-keyed results. The risk is high: Layer 1 produces asset-keyed dict, Layer 2 silently treats keys as sensor IDs, corrupting results without errors. This pattern must be documented and tested end-to-end.
 - **Multi-sensor per asset invariant**: Asset ID is the authoritative key, not sensor ID. Multiple sensors belong to the same asset; constraint results are grouped by asset for scheduling purposes. Docstrings and type hints must make this explicit to prevent misuse.

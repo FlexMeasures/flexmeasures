@@ -387,6 +387,8 @@ Each list entry includes:
 - ``violation`` (unresolved only): Magnitude of the violation at that slot (shortage for minima, excess for maxima).
 - ``margin`` (resolved only): Headroom remaining at that slot.
 
+Both ``violation`` and ``margin`` are always reported as positive numbers (magnitudes), never negative — whether a violation is a shortage or an excess follows from the constraint type (``soc-minima`` vs. ``soc-maxima``), not from its sign.
+
 
 Example: Constraint results from a battery scheduling job
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -474,6 +476,7 @@ The ``violation`` values tell you how much shortfall exists:
 - Reduce the minimum SoC requirement.
 - Stretch the minimum SoC requirement over a longer time period (using the ``duration`` field) to continue charging in case the user plugs out later than expected.
 - Warn the user about the shortfall.
+- If the battery is in an EV, charge en-route.
 
 **When no constraints are defined:**
 
@@ -481,6 +484,9 @@ If ``unresolved`` and ``resolved`` are both empty, no state-of-charge constraint
 
 .. note:: Hard constraints (``soc-targets``) are never reported in results because the scheduler enforces them strictly by definition.
           If a hard constraint cannot be met, the entire scheduling job will fail, not produce results with violations.
+
+Work on other schedulers
+---------------------------------------
 
 We believe the two schedulers (and their flex-models) we describe here are covering a lot of use cases already.
 Here are some thoughts on further innovation:
@@ -516,7 +522,7 @@ There is an API endpoint specifically for checking status, result and configurat
 ``GET /api/v3_0/jobs/{uuid}`` returns JSON with the job status, result, queue and function metadata, timestamps, and exception traceback information for failed jobs.
 
 
-Checking the status via the API
+Checking the status via the CLI
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 There is also a CLI command, which basically mirrors what the API endpoint does (see above). Here is an example call:
