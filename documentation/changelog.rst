@@ -18,6 +18,7 @@ Bugfixes
 Infrastructure / Support
 ------------------------
 * Filter handled untrusted-host ``SecurityError`` events out of Sentry, alongside the existing 404 filtering [see `PR #2257 <https://www.github.com/FlexMeasures/flexmeasures/pull/2257>`_]
+* Automate Docker Hub image publishing and a PyPI install smoke test on release, add a manually-triggered QA workflow that runs the toy tutorials and HEMS walkthrough against a local Docker Compose stack, and add a helper script to list merged PRs since the last tag [see `PR #2260 <https://www.github.com/FlexMeasures/flexmeasures/pull/2260>`_]
 
 
 v0.33.0 | June 1, 2026

@@ -259,6 +259,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     dev/dependency-management
     dev/api
     dev/automated-deploy-via-GHActions
+    dev/release_process
 
 .. autosummary::
    :caption: Code Documentation
