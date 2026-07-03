@@ -26,6 +26,13 @@ def assert_quantity_almost_equal(actual: ur.Quantity, expected: ur.Quantity):
     assert actual.magnitude == pytest.approx(expected.magnitude)
 
 
+def assert_quantity_str_almost_equal(actual: ur.Quantity, expected: str):
+    """String equality after rounding, since sub-1e-12 float noise (from pint/numpy
+    version differences) can otherwise show up in the string representation."""
+    rounded = ur.Quantity(round(actual.magnitude, 6), actual.units)
+    assert str(rounded) == expected
+
+
 @pytest.mark.parametrize(
     "src_quantity, dst_unit, fails, exp_dst_quantity",
     [
@@ -100,12 +107,12 @@ def test_quantity_or_sensor_deserialize(
         dst_quantity = schema.deserialize(src_quantity)
         if isinstance(src_quantity, (ur.Quantity, int, float)):
             assert_quantity_almost_equal(dst_quantity, ur.Quantity(exp_dst_quantity))
-            assert str(dst_quantity) == exp_dst_quantity
+            assert_quantity_str_almost_equal(dst_quantity, exp_dst_quantity)
         elif isinstance(src_quantity, list):
             assert_quantity_almost_equal(
                 dst_quantity[0]["value"], ur.Quantity(exp_dst_quantity)
             )
-            assert str(dst_quantity[0]["value"]) == exp_dst_quantity
+            assert_quantity_str_almost_equal(dst_quantity[0]["value"], exp_dst_quantity)
         assert not fails
     except ValidationError as e:
         assert fails, e
