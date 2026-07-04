@@ -1175,34 +1175,6 @@ function computeAssetLabels(sessions) {
   return labels;
 }
 
-// "Session type" line-style key (dashed/thin, solid/medium, solid/thick), explaining
-// what each layer means, mirroring the info tooltip next to the chart-type dropdown.
-const CHARGEPOINT_KEY_ROWS = [
-  { label: "Arrival → Departure", dash: [4, 4], width: 1.5 },
-  { label: "Plug-in → Plug-out", dash: null, width: 2.5 },
-  { label: "Charging", dash: null, width: 4 },
-];
-
-function buildChargePointKey(left, top) {
-  const children = [];
-  let x = 0;
-  for (const row of CHARGEPOINT_KEY_ROWS) {
-    children.push({
-      type: "line",
-      shape: { x1: x, y1: 9, x2: x + 26, y2: 9 },
-      style: { stroke: "#555", lineWidth: row.width, lineDash: row.dash },
-    });
-    children.push({
-      type: "text",
-      left: x + 32,
-      top: 3,
-      style: { text: row.label, fontSize: 11, fill: "#222" },
-    });
-    x += 32 + row.label.length * 6.2 + 26;
-  }
-  return { type: "group", left: left, top: top, children: children };
-}
-
 // Build one real "line" series per session segment (2 points: from -> to on the
 // asset's category row), named by asset so ECharts' native legend groups every
 // layer of the same asset under one clickable, color-coded entry — matching
@@ -1418,7 +1390,6 @@ function buildChargePointSessionsOption(elementId, data, opts) {
   }];
   const graphics = [
     { type: "text", left: containerWidth - LEGEND_WIDTH, top: sessionsTop - 20, style: { text: "Asset", font: "bold " + FONT_SIZE + "px " + CHART_FONT, fill: "#222" } },
-    buildChargePointKey(GRID_LEFT, 6),
   ];
   const series = sessionSeries.slice();
   // Aligned 1:1 with the final `series` array: null for the session segment
