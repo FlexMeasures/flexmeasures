@@ -46,6 +46,7 @@ export function decompressChartData(responseData) {
           name: sensor.name || "",
           sensor_unit: sensor.unit || "",
           unit: sensor.unit || "",
+          event_resolution: sensor.event_resolution,
           description: sensor.description || "",
           asset_id: sensor.asset_id,
           asset_description: sensor.asset_description || "",

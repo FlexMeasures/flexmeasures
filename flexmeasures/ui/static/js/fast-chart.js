@@ -255,6 +255,11 @@ function groupData(data, groupSpec) {
         sourceLabel: sourceLabel(source),
         source: source,
         unit: unit,
+        // The sensor's real event resolution in seconds (0 = instantaneous),
+        // as sent by Sensor.as_dict; undefined for legacy data, in which case we
+        // fall back to inferring it from the event spacing.
+        eventResolutionSec:
+          typeof sensor.event_resolution === "number" ? sensor.event_resolution : null,
         points: [],
         eventStarts: [], // kept for resolution inference (not sent to ECharts)
       });
@@ -761,6 +766,15 @@ function buildLineBarOption(elementId, groups, opts) {
       minorTick: { show: true, splitNumber: 2 },
       minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
     });
+    // Match Vega-Lite (chart_for_multiple_sensors): use linear interpolation for
+    // the whole row if ANY of its sensors is instantaneous (event_resolution 0),
+    // otherwise step-after. Prefer the sensor's real resolution; fall back to
+    // inferring it from event spacing only for legacy data without it.
+    const groupIsInstantaneous = group.series.some((s) =>
+      typeof s.eventResolutionSec === "number"
+        ? s.eventResolutionSec === 0
+        : inferResolutionMs(s.eventStarts || []) <= 60 * 1000
+    );
     group.series.forEach((s, j) => {
       const isBar = opts.chartType === "bar_chart";
       const entry = {
@@ -787,13 +801,8 @@ function buildLineBarOption(elementId, groups, opts) {
           itemStyle: { opacity: 0.7 },
         });
       } else {
-        // Match Vega-Lite: use step-after for sensors with a fixed event duration
-        // (resolution > 0), and linear for instantaneous sensors (resolution ≈ 0)
-        // so that ramps / gradual curves are visible, just as in the old charts.
-        const seriesResMs = inferResolutionMs(s.eventStarts || []);
-        const isInstantaneous = seriesResMs <= 60 * 1000; // ≤ 1 min → treat as instantaneous
         Object.assign(entry, {
-          ...(isInstantaneous ? {} : { step: "end" }), // step-after for interval data
+          ...(groupIsInstantaneous ? {} : { step: "end" }), // step-after for interval data
           showSymbol: false,
           sampling: "lttb", // downsample to the available pixels, preserving peaks
           large: true, // batched canvas path: faster redraws while panning/zooming

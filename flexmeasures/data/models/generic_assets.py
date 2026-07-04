@@ -640,6 +640,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 id=fixed_value_sensor.id,
                 name=sensor_name,
                 sensor_unit=ref["unit"],
+                event_resolution=fixed_value_sensor.event_resolution.total_seconds(),
                 description=sensor_name,
                 asset_id=parent_asset.id,
                 asset_description=parent_asset.name,
@@ -1083,6 +1084,12 @@ class GenericAsset(db.Model, AuthModelMixin):
                     sensors_meta[str(sensor.id)] = {
                         "name": as_dict.get("name", sensor.name),
                         "unit": as_dict.get("sensor_unit", sensor.unit),
+                        # Fixed-value sensors are instantaneous (0), so the chart
+                        # renders their row with linear interpolation like Vega-Lite.
+                        "event_resolution": as_dict.get(
+                            "event_resolution",
+                            sensor.event_resolution.total_seconds(),
+                        ),
                         "description": as_dict.get("description", sensor.name),
                         "asset_id": as_dict.get("asset_id"),
                         "asset_description": as_dict.get("asset_description", ""),
@@ -1290,6 +1297,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                     sensors_metadata[sensor.id] = {
                         "name": sensor_dict.get("name", ""),
                         "unit": sensor_dict.get("unit", sensor.unit),
+                        "event_resolution": sensor_dict.get(
+                            "event_resolution", sensor.event_resolution.total_seconds()
+                        ),
                         "description": sensor_dict.get("description", ""),
                         "asset_id": sensor_dict.get(
                             "asset_id", getattr(sensor, "generic_asset_id", None)
