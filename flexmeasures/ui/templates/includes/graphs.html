@@ -217,9 +217,12 @@
                         item.classList.remove('active');
                     }
                 });
-                // In fast mode, re-render with the newly selected chart type
+                // Switch to the right renderer for the newly selected chart type: the
+                // fast chart if fast mode is on and this type supports it (updateFastChart),
+                // otherwise Vega-Lite (some chart types, like Charge Point sessions, are
+                // Vega-only and aren't renderable by the fast chart).
                 if (fastMode) {
-                    updateFastChart();
+                    applyFastMode();
                     return;
                 }
                 // Reload daterange
@@ -375,7 +378,7 @@
         ]).then(function (result) { return result[0] }).catch(console.error);
         $("#spinner").hide();
         const renderStart = performance.now();
-        if (!fastMode && vegaView) {
+        if (!fastRenderActive() && vegaView) {
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(newData)).resize().run();
         }
         previousResult = {
@@ -429,7 +432,7 @@
     ]).then(function (result) { return result[0] }).catch(console.error);
     $("#spinner").hide();
     var initialRenderStart = performance.now();
-    if (!fastMode && vegaView) {
+    if (!fastRenderActive() && vegaView) {
         vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
     }
     var sessionStart = new Date('{{ event_starts_after }}');
@@ -631,7 +634,7 @@
     ]).then(function (result) {
         $("#spinner").hide();
         const renderStart = performance.now();
-        if (!fastMode && vegaView) {
+        if (!fastRenderActive() && vegaView) {
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
         }
         previousResult = {
@@ -645,7 +648,7 @@
         updateFastChart();
         checkSourceMasking(previousResult.data);
         playBackDataLoadedForKnownDateRange = false;
-        if (!fastMode && vegaView && chartType === "bar_chart") {
+        if (!fastRenderActive() && vegaView && chartType === "bar_chart") {
             vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
         }
         recordRender(rangePerf, performance.now() - renderStart);
@@ -655,8 +658,20 @@
     return picker
     }
 
+    // Every chart type available on the asset/sensor pages (including the Charge
+    // Point sessions Gantt-style view) has a fast-chart.js renderer.
+    function chartTypeSupportedInFastMode() {
+        return true;
+    }
+
+    // True when the fast (canvas) chart should actually be shown & rendered right
+    // now, i.e. the toggle is on AND the current chart type supports it.
+    function fastRenderActive() {
+        return fastMode && chartTypeSupportedInFastMode();
+    }
+
     function currentChartMode() {
-        return fastMode ? 'fast (ECharts)' : 'standard (Vega-Lite)';
+        return fastRenderActive() ? 'fast (ECharts)' : 'standard (Vega-Lite)';
     }
 
     // Show either the fast (canvas-based) chart or the Vega-Lite chart, and render it
@@ -666,7 +681,7 @@
         if (!fastDiv) { return; }
         const switchPerf = previousResult ? beginChartLoad('renderer switch', currentChartMode()) : null;
         const switchRenderStart = performance.now();
-        if (fastMode) {
+        if (fastRenderActive()) {
             vegaDiv.style.display = 'none';
             fastDiv.style.display = 'block';
             updateFastChart();
@@ -691,8 +706,12 @@
     function fastChartOptions() {
         return {
             groupSpec: fastChartGroupSpec,
-            // chart types (bar/histogram/heatmap) only apply on the sensor page
-            chartType: ('{{ active_page }}' === 'sensors') ? chartType : 'line',
+            // chart types (bar/histogram/heatmap) only apply on the sensor page; on
+            // the asset page it's either the Charge Point sessions chart or the
+            // default multi-sensor line chart.
+            chartType: ('{{ active_page }}' === 'sensors') ? chartType
+                : (chartType === 'chart_for_chargepoint_sessions') ? chartType
+                : 'line',
             legendsBelow: {{ 'true' if session.get("keep_legends_below_graphs") else 'false' }},
             // sensor page always shows legend below (single sensor, sources are the legend entries)
             isSensorPage: ('{{ active_page }}' === 'sensors'),
@@ -701,9 +720,10 @@
         };
     }
 
-    // Re-render the fast chart from the most recently fetched data (no-op outside fast mode)
+    // Re-render the fast chart from the most recently fetched data
+    // (no-op outside fast mode, or when the current chart type isn't supported in fast mode)
     function updateFastChart() {
-        if (!fastMode || !previousResult || !previousResult.data) { return; }
+        if (!fastRenderActive() || !previousResult || !previousResult.data) { return; }
         // Re-assert visibility, as other scripts (e.g. saving sensors_to_show) unhide the Vega-Lite chart
         const vegaDiv = document.getElementById(elementId);
         const fastDiv = document.getElementById(fastChartElementId);
@@ -713,7 +733,7 @@
     }
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
-        if (fastMode) { return; }  // in fast mode, data is rendered by updateFastChart instead
+        if (fastRenderActive()) { return; }  // in fast mode, data is rendered by updateFastChart instead
         const url = encodeUrlQuery(chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend=' + combineLegend + '&width=container&include_sensor_annotations=true&include_asset_annotations=true&chart_type=' + chartType);
         await vegaEmbed('#' + elementId, url, {{ chart_options | safe }})
       .then(function (result) {
@@ -798,7 +818,7 @@
         signal = controller.signal;
 
         // In fast mode: clear the replay ruler and re-render the most recent data
-        if (fastMode) {
+        if (fastRenderActive()) {
             setFastChartReplayTime(fastChartElementId, null);
             updateFastChart();
             document.getElementById('replay-time').innerHTML = '';
@@ -890,7 +910,7 @@
                 // Update beliefs in the replayed data given the new data
                 replayedData = updateBeliefs(replayedData, newData);
 
-                if (fastMode) {
+                if (fastRenderActive()) {
                     setFastChartReplayTime(fastChartElementId, beliefTime.getTime());
                     renderFastChart(fastChartElementId, replayedData, fastChartOptions());
                 } else {

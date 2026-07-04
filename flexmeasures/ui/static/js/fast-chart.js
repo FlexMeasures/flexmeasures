@@ -87,32 +87,36 @@ function capFirst(s) {
 
 // "Source" key with little line samples (dotted/dashed/solid + label per type),
 // mirroring the Vega-Lite charts' Source legend. Returns one ECharts graphic
-// group laid out as a single horizontal strip. Reserve SOURCE_KEY_HEIGHT for it.
-const SOURCE_KEY_HEIGHT = 22;
+// group laid out as a vertical column ("Source" title, then one row per source
+// type) placed at the bottom-left, exactly as the Vega-Lite charts render it.
+const SOURCE_KEY_ROW_HEIGHT = 20;
+// Title row + one row per source type (forecaster, scheduler, other — see
+// SOURCE_KEY_ROWS below); reserve this height at the bottom for the key.
+const SOURCE_KEY_HEIGHT = 24 + 3 * SOURCE_KEY_ROW_HEIGHT;
 
 function buildSourceKey(left, top) {
   const children = [
     {
       type: "text",
       left: 0,
-      top: 3,
+      top: 0,
       style: { text: "Source", font: "bold 12px sans-serif", fill: "#222" },
     },
   ];
-  let x = 56;
+  let y = 24;
   for (const row of SOURCE_KEY_ROWS) {
     children.push({
       type: "line",
-      shape: { x1: x, y1: 9, x2: x + 26, y2: 9 },
+      shape: { x1: 0, y1: y + 6, x2: 30, y2: y + 6 },
       style: { stroke: "#555", lineWidth: 1.5, lineDash: row.dash || null },
     });
     children.push({
       type: "text",
-      left: x + 32,
-      top: 3,
+      left: 38,
+      top: y,
       style: { text: row.label, fontSize: 11, fill: "#222" },
     });
-    x += 32 + row.label.length * 6.5 + 22;
+    y += SOURCE_KEY_ROW_HEIGHT;
   }
   return { type: "group", left: left, top: top, children: children };
 }
@@ -375,6 +379,21 @@ function yAxisTitle(sensorType, units) {
     : unitLabel;
 }
 
+// Mixed date/time x-axis labels shared by every time-axis chart: "HH:MM" normally,
+// falling back to the day name + date at midnight, and the month name on the 1st.
+function xAxisTimeFormatter(value) {
+  const d = new Date(value);
+  const h = d.getHours(), m = d.getMinutes();
+  if (h === 0 && m === 0) {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    if (d.getDate() === 1) return MONTHS[d.getMonth()];
+    return DAYS[d.getDay()] + "\n" + String(d.getDate()).padStart(2, "0");
+  }
+  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+}
+
 function toolboxFeatures(elementId, datasetName, isSensorPage) {
   const dataZoom = { yAxisIndex: false };
   const savePNG = {
@@ -605,7 +624,7 @@ function buildLineBarOption(elementId, groups, opts) {
     groups.flatMap((g) => g.series.map((s) => lineTypeForSource(s.source)))
   );
   const showSourceKey = opts.chartType !== "bar_chart" && groups[0].nameBySensor && allSourceTypes.size > 1;
-  const topOffset = TOP_OFFSET + (showSourceKey ? SOURCE_KEY_HEIGHT : 0);
+  const topOffset = TOP_OFFSET;
 
   // Vertical layout: subplots, then (in legends-below mode) the slider and
   // one combined legend at the very bottom, as in the Vega-Lite charts
@@ -624,10 +643,19 @@ function buildLineBarOption(elementId, groups, opts) {
     : Math.ceil(numLegendEntries / itemsPerRow) * 24 + 8;
   // Reserve a strip below the x-axis labels for the hovered annotation's name.
   const annotGap = annotations.length > 0 ? 28 : 0;
-  const sliderTop = lastGridBottom + 36 + annotGap;
-  const bottomLegendTitleTop = sliderTop + 28 + 14; // "Source"/"Sensor" heading
+  const legendZoneTop = lastGridBottom + 36 + annotGap;
+  const bottomLegendTitleTop = legendZoneTop + 14; // "Source"/"Sensor" heading
   const legendTitleHeight = 24;
   const bottomLegendTop = bottomLegendTitleTop + legendTitleHeight;
+
+  // The "Source" line-style key placement, matching the Vega-Lite charts:
+  // - side-legend layout: bottom-left, below the last subplot's x-axis labels.
+  // - legends-below layout: a second column to the right of, and top-aligned
+  //   with, the "Sensor" legend (not stacked below it).
+  const sourceKeyLeft = legendsBelow ? GRID_LEFT + 400 : GRID_LEFT;
+  const sourceKeyTop = legendsBelow
+    ? bottomLegendTitleTop
+    : lastGridBottom + 44;
 
   // The container is a ".card" with vertical padding; under border-box sizing
   // that padding shrinks the usable canvas, which would clip the bottom legend
@@ -635,8 +663,14 @@ function buildLineBarOption(elementId, groups, opts) {
   const cs = window.getComputedStyle(container);
   const verticalPadding =
     (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+  // The bottom zone must fit whichever is taller: the Sensor legend column or
+  // the (side-by-side) Source key column.
+  const bottomLegendBottom = Math.max(
+    bottomLegendTop + legendHeight + 12,
+    showSourceKey && legendsBelow ? sourceKeyTop + SOURCE_KEY_HEIGHT + 12 : 0
+  );
   container.style.height = legendsBelow
-    ? bottomLegendTop + legendHeight + 12 + verticalPadding + "px"
+    ? bottomLegendBottom + verticalPadding + "px"
     : topOffset + groups.length * (GRID_HEIGHT + gridGap) + BOTTOM_OFFSET + verticalPadding + "px";
 
   const grids = [];
@@ -706,18 +740,7 @@ function buildLineBarOption(elementId, groups, opts) {
       axisLabel: {
         fontSize: FONT_SIZE,
         color: "#222",
-        formatter: (value) => {
-          const d = new Date(value);
-          const h = d.getHours(), m = d.getMinutes();
-          if (h === 0 && m === 0) {
-            const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-            const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-            if (d.getDate() === 1) return MONTHS[d.getMonth()];
-            return DAYS[d.getDay()] + "\n" + String(d.getDate()).padStart(2, "0");
-          }
-          return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
-        },
+        formatter: xAxisTimeFormatter,
       },
     });
     yAxes.push({
@@ -835,10 +858,9 @@ function buildLineBarOption(elementId, groups, opts) {
     });
   }
 
-  // Source line-style key, as in the Vega-Lite charts' "Source" legend.
-  // Always shown (all three types) on the sensor-colored line charts, in the
-  // strip reserved at the top-left, clear of the toolbox and the side legends.
-  const sourceKey = showSourceKey ? buildSourceKey(GRID_LEFT, 6) : null;
+  // Source line-style key, as in the Vega-Lite charts' "Source" legend:
+  // a vertical column at the bottom-left, below the chart / bottom legend.
+  const sourceKey = showSourceKey ? buildSourceKey(sourceKeyLeft, sourceKeyTop) : null;
 
   const allAxisIndices = xAxes.map((_, i) => i);
   const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage);
@@ -866,11 +888,6 @@ function buildLineBarOption(elementId, groups, opts) {
       // Mouse-wheel zoom and drag-to-pan. throttle coalesces rapid wheel/drag
       // ticks so we redraw at most every ~80 ms instead of on every event.
       { type: "inside", xAxisIndex: allAxisIndices, throttle: 80 },
-      // Range slider: realtime:false redraws only on drag-release (no mid-drag
-      // re-render of all series); a light gray ghost shows the pending window.
-      legendsBelow
-        ? { type: "slider", xAxisIndex: allAxisIndices, top: sliderTop, height: 28, realtime: false, throttle: 80 }
-        : { type: "slider", xAxisIndex: allAxisIndices, bottom: 14, height: 28, realtime: false, throttle: 80 },
     ],
   };
 }
@@ -1102,6 +1119,382 @@ function buildHeatmapOption(elementId, data, opts) {
   };
 }
 
+/* ============================== charge point sessions ============================== */
+
+// Sensor names that report Charge Point session timestamps (unit "s", the value
+// is itself an epoch time). Pivoted per (asset, event_start) into session bars,
+// mirroring the Vega-Lite "Charge Point sessions" chart's arrival/departure,
+// plug-in/plug-out and start/stop-charging layers.
+const SESSION_SENSOR_NAMES = [
+  "arrival", "departure", "plug in", "plug out", "start charging", "stop charging",
+];
+
+// Pivot session-marker rows into one record per (asset, session): each holds up
+// to three timestamp pairs (in ms) reported for that session. Rows for the same
+// session share both their asset and their event_start (the belief time at which
+// the session's timestamps were reported), which is how Vega-Lite groups them too.
+function pivotChargePointSessions(data) {
+  const groups = new Map();
+  for (const row of data || []) {
+    const sensor = row.sensor || {};
+    if (sensor.unit !== "s" || !SESSION_SENSOR_NAMES.includes(sensor.name)) {
+      continue;
+    }
+    const ms = row.event_value instanceof Date ? row.event_value.getTime() : row.event_value;
+    if (typeof ms !== "number" || !isFinite(ms) || ms <= 0) {
+      continue;
+    }
+    const assetId = sensor.asset_id;
+    const key = assetId + "_" + row.event_start;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        assetId: assetId,
+        assetLabel: sensor.asset_description || "Asset " + assetId,
+      });
+    }
+    groups.get(key)[sensor.name] = ms;
+  }
+  return Array.from(groups.values());
+}
+
+// Distinguish charge point assets that share the same description, mirroring
+// computeSourceLabels: unique descriptions are shown as-is, duplicates get their id appended.
+function computeAssetLabels(sessions) {
+  const byId = new Map();
+  for (const s of sessions) {
+    if (!byId.has(s.assetId)) byId.set(s.assetId, s.assetLabel);
+  }
+  const nameCount = new Map();
+  for (const label of byId.values()) {
+    nameCount.set(label, (nameCount.get(label) || 0) + 1);
+  }
+  const labels = new Map();
+  for (const [id, label] of byId) {
+    labels.set(id, nameCount.get(label) === 1 ? label : label + " (ID: " + id + ")");
+  }
+  return labels;
+}
+
+// "Session type" line-style key (dashed/thin, solid/medium, solid/thick), explaining
+// what each layer means, mirroring the info tooltip next to the chart-type dropdown.
+const CHARGEPOINT_KEY_ROWS = [
+  { label: "Arrival → Departure", dash: [4, 4], width: 1.5 },
+  { label: "Plug-in → Plug-out", dash: null, width: 2.5 },
+  { label: "Charging", dash: null, width: 4 },
+];
+
+function buildChargePointKey(left, top) {
+  const children = [];
+  let x = 0;
+  for (const row of CHARGEPOINT_KEY_ROWS) {
+    children.push({
+      type: "line",
+      shape: { x1: x, y1: 9, x2: x + 26, y2: 9 },
+      style: { stroke: "#555", lineWidth: row.width, lineDash: row.dash },
+    });
+    children.push({
+      type: "text",
+      left: x + 32,
+      top: 3,
+      style: { text: row.label, fontSize: 11, fill: "#222" },
+    });
+    x += 32 + row.label.length * 6.2 + 26;
+  }
+  return { type: "group", left: left, top: top, children: children };
+}
+
+// Build one real "line" series per session segment (2 points: from -> to on the
+// asset's category row), named by asset so ECharts' native legend groups every
+// layer of the same asset under one clickable, color-coded entry — matching
+// Vega-Lite's per-asset color legend and its "click legend to filter" behavior.
+function buildSessionSegmentSeries(sessions, fromKey, toKey, categoryIndex, lineWidth, lineDash, fromLabel, toLabel) {
+  const series = [];
+  for (const s of sessions) {
+    const from = s[fromKey];
+    const to = s[toKey];
+    if (typeof from !== "number" || typeof to !== "number") continue;
+    const catIdx = categoryIndex.get(s.assetId);
+    const color = SENSOR_COLORS[catIdx % SENSOR_COLORS.length];
+    const data = [[from, catIdx], [to, catIdx]];
+    const tooltip = {
+      formatter: () =>
+        tooltipTable([
+          [fromLabel, formatFullDate(from)],
+          [toLabel, formatFullDate(to)],
+          ["Asset", s.assetLabel],
+        ]),
+    };
+    // Regular time-series lines (e.g. the companion subplots) have a data point
+    // every few pixels, so ECharts' "nearest point" hover snap always finds one
+    // close to the cursor anywhere along the line. A session segment only has 2
+    // points — its start and end, often hours apart — so that snap logic finds
+    // nothing nearby over most of a long bar. Densely interpolate the invisible
+    // hit-area line (kept off the visible line) so hovering anywhere along the
+    // bar's length has a point within range, not just right at its endpoints.
+    const hitPointCount = 40;
+    const hitData = [];
+    for (let i = 0; i <= hitPointCount; i++) {
+      hitData.push([from + ((to - from) * i) / hitPointCount, catIdx]);
+    }
+    // Invisible companion line, much wider than the visible stroke, purely to
+    // widen the hoverable hit area: thin session bars (down to 1.5px) are
+    // otherwise very hard to hover precisely. Shares the visible line's name
+    // so it doesn't add its own legend entry or get toggled independently.
+    // Its OWN tooltip is disabled (tooltip.show: false): ECharts' tooltip box
+    // renders at zero size for a near-transparent series even though hover/hit
+    // -test work fine on it, so hovering it instead redirects (via the
+    // __hitAreaFor marker + the mouseover listener in wireSessionTooltipRedirect)
+    // to dispatch the visible sibling series' tooltip.
+    series.push({
+      name: s.assetLabel,
+      type: "line",
+      xAxisIndex: 0,
+      yAxisIndex: 0,
+      symbol: "none",
+      showSymbol: false,
+      animation: false,
+      legendHoverLink: false,
+      lineStyle: { width: Math.max(lineWidth, 16), opacity: 0.001 },
+      data: hitData,
+      tooltip: { show: false },
+      __hitAreaFor: true,
+      z: 1,
+    });
+    series.push({
+      name: s.assetLabel,
+      type: "line",
+      xAxisIndex: 0,
+      yAxisIndex: 0,
+      symbol: "none",
+      showSymbol: false,
+      animation: false,
+      color: color,
+      lineStyle: { width: lineWidth, type: lineDash || "solid" },
+      emphasis: { focus: "series", lineStyle: { width: lineWidth + 2 } },
+      data: data,
+      tooltip: tooltip,
+      z: 2,
+    });
+  }
+  return series;
+}
+
+// The two companion subplots Vega-Lite shows alongside the sessions chart (when
+// present in the dashboard config), restricted the same way the Python chart
+// builder restricts them (see chart_for_chargepoint_sessions in belief_charts.py).
+const CHARGEPOINT_COMPANION_TITLES = ["Power flow by type", "Prices"];
+const CHARGEPOINT_POWER_SENSOR_NAME = "charge points power";
+// Title of the dashboard group holding the raw session-marker sensors (arrival,
+// departure, plug in/out, start/stop charging). Their values are epoch timestamps,
+// not plottable quantities, so — like Vega-Lite — only the dedicated Charge Point
+// sessions chart type shows them; the default multi-sensor view hides this group.
+const CHARGE_POINT_SESSIONS_GROUP_TITLE = "Charge Point sessions";
+
+function buildChargePointSessionsOption(elementId, data, opts) {
+  const sessions = pivotChargePointSessions(data);
+  if (sessions.length === 0) {
+    return null;
+  }
+  const assetLabels = computeAssetLabels(sessions);
+  for (const s of sessions) {
+    s.assetLabel = assetLabels.get(s.assetId);
+  }
+
+  // y categories: one row per charge point asset, in order of first appearance
+  const categoryOrder = [];
+  const categoryIndex = new Map();
+  for (const s of sessions) {
+    if (!categoryIndex.has(s.assetId)) {
+      categoryIndex.set(s.assetId, categoryOrder.length);
+      categoryOrder.push(s.assetLabel);
+    }
+  }
+
+  const sessionSeries = [
+    ...buildSessionSegmentSeries(sessions, "arrival", "departure", categoryIndex, 1.5, "dashed", "Arrival", "Departure"),
+    ...buildSessionSegmentSeries(sessions, "plug in", "plug out", categoryIndex, 2.5, "solid", "Plug-in", "Plug-out"),
+    ...buildSessionSegmentSeries(sessions, "start charging", "stop charging", categoryIndex, 6, "solid", "Start charging", "Stop charging"),
+  ];
+
+  // Same two companion subplots Vega-Lite stacks below the sessions chart, built
+  // via the normal multi-sensor line-chart renderer and spliced in underneath.
+  const companionSpec = (opts.groupSpec || []).filter((g) => CHARGEPOINT_COMPANION_TITLES.includes(g.title));
+  let companionGroups = companionSpec.length > 0 ? groupData(data, companionSpec) : [];
+  // groupData() falls back to grouping any row not covered by companionSpec's
+  // sensorIds by unit, producing extra ad-hoc groups for the asset's other
+  // sensors (soc, power, ...) — drop everything except the two intended titles.
+  companionGroups = companionGroups
+    .filter((g) => CHARGEPOINT_COMPANION_TITLES.includes(g.title))
+    .map((g) =>
+      g.title === "Power flow by type"
+        ? Object.assign({}, g, { series: g.series.filter((s) => s.sensorName === CHARGEPOINT_POWER_SENSOR_NAME) })
+        : g
+    )
+    .filter((g) => g.series.length > 0);
+
+  // Give every subplot's x-axis the same explicit time domain, spanning both the
+  // session timestamps (arrival/departure/etc., which can fall outside the belief
+  // report window) and the companion sensors' event times. Without this, each
+  // "time" axis auto-scales to its own series' range independently, so the same
+  // clock time lands at a different x position in each subplot — unlike Vega-Lite,
+  // which shares one scale across all layered/concatenated charts.
+  let minTime = Infinity;
+  let maxTime = -Infinity;
+  for (const row of data || []) {
+    if (typeof row.event_start === "number") {
+      if (row.event_start < minTime) minTime = row.event_start;
+      if (row.event_start > maxTime) maxTime = row.event_start;
+    }
+  }
+  for (const s of sessions) {
+    for (const key of SESSION_SENSOR_NAMES) {
+      const t = s[key];
+      if (typeof t === "number") {
+        if (t < minTime) minTime = t;
+        if (t > maxTime) maxTime = t;
+      }
+    }
+  }
+  const sharedTimeDomain = isFinite(minTime) && isFinite(maxTime) ? { min: minTime, max: maxTime } : {};
+
+  const container = document.getElementById(elementId);
+  const gridGap = SIDE_GRID_GAP;
+  const containerWidth = container.clientWidth || 800;
+  const plotCenter = (GRID_LEFT + containerWidth - 30) / 2;
+
+  const sessionsTop = TOP_OFFSET;
+  const sessionsGridHeight = Math.min(Math.max(categoryOrder.length * 32, 160), 460);
+  const sessionsBottom = sessionsTop + sessionsGridHeight;
+
+  // Side legend of asset colors, one entry per asset, matching the per-subplot
+  // side legend style used by the other charts; clicking an entry toggles every
+  // layer of that asset (they all share its name), just like Vega-Lite.
+  const legendRowHeight = FONT_SIZE + 6;
+  const legendContentHeight = categoryOrder.length * legendRowHeight;
+  const legendTop = sessionsTop + Math.max(0, (sessionsGridHeight - legendContentHeight) / 2);
+
+  const grids = [{ top: sessionsTop, height: sessionsGridHeight, left: GRID_LEFT, right: LEGEND_WIDTH + 40, containLabel: false }];
+  const xAxes = [Object.assign({
+    type: "time",
+    gridIndex: 0,
+    axisLine: { onZero: false },
+    axisPointer: { show: true },
+    splitLine: { show: true, lineStyle: { opacity: 0.5 } },
+    minorTick: { show: true, splitNumber: 6 },
+    minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
+    minInterval: 6 * 3600 * 1000,
+    axisLabel: { fontSize: FONT_SIZE, color: "#222", formatter: xAxisTimeFormatter },
+  }, sharedTimeDomain)];
+  const yAxes = [{
+    type: "category",
+    gridIndex: 0,
+    data: categoryOrder,
+    name: "Sessions",
+    nameLocation: "end",
+    nameTextStyle: { fontSize: FONT_SIZE, fontWeight: "bold", color: "#222", align: "left", padding: [0, 0, 4, -GRID_LEFT + 16] },
+    axisLabel: { show: false },
+    axisTick: { show: false },
+    splitLine: { show: false },
+  }];
+  const titles = [{
+    text: "Charge Point sessions",
+    left: plotCenter,
+    textAlign: "center",
+    top: sessionsTop - 42,
+    textStyle: { fontSize: Math.round(FONT_SIZE * 1.25), color: "#222" },
+  }];
+  const legends = [{
+    data: categoryOrder,
+    type: "scroll",
+    tooltip: { show: true },
+    orient: "vertical",
+    right: 8,
+    top: legendTop,
+    height: sessionsGridHeight,
+    align: "left",
+    itemWidth: 18,
+    itemGap: 6,
+    textStyle: { fontSize: FONT_SIZE, width: LEGEND_WIDTH - 30, overflow: "truncate" },
+  }];
+  const graphics = [
+    { type: "text", left: containerWidth - LEGEND_WIDTH, top: sessionsTop - 20, style: { text: "Asset", font: "bold " + FONT_SIZE + "px " + CHART_FONT, fill: "#222" } },
+    buildChargePointKey(GRID_LEFT, 6),
+  ];
+  const series = sessionSeries.slice();
+  // Aligned 1:1 with the final `series` array: null for the session segment
+  // series (they carry their own per-series tooltip), real metadata for the
+  // companion series, which rely on the shared seriesTooltipFormatter below.
+  const seriesMeta = new Array(sessionSeries.length).fill(null);
+
+  // Splice the companion subplots (each built independently by the normal
+  // line-chart renderer, one group at a time so its own Source key — e.g. for
+  // Prices' forecaster/scheduler/other sources — lands right above its own
+  // subplot instead of a single misplaced key shared across both) in below the
+  // sessions chart, re-indexed onto the shared grid/axis/dataZoom set.
+  let runningTop = sessionsBottom + gridGap;
+  let indexShift = 1;
+  companionGroups.forEach((group) => {
+    const companionOption = buildLineBarOption(elementId, [group], Object.assign({}, opts, {
+      chartType: "line",
+      legendsBelow: false,
+      isSensorPage: false,
+      annotations: [],
+    }));
+    const deltaTop = runningTop - companionOption.grid[0].top;
+    const shiftedTop = runningTop; // capture before the mutations below shift grid[0].top in place
+    companionOption.grid.forEach((g) => { g.top += deltaTop; grids.push(g); });
+    companionOption.title.forEach((t) => { t.top += deltaTop; titles.push(t); });
+    companionOption.xAxis.forEach((x) => { x.gridIndex = indexShift; Object.assign(x, sharedTimeDomain); xAxes.push(x); });
+    companionOption.yAxis.forEach((y) => { y.gridIndex = indexShift; yAxes.push(y); });
+    companionOption.series.forEach((s) => {
+      s.xAxisIndex = indexShift;
+      s.yAxisIndex = indexShift;
+      series.push(s);
+    });
+    seriesMeta.push(...group.series);
+    companionOption.legend.forEach((l) => { if (typeof l.top === "number") l.top += deltaTop; legends.push(l); });
+    (companionOption.graphic || []).forEach((g) => { if (g && typeof g.top === "number") g.top += deltaTop; if (g) graphics.push(g); });
+    // This subplot's own Source key (when present) now sits below its x-axis
+    // labels, so reserve an extra SOURCE_KEY_HEIGHT strip before the next subplot
+    // to keep it clear. Subplots without a Source key need no extra room.
+    const hasSourceKey = (companionOption.graphic || []).some((g) => g && g.type === "group");
+    runningTop = shiftedTop + GRID_HEIGHT + gridGap + (hasSourceKey ? SOURCE_KEY_HEIGHT + 12 : 0);
+    indexShift += 1;
+  });
+  const bottomOffset = companionGroups.length > 0
+    ? runningTop - gridGap + BOTTOM_OFFSET
+    : sessionsBottom + BOTTOM_OFFSET;
+
+  const cs = window.getComputedStyle(container);
+  const verticalPadding = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+  container.style.height = bottomOffset + verticalPadding + "px";
+
+  const allAxisIndices = xAxes.map((_, i) => i);
+  const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage);
+  toolbox.feature.dataZoom.xAxisIndex = allAxisIndices;
+
+  return {
+    textStyle: { fontFamily: CHART_FONT, fontSize: FONT_SIZE },
+    graphic: graphics,
+    grid: grids,
+    title: titles,
+    xAxis: xAxes,
+    yAxis: yAxes,
+    series: series,
+    legend: legends,
+    axisPointer: { link: [{ xAxisIndex: "all" }] },
+    tooltip: {
+      trigger: "item",
+      confine: true,
+      formatter: seriesTooltipFormatter(seriesMeta),
+    },
+    toolbox: toolbox,
+    dataZoom: [
+      { type: "inside", xAxisIndex: allAxisIndices, throttle: 80 },
+    ],
+  };
+}
+
 /* ============================== main entry points ============================== */
 
 /**
@@ -1110,7 +1503,8 @@ function buildHeatmapOption(elementId, data, opts) {
  * @param {string} elementId - The id of the container div.
  * @param {Object[]} data - Decompressed chart data rows.
  * @param {Object} [options] - { groupSpec, chartType, legendsBelow, datasetName }.
- *   chartType: "line" (default), "bar_chart", "histogram", "daily_heatmap" or "weekly_heatmap".
+ *   chartType: "line" (default), "bar_chart", "histogram", "daily_heatmap",
+ *   "weekly_heatmap" or "chart_for_chargepoint_sessions".
  */
 export function renderFastChart(elementId, data, options) {
   const container = document.getElementById(elementId);
@@ -1142,8 +1536,11 @@ export function renderFastChart(elementId, data, options) {
     option = buildHistogramOption(elementId, data, opts);
   } else if (opts.chartType === "daily_heatmap" || opts.chartType === "weekly_heatmap") {
     option = buildHeatmapOption(elementId, data, opts);
+  } else if (opts.chartType === "chart_for_chargepoint_sessions") {
+    option = buildChargePointSessionsOption(elementId, data, opts);
   } else {
-    const groups = groupData(data, opts.groupSpec);
+    const groupSpec = (opts.groupSpec || []).filter((g) => g.title !== CHARGE_POINT_SESSIONS_GROUP_TITLE);
+    const groups = groupData(data, groupSpec);
     option = groups.length > 0 ? buildLineBarOption(elementId, groups, opts) : null;
   }
   if (!option) {
@@ -1154,6 +1551,32 @@ export function renderFastChart(elementId, data, options) {
   instance.chart.setOption(option, { notMerge: true });
 
   wireAnnotationHover(instance, opts);
+  wireSessionTooltipRedirect(instance, opts);
+}
+
+// The wide invisible hit-area series added per session segment (see
+// buildSessionSegmentSeries) has its own tooltip disabled, because ECharts
+// renders a broken zero-size tooltip box for a near-transparent line series
+// even though hover/hit-testing on it work fine. Redirect hover on those
+// series to dispatch the visible sibling series' (real) tooltip instead.
+function wireSessionTooltipRedirect(instance, opts) {
+  const chart = instance.chart;
+  if (instance.onSessionHitHover) {
+    chart.off("mouseover", instance.onSessionHitHover);
+    instance.onSessionHitHover = null;
+  }
+  if (opts.chartType !== "chart_for_chargepoint_sessions") {
+    return;
+  }
+  instance.onSessionHitHover = (ev) => {
+    if (ev.componentType !== "series") return;
+    const series = chart.getOption().series || [];
+    const hovered = series[ev.seriesIndex];
+    if (!hovered || !hovered.__hitAreaFor) return;
+    // The visible sibling is always pushed immediately after its hit-area series.
+    chart.dispatchAction({ type: "showTip", seriesIndex: ev.seriesIndex + 1, dataIndex: 0 });
+  };
+  chart.on("mouseover", instance.onSessionHitHover);
 }
 
 // Highlight the annotation band under the cursor (color + label), matching Vega-Lite.
