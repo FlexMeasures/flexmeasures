@@ -7,9 +7,28 @@
 {% block divs %}
 
 <div class="container-fluid">
-    
+
     <h3>Creating a new asset {% if parent_asset_name %} under asset <a href="/assets/{{parent_asset_id}}">{{ parent_asset_name }}</a> {% endif %}</h3>
-    
+
+    <!-- Tab navigation -->
+    <ul class="nav nav-tabs mb-3" id="newAssetTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="create-new-tab" data-bs-toggle="tab"
+                data-bs-target="#create-new" type="button" role="tab"
+                aria-controls="create-new" aria-selected="true">Create new</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="copy-asset-tab" data-bs-toggle="tab"
+                data-bs-target="#copy-asset" type="button" role="tab"
+                aria-controls="copy-asset" aria-selected="false">Copy existing</button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="newAssetTabContent">
+
+        <!-- Tab 1: Create new asset form -->
+        <div class="tab-pane fade show active" id="create-new" role="tabpanel" aria-labelledby="create-new-tab">
+
     <form class="new-asset-form form-horizontal" method="POST" action="/assets/create">
         {{ asset_form.csrf_token }}
         {{ asset_form.hidden_tag() }}
@@ -108,6 +127,54 @@
             </div>
         </fieldset>
     </form>
+
+        </div><!-- end #create-new tab pane -->
+
+        <!-- Tab 2: Copy an existing asset -->
+        <div class="tab-pane fade" id="copy-asset" role="tabpanel" aria-labelledby="copy-asset-tab">
+
+            <div class="row mb-3 mt-3">
+                <div class="col-md-5">
+                    <input type="text" id="copySearchInput" class="form-control"
+                        placeholder="Search assets…" value="">
+                </div>
+                <div class="col-md-3">
+                    <select id="copyAssetTypeSelect" class="form-select">
+                        <option value="">All types</option>
+                        {% for at in asset_types %}
+                        <option value="{{ at.id }}">{{ at.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-center">
+                {% if not current_user.has_role('admin') %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="copyIncludePublic" checked>
+                        <label class="form-check-label" for="copyIncludePublic">Include public assets</label>
+                    </div>
+                {% else %}
+                    <input style="display: none;" class="form-check-input" type="checkbox" id="copyIncludePublic" checked>
+                {% endif %}
+                </div>
+            </div>
+
+            <div id="copyAssetsSpinner" class="justify-content-center my-4 d-none">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading…</span>
+                </div>
+            </div>
+
+            <div id="copyAssetsResults" class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-1 my-2"></div>
+            <div id="copyAssetsStatus" class="small text-muted my-1"></div>
+            <div id="copyAssetsPagination" class="d-flex flex-wrap align-items-center gap-2 my-2 d-none">
+                <div id="copyAssetsPageNumbers" class="btn-group flex-wrap" role="group" aria-label="Asset search pages"></div>
+                <button id="copyAssetsNextBtn" type="button" class="btn btn-outline-primary btn-sm">Next</button>
+            </div>
+
+        </div><!-- end #copy-asset tab pane -->
+
+    </div><!-- end .tab-content -->
+
 </div>
 
 <!-- Initialise the map -->
@@ -172,6 +239,302 @@
         marker.setLatLng(e.latlng);
     });
 
+</script>
+
+<script type="module">
+import { getAccount } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
+
+(function () {
+    const perPage = 15;
+    let parentAssetId = "{{ parent_asset_id }}";
+    let currentPage = 1;
+    let isLoading = false;
+    let hasInitializedCopyTab = false;
+    let searchDebounceTimer = null;
+    let totalFilteredRecords = 0;
+    let totalPages = 0;
+    let activeSearchToken = 0;
+    const accountNameCache = new Map();
+
+    const spinner = document.getElementById("copyAssetsSpinner");
+    const results = document.getElementById("copyAssetsResults");
+    const status = document.getElementById("copyAssetsStatus");
+    const pagination = document.getElementById("copyAssetsPagination");
+    const pageNumbers = document.getElementById("copyAssetsPageNumbers");
+    const nextButton = document.getElementById("copyAssetsNextBtn");
+
+    function toggleSpinner(show) {
+        if (show) {
+            spinner.classList.remove("d-none");
+            spinner.classList.add("d-flex");
+        } else {
+            spinner.classList.remove("d-flex");
+            spinner.classList.add("d-none");
+        }
+    }
+
+    function setStatusMessage(message) {
+        status.textContent = message || "";
+    }
+
+    function resetSearchState() {
+        activeSearchToken += 1;
+        currentPage = 1;
+        isLoading = false;
+        totalFilteredRecords = 0;
+        totalPages = 0;
+        results.innerHTML = "";
+        pageNumbers.innerHTML = "";
+        pagination.classList.add("d-none");
+        setStatusMessage("");
+    }
+
+    function getSearchParams(page) {
+        const filter = document.getElementById("copySearchInput").value;
+        const assetTypeId = document.getElementById("copyAssetTypeSelect").value;
+        const includePublic = document.getElementById("copyIncludePublic").checked;
+
+        const params = new URLSearchParams({ page: page, per_page: perPage });
+        params.set("all_accessible", true);
+        if (filter) params.set("filter", filter);
+        if (assetTypeId) params.set("asset_type", assetTypeId);
+        if (includePublic) params.set("include_public", "true");
+        // Ensure stable ordering across pages to avoid page-overlap duplicates.
+        params.set("sort_by", "id");
+        params.set("sort_dir", "asc");
+        return params;
+    }
+
+    async function searchAssetsForCopy(reset) {
+        if (reset) {
+            resetSearchState();
+        }
+        if (isLoading) {
+            return;
+        }
+
+        isLoading = true;
+        toggleSpinner(true);
+        const requestToken = activeSearchToken;
+        const params = getSearchParams(currentPage);
+
+        try {
+            const response = await fetch("/api/v3_0/assets?" + params.toString(), {
+                credentials: "same-origin",
+            });
+            if (!response.ok) throw new Error(response.statusText || "Request failed");
+            const data = await response.json();
+            if (requestToken !== activeSearchToken) {
+                return;
+            }
+            const assets = data.data || [];
+            totalFilteredRecords = data["filtered-records"] || 0;
+            totalPages = Math.ceil(totalFilteredRecords / perPage);
+
+            if (!assets.length) {
+                renderCopyResults([]);
+                renderPagination();
+                setStatusMessage("No assets found.");
+                return;
+            }
+
+            renderCopyResults(assets);
+            renderPagination();
+            setStatusMessage(
+                "Showing page " + currentPage + " of " + totalPages +
+                " (" + totalFilteredRecords + " result" +
+                (totalFilteredRecords === 1 ? "" : "s") + ")."
+            );
+        } catch (err) {
+            showToast("Failed to search assets: " + err.message, "error");
+            setStatusMessage("Failed to load assets.");
+        } finally {
+            isLoading = false;
+            toggleSpinner(false);
+        }
+    }
+
+    function renderCopyResults(assets) {
+        const container = document.getElementById("copyAssetsResults");
+        container.innerHTML = "";
+        assets.forEach(function (asset) {
+            const col = document.createElement("div");
+            col.className = "col";
+            const accountLabel = asset.account_id
+                ? "Organisation #" + asset.account_id
+                : "Public";
+            col.innerHTML =
+                '<div class="d-flex justify-content-between align-items-center border rounded px-2 py-1">' +
+                '<div class="me-2 text-truncate">' +
+                '<div class="fw-semibold text-truncate" title="View Asset"> <a href="/assets/' + asset.id + '" class="text-reset">' + escapeHtml(asset.name) + ' (ID:' + asset.id + ')</a></div>' +
+                '<div class="text-muted small text-truncate js-account-label">' + accountLabel + '</div>' +
+                '</div>' +
+                '<button class="btn btn-sm btn-primary js-copy-from-tab-btn"' +
+                ' data-asset-id="' + asset.id + '">Copy</button>' +
+                '</div>';
+            container.appendChild(col);
+
+            if (asset.account_id) {
+                getAccountLabel(asset.account_id).then(function (label) {
+                    const accountLabelEl = col.querySelector(".js-account-label");
+                    if (accountLabelEl) {
+                        accountLabelEl.textContent = label;
+                    }
+                });
+            }
+
+            // Attach listener after button is added to DOM
+            const btn = col.querySelector(".js-copy-from-tab-btn");
+            btn.addEventListener("click", async function () {
+                const assetId = btn.dataset.assetId;
+                let url = "/api/v3_0/assets/" + assetId + "/copy";
+                if (parentAssetId) {
+                    url += "?parent=" + parentAssetId;
+                }
+
+                btn.disabled = true;
+                showToast("Creating asset from template…", "info");
+                fetch(url, { method: "POST", credentials: "same-origin" })
+                    .then(function (r) {
+                        if (!r.ok) return r.json().then(function (e) { throw new Error(e.message || r.statusText); });
+                        return r.json();
+                    })
+                    .then(function (data) {
+                        showToast("Asset created successfully.", "success");
+                        setTimeout(function () {
+                           window.location.href = "/assets/" + data.asset + "/properties";
+                        }, 2000);
+                    })
+                    .catch(function (err) {
+                        showToast("Failed to create asset: " + err.message, "error");
+                        btn.disabled = false;
+                    });
+            });
+        });
+    }
+
+    function renderPagination() {
+        pageNumbers.innerHTML = "";
+
+        if (!totalPages) {
+            pagination.classList.add("d-none");
+            return;
+        }
+
+        pagination.classList.remove("d-none");
+
+        const pageItems = getPageItems(totalPages, currentPage);
+        pageItems.forEach(function (item) {
+            if (item === "ellipsis") {
+                const ellipsis = document.createElement("span");
+                ellipsis.className = "px-2 align-self-center";
+                ellipsis.textContent = "...";
+                pageNumbers.appendChild(ellipsis);
+                return;
+            }
+
+            const page = item;
+            const pageButton = document.createElement("button");
+            pageButton.type = "button";
+            pageButton.className =
+                "btn btn-sm " +
+                (page === currentPage ? "btn-primary" : "btn-outline-primary");
+            pageButton.textContent = String(page);
+            pageButton.addEventListener("click", function () {
+                if (page === currentPage) {
+                    return;
+                }
+                currentPage = page;
+                searchAssetsForCopy(false);
+            });
+            pageNumbers.appendChild(pageButton);
+        });
+
+        nextButton.disabled = currentPage >= totalPages;
+    }
+
+    function getPageItems(total, current) {
+        if (total <= 7) {
+            return Array.from({ length: total }, (_, i) => i + 1);
+        }
+
+        const items = [];
+        const nearStart = current <= 4;
+        const nearEnd = current >= total - 3;
+
+        if (nearStart) {
+            items.push(1, 2, 3, 4, 5, "ellipsis", total);
+            return items;
+        }
+
+        if (nearEnd) {
+            items.push(1, "ellipsis", total - 4, total - 3, total - 2, total - 1, total);
+            return items;
+        }
+
+        items.push(
+            1,
+            "ellipsis",
+            current - 1,
+            current,
+            current + 1,
+            "ellipsis",
+            total,
+        );
+        return items;
+    }
+
+    function triggerNewSearch() {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(function () {
+            searchAssetsForCopy(true);
+        }, 250);
+    }
+
+    async function getAccountLabel(accountId) {
+        if (!accountId) {
+            return "Public";
+        }
+        if (accountNameCache.has(accountId)) {
+            return accountNameCache.get(accountId);
+        }
+        try {
+            const account = await getAccount(accountId);
+            const label = account && account.name
+                ? account.name + " (ID:" + account.id + ")"
+                : "Organisation (ID:" + accountId + ")";
+            accountNameCache.set(accountId, label);
+            return label;
+        } catch (e) {
+            return "Organisation (ID:" + accountId + ")";
+        }
+    }
+
+    function escapeHtml(text) {
+        const d = document.createElement("div");
+        d.appendChild(document.createTextNode(text));
+        return d.innerHTML;
+    }
+
+    document.getElementById("copySearchInput").addEventListener("input", triggerNewSearch);
+    document.getElementById("copyAssetTypeSelect").addEventListener("change", triggerNewSearch);
+    document.getElementById("copyIncludePublic").addEventListener("change", triggerNewSearch);
+    nextButton.addEventListener("click", function () {
+        if (currentPage >= totalPages) {
+            return;
+        }
+        currentPage += 1;
+        searchAssetsForCopy(false);
+    });
+
+    // Run initial search when the tab is first shown
+    document.getElementById("copy-asset-tab").addEventListener("shown.bs.tab", function () {
+        if (!hasInitializedCopyTab) {
+            hasInitializedCopyTab = true;
+            searchAssetsForCopy(true);
+        }
+    });
+}());
 </script>
 
 {% endblock %}
