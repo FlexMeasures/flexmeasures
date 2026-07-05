@@ -394,8 +394,8 @@ class FlexContextSchema(Schema):
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
         if (
             (data["relax_soc_constraints"] or data["relax_constraints"])
-            and not data.get("soc_minima_breach_price")
-            and not data.get("soc_maxima_breach_price")
+            and data.get("soc_minima_breach_price") is None
+            and data.get("soc_maxima_breach_price") is None
         ):
             self.set_default_breach_prices(
                 data,
@@ -406,8 +406,8 @@ class FlexContextSchema(Schema):
         # Fill in default capacity breach prices when asked to relax capacity constraints, unless already set explicitly.
         if (
             (data["relax_capacity_constraints"] or data["relax_constraints"])
-            and not data.get("consumption_breach_price")
-            and not data.get("production_breach_price")
+            and data.get("consumption_breach_price") is None
+            and data.get("production_breach_price") is None
         ):
             self.set_default_breach_prices(
                 data,
@@ -418,8 +418,8 @@ class FlexContextSchema(Schema):
         # Fill in default site capacity breach prices when asked to relax site capacity constraints, unless already set explicitly.
         if (
             (data["relax_site_capacity_constraints"] or data["relax_constraints"])
-            and not data.get("ems_consumption_breach_price")
-            and not data.get("ems_production_breach_price")
+            and data.get("ems_consumption_breach_price") is None
+            and data.get("ems_production_breach_price") is None
         ):
             self.set_default_breach_prices(
                 data,
