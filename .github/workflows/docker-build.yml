@@ -49,7 +49,7 @@ jobs:
         run: docker exec --env-file .env fm-container flexmeasures
           add toy-account
       - name: Generate prices dummy data
-        run: .github/workflows/generate-dummy-price.sh
+        run: ci/generate-dummy-price.sh
       - name: Copy prices dummy data
         run: docker cp prices-tomorrow.csv fm-container:/app/prices-tomorrow.csv
       - name: Add beliefs

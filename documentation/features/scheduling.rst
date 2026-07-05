@@ -337,3 +337,62 @@ Here are some thoughts on further innovation:
   This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes.
   Thoughts welcome :)
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.
+
+
+
+Inspecting schedules
+-----------------------
+
+It can be crucial to inspect how your scheduling job is doing.
+Here are some ways to do that:
+
+Errors
+^^^^^^^
+
+FlexMeasures will validate flex-config and asset & sensor IDs before starting the job,
+and let you know (in the console or API response) what went wrong.
+
+
+Checking the status via the API
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There is an API endpoint specifically for checking status, result and configuration info for jobs:
+``GET /api/v3_0/jobs/{uuid}`` returns JSON with the job status, result, queue and function metadata, timestamps, and exception traceback information for failed jobs.
+
+
+Checking the status via the API
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There is also a CLI command, which basically mirrors what the API endpoint does (see above). Here is an example call:
+
+.. code-block:: bash
+
+    flexmeasures jobs inspect-job --job 40ac6f2e-690d-4865-8203-429e54179112
+
+
+The asset status page: listing jobs and more info
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Each asset has a status page where you can find recent jobs which were run in the context of this asset.
+Clicking the "Info" button will give you a lot more insights into the jobs' configuration than the above methods.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_status_page_job_info.png
+    :align: center
+..    :scale: 40%
+
+|
+
+
+The RQ-dashboard: complete overview
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Internally, jobs are queued with the python-rq library. For this, a job dashboard is available, which
+users with the ``admin`` role can access via the menu. This gives a complete overview over all jobs
+running in FlexMeasures.
+
+You find your jobs via the queues, see screenshot below.
+Clicking a job gives you more information, similar to the status page.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_rq_dashboard.png
+    :align: center
+..    :scale: 40%
