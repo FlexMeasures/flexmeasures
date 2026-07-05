@@ -13,10 +13,10 @@ Cloud setup using containers
 ------------------------------
 
 The recommended way to run FlexMeasures is indeed via docker containers.
-There are cloud infrastructures offered by the big providers, but there are many others, too.
-You could use a container orchestration platform like Kubernetes, but also simpler options like Ansible/Terraform are great.
+There are cloud infrastructures offered by the big providers, but there are many others, too. 
+You could use a container orchestration platform like Kubernetes, but also simpler options like Ansible/Terraform are great. 
 
-We recommend that several FlexMeasures containers are run, with different main tasks.
+We recommend that several FlexMeasures containers are run, with different main tasks. 
 The obvious tasks would be to serve web & API requests and to perform heavier background tasks (like computing schedules and forecasting).
 
 The image below shows an example architecture, and you can see that this allows you to scale each task on its own (by adding more containers to its stack).

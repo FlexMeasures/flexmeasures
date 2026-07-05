@@ -386,8 +386,8 @@ Clicking the "Info" button will give you a lot more insights into the jobs' conf
 The RQ-dashboard: complete overview
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Internally, jobs are queued with the python-rq library. For this, a job dashboard is available, which
-users with the ``admin`` role can access via the menu. This gives a complete overview over all jobs
+Internally, jobs are queued with the python-rq library. For this, a job dashboard is available, which 
+users with the ``admin`` role can access via the menu. This gives a complete overview over all jobs 
 running in FlexMeasures.
 
 You find your jobs via the queues, see screenshot below.
