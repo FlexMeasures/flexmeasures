@@ -537,26 +537,50 @@ function noDataOption(message) {
 }
 
 // Tooltip matching the Vega-Lite charts: a two-column table per data point
+// Render the rich single-point table for one series' data point.
+function singlePointTooltip(meta, value) {
+  if (!meta || !value) {
+    return "";
+  }
+  return tooltipTable([
+    ["Sensor", meta.sensorDescription],
+    [capFirst(meta.sensorType), formatQuantity(value[1], meta.unit)],
+    ["Time and date", formatFullDate(value[0])],
+    ["Horizon", formatTimedelta(value[2])],
+    ["Source", meta.source.name + " (ID: " + meta.source.id + ")"],
+    ["Type", meta.source.display_type || ""],
+    ["Model", meta.source.model || ""],
+    ["Version", meta.source.version || ""],
+  ]);
+}
+
 function seriesTooltipFormatter(seriesMeta) {
   return function (params) {
+    // Axis trigger passes an array of the series' points near the ruler; item
+    // trigger passes a single point. In both cases we show just the nearest one,
+    // as in the Vega-Lite charts (which snap to the nearest data point on hover).
+    if (Array.isArray(params)) {
+      if (params.length === 0) {
+        return "";
+      }
+      // Pick the point closest to the ruler position (params[i].axisValue).
+      const ref = params[0].axisValue;
+      let best = params[0];
+      let bestDist = Infinity;
+      for (const p of params) {
+        const x = p.value && p.value[0];
+        const dist = typeof x === "number" && typeof ref === "number" ? Math.abs(x - ref) : 0;
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = p;
+        }
+      }
+      return singlePointTooltip(seriesMeta[best.seriesIndex], best.value);
+    }
     if (params.componentType === "legend") {
       return escapeHtml(params.name); // legend hover: just reveal the full series name
     }
-    const meta = seriesMeta[params.seriesIndex];
-    if (!meta) {
-      return "";
-    }
-    const value = params.value;
-    return tooltipTable([
-      ["Sensor", meta.sensorDescription],
-      [capFirst(meta.sensorType), formatQuantity(value[1], meta.unit)],
-      ["Time and date", formatFullDate(value[0])],
-      ["Horizon", formatTimedelta(value[2])],
-      ["Source", meta.source.name + " (ID: " + meta.source.id + ")"],
-      ["Type", meta.source.display_type || ""],
-      ["Model", meta.source.model || ""],
-      ["Version", meta.source.version || ""],
-    ]);
+    return singlePointTooltip(seriesMeta[params.seriesIndex], params.value);
   };
 }
 
@@ -888,8 +912,12 @@ function buildLineBarOption(elementId, groups, opts) {
       link: [{ xAxisIndex: "all" }], // sync the ruler across subplots
     },
     tooltip: {
-      trigger: "item", // per-point details, as in the Vega-Lite charts
+      // Axis trigger so hovering anywhere snaps to the nearest data point (the
+      // ruler), as in the Vega-Lite charts, instead of requiring a direct hit on
+      // the thin line. The formatter then shows just that nearest point.
+      trigger: "axis",
       confine: true,
+      axisPointer: { type: "line" },
       formatter: seriesTooltipFormatter(seriesMeta),
     },
     toolbox: toolbox,
