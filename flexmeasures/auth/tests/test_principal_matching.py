@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
-from flexmeasures.auth.policy import user_matches_principals, can_modify_role
+from flexmeasures.auth.policy import (
+    CONSULTANT_ROLE,
+    can_modify_role,
+    user_matches_principals,
+)
 
 
 class MockAccount:
@@ -194,3 +200,41 @@ def test_can_modify_role(
     assert (
         can_modify_role(mock_user, roles_to_modify, modified_user) == can_modify_roles
     )
+
+
+@pytest.mark.parametrize(
+    "mock_user, modified_user, roles_to_modify",
+    [
+        # Empty role changes are not explicitly allowed.
+        (
+            make_mock_user(19, ["consultant"], 1, []),
+            make_mock_user(20, ["account-admin"], 2, [], 1),
+            [],
+        ),
+        # None is not an explicitly supported role.
+        (
+            make_mock_user(19, ["consultant"], 1, []),
+            make_mock_user(21, ["account-admin"], 2, [], 1),
+            [None],
+        ),
+        # Unsupported roles must not be allowed by falling through supported checks.
+        (
+            make_mock_user(19, ["consultant"], 1, []),
+            make_mock_user(22, [], 2, [], 1),
+            [SimpleNamespace(name="unsupported-role")],
+        ),
+        # Every requested role must be explicitly allowed, so one unsupported role denies the whole change.
+        (
+            make_mock_user(19, ["admin"], 1, []),
+            make_mock_user(23, ["consultant"], 1, []),
+            [
+                SimpleNamespace(name="unsupported-role"),
+                SimpleNamespace(name=CONSULTANT_ROLE),
+            ],
+        ),
+    ],
+)
+def test_can_modify_role_denies_unexplicit_role_changes(
+    db, setup_roles_users, mock_user, modified_user, roles_to_modify
+):
+    assert can_modify_role(mock_user, roles_to_modify, modified_user) is False

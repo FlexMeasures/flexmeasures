@@ -9,7 +9,7 @@ from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
 from werkzeug.exceptions import Forbidden
-from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.policy import can_modify_role, check_access
 
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
@@ -393,7 +393,7 @@ class UserAPI(FlaskView):
             It has to be used by the user themselves, admins, consultant or account-admins (of the same account).
             Any subset of user fields can be sent.
             If the user is not an (account-)admin, they can only edit a few of their own fields.
-            User roles cannot be updated by everyone - it requires certain access levels (roles, account), with the general rule that you need a higher access level than the role being updated.
+            User role updates require explicit permission for every role being added or removed, generally by a user with a higher access level than the role being updated. Unsupported, unknown, or otherwise unresolved roles are denied.
 
             The following fields are not allowed to be updated at all:
             - id
@@ -460,8 +460,6 @@ class UserAPI(FlaskView):
                 )
             # if flexmeasures_roles is not empty, check if the user can modify the role
             if k == "flexmeasures_roles" and (v or len(v) == 0):
-                from flexmeasures.auth.policy import can_modify_role
-
                 current_roles = set(user.flexmeasures_roles)
                 new_roles = set(v)
 

@@ -68,11 +68,11 @@ of which some are referred to in this documentation.
 
 ================================================= =======================================
 ``flexmeasures edit attribute``                   Edit (or add) an asset attribute or sensor attribute.
+``flexmeasures edit secret``                      Edit (or add) an encrypted secret on an account or asset.
 ``flexmeasures edit resample-data``               Assign a new event resolution to an existing sensor and resample its data accordingly.
 ``flexmeasures edit transfer-parenthood``         (Re)assign parent assets.
 ``flexmeasures edit transfer-ownership``          Transfer the ownership of an asset and its children to a different account.
 ================================================= =======================================
-
 
 ``delete`` - Delete data
 --------------
@@ -83,6 +83,7 @@ of which some are referred to in this documentation.
 ``flexmeasures delete account``                   Delete a tenant account & also their users (with assets and power measurements).
 ``flexmeasures delete user``                      Delete a user & also their assets and power measurements.
 ``flexmeasures delete asset``                     Delete an asset & also its sensors and data.
+``flexmeasures delete secret``                    Delete an encrypted secret from an account or asset.
 ``flexmeasures delete sensor``                    Delete a sensor and all beliefs about it.
 ``flexmeasures delete beliefs``                   Delete time series data (beliefs).
 ``flexmeasures delete measurements``              Delete measurements (with horizon <= 0).

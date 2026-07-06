@@ -1,10 +1,12 @@
+import json
+
 import pytest
 from flask import url_for
 from sqlalchemy import select
 
 from flexmeasures.api.tests.utils import AccountContext
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.api.v3_0.tests.utils import get_asset_post_data
+from flexmeasures.api.v3_0.tests.utils import get_asset_post_data, check_audit_log_event
 
 
 @pytest.mark.parametrize(
@@ -42,6 +44,64 @@ def test_post_an_asset_as_admin(client, setup_api_fresh_test_data, requesting_us
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_post_root_asset_allows_existing_name_in_different_account(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
+    with AccountContext("Test Prosumer Account") as prosumer:
+        existing_asset = prosumer.generic_assets[0]
+        existing_name = existing_asset.name
+        asset_type_id = existing_asset.generic_asset_type_id
+
+    with AccountContext("Test Supplier Account") as supplier:
+        post_data = get_asset_post_data(
+            account_id=supplier.id,
+            asset_type_id=asset_type_id,
+        )
+    post_data["name"] = existing_name
+
+    response = client.post(
+        url_for("AssetAPI:post"),
+        json=post_data,
+    )
+
+    assert response.status_code == 201
+    assert response.json["name"] == existing_name
+    assert response.json["account_id"] == post_data["account_id"]
+    assert response.json["parent_asset_id"] is None
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_post_public_root_asset_rejects_existing_name(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
+    db = fresh_db
+    with AccountContext("Test Prosumer Account") as prosumer:
+        asset_type_id = prosumer.generic_assets[0].generic_asset_type_id
+
+    existing_name = "Existing public root asset"
+    db.session.add(
+        GenericAsset(
+            name=existing_name,
+            generic_asset_type_id=asset_type_id,
+            account_id=None,
+        )
+    )
+    db.session.flush()
+
+    post_data = get_asset_post_data(asset_type_id=asset_type_id)
+    post_data["name"] = existing_name
+    post_data.pop("account_id")
+
+    response = client.post(
+        url_for("AssetAPI:post"),
+        json=post_data,
+    )
+
+    assert response.status_code == 422
+    assert "already exists" in response.json["message"]["json"]["name"][0]
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_edit_an_asset(client, setup_api_fresh_test_data, requesting_user, db):
     with AccountContext("Test Supplier Account") as supplier:
         existing_asset = supplier.generic_assets[0]
@@ -58,6 +118,34 @@ def test_edit_an_asset(client, setup_api_fresh_test_data, requesting_user, db):
     assert updated_asset.latitude == 10  # changed value
     assert updated_asset.longitude == existing_asset.longitude
     assert updated_asset.name == existing_asset.name
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_root_asset_rejects_existing_name_in_same_account(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
+    db = fresh_db
+    with AccountContext("Test Prosumer Account") as prosumer:
+        existing_asset = prosumer.generic_assets[0]
+        existing_name = existing_asset.name
+        asset_type_id = existing_asset.generic_asset_type_id
+        account_id = prosumer.id
+
+    other_asset = GenericAsset(
+        name="Root asset to rename",
+        generic_asset_type_id=asset_type_id,
+        account_id=account_id,
+    )
+    db.session.add(other_asset)
+    db.session.flush()
+
+    response = client.patch(
+        url_for("AssetAPI:patch", id=other_asset.id),
+        json={"name": existing_name},
+    )
+
+    assert response.status_code == 422
+    assert "already exists" in response.json["message"]["json"]["name"][0]
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -100,3 +188,55 @@ def test_patch_asset_accepts_flex_context_object(
     ).scalar_one_or_none()
     assert updated_asset is not None
     assert updated_asset.flex_context["site-power-capacity"] == "1000 kW"
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_delete_asset_cleans_stale_asset_references_in_sensors_to_show(
+    client, setup_api_fresh_test_data, requesting_user, fresh_db
+):
+    """Verify that deleting an asset cleans up stale asset references in other assets' sensors_to_show."""
+    db = fresh_db
+    deleted_asset = setup_api_fresh_test_data["some gas sensor"].generic_asset
+    deleted_asset_id = deleted_asset.id
+    deleted_asset_name = deleted_asset.name
+    referenced_sensor = setup_api_fresh_test_data["some temperature sensor"]
+
+    # Use a dedicated asset as the reference holder so deleting `deleted_asset`
+    # does not remove the object we assert on later.
+    referencing_asset = GenericAsset(
+        name="stale-asset-ref-holder",
+        generic_asset_type_id=deleted_asset.generic_asset_type_id,
+        account_id=requesting_user.account_id,
+    )
+    db.session.add(referencing_asset)
+    db.session.flush()
+
+    referencing_asset.sensors_to_show = [
+        {
+            "title": "Mixed graph",
+            "plots": [
+                {"sensor": referenced_sensor.id},
+                {"asset": deleted_asset_id, "flex-model": "soc-min"},
+            ],
+        }
+    ]
+    db.session.add(referencing_asset)
+    db.session.commit()
+
+    delete_asset_response = client.delete(
+        url_for("AssetAPI:delete", id=deleted_asset_id),
+    )
+    assert delete_asset_response.status_code == 204
+
+    updated_referencing_asset = db.session.get(GenericAsset, referencing_asset.id)
+    assert updated_referencing_asset is not None
+    assert str(deleted_asset_id) not in json.dumps(
+        updated_referencing_asset.sensors_to_show
+    )
+
+    check_audit_log_event(
+        db=db,
+        event=f"Removed asset reference '{deleted_asset_name}': {deleted_asset_id} from sensors-to-show (because asset has been deleted).",
+        user=requesting_user,
+        asset=updated_referencing_asset,
+    )

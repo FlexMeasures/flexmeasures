@@ -46,11 +46,10 @@ def create(  # noqa C901
         get_flexmeasures_env,
     )
     from flexmeasures.utils.app_utils import (
-        set_secret_key,
-        set_totp_secrets,
         init_sentry,
     )
     from flexmeasures.utils.error_utils import add_basic_error_handlers
+    from flexmeasures.utils.secrets_utils import set_secret_key, set_totp_secrets
 
     configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
     cfg_location = find_flexmeasures_cfg()  # Find flexmeasures.cfg location
