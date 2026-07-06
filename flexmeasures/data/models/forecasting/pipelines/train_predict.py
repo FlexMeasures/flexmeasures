@@ -415,7 +415,9 @@ class TrainPredictPipeline(Forecaster):
                 "end": self._parameters["end_date"].isoformat(),
                 "sensor_id": sensor_to_save_id,
             }
-            for cycle_params in cycles_job_params:
+# NOTE: `job_kwargs` is intentionally not forwarded into queued cycle jobs;
+# only plain, serialized pipeline state + per-cycle timings are enqueued.
+for cycle_params in cycles_job_params:
 
                 job = Job.create(
                     run_train_predict_cycle_job,
