@@ -5,6 +5,7 @@ from flexmeasures import Sensor
 from flexmeasures.data.schemas.sensors import (
     QuantityOrSensor,
     SensorReference,
+    SensorReferenceSchema,
     VariableQuantityField,
     floor_bdf_event_starts,
 )
@@ -220,6 +221,15 @@ def test_sensor_reference_with_default(setup_dummy_sensors):
     assert isinstance(result, SensorReference)
     assert result.sensor == sensor1
     assert result.default == ur.Quantity("0.5 MWh")
+
+
+def test_sensor_reference_schema_accepts_null_default(setup_dummy_sensors):
+    sensor1, _, _, _ = setup_dummy_sensors
+
+    result = SensorReferenceSchema().load({"sensor": sensor1.id, "default": None})
+
+    assert result["sensor"] == sensor1
+    assert result["default"] is None
 
 
 def test_sensor_reference_with_source_types(setup_dummy_sensors):

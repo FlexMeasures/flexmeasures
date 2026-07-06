@@ -1082,6 +1082,7 @@ class SensorReferenceSchema(Schema):
     )
     default = fields.String(
         load_default=None,
+        allow_none=True,
         metadata=dict(
             description="Fallback quantity to use when the referenced sensor has missing values.",
             example="0 kWh",
