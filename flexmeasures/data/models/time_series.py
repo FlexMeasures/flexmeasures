@@ -8,11 +8,7 @@ from packaging.version import Version
 from flask import current_app
 
 import pandas as pd
-from sqlalchemy import (
-    exists,
-    select,
-    Table,
-)
+from sqlalchemy import exists, select
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.schema import UniqueConstraint
@@ -412,7 +408,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         compress_json: bool = False,
         resolution: str | timedelta | None = None,
         use_materialized_view: bool = True,
-        most_recent_beliefs_mview: Table | None = None,
+        include_live_tail: bool | None = None,
     ) -> tb.BeliefsDataFrame | str:
         """Search all beliefs about events for this sensor.
 
@@ -438,6 +434,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
         :param compress_json: return beliefs, sensors and sources as separate datasets to be used for lookups
         :param resolution: optionally set the resolution of data being displayed
+        :param use_materialized_view: if True (the default), the most recent beliefs may be looked up in a materialized view, if one is available and recently refreshed (see TimedBelief.search)
+        :param include_live_tail: whether queries served by the materialized view also look up events recorded since its last refresh; defaults to the FLEXMEASURES_MVIEW_ALWAYS_INCLUDE_LIVE_TAIL setting
         :returns: BeliefsDataFrame or JSON string (if as_json is True)
         """
         bdf = TimedBelief.search(
@@ -461,7 +459,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             one_deterministic_belief_per_event_per_source=one_deterministic_belief_per_event_per_source,
             resolution=resolution,
             use_materialized_view=use_materialized_view,
-            most_recent_beliefs_mview=most_recent_beliefs_mview,
+            include_live_tail=include_live_tail,
         )
         if as_json and not compress_json:
             df = bdf.reset_index()
@@ -934,7 +932,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         resolution: str | timedelta = None,
         sum_multiple: bool = True,
         use_materialized_view: bool = True,
-        most_recent_beliefs_mview: Table | None = None,
+        include_live_tail: bool | None = None,
     ) -> tb.BeliefsDataFrame | dict[str, tb.BeliefsDataFrame]:
         """Search all beliefs about events for the given sensors.
 
@@ -960,6 +958,10 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
         :param resolution: Optional timedelta or pandas freqstr used to resample the results **
         :param sum_multiple: if True, sum over multiple sensors; otherwise, return a dictionary with sensors as key, each holding a BeliefsDataFrame as its value
+        :param use_materialized_view: if True (the default), the most recent beliefs may be looked up in a materialized view,
+                                      if one is available and recently refreshed (and no belief timing filters are set)
+        :param include_live_tail: whether queries served by the materialized view also look up events recorded since its last refresh;
+                                  defaults to the FLEXMEASURES_MVIEW_ALWAYS_INCLUDE_LIVE_TAIL setting
 
         *  If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
            Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
@@ -1007,6 +1009,30 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 most_recent_events_only=most_recent_events_only,
             )
 
+        # Decide whether the most recent beliefs may be looked up in the materialized view,
+        # which requires the view to exist (checked once at startup) and to have been
+        # recently refreshed (as recorded in the latest_task_run table).
+        # Events starting after the cutoff are looked up in the beliefs table instead,
+        # so they are not missed even if they were recorded after the view's last refresh.
+        mview_kwargs: dict = dict(use_materialized_view=False)
+        if use_materialized_view:
+            from flexmeasures.data import config as data_config
+            from flexmeasures.data.services.materialized_views import get_mview_cutoff
+
+            mview_cutoff = get_mview_cutoff()
+            if data_config.most_recent_beliefs_mview is not None and (
+                mview_cutoff is not None
+            ):
+                if include_live_tail is None:
+                    include_live_tail = current_app.config[
+                        "FLEXMEASURES_MVIEW_ALWAYS_INCLUDE_LIVE_TAIL"
+                    ]
+                mview_kwargs = dict(
+                    use_materialized_view=True,
+                    most_recent_beliefs_mview=data_config.most_recent_beliefs_mview,
+                    mview_cutoff=mview_cutoff if include_live_tail else None,
+                )
+
         bdf_dict = {}
         for sensor in sensors:
             bdf = cls.search_session(
@@ -1023,8 +1049,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 **most_recent_filters,
                 custom_filter_criteria=source_criteria,
                 custom_join_targets=custom_join_targets,
-                use_materialized_view=use_materialized_view,
-                most_recent_beliefs_mview=most_recent_beliefs_mview,
+                **mview_kwargs,
             )
             if use_latest_version_per_event:
                 bdf = keep_latest_version(

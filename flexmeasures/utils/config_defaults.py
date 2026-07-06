@@ -29,7 +29,8 @@ class Config(object):
     DEBUG: bool = False
     LOGGING_LEVEL: int = logging.WARNING
     SECRET_KEY: str | None = None
-    FLEXMEASURES_MVIEW_REFRESH_INTERVAL: int | None = None
+    # Whether queries served by the materialized view also look up events recorded since its last refresh
+    FLEXMEASURES_MVIEW_ALWAYS_INCLUDE_LIVE_TAIL: bool = True
 
     FLEXMEASURES_ENV_DEFAULT = "production"
 

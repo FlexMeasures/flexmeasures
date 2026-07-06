@@ -761,7 +761,10 @@
             {% if active_subpage == "asset_graph" and has_kpis %}
             getAssetKPIs(startDate, endDate);
             {% endif %}
-            return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&compress_json=true', {
+            // Ask for the latest data (recorded since the materialized view was last refreshed) when the toggle is on
+            const liveTailCheckbox = document.getElementById("includeLiveTail");
+            const liveTailParam = (liveTailCheckbox && liveTailCheckbox.checked) ? '&include_live_tail=true' : '';
+            return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&compress_json=true' + liveTailParam, {
                 method: "GET",
                 headers: { "Content-Type": "application/json" },
                 signal: signal,
@@ -769,6 +772,23 @@
                 .then(response => response.json())
                 .then(data => decompressChartData(data));
         }
+    }
+
+    // Reload the graph when the user toggles loading the latest data
+    const includeLiveTailCheckbox = document.getElementById("includeLiveTail");
+    if (includeLiveTailCheckbox) {
+        includeLiveTailCheckbox.addEventListener("change", function() {
+            previousResult = null;  // force refetching
+            const startDate = storeStartDate;
+            const endDate = storeEndDate;
+            $("#spinner").show();
+            fetchGraphDataAndKPIs(previousResult, startDate, endDate, startDate.toISOString(), endDate.toISOString())
+                .then(function (data) {
+                    $("#spinner").hide();
+                    vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(data)).resize().run();
+                    previousResult = { start: startDate, end: endDate, data: data };
+                });
+        });
     }
 
     {% if active_subpage == "asset_graph" and has_kpis %}

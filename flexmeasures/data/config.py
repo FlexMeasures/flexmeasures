@@ -52,17 +52,18 @@ def configure_db_for(app: Flask):
             forecasting,
         )  # noqa: F401
 
-        import timely_beliefs.utils as tb_utils
+        from timely_beliefs.beliefs.materialized_views import (
+            get_most_recent_beliefs_mview,
+        )
 
         try:
-            most_recent_beliefs_mview = tb_utils.get_most_recent_beliefs_mview(
-                db.session
-            )
+            most_recent_beliefs_mview = get_most_recent_beliefs_mview(db.session)
         except Exception:
             app.logger.warning(
-                "Could not determine most_recent_beliefs_mview. Do you have timely-beliefs installed and is the latest version?"
-                " Beliefs will be retrieved from the actual table instead of the materialized view.",
+                "Could not determine whether the most_recent_beliefs_mview materialized view exists."
+                " Beliefs will be retrieved from the beliefs table instead of the materialized view.",
             )
+            db.session.rollback()
 
         # This would create db structure based on models, but you should use `flask db upgrade` for that.
         # Base.metadata.create_all(bind=db.engine)

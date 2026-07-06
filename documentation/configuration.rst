@@ -812,11 +812,26 @@ Default: ``None`` (defaults are set internally for each sunset API version, e.g.
 Performance optimizations
 ----------------------------
 
-FLEXMEASURES_MVIEW_REFRESH_INTERVAL
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Interval in minutes to refresh the materialized db view which caches the most recent beliefs at a given point in time (for faster queries).
+.. _mview-live-tail-config:
 
-Default: None
+FLEXMEASURES_MVIEW_ALWAYS_INCLUDE_LIVE_TAIL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FlexMeasures can serve queries for the most recent beliefs from a materialized database view,
+which is considerably faster than computing them from the beliefs table (see :ref:`mview-data`).
+The view only knows about beliefs recorded before its last refresh, though.
+
+This setting controls whether such queries also look up events recorded since the last refresh
+(the "live tail"), so results are always complete, at some extra query cost.
+If set to ``False``, queries are served from the view alone (events recorded since the last
+refresh are not shown), and users can request inclusion of the latest data per query,
+via a toggle on the asset graphs page or the ``include_live_tail`` API parameter.
+
+Note that in either case, *revised* beliefs about events recorded before the last refresh
+only show up after the next refresh. How stale results can get is bounded by how often you
+schedule the ``flexmeasures db-ops refresh-materialized-views`` command (see :ref:`mview-data`).
+
+Default: ``True``
 
 .. _fallback-redirect-config:
 

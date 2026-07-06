@@ -145,6 +145,15 @@
                 </ul>
             </li>
             <div class="row gx-0" style="margin-left: auto;">
+                {# Option to include the latest data, on top of cached data from the materialized view #}
+                {# Only shown when the materialized view is in use and the live tail is not already included in every query #}
+                {% if active_subpage == "asset_graph" and mview_last_refresh %}
+                <div class="col-auto form-check form-switch" title="This graph is loaded from cached data, last refreshed {{ mview_last_refresh }}.
+Switch this on to also load the latest data, recorded since then. Loading may take a bit longer.">
+                    <input class="form-check-input" type="checkbox" id="includeLiveTail">
+                    <label class="form-check-label" for="includeLiveTail">Include latest data</label>
+                </div>
+                {% endif %}
                 <div class="col-auto form-check" title="Set this asset view as your default when visiting asset pages.">
                     <input class="form-check-input" type="checkbox" {% if breadcrumb_info['current_asset_view'] == session.get("default_asset_view") %} checked {% endif %} id="defaultAssetView">
                     <label class="form-check-label" for="defaultAssetView">Set as default view</label>
