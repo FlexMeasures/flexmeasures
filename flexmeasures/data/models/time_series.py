@@ -906,6 +906,36 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         db.Model.__init__(self, **kwargs)
 
     @classmethod
+    def _get_mview_kwargs(
+        cls, use_materialized_view: bool, include_live_tail: bool | None
+    ) -> dict:
+        """Decide whether the most recent beliefs may be looked up in the materialized view,
+        which requires the view to exist (checked once at startup) and to have been
+        recently refreshed (as recorded in the latest_task_run table).
+        Events starting after the cutoff are looked up in the beliefs table instead,
+        so they are not missed even if they were recorded after the view's last refresh.
+        """
+        if not use_materialized_view:
+            return dict(use_materialized_view=False)
+
+        from flexmeasures.data import config as data_config
+        from flexmeasures.data.services.materialized_views import get_mview_cutoff
+
+        mview_cutoff = get_mview_cutoff()
+        if data_config.most_recent_beliefs_mview is None or mview_cutoff is None:
+            return dict(use_materialized_view=False)
+
+        if include_live_tail is None:
+            include_live_tail = current_app.config[
+                "FLEXMEASURES_MVIEW_ALWAYS_INCLUDE_LIVE_TAIL"
+            ]
+        return dict(
+            use_materialized_view=True,
+            most_recent_beliefs_mview=data_config.most_recent_beliefs_mview,
+            mview_cutoff=mview_cutoff if include_live_tail else None,
+        )
+
+    @classmethod
     def search(
         cls,
         sensors: Sensor | int | str | list[Sensor | int | str],
@@ -1009,29 +1039,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 most_recent_events_only=most_recent_events_only,
             )
 
-        # Decide whether the most recent beliefs may be looked up in the materialized view,
-        # which requires the view to exist (checked once at startup) and to have been
-        # recently refreshed (as recorded in the latest_task_run table).
-        # Events starting after the cutoff are looked up in the beliefs table instead,
-        # so they are not missed even if they were recorded after the view's last refresh.
-        mview_kwargs: dict = dict(use_materialized_view=False)
-        if use_materialized_view:
-            from flexmeasures.data import config as data_config
-            from flexmeasures.data.services.materialized_views import get_mview_cutoff
-
-            mview_cutoff = get_mview_cutoff()
-            if data_config.most_recent_beliefs_mview is not None and (
-                mview_cutoff is not None
-            ):
-                if include_live_tail is None:
-                    include_live_tail = current_app.config[
-                        "FLEXMEASURES_MVIEW_ALWAYS_INCLUDE_LIVE_TAIL"
-                    ]
-                mview_kwargs = dict(
-                    use_materialized_view=True,
-                    most_recent_beliefs_mview=data_config.most_recent_beliefs_mview,
-                    mview_cutoff=mview_cutoff if include_live_tail else None,
-                )
+        mview_kwargs = cls._get_mview_kwargs(use_materialized_view, include_live_tail)
 
         bdf_dict = {}
         for sensor in sensors:
