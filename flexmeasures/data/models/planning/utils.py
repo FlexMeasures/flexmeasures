@@ -299,6 +299,14 @@ def get_series_from_quantity_or_sensor(
         time_series = convert_units(
             time_series, variable_quantity.unit, unit, resolution
         )
+        if variable_quantity.default is not None:
+            default_value = convert_units(
+                variable_quantity.default.magnitude,
+                str(variable_quantity.default.units),
+                unit,
+                resolution,
+            )
+            time_series = time_series.fillna(default_value)
     elif isinstance(variable_quantity, Sensor):
         bdf: tb.BeliefsDataFrame = TimedBelief.search(
             variable_quantity,
