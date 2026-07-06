@@ -15,7 +15,12 @@ from flexmeasures.data.schemas.scheduling.storage import (
     DBStorageFlexModelSchema,
 )
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.sensors import TimedEventSchema, VariableQuantityField
+from flexmeasures.data.schemas.sensors import (
+    SensorReference,
+    TimedEventSchema,
+    VariableQuantityField,
+)
+from flexmeasures.utils.unit_utils import ur
 
 
 @pytest.mark.parametrize(
@@ -878,6 +883,38 @@ def test_storage_flex_model_schema_rejects_filtered_production(
         assert "cannot use source filters" in str(exc_info.value)
 
 
+def test_soc_min_sensor_reference_with_default_loads_as_dynamic_minimum(
+    setup_dummy_sensors,
+):
+    energy_sensor, _, _, _ = setup_dummy_sensors
+    schema = StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None)
+
+    loaded_flex_model = schema.load(
+        {"soc-min": {"sensor": energy_sensor.id, "default": "0 kWh"}}
+    )
+
+    assert "soc_min" not in loaded_flex_model
+    assert isinstance(loaded_flex_model["soc_minima"], SensorReference)
+    assert loaded_flex_model["soc_minima"].sensor == energy_sensor
+    assert loaded_flex_model["soc_minima"].default == ur.Quantity("0 MWh")
+
+
+def test_soc_max_sensor_reference_with_default_loads_as_dynamic_maximum(
+    setup_dummy_sensors,
+):
+    energy_sensor, _, _, _ = setup_dummy_sensors
+    schema = StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None)
+
+    loaded_flex_model = schema.load(
+        {"soc-max": {"sensor": energy_sensor.id, "default": "1000 kWh"}}
+    )
+
+    assert "soc_max" not in loaded_flex_model
+    assert isinstance(loaded_flex_model["soc_maxima"], SensorReference)
+    assert loaded_flex_model["soc_maxima"].sensor == energy_sensor
+    assert loaded_flex_model["soc_maxima"].default == ur.Quantity("1 MWh")
+
+
 @pytest.mark.parametrize(
     ["flex_model", "fails"],
     [
@@ -888,6 +925,103 @@ def test_storage_flex_model_schema_rejects_filtered_production(
         (
             {"soc-min": "3500 kWh"},
             False,
+        ),
+        (
+            {"soc-max": "3500 kWh"},
+            False,
+        ),
+        (
+            {"soc-max": (1, "MWh")},
+            False,
+        ),
+        (
+            {"soc-max": (1,)},
+            [
+                False,
+                {
+                    "soc-max": "Unsupported value type. `<class 'tuple'>` was provided but only dict, list and str are supported."
+                },
+            ],
+        ),
+        (
+            {"soc-max": ur.Quantity("1 MWh")},
+            False,
+        ),
+        (
+            {"soc-max": ur.Quantity("1 MWh").to_tuple()},
+            False,
+        ),
+        (
+            {"soc-min": {"sensor": "energy-sensor", "default": "0 kWh"}},
+            False,
+        ),
+        (
+            {"soc-max": {"sensor": "energy-sensor", "default": "1 MWh"}},
+            False,
+        ),
+        (
+            {"soc-min": {"sensor": "price-sensor", "default": "0 kWh"}},
+            {"soc-min": "Cannot convert EUR/MWh to MWh"},
+        ),
+        (
+            {"soc-max": {"sensor": "price-sensor", "default": "1 MWh"}},
+            {"soc-max": "Cannot convert EUR/MWh to MWh"},
+        ),
+        (
+            {
+                "soc-min": [
+                    {
+                        "datetime": "2026-06-01T12:00:00+00:00",
+                        "value": "1 MWh",
+                    }
+                ]
+            },
+            [
+                False,
+                {
+                    "soc-min": "A time series specification (listing segments) is not supported when storing flex-model fields."
+                },
+            ],
+        ),
+        (
+            {
+                "soc-max": [
+                    {
+                        "datetime": "2026-06-01T12:00:00+00:00",
+                        "value": "2 MWh",
+                    }
+                ]
+            },
+            [
+                False,
+                {
+                    "soc-max": "A time series specification (listing segments) is not supported when storing flex-model fields."
+                },
+            ],
+        ),
+        (
+            {
+                "soc-min": {"sensor": "energy-sensor", "default": "0 kWh"},
+                "soc-minima": {"sensor": "energy-sensor"},
+            },
+            [
+                {
+                    "soc-min": "Fields `soc-min` and `soc-minima` are mutually exclusive."
+                },
+                False,
+            ],
+        ),
+        (
+            {
+                "soc-max": {"sensor": "energy-sensor", "default": "1 MWh"},
+                "soc-maxima": {"sensor": "energy-sensor"},
+            },
+            [
+                {
+                    "soc-max": "Fields `soc-max` and `soc-maxima` are mutually exclusive."
+                },
+                False,
+            ],
         ),
         (
             {"soc-minima": {"sensor": "energy-sensor"}},
