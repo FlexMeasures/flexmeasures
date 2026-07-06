@@ -611,7 +611,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.SOC_MIN.description),
         "types": {
             "backend": "typeThree",
-            "ui": "One fixed value or a dynamic signal (via a sensor).",
+            "ui": "A fixed lower boundary or a dynamic lower boundary with an optional default fallback.",
         },
         "example-units": EXAMPLE_UNIT_TYPES["energy"],
     },
@@ -620,7 +620,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.SOC_MAX.description),
         "types": {
             "backend": "typeThree",
-            "ui": "One fixed value or a dynamic signal (via a sensor).",
+            "ui": "A fixed upper boundary or a dynamic upper boundary with an optional default fallback.",
         },
         "example-units": EXAMPLE_UNIT_TYPES["energy"],
     },
@@ -629,7 +629,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.SOC_MINIMA.description),
         "types": {
             "backend": "typeTwo",
-            "ui": "A sensor which records the state of charge.",
+            "ui": "Deprecated alias for dynamic soc-min values.",
         },
         "example-units": EXAMPLE_UNIT_TYPES["energy"],
     },
@@ -638,7 +638,7 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.SOC_MAXIMA.description),
         "types": {
             "backend": "typeTwo",
-            "ui": "A sensor which records the state of charge.",
+            "ui": "Deprecated alias for dynamic soc-max values.",
         },
         "example-units": EXAMPLE_UNIT_TYPES["energy"],
     },
