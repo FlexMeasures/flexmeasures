@@ -8,12 +8,14 @@ echo "------------------------------------------------------------"
 
 TOMORROW=$(date --date="next day" '+%Y-%m-%d')
 
+eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind battery --shell-vars)"
+eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind process --shell-vars)"
+eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind reporter --shell-vars)"
+
 echo "[TUTORIAL-RUNNER] Setting up toy account with reporters..."
-docker exec -it $CONTAINER_NAME  flexmeasures add toy-account --kind reporter
 
-
-echo "[TUTORIAL-RUNNER] Show grid connection capacity (sensor 7)..."
-docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor 7 --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --resolution PT1H
+echo "[TUTORIAL-RUNNER] Show grid connection capacity ..."
+docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor ${FM_TOY_GRID_CAPACITY_SENSOR_ID} --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --resolution PT1H
 
 docker exec -it $CONTAINER_NAME flexmeasures show data-sources --show-attributes --id 6
 
@@ -30,9 +32,9 @@ docker cp headroom-config.json $CONTAINER_NAME:/app
 
 echo "
 {
-    'input': [{'name': 'grid connection capacity', 'sensor': 7},
-               {'name': 'PV', 'sensor': 3, 'sources': [4]}],
-    'output': [{'sensor': 8}]
+    'input': [{'name': 'grid connection capacity', 'sensor': ${FM_TOY_GRID_CAPACITY_SENSOR_ID}},
+               {'name': 'PV', 'sensor': ${FM_TOY_SOLAR_SENSOR_ID}, 'sources': [4]}],
+    'output': [{'sensor': ${FM_TOY_HEADROOM_SENSOR_ID}}]
 }" > headroom-parameters.json
 docker cp headroom-parameters.json $CONTAINER_NAME:/app
 
@@ -46,14 +48,14 @@ docker exec -it $CONTAINER_NAME flexmeasures add report --reporter AggregatorRep
 
 
 echo "[TUTORIAL-RUNNER] showing reported data ..."
-docker exec -it $CONTAINER_NAME bash -c "flexmeasures show beliefs --sensor 8 --start ${TOMORROW}T00:00:00+01:00 --duration PT24H"
+docker exec -it $CONTAINER_NAME bash -c "flexmeasures show beliefs --sensor ${FM_TOY_HEADROOM_SENSOR_ID} --start ${TOMORROW}T00:00:00+01:00 --duration PT24H"
 
 
 echo "[TUTORIAL-RUNNER] now the inflexible process ..."
 
 echo "
 {
-    'input': [{'sensor': 4}],
+    'input': [{'sensor': ${FM_TOY_PROCESS_INFLEXIBLE_SENSOR_ID}}],
     'output': [{'sensor': 9}]
 }" > inflexible-parameters.json
 
@@ -71,7 +73,7 @@ echo "[TUTORIAL-RUNNER] now the breakable process ..."
 
 echo "
 {
-    'input': [{'sensor': 5}],
+    'input': [{'sensor': ${FM_TOY_PROCESS_BREAKABLE_SENSOR_ID}}],
     'output': [{'sensor': 10}]
 }" > breakable-parameters.json
 
@@ -90,7 +92,7 @@ echo "[TUTORIAL-RUNNER] now the breakable process ..."
 
 echo "
 {
-    'input' : [{'sensor': 6}],
+    'input' : [{'sensor': ${FM_TOY_PROCESS_SHIFTABLE_SENSOR_ID}}],
     'output' : [{'sensor': 11}]
 }" > shiftable-parameters.json
 
@@ -102,4 +104,3 @@ docker exec -it $CONTAINER_NAME flexmeasures add report --source 6 \
 
 echo "[TUTORIAL-RUNNER] showing reported data ..."
 docker exec -it $CONTAINER_NAME bash -c "flexmeasures show beliefs --sensor 11 --start ${TOMORROW}T00:00:00+01:00 --duration PT24H"
-

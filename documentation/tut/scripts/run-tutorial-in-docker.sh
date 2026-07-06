@@ -6,6 +6,8 @@ CONTAINER_NAME="${1:-$(basename $(pwd))-server-1}"
 echo "[TUTORIAL-RUNNER] RUNNING TUTORIAL 1 (SIMPLE BATTERY SCHEDULE)..."
 echo "-----------------------------------------------------------------"
 
+eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind battery --shell-vars)"
+
 echo "[TUTORIAL-RUNNER] loading prices..."
 TOMORROW=$(date --date="next day" '+%Y-%m-%d')
 echo "Hour,Price
@@ -37,14 +39,14 @@ ${TOMORROW}T23:00:00,7" > prices-tomorrow.csv
 docker cp prices-tomorrow.csv $CONTAINER_NAME:/app
 
 docker exec -it $CONTAINER_NAME flexmeasures add beliefs \
-  --sensor 1 --source toy-user /app/prices-tomorrow.csv --timezone Europe/Amsterdam
+  --sensor ${FM_TOY_PRICE_SENSOR_ID} --source toy-user /app/prices-tomorrow.csv --timezone Europe/Amsterdam
 
 echo "[TUTORIAL-RUNNER] creating schedule ..."
 docker exec -it $CONTAINER_NAME flexmeasures add schedule \
-  --sensor 2 \
+  --sensor ${FM_TOY_BATTERY_SENSOR_ID} \
   --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
   --flex-model '{"soc-min": "50 kWh"}'
 
 echo "[TUTORIAL-RUNNER] displaying schedule..."
 docker exec -it $CONTAINER_NAME flexmeasures show beliefs \
-  --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+  --sensor ${FM_TOY_BATTERY_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H

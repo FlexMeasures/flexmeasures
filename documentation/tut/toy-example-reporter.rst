@@ -28,7 +28,7 @@ Just as in previous sections, we need to run the command ``flexmeasures add toy-
 
 .. code-block:: bash
 
-    $ flexmeasures add toy-account --kind reporter
+    $ eval "$(flexmeasures add toy-account --kind reporter --shell-vars)"
 
 Under the hood, this command is adding the following entities:
     - A sensor that stores the capacity of the grid connection (with a resolution of one year, so storing just one value:) ).
@@ -36,7 +36,7 @@ Under the hood, this command is adding the following entities:
     - A `ProfitOrLossReporter` configured to use the prices that we set up in Tut. Part II.
     - Three sensors to register the profits/losses from running the three different processes of Tut. Part III.
 
-.. note:: The above command should also print out the IDs of these sensors. We will use these IDs verbatim in this tutorial.
+.. note:: The command above sets shell variables for the created IDs, so the next commands stay copy-pasteable on fresh installations.
 
 Let's check it out! 
 
@@ -45,7 +45,7 @@ Run the command below to show the values for our newly-created `grid connection 
 .. code-block:: bash
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
-    $ flexmeasures show beliefs --sensor 7 --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --resolution PT1H
+    $ flexmeasures show beliefs --sensor ${FM_TOY_GRID_CAPACITY_SENSOR_ID} --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --resolution PT1H
       
       Beliefs for Sensor 'grid connection capacity' (ID 7).
       Data spans a day and starts at 2025-06-13 00:00:00+02:00.
@@ -119,9 +119,9 @@ In practice, we need to create the `config` and `parameters`:
 
     $ echo "
     $ {
-    $     'input': [{'name': 'grid connection capacity', 'sensor': 7},
-    $                {'name': 'PV', 'sensor': 3, 'sources': [4]}],
-    $     'output': [{'sensor': 8}]
+    $     'input': [{'name': 'grid connection capacity', 'sensor': ${FM_TOY_GRID_CAPACITY_SENSOR_ID}},
+    $                {'name': 'PV', 'sensor': ${FM_TOY_SOLAR_SENSOR_ID}, 'sources': [4]}],
+    $     'output': [{'sensor': ${FM_TOY_HEADROOM_SENSOR_ID}}]
     $ }" > headroom-parameters.json
 
 The output sensor (ID: 8) is actually the one created just to store that information - the headroom our battery has when considering solar production.
@@ -179,7 +179,7 @@ Define parameters in a JSON file:
 
     $ echo "
     $ {
-    $     'input': [{'sensor': 4}],
+    $     'input': [{'sensor': ${FM_TOY_PROCESS_INFLEXIBLE_SENSOR_ID}}],
     $     'output': [{'sensor': 9}]
     $ }" > inflexible-parameters.json
 
@@ -207,7 +207,7 @@ Define parameters in a JSON file:
 
     $ echo "
     $ {
-    $     'input': [{'sensor': 5}],
+    $     'input': [{'sensor': ${FM_TOY_PROCESS_BREAKABLE_SENSOR_ID}}],
     $     'output': [{'sensor': 10}]
     $ }" > breakable-parameters.json
 
@@ -235,7 +235,7 @@ Define parameters in a JSON file:
 
     $ echo "
     $ {
-    $     'input': [{'sensor': 6}],
+    $     'input': [{'sensor': ${FM_TOY_PROCESS_SHIFTABLE_SENSOR_ID}}],
     $     'output': [{'sensor': 11}]
     $ }" > shiftable-parameters.json
 

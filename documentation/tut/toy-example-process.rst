@@ -34,7 +34,7 @@ Before moving forward, we'll add the `process` asset and three sensors to store 
 
 .. code-block:: bash
 
-    $ flexmeasures add toy-account --kind process
+    $ eval "$(flexmeasures add toy-account --kind process --shell-vars)"
     
     User with email toy-user@flexmeasures.io already exists in account Docker Toy Account.
     The sensor recording day-ahead prices is day-ahead prices (ID: 1).
@@ -59,9 +59,9 @@ Now we are ready to schedule a process. Let's start with the INFLEXIBLE policy, 
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule --sensor 4 --scheduler ProcessScheduler \
+    $ flexmeasures add schedule --sensor ${FM_TOY_PROCESS_INFLEXIBLE_SENSOR_ID} --scheduler ProcessScheduler \
         --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
-        --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
+        --flex-context '{\"consumption-price\": {\"sensor\": '"${FM_TOY_PRICE_SENSOR_ID}"'}}' \
         --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"INFLEXIBLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
 
 Under the INFLEXIBLE policy, the process starts as soon as possible, in this case, coinciding with the start of the planning window.
@@ -70,9 +70,9 @@ Following the INFLEXIBLE policy, we'll schedule the same 4h consumption requirem
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule --sensor 5 --scheduler ProcessScheduler \
+    $ flexmeasures add schedule --sensor ${FM_TOY_PROCESS_BREAKABLE_SENSOR_ID} --scheduler ProcessScheduler \
         --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
-        --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
+        --flex-context '{\"consumption-price\": {\"sensor\": '"${FM_TOY_PRICE_SENSOR_ID}"'}}' \
         --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"BREAKABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
  
 The BREAKABLE policy splits or breaks the process into blocks that can be scheduled discontinuously. The smallest possible unit is (currently) determined by the sensor's resolution. 
@@ -81,9 +81,9 @@ Finally, we'll schedule the process using the SHIFTABLE policy. The 4h block can
 
 .. code-block:: bash
 
-    $ flexmeasures add schedule --sensor 6 --scheduler ProcessScheduler \
+    $ flexmeasures add schedule --sensor ${FM_TOY_PROCESS_SHIFTABLE_SENSOR_ID} --scheduler ProcessScheduler \
         --start ${TOMORROW}T00:00:00+02:00 --duration PT24H \
-        --flex-context '{\"consumption-price\": {\"sensor\": 1}}' \
+        --flex-context '{\"consumption-price\": {\"sensor\": '"${FM_TOY_PRICE_SENSOR_ID}"'}}' \
         --flex-model '{\"duration\": \"PT4H\", \"process-type\": \"SHIFTABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}' \
  
 

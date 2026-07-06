@@ -419,6 +419,36 @@ def test_add_process_toy_account_reuses_existing_root_assets(app, fresh_db):
     }
 
 
+def test_add_toy_account_shell_vars_output(app, fresh_db):
+    from flexmeasures.cli.data_add import add_toy_account
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_toy_account, ["--shell-vars"])
+
+    check_command_ran_without_error(result)
+
+    assert all(
+        line.startswith("FM_TOY_")
+        for line in result.output.splitlines()
+        if line.strip()
+    )
+    shell_vars = dict(
+        line.split("=", 1)
+        for line in result.output.splitlines()
+        if line.startswith("FM_TOY_")
+    )
+
+    assert {
+        "FM_TOY_ACCOUNT_ID",
+        "FM_TOY_PRICE_SENSOR_ID",
+        "FM_TOY_BUILDING_ASSET_ID",
+        "FM_TOY_BATTERY_ASSET_ID",
+        "FM_TOY_BATTERY_SENSOR_ID",
+        "FM_TOY_SOLAR_ASSET_ID",
+        "FM_TOY_SOLAR_SENSOR_ID",
+    }.issubset(shell_vars.keys())
+
+
 @pytest.mark.parametrize("storage_power_capacity", ["sensor", "quantity", None])
 @pytest.mark.parametrize("storage_efficiency", ["sensor", "quantity", None])
 def test_add_storage_schedule(
