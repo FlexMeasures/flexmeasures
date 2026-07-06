@@ -47,7 +47,7 @@ jobs:
           db upgrade
       - name: Add toy user
         run: docker exec --env-file .env fm-container flexmeasures
-          add toy-account --kind battery --shell-vars >> $GITHUB_ENV
+          add toy-account --kind battery --shell-vars | grep '^FM_TOY_' >> $GITHUB_ENV
       - name: Generate prices dummy data
         run: ci/generate-dummy-price.sh
       - name: Copy prices dummy data
@@ -65,7 +65,7 @@ jobs:
             add schedule --sensor ${FM_TOY_BATTERY_SENSOR_ID} --start ${TOMORROW}T07:00+01:00 \
             --duration PT12H --soc-at-start 50% --flex-model '{"roundtrip-efficiency": "90%"}'
       - name: Add Toy Account for process
-        run: docker exec --env-file .env fm-container flexmeasures add toy-account --kind process --shell-vars >> $GITHUB_ENV
+        run: docker exec --env-file .env fm-container flexmeasures add toy-account --kind process --shell-vars | grep '^FM_TOY_' >> $GITHUB_ENV
       - name: Add Process schedule
         run: |
           docker exec --env-file .env fm-container flexmeasures add schedule --sensor ${FM_TOY_PROCESS_BREAKABLE_SENSOR_ID} --scheduler ProcessScheduler \

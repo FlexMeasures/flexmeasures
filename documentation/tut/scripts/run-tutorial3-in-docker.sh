@@ -7,7 +7,7 @@ CONTAINER_NAME="${1:-$(basename $(pwd))-server-1}"
 echo "[TUTORIAL-RUNNER] RUNNING TUTORIAL 3 (PV CURTAILMENT / MORE THAN ONE FLEXIBLE ASSET) ..."
 echo "----------------------------------------------------------------------------------------"
 
-eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind battery --shell-vars)"
+eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
 
 TOMORROW=$(date --date="next day" '+%Y-%m-%d')
 

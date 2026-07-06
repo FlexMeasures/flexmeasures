@@ -6,7 +6,7 @@ CONTAINER_NAME="${1:-$(basename $(pwd))-server-1}"
 echo "[TUTORIAL-RUNNER] RUNNING TUTORIAL 2 (ADDING SOLAR FORECAST) ..."
 echo "------------------------------------------------------------"
 
-eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind battery --shell-vars)"
+eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
 
 echo "[TUTORIAL-RUNNER] loading solar production data..."
 

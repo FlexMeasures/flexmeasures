@@ -9,7 +9,7 @@ echo "------------------------------------------------------------"
 TOMORROW=$(date --date="next day" '+%Y-%m-%d')
 
 echo "[TUTORIAL-RUNNER] Setting up toy account with reporters..."
-eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind process --shell-vars)"
+eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind process --shell-vars | grep '^FM_TOY_')"
 
 echo "[TUTORIAL-RUNNER] Creating three process schedules ..."
 docker exec -it $CONTAINER_NAME flexmeasures add schedule --sensor ${FM_TOY_PROCESS_INFLEXIBLE_SENSOR_ID} --scheduler ProcessScheduler \

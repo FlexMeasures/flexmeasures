@@ -18,7 +18,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
 .. code-block:: bash
 
     # setup an account with a user, assets for battery & solar and an energy market
-    $ eval "$(flexmeasures add toy-account --kind battery --shell-vars)"
+    $ eval "$(flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
     # load prices to optimize schedules against
     $ flexmeasures add beliefs --sensor ${FM_TOY_PRICE_SENSOR_ID} --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
 
@@ -145,7 +145,7 @@ FlexMeasures offers a command to create a toy account with a battery and expose 
 
 .. code-block:: bash
 
-    $ eval "$(flexmeasures add toy-account --kind battery --shell-vars)"
+    $ eval "$(flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
 
     Generic asset type `solar` created successfully.
     Generic asset type `wind` created successfully.
@@ -397,4 +397,3 @@ Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5
 |
 
 .. note:: Technically, these prices for tomorrow may be forecasts (depending on whether you are running through this tutorial before or after the day-ahead market's gate closure). You can also use FlexMeasures to compute forecasts yourself. See :ref:`tut_forecasting_scheduling`.
-

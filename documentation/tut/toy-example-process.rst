@@ -34,7 +34,7 @@ Before moving forward, we'll add the `process` asset and three sensors to store 
 
 .. code-block:: bash
 
-    $ eval "$(flexmeasures add toy-account --kind process --shell-vars)"
+    $ eval "$(flexmeasures add toy-account --kind process --shell-vars | grep '^FM_TOY_')"
     
     User with email toy-user@flexmeasures.io already exists in account Docker Toy Account.
     The sensor recording day-ahead prices is day-ahead prices (ID: 1).

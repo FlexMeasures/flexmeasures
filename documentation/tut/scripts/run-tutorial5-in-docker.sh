@@ -8,9 +8,9 @@ echo "------------------------------------------------------------"
 
 TOMORROW=$(date --date="next day" '+%Y-%m-%d')
 
-eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind battery --shell-vars)"
-eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind process --shell-vars)"
-eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind reporter --shell-vars)"
+eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
+eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind process --shell-vars | grep '^FM_TOY_')"
+eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind reporter --shell-vars | grep '^FM_TOY_')"
 
 echo "[TUTORIAL-RUNNER] Setting up toy account with reporters..."
 

@@ -427,11 +427,6 @@ def test_add_toy_account_shell_vars_output(app, fresh_db):
 
     check_command_ran_without_error(result)
 
-    assert all(
-        line.startswith("FM_TOY_")
-        for line in result.output.splitlines()
-        if line.strip()
-    )
     shell_vars = dict(
         line.split("=", 1)
         for line in result.output.splitlines()

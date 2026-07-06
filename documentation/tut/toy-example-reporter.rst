@@ -28,7 +28,7 @@ Just as in previous sections, we need to run the command ``flexmeasures add toy-
 
 .. code-block:: bash
 
-    $ eval "$(flexmeasures add toy-account --kind reporter --shell-vars)"
+    $ eval "$(flexmeasures add toy-account --kind reporter --shell-vars | grep '^FM_TOY_')"
 
 Under the hood, this command is adding the following entities:
     - A sensor that stores the capacity of the grid connection (with a resolution of one year, so storing just one value:) ).
