@@ -141,6 +141,7 @@ class TriggerScheduleKwargsSchema(Schema):
         ),
     )
     force_new_job_creation = fields.Boolean(
+        data_key="force-new-job-creation",
         required=False,
         metadata=dict(
             description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
@@ -1032,10 +1033,13 @@ class SensorAPI(FlaskView):
         consumption_schedule = sign * simplify_index(power_values)["event_value"]
         if consumption_schedule.empty:
             # inform the user in case the scheduler did not store any time series in the db for the given sensor
-            return dict(
-                message=f"{message}, but not schedule was not found in the database. {scheduler_info_msg}",
-                scheduler_info=scheduler_info,
-            ), 200
+            return (
+                dict(
+                    message=f"{message}, but not schedule was not found in the database. {scheduler_info_msg}",
+                    scheduler_info=scheduler_info,
+                ),
+                200,
+            )
 
         # Update the planning window
         resolution = sensor.event_resolution
