@@ -4256,9 +4256,9 @@ dependencies = [
     { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.12' and os_name != 'nt' and sys_platform == 'darwin') or (python_full_version >= '3.12' and os_name != 'nt' and sys_platform == 'linux') or (python_full_version >= '3.12' and sys_platform == 'win32')" },
     { name = "sqlalchemy", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bb/5d/575138165ff06550b32279bb618062e6bbc7340fdc9a75d3bf122f3eea79/timely_beliefs-4.0.0.tar.gz", hash = "sha256:5283e9fbb1cf44bc5aac0ae20f0f674dcab61a88c94abd309c40dd270fd6c74c", size = 798670, upload-time = "2026-07-06T08:15:17.216Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bb/5d/575138165ff06550b32279bb618062e6bbc7340fdc9a75d3bf122f3eea79/timely_beliefs-4.0.0.tar.gz", hash = "sha256:5283e9fbb1cf44bc5aac0ae20f0f674dcab61a88c94abd309c40dd270fd6c74c", size = 798670, upload-time = "2026-07-06T08:15:17.216665Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/05/e0/b88e0321c25d77513fafbc59581829c18747de7822513f8c9ed21343725d/timely_beliefs-4.0.0-py2.py3-none-any.whl", hash = "sha256:92063d9c03eca9fefa2369b570d8b7cc001f332a389110e59bc594224becf495", size = 813681, upload-time = "2026-07-06T08:15:15.265Z" },
+    { url = "https://files.pythonhosted.org/packages/05/e0/b88e0321c25d77513fafbc59581829c18747de7822513f8c9ed21343725d/timely_beliefs-4.0.0-py2.py3-none-any.whl", hash = "sha256:92063d9c03eca9fefa2369b570d8b7cc001f332a389110e59bc594224becf495", size = 813681, upload-time = "2026-07-06T08:15:15.265758Z" },
 ]
 
 [package.optional-dependencies]
