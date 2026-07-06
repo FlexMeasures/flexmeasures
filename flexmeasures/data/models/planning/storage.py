@@ -1598,9 +1598,9 @@ class StorageScheduler(MetaStorageScheduler):
         For sensors with a '%' unit, the soc-max flex-model field is used as capacity.
         If soc-max is missing or zero for a '%' sensor, the schedule is skipped with a warning.
 
-        Note: soc-max is a QuantityField (not a VariableQuantityField), so it is always a float
-        after deserialization and cannot be a sensor reference. The isinstance guard below is
-        therefore a defensive check for forward-compatibility.
+        Note: dynamic soc-max values are routed to soc_maxima during deserialization, so
+        soc_max is still a fixed float after deserialization. The isinstance guard below
+        is therefore a defensive check for malformed data.
         """
         soc_schedule = {}
         for d, flex_model_d in enumerate(flex_model):
