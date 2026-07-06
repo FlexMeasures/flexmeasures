@@ -435,8 +435,19 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
 
     @with_appcontext_if_needed()
     def _deserialize(
-        self, value: dict[str, int] | list[dict] | str, attr, data, **kwargs
-    ) -> Sensor | list[dict] | ur.Quantity:
+        self,
+        value: (
+            dict[str, Any]
+            | list[dict]
+            | str
+            | ur.Quantity
+            | tuple[Any, ...]
+            | numbers.Real
+        ),
+        attr,
+        data,
+        **kwargs,
+    ) -> Sensor | SensorReference | list[dict] | ur.Quantity:
 
         if isinstance(value, dict):
             return self._deserialize_dict(value, attr, data, **kwargs)
