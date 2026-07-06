@@ -57,9 +57,7 @@ def test_refresh_materialized_views_failure(app, fresh_db):
     assert task_run.status is False
 
 
-def test_search_beliefs_with_mview(
-    app, fresh_db, setup_mview, setup_beliefs_fresh_db
-):
+def test_search_beliefs_with_mview(app, fresh_db, setup_mview, setup_beliefs_fresh_db):
     """After a refresh, searching via the materialized view should match searching the beliefs table."""
     from flexmeasures.cli.db_ops import refresh_materialized_views
     import pandas as pd
