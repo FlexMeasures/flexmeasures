@@ -24,6 +24,7 @@ from marshmallow import (
 )
 import marshmallow.validate as validate
 from pandas.api.types import is_numeric_dtype
+from pint.errors import PintError
 import timely_beliefs as tb
 from werkzeug.datastructures import FileStorage
 from marshmallow.validate import Validator
@@ -443,7 +444,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         elif isinstance(value, tuple):
             try:
                 return ur.Quantity.from_tuple(value).to(self.to_unit)
-            except Exception:
+            except (PintError, TypeError, ValueError, AttributeError):
                 if (
                     len(value) == 1
                     and isinstance(value[0], numbers.Real)
