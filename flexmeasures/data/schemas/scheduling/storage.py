@@ -278,49 +278,6 @@ class StorageFlexModelSchema(Schema):
             else:
                 default_soc_unit = "MWh"
 
-        self.soc_min = VariableQuantityField(
-            to_unit="MWh",
-            default_src_unit=default_soc_unit,
-            timezone=self.timezone,
-            event_resolution=self.flooring_resolution,
-            data_key="soc-min",
-            value_validator=validate.Range(min=0),
-        )
-
-        self.soc_max = VariableQuantityField(
-            to_unit="MWh",
-            default_src_unit=default_soc_unit,
-            timezone=self.timezone,
-            event_resolution=self.flooring_resolution,
-            data_key="soc-max",
-            value_validator=validate.Range(min=0),
-        )
-
-        self.soc_maxima = VariableQuantityField(
-            to_unit="MWh",
-            default_src_unit=default_soc_unit,
-            timezone=self.timezone,
-            event_resolution=self.flooring_resolution,
-            data_key="soc-maxima",
-            value_validator=validate.Range(min=0),
-        )
-
-        self.soc_minima = VariableQuantityField(
-            to_unit="MWh",
-            default_src_unit=default_soc_unit,
-            timezone=self.timezone,
-            event_resolution=self.flooring_resolution,
-            data_key="soc-minima",
-            value_validator=validate.Range(min=0),
-        )
-        self.soc_targets = VariableQuantityField(
-            to_unit="MWh",
-            default_src_unit=default_soc_unit,
-            timezone=self.timezone,
-            event_resolution=self.flooring_resolution,
-            data_key="soc-targets",
-        )
-
         super().__init__(*args, **kwargs)
         if default_soc_unit is not None:
             for field in self.fields.keys():
