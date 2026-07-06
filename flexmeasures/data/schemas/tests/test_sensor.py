@@ -210,6 +210,18 @@ def test_sensor_reference_backward_compatible(setup_dummy_sensors):
     assert result.id == sensor1.id
 
 
+def test_sensor_reference_with_default(setup_dummy_sensors):
+    """``{"sensor": <id>, "default": ...}`` deserializes to a SensorReference."""
+    sensor1, _, _, _ = setup_dummy_sensors
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    result = field.deserialize({"sensor": sensor1.id, "default": "500 kWh"})
+
+    assert isinstance(result, SensorReference)
+    assert result.sensor == sensor1
+    assert result.default == ur.Quantity("0.5 MWh")
+
+
 def test_sensor_reference_with_source_types(setup_dummy_sensors):
     """``{"sensor": <id>, "source-types": [...]}`` deserializes to a :class:`SensorReference`.
 
@@ -329,6 +341,18 @@ def test_sensor_reference_serialization_preserves_source_filters(
         "exclude-source-types": ["forecaster"],
         "sources": [seita_source.id],
         "source-account": [prosumer_account.id],
+    }
+
+
+def test_sensor_reference_serialization_preserves_default(setup_dummy_sensors):
+    sensor1, _, _, _ = setup_dummy_sensors
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+    source_reference = field.deserialize({"sensor": sensor1.id, "default": "500 kWh"})
+
+    assert isinstance(source_reference, SensorReference)
+    assert serialize_variable_quantity(source_reference) == {
+        "sensor": sensor1.id,
+        "default": "0.5 MWh",
     }
 
 
