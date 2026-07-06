@@ -361,6 +361,11 @@ class SensorIdField(MarshmallowClickMixin, fields.Int):
 
 
 class VariableQuantityField(MarshmallowClickMixin, fields.Field):
+    _UNSUPPORTED_VALUE_TYPE_MESSAGE = (
+        "Unsupported value type. `{value_type}` was provided but only dict, list, "
+        "str, pint Quantity, tuple, and numeric values with a default source unit are supported."
+    )
+
     def __init__(
         self,
         to_unit,
@@ -454,13 +459,13 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                 if len(value) == 2:
                     return self._deserialize_str(f"{value[0]} {value[1]}")
                 raise FMValidationError(
-                    f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
+                    self._UNSUPPORTED_VALUE_TYPE_MESSAGE.format(value_type=type(value))
                 )
         elif isinstance(value, numbers.Real) and self.default_src_unit is not None:
             return self._deserialize_numeric(value, attr, data, **kwargs)
         else:
             raise FMValidationError(
-                f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
+                self._UNSUPPORTED_VALUE_TYPE_MESSAGE.format(value_type=type(value))
             )
 
     _SOURCE_FILTER_KEYS = frozenset(

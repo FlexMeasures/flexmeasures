@@ -624,7 +624,7 @@ def check_schema_loads_data(schema, data, fails):
         (
             {"site-power-capacity": 100},
             {
-                "site-power-capacity": f"Unsupported value type. `{type(100)}` was provided but only dict, list and str are supported."
+                "site-power-capacity": f"Unsupported value type. `{type(100)}` was provided but only dict, list, str, pint Quantity, tuple, and numeric values with a default source unit are supported."
             },
         ),
         (
@@ -939,7 +939,7 @@ def test_soc_max_sensor_reference_with_default_loads_as_dynamic_maximum(
             [
                 False,
                 {
-                    "soc-max": "Unsupported value type. `<class 'tuple'>` was provided but only dict, list and str are supported."
+                    "soc-max": "Unsupported value type. `<class 'tuple'>` was provided but only dict, list, str, pint Quantity, tuple, and numeric values with a default source unit are supported."
                 },
             ],
         ),
