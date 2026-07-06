@@ -9,6 +9,7 @@ v1.0.0 | July XX, 2026
 ============================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+             This upgrade may take a few minutes, depending on how much time series data you have in your database (a materialized view will be created).
 
 New features
 -------------
