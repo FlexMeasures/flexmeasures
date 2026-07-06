@@ -207,7 +207,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         try:
             return build_entity_address(dict(sensor_id=self.id), "sensor")
         except EntityAddressException as eae:
-            current_app.logger.warn(
+            current_app.logger.warning(
                 f"Problems generating entity address for sensor {self}: {eae}"
             )
             return "no entity address available"
