@@ -460,7 +460,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         elif isinstance(value, tuple):
             try:
                 return ur.Quantity.from_tuple(value).to(self.to_unit)
-            except (PintError, TypeError, ValueError, AttributeError):
+            except (PintError, TypeError, ValueError, AttributeError, IndexError):
                 if (
                     len(value) == 1
                     and isinstance(value[0], numbers.Real)
