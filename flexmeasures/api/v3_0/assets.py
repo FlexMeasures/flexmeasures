@@ -1433,7 +1433,7 @@ class AssetAPI(FlaskView):
                               power-capacity: 25 kW
                               consumption-capacity: {sensor: 42}
                               production-capacity: 30 kW
-                              soc-minima:
+                              soc-min:
                                 - {start: "2015-06-02T12:00:00+00:00", end: "2015-06-02T13:00:00+00:00", value: 10 kWh}
                             - sensor: 932
                               consumption-capacity: 0 kW
