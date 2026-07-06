@@ -1456,10 +1456,10 @@
                           "datetime": "2015-06-02T16:00:00+00:00"
                         }
                       ],
-                      "soc-minima": {
-                        "sensor": 300
+                      "soc-min": {
+                        "sensor": 300,
+                        "default": "10 kWh"
                       },
-                      "soc-min": "10 kWh",
                       "soc-max": "25 kWh",
                       "charging-efficiency": "120%",
                       "discharging-efficiency": {
@@ -3905,7 +3905,7 @@
                           "sensor": 42
                         },
                         "production-capacity": "30 kW",
-                        "soc-minima": [
+                        "soc-min": [
                           {
                             "start": "2015-06-02T12:00:00+00:00",
                             "end": "2015-06-02T13:00:00+00:00",
@@ -4509,6 +4509,15 @@
             "items": {
               "type": "integer"
             }
+          },
+          "default": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "Fallback quantity to use when the referenced sensor has missing values.",
+            "example": "0 kWh"
           }
         },
         "required": [
@@ -4518,11 +4527,25 @@
       },
       "TimeSeries": {
         "type": "array",
-        "description": "Time series specification containing a list of segments that together describe a variable quantity.",
+        "description": "Time series specification containing a list of segments that together describe a variable quantity. Each segment may specify either `datetime`, `start` and `end`, `start` and `duration`, or `end` and `duration`.",
         "example": [
           {
             "value": "23 kW",
-            "start": "2025-11-20T15:15+01",
+            "datetime": "2025-11-20T15:15+01"
+          },
+          {
+            "value": "24 kW",
+            "start": "2025-11-20T16:00+01",
+            "end": "2025-11-20T17:00+01"
+          },
+          {
+            "value": "25 kW",
+            "start": "2025-11-20T17:00+01",
+            "duration": "PT1H"
+          },
+          {
+            "value": "26 kW",
+            "end": "2025-11-20T19:00+01",
             "duration": "PT1H"
           }
         ],
@@ -4581,12 +4604,12 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima-breach-price": {
-            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-minima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an internal nudge to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.\n",
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of dynamic lower SoC boundary constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an internal nudge to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, dynamic <code>soc-min</code> boundaries and legacy <code>soc-minima</code> boundaries become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.\n",
             "example": "120 EUR/kWh",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-maxima-breach-price": {
-            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-maxima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an <strong>internal nudge</strong> to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\n",
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of dynamic upper SoC boundary constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an <strong>internal nudge</strong> to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, dynamic <code>soc-max</code> boundaries and legacy <code>soc-maxima</code> boundaries become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\n",
             "example": "120 EUR/kWh",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
@@ -6099,15 +6122,20 @@
             "example": "3.1 kWh"
           },
           "soc-min": {
-            "type": "string",
-            "x-minimum": "0 MWh",
-            "description": "A constant and non-negotiable lower boundary for all SoC values in the schedule.\nIf omitted, no lower boundary is applied.\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-minima</code> flex-model field instead together with the <code>soc-minima-breach-price</code> field in the flex-context.\n",
-            "example": "2.5 kWh"
+            "description": "Lower boundary for all SoC values in the schedule.\nIf omitted, no lower boundary is applied.\nWhen passed as a fixed quantity, this is regarded as an unsurpassable physical limitation.\nWhen passed as a sensor reference or time series, it defines dynamic lower boundaries. Dynamic boundaries are soft constraints by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-minima-breach-price</code>.\nSensor references may include a <code>default</code> fallback quantity for missing sensor values, for example <code>{\"sensor\": 50, \"default\": \"0 kWh\"}</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep dynamic lower boundaries as hard constraints unless <code>soc-minima-breach-price</code> is supplied explicitly.\n",
+            "example": {
+              "sensor": 50,
+              "default": "0 kWh"
+            },
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-max": {
-            "type": "string",
-            "description": "A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf omitted, no upper boundary is applied.\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-maxima</code> flex-model field instead together with the <code>soc-maxima-breach-price</code> field in the flex-context.\n",
-            "example": "7 kWh"
+            "description": "Upper boundary for all SoC values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf omitted, no upper boundary is applied.\nWhen passed as a fixed quantity, this is regarded as an unsurpassable physical limitation.\nWhen passed as a sensor reference or time series, it defines dynamic upper boundaries. Dynamic boundaries are soft constraints by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-maxima-breach-price</code>.\nSensor references may include a <code>default</code> fallback quantity for missing sensor values, for example <code>{\"sensor\": 51, \"default\": \"100 kWh\"}</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep dynamic upper boundaries as hard constraints unless <code>soc-maxima-breach-price</code> is supplied explicitly.\n",
+            "example": {
+              "sensor": 51,
+              "default": "100 kWh"
+            },
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "power-capacity": {
             "description": "Symmetric device-level power constraint. How much power can be applied to this asset in either direction.\nIf omitted, the scheduler infers this limit from the greatest of <code>consumption-capacity</code> and <code>production-capacity</code> when either is configured, before falling back to <code>site-power-capacity</code>.\nWhen exactly one of <code>consumption-capacity</code> or <code>production-capacity</code> is configured to non-zero capacity, the missing opposite capacity defaults to zero.",
@@ -6139,7 +6167,7 @@
             "example": true
           },
           "soc-maxima": {
-            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nThe <code>soc-maxima</code> are soft constraints in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-maxima-breach-price</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep them as hard constraints unless <code>soc-maxima-breach-price</code> is supplied explicitly.",
+            "description": "[Deprecated field] Use dynamic <code>soc-max</code> values instead.\nSet points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nThe <code>soc-maxima</code> legacy alias is soft in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-maxima-breach-price</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep them as hard constraints unless <code>soc-maxima-breach-price</code> is supplied explicitly.",
             "example": [
               {
                 "value": "51 kWh",
@@ -6147,10 +6175,11 @@
                 "end": "2024-02-05T13:30:00+01:00"
               }
             ],
+            "deprecated": true,
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima": {
-            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nThe <code>soc-minima</code> are soft constraints in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-minima-breach-price</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep them as hard constraints unless <code>soc-minima-breach-price</code> is supplied explicitly.\nBoth single points in time and ranges are possible, see example.",
+            "description": "[Deprecated field] Use dynamic <code>soc-min</code> values instead.\nSet points that form lower boundaries, e.g. to target a full car battery in the morning.\nThe <code>soc-minima</code> legacy alias is soft in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-minima-breach-price</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep them as hard constraints unless <code>soc-minima-breach-price</code> is supplied explicitly.\nBoth single points in time and ranges are possible, see example.",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",
@@ -6162,6 +6191,7 @@
                 "end": "2024-02-05T13:30:00+01:00"
               }
             ],
+            "deprecated": true,
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-targets": {
