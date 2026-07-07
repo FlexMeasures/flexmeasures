@@ -42,7 +42,7 @@ from flexmeasures.utils.calculations import (
 )
 from flexmeasures.utils.time_utils import get_max_planning_horizon
 from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
-from flexmeasures.utils.unit_utils import ur, convert_units
+from flexmeasures.utils.unit_utils import ur, convert_units, units_are_convertible
 
 
 storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"]
@@ -1402,7 +1402,9 @@ class MetaStorageScheduler(Scheduler):
                 context_currency_unit = commodity_flex_context["shared_currency_unit"]
                 if shared_currency_unit is None:
                     shared_currency_unit = context_currency_unit
-                elif context_currency_unit != shared_currency_unit:
+                elif not units_are_convertible(
+                    context_currency_unit, shared_currency_unit
+                ):
                     raise ValidationError(
                         f"All prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
                     )

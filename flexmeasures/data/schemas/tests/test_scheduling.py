@@ -932,7 +932,7 @@ def test_flex_model_schemas(
             },
             False,
         ),
-        # Test that relax_constraints defaults to False in FlexContextSchema
+        # Test that relax_constraints defaults to True in FlexContextSchema
         (
             {"site-power-capacity": "1 MVA"},
             False,
