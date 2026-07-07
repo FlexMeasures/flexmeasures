@@ -264,14 +264,6 @@ def create_scheduling_job(
         ),
         id=job_id,
         connection=current_app.queues["scheduling"].connection,
-        # RQ's own default job-execution timeout (180s) can be too tight for an
-        # asset-level, multi-sensor schedule (solve + a save-to-db step per sensor);
-        # exceeding it kills the job mid-save rather than the solve itself timing out.
-        timeout=int(
-            current_app.config.get(
-                "FLEXMEASURES_JOB_TIMEOUT_SCHEDULING", timedelta(seconds=600)
-            ).total_seconds()
-        ),
         ttl=int(
             current_app.config.get(
                 "FLEXMEASURES_JOB_TTL", timedelta(-1)
