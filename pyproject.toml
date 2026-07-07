@@ -105,7 +105,7 @@ dependencies = [
     "rq-win>=0.4.2",
     # Below: minimum requirements solely here for security reasons
     "urllib3>=2.7.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/602 (and 603)
-    "cryptography>=46.0.7",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/598
+    "cryptography>=48.0.1",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/606
     "pyopenssl>=26.0.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/590
     "werkzeug>=3.1.6",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/587
     "pillow>=12.2.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/599
@@ -192,6 +192,13 @@ args = [
 help = "Generate OpenAPI specifications"
 script = "flexmeasures.api.scripts.generate_open_api_specs"
 env = {FLEXMEASURES_ENV = "documentation", FLEXMEASURES_PLUGINS = ""}
+
+[tool.poe.tasks.changelog-check]
+help = "List merged PRs since the last tag, to help assemble changelog.rst entries (does not write any files)."
+shell = "ci/list-merged-prs-since-tag.sh"
+args = [
+    {name = "since", help = "Git tag to diff from (default: latest tag reachable from HEAD)", default = ""},
+]
 
 [dependency-groups]
 dev = [

@@ -267,7 +267,8 @@ Only kWh and MWh are allowed.
     example="kWh",
 )
 SOC_MIN = MetaData(
-    description="""A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).
+    description="""A constant and non-negotiable lower boundary for all SoC values in the schedule.
+If omitted, no lower boundary is applied.
 If used, this is regarded as an unsurpassable physical limitation.
 To set softer boundaries, use the ``soc-minima`` flex-model field instead together with the ``soc-minima-breach-price`` field in the flex-context. [#quantity_field]_
 """,
@@ -275,6 +276,7 @@ To set softer boundaries, use the ``soc-minima`` flex-model field instead togeth
 )
 SOC_MAX = MetaData(
     description="""A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).
+If omitted, no upper boundary is applied.
 If used, this is regarded as an unsurpassable physical limitation.
 To set softer boundaries, use the ``soc-maxima`` flex-model field instead together with the ``soc-maxima-breach-price`` field in the flex-context. [#quantity_field]_
 """,
@@ -374,7 +376,9 @@ Boolean option only.
     example=True,
 )
 POWER_CAPACITY = MetaData(
-    description="Device-level power constraint. How much power can be applied to this asset. [#minimum_overlap]_",
+    description="""Symmetric device-level power constraint. How much power can be applied to this asset in either direction.
+If omitted, the scheduler infers this limit from the greatest of ``consumption-capacity`` and ``production-capacity`` when either is configured, before falling back to ``site-power-capacity``.
+When exactly one of ``consumption-capacity`` or ``production-capacity`` is configured to non-zero capacity, the missing opposite capacity defaults to zero. [#minimum_overlap]_""",
     example="50 kVA",
 )
 CONSUMPTION_CAPACITY = MetaData(

@@ -230,7 +230,7 @@ This file defines standardized environment setup for GitHub Copilot agents. When
    - Coverage: Python 3.11 only
    - Caching: pip dependencies
 
-2. **build.yml**
+2. **docker-build.yml**
    - Docker image build validation
    - PostgreSQL service
    - Basic functionality tests
@@ -239,7 +239,7 @@ This file defines standardized environment setup for GitHub Copilot agents. When
    - Security analysis
    - Weekly schedule
 
-4. **release.yml**
+4. **pypi-publish.yml**
    - Package and release automation
    - Trigger: Push to main
 

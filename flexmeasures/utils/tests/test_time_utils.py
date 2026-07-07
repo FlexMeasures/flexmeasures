@@ -8,6 +8,7 @@ import pytz
 import pytest
 
 from flexmeasures.utils.time_utils import (
+    as_utc_isoformat,
     duration_isoformat,
     server_now,
     naturalized_datetime_str,
@@ -46,6 +47,28 @@ def test_duration_isoformat(td: timedelta, iso: str):
 )
 def test_original_duration_isoformat(td: timedelta, iso: str):
     assert original_duration_isoformat(td) == iso
+
+
+@pytest.mark.parametrize(
+    "dt, expected",
+    [
+        (None, None),
+        (
+            datetime(2026, 6, 12, 10, 30),
+            "2026-06-12T10:30:00+00:00",
+        ),
+        (
+            datetime(2026, 6, 12, 12, 30, tzinfo=timezone.utc),
+            "2026-06-12T12:30:00+00:00",
+        ),
+        (
+            pytz.timezone("Europe/Amsterdam").localize(datetime(2026, 6, 12, 14, 30)),
+            "2026-06-12T12:30:00+00:00",
+        ),
+    ],
+)
+def test_as_utc_isoformat(dt, expected):
+    assert as_utc_isoformat(dt) == expected
 
 
 @pytest.mark.parametrize(

@@ -68,3 +68,37 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+
+  pypi-smoke-test:
+    runs-on: ubuntu-latest
+    needs:
+      - pypi-publish
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: ".python-version"
+
+      - name: Wait for PyPI to index the release
+        run: sleep 60
+
+      - name: Install from PyPI in a fresh venv
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          python -m venv /tmp/fm-smoke-venv
+          /tmp/fm-smoke-venv/bin/pip install --no-cache-dir "flexmeasures==${VERSION}"
+
+      - name: Verify installed version and importability
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          /tmp/fm-smoke-venv/bin/python -c "
+          from flexmeasures import __version__
+          expected = '${VERSION}'
+          assert __version__ == expected, f'expected {expected}, got {__version__}'
+          print(f'OK: flexmeasures {__version__} importable and version matches')
+          "
