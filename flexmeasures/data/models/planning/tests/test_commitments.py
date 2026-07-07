@@ -1655,7 +1655,15 @@ def test_per_commodity_inflexible_device_sensors(app, db):
         event_resolution=resolution,
         generic_asset=gas_site,
     )
-    db.session.add_all([flexible_boiler_power, inflexible_gas_load])
+    gas_aggregate_consumption = Sensor(
+        name="gas aggregate consumption",
+        unit="kW",
+        event_resolution=resolution,
+        generic_asset=gas_site,
+    )
+    db.session.add_all(
+        [flexible_boiler_power, inflexible_gas_load, gas_aggregate_consumption]
+    )
     db.session.commit()
 
     # A constant 8 kW inflexible gas load, recorded as beliefs.
@@ -1698,6 +1706,7 @@ def test_per_commodity_inflexible_device_sensors(app, db):
             "production-price": "50 EUR/MWh",
             "site-consumption-capacity": "10 kW",
             "inflexible-device-sensors": [inflexible_gas_load.id],
+            "aggregate-consumption": {"sensor": gas_aggregate_consumption.id},
         },
     ]
 
@@ -1723,7 +1732,50 @@ def test_per_commodity_inflexible_device_sensors(app, db):
 
     # With an 8 kW inflexible gas load counted against the 10 kW site-consumption-capacity,
     # the flexible boiler (which otherwise consumes a constant 1 kW) is left at most 2 kW of
-    # headroom. Since the boiler's own consumption is fixed at 1 kW via soc-usage, this test
-    # mainly asserts the schedule was computed without infeasibility, i.e. the per-commodity
-    # inflexible sensor was taken into account as a device (not simply dropped).
+    # headroom.
     assert (boiler_schedule <= 2.0 + 1e-6).all()
+
+    # The aggregate-consumption schedule for the gas commodity must include the inflexible
+    # gas load. Before the fix, the per-commodity inflexible sensor got no device constraints
+    # (its device index was silently dropped), so the aggregate would only reflect the
+    # flexible boiler's ~1 kW instead of 8 + 1 = 9 kW.
+    aggregate_schedule = next(
+        entry
+        for entry in storage_schedules
+        if entry["sensor"] == gas_aggregate_consumption
+    )["data"]
+    expected_aggregate = boiler_schedule + 8.0
+    assert aggregate_schedule.values == pytest.approx(
+        expected_aggregate.values, abs=1e-6
+    ), (
+        "Aggregate gas consumption should include the 8 kW inflexible gas load "
+        "on top of the flexible boiler's schedule."
+    )
+
+
+def test_electricity_device_indices_exclude_other_commodities():
+    """test_electricity_device_indices_exclude_other_commodities: the device indices used
+    for the aggregate-power sum should cover only electricity devices (flexible and
+    inflexible), not gas devices, nor per-commodity inflexible devices of other commodities.
+    """
+    scheduler = object.__new__(StorageScheduler)
+    # Flexible devices: 0 = electricity, 1 = gas, 2 = electricity (implicit default)
+    scheduler._device_models = [
+        {"commodity": "electricity"},
+        {"commodity": "gas"},
+        {},  # defaults to electricity
+    ]
+    scheduler.flex_model = scheduler._device_models
+    # Top-level inflexible sensors (electricity): indices 3 and 4.
+    # Gas commodity context with one inflexible sensor: index 5.
+    scheduler.flex_context = {
+        "inflexible_device_sensors": ["el_sensor_a", "el_sensor_b"],
+        "commodity_contexts": [
+            {"commodity": "gas", "inflexible_device_sensors": ["gas_sensor"]},
+        ],
+    }
+
+    mapping = scheduler._reconstruct_commodity_to_devices()
+    assert mapping["electricity"] == [0, 2, 3, 4]
+    assert mapping["gas"] == [1, 5]
+    assert scheduler._electricity_device_indices() == [0, 2, 3, 4]
