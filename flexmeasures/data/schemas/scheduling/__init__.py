@@ -442,6 +442,27 @@ class FlexContextSchema(SharedSchema):
             raise ValidationError("The `aggregate-power` field can only be a Sensor.")
 
     @validates("commodity_contexts")
+    def validate_commodity_contexts_unique(
+        self, commodity_contexts: list[dict], **kwargs
+    ):
+        """Validate that each commodity is listed at most once.
+
+        `_get_commodity_contexts` (storage.py) builds a dict keyed by commodity, so
+        duplicate entries would otherwise silently overwrite each other.
+        """
+        commodities = [context["commodity"] for context in commodity_contexts]
+        seen = set()
+        duplicates = set()
+        for commodity in commodities:
+            if commodity in seen:
+                duplicates.add(commodity)
+            seen.add(commodity)
+        if duplicates:
+            raise ValidationError(
+                f"Each commodity may only be listed once in `commodities`. Duplicate(s): {sorted(duplicates)}."
+            )
+
+    @validates("commodity_contexts")
     def validate_commodity_contexts_shared_currency(
         self, commodity_contexts: list[dict], **kwargs
     ):
