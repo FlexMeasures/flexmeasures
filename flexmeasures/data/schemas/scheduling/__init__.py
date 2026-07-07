@@ -269,7 +269,7 @@ class SharedSchema(Schema):
     # Relaxation fields
     relax_constraints = fields.Bool(
         data_key="relax-constraints",
-        load_default=False,
+        load_default=True,
         metadata=metadata.RELAX_CONSTRAINTS.to_dict(),
     )
     relax_soc_constraints = fields.Bool(
