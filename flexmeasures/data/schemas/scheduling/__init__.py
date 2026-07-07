@@ -393,13 +393,6 @@ class CommodityFlexContextSchema(SharedSchema):
         metadata=metadata.COMMODITY_FLEX_CONTEXT.to_dict(),
     )
 
-    # For flex-context listings (per commodity), default relax_constraints to True
-    relax_constraints = fields.Bool(
-        data_key="relax-constraints",
-        load_default=True,
-        metadata=metadata.RELAX_CONSTRAINTS.to_dict(),
-    )
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -452,37 +445,28 @@ class FlexContextSchema(SharedSchema):
     def validate_commodity_contexts_shared_currency(
         self, commodity_contexts: list[dict], **kwargs
     ):
-        """Validate that all prices across commodity contexts share the same currency."""
+        """Validate that all prices across commodity contexts share the same currency.
+
+        Each commodity context already computed its own normalized ``shared_currency_unit``
+        (a base-unit currency string, e.g. "EUR") via the inherited
+        ``_try_to_convert_price_units`` schema-level validator. We simply compare those.
+        """
         if not commodity_contexts:
             return
 
         shared_currency_unit = None
 
         for context in commodity_contexts:
-            # Check all price fields in this context
-            for field_name, field_value in context.items():
-                if field_name.endswith("_price") and field_value is not None:
-                    # Get the price unit
-                    if hasattr(field_value, "units"):
-                        price_unit = str(field_value.units)
-                    elif isinstance(field_value, ur.Quantity):
-                        price_unit = str(field_value.units)
-                    else:
-                        continue
-
-                    # Extract currency from the price unit
-                    # Price units are typically like "EUR/MWh" or "USD/MW"
-                    # Split by "/" and take first part as currency
-                    currency_unit = price_unit.split("/")[0].strip()
-
-                    if shared_currency_unit is None:
-                        shared_currency_unit = str(
-                            ur.Quantity(currency_unit).to_base_units().units
-                        )
-                    elif not units_are_convertible(currency_unit, shared_currency_unit):
-                        raise ValidationError(
-                            "all prices in the flex-context must share the same currency unit"
-                        )
+            context_currency_unit = context.get("shared_currency_unit")
+            if context_currency_unit is None:
+                continue
+            if shared_currency_unit is None:
+                shared_currency_unit = context_currency_unit
+            elif not units_are_convertible(context_currency_unit, shared_currency_unit):
+                raise ValidationError(
+                    "all prices in the flex-context must share the same currency unit"
+                    f" (found both '{shared_currency_unit}' and '{context_currency_unit}')"
+                )
 
     @validates_schema(pass_original=True)
     def check_prices(self, data: dict, original_data: dict, **kwargs):
@@ -538,6 +522,21 @@ class FlexContextSchema(SharedSchema):
         # All prices must share the same unit
         data = self._try_to_convert_price_units(data, original_data)
         shared_currency = ur.Quantity(data["shared_currency_unit"])
+
+        # Also check that top-level prices share their currency with any per-commodity contexts
+        for context in data.get("commodity_contexts", []) or []:
+            context_currency_unit = context.get("shared_currency_unit")
+            if context_currency_unit is None:
+                continue
+            if not units_are_convertible(
+                context_currency_unit, data["shared_currency_unit"]
+            ):
+                raise ValidationError(
+                    "all prices in the flex-context must share the same currency unit"
+                    f" (found both '{data['shared_currency_unit']}' at the top level and"
+                    f" '{context_currency_unit}' in a commodity context)",
+                    field_name="commodities",
+                )
 
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
         if (
