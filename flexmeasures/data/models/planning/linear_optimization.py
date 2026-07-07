@@ -550,12 +550,12 @@ def device_scheduler(  # noqa C901
     )
     model.commitment_sign = Var(model.c, domain=Binary, initialize=0)
 
-    # def _get_stock_change(m, d, j):
-    #     """Determine final stock change of device d until time j.
-    #
-    #     Apply conversion efficiencies to conversion from flow to stock change and vice versa,
-    #     and apply storage efficiencies to stock levels from one datetime to the next.
-    #     """
+    def _get_stock_change(m, d, j):
+        """Determine final stock change of the stock group of device d until time j.
+
+        Apply conversion efficiencies to conversion from flow to stock change and vice versa,
+        and apply storage efficiencies to stock levels from one datetime to the next.
+        """
     #     if isinstance(initial_stock, list):
     #         # No initial stock defined for inflexible device
     #         initial_stock_d = initial_stock[d] if d < len(initial_stock) else 0
@@ -578,8 +578,6 @@ def device_scheduler(  # noqa C901
     #         )
     #     ][-1]
     #     return final_stock_change
-
-    def _get_stock_change(m, d, j):
 
         # determine the stock group of this device
         group = device_to_group[d]
