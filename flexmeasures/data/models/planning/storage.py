@@ -1396,18 +1396,12 @@ class MetaStorageScheduler(Scheduler):
                 )
 
             # Ensure all flex-contexts share the same currency unit
-            # todo: move this into a validator for FlexContextSchema.commodity_contexts?
             shared_currency_unit = None
             for commodity_flex_context in self.flex_context:
-                shared_currency_unit = commodity_flex_context["shared_currency_unit"]
+                context_currency_unit = commodity_flex_context["shared_currency_unit"]
                 if shared_currency_unit is None:
-                    shared_currency_unit = commodity_flex_context[
-                        "shared_currency_unit"
-                    ]
-                elif (
-                    commodity_flex_context["shared_currency_unit"]
-                    != shared_currency_unit
-                ):
+                    shared_currency_unit = context_currency_unit
+                elif context_currency_unit != shared_currency_unit:
                     raise ValidationError(
                         f"All prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
                     )
