@@ -8,7 +8,7 @@ from typing import Type
 import pandas as pd
 import numpy as np
 from flask import current_app
-
+from marshmallow import ValidationError
 
 from flexmeasures import Asset, Sensor
 from flexmeasures.data import db
@@ -32,6 +32,7 @@ from flexmeasures.data.models.planning.utils import (
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
 from flexmeasures.data.schemas.scheduling import (
+    CommodityFlexContextSchema,
     FlexContextSchema,
     MultiSensorFlexModelSchema,
 )
@@ -77,6 +78,31 @@ class MetaStorageScheduler(Scheduler):
         """
 
         return self.compute()
+
+    def _get_commodity_contexts(self) -> dict[str, dict]:
+        """Return commodity-specific flex-contexts.
+
+        Supports the new format:
+
+            "commodities": [
+                {"commodity": "electricity", ...},
+                {"commodity": "gas", ...},
+            ]
+
+        and keeps backwards compatibility with old top-level fields.
+        """
+
+        commodity_contexts = {}
+
+        for commodity_context in self.flex_context.get("commodity_contexts", []):
+            commodity = commodity_context["commodity"]
+            commodity_contexts[commodity] = commodity_context
+
+        # Backwards-compatible electricity defaults from old top-level fields.
+        if "electricity" not in commodity_contexts:
+            commodity_contexts["electricity"] = self.flex_context
+
+        return commodity_contexts
 
     def _prepare(self, skip_validation: bool = False) -> tuple:  # noqa: C901
         """This function prepares the required data to compute the schedule:
@@ -261,96 +287,18 @@ class MetaStorageScheduler(Scheduler):
         ]
 
         # Get info from flex-context
-        consumption_price_sensor = self.flex_context.get("consumption_price_sensor")
-        production_price_sensor = self.flex_context.get("production_price_sensor")
-        gas_price_sensor = self.flex_context.get("gas_price_sensor")
-
-        consumption_price = self.flex_context.get(
-            "consumption_price", consumption_price_sensor
-        )
-        production_price = self.flex_context.get(
-            "production_price", production_price_sensor
-        )
-        gas_price = self.flex_context.get("gas_price", gas_price_sensor)
-        # fallback to using the consumption price, for backwards compatibility
-        if production_price is None:
-            production_price = consumption_price
         inflexible_device_sensors = self.flex_context.get(
             "inflexible_device_sensors", []
         )
 
-        # Fetch the device's power capacity (required Sensor attribute)
+        # Fetch the device's power capacity required by the device constraints.
         power_capacity_in_mw = self._get_device_power_capacity(flex_model, assets)
 
-        gas_deviation_prices = None
-        if gas_price is not None:
-            gas_deviation_prices = get_continuous_series_sensor_or_quantity(
-                variable_quantity=gas_price,
-                unit=self.flex_context["shared_currency_unit"] + "/MWh",
-                query_window=(start, end),
-                resolution=resolution,
-                beliefs_before=belief_time,
-                fill_sides=True,
-            ).to_frame(name="event_value")
-            ensure_prices_are_not_empty(gas_deviation_prices, gas_price)
-            gas_deviation_prices = (
-                gas_deviation_prices.loc[start : end - resolution]["event_value"]
-                * resolution
-                / pd.Timedelta("1h")
-            )
-
-        # Check for known prices or price forecasts
-        up_deviation_prices = get_continuous_series_sensor_or_quantity(
-            variable_quantity=consumption_price,
-            unit=self.flex_context["shared_currency_unit"] + "/MWh",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fill_sides=True,
-        ).to_frame(name="event_value")
-        ensure_prices_are_not_empty(up_deviation_prices, consumption_price)
-        down_deviation_prices = get_continuous_series_sensor_or_quantity(
-            variable_quantity=production_price,
-            unit=self.flex_context["shared_currency_unit"] + "/MWh",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            fill_sides=True,
-        ).to_frame(name="event_value")
-        ensure_prices_are_not_empty(down_deviation_prices, production_price)
-
+        # Convert to UTC before fetching time series.
         start = pd.Timestamp(start).tz_convert("UTC")
         end = pd.Timestamp(end).tz_convert("UTC")
 
-        # Create Series with EMS capacities
-        ems_power_capacity_in_mw = get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_context.get("ems_power_capacity_in_mw"),
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            resolve_overlaps="min",
-        )
-        ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_context.get("ems_consumption_capacity_in_mw"),
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            max_value=ems_power_capacity_in_mw,
-            resolve_overlaps="min",
-        )
-        ems_production_capacity = -1 * get_continuous_series_sensor_or_quantity(
-            variable_quantity=self.flex_context.get("ems_production_capacity_in_mw"),
-            unit="MW",
-            query_window=(start, end),
-            resolution=resolution,
-            beliefs_before=belief_time,
-            max_value=ems_power_capacity_in_mw,
-            resolve_overlaps="min",
-        )
-
-        # Set up commitments to optimise for
+        # Set up commitments to optimise for.
         commitments = self.convert_to_commitments(
             query_window=(start, end),
             resolution=resolution,
@@ -361,23 +309,21 @@ class MetaStorageScheduler(Scheduler):
         index = initialize_index(start, end, resolution)
         commitment_quantities = initialize_series(0, start, end, resolution)
 
-        # Convert energy prices to EUR/(deviation of commitment, which is in MW)
-        commitment_upwards_deviation_price = (
-            up_deviation_prices.loc[start : end - resolution]["event_value"]
-            * resolution
-            / pd.Timedelta("1h")
-        )
-        commitment_downwards_deviation_price = (
-            down_deviation_prices.loc[start : end - resolution]["event_value"]
-            * resolution
-            / pd.Timedelta("1h")
-        )
+        # EMS constraints are kept per commodity (one device group per commodity).
+        #
+        # The site-power / site-consumption / site-production capacities
+        # are enforced as hard EMS-level constraints (derivative max/min). Because each
+        # commodity has its own set of devices, ``ems_constraints`` is a list of
+        # DataFrames and ``ems_constraint_groups`` lists the device indices each
+        # DataFrame applies to. The device_scheduler then bounds the summed flow of each
+        # commodity's devices separately (instead of summing across all commodities).
+        #
+        # The commodity-specific breach/peak penalties below remain modelled as
+        # FlowCommitments on top of these hard constraints.
+        ems_constraints: list[pd.DataFrame] = []
+        ems_constraint_groups: list[list[int]] = []
 
-        ems_constraints = initialize_df(
-            StorageScheduler.COLUMNS, start, end, resolution
-        )
-
-        def _device_list_series(
+        def device_list_series(
             devices: list[int], index: pd.DatetimeIndex
         ) -> pd.Series:
             return pd.Series([tuple(devices)] * len(index), index=index, name="device")
@@ -387,23 +333,78 @@ class MetaStorageScheduler(Scheduler):
             commodity = flex_model_d.get("commodity", "electricity")
             commodity_to_devices.setdefault(commodity, []).append(d)
 
+        # inflexible devices are electricity by default
+        number_flexible_devices = len(flex_model)
+        number_inflexible_devices = len(
+            self.flex_context.get("inflexible_device_sensors", [])
+        )
+        num_flexible_devices = len(flex_model)
+        commodity_to_devices["electricity"] += list(
+            range(
+                number_flexible_devices,
+                number_flexible_devices + number_inflexible_devices,
+            )
+        )
+
+        commodity_contexts = self._get_commodity_contexts()
+        price_frames_by_commodity = {}
+
         for commodity, devices in commodity_to_devices.items():
-            commodity_devices = _device_list_series(devices, index)
-            if commodity == "electricity":
-                up_price = commitment_upwards_deviation_price
-                down_price = commitment_downwards_deviation_price
-            elif commodity == "gas":
-                if gas_deviation_prices is None:
-                    raise ValueError(
-                        "Gas prices are required in the flex-context to set up gas flow commitments."
-                    )
-                up_price = gas_deviation_prices
-                down_price = gas_deviation_prices
-            else:
+            commodity_devices = device_list_series(devices, index)
+            commodity_context = commodity_contexts.get(commodity, {})
+
+            # Get info from commodity_context
+            consumption_price_sensor = commodity_context.get("consumption_price_sensor")
+            production_price_sensor = commodity_context.get("production_price_sensor")
+            consumption_price = commodity_context.get(
+                "consumption_price", consumption_price_sensor
+            )
+            production_price = commodity_context.get(
+                "production_price", production_price_sensor
+            )
+
+            if production_price is None:
+                production_price = consumption_price
+
+            if consumption_price is None:
                 raise ValueError(
-                    f"Unsupported commodity {commodity} in flex-model. "
-                    "Only 'electricity' and 'gas' are supported."
+                    f"Missing consumption price for commodity '{commodity}'."
                 )
+
+            # Energy prices for this commodity.
+            up_deviation_prices = get_continuous_series_sensor_or_quantity(
+                variable_quantity=consumption_price,
+                unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fill_sides=True,
+            ).to_frame(name="event_value")
+            ensure_prices_are_not_empty(up_deviation_prices, consumption_price)
+
+            down_deviation_prices = get_continuous_series_sensor_or_quantity(
+                variable_quantity=production_price,
+                unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                fill_sides=True,
+            ).to_frame(name="event_value")
+            ensure_prices_are_not_empty(down_deviation_prices, production_price)
+
+            price_frames_by_commodity[commodity] = up_deviation_prices
+
+            # Convert energy prices to price per MW deviation for one resolution step.
+            up_price = (
+                up_deviation_prices.loc[start : end - resolution]["event_value"]
+                * resolution
+                / pd.Timedelta("1h")
+            )
+            down_price = (
+                down_deviation_prices.loc[start : end - resolution]["event_value"]
+                * resolution
+                / pd.Timedelta("1h")
+            )
 
             commitments.append(
                 FlowCommitment(
@@ -418,9 +419,46 @@ class MetaStorageScheduler(Scheduler):
                 )
             )
 
-            if self.flex_context.get("ems_peak_consumption_price") is not None:
+            # Commodity-specific site capacities.
+            # These are not written into ems_constraints. Instead, they are added as
+            # FlowCommitments that only aggregate the devices of this commodity.
+            ems_power_capacity = get_continuous_series_sensor_or_quantity(
+                variable_quantity=commodity_context.get("ems_power_capacity_in_mw"),
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                resolve_overlaps="min",
+            )
+
+            ems_consumption_capacity = get_continuous_series_sensor_or_quantity(
+                variable_quantity=commodity_context.get(
+                    "ems_consumption_capacity_in_mw"
+                ),
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                max_value=ems_power_capacity,
+                resolve_overlaps="min",
+            )
+
+            ems_production_capacity = -1 * get_continuous_series_sensor_or_quantity(
+                variable_quantity=commodity_context.get(
+                    "ems_production_capacity_in_mw"
+                ),
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                max_value=ems_power_capacity,
+                resolve_overlaps="min",
+            )
+
+            # Commodity-specific peak consumption commitment.
+            if commodity_context.get("ems_peak_consumption_price") is not None:
                 ems_peak_consumption = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=self.flex_context.get(
+                    variable_quantity=commodity_context.get(
                         "ems_peak_consumption_in_mw"
                     ),
                     unit="MW",
@@ -431,7 +469,7 @@ class MetaStorageScheduler(Scheduler):
                     fill_sides=True,
                 )
                 ems_peak_consumption_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=self.flex_context.get(
+                    variable_quantity=commodity_context.get(
                         "ems_peak_consumption_price"
                     ),
                     unit=self.flex_context["shared_currency_unit"] + "/MW",
@@ -454,9 +492,10 @@ class MetaStorageScheduler(Scheduler):
                     )
                 )
 
-            if self.flex_context.get("ems_peak_production_price") is not None:
+            # Commodity-specific peak production commitment.
+            if commodity_context.get("ems_peak_production_price") is not None:
                 ems_peak_production = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=self.flex_context.get(
+                    variable_quantity=commodity_context.get(
                         "ems_peak_production_in_mw"
                     ),
                     unit="MW",
@@ -467,7 +506,7 @@ class MetaStorageScheduler(Scheduler):
                     fill_sides=True,
                 )
                 ems_peak_production_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=self.flex_context.get(
+                    variable_quantity=commodity_context.get(
                         "ems_peak_production_price"
                     ),
                     unit=self.flex_context["shared_currency_unit"] + "/MW",
@@ -492,14 +531,14 @@ class MetaStorageScheduler(Scheduler):
                 )
 
             # Set up capacity breach commitments and EMS capacity constraints
-            ems_consumption_breach_price = self.flex_context.get(
+            ems_consumption_breach_price = commodity_context.get(
                 "ems_consumption_breach_price"
             )
-
-            ems_production_breach_price = self.flex_context.get(
+            ems_production_breach_price = commodity_context.get(
                 "ems_production_breach_price"
             )
 
+            # Commodity-specific site consumption breach.
             if ems_consumption_breach_price is not None:
 
                 # Convert to Series
@@ -552,12 +591,7 @@ class MetaStorageScheduler(Scheduler):
                     )
                 )
 
-                # Take the physical capacity as a hard constraint
-                ems_constraints["derivative max"] = ems_power_capacity_in_mw
-            else:
-                # Take the contracted capacity as a hard constraint
-                ems_constraints["derivative max"] = ems_consumption_capacity
-
+            # Commodity-specific site production breach.
             if ems_production_breach_price is not None:
 
                 # Convert to Series
@@ -610,12 +644,35 @@ class MetaStorageScheduler(Scheduler):
                         commodity=commodity,
                     )
                 )
-                # Take the physical capacity as a hard constraint
-                ems_constraints["derivative min"] = -ems_power_capacity_in_mw
-            else:
-                # Take the contracted capacity as a hard constraint
-                ems_constraints["derivative min"] = ems_production_capacity
 
+            # Hard EMS-level capacity constraint for this commodity's device group.
+            # If a breach price is set, the physical power capacity is the
+            # hard limit (the contracted capacity is then only softly penalised via the
+            # breach commitments above); otherwise the contracted capacity itself is the
+            # hard limit.
+            commodity_ems_constraints = initialize_df(
+                StorageScheduler.COLUMNS, start, end, resolution
+            )
+            if ems_consumption_breach_price is not None:
+                commodity_ems_constraints["derivative max"] = ems_power_capacity
+            else:
+                commodity_ems_constraints["derivative max"] = ems_consumption_capacity
+            if ems_production_breach_price is not None:
+                commodity_ems_constraints["derivative min"] = -ems_power_capacity
+            else:
+                commodity_ems_constraints["derivative min"] = ems_production_capacity
+            ems_constraints.append(commodity_ems_constraints)
+            ems_constraint_groups.append(list(devices))
+
+        # Keep one price frame for later preference logic.
+        # The existing "prefer charging sooner" code uses `up_deviation_prices`.
+        # Prefer electricity prices if available, otherwise use the first commodity price.
+        if "electricity" in price_frames_by_commodity:
+            up_deviation_prices = price_frames_by_commodity["electricity"]
+        elif price_frames_by_commodity:
+            up_deviation_prices = next(iter(price_frames_by_commodity.values()))
+        else:
+            raise ValueError("No commodity prices were available.")
         # Commitments per device
 
         # StockCommitment per device to prefer a full storage by penalizing not being full
@@ -1188,6 +1245,8 @@ class MetaStorageScheduler(Scheduler):
 
         # Store original stock_deltas for use in _build_soc_schedule
         self.original_stock_deltas = original_stock_deltas
+        # Device indices each EMS constraint DataFrame applies to (one group per commodity).
+        self.ems_constraint_groups = ems_constraint_groups
         return (
             sensors,
             start,
@@ -1242,6 +1301,8 @@ class MetaStorageScheduler(Scheduler):
             for d, flex_model_d in enumerate(flex_model):
                 commitment = FlowCommitment(
                     device=d,
+                    # todo: is flex_model_d guaranteed to have "commodity? Consider defaulting the device commodity to "electricity"
+                    # todo: should there not be something matching the "commodity" from the commitment_spec (default to "electricity") to the device commodity?
                     device_group=flex_model_d["commodity"],
                     **commitment_spec,
                 )
@@ -1279,8 +1340,48 @@ class MetaStorageScheduler(Scheduler):
             self.flex_model = {}
 
         self.collect_flex_config()
-        self.flex_context = FlexContextSchema().load(self.flex_context)
+        self._deserialize_flex_context()
+        self._deserialize_flex_model()
 
+    def _deserialize_flex_context(self):
+        if isinstance(self.flex_context, dict):
+            # Load the one flex-context for electricity
+            self.flex_context = FlexContextSchema().load(self.flex_context)
+        elif isinstance(self.flex_context, list):
+            # Load each flex-context per commodity
+            for g, commodity_flex_context in enumerate(self.flex_context):
+                self.flex_context[g] = CommodityFlexContextSchema().load(
+                    commodity_flex_context
+                )
+
+            # Ensure all flex-contexts share the same currency unit
+            # todo: move this into a validator for FlexContextSchema.commodity_contexts?
+            shared_currency_unit = None
+            for commodity_flex_context in self.flex_context:
+                shared_currency_unit = commodity_flex_context["shared_currency_unit"]
+                if shared_currency_unit is None:
+                    shared_currency_unit = commodity_flex_context[
+                        "shared_currency_unit"
+                    ]
+                elif (
+                    commodity_flex_context["shared_currency_unit"]
+                    != shared_currency_unit
+                ):
+                    raise ValidationError(
+                        f"All prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
+                    )
+
+            # Nest the flex-contexts per commodity under the commodity_contexts field
+            self.flex_context = dict(
+                commodity_contexts=self.flex_context,
+                shared_currency_unit=shared_currency_unit,
+            )
+        else:
+            raise TypeError(
+                f"Unsupported type of flex-context: '{type(self.flex_context)}'"
+            )
+
+    def _deserialize_flex_model(self):
         if isinstance(self.flex_model, dict):
             if self.sensor.generic_asset.asset_type.name in storage_asset_types:
                 self.ensure_soc_at_start()
@@ -1300,16 +1401,10 @@ class MetaStorageScheduler(Scheduler):
             # Extend schedule period in case a target exceeds its end
             self.possibly_extend_end(soc_targets=self.flex_model.get("soc_targets"))
         elif isinstance(self.flex_model, list):
-            # todo: ensure_soc_min_max in case the device is a storage (see line 847)
             self.flex_model = MultiSensorFlexModelSchema(many=True).load(
                 self.flex_model
             )
             for d, sensor_flex_model in enumerate(self.flex_model):
-                # todo: this fails but I'm not sure about the reason(haven't looked into it deeply yet).
-                # sensor_flex_model["sensor_flex_model"] = self.ensure_soc_at_start(
-                #     flex_model=sensor_flex_model["sensor_flex_model"],
-                #     sensor=sensor_flex_model.get("sensor"),
-                # )
                 soc_sensor_id = (
                     sensor_flex_model["sensor_flex_model"]
                     .get("state-of-charge", {})
@@ -2027,6 +2122,153 @@ class StorageScheduler(MetaStorageScheduler):
                 )
         return schedules
 
+    def _compute_commodity_aggregate_schedules(
+        self,
+        storage_schedule: dict,
+        ems_schedule: pd.DataFrame,
+        # sensors: list[Sensor | None],
+    ) -> None:
+        """Compute per-commodity aggregate power flows for aggregate-consumption and aggregate-production sensors.
+
+        This method populates the storage_schedule dict with aggregate schedules for each commodity
+        that defines aggregate-consumption and/or aggregate-production sensors in its commodity context.
+
+        The sign convention and split logic follows the same pattern as _build_consumption_production_schedules:
+        - Only aggregate-consumption defined: full aggregate schedule (consumption +, production -)
+        - Only aggregate-production defined: full aggregate schedule (consumption +, production -)
+          (sign will be flipped by make_schedule based on consumption_is_positive=False)
+        - Both defined: consumption sensor gets non-negative part, production sensor gets non-positive part
+          (sign will be flipped for production by make_schedule)
+
+        For backwards compatibility, when no commodity_contexts are defined, all devices are treated
+        as electricity devices and use the top-level flex-context fields.
+
+        :param storage_schedule: Dict to populate with aggregate schedules (will be modified in-place)
+        :param ems_schedule:     DataFrame of per-device power schedules in MW (consumption positive)
+        :param sensors:          List of sensors corresponding to device indices
+        """
+        # Get the device models to reconstruct commodity_to_devices mapping
+        flex_model = getattr(self, "_device_models", None)
+        if flex_model is None:
+            # Fallback: reconstruct if not available (shouldn't happen in normal flow)
+            flex_model = (
+                self.flex_model.copy()
+                if isinstance(self.flex_model, dict)
+                else [fm for fm in self.flex_model if fm.get("sensor") is not None]
+            )
+        if not isinstance(flex_model, list):
+            flex_model = [flex_model]
+
+        # Reconstruct commodity_to_devices mapping
+        commodity_to_devices = {}
+        for d, flex_model_d in enumerate(flex_model):
+            commodity = flex_model_d.get("commodity", "electricity")
+            commodity_to_devices.setdefault(commodity, []).append(d)
+
+        # Add inflexible devices to commodities, mirroring _prepare()'s device
+        # enumeration so the device indices line up with ems_schedule:
+        #   - top-level inflexible-device-sensors go to electricity (backwards compat),
+        #   - then each commodity context's own inflexible-device-sensors are appended to
+        #     that commodity, in the order the commodity contexts are given.
+        # Without step 2 below, a commodity's inflexible demand (e.g. a heat load) is left
+        # out of its aggregate schedule, so an aggregate-consumption sensor only reflects
+        # the flexible devices of that commodity.
+        inflexible_device_sensors = self.flex_context.get(
+            "inflexible_device_sensors", []
+        )
+        number_flexible_devices = len(flex_model)
+        commodity_to_devices.setdefault("electricity", []).extend(
+            range(
+                number_flexible_devices,
+                number_flexible_devices + len(inflexible_device_sensors),
+            )
+        )
+
+        # Per-commodity inflexible devices, enumerated after the top-level ones.
+        num_devices = number_flexible_devices + len(inflexible_device_sensors)
+        for commodity_context in self.flex_context.get("commodity_contexts", []):
+            commodity = commodity_context["commodity"]
+            commodity_inflexible_device_sensors = commodity_context.get(
+                "inflexible_device_sensors", []
+            )
+            commodity_to_devices.setdefault(commodity, []).extend(
+                range(
+                    num_devices,
+                    num_devices + len(commodity_inflexible_device_sensors),
+                )
+            )
+            num_devices += len(commodity_inflexible_device_sensors)
+
+        # Get commodity contexts (handles backwards compatibility)
+        commodity_contexts = self._get_commodity_contexts()
+
+        # Process each commodity
+        for commodity, devices in commodity_to_devices.items():
+            commodity_context = commodity_contexts.get(commodity, {})
+
+            # Get aggregate sensors for this commodity
+            aggregate_consumption_field = commodity_context.get("aggregate_consumption")
+            aggregate_production_field = commodity_context.get("aggregate_production")
+
+            # Extract sensor objects
+            aggregate_consumption_sensor = (
+                aggregate_consumption_field.get("sensor")
+                if isinstance(aggregate_consumption_field, dict)
+                and "sensor" in aggregate_consumption_field
+                else None
+            )
+            aggregate_production_sensor = (
+                aggregate_production_field.get("sensor")
+                if isinstance(aggregate_production_field, dict)
+                and "sensor" in aggregate_production_field
+                else None
+            )
+
+            # Skip if no aggregate sensors defined for this commodity
+            if (
+                aggregate_consumption_sensor is None
+                and aggregate_production_sensor is None
+            ):
+                continue
+
+            # Sum the schedules for all devices in this commodity
+            # ems_schedule is a list of Series, one per device
+            device_indices = [d for d in devices if d < len(ems_schedule)]
+
+            # If no devices contribute to this commodity's aggregate, skip it
+            # (e.g., heat commodity with no heat devices)
+            if not device_indices:
+                continue
+
+            commodity_aggregate = sum(ems_schedule[d] for d in device_indices)
+
+            # Apply split logic based on which sensors are defined
+            if (
+                aggregate_consumption_sensor is not None
+                and aggregate_production_sensor is None
+            ):
+                # Only consumption sensor: full aggregate schedule
+                # (consumption positive, production negative)
+                storage_schedule[aggregate_consumption_sensor] = commodity_aggregate
+
+            elif (
+                aggregate_production_sensor is not None
+                and aggregate_consumption_sensor is None
+            ):
+                # Only production sensor: full aggregate schedule in native convention
+                # make_schedule will flip the sign via consumption_is_positive=False
+                storage_schedule[aggregate_production_sensor] = commodity_aggregate
+
+            else:
+                # Both sensors defined: split into consumption (>=0) and production (<=0) parts
+                # make_schedule will flip the sign for production sensor via consumption_is_positive=False
+                storage_schedule[aggregate_consumption_sensor] = (
+                    commodity_aggregate.clip(lower=0)
+                )
+                storage_schedule[aggregate_production_sensor] = (
+                    commodity_aggregate.clip(upper=0)
+                )
+
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
@@ -2060,6 +2302,7 @@ class StorageScheduler(MetaStorageScheduler):
         ems_schedule, expected_costs, scheduler_results, model = device_scheduler(
             device_constraints=device_constraints,
             ems_constraints=ems_constraints,
+            ems_constraint_groups=self.ems_constraint_groups,
             commitments=commitments,
             initial_stock=initial_stock,
             stock_groups=self.stock_groups,
@@ -2080,8 +2323,13 @@ class StorageScheduler(MetaStorageScheduler):
         aggregate_power_sensor = self.flex_context.get("aggregate_power", None)
         if isinstance(aggregate_power_sensor, Sensor):
             storage_schedule[aggregate_power_sensor] = pd.concat(
-                ems_schedule, axis=1
+                ems_schedule,
+                axis=1,  # todo: select only electric devices (flexible and inflexible)
             ).sum(axis=1)
+        # Compute per-commodity aggregate power flows for aggregate-consumption and aggregate-production sensors
+        self._compute_commodity_aggregate_schedules(
+            storage_schedule, ems_schedule  # , sensors
+        )
 
         # Convert each device schedule to the unit of the device's power sensor
         storage_schedule = {

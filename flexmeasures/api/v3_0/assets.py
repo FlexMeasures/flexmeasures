@@ -96,22 +96,24 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
         kwargs["exclude"] = ["asset"]
         super().__init__(*args, **kwargs)
 
-    flex_context = fields.Nested(
-        flex_context_schema_openAPI,
-        required=True,
+    flex_context = fields.List(
+        fields.Nested(
+            flex_context_schema_openAPI(),
+        ),
+        load_default=[],
         data_key="flex-context",
         metadata=dict(
-            description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+            description="Flex-context per commodity. The flex-context is validated according to the scheduler's `FlexContextSchema`.",
         ),
     )
     flex_model = fields.List(
         fields.Nested(
             storage_flex_model_schema_openAPI(exclude=["asset"]),
-            required=True,
-            data_key="flex-model",
-            metadata=dict(
-                description="Flex-model per device (identified by `sensor`). The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
-            ),
+        ),
+        load_default=[],
+        data_key="flex-model",
+        metadata=dict(
+            description="Flex-model per device (identified by `sensor`). The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
         ),
     )
 
