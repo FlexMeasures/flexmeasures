@@ -284,8 +284,8 @@ class TrainPredictPipeline(Forecaster):
         return total_runtime
 
     def _compute_forecast(self, as_job: bool = False, **kwargs) -> list[dict[str, Any]]:
-        # Run the train-and-predict pipeline
-        return self.run(as_job=as_job, **kwargs)
+        # DataGenerator.compute already loaded kwargs into self._parameters.
+        return self.run(as_job=as_job)
 
     def _derive_training_period(self) -> tuple[datetime, datetime]:
         """Derive the effective training period for model fitting.
@@ -331,7 +331,6 @@ class TrainPredictPipeline(Forecaster):
         self,
         as_job: bool = False,
         queue: str = "forecasting",
-        **job_kwargs,
     ):
         logging.info(
             f"Starting Train-Predict Pipeline to predict for {self._parameters['predict_period_in_hours']} hours."
@@ -415,8 +414,6 @@ class TrainPredictPipeline(Forecaster):
                 "end": self._parameters["end_date"].isoformat(),
                 "sensor_id": sensor_to_save_id,
             }
-            # NOTE: `job_kwargs` is intentionally not forwarded into queued cycle jobs;
-            # only plain, serialized pipeline state + per-cycle timings are enqueued.
             for cycle_params in cycles_job_params:
 
                 job = Job.create(
