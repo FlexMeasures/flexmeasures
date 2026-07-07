@@ -89,7 +89,7 @@ class Scheduler:
         """
 
         if sensor is not None:
-            current_app.logger.warning(
+            current_app.logger.debug(
                 "The `sensor` keyword argument is deprecated. Please, consider using the argument `asset_or_sensor`."
             )
             asset_or_sensor = sensor
@@ -156,13 +156,13 @@ class Scheduler:
         if hasattr(cls, "__version__"):
             source_info["version"] = str(cls.__version__)
         else:
-            current_app.logger.warning(
+            current_app.logger.debug(
                 f"Scheduler {cls.__name__} loaded, but has no __version__ attribute."
             )
         if hasattr(cls, "__author__"):
             source_info["name"] = str(cls.__author__)
         else:
-            current_app.logger.warning(
+            current_app.logger.debug(
                 f"Scheduler {cls.__name__} has no __author__ attribute."
             )
         return source_info
@@ -184,6 +184,10 @@ class Scheduler:
         else:
             asset = self.sensor.generic_asset
         db_flex_context = asset.get_flex_context()
+        current_app.logger.debug(
+            f"FLEXCONTEXT_TRACE collect_flex_config: asset={asset.id} ({asset.name!r}), "
+            f"db_flex_context={db_flex_context}, explicit flex_context={self.flex_context}"
+        )
         self.flex_context = {**db_flex_context, **self.flex_context}
 
         # Merge the passed flex_model with the db_flex_model by matching asset IDs

@@ -227,6 +227,12 @@ class MetaStorageScheduler(Scheduler):
             max_value=ems_power_capacity_in_mw,
             resolve_overlaps="min",
         )
+        current_app.logger.debug(
+            f"FLEXCONTEXT_TRACE _prepare: belief_time={belief_time!r}, query_window=({start!r}, {end!r}), "
+            f"ems_consumption_capacity non-null count={ems_consumption_capacity.notna().sum() if hasattr(ems_consumption_capacity, 'notna') else 'n/a'}, "
+            f"min={ems_consumption_capacity.min() if hasattr(ems_consumption_capacity, 'min') else ems_consumption_capacity}, "
+            f"first values={ems_consumption_capacity.head(5).tolist() if hasattr(ems_consumption_capacity, 'head') else None}"
+        )
         ems_production_capacity = -1 * get_continuous_series_sensor_or_quantity(
             variable_quantity=self.flex_context.get("ems_production_capacity_in_mw"),
             unit="MW",
@@ -1010,7 +1016,16 @@ class MetaStorageScheduler(Scheduler):
             self.flex_model = {}
 
         self.collect_flex_config()
+        current_app.logger.debug(
+            f"FLEXCONTEXT_TRACE deserialize_flex_config: raw flex_context before schema load: {self.flex_context}"
+        )
         self.flex_context = FlexContextSchema().load(self.flex_context)
+        current_app.logger.debug(
+            f"FLEXCONTEXT_TRACE deserialize_flex_config: deserialized: "
+            f"ems_consumption_capacity_in_mw={self.flex_context.get('ems_consumption_capacity_in_mw')!r}, "
+            f"ems_power_capacity_in_mw={self.flex_context.get('ems_power_capacity_in_mw')!r}, "
+            f"ems_peak_consumption_price={self.flex_context.get('ems_peak_consumption_price')!r}"
+        )
 
         if isinstance(self.flex_model, dict):
             if self.sensor.generic_asset.asset_type.name in storage_asset_types:
@@ -1187,7 +1202,7 @@ class MetaStorageScheduler(Scheduler):
             # 3
             site_power_capacity = asset.get_attribute("site-power-capacity")
             if site_power_capacity is not None:
-                current_app.logger.warning(
+                current_app.logger.debug(
                     f"Missing 'power-capacity' on asset {asset.id}. Using site-power-capacity instead."
                 )
                 if isinstance(site_power_capacity, dict):
@@ -1523,16 +1538,16 @@ def build_device_soc_values(
         elif len(disregarded_periods) == 1:
             soc_constraint_start, soc_constraint_end = disregarded_periods[0]
             if soc_constraint_start == soc_constraint_end:
-                current_app.logger.warning(
+                current_app.logger.debug(
                     f"Disregarding target datetime {soc_constraint_end}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
                 )
             else:
-                current_app.logger.warning(
+                current_app.logger.debug(
                     f"Disregarding target datetimes that exceed {end_of_schedule} (within the window {soc_constraint_start} until {soc_constraint_end}). Maximum scheduling horizon is {max_server_horizon}."
                 )
         else:
             soc_constraint_starts, soc_constraint_ends = zip(*disregarded_periods)
-            current_app.logger.warning(
+            current_app.logger.debug(
                 f"Disregarding target datetimes that exceed {end_of_schedule} (within the window {min(soc_constraint_starts)} until {max(soc_constraint_ends)} spanning {len(disregarded_periods)} targets). Maximum scheduling horizon is {max_server_horizon}."
             )
 
