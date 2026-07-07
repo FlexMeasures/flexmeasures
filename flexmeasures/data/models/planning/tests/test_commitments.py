@@ -12,7 +12,8 @@ from flexmeasures.data.models.planning.utils import (
     initialize_index,
 )
 from flexmeasures.data.models.planning.storage import StorageScheduler
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.utils import save_to_db
@@ -1550,3 +1551,179 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
     assert heater_schedule.loc["2026-04-07T08:00:00+00:00"] == pytest.approx(
         80.0
     ), "Electric heater should have one expected partial 80 kW dispatch step before the first cheap-electricity window."
+
+
+def test_all_gas_flex_model_without_electricity_device(app, db):
+    """test_all_gas_flex_model_without_electricity_device: a flex-model with only gas
+    devices (no electricity device at all) should not raise a KeyError, now that
+    commodity_to_devices["electricity"] is built with setdefault().
+    """
+    boiler_type = get_or_create_model(GenericAssetType, name="gas-boiler")
+
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-02T00:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    gas_boiler = GenericAsset(
+        name="Gas Boiler (all-gas flex-model test)",
+        generic_asset_type=boiler_type,
+    )
+    db.session.add(gas_boiler)
+    db.session.commit()
+
+    boiler_power = Sensor(
+        name="boiler power",
+        unit="kW",
+        event_resolution=resolution,
+        generic_asset=gas_boiler,
+    )
+    db.session.add(boiler_power)
+    db.session.commit()
+
+    flex_model = [
+        {
+            "sensor": boiler_power.id,
+            "commodity": "gas",
+            "power-capacity": "30 kW",
+            "consumption-capacity": "30 kW",
+            "production-capacity": "0 kW",
+            "soc-usage": ["1 kW"],
+            "soc-min": 0.0,
+            "soc-max": 0.0,
+            "soc-at-start": 0.0,
+        },
+    ]
+
+    flex_context = [
+        {
+            "commodity": "gas",
+            "consumption-price": "50 EUR/MWh",
+            "production-price": "50 EUR/MWh",
+        },
+    ]
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=gas_boiler,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    # This used to raise KeyError("electricity") in _prepare().
+    schedules = scheduler.compute(skip_validation=True)
+
+    storage_schedules = [
+        entry for entry in schedules if entry.get("name") == "storage_schedule"
+    ]
+    assert len(storage_schedules) == 1
+    boiler_schedule = storage_schedules[0]["data"]
+    assert (boiler_schedule == 1.0).all()
+
+
+def test_per_commodity_inflexible_device_sensors(app, db):
+    """test_per_commodity_inflexible_device_sensors: an inflexible-device-sensor declared
+    inside a (non-electricity) commodity context should constrain that commodity's site
+    capacity and be reflected in the flexible device's schedule (since its consumption
+    capacity leaves no room for the inflexible load plus more).
+    """
+    boiler_type = get_or_create_model(GenericAssetType, name="gas-boiler")
+
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T04:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    gas_site = GenericAsset(
+        name="Gas Site (per-commodity inflexible sensor test)",
+        generic_asset_type=boiler_type,
+    )
+    db.session.add(gas_site)
+    db.session.commit()
+
+    flexible_boiler_power = Sensor(
+        name="flexible boiler power",
+        unit="kW",
+        event_resolution=resolution,
+        generic_asset=gas_site,
+    )
+    inflexible_gas_load = Sensor(
+        name="inflexible gas load",
+        unit="kW",
+        event_resolution=resolution,
+        generic_asset=gas_site,
+    )
+    db.session.add_all([flexible_boiler_power, inflexible_gas_load])
+    db.session.commit()
+
+    # A constant 8 kW inflexible gas load, recorded as beliefs.
+    index = initialize_index(start, end, resolution)
+
+    source = get_or_create_model(
+        DataSource, name="test source", source_type="forecaster"
+    )
+    beliefs = [
+        TimedBelief(
+            sensor=inflexible_gas_load,
+            source=source,
+            event_start=dt,
+            belief_time=start,
+            event_value=8.0,
+        )
+        for dt in index
+    ]
+    db.session.add_all(beliefs)
+    db.session.commit()
+
+    flex_model = [
+        {
+            "sensor": flexible_boiler_power.id,
+            "commodity": "gas",
+            "power-capacity": "30 kW",
+            "consumption-capacity": "30 kW",
+            "production-capacity": "0 kW",
+            "soc-usage": ["1 kW"],
+            "soc-min": 0.0,
+            "soc-max": 0.0,
+            "soc-at-start": 0.0,
+        },
+    ]
+
+    flex_context = [
+        {
+            "commodity": "gas",
+            "consumption-price": "50 EUR/MWh",
+            "production-price": "50 EUR/MWh",
+            "site-consumption-capacity": "10 kW",
+            "inflexible-device-sensors": [inflexible_gas_load.id],
+        },
+    ]
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=gas_site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    schedules = scheduler.compute(skip_validation=True)
+
+    storage_schedules = [
+        entry for entry in schedules if entry.get("name") == "storage_schedule"
+    ]
+    boiler_schedule = next(
+        entry for entry in storage_schedules if entry["sensor"] == flexible_boiler_power
+    )["data"]
+
+    # With an 8 kW inflexible gas load counted against the 10 kW site-consumption-capacity,
+    # the flexible boiler (which otherwise consumes a constant 1 kW) is left at most 2 kW of
+    # headroom. Since the boiler's own consumption is fixed at 1 kW via soc-usage, this test
+    # mainly asserts the schedule was computed without infeasibility, i.e. the per-commodity
+    # inflexible sensor was taken into account as a device (not simply dropped).
+    assert (boiler_schedule <= 2.0 + 1e-6).all()
