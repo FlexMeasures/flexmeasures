@@ -506,54 +506,14 @@ class FlexContextSchema(SharedSchema):
                     f" (found both '{shared_currency_unit}' and '{context_currency_unit}')"
                 )
 
-    # Fields defined on SharedSchema (i.e. not commodity_contexts, the price-sensor
-    # deprecations, nor aggregate_power) are commodity-specific semantics: they only
-    # make sense for a single commodity (electricity, in the single-dict form).
-    _FLEX_CONTEXT_ONLY_FIELDS = frozenset(
-        {
-            "commodity_contexts",
-            "consumption_price_sensor",
-            "production_price_sensor",
-            "aggregate_power",
-        }
-    )
-
-    @validates_schema(pass_original=True)
-    def check_single_dict_is_electricity_only(
-        self, data: dict, original_data: dict, **kwargs
-    ):
-        """A single flex-context dict may only define the electricity context.
-
-        Reject:
-        - a `commodities` list combined with commodity-specific top-level fields
-          (ambiguous: which context do the top-level fields belong to?),
-        - a top-level `commodity` key with a value other than "electricity".
-        """
-        if not isinstance(original_data, dict):
-            return
-
-        top_level_commodity = original_data.get("commodity")
-        if top_level_commodity is not None and top_level_commodity != "electricity":
-            raise ValidationError(
-                "The top-level flex-context dict only supports the 'electricity' "
-                "commodity. Use the `commodities` list to define other commodities.",
-                field_name="commodity",
-            )
-
-        if data.get("commodity_contexts"):
-            shared_field_data_keys = {
-                field.data_key
-                for field_var, field in self.declared_fields.items()
-                if field_var not in self._FLEX_CONTEXT_ONLY_FIELDS
-            }
-            offending_keys = shared_field_data_keys & set(original_data.keys())
-            if offending_keys:
-                raise ValidationError(
-                    "When using the `commodities` list, commodity-specific fields "
-                    "must be set inside each commodity's dict, not at the top level. "
-                    f"Offending top-level field(s): {sorted(offending_keys)}.",
-                    field_name="commodities",
-                )
+    # Note: we deliberately tolerate a `commodities` list combined with top-level
+    # commodity-specific (SharedSchema) fields. In the API path, a multi-commodity
+    # list is normalized to {"commodities": [...]} and collect_flex_config then
+    # dict-merges the asset's db-stored flex-context (e.g. "site-power-capacity",
+    # "consumption-price") at the top level, so rejecting this mix would 422 any
+    # asset with stored electricity flex-context fields. Semantics: top-level fields
+    # serve as the electricity context only when the commodities list has no
+    # electricity entry (see _get_commodity_contexts in storage.py).
 
     @validates_schema(pass_original=True)
     def check_prices(self, data: dict, original_data: dict, **kwargs):

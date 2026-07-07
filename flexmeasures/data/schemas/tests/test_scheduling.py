@@ -1171,20 +1171,22 @@ def test_flex_context_single_dict_allows_explicit_electricity_commodity(db, app)
     check_schema_loads_data(schema=schema, data=flex_context, fails=False)
 
 
-def test_flex_context_rejects_commodities_with_top_level_shared_fields(db, app):
-    """test_flex_context_rejects_commodities_with_top_level_shared_fields: ambiguous mixed forms are rejected."""
+def test_flex_context_tolerates_commodities_with_top_level_shared_fields(db, app):
+    """test_flex_context_tolerates_commodities_with_top_level_shared_fields: mixing must be tolerated.
+
+    The API path dict-merges an asset's db-stored (electricity) flex-context fields at the
+    top level after normalizing a multi-commodity list to {"commodities": [...]}, so this
+    mix must load fine. Top-level fields serve as the electricity context only when the
+    commodities list has no electricity entry (see _get_commodity_contexts in storage.py).
+    """
     schema = FlexContextSchema()
     flex_context = {
         "consumption-price": "1 EUR/MWh",
         "commodities": [
-            {"commodity": "electricity", "consumption-price": "1 EUR/MWh"},
+            {"commodity": "gas", "consumption-price": "1 EUR/MWh"},
         ],
     }
-    check_schema_loads_data(
-        schema=schema,
-        data=flex_context,
-        fails={"commodities": "must be set inside each commodity's dict"},
-    )
+    check_schema_loads_data(schema=schema, data=flex_context, fails=False)
 
 
 def test_asset_trigger_schema_rejects_malformed_flex_context(app):
