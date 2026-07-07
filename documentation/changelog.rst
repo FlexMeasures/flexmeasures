@@ -11,7 +11,8 @@ New features
 -------------
 * Floor off-clock API datetimes to a non-instantaneous sensor's resolution by default when ingesting sensor data, uploading sensor data, and handling scheduler flex-model timed events; configurable with the ``floor_datetimes_to_resolution`` sensor attribute [see `PR #2146 <https://www.github.com/FlexMeasures/flexmeasures/pull/2146>`_]
 * Sensor references in flex-model and flex-context support various ways of filtering by source [see `PR #2209 <https://www.github.com/FlexMeasures/flexmeasures/pull/2209>`_]
-
+* Support multiple feeders to a shared storage [see `PR #2001 <https://www.github.com/FlexMeasures/flexmeasures/pull/2001>`_ ]
+* The flex-context can now define multiple commodities, each specifying their own prices and grid capacities [see `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_ and `PR #2235 <https://www.github.com/FlexMeasures/flexmeasures/pull/2235>`_]
 
 Infrastructure / Support
 ----------------------

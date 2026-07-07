@@ -144,5 +144,6 @@ To provide an incentive for cycling the battery in response to market prices, th
     }
 
 
-We hope this demonstration helped to illustrate the flex-model of the storage scheduler. Until now, optimizing storage (like batteries) has been the sole focus of these tutorial series.
-In :ref:`tut_toy_schedule_process`, we'll turn to something different: the optimal timing of processes with fixed energy work and duration.
+We hope this demonstration helped to illustrate the flex-model of the storage scheduler.
+Until now, optimizing a single storage device (like a battery) has been the sole focus of these tutorial series.
+In :ref:`tut_multi_feed_storage`, we'll cover scheduling several devices that feed into one shared storage.
