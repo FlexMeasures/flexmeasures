@@ -552,7 +552,7 @@ def test_two_flexible_assets_with_commodity(app, db):
 
     # ---- assets
     battery = GenericAsset(
-        name="Battery",
+        name="Battery (two flexible assets with commodity)",
         generic_asset_type=battery_type,
         attributes={"energy-capacity": "100 kWh"},
     )
@@ -706,13 +706,13 @@ def test_mixed_gas_and_electricity_assets(app, db):
     resolution = pd.Timedelta("1h")
 
     battery = GenericAsset(
-        name="Battery",
+        name="Battery (mixed gas and electricity)",
         generic_asset_type=battery_type,
         attributes={"energy-capacity": "100 kWh"},
     )
 
     gas_boiler = GenericAsset(
-        name="Gas Boiler",
+        name="Gas Boiler (mixed gas and electricity)",
         generic_asset_type=boiler_type,
     )
 
