@@ -27,6 +27,8 @@ This is described by:
 This information goes beyond the usual time series recorded by an asset's sensors. It can be sent to FlexMeasures through the API when triggering schedule computation.
 Also, this information can be persisted on the FlexMeasures data model (in the db), and is editable through the UI (actually, that is design work in progress, currently possible with the flex context).
 
+.. note:: You can also specify the **scheduling resolution** to control how often setpoints can change in the schedule. See :ref:`scheduling_resolution` for details on when and how to use custom resolutions.
+
 Let's dive into the details ― what can you tell FlexMeasures about your optimization problem?
 
 
@@ -59,6 +61,9 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``inflexible-device-sensors``
      - |INFLEXIBLE_DEVICE_SENSORS.example|
      - .. include:: ../_autodoc/INFLEXIBLE_DEVICE_SENSORS.rst
+   * - ``aggregate-power``
+     - |AGGREGATE_POWER.example|
+     - .. include:: ../_autodoc/AGGREGATE_POWER.rst
    * - ``consumption-price``
      - |CONSUMPTION_PRICE.example|
      - .. include:: ../_autodoc/CONSUMPTION_PRICE.rst
@@ -107,6 +112,9 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``production-breach-price``
      - |PRODUCTION_BREACH_PRICE.example|
      - .. include:: ../_autodoc/PRODUCTION_BREACH_PRICE.rst
+   * - ``commitments``
+     - |COMMITMENTS.example|
+     - .. include:: ../_autodoc/COMMITMENTS.rst
 
 .. [#old_consumption_price_field] This field replaced the ``consumption-price-sensor`` field, which only accepted an integer (sensor ID).
 
@@ -174,7 +182,16 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
    * - Field
      - Example value
-     - Description 
+     - Description
+   * - ``consumption``
+     - |CONSUMPTION.example|
+     - .. include:: ../_autodoc/CONSUMPTION.rst
+   * - ``production``
+     - |PRODUCTION.example|
+     - .. include:: ../_autodoc/PRODUCTION.rst
+   * - ``state-of-charge``
+     - |STATE_OF_CHARGE.example|
+     - .. include:: ../_autodoc/STATE_OF_CHARGE.rst
    * - ``soc-at-start``
      - |SOC_AT_START.example|
      - .. include:: ../_autodoc/SOC_AT_START.rst
@@ -320,3 +337,62 @@ Here are some thoughts on further innovation:
   This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes.
   Thoughts welcome :)
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.
+
+
+
+Inspecting schedules
+-----------------------
+
+It can be crucial to inspect how your scheduling job is doing.
+Here are some ways to do that:
+
+Errors
+^^^^^^^
+
+FlexMeasures will validate flex-config and asset & sensor IDs before starting the job,
+and let you know (in the console or API response) what went wrong.
+
+
+Checking the status via the API
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There is an API endpoint specifically for checking status, result and configuration info for jobs:
+``GET /api/v3_0/jobs/{uuid}`` returns JSON with the job status, result, queue and function metadata, timestamps, and exception traceback information for failed jobs.
+
+
+Checking the status via the API
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There is also a CLI command, which basically mirrors what the API endpoint does (see above). Here is an example call:
+
+.. code-block:: bash
+
+    flexmeasures jobs inspect-job --job 40ac6f2e-690d-4865-8203-429e54179112
+
+
+The asset status page: listing jobs and more info
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Each asset has a status page where you can find recent jobs which were run in the context of this asset.
+Clicking the "Info" button will give you a lot more insights into the jobs' configuration than the above methods.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_status_page_job_info.png
+    :align: center
+..    :scale: 40%
+
+|
+
+
+The RQ-dashboard: complete overview
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Internally, jobs are queued with the python-rq library. For this, a job dashboard is available, which 
+users with the ``admin`` role can access via the menu. This gives a complete overview over all jobs 
+running in FlexMeasures.
+
+You find your jobs via the queues, see screenshot below.
+Clicking a job gives you more information, similar to the status page.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_rq_dashboard.png
+    :align: center
+..    :scale: 40%

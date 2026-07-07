@@ -3,7 +3,10 @@ from marshmallow import Schema, fields, validate
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas import AssetIdField
-from flexmeasures.data.schemas.generic_assets import GenericAssetSchema
+from flexmeasures.data.schemas.generic_assets import (
+    AssetTypeIdField,
+    GenericAssetSchema,
+)
 
 
 default_response_fields = ["id", "name", "account_id", "generic_asset_type"]
@@ -90,6 +93,14 @@ class AssetAPIQuerySchema(PaginationSchema):
         metadata=dict(
             description="Whether to include public assets. Ignored if an `account_id` is set. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
             example=False,
+        ),
+    )
+    asset_type = AssetTypeIdField(
+        data_key="asset_type",
+        required=False,
+        metadata=dict(
+            description="Filter assets by generic asset type ID.",
+            example=2,
         ),
     )
 

@@ -9,6 +9,8 @@ description: Prevents subtle bugs in time handling, units, and data semantics wi
 
 Prevent subtle bugs in time handling, units, and data semantics across FlexMeasures. Ensure timezone-aware datetime operations, correct unit conversions with pint, proper pandas time index handling, and validate time-series data contracts. This agent owns the correctness of temporal and physical unit operations.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review
@@ -155,3 +157,41 @@ Critical conversions require duration or capacity parameters.
 - Review DST transition periods for issues
 - Keep unit conversion logic current
 - Update pandas time operation patterns
+
+* * *
+
+## Commit Discipline and Self-Improvement
+
+### Must Make Atomic Commits
+
+See `.github/instructions/atomic-commits.instructions.md`. When making time/unit fixes:
+
+- **Separate code changes from tests** — one commit per logical unit
+- **Separate documentation updates** — don't mix with code
+- **Update agent instructions separately** — own file, own commit
+
+### Must Verify Claims
+
+When documenting time/unit behavior:
+
+- **Test timezone handling** - Actually run code with different timezones
+- **Verify DST behavior** - Test during spring forward/fall back
+- **Check unit conversions** - Run actual conversion calculations
+- **Show real output** - Don't claim "works correctly" without proof
+
+### Self-Improvement Loop
+
+After each assignment:
+
+1. **Review time/unit issues found** - What was missed? What patterns emerged?
+2. **Update this agent file** - Add new patterns, pitfalls, or checks
+3. **Commit separately** with format:
+   ```
+   agents/data-time-semantics: learned <specific lesson>
+   
+   Context:
+   - Assignment revealed gap in <area>
+   
+   Change:
+   - Added guidance on <topic>
+   ```

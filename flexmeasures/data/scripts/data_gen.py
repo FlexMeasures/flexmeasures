@@ -4,33 +4,23 @@ Populate the database with data we know or read in.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
-import pandas as pd
 from flask import current_app as app
 from flask_sqlalchemy import SQLAlchemy
 import click
 from sqlalchemy import func, and_, select, delete
-from timetomodel.forecasting import make_rolling_forecasts
-from timetomodel.exceptions import MissingData, NaNData
-from humanize import naturaldelta
-import inflect
 
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.user import User, Role, AccountRole
-from flexmeasures.data.models.forecasting import lookup_model_specs_configurator
-from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
-from flexmeasures.utils.time_utils import ensure_local_timezone
 from flexmeasures.data.transactional import as_transaction
 from flexmeasures.cli.utils import MsgStyle
 
 
 BACKUP_PATH = app.config.get("FLEXMEASURES_DB_BACKUP_PATH")
 LOCAL_TIME_ZONE = app.config.get("FLEXMEASURES_TIMEZONE")
-
-infl_eng = inflect.engine()
 
 
 def add_default_data_sources(db: SQLAlchemy):
@@ -186,107 +176,6 @@ def populate_initial_structure(db: SQLAlchemy):
     click.echo(
         "DB now has %d AccountRole(s)"
         % db.session.scalar(select(func.count()).select_from(AccountRole))
-    )
-
-
-@as_transaction  # noqa: C901
-def populate_time_series_forecasts(  # noqa: C901
-    db: SQLAlchemy,
-    sensor_ids: list[int],
-    horizons: list[timedelta],
-    forecast_start: datetime,
-    forecast_end: datetime,
-    event_resolution: timedelta | None = None,
-):
-    training_and_testing_period = timedelta(days=30)
-
-    click.echo(
-        "Populating the database %s with time series forecasts of %s ahead ..."
-        % (db.engine, infl_eng.join([naturaldelta(horizon) for horizon in horizons]))
-    )
-
-    # Set a data source for the forecasts
-    data_source = db.session.execute(
-        select(DataSource).filter_by(name="Seita", type="demo script")
-    ).scalar_one_or_none()
-    # List all sensors for which to forecast.
-    sensors = [
-        db.session.execute(
-            select(Sensor).filter(Sensor.id.in_(sensor_ids))
-        ).scalar_one_or_none()
-    ]
-    if not sensors:
-        click.echo("No such sensors in db, so I will not add any forecasts.")
-        return
-
-    # Make a model for each sensor and horizon, make rolling forecasts and save to database.
-    # We cannot use (faster) bulk save, as forecasts might become regressors in other forecasts.
-    for sensor in sensors:
-        for horizon in horizons:
-            try:
-                default_model = lookup_model_specs_configurator()
-                model_specs, model_identifier, model_fallback = default_model(
-                    sensor=sensor,
-                    forecast_start=forecast_start,
-                    forecast_end=forecast_end,
-                    forecast_horizon=horizon,
-                    custom_model_params=dict(
-                        training_and_testing_period=training_and_testing_period,
-                        event_resolution=event_resolution,
-                    ),
-                )
-                click.echo(
-                    "Computing forecasts of %s ahead for sensor %s, "
-                    "from %s to %s with a training and testing period of %s, using %s ..."
-                    % (
-                        naturaldelta(horizon),
-                        sensor.id,
-                        forecast_start,
-                        forecast_end,
-                        naturaldelta(training_and_testing_period),
-                        model_identifier,
-                    )
-                )
-                model_specs.creation_time = forecast_start
-                forecasts, model_state = make_rolling_forecasts(
-                    start=forecast_start, end=forecast_end, model_specs=model_specs
-                )
-                # Upsample to sensor resolution if needed
-                if forecasts.index.freq > pd.Timedelta(sensor.event_resolution):
-                    forecasts = model_specs.outcome_var.resample_data(
-                        forecasts,
-                        time_window=(forecasts.index.min(), forecasts.index.max()),
-                        expected_frequency=sensor.event_resolution,
-                    )
-            except (NotEnoughDataException, MissingData, NaNData) as e:
-                click.echo("Skipping forecasts for sensor %s: %s" % (sensor, str(e)))
-                continue
-
-            beliefs = [
-                TimedBelief(
-                    event_start=ensure_local_timezone(dt, tz_name=LOCAL_TIME_ZONE),
-                    belief_horizon=horizon,
-                    event_value=value,
-                    sensor=sensor,
-                    source=data_source,
-                )
-                for dt, value in forecasts.items()
-            ]
-
-            click.echo(
-                "Saving %s %s-forecasts for %s..."
-                % (len(beliefs), naturaldelta(horizon), sensor.id)
-            )
-            for belief in beliefs:
-                db.session.add(belief)
-
-    click.echo(
-        "DB now has %d forecasts"
-        % db.session.scalar(
-            select(func.count())
-            .select_from(TimedBelief)
-            .filter(TimedBelief.belief_horizon > timedelta(hours=0))
-        )
     )
 
 

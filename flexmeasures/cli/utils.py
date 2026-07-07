@@ -13,7 +13,9 @@ import click
 from tabulate import tabulate
 import pytz
 from click_default_group import DefaultGroup
+from marshmallow import fields
 
+from flexmeasures.data.schemas.utils import MarshmallowClickMixin
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
 from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
 from flexmeasures import Sensor
@@ -42,7 +44,15 @@ class DeprecatedOption(click.Option):
     """
 
     def __init__(self, *args, **kwargs):
-        self.deprecated = kwargs.pop("deprecated", ())
+        deprecated = kwargs.pop("deprecated", ())
+        # Keep our aliases in a separate attribute to avoid colliding with Click's
+        # own `deprecated` option argument (introduced in Click 8.2+).
+        if isinstance(deprecated, (list, tuple, set)):
+            self.deprecated_options = tuple(deprecated)
+        elif isinstance(deprecated, str):
+            self.deprecated_options = (deprecated,)
+        else:
+            self.deprecated_options = ()
         self.preferred = kwargs.pop("preferred", args[0][-1])
         super(DeprecatedOption, self).__init__(*args, **kwargs)
 
@@ -74,7 +84,7 @@ class DeprecatedOptionsCommand(click.Command):
                 """Construct a closure to the parser option processor"""
 
                 orig_process = an_option.process
-                deprecated = getattr(an_option.obj, "deprecated", None)
+                deprecated = getattr(an_option.obj, "deprecated_options", None)
                 preferred = getattr(an_option.obj, "preferred", None)
                 msg = "Expected `deprecated` value for `{}`"
                 assert deprecated is not None, msg.format(an_option.obj.name)
@@ -435,3 +445,50 @@ def split_commas(ctx, param, value):
     for v in value:
         result.extend(v.split(","))
     return list(set([x.strip() for x in result if x.strip()]))
+
+
+def add_cli_options_from_schema(schema):
+    """Decorator to add CLI options based on a Marshmallow schema's fields."""
+
+    def decorator(command):
+        for field_name, field in reversed(schema.fields.items()):
+            cli = field.metadata.get("cli")
+            if not cli:
+                continue
+
+            option_names = cli["option"]
+            option_aliases = cli.get("aliases", [])
+            options = [option_names] + option_aliases
+
+            # build help text from field description and example, and optionally extra help provided in the cli metadata
+            help_text = field.metadata.get("description", "")
+
+            extra_help = cli.get("extra_help")
+            if extra_help:
+                help_text += f"\n{extra_help}"
+
+            example = field.metadata.get("example")
+            if example is not None:
+                help_text += f"\nExample: {example}"
+
+            kwargs = {
+                "help": help_text,
+                "required": field.required,
+                # "default": field.load_default,
+            }
+
+            if cli.get("is_flag"):
+                kwargs["is_flag"] = True
+
+            # Transfer the original field type
+            if isinstance(field, MarshmallowClickMixin):
+                kwargs["type"] = str
+            elif isinstance(field, fields.List):
+                kwargs["multiple"] = True
+                kwargs["type"] = str
+
+            command = click.option(*options, **kwargs)(command)
+
+        return command
+
+    return decorator

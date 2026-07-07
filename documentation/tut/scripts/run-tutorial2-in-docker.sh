@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Determine container name: use $1 if provided, otherwise construct from current folder name
+CONTAINER_NAME="${1:-$(basename $(pwd))-server-1}"
+
 echo "[TUTORIAL-RUNNER] RUNNING TUTORIAL 2 (ADDING SOLAR FORECAST) ..."
 echo "------------------------------------------------------------"
 
@@ -32,21 +36,39 @@ ${TOMORROW}T21:00:00,0.0
 ${TOMORROW}T22:00:00,0.0
 ${TOMORROW}T23:00:00,0.0" > solar-tomorrow.csv
 
-docker cp solar-tomorrow.csv flexmeasures-server-1:/app/
+docker cp solar-tomorrow.csv $CONTAINER_NAME:/app/
 
 echo "[TUTORIAL-RUNNER] adding source ..."
-docker exec -it flexmeasures-server-1 flexmeasures add source --name "toy-forecaster" --type forecaster
+docker exec -it $CONTAINER_NAME flexmeasures add source --name "toy-forecaster" --type forecaster
 
 echo "[TUTORIAL-RUNNER] adding beliefs ..."
-docker exec -it flexmeasures-server-1 flexmeasures add beliefs --sensor 3 --source 4 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
+docker exec -it $CONTAINER_NAME flexmeasures add beliefs --sensor 3 --source 4 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
 echo "[TUTORIAL-RUNNER] showing beliefs ..."
-docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 3 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor 3 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
 
 echo "[TUTORIAL-RUNNER] update schedule taking solar into account ..."
-docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 2 \
+docker exec -it $CONTAINER_NAME flexmeasures add schedule --sensor 2 \
   --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
   --flex-context '{"inflexible-device-sensors": [3]}' \
   --flex-model '{"soc-min": "50 kWh"}'
 
 echo "[TUTORIAL-RUNNER] showing schedule ..."
-docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+
+#echo ""
+#echo "[TUTORIAL-RUNNER] DEMONSTRATING CUSTOM SCHEDULING RESOLUTION ..."
+#echo "[TUTORIAL-RUNNER] The previous schedule used the sensor's native 15-minute resolution (PT15M)."
+#echo "[TUTORIAL-RUNNER] Now we'll create a schedule with hourly resolution (PT1H) for faster computation."
+#echo "[TUTORIAL-RUNNER] This is useful when exact timing is less critical or for long planning horizons."
+#echo ""
+#
+#echo "[TUTORIAL-RUNNER] creating hourly-resolution schedule ..."
+#docker exec -it $CONTAINER_NAME flexmeasures add schedule --sensor 2 \
+#  --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
+#  --resolution PT1H \
+#  --flex-context '{"inflexible-device-sensors": [3]}' \
+#  --flex-model '{"soc-min": "50 kWh"}'
+#
+#echo "[TUTORIAL-RUNNER] showing hourly-resolution schedule ..."
+#echo "[TUTORIAL-RUNNER] Notice the schedule still has 15-minute data points, but values only change each hour."
+#docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H

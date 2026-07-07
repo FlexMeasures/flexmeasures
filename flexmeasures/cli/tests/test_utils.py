@@ -1,10 +1,13 @@
 import sys
 import pytest
+import click
 
 from datetime import datetime
 from pytz import utc
 
 from flexmeasures.cli import is_running as cli_is_running
+from flexmeasures.cli.utils import DeprecatedOption, DeprecatedOptionsCommand
+from click.testing import CliRunner
 
 
 def test_cli_is_running(app, monkeypatch):
@@ -111,3 +114,56 @@ def test_get_unique_sensor_names(app, db, add_asset_with_children):
     ]
 
     assert list(aliases.values()) == expected_aliases
+
+
+def test_deprecated_options_command_allows_non_deprecated_option():
+    @click.command(cls=DeprecatedOptionsCommand)
+    @click.option("--name", cls=DeprecatedOption)
+    def cmd(name):
+        click.echo(name)
+
+    result = CliRunner().invoke(cmd, ["--name", "foo"])
+
+    assert result.exit_code == 0
+    assert result.output == "foo\n"
+
+
+def test_deprecated_options_command_warns_for_deprecated_alias():
+    @click.command(cls=DeprecatedOptionsCommand)
+    @click.option(
+        "--name",
+        "--old-name",
+        cls=DeprecatedOption,
+        deprecated=["--old-name"],
+        preferred="--name",
+    )
+    def cmd(name):
+        click.echo(name)
+
+    result = CliRunner().invoke(cmd, ["--old-name", "foo"])
+
+    assert result.exit_code == 0
+    assert "Option '--old-name' will be replaced by '--name'." in result.output
+    assert result.output.endswith("foo\n")
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=RuntimeError,
+    reason="CustomFlaskCliRunner lets exceptions propagate instead of catching them",
+)
+def test_custom_cli_runner_raises_exceptions(app):
+    """Verify that the custom CLI runner does not catch exceptions.
+
+    This test is expected to fail: CustomFlaskCliRunner propagates exceptions
+    raised inside a CLI command instead of swallowing them (as the default runner does).
+    If this test unexpectedly passes, it means exceptions are being caught again,
+    which would make failing CLI tests much harder to debug.
+    """
+
+    @click.command()
+    def failing_command():
+        raise RuntimeError("This exception should propagate out of the CLI runner")
+
+    runner = app.test_cli_runner()
+    runner.invoke(failing_command)

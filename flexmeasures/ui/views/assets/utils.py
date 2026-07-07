@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 from flask import url_for
-from flask_security import current_user
 from werkzeug.exceptions import NotFound
 
-from flexmeasures.auth.policy import check_access
-from flexmeasures.data import db
 from flexmeasures import Asset
+from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
-from flexmeasures.data.models.user import Account
 from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
 
 
@@ -20,40 +17,6 @@ def get_asset_by_id_or_raise_notfound(asset_id: str) -> GenericAsset:
     if asset is None:
         raise NotFound
     return asset
-
-
-def user_can_create_assets(account: Account | None = None) -> bool:
-    if account is None:
-        account = current_user.account
-    try:
-        check_access(account, "create-children")
-    except Exception:
-        return False
-    return True
-
-
-def user_can_create_children(asset: GenericAsset) -> bool:
-    try:
-        check_access(asset, "create-children")
-    except Exception:
-        return False
-    return True
-
-
-def user_can_delete(asset: GenericAsset) -> bool:
-    try:
-        check_access(asset, "delete")
-    except Exception:
-        return False
-    return True
-
-
-def user_can_update(asset: GenericAsset) -> bool:
-    try:
-        check_access(asset, "update")
-    except Exception:
-        return False
-    return True
 
 
 def serialize_asset(asset: Asset, is_head=False) -> dict:

@@ -37,7 +37,10 @@ def is_running() -> bool:
     cli_sets = current_app.cli.list_commands(ctx=None)
     command_line = " ".join(sys.argv)
     for cli_set in cli_sets:
-        if f"flexmeasures {cli_set}" in command_line:
+        if (
+            f"flexmeasures {cli_set}" in command_line
+            or f"flask {cli_set}" in command_line
+        ):
             return True
     if current_app.config.get("PRETEND_RUNNING_AS_CLI", False):
         return True

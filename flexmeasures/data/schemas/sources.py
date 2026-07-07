@@ -9,7 +9,7 @@ from flexmeasures.data.schemas.utils import (
 )
 
 
-class DataSourceIdField(fields.Int, MarshmallowClickMixin):
+class DataSourceIdField(MarshmallowClickMixin, fields.Int):
     """Field that deserializes to a DataSource and serializes back to an integer."""
 
     @with_appcontext_if_needed()

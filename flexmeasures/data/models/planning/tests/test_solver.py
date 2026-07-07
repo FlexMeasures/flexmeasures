@@ -10,6 +10,8 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 from sqlalchemy import select
 
+from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
@@ -36,6 +38,7 @@ from flexmeasures.utils.calculations import (
     integrate_time_series,
 )
 from flexmeasures.tests.utils import get_test_sensor
+from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.utils.unit_utils import convert_units, ur
 
 from pyomo.environ import value
@@ -77,6 +80,7 @@ def test_storage_loss_function(
 @pytest.mark.parametrize("use_inflexible_device", [False, True])
 @pytest.mark.parametrize("battery_name", ["Test battery", "Test small battery"])
 def test_battery_solver_day_1(
+    setup_planning_test_data,
     add_battery_assets,
     add_inflexible_device_forecasts,
     use_inflexible_device,
@@ -123,7 +127,11 @@ def test_battery_solver_day_1(
     ],
 )
 def test_battery_solver_day_2(
-    add_battery_assets, roundtrip_efficiency: float, storage_efficiency: float, db
+    setup_planning_test_data,
+    add_battery_assets,
+    roundtrip_efficiency: float,
+    storage_efficiency: float,
+    db,
 ):
     """Check battery scheduling results for day 2, which is set up with
     8 expensive, then 8 cheap, then again 8 expensive hours.
@@ -270,6 +278,7 @@ def run_test_charge_discharge_sign(
             for soc_at_start_d in soc_at_start
         ],
     )
+    assert results.solver.termination_condition == "optimal"
 
     device_power_sign = pd.Series(model.device_power_sign.extract_values())[0]
     device_power_up = pd.Series(model.device_power_up.extract_values())[0]
@@ -302,7 +311,9 @@ def run_test_charge_discharge_sign(
     return schedule.tz_convert(tz), soc_schedule.tz_convert(tz)
 
 
-def test_battery_solver_day_3(add_battery_assets, add_inflexible_device_forecasts, db):
+def test_battery_solver_day_3(
+    setup_planning_test_data, add_battery_assets, add_inflexible_device_forecasts, db
+):
     """Check battery scheduling results for day 3, which is set up with
     8 hours with negative prices, followed by 16 expensive hours.
 
@@ -816,8 +827,8 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
 
     # soc maxima and soc minima
     soc_maxima = [
-        {"datetime": "2015-01-02T15:00:00+01:00", "value": 1.0},
-        {"datetime": "2015-01-02T16:00:00+01:00", "value": 1.0},
+        {"datetime": "2015-01-02T12:00:00+01:00", "value": 1.0},
+        {"datetime": "2015-01-02T13:00:00+01:00", "value": 1.0},
     ]
 
     soc_minima = [{"datetime": "2015-01-02T08:00:00+01:00", "value": 3.5}]
@@ -853,7 +864,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
 
     # test for soc_maxima
     # check that the local maximum constraint is respected
-    assert soc_schedule_2.loc["2015-01-02T15:00:00+01:00"] <= 1.0
+    assert soc_schedule_2.loc["2015-01-02T13:00:00+01:00"] <= 1.0
 
     # test for soc_targets
     # check that the SOC target (at 19 pm, local time) is met
@@ -918,6 +929,189 @@ def test_add_storage_constraints(
     assert (storage_device_constraints["equals"] <= storage_device_constraints["max"])[
         equals_not_nan
     ].all()
+
+
+def test_add_storage_constraints_skips_global_minimum_when_soc_min_is_missing():
+    """Missing soc-min should not imply a zero lower bound."""
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.0
+    soc_max = 10
+    soc_min = None
+
+    storage_device_constraints = add_storage_constraints(
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets=None,
+        soc_maxima=None,
+        soc_minima=None,
+        soc_max=soc_max,
+        soc_min=soc_min,
+    )
+
+    assert storage_device_constraints["min"].isna().all()
+    assert (storage_device_constraints["max"] == soc_max).all()
+    assert (
+        validate_storage_constraints(
+            storage_device_constraints,
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            resolution=resolution,
+        )
+        == []
+    )
+
+
+def test_add_storage_constraints_skips_global_maximum_when_soc_max_is_missing():
+    """Missing soc-max should not imply a constant upper bound."""
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.0
+    soc_min = 0
+    soc_max = None
+
+    storage_device_constraints = add_storage_constraints(
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets=None,
+        soc_maxima=None,
+        soc_minima=None,
+        soc_max=soc_max,
+        soc_min=soc_min,
+    )
+
+    assert (storage_device_constraints["min"] == soc_min).all()
+    assert storage_device_constraints["max"].isna().all()
+    assert (
+        validate_storage_constraints(
+            storage_device_constraints,
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            resolution=resolution,
+        )
+        == []
+    )
+
+
+def test_add_storage_constraints_skips_bounds_when_soc_min_and_soc_max_are_missing():
+    """Missing soc-min and soc-max should not imply constant bounds."""
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+    resolution = timedelta(hours=1)
+    soc_at_start = 0.0
+    soc_min = None
+    soc_max = None
+
+    storage_device_constraints = add_storage_constraints(
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets=None,
+        soc_maxima=None,
+        soc_minima=None,
+        soc_max=soc_max,
+        soc_min=soc_min,
+    )
+
+    assert storage_device_constraints["min"].isna().all()
+    assert storage_device_constraints["max"].isna().all()
+    assert (
+        validate_storage_constraints(
+            storage_device_constraints,
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            resolution=resolution,
+        )
+        == []
+    )
+
+
+def test_add_storage_constraints_with_soc_min_missing_and_soc_minima_has_gaps():
+    """Timed minima should not turn missing soc-minima into a global lower bound."""
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+    resolution = timedelta(hours=1)
+    soc_at_start = 1.0
+    soc_max = 10
+    soc_min = None
+
+    soc_minima = initialize_series(np.nan, start, end, resolution)
+    soc_minima[start + resolution] = 4
+
+    storage_device_constraints = add_storage_constraints(
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets=None,
+        soc_maxima=None,
+        soc_minima=soc_minima,
+        soc_max=soc_max,
+        soc_min=soc_min,
+    )
+
+    assert storage_device_constraints["min"].notna().sum() == 1
+    assert storage_device_constraints["min"].dropna().iloc[0] == 3
+    assert storage_device_constraints["min"].isna().any()
+    assert (
+        validate_storage_constraints(
+            storage_device_constraints,
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            resolution=resolution,
+        )
+        == []
+    )
+
+
+def test_add_storage_constraints_with_soc_max_missing_and_soc_maxima_has_gaps():
+    """Timed maxima should not turn missing soc-max into a constant upper bound."""
+    start = datetime(2023, 5, 18, tzinfo=pytz.utc)
+    end = datetime(2023, 5, 18, 5, tzinfo=pytz.utc)
+    resolution = timedelta(hours=1)
+    soc_at_start = 1.0
+    soc_min = 0
+    soc_max = None
+
+    soc_maxima = initialize_series(np.nan, start, end, resolution)
+    soc_maxima[start + resolution] = 6
+
+    storage_device_constraints = add_storage_constraints(
+        start,
+        end,
+        resolution,
+        soc_at_start,
+        soc_targets=None,
+        soc_maxima=soc_maxima,
+        soc_minima=None,
+        soc_max=soc_max,
+        soc_min=soc_min,
+    )
+
+    assert storage_device_constraints["max"].notna().sum() == 1
+    assert storage_device_constraints["max"].dropna().iloc[0] == 5
+    assert storage_device_constraints["max"].isna().any()
+    assert (
+        validate_storage_constraints(
+            storage_device_constraints,
+            soc_at_start=soc_at_start,
+            soc_min=soc_min,
+            soc_max=soc_max,
+            resolution=resolution,
+        )
+        == []
+    )
 
 
 @pytest.mark.parametrize(
@@ -1380,6 +1574,75 @@ def test_capacity(
 
 
 @pytest.mark.parametrize(
+    "configured_capacities, expected_capacity, expected_derivative_min, expected_derivative_max",
+    [
+        (
+            {"production-capacity": "300 kW", "consumption-capacity": "700 kW"},
+            0.7,
+            -0.3,
+            0.7,
+        ),
+        (
+            {"production-capacity": "1.1 MW", "consumption-capacity": "200 kW"},
+            1.1,
+            -1.1,
+            0.2,
+        ),
+        ({"consumption-capacity": "700 kW"}, 0.7, 0, 0.7),
+        ({"production-capacity": "300 kW"}, 0.3, -0.3, 0),
+        ({"consumption-capacity": "0 kW"}, 2, -2, 0),
+        ({"production-capacity": "0 kW"}, 2, 0, 2),
+    ],
+)
+def test_device_power_capacity_uses_directional_capacity_before_site_fallback(
+    db,
+    add_battery_assets,
+    configured_capacities,
+    expected_capacity,
+    expected_derivative_min,
+    expected_derivative_max,
+):
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    start = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 2))
+    end = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": 0,
+            "soc-min": 0,
+            "soc-max": 5,
+            **configured_capacities,
+        },
+        flex_context={"consumption-price": "1 EUR/MWh"},
+    )
+    scheduler.deserialize_config()
+
+    power_capacity = scheduler._get_device_power_capacity(
+        [scheduler.flex_model],
+        [battery.generic_asset],
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=scheduler.belief_time,
+    )[0]
+
+    if isinstance(power_capacity, ur.Quantity):
+        actual_capacity = power_capacity.to("MW").magnitude
+    else:
+        actual_capacity = power_capacity.values
+    assert np.allclose(actual_capacity, expected_capacity)
+
+    device_constraints = scheduler._prepare(skip_validation=True)[5]
+
+    assert np.allclose(device_constraints[0]["derivative min"], expected_derivative_min)
+    assert np.allclose(device_constraints[0]["derivative max"], expected_derivative_max)
+
+
+@pytest.mark.parametrize(
     ["soc_values", "log_message", "expected_num_targets"],
     [
         (
@@ -1496,7 +1759,7 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
             True,
             None,
             None,
-            # from the power sensor attribute 'consumption_capacity'
+            # from the power sensor attribute 'production_capacity'
             [-8] * 24 * 4,
             # from the flex model field 'consumption-capacity' (a sensor),
             # and when absent, defaulting to the max value from the power sensor attribute capacity_in_mw
@@ -1562,8 +1825,8 @@ def test_build_device_soc_values(caplog, soc_values, log_message, expected_num_t
             None,
             # from the flex model field 'production-capacity' (a quantity)
             -0.01,
-            # from the asset attribute 'capacity_in_mw'
-            2,
+            # missing consumption-capacity defaults to zero when production-capacity is provided
+            0,
             False,
             False,
             -1.1,
@@ -1787,10 +2050,10 @@ def test_battery_stock_delta_sensor(
         - Battery of size 2 MWh.
         - Consumption capacity of the battery is 2 MW.
         - The battery cannot discharge.
-    With these settings, the battery needs to charge at a power or greater than the usage forecast
+    With these settings, the battery needs to charge at a power equal or greater than the usage forecast
     to keep the SOC within bounds ([0, 2 MWh]).
     """
-    _, battery = get_sensors_from_db(db, add_battery_assets)
+    epex_da, battery = get_sensors_from_db(db, add_battery_assets)
     tz = pytz.timezone("Europe/Amsterdam")
     start = tz.localize(datetime(2015, 1, 1))
     end = tz.localize(datetime(2015, 1, 2))
@@ -1835,9 +2098,20 @@ def test_battery_stock_delta_sensor(
         with pytest.raises(InfeasibleProblemException):
             scheduler.compute()
     elif stock_delta_sensor is None:
-        # No usage -> the battery does not charge
+        # No usage -> the battery only charges when energy is free
+        free_hour = "2015-01-01 17:00:00+00:00"
+        prices = epex_da.search_beliefs(start, end, resolution=resolution)
+        zero_prices = prices[prices.event_value == 0]
+        assert all(
+            zero_prices.event_starts.hour == pd.Timestamp(free_hour).hour
+        ), "this test assumes a single hour of free energy from 5 to 6 PM UTC"
         schedule = scheduler.compute()
-        assert all(schedule == 0)
+        assert all(
+            schedule[~schedule.index.isin(zero_prices.event_starts)] == 0
+        ), "no charging expected when energy is not free, given no soc-usage"
+        assert all(
+            schedule[schedule.index.isin(zero_prices.event_starts)] == capacity
+        ), "max charging expected when energy is free, because of preference to have a full SoC"
     else:
         # Some usage -> the battery needs to charge
         schedule = scheduler.compute()
@@ -2235,11 +2509,14 @@ def test_battery_storage_different_units(
         battery_name="Test battery",
         power_sensor_name=power_sensor_name,
     )
-    tz = pytz.timezone("Europe/Amsterdam")
+    tz = pytz.timezone(epex_da.timezone)
 
     # transition from cheap to expensive (90 -> 100)
     start = tz.localize(datetime(2015, 1, 2, 14, 0, 0))
     end = tz.localize(datetime(2015, 1, 2, 16, 0, 0))
+    assert len(epex_da.search_beliefs(start, end)) == 2
+    assert epex_da.search_beliefs(start, end).values[0][0] == 90
+    assert epex_da.search_beliefs(start, end).values[1][0] == 100
     resolution = timedelta(minutes=15)
 
     flex_model = {
@@ -2873,6 +3150,74 @@ def test_multiple_devices_simultaneous_scheduler():
     ), "Individual costs mismatch: Costs for one or more devices are not calculated as expected."
 
 
+def test_prefer_full_storage_skips_non_storage_devices(db, building):
+    """Do not apply SoC-based storage preferences to non-storage devices such as PV."""
+
+    battery = Sensor(
+        name="mixed battery power sensor",
+        generic_asset=building,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+    )
+    pv = Sensor(
+        name="mixed pv power sensor",
+        generic_asset=building,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+        attributes={"is_strictly_non_positive": True},
+    )
+    db.session.add_all([battery, pv])
+    db.session.commit()
+
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + timedelta(hours=4)
+    resolution = timedelta(hours=1)
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=building,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=[
+            {
+                "sensor": battery,
+                "soc_at_start": 1.0,
+                "soc_min": 0.0,
+                "soc_max": 2.0,
+                "power_capacity_in_mw": ur.Quantity("1 MW"),
+                "consumption_capacity": ur.Quantity("1 MW"),
+                "production_capacity": ur.Quantity("1 MW"),
+                "prefer_charging_sooner": True,
+                "prefer_curtailing_later": True,
+            },
+            {
+                "sensor": pv,
+                "power_capacity_in_mw": ur.Quantity("1 MW"),
+                "consumption_capacity": ur.Quantity("0 MW"),
+                "production_capacity": ur.Quantity("1 MW"),
+                "prefer_charging_sooner": True,
+                "prefer_curtailing_later": True,
+            },
+        ],
+        flex_context={
+            "consumption_price": ur.Quantity("100 EUR/MWh"),
+            "production_price": ur.Quantity("100 EUR/MWh"),
+            "shared_currency_unit": "EUR",
+            "ems_power_capacity_in_mw": ur.Quantity("2 MW"),
+        },
+        return_multiple=True,
+    )
+    scheduler.config_deserialized = True
+
+    schedule = scheduler.compute()
+
+    assert isinstance(schedule, list)
+    assert any(
+        result.get("name") == "storage_schedule" and result.get("sensor") == battery
+        for result in schedule
+    )
+
+
 def test_multiple_devices_sequential_scheduler():
     start = pd.Timestamp("2023-01-01T00:00:00")
     end = pd.Timestamp("2023-01-02T00:00:00")
@@ -3063,3 +3408,90 @@ def test_multiple_devices_sequential_scheduler():
     assert total_cost_all_devices == sum(
         expected_cost[1] for expected_cost in expected_costs
     ), "Total cost mismatch."
+
+
+def test_resolve_soc_at_start_from_sensor_prefers_newest_equally_distant_belief(
+    db, add_battery_assets
+):
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+    state_of_charge_sensor = next(
+        sensor
+        for sensor in battery.generic_asset.sensors
+        if sensor.name == "state of charge"
+    )
+    source = DataSource("state-of-charge-test-source")
+    db.session.add(source)
+
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+
+    db.session.add_all(
+        [
+            TimedBelief(
+                sensor=state_of_charge_sensor,
+                event_start=as_server_time(start - timedelta(minutes=15)),
+                event_value=1000,
+                belief_horizon=timedelta(0),
+                source=source,
+            ),
+            TimedBelief(
+                sensor=state_of_charge_sensor,
+                event_start=as_server_time(start + timedelta(minutes=15)),
+                event_value=2000,
+                belief_horizon=timedelta(0),
+                source=source,
+            ),
+        ]
+    )
+    db.session.commit()
+
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        start + timedelta(hours=1),
+        timedelta(minutes=15),
+        flex_model={},
+    )
+
+    assert (
+        scheduler._resolve_soc_at_start_from_sensor(
+            state_of_charge_sensor,
+            {"soc-max": "5 MWh"},
+            battery,
+        )
+        == 2
+    )
+
+
+def test_resolve_soc_at_start_from_time_series_prefers_newest_boundary_value(
+    db, add_battery_assets
+):
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        start + timedelta(hours=1),
+        timedelta(minutes=15),
+        flex_model={},
+    )
+
+    assert (
+        scheduler._resolve_soc_at_start_from_time_series(
+            [
+                {
+                    "start": (start - timedelta(minutes=15)).isoformat(),
+                    "end": start.isoformat(),
+                    "value": "1 MWh",
+                },
+                {
+                    "start": start.isoformat(),
+                    "end": (start + timedelta(minutes=15)).isoformat(),
+                    "value": "2 MWh",
+                },
+            ],
+            battery,
+        )
+        == 2
+    )

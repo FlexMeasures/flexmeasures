@@ -4,7 +4,10 @@ from pytest import UsageError
 
 import json
 
-from flask import url_for, current_app, Response
+from flask import url_for, current_app, Response, request
+from flask_login import login_user
+from flask_principal import Identity, identity_changed
+from flask_security.proxies import _security
 from sqlalchemy import select
 
 from flexmeasures.data import db
@@ -15,6 +18,28 @@ from flexmeasures.data.models.user import Account
 """
 Useful things for API testing
 """
+
+
+def patched_check_token() -> bool:
+    """
+    The _check_token function in Flask-Security is successfully getting the user,
+    but it fails to stick with flask_login.
+    This happens only when testing, so our test setup might not be 100% compatible
+    with Flask >2.2 ecosystem.
+
+    See for details:
+    https://github.com/FlexMeasures/flexmeasures/pull/838#discussion_r1321692937
+    https://github.com/Flask-Middleware/flask-security/issues/834
+    """
+    user = _security.login_manager.request_callback(request)
+    if user and user.is_authenticated:
+        app = current_app._get_current_object()
+        identity_changed.send(app, identity=Identity(user.fs_uniquifier))
+
+        login_user(user)  # THIS LINE ADDED BY US
+        return True
+
+    return False
 
 
 def get_auth_token(client, user_email, password):

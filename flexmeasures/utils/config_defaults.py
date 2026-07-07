@@ -9,7 +9,15 @@ and confidential settings can be set via the <app-env>-conf.py file.
 from __future__ import annotations
 
 from datetime import timedelta
+import json
 import logging
+
+
+class CustomEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if hasattr(obj, "isoformat"):
+            return obj.isoformat()
+        return super().default(obj)
 
 
 class Config(object):
@@ -64,6 +72,7 @@ class Config(object):
     SECURITY_TOKEN_MAX_AGE: int = 60 * 60 * 6  # six hours
     SECURITY_TRACKABLE: bool = False  # this is more in line with modern privacy law
     SECURITY_PASSWORD_SALT: str | None = None
+    FLEXMEASURES_SECRETS_ENCRYPTION_KEYS: dict[str, str] | None = None
 
     # Two Factor Authentication
     SECURITY_TWO_FACTOR_ENABLED_METHODS = [
@@ -95,12 +104,19 @@ class Config(object):
     RQ_DASHBOARD_POLL_INTERVAL: int = (
         3000  # Web interface poll period for updates in ms
     )
+    # Set a custom encoder when rq-dashboard job metadata contains objects
+    # that default JSON encoding cannot serialize.
+    RQ_DASHBOARD_JSON_ENCODER: type[json.JSONEncoder] = CustomEncoder
 
     SENTRY_DSN: str | None = None
     # Place additional Sentry config here.
     # traces_sample_rate is for performance monitoring across all transactions,
     # you probably want to adjust this.
     FLEXMEASURES_SENTRY_CONFIG: dict = dict(traces_sample_rate=0.33)
+    FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY: bool = True
+    FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS: list[str] = (
+        []
+    )  # Deprecated. Use FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS instead.
     FLEXMEASURES_MONITORING_MAIL_RECIPIENTS: list[str] = []
 
     FLEXMEASURES_PLATFORM_NAME: str | list[str | tuple[str, list[str]]] = "FlexMeasures"
@@ -126,6 +142,7 @@ class Config(object):
     FLEXMEASURES_DB_BACKUP_PATH: str = "migrations/dumps"
     FLEXMEASURES_MENU_LOGO_PATH: str = ""
     FLEXMEASURES_EXTRA_CSS_PATH: str = ""
+    FLEXMEASURES_JSONEDITOR_THEME: str = "spectre"
     FLEXMEASURES_ROOT_VIEW: str | list[str | tuple[str, list[str]]] = []
     FLEXMEASURES_MENU_LISTED_VIEWS: list[str | tuple[str, list[str]]] = [
         "dashboard",
@@ -150,6 +167,9 @@ class Config(object):
     FLEXMEASURES_JOB_CACHE_TTL: int = (
         3600  # Time to live for the job caching keys in seconds. Set a negative timedelta to persist forever.
     )
+    FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES: int | None = (
+        3.1 * 1024 * 1024
+    )  # up to 3MB are allowed per request
     FLEXMEASURES_TASK_CHECK_AUTH_TOKEN: str | None = None
     FLEXMEASURES_REDIS_URL: str = "localhost"
     FLEXMEASURES_REDIS_PORT: int = 6379
@@ -160,6 +180,7 @@ class Config(object):
         vegaembed="6.21.0",
         vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
         currencysymbolmap="5.1.0",
+        jsoneditor="2.15.2",
         leaflet="1.9.4",
         leafletmarkercluster="1.5.3",
         leafletmarkerclusterlayersupport="2.0.1",
@@ -192,8 +213,8 @@ class Config(object):
 
 
 #  names of settings which cannot be None
-#  SECRET_KEY is also required but utils.app_utils.set_secret_key takes care of this better.
-#  SECURITY_TOTP_SECRETS is also required but utils.app_utils.set_totp_secrets takes care of this better.
+#  SECRET_KEY is also required but utils.secrets_utils.set_secret_key takes care of this better.
+#  SECURITY_TOTP_SECRETS is also required but utils.secrets_utils.set_totp_secrets takes care of this better.
 required: list[str] = ["SQLALCHEMY_DATABASE_URI"]
 
 #  settings whose absence should trigger a warning

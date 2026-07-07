@@ -144,7 +144,7 @@ def integrate_time_series(
     )
 
     # Convert from flow to stock change, applying conversion efficiencies
-    stock_change = pd.Series(data=np.NaN, index=series.index)
+    stock_change = pd.Series(data=np.nan, index=series.index)
     stock_change.loc[series > 0] = (
         series[series > 0]
         * (

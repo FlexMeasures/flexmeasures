@@ -127,6 +127,7 @@ class SensorAPI(FlaskView):
             "event_ends_before": AwareDateTimeField(format="iso", required=False),
             "beliefs_after": AwareDateTimeField(format="iso", required=False),
             "beliefs_before": AwareDateTimeField(format="iso", required=False),
+            "clip": fields.Boolean(load_default=True),
         },
         location="query",
     )
@@ -140,11 +141,15 @@ class SensorAPI(FlaskView):
         """
         event_starts_after = kwargs.get("event_starts_after", None)
         event_ends_before = kwargs.get("event_ends_before", None)
-        df = sensor.generic_asset.search_annotations(
+        df = sensor.search_annotations(
             annotations_after=event_starts_after,
             annotations_before=event_ends_before,
+            include_asset_annotations=True,
             as_frame=True,
         )
+        if kwargs["clip"]:
+            df["start"] = df["start"].clip(lower=event_starts_after)
+            df["end"] = df["end"].clip(upper=event_ends_before)
 
         # Wrap and stack annotations
         df = prepare_annotations_for_chart(df)

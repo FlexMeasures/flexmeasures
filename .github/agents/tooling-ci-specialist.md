@@ -9,12 +9,15 @@ description: Reviews GitHub Actions workflows, pre-commit hooks, and CI/CD pipel
 
 Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actions workflows, pre-commit hooks, linters, build scripts, and CI/CD pipelines. Ensure tests run efficiently, caching works correctly, and agents are used properly in workflows. This agent owns the reliability of the development and deployment infrastructure.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review
 
 - GitHub Actions workflows (`.github/workflows/`)
 - Pre-commit configuration (`.pre-commit-config.yaml`)
+- Agent environment setup (`.github/workflows/copilot-setup-steps.yml`)
 - Linter configurations (flake8, black, mypy)
 - Build and deployment scripts
 - CI matrix strategy (Python versions, services)
@@ -49,8 +52,45 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 - [ ] **Hook versions**: Hooks use recent, stable versions
 - [ ] **Hook coverage**: Appropriate hooks for code quality
 - [ ] **Performance**: Hooks run in reasonable time
-- [ ] **Configuration**: Hooks configured via `setup.cfg` or `pyproject.toml`
+- [ ] **Configuration**: Hooks configured via `pyproject.toml`
 - [ ] **Local vs CI**: Some hooks can skip in CI
+
+#### generate-openapi-specs Hook: Known Regressions
+
+**Critical**: The `generate-openapi-specs` hook regenerates `flexmeasures/ui/static/openapi-specs.json`
+and is **skipped in CI** (local-only hook). When run in an agent dev environment (e.g. `pip install -e .`
+with setuptools_scm), it can introduce **unintended regressions** alongside any intentional schema changes.
+
+**Known regression types** (discovered in PR #1996):
+
+1. **Version regression**: `setuptools_scm` may produce a dev version string (e.g. `"0.1.dev4"`)
+   instead of the tagged release version (e.g. `"0.31.0"`). This happens when the agent's git
+   checkout does not have full tag history, so the version is inferred from commit distance.
+
+2. **Timezone list changes**: The generated timezone enum may drop valid entries (e.g. `"Asia/Brunei"`),
+   depending on which `pytz` or `zoneinfo` version is installed in the agent's environment.
+
+**Checklist when reviewing an openapi-specs.json diff**:
+
+- [ ] **Version field unchanged**: `"version"` remains the tagged release string, not a dev string
+- [ ] **No timezone entries removed**: Check that the timezone enum list did not lose entries
+- [ ] **Only intentional changes**: Only changes explicitly motivated by the PR should appear
+- [ ] **Revert unintended changes**: If version or timezone regressions are present, revert them manually
+
+**Recommended workflow** when the hook must be run to pick up intentional schema changes:
+
+```bash
+# Run the hook to get the intentional changes
+pre-commit run generate-openapi-specs --all-files
+
+# Inspect the full diff
+git diff flexmeasures/ui/static/openapi-specs.json
+
+# If version or timezone regressions are present, revert just those lines
+# Use git checkout or manual editing to restore the correct values
+git diff flexmeasures/ui/static/openapi-specs.json | grep '"version"'
+git diff flexmeasures/ui/static/openapi-specs.json | grep -c '"Asia/'
+```
 
 ### Caching Strategy
 
@@ -61,18 +101,122 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 
 ### Linter Configuration
 
-- [ ] **Flake8**: Configured in `setup.cfg` with appropriate rules
+- [ ] **Flake8**: Configured in `.flake8` with appropriate rules
 - [ ] **Black**: Line length and style consistent
 - [ ] **Mypy**: Type checking configuration appropriate
 - [ ] **Consistency**: Settings match across local and CI
 
 ### CI Matrix
 
-- [ ] **Python versions**: Test on supported versions (3.9-3.12)
+- [ ] **Python versions**: Test on supported versions (3.10-3.12)
 - [ ] **Service versions**: PostgreSQL version matches production
 - [ ] **OS matrix**: Ubuntu latest (add others if needed)
 - [ ] **Fail-fast**: Usually false for comprehensive testing
 - [ ] **Coverage**: One Python version runs coverage
+
+### Pre-commit Hook Execution (CRITICAL)
+
+**Every commit MUST pass `pre-commit run --all-files` BEFORE being committed.** See `.github/instructions/pre-commit-hooks.instructions.md` for setup and hook details. Committing code that fails pre-commit hooks is a process failure.
+
+#### Responsibility Assignment
+
+**Who runs pre-commit:**
+- **During code changes**: Agent making changes runs pre-commit before committing
+- **Before PR close**: Lead verifies pre-commit execution
+- **In PR review**: Tooling & CI Specialist validates config matches CI
+
+**Enforcement:**
+- Lead's session close checklist includes pre-commit verification
+- Lead cannot close session without pre-commit evidence
+- If pre-commit fails, agent must fix all issues before proceeding
+
+#### Common Failures and Fixes
+
+**Flake8 failures:**
+```bash
+# Common issues:
+# - E501: Line too long (black should handle this)
+# - F401: Unused import (remove import)
+# - C901: Function too complex (refactor)
+# - W503: Line break before binary operator (ignore, conflicts with black)
+
+# Quick check:
+flake8 path/to/file.py
+```
+
+**Black failures:**
+```bash
+# Auto-fix formatting:
+black path/to/file.py
+
+# Or format entire codebase:
+black .
+```
+
+**Mypy failures:**
+```bash
+# Type annotation required
+# Manual fix needed:
+# - Add type hints to function signatures
+# - Fix type mismatches
+# - Add # type: ignore comments with justification
+
+# Run mypy:
+ci/run_mypy.sh
+```
+
+#### Integration with Lead
+
+**Lead checklist items:**
+- [ ] Pre-commit hooks installed
+- [ ] All hooks pass: `pre-commit run --all-files`
+- [ ] Zero failures from flake8, black, mypy
+- [ ] If hooks modified files, changes committed
+
+**Evidence required:**
+- Show pre-commit output confirming all hooks passed
+- Or confirm: "Pre-commit verified: all hooks passed"
+
+**Enforcement:**
+Lead MUST verify pre-commit execution before closing session.
+
+### Agent Environment Setup
+
+File: **`.github/workflows/copilot-setup-steps.yml`**
+
+This file defines standardized environment setup for GitHub Copilot agents. When reviewing or updating:
+
+- [ ] **System dependencies**: Are all required packages installed?
+  - PostgreSQL client libraries (`libpq-dev`)
+  - Redis server
+  - Other system tools
+  
+- [ ] **Python environment**: 
+  - Is Python version appropriate according to `.python-version`?
+  - Are dependencies installed correctly? (`uv sync`)
+  
+- [ ] **Database setup**:
+  - Is PostgreSQL service started?
+  - Are test user and database created correctly?
+  - Are permissions granted? (`CREATEDB` privilege)
+  - Are extensions loaded? (`ci/load-psql-extensions.sql`)
+  
+- [ ] **Environment variables**:
+  - `FLEXMEASURES_ENV=testing`
+  - `SQLALCHEMY_DATABASE_URI` (PostgreSQL connection string)
+  - `FLEXMEASURES_REDIS_URL` (Redis connection string)
+  
+- [ ] **Documentation**:
+  - Are usage notes clear and accurate?
+  - Are common issues and solutions documented?
+  - Are testing commands documented?
+
+**IMPORTANT**: When this file is updated, verify it actually works:
+
+1. Follow the setup steps in a clean environment
+2. Run tests to confirm environment is functional
+3. Document any issues or unclear steps
+4. Update the file based on learnings
 
 ## Domain Knowledge
 
@@ -81,12 +225,12 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 **GitHub Actions workflows** (`.github/workflows/`):
 
 1. **lint-and-test.yml**
-   - Python versions: 3.9, 3.10, 3.11, 3.12
+   - Python versions: 3.10, 3.11, 3.12
    - PostgreSQL: 17.4 service container
    - Coverage: Python 3.11 only
    - Caching: pip dependencies
 
-2. **build.yml**
+2. **docker-build.yml**
    - Docker image build validation
    - PostgreSQL service
    - Basic functionality tests
@@ -95,7 +239,7 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
    - Security analysis
    - Weekly schedule
 
-4. **release.yml**
+4. **pypi-publish.yml**
    - Package and release automation
    - Trigger: Push to main
 
@@ -106,22 +250,29 @@ Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actio
 1. **flake8** (v7.1.1) - Python linting
 2. **black** (v24.8.0) - Code formatting
 3. **mypy** (local script) - Type checking via `ci/run_mypy.sh`
-4. **generate-openapi-specs** (local, skipped in CI)
+4. **generate-openapi-specs** (local, skipped in CI) — **see "generate-openapi-specs Hook: Known Regressions" in checklist above**
 
 Setup:
 ```bash
-pip install pre-commit
+uv tool install pre-commit
 pre-commit run --all-files
 ```
 
 ### Flake8 Configuration
 
-`setup.cfg`:
+`.flake8`:
 ```ini
 [flake8]
+exclude = .git,__pycache__,documentation
 max-line-length = 160
 max-complexity = 13
+select = B,C,E,F,W,B9
 ignore = E501, W503, E203
+per-file-ignores =
+    flexmeasures/__init__.py:F401
+    flexmeasures/data/schemas/__init__.py:F401
+    flexmeasures/ui/crud/assets/__init__.py:F401
+
 ```
 
 Ignored rules:
@@ -139,13 +290,13 @@ Ignored rules:
 
 **Test execution**:
 ```bash
-make install-for-test  # Install dependencies
-make test              # Run pytest
+uv sync --group test  # Install dependencies
+uv run poe test              # Run pytest
 ```
 
 ### Caching Strategy
 
-Pip cache configuration:
+Uv cache configuration:
 ```yaml
 uses: actions/cache@v4
 with:
@@ -182,10 +333,9 @@ pytest -k test_auth_token  # Ensure auth setup runs
 
 - Workflows: `.github/workflows/`
 - Pre-commit: `.pre-commit-config.yaml`
-- Linter config: `setup.cfg`
-- Mypy runner: `ci/run_mypy.sh`
+- Linter config: `.flake8`
+- Task runner: `pyproject.toml` (poethepoet tasks)
 - PostgreSQL setup: `ci/setup-postgres.sh`
-- Makefile: `Makefile`
 - Docker: `Dockerfile`, `docker-compose.yml`
 
 ## Interaction Rules
@@ -230,6 +380,15 @@ pytest -k test_auth_token  # Ensure auth setup runs
 - Update checklist based on real issues
 - Refine guidance on caching and optimization
 
+### Lessons Learned
+
+#### `uv sync --locked` fails after `uv lock --upgrade` (PR #2148)
+
+- **Symptom**: `uv sync --locked` fails with "needs to be updated, but `--locked` was provided" even after running `uv lock`
+- **Root cause**: New packages (e.g. `numba`/`llvmlite`) introduce fork markers with impossible platform combos (e.g. `os_name == 'nt' AND sys_platform == 'darwin'`), causing coverage check to fail
+- **Fix**: Add `[tool.uv] environments` to `pyproject.toml` limiting resolution to actual target platforms, then regenerate `uv.lock`
+- **Verification**: After any significant `uv lock --upgrade`, run `uv sync --locked` locally and confirm exit code 0
+
 ### Continuous Improvement
 
 - Monitor CI run times and optimize
@@ -238,3 +397,75 @@ pytest -k test_auth_token  # Ensure auth setup runs
 - Track Python ecosystem tooling evolution
 - Improve caching strategies
 - Ensure agent workflows remain efficient
+
+* * *
+
+## Commit Discipline and Self-Improvement
+
+### Must Make Atomic Commits
+
+When making CI/tooling changes:
+
+- **Separate workflow changes** - One workflow per commit
+- **Separate pre-commit hook changes** - Individual hooks get own commits
+- **Separate configuration changes** - Linter config separate from code
+- **Never commit analysis files** - No `CI_ANALYSIS.md` or similar
+- **Update agent instructions separately** - Own file, own commit
+
+### Must Verify CI Changes Actually Work
+
+When modifying CI infrastructure:
+
+- **Run pre-commit hooks locally** - Don't assume they work
+  ```bash
+  pre-commit run --all-files
+  ```
+- **Test workflow changes** - Push to branch and verify CI passes
+  
+- **Check caching works** - Verify cache keys match and restore properly
+- **Test across matrix** - Ensure all Python versions work
+
+### Using FlexMeasures Dev Environment for CI Testing
+
+Before committing CI changes:
+
+1. **Test pre-commit hooks locally**:
+   ```bash
+   uv tool install pre-commit
+   pre-commit install
+   pre-commit run --all-files
+   ```
+2. **Test make targets**:
+   ```bash
+   uv sync --group test
+   uv run poe test
+   uv run poe update-docs
+   ```
+3. **Verify pytest configuration**:
+   ```bash
+   pytest --collect-only  # Check test discovery
+   pytest -v              # Run with verbose output
+   ```
+4. **Check linter configs**:
+   ```bash
+   flake8 flexmeasures/
+   black --check flexmeasures/
+   mypy flexmeasures/
+   ```
+
+### Self-Improvement Loop
+
+After each assignment:
+
+1. **Review CI failures** - What went wrong? What could be improved?
+2. **Update this agent file** - Add new patterns or tooling guidance
+3. **Commit separately** with format:
+   ```
+   agents/tooling-ci: learned <specific lesson>
+   
+   Context:
+   - Assignment revealed issue with <CI component>
+   
+   Change:
+   - Added guidance on <tooling topic>
+   ```

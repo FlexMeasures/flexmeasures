@@ -1,146 +1,148 @@
-# Check Python major and minor version
-# For more information, see https://stackoverflow.com/a/22105036
-PYV = $(shell python -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
-HIGHS_DIR = "../HiGHS"
+# This Makefile is deprecated. Please use the Poethepoet tasks or UV commands instead.
+# See the documentation for more information about using the new setup: https://flexmeasures.readthedocs.io/latest/dev/setup-and-guidelines.html
 
 # Note: use tabs
 # actions which are virtual, i.e. not a script
-.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures test freeze-deps upgrade-deps update-docs generate-openapi show-file-space show-data-model clean-db cli-autocomplete build-highs-macos install-highs-macos
+.PHONY: install install-for-dev install-for-test install-deps install-flexmeasures install-pip-tools install-docs-dependencies install-highs-macos build-highs-macos test freeze-deps upgrade-deps upgrade-db update-docs generate-openapi show-file-space show-data-model clean-db cli-autocomplete
 
+DOCS_URL = https://flexmeasures.readthedocs.io/latest/dev/setup-and-guidelines.html
+
+define WARN_DEPRECATED
+	@echo "Warning: 'make $@' has now been implemented by uv and poe commands. The Makefile will be deprecated in favour of poe soon."
+	@echo "See: $(DOCS_URL)"
+	@echo ""
+endef
+
+define CHECK_UV
+	@if ! command -v uv >/dev/null 2>&1; then \
+		echo "You seem to not have installed your environment via uv. We advise to do that soon for a seamless developer experience."; \
+		echo "Take a look at the new setup here: $(DOCS_URL)"; \
+		exit 1; \
+	fi
+endef
 
 # ---- Development ---
 
 test:
-	make install-for-test
-	pytest
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv sync --group test
+	uv run poe test
+	$(WARN_DEPRECATED)
 
 # ---- Documentation ---
 
-gen_code_docs := False # by default code documentation is not generated
-
 # Note: this makes docs for the FlexMeasures project, free from custom settings and plugins
 update-docs:
-	@echo "Creating docs environment ..."
-	make install-docs-dependencies
-	export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; make generate-openapi
-	@echo "Creating documentation ..."
-	export FLEXMEASURES_ENV=documentation; export FLEXMEASURES_PLUGINS=; export GEN_CODE_DOCS=${gen_code_docs}; cd documentation; make clean; make html SPHINXOPTS="-W --keep-going -n"; cd ..
-	sed -i 's/(id)/id/g' flexmeasures/ui/static/documentation/html/api/v3_0.html # make sphinxcontrib-httpdomain links point to openapi-sphinx links
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv run poe update-docs
+	$(WARN_DEPRECATED)
 
 # Note: this will create SwaggerDocs with host-specific settings (e.g. platform name, support page, TOS) and plugins - use update-docs to make generic specs
 generate-openapi:
-	@echo "Generating OpenAPI specifications... "
-	python flexmeasures/api/scripts/generate_open_api_specs.py
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv run poe generate-open-api-specs
+	$(WARN_DEPRECATED)
 
 # ---- Installation ---
 
-install: install-deps install-flexmeasures
+install:
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv sync --group dev --group test
+	$(WARN_DEPRECATED)
 
 install-for-dev:
-	make freeze-deps
-	make ensure-deps-folder
-	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/dev.txt requirements/${PYV}/test.txt
-	make install-flexmeasures
-# Locally install HiGHS on macOS
-	@if [ "$(shell uname)" = "Darwin" ]; then \
-		make install-highs-macos; \
-	fi
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv sync --group dev --group test
+	$(WARN_DEPRECATED)
 
 install-for-test:
-	make install-pip-tools
-# Pass pinned=no if you want to test against latest stable packages, default is our pinned dependency set
-ifneq ($(pinned), no)
-	pip-sync requirements/${PYV}/app.txt requirements/${PYV}/test.txt
-else
-	pip install --upgrade -r requirements/app.in -r requirements/test.in
-endif
-	make install-flexmeasures
-# Locally install HiGHS on macOS
-	@if [ "$(shell uname)" = "Darwin" ]; then \
-		make install-highs-macos; \
-	fi
-
-$(HIGHS_DIR):
-	@if [ ! -d $(HIGHS_DIR) ]; then \
-		git clone https://github.com/ERGO-Code/HiGHS.git $(HIGHS_DIR); \
-	fi
-	brew install cmake;
-
-build-highs-macos: $(HIGHS_DIR)
-	cd $(HIGHS_DIR); \
-	git checkout latest; \
-	mkdir -p build; \
-	cd build; \
-	cmake ..; \
-	make; \
-	make install; \
-	cd ../../flexmeasures;
-
-install-highs-macos: build-highs-macos
-	pip install $(HIGHS_DIR) ; \
-
-install-deps:
-	make install-pip-tools
-	make freeze-deps
-# Pass pinned=no if you want to test against latest stable packages, default is our pinned dependency set
-ifneq ($(pinned), no)
-	pip-sync requirements/${PYV}/app.txt
-else
-	pip install --upgrade -r requirements/app.in
-endif
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv sync --group test
+	$(WARN_DEPRECATED)
 
 install-flexmeasures:
-	pip install -e .
-
-install-pip-tools:
-	pip3 install -q "pip-tools>=7.2"
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv sync
+	$(WARN_DEPRECATED)
 
 install-docs-dependencies:
-	pip install -r requirements/${PYV}/docs.txt
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv sync --group docs
+	$(WARN_DEPRECATED)
+
+install-highs-macos:
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv sync --group dev --group test
+	$(WARN_DEPRECATED)
+
+build-highs-macos:
+	@echo "This command is no longer supported."
+	@echo "See: $(DOCS_URL)"
+
+install-deps:
+ifeq ($(pinned), no)
+	@echo "This command is no longer supported for unpinned installs."
+	@echo "To upgrade the lockfile, use 'uv lock --upgrade'."
+	@echo "To upgrade ranges, manually upgrade them or use dependabot."
+	@echo "See: $(DOCS_URL)"
+else
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv sync --group dev --group test
+	$(WARN_DEPRECATED)
+endif
+
+install-pip-tools:
+	@echo "This command is no longer supported. Pip tools has been replaced by uv."
+	@echo "See: $(DOCS_URL)"
 
 freeze-deps:
-	make ensure-deps-folder
-	make install-pip-tools
-	pip-compile -o requirements/${PYV}/app.txt requirements/app.in
-	pip-compile -c requirements/${PYV}/app.txt -o requirements/${PYV}/test.txt requirements/test.in
-	pip-compile -c requirements/${PYV}/app.txt -c requirements/${PYV}/test.txt -o requirements/${PYV}/dev.txt requirements/dev.in
-	pip-compile -c requirements/${PYV}/app.txt -o requirements/${PYV}/docs.txt requirements/docs.in
+	@echo "This command is no longer supported. Pip tools has been replaced by uv."
+	@echo "See: $(DOCS_URL)"
 
 upgrade-deps:
-	make ensure-deps-folder
-	make install-pip-tools
-	pip-compile --upgrade -o requirements/${PYV}/app.txt requirements/app.in
-	pip-compile --upgrade -c requirements/${PYV}/app.txt -o requirements/${PYV}/test.txt requirements/test.in
-	pip-compile --upgrade -c requirements/${PYV}/app.txt -c requirements/${PYV}/test.txt -o requirements/${PYV}/dev.txt requirements/dev.in
-	pip-compile --upgrade -c requirements/${PYV}/app.txt -o requirements/${PYV}/docs.txt requirements/docs.in
-
-ifneq ($(skip-test), yes)
-	make test
-endif
+	@echo "This command is no longer supported."
+	@echo "To upgrade the lockfile, use 'uv lock --upgrade'."
+	@echo "To upgrade ranges, manually upgrade them or use dependabot."
+	@echo "See: $(DOCS_URL)"
 
 # ---- Data ----
 
 show-file-space:
-	# Where is our file space going?
-	du --summarize --human-readable --total ./* ./.[a-zA-Z]* | sort -h
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv run poe show-file-space
+	$(WARN_DEPRECATED)
 
 upgrade-db:
-	flask db current
-	flask db upgrade
-	flask db current
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv run poe upgrade-db
+	$(WARN_DEPRECATED)
 
 show-data-model:
-	# This generates the data model, as currently written in code, as a PNG picture.
-	# Also try with --schema for the database model. 
-	# With --deprecated, you'll see the legacy models, and not their replacements.
-	# Use --help to learn more. 
-	./flexmeasures/data/scripts/visualize_data_model.py --uml
-
-ensure-deps-folder:
-	mkdir -p requirements/${PYV}
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv run poe show-data-model --uml
+	$(WARN_DEPRECATED)
 
 clean-db:
-	./flexmeasures/data/scripts/clean_database.sh ${db_name} ${db_user}
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv run poe clean-db
+	$(WARN_DEPRECATED)
 
 cli-autocomplete:
-	./flexmeasures/cli/scripts/add_scripts_path.sh ${extension}
+	$(WARN_DEPRECATED)
+	$(CHECK_UV)
+	uv run poe cli-autocomplete
+	$(WARN_DEPRECATED)

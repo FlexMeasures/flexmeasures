@@ -67,7 +67,7 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
         <span class="fa fa-info" title="Resolution: ${sensor.resolution}, Asset: '${sensor.asset_name}', Reason: ${sensor.relation}" style="margin-left: 10px;"></span>`,
       source_type: sensor.source_type || "None",
       staleness_since: `
-        <psan title="${sensor.staleness_since ? sensor.staleness_since : 'Never'}"> 
+        <span title="${sensor.staleness_since ? sensor.staleness_since : 'Never'}"> 
           ${
             sensor.staleness_since ?
               getHumanFriendlyDeltaOrTimeStr(sensor.staleness_since) :
@@ -85,10 +85,11 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     const jobStatusMessage = job.err ? `${job.status}: ${job.err}` : job.status;
     const jobStatusIcon = job.status === "finished" ? "🟢" :
                           job.status === "failed" ? "🔴" : "🟡";
+    const createdAtTimestamp = job.enqueued_at ? Date.parse(job.enqueued_at) : 0;
     return {
-      created_at_timestamp: job.enqueued_at,
+      created_at_timestamp: createdAtTimestamp,
       created_at: `
-       <psan title="${job.enqueued_at? job.enqueued_at: 'Never'}"> 
+       <span title="${job.enqueued_at? job.enqueued_at: 'Never'}"> 
           ${
             job.enqueued_at ?
               getHumanFriendlyDeltaOrTimeStr(job.enqueued_at) :
@@ -226,13 +227,12 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
     // JOBS TABLE
     const jobsTable = $("#jobsTable").DataTable({
       order: [[0, "desc"]],
-      columnDefs: [{ targets: 1, orderData: 0 }],
       searching: false,
       paging: false,
       info: false,
       columns: [
         { data: "created_at_timestamp", title: "Created At Timestamp", visible: false },
-        { data: "created_at", title: "Created At", orderable: true},
+        { data: "created_at", title: "Created At", orderable: true, orderData: 0 },
         { data: "queue", title: "Queue", orderable: true},
         { data: "entity", title: "Entity", orderable: false},
         { data: "status", title: "Status", className: "text-right", orderable: false},

@@ -13,6 +13,9 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.time_series import TimedBelief
 
+# 10-minute resolution values for "some gas sensor"
+GAS_MEASUREMENTS_10MIN = [91.3, 91.7, 92.1]
+
 
 @pytest.fixture(scope="module")
 def setup_api_test_data(
@@ -203,7 +206,7 @@ def add_gas_measurements(db, source: Source, sensor: Sensor, values=None):
         pd.Timestamp("2021-05-02T00:00:00+02:00") + timedelta(minutes=minutes)
         for minutes in range(0, 30, 10)
     ]
-    event_values = list(values) if values else [91.3, 91.7, 92.1]
+    event_values = list(values) if values else GAS_MEASUREMENTS_10MIN
     beliefs = [
         TimedBelief(
             sensor=sensor,

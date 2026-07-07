@@ -1,5 +1,9 @@
 from datetime import timedelta
 
+import pytest
+from sqlalchemy.exc import IntegrityError
+
+from flexmeasures.data.services.generic_assets import format_json_field_change
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
@@ -75,3 +79,179 @@ class NewAssetWithSensors:
         self.db.session.delete(self.price_sensor2)
         self.db.session.delete(self.test_battery)
         self.db.session.commit()
+
+
+def test_duplicate_public_root_asset_names_are_rejected(
+    fresh_db, setup_generic_asset_types_fresh_db
+):
+    db = fresh_db
+    asset_type = setup_generic_asset_types_fresh_db["battery"]
+    root_assets = [
+        GenericAsset(name="Shared root name", generic_asset_type=asset_type),
+        GenericAsset(name="Shared root name", generic_asset_type=asset_type),
+    ]
+
+    db.session.add_all(root_assets)
+
+    with pytest.raises(IntegrityError):
+        db.session.flush()
+
+
+def test_duplicate_root_asset_names_in_different_accounts_are_allowed(
+    fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
+):
+    db = fresh_db
+    asset_type = setup_generic_asset_types_fresh_db["battery"]
+    root_assets = [
+        GenericAsset(
+            name="Shared account root name",
+            generic_asset_type=asset_type,
+            owner=setup_accounts_fresh_db["Prosumer"],
+        ),
+        GenericAsset(
+            name="Shared account root name",
+            generic_asset_type=asset_type,
+            owner=setup_accounts_fresh_db["Supplier"],
+        ),
+    ]
+
+    db.session.add_all(root_assets)
+    db.session.flush()
+
+    assert root_assets[0].id != root_assets[1].id
+    assert root_assets[0].account_id != root_assets[1].account_id
+    assert root_assets[0].parent_asset_id is None
+    assert root_assets[1].parent_asset_id is None
+
+
+def test_duplicate_root_asset_names_in_same_account_are_rejected(
+    fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
+):
+    db = fresh_db
+    asset_type = setup_generic_asset_types_fresh_db["battery"]
+    root_assets = [
+        GenericAsset(
+            name="Conflicting account root name",
+            generic_asset_type=asset_type,
+            owner=setup_accounts_fresh_db["Prosumer"],
+        ),
+        GenericAsset(
+            name="Conflicting account root name",
+            generic_asset_type=asset_type,
+            owner=setup_accounts_fresh_db["Prosumer"],
+        ),
+    ]
+
+    db.session.add_all(root_assets)
+
+    with pytest.raises(IntegrityError):
+        db.session.flush()
+
+    db.session.rollback()
+
+
+def test_duplicate_sibling_asset_names_are_rejected(
+    fresh_db, setup_generic_asset_types_fresh_db
+):
+    db = fresh_db
+    asset_type = setup_generic_asset_types_fresh_db["battery"]
+    parent = GenericAsset(name="Parent asset", generic_asset_type=asset_type)
+    db.session.add(parent)
+    db.session.flush()
+
+    db.session.add_all(
+        [
+            GenericAsset(
+                name="Shared child name",
+                generic_asset_type=asset_type,
+                parent_asset_id=parent.id,
+            ),
+            GenericAsset(
+                name="Shared child name",
+                generic_asset_type=asset_type,
+                parent_asset_id=parent.id,
+            ),
+        ]
+    )
+
+    with pytest.raises(IntegrityError):
+        db.session.flush()
+
+    db.session.rollback()
+
+
+def test_format_json_field_change_reports_nested_flex_model_changes():
+    old_value = {"soc-usage": ["3500 kW", {"sensor": 7}]}
+    new_value = {"soc-usage": ["3500 kW", {"sensor": 8}]}
+
+    change = format_json_field_change("flex_model", old_value, new_value)
+
+    assert change == "Updated flex_model:\n1. Changed soc-usage[1].sensor: 7 → 8"
+
+
+def test_format_json_field_change_handles_removed_middle_plot_without_false_replace():
+    old_value = [
+        {
+            "title": "Storages SoC",
+            "plots": [
+                {"sensor": 1},
+                {"sensor": 2, "flex-model": "soc-max"},
+                {"sensor": 2, "flex-model": "soc-min"},
+            ],
+        }
+    ]
+    new_value = [
+        {
+            "title": "Storages SoC",
+            "plots": [
+                {"sensor": 1},
+                {"sensor": 2, "flex-model": "soc-min"},
+            ],
+        }
+    ]
+
+    change = format_json_field_change("sensors_to_show", old_value, new_value)
+
+    assert (
+        change
+        == 'Updated sensors_to_show:\n1. Changed graph 1 (Storages SoC): removed plot 2: {"sensor": 2, "flex-model": "soc-max"}'
+    )
+
+
+def test_format_json_field_change_does_not_duplicate_added_sensor_messages():
+    old_value = [
+        {
+            "title": "Site capacity",
+            "plots": [{"sensor": 10}, {"sensor": 11}],
+        }
+    ]
+    new_value = [
+        {
+            "title": "Site capacity",
+            "plots": [{"sensor": 10}, {"sensor": 11}, {"sensor": 46903}],
+        }
+    ]
+
+    change = format_json_field_change("sensors_to_show", old_value, new_value)
+
+    assert (
+        change
+        == 'Updated sensors_to_show:\n1. Changed graph 1 (Site capacity): added plot 3: {"sensor": 46903}'
+    )
+
+
+def test_format_json_field_change_added_graph_with_flex_context_reference():
+    old_value = []
+    new_value = [
+        {
+            "title": "No Title",
+            "plots": [{"asset": 1, "flex-context": "site-power-capacity"}],
+        }
+    ]
+
+    change = format_json_field_change("sensors_to_show", old_value, new_value)
+
+    assert (
+        change
+        == 'Updated sensors_to_show:\n1. Added graph 1: "No Title" (refs [asset 1, flex-context: site-power-capacity])'
+    )

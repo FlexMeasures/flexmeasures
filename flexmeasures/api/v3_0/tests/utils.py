@@ -6,6 +6,11 @@ from sqlalchemy import select
 
 from flexmeasures import Asset, User
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.time_series import Sensor
+
+
+def get_sensor_by_name(asset: Asset, name: str) -> Sensor:
+    return next(sensor for sensor in asset.sensors if sensor.name == name)
 
 
 def make_sensor_data_request_for_gas_sensor(

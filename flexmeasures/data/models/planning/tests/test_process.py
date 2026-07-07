@@ -17,7 +17,12 @@ resolution = timedelta(hours=1)
     [("INFLEXIBLE", datetime(2015, 1, 2, 0)), ("SHIFTABLE", datetime(2015, 1, 2, 8))],
 )
 def test_process_scheduler(
-    add_battery_assets, process, process_type, optimal_start, db
+    setup_planning_test_data,
+    add_battery_assets,
+    process,
+    process_type,
+    optimal_start,
+    db,
 ):
     """
     Test scheduling a process of 4kW of power that last 4h using the ProcessScheduler
@@ -145,7 +150,9 @@ def test_process_scheduler_time_restrictions(add_battery_assets, process, db):
     assert (schedule[time_restrictions] == 0).all()
 
 
-def test_breakable_scheduler_time_restrictions(add_battery_assets, process, db):
+def test_breakable_scheduler_time_restrictions(
+    setup_planning_test_data, add_battery_assets, process, db
+):
     """
     Test BREAKABLE process_type of ProcessScheduler by introducing four 1-hour restrictions
     interspaced by 1 hour. The equivalent mask would be the following: [0,...,0,1,0,1,0,1,0,1,0, ...,0].

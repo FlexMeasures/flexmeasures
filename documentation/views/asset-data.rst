@@ -56,37 +56,27 @@ Per asset, you can set fields in :ref:`the flex-context <flex_context>`, which w
 
 |
 
-Editing an asset's flex-model
+
+Creating a new child asset
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Per asset, you can set fields in :ref:`the flex-model <flex_model>`. The flex model dialogue allows you to define a set or a single value type based on what the field allows, these include fixed values, sensors, floats, list (sensors or fixed values) and booleans. Initially, no fields are set.
+From the context page, you can create a new child asset (you can also get there from the properties page, actually).
+There are to ways to do that.
 
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_flexmodel.png
+A simple asset form, including a map selector:
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_new.png
     :align: center
 ..    :scale: 40%
 
 |
 
-Flex context overview
-"""""""""""""""""""""""
+You can also copy an exisiting asset, including its child assets, sensors and flex-config.
+You can search for the asset you want to copy:
 
-* **Left Panel:** Displays a list of currently configured fields.
-* **Right Panel:** Shows details of the selected field and provides a form to modify its value.
-
-Adding a field
-"""""""""""""""
-1.  **Select Field:** Choose the desired field from the dropdown menu in the top right corner of the modal.
-2.  **Add Field:** Click the "Add Field" button next to the dropdown.
-3.  The field will be added to the list in the left panel.
-
-Setting a field value
-"""""""""""""""""""""
-
-1.  **Select Field (if it is not selected yet):** Click on the field in the left panel.
-2.  **Save Value:** In the right panel, use the provided form to set the field's value.
-
-    * Some fields may only accept a sensor value.
-    * Other fields may accept either a sensor or a fixed value.
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_copy.png
+    :align: center
+..    :scale: 40%
 
 |
 
@@ -108,11 +98,11 @@ Editing the graphs dashboard
 
 Click the "Edit Graph" button to open the graph editor.
 
-Use the "Add Graph" button to create graphs. For each graph, you can select one or more sensors, from all available sensors associated with the asset, including public sensors, and add them to your plot.  
+Use the "Add Graph" button to create graphs. For each graph, you can select one or more sensors, from all available sensors associated with the asset, including public sensors, and add them to your plot.
 
-You can overlay data from multiple sensors on a single graph. To do this, click on an existing plot and add more sensors from the available options on the right. 
+In addition, you can add an asset's flex-config to the graph, whether the value is a sensor or a fixed value (e.g. `[{"title":"Power","plots":[{"sensor":2}]},{"title":"Costs","plots":[{"sensors":[5,6]}]}]`).
 
-Finally, it is possible to set custom titles for any sensor graph by clicking on the "edit" button right next to the default or current title.
+Finally, it is possible to set custom titles for any graph by clicking on the "edit" button right next to the default or current title.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot-asset-editgraph.png
     :align: center
@@ -120,7 +110,8 @@ Finally, it is possible to set custom titles for any sensor graph by clicking on
 
 |
 
-Internally, the asset has a `sensors_to_show` field, which controls which sensor data appears in the plot. This can also be set by a script. The accepted format is a dictionary with a graph title and a lists of sensor IDs (e.g. `[{"title": "Power", "sensor": 2}, {"title": "Costs", "sensors": [5,6] }]`).
+Internally, the asset has a `sensors_to_show` field, which controls which sensor data appears in the plot. This can also be set by a script or through the API. 
+The accepted format is a dictionary with a graph title followed by a plot containing sensors or asset flex-config reference (e.g. `[{"title":"Power","plots":[{"sensor":2}]},{"title":"Costs","plots":[{"sensor":5},{"asset":10,"flex-model":"soc-min"},]}]`).
 
 
 Showing daily KPIs
@@ -160,7 +151,9 @@ An example would be:
 Properties page
 ---------------
 
-The properties page allows you to view and edit the properties of the asset.
+The properties page allows you to view and edit the properties of the asset,
+including attributes, sensors and child assets.
+Also, it lists stored secret names and expiration times without exposing their values.
 
 You can also delete the asset by clicking on the "Delete this asset" button.
 
@@ -170,6 +163,39 @@ You can also delete the asset by clicking on the "Delete this asset" button.
 
 |
 
+Editing an asset's flex-model
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Per asset, you can set fields in :ref:`the flex-model <flex_model>`. The flex model dialogue allows you to define a set or a single value type based on what the field allows, these include fixed values, sensors, floats, list (sensors or fixed values) and booleans. Initially, no fields are set.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_flexmodel.png
+    :align: center
+..    :scale: 40%
+
+|
+
+Flex context overview
+"""""""""""""""""""""""
+
+* **Left Panel:** Displays a list of currently configured fields.
+* **Right Panel:** Shows details of the selected field and provides a form to modify its value.
+
+Adding a field
+"""""""""""""""
+1.  **Select Field:** Choose the desired field from the dropdown menu in the top right corner of the modal.
+2.  **Add Field:** Click the "Add Field" button next to the dropdown.
+3.  The field will be added to the list in the left panel.
+
+Setting a field value
+"""""""""""""""""""""
+
+1.  **Select Field (if it is not selected yet):** Click on the field in the left panel.
+2.  **Save Value:** In the right panel, use the provided form to set the field's value.
+
+    * Some fields may only accept a sensor value.
+    * Other fields may accept either a sensor or a fixed value.
+
+|
 .. _view_asset_status:
 
 Status page
@@ -187,8 +213,19 @@ Below is a fictious example, where the toy battery (from our tutorial) has sched
 
 |
    
-Hovering over the traffic light will tell you how long ago this most recent entry is and why the light is red, yellow or green. For jobs, you can also get more information (e.g. error message).
+Hovering over the traffic light will tell you how long ago this most recent entry is and why the light is red, yellow or green.
 
+For jobs, you can also get more information (e.g. error message) by hovering over the traffic light.
+
+You can also click the "Info" button, to see much information about how the scheduling or forecasting job
+was configured. Here is an example:
+
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_status_page_job_info.png
+    :align: center
+..    :scale: 40%
+
+|
 
 .. _view_asset_auditlog:
 
@@ -203,4 +240,3 @@ This is how the audit log looks for the history of actions taken on an asset:
 ..    :scale: 40%
 
 |
-

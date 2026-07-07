@@ -55,12 +55,19 @@ The main CLI parameters that control this process are:
 - ``to-date``: The global cutoff point. Training and prediction cycles continue until the ``predict-end`` reaches this date.
 - ``max-forecast-horizon``: The maximum length of a forecast into the future.
 - ``forecast-frequency``: Determines the number of prediction cycles within the forecast period (e.g. daily, hourly).
-- ``start-date``: Define the start of historical data used for training.
+- ``train-period``: Define a window of historical data to use for training.
 
 Note that:
 
 ``forecast-frequency`` together with ``max-forecast-horizon`` determine how the forecasting cycles advance through time.
-``start-date`` / ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
+``train-period``, ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
+
+Forecasting via the UI
+-----------------------
+
+The quickest way to create a one-off forecast is the **Create forecast** button on the sensor page (see :ref:`view_sensors_forecast_button`). The button is available to users with permission to record data on sensors, provided at least two days of historical data exist. The forecast duration defaults to 48 hours (configured via ``FLEXMEASURES_PLANNING_HORIZON``) but can be adjusted up to 7 days in the panel. No further configuration is needed — one click queues the job and the page shows progress messages until the forecast is ready.
+
+For more control over what and how to forecast, use the API.
 
 Forecasting via the API
 -----------------------

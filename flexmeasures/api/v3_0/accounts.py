@@ -8,15 +8,16 @@ from flask_json import as_json
 from sqlalchemy import or_, select, func
 from flask_sqlalchemy.pagination import SelectPagination
 
-
 from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.auth.decorators import permission_required_for_context
+from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import AccountSchema
+from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.api.common.schemas.users import AccountAPIQuerySchema
 
@@ -31,6 +32,7 @@ Editing (PATCH) is also not yet implemented, but might be next, e.g. for the nam
 account_schema = AccountSchema()
 accounts_schema = AccountSchema(many=True)
 partial_account_schema = AccountSchema(partial=True)
+annotation_schema = AnnotationSchema()
 
 
 class AccountAPI(FlaskView):
@@ -199,7 +201,6 @@ class AccountAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           responses:
             200:
               description: PROCESSED
@@ -253,7 +254,6 @@ class AccountAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           requestBody:
             description: Account data to be updated.
             required: true
@@ -303,17 +303,20 @@ class AccountAPI(FlaskView):
                 }, 401
         else:
             # Check if consultancy_account_id has changed
-            new_consultancy_account_id = account_data.get("consultancy_account_id")
-            if existing_consultancy_account_id != new_consultancy_account_id:
-                new_consultant_account = db.session.query(Account).get(
-                    new_consultancy_account_id
-                )
-                # Validate new consultant account
-                if (
-                    not new_consultant_account
-                    or new_consultant_account.id == account.id
-                ):
-                    return {"errors": ["Invalid consultancy_account_id"]}, 422
+            if "consultancy_account_id" in account_data:
+                new_consultancy_account_id = account_data.get("consultancy_account_id")
+                if new_consultancy_account_id is None:
+                    pass  # Allow clearing the consultancy relationship
+                elif existing_consultancy_account_id != new_consultancy_account_id:
+                    new_consultant_account = db.session.query(Account).get(
+                        new_consultancy_account_id
+                    )
+                    # Validate new consultant account
+                    if (
+                        not new_consultant_account
+                        or new_consultant_account.id == account.id
+                    ):
+                        return {"errors": ["Invalid consultancy_account_id"]}, 422
 
         # Track modified fields
         fields_to_check = [
@@ -322,6 +325,7 @@ class AccountAPI(FlaskView):
             "secondary_color",
             "logo_url",
             "consultancy_account_id",
+            "attributes",
         ]
         modified_fields = {
             field: getattr(account, field)
@@ -377,7 +381,6 @@ class AccountAPI(FlaskView):
               required: true
               schema:
                 type: integer
-                format: int32
           responses:
             200:
               description: PROCESSED
@@ -425,3 +428,60 @@ class AccountAPI(FlaskView):
             for log in audit_logs
         ]
         return audit_logs, 200
+
+    @route("/<id>/annotations", methods=["POST"])
+    @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
+    @use_args(annotation_schema)
+    @permission_required_for_context("create-children", ctx_arg_name="account")
+    def post_annotation(self, annotation: Annotation, id: int, account: Account):
+        """
+        .. :quickref: Accounts; Add an annotation to an account.
+        ---
+        post:
+          summary: Creates a new account annotation.
+          description: |
+            This endpoint creates a new :ref:`annotation <annotations>` on an account.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: The ID of the account to register the annotation on.
+              required: true
+              schema:
+                type: integer
+          requestBody:
+            content:
+              application/json:
+                schema: AnnotationSchema
+          responses:
+            200:
+              description: OK
+            201:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Accounts
+            - Annotations
+        """
+
+        # Use get_or_create to handle duplicates gracefully
+        annotation, is_new = get_or_create_annotation(annotation)
+
+        # Link annotation to account
+        if annotation not in account.annotations:
+            account.annotations.append(annotation)
+
+        db.session.commit()
+
+        # Return appropriate status code
+        status_code = 201 if is_new else 200
+        return annotation_schema.dump(annotation), status_code

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 import pytz
+import pytest
 
 import numpy as np
 import pandas as pd
@@ -8,6 +9,7 @@ import pandas as pd
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.planning.utils import initialize_index
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.tests.utils import (
     check_constraints,
     get_sensors_from_db,
@@ -27,6 +29,24 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
     index = initialize_index(start=start, end=end, resolution=resolution)
     production_prices = pd.Series(90, index=index)
     consumption_prices = pd.Series(100, index=index)
+
+    # Add consumption and production output sensors to the battery asset
+    consumption_output_sensor = Sensor(
+        name="consumption output",
+        generic_asset=battery.generic_asset,
+        unit="kW",
+        event_resolution=resolution,
+    )
+    production_output_sensor = Sensor(
+        name="production output",
+        generic_asset=battery.generic_asset,
+        unit="kW",
+        event_resolution=resolution,
+    )
+    db.session.add(consumption_output_sensor)
+    db.session.add(production_output_sensor)
+    db.session.flush()
+
     scheduler: Scheduler = StorageScheduler(
         battery,
         start,
@@ -35,6 +55,8 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
         flex_model={
             "soc-at-start": f"{soc_at_start} MWh",
             "soc-min": "0 MWh",
+            "consumption": {"sensor": consumption_output_sensor.id},
+            "production": {"sensor": production_output_sensor.id},
             "soc-max": "1 MWh",
             "power-capacity": "1 MVA",
             "soc-minima": [
@@ -128,6 +150,24 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
     np.testing.assert_almost_equal(
         costs["a sample commitment penalizing demand/supply"], 1 * (1 - 0.4)
     )
+
+    # Check consumption/production output sensor schedules.
+    # The battery charges at a constant rate (all positive values), so the consumption schedule
+    # should match the power schedule in kW, and the production schedule should be all zeros.
+    consumption_result = next(
+        r for r in results if r.get("name") == "consumption_schedule"
+    )
+    production_result = next(
+        r for r in results if r.get("name") == "production_schedule"
+    )
+    assert consumption_result["sensor"] is consumption_output_sensor
+    assert consumption_result["unit"] == "kW"
+    assert production_result["sensor"] is production_output_sensor
+    assert production_result["unit"] == "kW"
+    # Both sensors have the same resolution as the power sensor, so no resampling occurs.
+    expected_kw = (1 - 0.4) / 24 * 1000  # MW -> kW
+    np.testing.assert_allclose(consumption_result["data"], expected_kw)
+    np.testing.assert_allclose(production_result["data"], 0)
 
 
 def test_battery_relaxation(add_battery_assets, db):
@@ -248,3 +288,294 @@ def test_battery_relaxation(add_battery_assets, db):
         costs["all consumption breaches device 0"],
         device_power_breach_price * consumption_capacity_in_mw * 1000 * 4,
     )  # 100 EUR/(kW*h) * 0.025 MW * 1000 kW/MW * 4 hours
+
+
+def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(
+    add_charging_station_assets, setup_markets, setup_sources, db
+):
+    start = pd.Timestamp("2015-01-01T00:00:00+01:00")
+    end = start + timedelta(hours=12)
+    charging_station = add_charging_station_assets["Test charging station"]
+    power_sensor = next(s for s in charging_station.sensors if s.name == "power")
+    soc_sensor = add_charging_station_assets["uni-soc"]
+
+    db.session.add(
+        TimedBelief(
+            sensor=soc_sensor,
+            source=setup_sources["Seita"],
+            event_start=start - timedelta(minutes=45),
+            belief_horizon=timedelta(0),
+            event_value=2.75,
+        )
+    )
+    db.session.flush()
+
+    scheduler = StorageScheduler(
+        power_sensor,
+        start,
+        end,
+        power_sensor.event_resolution,
+        flex_model={
+            "state-of-charge": {"sensor": soc_sensor.id},
+            "soc-min": "0 MWh",
+            "soc-max": "5 MWh",
+            "power-capacity": "2 MW",
+        },
+        flex_context={"consumption-price": {"sensor": setup_markets["epex_da"].id}},
+    )
+
+    scheduler.deserialize_config()
+
+    assert scheduler.flex_model["soc_at_start"] == 2.75
+    assert scheduler.flex_model["soc_unit"] == "MWh"
+
+
+def test_deserialize_storage_soc_at_start_from_filtered_state_of_charge_sensor(
+    add_charging_station_assets, setup_markets, setup_sources, db
+):
+    start = pd.Timestamp("2015-01-01T00:00:00+01:00")
+    end = start + timedelta(hours=12)
+    charging_station = add_charging_station_assets["Test charging station"]
+    power_sensor = next(s for s in charging_station.sensors if s.name == "power")
+    soc_sensor = add_charging_station_assets["uni-soc"]
+
+    db.session.add(
+        TimedBelief(
+            sensor=soc_sensor,
+            source=setup_sources["Seita"],
+            event_start=start - timedelta(minutes=30),
+            belief_horizon=timedelta(0),
+            event_value=2.75,
+        )
+    )
+    db.session.add(
+        TimedBelief(
+            sensor=soc_sensor,
+            source=setup_sources["ENTSO-E"],
+            event_start=start - timedelta(minutes=30),
+            belief_horizon=timedelta(minutes=-15),
+            event_value=9.75,
+        )
+    )
+    db.session.flush()
+
+    scheduler = StorageScheduler(
+        power_sensor,
+        start,
+        end,
+        power_sensor.event_resolution,
+        flex_model={
+            "state-of-charge": {
+                "sensor": soc_sensor.id,
+                "sources": [setup_sources["Seita"].id],
+            },
+            "soc-min": "0 MWh",
+            "soc-max": "5 MWh",
+            "power-capacity": "2 MW",
+        },
+        flex_context={"consumption-price": {"sensor": setup_markets["epex_da"].id}},
+    )
+
+    scheduler.deserialize_config()
+
+    assert scheduler.flex_model["soc_at_start"] == 2.75
+
+
+def test_deserialize_storage_efficiency_from_filtered_sensor(
+    add_battery_assets, setup_sources, db
+):
+    battery = add_battery_assets["Test battery"]
+    power_sensor = next(s for s in battery.sensors if s.name == "power")
+    efficiency_sensor = Sensor(
+        name="storage-efficiency",
+        generic_asset=battery,
+        event_resolution=timedelta(hours=1),
+        unit="%",
+    )
+    db.session.add(efficiency_sensor)
+    db.session.add(
+        TimedBelief(
+            sensor=efficiency_sensor,
+            source=setup_sources["Seita"],
+            event_start="2015-01-01T00:00:00+01:00",
+            belief_horizon=timedelta(0),
+            event_value=90,
+        )
+    )
+    db.session.add(
+        TimedBelief(
+            sensor=efficiency_sensor,
+            source=setup_sources["ENTSO-E"],
+            event_start="2015-01-01T00:00:00+01:00",
+            belief_horizon=timedelta(minutes=-15),
+            event_value=80,
+        )
+    )
+    db.session.flush()
+
+    scheduler = StorageScheduler(
+        power_sensor,
+        pd.Timestamp("2015-01-01T00:00:00+01:00"),
+        pd.Timestamp("2015-01-01T02:00:00+01:00"),
+        power_sensor.event_resolution,
+        flex_model={
+            "soc-at-start": "2.5 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "5 MWh",
+            "power-capacity": "2 MW",
+            "storage-efficiency": {
+                "sensor": efficiency_sensor.id,
+                "sources": [setup_sources["Seita"].id],
+            },
+        },
+        flex_context={"consumption-price": "1 EUR/MWh"},
+    )
+
+    _, _, _, _, _, device_constraints, _, _ = scheduler._prepare(skip_validation=True)
+
+    assert device_constraints[0]["efficiency"].iloc[0] == pytest.approx(0.9**0.25)
+
+
+def test_deserialize_storage_soc_at_start_from_state_of_charge_time_series(
+    add_charging_station_assets, setup_markets
+):
+    start = pd.Timestamp("2015-01-01T00:00:00+01:00")
+    end = start + timedelta(hours=12)
+    charging_station = add_charging_station_assets["Test charging station"]
+    power_sensor = next(s for s in charging_station.sensors if s.name == "power")
+
+    scheduler = StorageScheduler(
+        power_sensor,
+        start,
+        end,
+        power_sensor.event_resolution,
+        flex_model={
+            "state-of-charge": [
+                {
+                    "start": "2014-12-31T23:30:00+01:00",
+                    "end": "2015-01-01T00:30:00+01:00",
+                    "value": "3.1 MWh",
+                }
+            ],
+            "soc-min": "0 MWh",
+            "soc-max": "5 MWh",
+            "power-capacity": "2 MW",
+        },
+        flex_context={"consumption-price": {"sensor": setup_markets["epex_da"].id}},
+    )
+
+    scheduler.deserialize_config()
+
+    assert scheduler.flex_model["soc_at_start"] == 3.1
+
+
+def test_deserialize_storage_soc_at_start_rejects_stale_state_of_charge_sensor(
+    add_charging_station_assets, setup_markets, setup_sources, db
+):
+    start = pd.Timestamp("2015-01-01T06:00:00+01:00")
+    end = start + timedelta(hours=12)
+    charging_station = add_charging_station_assets["Test charging station"]
+    power_sensor = next(s for s in charging_station.sensors if s.name == "power")
+    soc_sensor = add_charging_station_assets["uni-soc"]
+
+    db.session.add(
+        TimedBelief(
+            sensor=soc_sensor,
+            source=setup_sources["Seita"],
+            event_start=start - timedelta(hours=2),
+            belief_horizon=timedelta(0),
+            event_value=2.75,
+        )
+    )
+    db.session.flush()
+
+    scheduler = StorageScheduler(
+        power_sensor,
+        start,
+        end,
+        power_sensor.event_resolution,
+        flex_model={
+            "state-of-charge": {"sensor": soc_sensor.id},
+            "soc-min": "0 MWh",
+            "soc-max": "5 MWh",
+            "power-capacity": "2 MW",
+        },
+        flex_context={"consumption-price": {"sensor": setup_markets["epex_da"].id}},
+    )
+
+    with pytest.raises(ValueError, match="No recent state-of-charge value found"):
+        scheduler.deserialize_config()
+
+
+def test_deserialize_storage_soc_at_start_rejects_missing_state_of_charge_sensor(
+    add_charging_station_assets, setup_markets
+):
+    start = pd.Timestamp("2015-01-01T00:00:00+01:00")
+    end = start + timedelta(hours=12)
+    charging_station = add_charging_station_assets["Test charging station"]
+    power_sensor = next(s for s in charging_station.sensors if s.name == "power")
+
+    scheduler = StorageScheduler(
+        power_sensor,
+        start,
+        end,
+        power_sensor.event_resolution,
+        flex_model={
+            "state-of-charge": {"sensor": 999999},
+            "soc-min": "0 MWh",
+            "soc-max": "5 MWh",
+            "power-capacity": "2 MW",
+        },
+        flex_context={"consumption-price": {"sensor": setup_markets["epex_da"].id}},
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="State-of-charge sensor with id 999999 was not found.",
+    ):
+        scheduler._resolve_soc_at_start_from_state_of_charge(  # noqa: SLF001
+            scheduler.flex_model, power_sensor
+        )
+
+
+def test_resolve_soc_at_start_from_percent_sensor_uses_device_sensor_fallback(
+    add_charging_station_assets, db, setup_sources
+):
+    start = pd.Timestamp("2015-01-01T00:00:00+01:00")
+    end = start + timedelta(hours=12)
+    charging_station = add_charging_station_assets["Test charging station"]
+    power_sensor = next(s for s in charging_station.sensors if s.name == "power")
+    soc_sensor = Sensor(
+        name="soc-percent",
+        generic_asset=charging_station,
+        event_resolution=timedelta(0),
+        unit="%",
+    )
+    db.session.add(soc_sensor)
+    db.session.flush()
+    db.session.add(
+        TimedBelief(
+            sensor=soc_sensor,
+            source=setup_sources["Seita"],
+            event_start=start - timedelta(minutes=15),
+            belief_horizon=timedelta(0),
+            event_value=50,
+        )
+    )
+    db.session.flush()
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=power_sensor.generic_asset.parent_asset,
+        start=start,
+        end=end,
+        resolution=power_sensor.event_resolution,
+        flex_model={},
+    )
+
+    assert scheduler.sensor is None
+    assert (
+        scheduler._resolve_soc_at_start_from_sensor(  # noqa: SLF001
+            soc_sensor, {}, power_sensor
+        )
+        == 2.5
+    )

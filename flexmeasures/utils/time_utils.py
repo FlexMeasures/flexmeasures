@@ -64,6 +64,18 @@ def naive_utc_from(dt: datetime) -> datetime:
         return dt.astimezone(pytz.utc).replace(tzinfo=None)
 
 
+def as_utc_isoformat(dt: datetime | None) -> str | None:
+    """Return an ISO-formatted UTC datetime string.
+
+    If dt is naive, assume it already represents UTC time.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat()
+
+
 def tz_index_naively(
     data: pd.DataFrame | pd.Series | pd.DatetimeIndex,
 ) -> pd.DataFrame | pd.Series | pd.DatetimeIndex:
@@ -255,37 +267,6 @@ def get_most_recent_clocktime_window(
 
 def get_first_day_of_next_month() -> datetime:
     return (datetime.now().replace(day=1) + timedelta(days=32)).replace(day=1)
-
-
-def forecast_horizons_for(resolution: str | timedelta) -> list[str] | list[timedelta]:
-    """Return a list of horizons that are supported per resolution.
-    Return values or of the same type as the input."""
-    if isinstance(resolution, timedelta):
-        resolution_str = timedelta_to_pandas_freq_str(resolution)
-    else:
-        resolution_str = resolution
-    horizons = []
-    if resolution_str in ("5T", "5min", "10T", "10min"):
-        horizons = ["1h", "6h", "24h"]
-    elif resolution_str in ("15T", "15min", "1h", "H"):
-        horizons = ["1h", "6h", "24h", "48h"]
-    elif resolution_str in ("24h", "D"):
-        horizons = ["24h", "48h"]
-    elif resolution_str in ("168h", "7D"):
-        horizons = ["168h"]
-    if isinstance(resolution, timedelta):
-        return [pd.to_timedelta(to_offset(h)) for h in horizons]
-    else:
-        return horizons
-
-
-def supported_horizons() -> list[timedelta]:
-    return [
-        timedelta(hours=1),
-        timedelta(hours=6),
-        timedelta(hours=24),
-        timedelta(hours=48),
-    ]
 
 
 def timedelta_to_pandas_freq_str(resolution: timedelta) -> str:

@@ -118,7 +118,7 @@ def copy_time_series_data(
     # Copy in batches and report on progress
     for i in range(len(results) // batch_size + 1):
         if i > 0:
-            print(f"  - done copying {i*batch_size} rows...")
+            print(f"  - done copying {i * batch_size} rows...")
 
         insert_values = []
         for values in results[i * batch_size : (i + 1) * batch_size]:

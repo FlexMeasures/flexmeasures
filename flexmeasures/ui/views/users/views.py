@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from flask import request
 from flask_classful import FlaskView
-from flask_security.core import current_user
 from flask_security import login_required
 from werkzeug.exceptions import Forbidden, Unauthorized
 from sqlalchemy import select
 
-from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.policy import check_access, ADMIN_ROLE
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User, Role, Account
@@ -16,6 +15,7 @@ from flexmeasures.data.services.users import (
     reset_password,
 )
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
+from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 
 """
 User Crud views for admins and consultants.
@@ -24,9 +24,14 @@ User Crud views for admins and consultants.
 
 def render_user(user: User | None, msg: str | None = None):
     """Renders the user details page."""
+    user_can_view_account_auditlog = True
+    try:
+        check_access(AuditLog.account_table_acl(user.account), "read")
+    except (Forbidden, Unauthorized):
+        user_can_view_account_auditlog = False
     user_view_user_auditlog = True
     try:
-        check_access(AuditLog.user_table_acl(current_user), "read")
+        check_access(AuditLog.user_table_acl(user), "read")
     except (Forbidden, Unauthorized):
         user_view_user_auditlog = False
 
@@ -38,7 +43,8 @@ def render_user(user: User | None, msg: str | None = None):
 
     roles = {}
     for role in db.session.scalars(select(Role)).all():
-        roles[role.name] = role.id
+        if role.name != ADMIN_ROLE:
+            roles[role.name] = role.id
 
     user_roles = []
     if user is not None:
@@ -46,6 +52,7 @@ def render_user(user: User | None, msg: str | None = None):
 
     return render_flexmeasures_template(
         "users/user.html",
+        can_view_account_auditlog=user_can_view_account_auditlog,
         can_view_user_auditlog=user_view_user_auditlog,
         can_edit_user_details=can_edit_user_details,
         user=user,
@@ -53,6 +60,7 @@ def render_user(user: User | None, msg: str | None = None):
         roles=roles,
         asset_count=user.account.number_of_assets,
         msg=msg,
+        breadcrumb_info=get_breadcrumb_info(user),
     )
 
 

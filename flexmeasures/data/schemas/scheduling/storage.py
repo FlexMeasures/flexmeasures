@@ -18,7 +18,11 @@ from flexmeasures import Asset, Sensor
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata
-from flexmeasures.data.schemas.sensors import VariableQuantityField
+from flexmeasures.data.schemas.sensors import (
+    SensorReference,
+    SensorReferenceSchema,
+    VariableQuantityField,
+)
 from flexmeasures.utils.unit_utils import (
     ur,
     is_power_unit,
@@ -38,9 +42,19 @@ SoCTarget = TypedDict(
     total=False,  # not all are required (just value, which we can say in 3.11)
 )
 
+# Keys used by SensorReferenceSchema to carry source-filter options.
+# Present as non-None values when the caller added a source filter.
+_SENSOR_REFERENCE_SOURCE_FILTER_KEYS = (
+    "source_types",
+    "exclude_source_types",
+    "sources",
+    "source_account",
+)
+
 
 class EfficiencyField(QuantityField):
-    """Field that deserializes to a Quantity with % units. Must be greater than 0% and less than or equal to 100%.
+    """Field that deserializes to a Quantity with % units.
+    Fixed values must be greater than 0% and less than or equal to 100%.
 
     Examples:
 
@@ -79,6 +93,15 @@ class StorageFlexModelSchema(Schema):
     asset = GenericAssetIdField(
         required=False,
         metadata=dict(description="ID of the asset that is requested to be scheduled."),
+    )
+
+    consumption = fields.Nested(
+        SensorReferenceSchema,
+        metadata=metadata.CONSUMPTION.to_dict(),
+    )
+    production = fields.Nested(
+        SensorReferenceSchema,
+        metadata=metadata.PRODUCTION.to_dict(),
     )
 
     soc_at_start = QuantityField(
@@ -180,6 +203,7 @@ class StorageFlexModelSchema(Schema):
         to_unit="MWh",
         data_key="state-of-charge",
         required=False,
+        additional_sensor_units=["%"],
         metadata=metadata.STATE_OF_CHARGE.to_dict(),
     )
 
@@ -235,6 +259,13 @@ class StorageFlexModelSchema(Schema):
         self.start = start
         self.sensor = sensor
         self.timezone = sensor.timezone if sensor is not None else None
+        self.flooring_resolution = (
+            sensor.event_resolution
+            if sensor is not None
+            and sensor.event_resolution != timedelta(0)
+            and sensor.get_attribute("floor_datetimes_to_resolution", True)
+            else None
+        )
 
         # guess default soc-unit
         if default_soc_unit is None:
@@ -249,6 +280,7 @@ class StorageFlexModelSchema(Schema):
             to_unit="MWh",
             default_src_unit=default_soc_unit,
             timezone=self.timezone,
+            event_resolution=self.flooring_resolution,
             data_key="soc-maxima",
         )
 
@@ -256,6 +288,7 @@ class StorageFlexModelSchema(Schema):
             to_unit="MWh",
             default_src_unit=default_soc_unit,
             timezone=self.timezone,
+            event_resolution=self.flooring_resolution,
             data_key="soc-minima",
             value_validator=validate.Range(min=0),
         )
@@ -263,6 +296,7 @@ class StorageFlexModelSchema(Schema):
             to_unit="MWh",
             default_src_unit=default_soc_unit,
             timezone=self.timezone,
+            event_resolution=self.flooring_resolution,
             data_key="soc-targets",
         )
 
@@ -279,7 +313,7 @@ class StorageFlexModelSchema(Schema):
             return
         soc_targets: list[SoCTarget] | Sensor | None = data.get("soc_targets")
         # skip check if the SOC targets are not provided or if they are defined as sensors
-        if not soc_targets or isinstance(soc_targets, Sensor):
+        if not soc_targets or isinstance(soc_targets, (Sensor, SensorReference)):
             return
         max_target_datetime = max([target["end"] for target in soc_targets])
         max_server_horizon = current_app.config.get("FLEXMEASURES_MAX_PLANNING_HORIZON")
@@ -294,35 +328,62 @@ class StorageFlexModelSchema(Schema):
             )
 
     @validates("state_of_charge")
-    def validate_state_of_charge_is_sensor(
-        self, state_of_charge: Sensor | list[dict] | ur.Quantity, **kwargs
+    def validate_state_of_charge(
+        self, state_of_charge: Sensor | SensorReference | list[dict], **kwargs
     ):
-        if not isinstance(state_of_charge, Sensor):
-            raise ValidationError(
-                "The `state-of-charge` field can only be a Sensor. In the future, the state-of-charge field will replace soc-at-start field."
-            )
-
-        if state_of_charge.event_resolution != timedelta(0):
+        if isinstance(
+            state_of_charge, (Sensor, SensorReference)
+        ) and state_of_charge.event_resolution != timedelta(0):
             raise ValidationError(
                 "The field `state-of-charge` points to a sensor with a non-instantaneous event resolution. Please, use an instantaneous sensor."
             )
+        if not isinstance(state_of_charge, (Sensor, SensorReference, list)):
+            raise ValidationError(
+                "The `state-of-charge` field can only be a Sensor or a time series."
+            )
+
+    @validates("consumption")
+    def validate_consumption_has_no_source_filters(self, value: dict, **kwargs):
+        if isinstance(value, dict) and any(
+            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
+        ):
+            raise ValidationError("The `consumption` field cannot use source filters.")
+
+    @validates("production")
+    def validate_production_has_no_source_filters(self, value: dict, **kwargs):
+        if isinstance(value, dict) and any(
+            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
+        ):
+            raise ValidationError("The `production` field cannot use source filters.")
 
     @validates("asset")
     def validate_asset(self, asset: Asset, **kwargs):
         if self.sensor is not None and self.sensor.asset != asset:
             raise ValidationError("Sensor does not belong to asset.")
 
-    @validates("storage_efficiency")
-    def validate_storage_efficiency_resolution(
-        self, unit: Sensor | ur.Quantity, **kwargs
-    ):
+    @validates_schema
+    def validate_storage_efficiency_resolution(self, data: dict, **kwargs):
+        unit = data.get("storage_efficiency")
+        consumption = data.get("consumption")
+        production = data.get("production")
+        consumption_is_sensor = isinstance(consumption, dict) and isinstance(
+            consumption.get("sensor"), (Sensor, SensorReference)
+        )
+        production_is_sensor = isinstance(production, dict) and isinstance(
+            production.get("sensor"), (Sensor, SensorReference)
+        )
         if (
-            self.sensor is not None
-            and isinstance(unit, Sensor)
-            and unit.event_resolution != self.sensor.event_resolution
+            isinstance(unit, ur.Quantity)
+            and not self.sensor
+            and not consumption_is_sensor
+            and not production_is_sensor
         ):
             raise ValidationError(
-                "Event resolution of the storage efficiency and the power sensor don't match. Resampling the storage efficiency is not supported."
+                "The storage-efficiency cannot be interpreted without a resolution. "
+                "Record the storage-efficiency on a sensor instead (with a non-zero resolution) and then reference that sensor in the flex-model. "
+                "Alternatively, set the consumption or production field in the flex-model to reference a sensor, "
+                "and the scheduler will assume their resolution is the one to use.",
+                field_name="storage-efficiency",
             )
 
     @validates_schema
@@ -374,6 +435,9 @@ class DBStorageFlexModelSchema(Schema):
     Schema for flex-models stored in the db. Supports fixed quantities and sensor references, while disallowing time series specs.
     """
 
+    consumption = fields.Nested(SensorReferenceSchema)
+    production = fields.Nested(SensorReferenceSchema)
+
     soc_min = VariableQuantityField(
         to_unit="MWh",
         data_key="soc-min",
@@ -416,6 +480,7 @@ class DBStorageFlexModelSchema(Schema):
         data_key="state-of-charge",
         required=False,
         value_validator=validate.Range(min=0),
+        additional_sensor_units=["%"],
     )
 
     soc_gain = fields.List(
@@ -454,7 +519,8 @@ class DBStorageFlexModelSchema(Schema):
         metadata={"deprecated field": "discharging-efficiency"},
     )
 
-    storage_efficiency = EfficiencyField(
+    storage_efficiency = VariableQuantityField(
+        "%",
         data_key="storage-efficiency",
         required=False,
         metadata={"deprecated field": "storage_efficiency"},
@@ -504,6 +570,20 @@ class DBStorageFlexModelSchema(Schema):
             for field in self.declared_fields
         }
 
+    @validates("consumption")
+    def validate_consumption_has_no_source_filters(self, value: dict, **kwargs):
+        if isinstance(value, dict) and any(
+            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
+        ):
+            raise ValidationError("The `consumption` field cannot use source filters.")
+
+    @validates("production")
+    def validate_production_has_no_source_filters(self, value: dict, **kwargs):
+        if isinstance(value, dict) and any(
+            value.get(key) is not None for key in _SENSOR_REFERENCE_SOURCE_FILTER_KEYS
+        ):
+            raise ValidationError("The `production` field cannot use source filters.")
+
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
         """Do not allow time series specs for the flex-model fields saved in the db."""
@@ -539,12 +619,19 @@ class DBStorageFlexModelSchema(Schema):
             "soc_minima",
             "soc_maxima",
             "soc_targets",
-            "state_of_charge",
         ]
 
         for field in energy_fields:
             if field in data:
                 self._validate_field(data, field, unit_validator=is_energy_unit)
+
+        # state_of_charge sensors may use an energy unit or '%'
+        if "state_of_charge" in data:
+            self._validate_field(
+                data,
+                "state_of_charge",
+                unit_validator=lambda u: is_energy_unit(u) or u == "%",
+            )
 
     def _validate_power_fields(self, data: dict):
         """Validate power fields."""
@@ -576,7 +663,7 @@ class DBStorageFlexModelSchema(Schema):
                                 f"Field '{self.mapped_schema_keys[field]}' must have a power unit.",
                                 field_name=self.mapped_schema_keys[field],
                             )
-                    elif isinstance(item, Sensor):
+                    elif isinstance(item, (Sensor, SensorReference)):
                         if not is_power_unit(item.unit):
                             raise ValidationError(
                                 f"Field '{self.mapped_schema_keys[field]}' must have a power unit.",
@@ -602,7 +689,7 @@ class DBStorageFlexModelSchema(Schema):
                     f"Field '{self.mapped_schema_keys[field]}' failed unit validation by {unit_validator.__name__}.",
                     field_name=self.mapped_schema_keys[field],
                 )
-        elif isinstance(data[field], Sensor):
+        elif isinstance(data[field], (Sensor, SensorReference)):
             if not unit_validator(data[field].unit):
                 raise ValidationError(
                     f"Field '{self.mapped_schema_keys[field]}' failed unit validation by {unit_validator.__name__}.",

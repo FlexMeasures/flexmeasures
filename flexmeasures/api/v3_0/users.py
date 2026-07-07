@@ -9,7 +9,7 @@ from flask_security import current_user, auth_required
 from flask_security.recoverable import send_reset_password_instructions
 from flask_json import as_json
 from werkzeug.exceptions import Forbidden
-from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.policy import can_modify_role, check_access
 
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import User as UserModel, Account
@@ -25,7 +25,7 @@ from flexmeasures.data.services.users import (
 )
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
-from flexmeasures.utils.time_utils import server_now, naturalized_datetime_str
+from flexmeasures.utils.time_utils import server_now
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 
 
@@ -193,8 +193,16 @@ class UserAPI(FlaskView):
                     "flexmeasures_roles": [
                         role.name for role in user.flexmeasures_roles
                     ],
-                    "last_login_at": naturalized_datetime_str(user.last_login_at),
-                    "last_seen_at": naturalized_datetime_str(user.last_seen_at),
+                    "last_login_at": (
+                        user.last_login_at.isoformat()
+                        if user.last_login_at is not None
+                        else None
+                    ),
+                    "last_seen_at": (
+                        user.last_seen_at.isoformat()
+                        if user.last_seen_at is not None
+                        else None
+                    ),
                 }
                 for user in paginated_users.items
             ]
@@ -212,8 +220,16 @@ class UserAPI(FlaskView):
                     "flexmeasures_roles": [
                         role.name for role in user.flexmeasures_roles
                     ],
-                    "last_login_at": naturalized_datetime_str(user.last_login_at),
-                    "last_seen_at": naturalized_datetime_str(user.last_seen_at),
+                    "last_login_at": (
+                        user.last_login_at.isoformat()
+                        if user.last_login_at is not None
+                        else None
+                    ),
+                    "last_seen_at": (
+                        user.last_seen_at.isoformat()
+                        if user.last_seen_at is not None
+                        else None
+                    ),
                 }
                 for user in users
             ]
@@ -377,7 +393,7 @@ class UserAPI(FlaskView):
             It has to be used by the user themselves, admins, consultant or account-admins (of the same account).
             Any subset of user fields can be sent.
             If the user is not an (account-)admin, they can only edit a few of their own fields.
-            User roles cannot be updated by everyone - it requires certain access levels (roles, account), with the general rule that you need a higher access level than the role being updated.
+            User role updates require explicit permission for every role being added or removed, generally by a user with a higher access level than the role being updated. Unsupported, unknown, or otherwise unresolved roles are denied.
 
             The following fields are not allowed to be updated at all:
             - id
@@ -444,8 +460,6 @@ class UserAPI(FlaskView):
                 )
             # if flexmeasures_roles is not empty, check if the user can modify the role
             if k == "flexmeasures_roles" and (v or len(v) == 0):
-                from flexmeasures.auth.policy import can_modify_role
-
                 current_roles = set(user.flexmeasures_roles)
                 new_roles = set(v)
 
@@ -624,9 +638,7 @@ class UserAPI(FlaskView):
             response = [
                 {
                     "event": audit_log.event,
-                    "event_datetime": naturalized_datetime_str(
-                        audit_log.event_datetime
-                    ),
+                    "event_datetime": audit_log.event_datetime.isoformat(),
                     "active_user_name": audit_log.active_user_name,
                     "active_user_id": audit_log.active_user_id,
                 }
@@ -644,9 +656,7 @@ class UserAPI(FlaskView):
             audit_logs_response = [
                 {
                     "event": audit_log.event,
-                    "event_datetime": naturalized_datetime_str(
-                        audit_log.event_datetime
-                    ),
+                    "event_datetime": audit_log.event_datetime.isoformat(),
                     "active_user_name": audit_log.active_user_name,
                     "active_user_id": audit_log.active_user_id,
                 }

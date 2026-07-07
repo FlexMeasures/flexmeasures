@@ -200,10 +200,37 @@ def permission_required_for_context(
             else:
                 context = context_from_args
 
-            check_access(context, permission)
+            _check_access_for_context(context, permission)
 
             return fn(*args, **kwargs)
 
         return decorated_view
 
     return wrapper
+
+
+def _check_access_for_context(context, permission: str):
+    """Check access for a single context, a list of contexts, or labeled context groups."""
+    if isinstance(context, dict):
+        for label, labeled_contexts in context.items():
+            contexts = (
+                labeled_contexts
+                if isinstance(labeled_contexts, list)
+                else [labeled_contexts]
+            )
+            for c in contexts:
+                try:
+                    check_access(c, permission)
+                except Forbidden as exc:
+                    setattr(
+                        exc,
+                        "api_message",
+                        f"You cannot be authorized for the '{label}' field "
+                        "because it references a sensor you cannot read.",
+                    )
+                    raise
+        return
+
+    contexts = context if isinstance(context, list) else [context]
+    for c in contexts:
+        check_access(c, permission)

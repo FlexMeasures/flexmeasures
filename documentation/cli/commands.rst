@@ -51,12 +51,14 @@ of which some are referred to in this documentation.
 ``flexmeasures show account``                     Show an account, its users and assets.
 ``flexmeasures show asset-types``                 List available asset types.
 ``flexmeasures show asset``                       Show an asset and its sensors.
+``flexmeasures show assets``                      Show all assets for a given account or public assets.
 ``flexmeasures show roles``                       List available account- and user roles.
 ``flexmeasures show data-sources``                List available data sources.
 ``flexmeasures show beliefs``                     Plot time series data.
 ``flexmeasures show reporters``                   List available reporters.
 ``flexmeasures show schedulers``                  List available schedulers.
 ``flexmeasures show chart``                       Export charts to PNG or SVG.
+``flexmeasures show forecasters``                 List available forecasters.
 ================================================= =======================================
 
 
@@ -66,11 +68,11 @@ of which some are referred to in this documentation.
 
 ================================================= =======================================
 ``flexmeasures edit attribute``                   Edit (or add) an asset attribute or sensor attribute.
+``flexmeasures edit secret``                      Edit (or add) an encrypted secret on an account or asset.
 ``flexmeasures edit resample-data``               Assign a new event resolution to an existing sensor and resample its data accordingly.
 ``flexmeasures edit transfer-parenthood``         (Re)assign parent assets.
 ``flexmeasures edit transfer-ownership``          Transfer the ownership of an asset and its children to a different account.
 ================================================= =======================================
-
 
 ``delete`` - Delete data
 --------------
@@ -81,6 +83,7 @@ of which some are referred to in this documentation.
 ``flexmeasures delete account``                   Delete a tenant account & also their users (with assets and power measurements).
 ``flexmeasures delete user``                      Delete a user & also their assets and power measurements.
 ``flexmeasures delete asset``                     Delete an asset & also its sensors and data.
+``flexmeasures delete secret``                    Delete an encrypted secret from an account or asset.
 ``flexmeasures delete sensor``                    Delete a sensor and all beliefs about it.
 ``flexmeasures delete beliefs``                   Delete time series data (beliefs).
 ``flexmeasures delete measurements``              Delete measurements (with horizon <= 0).
@@ -109,6 +112,8 @@ of which some are referred to in this documentation.
 ``flexmeasures jobs delete-queue``                Delete a job queue.
 ``flexmeasures jobs save-last``                   Save the last n jobs of your choice to a file. 
 ``flexmeasures jobs run-job``                     Run a single job (useful for debugging it)
+``flexmeasures jobs inspect-job``                 Inspect a background job and print its current status, result and metadata.
+``flexmeasures jobs stats``                       Show estimated live statistics of the queueing system.
 ================================================= =======================================
 
 

@@ -1,17 +1,18 @@
 from __future__ import annotations
+
 import json
 from datetime import datetime, timedelta
 from http import HTTPStatus
-from humanize import naturaldelta
 
-from flask import request, current_app
+from flask import abort, request, current_app
+from werkzeug.exceptions import Forbidden
 from flask_classful import FlaskView, route
 from flask_login import current_user
 from flask_security import auth_required
 from flask_json import as_json
 from flask_sqlalchemy.pagination import SelectPagination
 
-from marshmallow import fields, ValidationError, Schema, validate
+from marshmallow import fields, post_load, ValidationError, Schema, validate
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, func, or_
@@ -25,7 +26,10 @@ from flexmeasures.data.services.sensors import (
     build_asset_jobs_data,
     get_sensor_stats,
 )
-from flexmeasures.api.common.schemas.utils import make_openapi_compatible
+from flexmeasures.api.common.schemas.scheduling import (
+    flex_context_schema_openAPI,
+    storage_flex_model_schema_openAPI,
+)
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 from flexmeasures.api.common.schemas.assets import (
     AssetAPIQuerySchema,
@@ -35,6 +39,7 @@ from flexmeasures.api.common.schemas.assets import (
 from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
+from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -42,30 +47,34 @@ from flexmeasures.data.queries.generic_assets import (
     filter_assets_under_root,
     query_assets_by_search_terms,
 )
+from flexmeasures.data.queries.utils import id_prefix_filter
 from flexmeasures.data.schemas import AwareDateTimeField
+from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
     GenericAssetTypeSchema as AssetTypeSchema,
+    SensorsToShowSchema,
 )
-from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
-from flexmeasures.data.schemas.scheduling import AssetTriggerSchema, FlexContextSchema
+from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
 from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
     create_simultaneous_scheduling_job,
 )
-from flexmeasures.api.common.utils.api_utils import get_accessible_accounts
+from flexmeasures.api.common.utils.api_utils import (
+    get_accessible_accounts,
+    copy_asset,
+)
 from flexmeasures.api.common.responses import (
     unprocessable_entity,
     request_processed,
 )
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
-from flexmeasures.utils.coding_utils import (
-    flatten_unique,
-)
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
-from flexmeasures.auth.policy import check_access
+from flexmeasures.auth.policy import check_access, user_has_admin_access
+from flexmeasures.cli import is_running as running_as_cli
+from flexmeasures.auth.loaders import flex_context_loader, flex_model_loader
 from flexmeasures.data.schemas.sensors import (
     SensorSchema,
 )
@@ -74,6 +83,7 @@ from flexmeasures.data.utils import get_downsample_function_and_value
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
+annotation_schema = AnnotationSchema()
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
@@ -81,26 +91,35 @@ sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
 
 
-# Create FlexContext, FlexModel and AssetTrigger OpenAPI compatible schemas
-storage_flex_model_schema_openAPI = make_openapi_compatible(StorageFlexModelSchema)
-flex_context_schema_openAPI = make_openapi_compatible(FlexContextSchema)
+def sensor_term_filter(term: str):
+    filters = [Sensor.name.ilike(f"%{term}%")]
+    if term.isdecimal():
+        filters.append(id_prefix_filter(Sensor.id, term))
+    return or_(*filters)
 
 
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
+
+    def __init__(self, *args, **kwargs):
+        kwargs["exclude"] = ["asset"]
+        super().__init__(*args, **kwargs)
+
     flex_context = fields.Nested(
         flex_context_schema_openAPI,
-        required=True,
+        load_default={},
         data_key="flex-context",
         metadata=dict(
             description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
         ),
     )
-    flex_model = fields.Nested(
-        storage_flex_model_schema_openAPI,
-        required=True,
+    flex_model = fields.List(
+        fields.Nested(
+            storage_flex_model_schema_openAPI(exclude=["asset"]),
+        ),
+        load_default=[],
         data_key="flex-model",
         metadata=dict(
-            description="The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
+            description="Flex-model per device (identified by `sensor`). The flex-model may (partly) also be defined on the asset, and sending it here overrides those settings for the schedule at hand. The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
         ),
     )
 
@@ -155,6 +174,48 @@ class DefaultAssetViewJSONSchema(Schema):
 class KPIKwargsSchema(Schema):
     event_starts_after = AwareDateTimeField(format="iso", required=False)
     event_ends_before = AwareDateTimeField(format="iso", required=False)
+
+
+class CopyAssetSchema(Schema):
+    account = AccountIdField(
+        data_key="account",
+        required=False,
+        metadata=dict(
+            description="Target account to copy the asset to.",
+            example=67,
+        ),
+    )
+    parent_asset = AssetIdField(
+        data_key="parent",
+        required=False,
+        metadata=dict(
+            description="Target parent asset to copy the asset under.",
+            example=482,
+        ),
+    )
+
+    @post_load
+    def resolve_account_and_parent(self, data, **kwargs):
+        """
+        Resolve the account/parent relationship after loading:
+
+        - If ``account`` is explicitly given but ``parent_asset`` is not, the copy
+          becomes a top-level asset (no parent) in the given account.
+        - If ``parent_asset`` is explicitly given but ``account`` is not, the copy
+          inherits the account of the parent asset.
+        - If both are explicitly given, the copy can belong to a different account
+          than its parent, which is a valid cross-account parent relationship.
+        - If neither is given, the original asset's account and parent are preserved.
+        """
+        account_given = "account" in data
+        parent_given = "parent_asset" in data
+
+        if account_given and not parent_given:
+            data["parent_asset"] = None
+        elif parent_given and not account_given:
+            data["account"] = data["parent_asset"].owner
+
+        return data
 
 
 class AssetTypesAPI(FlaskView):
@@ -214,6 +275,7 @@ class AssetAPI(FlaskView):
         fields_in_response: list[str] | None,
         all_accessible: bool,
         include_public: bool,
+        asset_type: GenericAssetType | None = None,
         account: Account | None = None,
         root_asset: GenericAsset | None = None,
         max_depth: int | None = None,
@@ -234,13 +296,14 @@ class AssetAPI(FlaskView):
               - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
               - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
+              - The `asset_type` query parameter can be used to filter by generic asset type ID.
               - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).
               - The `depth` query parameter can be used to search only a max number of descendant generations from the root.
 
             The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
               - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
               - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
-              - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out assets where each search term is either present in their name or account name.
+              - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will return only assets where each search term is either present in their name or account name, or is a prefix of their ID.
               The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)
 
             Per default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).
@@ -299,16 +362,21 @@ class AssetAPI(FlaskView):
             check_access(account, "read")
             account_ids = [account.id]
         else:
-            use_all_accounts = all_accessible or root_asset
-            include_public = all_accessible or include_public or root_asset
-            account_ids = (
-                [a.id for a in get_accessible_accounts()]
-                if use_all_accounts
-                else [current_user.account.id]
+            use_all_accounts = all_accessible or (root_asset is not None)
+            include_public = (
+                all_accessible or include_public or (root_asset is not None)
             )
+            if use_all_accounts:
+                account_ids = [a.id for a in get_accessible_accounts()]
+            else:
+                account_ids = [current_user.account.id]
         filter_statement = GenericAsset.account_id.in_(account_ids)
         if include_public:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
+        if asset_type is not None:
+            filter_statement = filter_statement & (
+                GenericAsset.generic_asset_type_id == asset_type.id
+            )
 
         query = query_assets_by_search_terms(
             search_terms=filter,
@@ -362,6 +430,7 @@ class AssetAPI(FlaskView):
         location="path",
     )
     @use_kwargs(AssetPaginationSchema, location="query")
+    @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
     def asset_sensors(
         self,
@@ -381,10 +450,11 @@ class AssetAPI(FlaskView):
           description: |
             This endpoint returns all sensors under an asset.
 
-            The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
+            The endpoint supports pagination of the sensor list using the `page` and `per_page` query parameters.
 
             - If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.
-            - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+            - If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).
+            - If a search 'filter' is provided, the response will return only sensors where a search term is either present in their name or is a prefix of their ID.
             The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
           security:
             - ApiKeyAuth: []
@@ -402,30 +472,28 @@ class AssetAPI(FlaskView):
               content:
                 application/json:
                   examples:
-                    single_asset:
-                      summary: One asset being returned in the response
+                    single_sensor:
+                      summary: One sensor being returned in the response
                       value:
                         data:
                         - id: 1
-                          name: Test battery
-                          latitude: 10
-                          longitude: 100
-                          account_id: 2
-                          generic_asset_type:
-                            id: 1
-                            name: battery
-                    paginated_assets:
-                      summary: A paginated list of assets being returned in the response
+                          name: Test battery power
+                          unit: kW
+                          event_resolution: PT15M
+                          generic_asset_id: 1
+                          timezone: Europe/Amsterdam
+                          entity_address: "ea1.2021-01.io.flexmeasures.company:fm1.42"
+                    paginated_sensors:
+                      summary: A paginated list of sensors being returned in the response
                       value:
                         data:
                         - id: 1
-                          name: Test battery
-                          latitude: 10
-                          longitude: 100
-                          account_id: 2
-                          generic_asset_type:
-                            id: 1
-                            name: battery
+                          name: Test battery power
+                          unit: kW
+                          event_resolution: PT15M
+                          generic_asset_id: 1
+                          timezone: Europe/Amsterdam
+                          entity_address: "ea1.2021-01.io.flexmeasures.company:fm1.42"
                         num-records: 1
                         filtered-records: 1
             400:
@@ -444,17 +512,15 @@ class AssetAPI(FlaskView):
         query = select(Sensor).filter(query_statement)
 
         if filter:
-            search_terms = filter[0].split(" ")
-            query = query.filter(
-                or_(*[Sensor.name.ilike(f"%{term}%") for term in search_terms])
-            )
+            query = query.filter(or_(*(sensor_term_filter(term) for term in filter)))
 
-        if sort_by is not None and sort_dir is not None:
+        if sort_by is not None:
             valid_sort_columns = {
                 "id": Sensor.id,
                 "name": Sensor.name,
                 "resolution": Sensor.event_resolution,
             }
+            sort_dir = sort_dir or "asc"
 
             query = query.order_by(
                 valid_sort_columns[sort_by].asc()
@@ -473,7 +539,6 @@ class AssetAPI(FlaskView):
         sensors_response: list = [
             {
                 **sensor_schema.dump(sensor),
-                "event_resolution": naturaldelta(sensor.event_resolution),
             }
             for sensor in select_pagination.items
         ]
@@ -528,9 +593,6 @@ class AssetAPI(FlaskView):
         return response_schema.dump(assets), 200
 
     @route("", methods=["POST"])
-    @permission_required_for_context(
-        "create-children", ctx_loader=AccountIdField.load_current
-    )
     @use_args(asset_schema)
     def post(self, asset_data: dict):
         """
@@ -602,6 +664,33 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        # When placing the new asset under a parent, check create-children on the
+        # parent asset (any account member may add children to an asset they can see).
+        # When creating a top-level asset (no parent), check create-children on the
+        # target account, which requires account-admin or consultant.
+        # This aligns with the copy_assets endpoint.
+        parent_asset_id = asset_data.get("parent_asset_id")
+        if parent_asset_id is not None:
+            parent_asset = db.session.get(GenericAsset, parent_asset_id)
+            if parent_asset is None:
+                abort(404, f"Parent asset with id {parent_asset_id} not found.")
+            check_access(parent_asset, "create-children")
+        else:
+            account_id = asset_data.get("account_id")
+            if account_id is not None:
+                account = db.session.get(Account, account_id)
+                check_access(account, "create-children")
+            elif not running_as_cli() and not user_has_admin_access(
+                current_user, "update"
+            ):
+                # Public asset (account_id is None). Only site admins and CLI may create
+                # public assets. Note: GenericAssetSchema.validate_account only runs for
+                # explicitly-provided account_id values; when account_id is absent from
+                # the request body, that validator is not called by Marshmallow.
+                raise Forbidden(
+                    "Only site admins may create public assets (account_id=None)."
+                )
+
         asset = create_asset(asset_data)
         db.session.commit()
 
@@ -662,7 +751,6 @@ class AssetAPI(FlaskView):
         return asset_schema.dump(asset), 200
 
     @route("/<id>", methods=["PATCH"])
-    @use_args(patch_asset_schema)
     @use_kwargs(
         {
             "db_asset": AssetIdField(
@@ -673,7 +761,7 @@ class AssetAPI(FlaskView):
     )
     @permission_required_for_context("update", ctx_arg_name="db_asset")
     @as_json
-    def patch(self, asset_data: dict, id: int, db_asset: GenericAsset):
+    def patch(self, id: int, db_asset: GenericAsset):
         """
         .. :quickref: Assets; Update an asset given its identifier.
         ---
@@ -731,10 +819,26 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        # For us to be able to add our own context, we need to validate the data ourselves
+        asset_data = request.get_json()
+        if not asset_data:
+            return unprocessable_entity("No JSON data provided.")
+
+        asset_schema = AssetSchema(partial=True)
+        asset_schema.context = {
+            "asset": db_asset
+        }  # context for validating fields like parent_asset_id
+
         try:
-            db_asset = patch_asset(db_asset, asset_data)
+            validated_data = asset_schema.load(asset_data)
         except ValidationError as e:
-            return unprocessable_entity(str(e.messages))
+            return unprocessable_entity(e.messages)
+
+        try:
+            db_asset = patch_asset(db_asset, validated_data)
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+
         db.session.add(db_asset)
         db.session.commit()
         return asset_schema.dump(db_asset), 200
@@ -896,8 +1000,8 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        sensors = flatten_unique(asset.validate_sensors_to_show())
-        return asset.search_beliefs(sensors=sensors, as_json=True, **kwargs)
+        sensors = SensorsToShowSchema.flatten(asset.validate_sensors_to_show())
+        return asset.chart_data_json(sensors=sensors, **kwargs)
 
     @route("/<id>/auditlog")
     @use_kwargs(
@@ -1230,6 +1334,18 @@ class AssetAPI(FlaskView):
     # Simplification of checking for create-children access on each of the flexible sensors,
     # which assumes each of the flexible sensors belongs to the given asset.
     @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_model",
+        ctx_loader=flex_model_loader,
+        pass_ctx_to_loader=True,
+    )
+    @permission_required_for_context(
+        "read",
+        ctx_arg_name="flex_context",
+        ctx_loader=flex_context_loader,
+        pass_ctx_to_loader=True,
+    )
     def trigger_schedule(
         self,
         asset: GenericAsset,
@@ -1240,6 +1356,7 @@ class AssetAPI(FlaskView):
         flex_model: dict | None = None,
         flex_context: dict | None = None,
         sequential: bool = False,
+        force_new_job_creation: bool | None = False,
         **kwargs,
     ):
         """
@@ -1286,9 +1403,7 @@ class AssetAPI(FlaskView):
             - in: path
               name: id
               required: true
-              description: ID of the asset to schedule.
-              schema:
-                type: integer
+              $ref: '#/components/parameters/AssetIdPath'
 
           requestBody:
               content:
@@ -1318,6 +1433,8 @@ class AssetAPI(FlaskView):
                               power-capacity: 25 kW
                               consumption-capacity: {sensor: 42}
                               production-capacity: 30 kW
+                              soc-minima:
+                                - {start: "2015-06-02T12:00:00+00:00", end: "2015-06-02T13:00:00+00:00", value: 10 kWh}
                             - sensor: 932
                               consumption-capacity: 0 kW
                               production-capacity: {sensor: 760}
@@ -1414,7 +1531,12 @@ class AssetAPI(FlaskView):
         else:
             f = create_simultaneous_scheduling_job
         try:
-            job = f(asset=asset, enqueue=True, **scheduler_kwargs)
+            job = f(
+                asset=asset,
+                enqueue=True,
+                force_new_job_creation=force_new_job_creation,
+                **scheduler_kwargs,
+            )
         except ValidationError as err:
             return unprocessable_entity(err.messages)
         except ValueError as err:
@@ -1527,3 +1649,190 @@ class AssetAPI(FlaskView):
             }
             kpis.append(kpi_dict)
         return dict(data=kpis), 200
+
+    @route("/<id>/annotations", methods=["POST"])
+    @use_kwargs({"asset": AssetIdField(data_key="id")}, location="path")
+    @use_args(annotation_schema)
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    def post_annotation(self, annotation: Annotation, id: int, asset: GenericAsset):
+        """.. :quickref: Assets; Add an annotation to an asset.
+        ---
+        post:
+          summary: Creates a new asset annotation.
+          description: |
+            This endpoint creates a new :ref:`annotation <annotations>` on an asset.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - name: id
+              in: path
+              description: The ID of the asset to register the annotation on.
+              required: true
+              schema:
+                type: integer
+          requestBody:
+            content:
+              application/json:
+                schema: AnnotationSchema
+          responses:
+            200:
+              description: OK
+            201:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+            - Annotations
+        """
+
+        # Use get_or_create to handle duplicates gracefully
+        annotation, is_new = get_or_create_annotation(annotation)
+
+        # Link annotation to asset
+        if annotation not in asset.annotations:
+            asset.annotations.append(annotation)
+
+        db.session.commit()
+
+        # Return appropriate status code
+        status_code = 201 if is_new else 200
+        return annotation_schema.dump(annotation), status_code
+
+    @route("/<id>/copy", methods=["POST"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
+    @use_kwargs(CopyAssetSchema, location="query")
+    @as_json
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    def copy_assets(
+        self,
+        id,
+        asset: GenericAsset,
+        account: Account | None = None,
+        parent_asset: GenericAsset | None = None,
+    ):
+        """
+        .. :quickref: Assets; Copy an asset to a target account and/or parent.
+        ---
+        post:
+          summary: Copy an asset to a target account and/or parent.
+          description: |
+            This endpoint creates a copy of an existing asset.
+
+            The asset copy will also have copies of child assets, including sensors and flex-configuration.
+            No beliefs will be copied.
+
+            The new asset can optionally be placed under a `target` account and/or `parent` asset.
+
+            Resolution rules:
+
+            - If both `target` and `account` are omitted, the copy remains in the same account and keeps the same parent as the original.
+            - If `account` is provided and `parent` is omitted, parent defaults to `null`.
+            - If `parent` is provided and `account` is omitted, account is derived from that parent.
+            - If both are provided, it is possible to assign the copied asset to a different account than the parent.
+
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              description: ID of the asset to copy.
+              required: true
+              schema:
+                type: integer
+            - in: query
+              schema: CopyAssetSchema
+          responses:
+            201:
+              description: CREATED
+              content:
+                application/json:
+                  example:
+                    message: Successfully copied asset 10 to account 2.
+                    asset: 99
+            400:
+              description: INVALID_REQUEST
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        # Resolve effective targets for permission checks and fallback behavior.
+        # If neither target is given, use the source asset's account/parent.
+        resolved_account = account or asset.owner
+        resolved_parent = (
+            parent_asset
+            if account is not None
+            else (parent_asset or asset.parent_asset)
+        )
+
+        # When placing the copy under a parent asset, the parent's create-children
+        # permission is sufficient (any account member may add children to an asset).
+        # When creating a top-level asset (no parent), we fall back to the account-level
+        # create-children check, which requires account-admin or consultant.
+        # Special case: public-to-public copies (both None) require site admin.
+        if resolved_parent is not None:
+            check_access(resolved_parent, "create-children")
+        elif resolved_account is not None:
+            check_access(resolved_account, "create-children")
+        else:
+            # Public asset copy (account_id=None, parent_asset_id=None).
+            # Only site admins may create public assets.
+            if not running_as_cli() and not user_has_admin_access(
+                current_user, "update"
+            ):
+                raise Forbidden(
+                    "Only site admins may create public assets (account_id=None)."
+                )
+
+        try:
+            new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)
+        except ValueError as err:
+            return unprocessable_entity(str(err))
+
+        account_given = "account" in request.args
+        parent_given = "parent" in request.args
+
+        if not parent_given and not account_given:
+            message = f"Successfully copied asset {asset.id}."
+        elif parent_given and not account_given:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to parent asset {new_asset.parent_asset_id}."
+            )
+        elif not parent_given and account_given:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to account {new_asset.account_id}."
+            )
+        else:
+            message = (
+                f"Successfully copied asset {asset.id} "
+                f"to account {new_asset.account_id} "
+                f"under parent {new_asset.parent_asset_id}."
+            )
+
+        return {
+            "message": message,
+            "asset": new_asset.id,
+        }, 201

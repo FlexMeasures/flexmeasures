@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import select, event
+from fakeredis import FakeStrictRedis
 
 from flexmeasures.data.models.time_series import Sensor
 
@@ -28,3 +29,15 @@ class QueryCounter(object):
 
     def callback(self, *args, **kwargs):
         self.count += 1
+
+
+class RQCompatibleFakeStrictRedis(FakeStrictRedis):
+    """
+    A fake Redis client that is compatible with RQ >= 2.9.0.
+    """
+
+    def client_list(self, *args, **kwargs):
+        clients = super().client_list(*args, **kwargs)
+        for client in clients:
+            client.setdefault("addr", "fakeredis:0")
+        return clients

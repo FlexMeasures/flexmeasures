@@ -32,4 +32,6 @@ To hit the ground running with that approach, we provide a `CookieCutter templat
 It also includes a few Blueprint examples and best practices.
 
 
-Continue reading the :ref:`plugin_showcase` or possibilities to do :ref:`plugin_customization`.
+Continue reading the :ref:`plugin_showcase`. Continue to see more possibilities to do :ref:`plugin_customization`.
+And if your plugin connects to a 3rd-party platform, read about support for :ref:`storing_connection_secrets`.
+

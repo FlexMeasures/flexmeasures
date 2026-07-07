@@ -69,6 +69,14 @@ This parameterizes the computation (from which sensors does data come from, whic
         "end" : "2023-01-03T00:00:00+00:00",
     }
 
+.. note::
+    In addition to filtering by specific data source IDs (``source`` / ``sources``), reporter input data can be filtered using:
+
+    - ``source_types``: list of source type names to include (e.g. ``["forecaster", "scheduler"]``)
+    - ``exclude_source_types``: list of source type names to exclude
+    - ``account_id``: list of account IDs to include only data from sources belonging to those accounts (note: only matches user-type data sources — DataSources created by reporters, schedulers, and forecasters have no account and will not be matched by this filter)
+
+    These correspond to the same filters available on ``Sensor.search_beliefs``.
 
 
 Example: Profits & losses

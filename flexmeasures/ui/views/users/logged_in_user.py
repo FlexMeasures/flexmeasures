@@ -14,6 +14,7 @@ from flexmeasures.data.services.accounts import (
     get_account_roles,
 )
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
+from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 
 
 @flexmeasures_ui.route("/logged-in-user", methods=["GET"])
@@ -49,4 +50,5 @@ def logged_in_user_view():
         account_role_names=account_role_names,
         can_view_account_auditlog=user_can_view_account_auditlog,
         can_view_user_auditlog=user_view_user_auditlog,
+        breadcrumb_info=get_breadcrumb_info(current_user),
     )
