@@ -353,12 +353,29 @@ class MetaStorageScheduler(Scheduler):
             self.flex_context.get("inflexible_device_sensors", [])
         )
         num_flexible_devices = len(flex_model)
-        commodity_to_devices["electricity"] += list(
+        commodity_to_devices.setdefault("electricity", []).extend(
             range(
                 number_flexible_devices,
                 number_flexible_devices + number_inflexible_devices,
             )
         )
+
+        # Per-commodity inflexible-device-sensors, enumerated after the top-level
+        # (electricity) inflexible devices, in the order the commodity contexts are
+        # given. This mirrors the enumeration that
+        # `_compute_commodity_aggregate_schedules` already assumes.
+        commodity_context_inflexible_sensors: list[Sensor] = []
+        num_devices = number_flexible_devices + number_inflexible_devices
+        for commodity_context in self.flex_context.get("commodity_contexts", []):
+            commodity = commodity_context["commodity"]
+            commodity_inflexible_sensors = commodity_context.get(
+                "inflexible_device_sensors", []
+            )
+            commodity_to_devices.setdefault(commodity, []).extend(
+                range(num_devices, num_devices + len(commodity_inflexible_sensors))
+            )
+            commodity_context_inflexible_sensors.extend(commodity_inflexible_sensors)
+            num_devices += len(commodity_inflexible_sensors)
 
         commodity_contexts = self._get_commodity_contexts()
         price_frames_by_commodity = {}
@@ -724,12 +741,20 @@ class MetaStorageScheduler(Scheduler):
                 )
                 commitments.append(commitment)
 
-        # Set up device constraints: scheduled flexible devices for this EMS (from index 0 to D-1), plus the forecasted inflexible devices (at indices D to n).
+        # Set up device constraints: scheduled flexible devices for this EMS (from index 0 to D-1),
+        # plus the forecasted top-level (electricity) inflexible devices, plus each commodity
+        # context's own inflexible devices, in that order.
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
-            for i in range(num_flexible_devices + len(inflexible_device_sensors))
+            for i in range(
+                num_flexible_devices
+                + len(inflexible_device_sensors)
+                + len(commodity_context_inflexible_sensors)
+            )
         ]
-        for i, inflexible_sensor in enumerate(inflexible_device_sensors):
+        for i, inflexible_sensor in enumerate(
+            inflexible_device_sensors + commodity_context_inflexible_sensors
+        ):
             device_constraints[i + num_flexible_devices]["derivative equals"] = (
                 get_power_values(
                     query_window=(start, end),
@@ -2199,30 +2224,17 @@ class StorageScheduler(MetaStorageScheduler):
                 )
         return schedules
 
-    def _compute_commodity_aggregate_schedules(
-        self,
-        storage_schedule: dict,
-        ems_schedule: pd.DataFrame,
-        # sensors: list[Sensor | None],
-    ) -> None:
-        """Compute per-commodity aggregate power flows for aggregate-consumption and aggregate-production sensors.
+    def _reconstruct_commodity_to_devices(self) -> dict[str, list[int]]:
+        """Reconstruct the mapping of commodity -> device indices as enumerated by `_prepare()`.
 
-        This method populates the storage_schedule dict with aggregate schedules for each commodity
-        that defines aggregate-consumption and/or aggregate-production sensors in its commodity context.
+        Device enumeration order:
+            1. flexible devices (from the flex-model), in order,
+            2. top-level (electricity) inflexible-device-sensors, in order,
+            3. each commodity context's own inflexible-device-sensors, in the order the
+               commodity contexts are given.
 
-        The sign convention and split logic follows the same pattern as _build_consumption_production_schedules:
-        - Only aggregate-consumption defined: full aggregate schedule (consumption +, production -)
-        - Only aggregate-production defined: full aggregate schedule (consumption +, production -)
-          (sign will be flipped by make_schedule based on consumption_is_positive=False)
-        - Both defined: consumption sensor gets non-negative part, production sensor gets non-positive part
-          (sign will be flipped for production by make_schedule)
-
-        For backwards compatibility, when no commodity_contexts are defined, all devices are treated
-        as electricity devices and use the top-level flex-context fields.
-
-        :param storage_schedule: Dict to populate with aggregate schedules (will be modified in-place)
-        :param ems_schedule:     DataFrame of per-device power schedules in MW (consumption positive)
-        :param sensors:          List of sensors corresponding to device indices
+        This mirrors `_prepare()`'s device enumeration exactly, so the returned device
+        indices line up with entries of `ems_schedule` / `device_constraints`.
         """
         # Get the device models to reconstruct commodity_to_devices mapping
         flex_model = getattr(self, "_device_models", None)
@@ -2237,7 +2249,7 @@ class StorageScheduler(MetaStorageScheduler):
             flex_model = [flex_model]
 
         # Reconstruct commodity_to_devices mapping
-        commodity_to_devices = {}
+        commodity_to_devices: dict[str, list[int]] = {}
         for d, flex_model_d in enumerate(flex_model):
             commodity = flex_model_d.get("commodity", "electricity")
             commodity_to_devices.setdefault(commodity, []).append(d)
@@ -2247,7 +2259,7 @@ class StorageScheduler(MetaStorageScheduler):
         #   - top-level inflexible-device-sensors go to electricity (backwards compat),
         #   - then each commodity context's own inflexible-device-sensors are appended to
         #     that commodity, in the order the commodity contexts are given.
-        # Without step 2 below, a commodity's inflexible demand (e.g. a heat load) is left
+        # Without this, a commodity's inflexible demand (e.g. a heat load) is left
         # out of its aggregate schedule, so an aggregate-consumption sensor only reflects
         # the flexible devices of that commodity.
         inflexible_device_sensors = self.flex_context.get(
@@ -2275,6 +2287,37 @@ class StorageScheduler(MetaStorageScheduler):
                 )
             )
             num_devices += len(commodity_inflexible_device_sensors)
+
+        return commodity_to_devices
+
+    def _electricity_device_indices(self) -> list[int]:
+        """Return the device indices (flexible and inflexible) belonging to the electricity commodity."""
+        return self._reconstruct_commodity_to_devices().get("electricity", [])
+
+    def _compute_commodity_aggregate_schedules(
+        self,
+        storage_schedule: dict,
+        ems_schedule: pd.DataFrame,
+    ) -> None:
+        """Compute per-commodity aggregate power flows for aggregate-consumption and aggregate-production sensors.
+
+        This method populates the storage_schedule dict with aggregate schedules for each commodity
+        that defines aggregate-consumption and/or aggregate-production sensors in its commodity context.
+
+        The sign convention and split logic follows the same pattern as _build_consumption_production_schedules:
+        - Only aggregate-consumption defined: full aggregate schedule (consumption +, production -)
+        - Only aggregate-production defined: full aggregate schedule (consumption +, production -)
+          (sign will be flipped by make_schedule based on consumption_is_positive=False)
+        - Both defined: consumption sensor gets non-negative part, production sensor gets non-positive part
+          (sign will be flipped for production by make_schedule)
+
+        For backwards compatibility, when no commodity_contexts are defined, all devices are treated
+        as electricity devices and use the top-level flex-context fields.
+
+        :param storage_schedule: Dict to populate with aggregate schedules (will be modified in-place)
+        :param ems_schedule:     DataFrame of per-device power schedules in MW (consumption positive)
+        """
+        commodity_to_devices = self._reconstruct_commodity_to_devices()
 
         # Get commodity contexts (handles backwards compatibility)
         commodity_contexts = self._get_commodity_contexts()
