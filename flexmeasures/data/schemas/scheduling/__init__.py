@@ -405,6 +405,23 @@ class CommodityFlexContextSchema(SharedSchema):
 class FlexContextSchema(SharedSchema):
     """This schema defines fields that provide context to the portfolio to be optimized."""
 
+    # The single-dict flex-context form only supports the electricity commodity.
+    # Other commodities must be defined via the `commodities` list.
+    # Not part of the documented UI/OpenAPI fields.
+    commodity = fields.Str(
+        required=False,
+        load_default="electricity",
+        data_key="commodity",
+        validate=validate.OneOf(
+            ["electricity"],
+            error="The top-level flex-context dict only supports the 'electricity' "
+            "commodity. Use the `commodities` list to define other commodities.",
+        ),
+        metadata=dict(
+            description="Commodity of the single-dict flex-context form; only 'electricity' is supported here. Use the `commodities` list to define other commodities.",
+        ),
+    )
+
     commodity_contexts = fields.Nested(
         CommodityFlexContextSchema,
         data_key="commodities",
