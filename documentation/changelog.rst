@@ -17,7 +17,7 @@ New features
 * Sensor references in flex-model and flex-context support various ways of filtering by source [see `PR #2209 <https://www.github.com/FlexMeasures/flexmeasures/pull/2209>`_]
 * Let storage scheduling infer missing ``power-capacity`` from directional device capacities before falling back to site capacity, and default the missing opposite capacity to zero when only a non-zero ``consumption-capacity`` or ``production-capacity`` is configured [see `PR #2222 <https://www.github.com/FlexMeasures/flexmeasures/pull/2222>`_]
 * Support multiple feeders to a shared storage [see `PR #2001 <https://www.github.com/FlexMeasures/flexmeasures/pull/2001>`_ ]
-* The flex-context can now define multiple commodities, each specifying their own prices and grid capacities [see `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_ and `PR #2235 <https://www.github.com/FlexMeasures/flexmeasures/pull/2235>`_]
+* The flex-context can now define multiple commodities, each specifying their own prices and grid capacities [see `PR #1946 <https://www.github.com/FlexMeasures/flexmeasures/pull/1946>`_, `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_ and `PR #2235 <https://www.github.com/FlexMeasures/flexmeasures/pull/2235>`_]
 * CLI support for adding/editing account attributes [see `PR #2242 <https://www.github.com/FlexMeasures/flexmeasures/pull/2242>`_]
 
 Infrastructure / Support
