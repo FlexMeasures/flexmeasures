@@ -1135,3 +1135,63 @@ def test_flex_context_listing_shared_currency(
     schema = FlexContextSchema()
 
     check_schema_loads_data(schema=schema, data=flex_context_listing, fails=fails)
+
+
+def test_flex_context_listing_rejects_duplicate_commodities(db, app):
+    """test_flex_context_listing_rejects_duplicate_commodities: a commodity listed twice must be rejected."""
+    schema = FlexContextSchema()
+    flex_context = {
+        "commodities": [
+            {"commodity": "electricity", "consumption-price": "1 EUR/MWh"},
+            {"commodity": "electricity", "production-price": "1 EUR/MWh"},
+        ]
+    }
+    check_schema_loads_data(
+        schema=schema,
+        data=flex_context,
+        fails={"commodities": "may only be listed once"},
+    )
+
+
+def test_flex_context_single_dict_rejects_non_electricity_commodity(db, app):
+    """test_flex_context_single_dict_rejects_non_electricity_commodity: the single-dict form only supports electricity."""
+    schema = FlexContextSchema()
+    flex_context = {"commodity": "gas", "consumption-price": "1 EUR/MWh"}
+    check_schema_loads_data(
+        schema=schema,
+        data=flex_context,
+        fails={"commodity": "only supports the 'electricity' commodity"},
+    )
+
+
+def test_flex_context_single_dict_allows_explicit_electricity_commodity(db, app):
+    """test_flex_context_single_dict_allows_explicit_electricity_commodity: explicit electricity is fine."""
+    schema = FlexContextSchema()
+    flex_context = {"commodity": "electricity", "consumption-price": "1 EUR/MWh"}
+    check_schema_loads_data(schema=schema, data=flex_context, fails=False)
+
+
+def test_flex_context_rejects_commodities_with_top_level_shared_fields(db, app):
+    """test_flex_context_rejects_commodities_with_top_level_shared_fields: ambiguous mixed forms are rejected."""
+    schema = FlexContextSchema()
+    flex_context = {
+        "consumption-price": "1 EUR/MWh",
+        "commodities": [
+            {"commodity": "electricity", "consumption-price": "1 EUR/MWh"},
+        ],
+    }
+    check_schema_loads_data(
+        schema=schema,
+        data=flex_context,
+        fails={"commodities": "must be set inside each commodity's dict"},
+    )
+
+
+def test_asset_trigger_schema_rejects_malformed_flex_context(app):
+    """test_asset_trigger_schema_rejects_malformed_flex_context: a non-dict/list flex-context must raise a ValidationError, not a TypeError."""
+    from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+
+    schema = AssetTriggerSchema()
+    with pytest.raises(ValidationError) as e_info:
+        schema.normalize_flex_context_format({"flex-context": "not-a-dict-or-list"})
+    assert "flex-context" in str(e_info.value)
