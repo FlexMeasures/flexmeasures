@@ -342,17 +342,18 @@ class MetaStorageScheduler(Scheduler):
         ) -> pd.Series:
             return pd.Series([tuple(devices)] * len(index), index=index, name="device")
 
+        # Enumerate only device models (not stock entries), so device indices line up
+        # with the sensors and device_constraints lists.
         commodity_to_devices = {}
-        for d, flex_model_d in enumerate(flex_model):
+        for d, flex_model_d in enumerate(device_models):
             commodity = flex_model_d.get("commodity", "electricity")
             commodity_to_devices.setdefault(commodity, []).append(d)
 
         # inflexible devices are electricity by default
-        number_flexible_devices = len(flex_model)
+        number_flexible_devices = len(device_models)
         number_inflexible_devices = len(
             self.flex_context.get("inflexible_device_sensors", [])
         )
-        num_flexible_devices = len(flex_model)
         commodity_to_devices["electricity"] += list(
             range(
                 number_flexible_devices,
