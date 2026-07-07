@@ -1245,6 +1245,15 @@ class AssetTriggerSchema(Schema):
                 # Regular list case
                 data["flex-context"] = {"commodities": raw_flex_context}
             # else: already a dict, leave as-is
+
+            # By now, flex-context should always be normalized to a dict. If it isn't
+            # (e.g. a bare string or number was passed), raise a 422 here instead of
+            # letting downstream code fail with a TypeError.
+            if not isinstance(data["flex-context"], dict):
+                raise ValidationError(
+                    "`flex-context` must be an object, or a list of objects.",
+                    field_name="flex-context",
+                )
         return data
 
     @validates_schema
