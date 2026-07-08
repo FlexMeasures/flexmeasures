@@ -26,12 +26,14 @@ from flexmeasures.utils.flexmeasures_inflection import p
 
 
 def _sensor_id(sensor: Sensor | int | None) -> int | None:
+    """Return the sensor ID from a Sensor object or already-serialized ID."""
     if sensor is None:
         return None
     return sensor.id if isinstance(sensor, Sensor) else sensor
 
 
 def _get_attached_sensor(sensor_id: int | None) -> Sensor | None:
+    """Load a sensor in the current session from a queued job payload ID."""
     if sensor_id is None:
         return None
     attached_sensor = db.session.get(Sensor, sensor_id)
@@ -41,6 +43,7 @@ def _get_attached_sensor(sensor_id: int | None) -> Sensor | None:
 
 
 def _get_attached_data_source(data_source_id: int | None) -> DataSource | None:
+    """Load a data source in the current session from a queued job payload ID."""
     if data_source_id is None:
         return None
     attached_source = db.session.get(DataSource, data_source_id)
@@ -50,6 +53,7 @@ def _get_attached_data_source(data_source_id: int | None) -> DataSource | None:
 
 
 def _assert_no_orm_objects(value: Any, path: str = "payload") -> None:
+    """Reject ORM objects before they can be pickled into an RQ job."""
     inspection = sa_inspect(value, raiseerr=False)
     if inspection is not None and hasattr(inspection, "object"):
         raise ValueError(
@@ -66,7 +70,10 @@ def _assert_no_orm_objects(value: Any, path: str = "payload") -> None:
 
 
 def _make_job_config_payload(config: dict[str, Any]) -> dict[str, Any]:
-    """Build the worker config payload without ORM objects."""
+    """Build the queued worker config payload.
+
+    ORM-backed fields are replaced by IDs, while plain config fields are preserved.
+    """
     # Preserve plain config fields, but replace ORM-backed regressors by IDs.
     payload = dict(config)
     future_regressors = payload.pop("future_regressors", [])
@@ -80,7 +87,7 @@ def _make_job_config_payload(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def _load_job_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    """Load the worker config through the active worker session."""
+    """Restore worker config and reload regressors in the worker session."""
     config = dict(payload)
     config["future_regressors"] = [
         _get_attached_sensor(sensor_id)
@@ -94,7 +101,10 @@ def _load_job_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _make_job_parameters_payload(parameters: dict[str, Any]) -> dict[str, Any]:
-    """Build the worker parameter payload without ORM objects."""
+    """Build the queued worker parameter payload.
+
+    ORM-backed fields are replaced by IDs, while plain parameter fields are preserved.
+    """
     # Preserve plain parameters, but replace ORM-backed sensors by IDs.
     payload = dict(parameters)
     sensor_id = _sensor_id(payload.pop("sensor"))
@@ -108,7 +118,7 @@ def _make_job_parameters_payload(parameters: dict[str, Any]) -> dict[str, Any]:
 
 
 def _load_job_parameters_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    """Load the worker parameters through the active worker session."""
+    """Restore worker parameters and reload sensors in the worker session."""
     parameters = dict(payload)
     parameters["sensor"] = _get_attached_sensor(parameters.pop("sensor_id"))
     parameters["sensor_to_save"] = _get_attached_sensor(
@@ -124,7 +134,7 @@ def run_train_predict_cycle_job(
     delete_model: bool,
     **cycle_params,
 ):
-    """Reconstruct pipeline state inside the worker to avoid pickling ORM objects."""
+    """Run one train-predict cycle after reconstructing worker-local ORM state."""
     pipeline = TrainPredictPipeline(delete_model=delete_model)
     pipeline._config = _load_job_config_payload(config)
     for key, value in pipeline._config.items():
