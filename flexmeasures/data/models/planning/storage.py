@@ -295,8 +295,9 @@ class MetaStorageScheduler(Scheduler):
         ]
 
         # Get info from flex-context
-        inflexible_device_sensors = self.flex_context.get(
-            "inflexible_device_sensors", []
+        # (normalize to a list; tests may pass e.g. dict_values when bypassing the schema)
+        inflexible_device_sensors = list(
+            self.flex_context.get("inflexible_device_sensors", [])
         )
 
         # Fetch the device's power capacity (required to keep the optimization problem bounded)
@@ -382,6 +383,12 @@ class MetaStorageScheduler(Scheduler):
         price_frames_by_commodity = {}
 
         for commodity, devices in commodity_to_devices.items():
+            # Skip commodities without any devices (e.g. no electricity devices in an
+            # all-gas flex-model, or a commodity context that no device refers to):
+            # they need no prices, commitments or EMS constraints, and empty device
+            # groups would make the optimization problem unbounded.
+            if not devices:
+                continue
             commodity_devices = device_list_series(devices, index)
             commodity_context = commodity_contexts.get(commodity, {})
 

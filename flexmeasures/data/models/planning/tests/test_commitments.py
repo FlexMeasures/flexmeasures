@@ -1669,9 +1669,7 @@ def test_per_commodity_inflexible_device_sensors(app, db):
     # A constant 8 kW inflexible gas load, recorded as beliefs.
     index = initialize_index(start, end, resolution)
 
-    source = get_or_create_model(
-        DataSource, name="test source", source_type="forecaster"
-    )
+    source = get_or_create_model(DataSource, name="test source", type="forecaster")
     beliefs = [
         TimedBelief(
             sensor=inflexible_gas_load,
