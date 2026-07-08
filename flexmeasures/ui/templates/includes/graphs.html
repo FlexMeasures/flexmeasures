@@ -367,7 +367,6 @@
         let newData = fetch(dataPath + '/chart_data?event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&compress_json=true', {
             method: "GET",
             headers: { "Content-Type": "application/json" },
-            cache: "no-store",
             signal: signal,
         })
             .then(function (response) { return response.json(); })
@@ -421,7 +420,6 @@
     const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
         method: "GET",
         headers: { "Content-Type": "application/json" },
-        cache: "no-store",
         signal: signal,
     })
         .then(function (response) { return response.json(); })
@@ -623,7 +621,6 @@
         fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
             method: "GET",
             headers: {"Content-Type": "application/json"},
-            cache: "no-store",
             signal: signal,
         })
         .then(function(response) { return response.json(); }),
@@ -858,7 +855,6 @@
                 fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&most_recent_beliefs_only=false&compress_json=true', {
                     method: "GET",
                     headers: { "Content-Type": "application/json" },
-                    cache: "no-store",
                     signal: signal,
                 })
                     .then(function (response) { return response.json(); })
@@ -954,7 +950,6 @@
             return fetch(dataPath + '/chart_data?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&compress_json=true', {
                 method: "GET",
                 headers: { "Content-Type": "application/json" },
-                cache: "no-store",
                 signal: signal,
             })
                 .then(response => response.json())
@@ -973,7 +968,6 @@
             headers: {
                 "Content-Type": "application/json",
             },
-            cache: "no-store",
         })
             .then(response => response.json())
             .then(response => {
