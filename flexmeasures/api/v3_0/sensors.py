@@ -1073,6 +1073,11 @@ class SensorAPI(FlaskView):
             as database values and what is seen in UI charts. The values will indicate exactly what is stored,
             which is itself determined by the sensor's ``consumption_is_positive`` attribute (if set)
             or by the scheduler's default storage convention (production positive in the database).
+
+            **Constraint analysis**
+
+            For detailed constraint analysis (unmet and resolved constraints), use the
+            [GET /api/v3_0/jobs/<uuid>](#/Jobs/get_api_v3_0_jobs__uuid_) endpoint.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1311,7 +1316,15 @@ class SensorAPI(FlaskView):
         )
 
         d, s = request_processed(scheduler_info_msg)
-        return dict(scheduler_info=scheduler_info, **response, **d), s
+        response_body = dict(
+            scheduler_info=scheduler_info,
+            **response,
+            **d,
+        )
+        return (
+            response_body,
+            s,
+        )
 
     @route("/<id>", methods=["GET"])
     @use_kwargs({"sensor": SensorIdField(data_key="id")}, location="path")

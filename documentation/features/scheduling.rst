@@ -323,8 +323,231 @@ You can add new shiftable-process schedules with the CLI command ``flexmeasures 
 .. note:: Currently, the ``ProcessScheduler`` uses only the ``consumption-price`` field of the flex-context, so it ignores any site capacities and inflexible devices.
 
 
+The schedule
+------------
+
+A schedule produced by FlexMeasures is a series of power values for each flexible device (represented by its power sensor), covering the scheduling window at the scheduling resolution.
+
+For detailed constraint analysis (unresolved constraints and margins), use the ``GET /api/v3_0/jobs/<uuid>`` endpoint, which provides structured information about constraints organized by asset. See the :ref:`scheduling_constraint_results` section below for details.
+
+
+Inspecting schedules
+-----------------------
+
+It can be crucial to inspect how your scheduling job is doing.
+Here are some ways to do that:
+
+Errors
+^^^^^^^
+
+FlexMeasures will validate flex-config and asset & sensor IDs before starting the job,
+and let you know (in the console or API response) what went wrong.
+
+
+Checking the status via the API
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There is an API endpoint specifically for checking status, result and configuration info for jobs:
+``GET /api/v3_0/jobs/{uuid}`` returns JSON with the job status, result, queue and function metadata, timestamps, and exception traceback information for failed jobs.
+For scheduling jobs specifically, this includes the constraint analysis described in :ref:`scheduling_constraint_results` below.
+
+
+Checking the status via the CLI
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There is also a CLI command, which basically mirrors what the API endpoint does (see above). Here is an example call:
+
+.. code-block:: bash
+
+    flexmeasures jobs inspect-job --job 40ac6f2e-690d-4865-8203-429e54179112
+
+
+The asset status page: listing jobs and more info
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Each asset has a status page where you can find recent jobs which were run in the context of this asset.
+Clicking the "Info" button will give you a lot more insights into the jobs' configuration than the above methods.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_status_page_job_info.png
+    :align: center
+..    :scale: 40%
+
+|
+
+
+The RQ-dashboard: complete overview
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Internally, jobs are queued with the python-rq library. For this, a job dashboard is available, which
+users with the ``admin`` role can access via the menu. This gives a complete overview over all jobs
+running in FlexMeasures.
+
+You find your jobs via the queues, see screenshot below.
+Clicking a job gives you more information, similar to the status page.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_rq_dashboard.png
+    :align: center
+..    :scale: 40%
+
+|
+
+
+.. _scheduling_constraint_results:
+
+Accessing constraint results
+-----------------------------
+
+When a schedule is computed for a device with state-of-charge constraints, FlexMeasures analyzes whether the constraints can be met.
+
+Use the **jobs endpoint** (``GET /api/v3_0/jobs/<uuid>``) to retrieve detailed constraint analysis for all assets involved in the scheduling job, organized by asset ID.
+This endpoint is useful when you want to inspect constraint violations without retrieving the full schedule.
+
+Multi-asset scheduling workflow
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Consider a site (asset ID 123) with four assets, each with a power sensor:
+
+- **Sensors 1 & 2**: Inflexible devices (e.g. PV panel and building load)
+- **Sensors 3 & 4**: Flexible devices (e.g. a battery and an EV charger),
+  each with a state-of-charge sensor (sensors 5 and 6, respectively)
+
+The scheduling workflow looks like this:
+
+1. **Trigger the schedule** for site asset 123 via
+   ``POST /api/v3_0/assets/123/schedules/trigger``.
+   The endpoint returns a job UUID, e.g. ``"5d28df1b-9f16-4177-ae43-6e750d80fad3"``.
+
+2. **Retrieve the scheduled power series** for the flexible devices once scheduling is done,
+   via ``GET /api/v3_0/sensors/3/schedules/<uuid>`` and ``GET /api/v3_0/sensors/4/schedules/<uuid>``.
+   Each response contains the power setpoints for that device:
+
+   .. code-block:: json
+
+       {
+           "values": [0.5, 1.0, 1.5, 0.0],
+           "start": "2024-01-15T08:00:00+00:00",
+           "duration": "PT4H",
+           "unit": "kW"
+       }
+
+3. **Retrieve constraint analysis** for all flexible assets via ``GET /api/v3_0/jobs/<uuid>``.
+   The ``result`` field in the response shows whether the state-of-charge targets for sensors 5 and 6 could be met, and by how much.
+   For a finished ``StorageScheduler`` job, ``result`` is always an object with ``unresolved`` and ``resolved`` constraint analysis (as shown below);
+   both arrays are simply empty when the flex model defines no ``soc-minima``/``soc-maxima``, or when a scheduler other than ``StorageScheduler`` was used.
+
+The constraint results distinguish between:
+
+- Constraints that were **unresolved**: Soft constraints that could not be satisfied during optimization, with the shortfall or excess reported as their **violation**.
+- Constraints that were **resolved**: Soft constraints that were satisfied, with the headroom remaining reported as their **margin**.
+
+For each device, the ``soc-minima``/``soc-maxima`` value under ``unresolved`` or ``resolved`` is a **list** of entries — one per violated slot (unresolved) or per met slot with its margin (resolved), ordered chronologically.
+By default, every violated or met slot is listed (this is not currently configurable via the API).
+Each list entry includes:
+
+- ``datetime``: ISO 8601 UTC timestamp of that slot.
+- ``violation`` (unresolved only): Magnitude of the violation at that slot (shortage for minima, excess for maxima).
+- ``margin`` (resolved only): Headroom remaining at that slot.
+
+Both ``violation`` and ``margin`` are always reported as positive numbers (magnitudes), never negative — whether a violation is a shortage or an excess follows from the constraint type (``soc-minima`` vs. ``soc-maxima``), not from its sign.
+
+
+Example: Constraint results from a battery scheduling job
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Suppose you schedule a battery device (asset ID 42) with the following constraints:
+
+- **soc-minima**: Battery must stay above 60 kWh
+- **soc-maxima**: Battery must not exceed 100 kWh
+
+If the optimization cannot satisfy the minimum constraint at 10:30 UTC (falling short by 20 kWh) and again at 10:45 UTC (falling short by 15 kWh),
+but does satisfy the maximum constraint with margins of 40 kWh at 11:00 UTC and 35 kWh at 12:00 UTC, the constraint results would show:
+
+**Response via GET /api/v3_0/jobs/<uuid>:**
+
+.. code-block:: json
+
+    {
+        "status": "FINISHED",
+        "message": "Scheduling job finished.",
+        "result": {
+            "unresolved": [
+                {
+                    "asset": 42,
+                    "soc-minima": [
+                        {
+                            "datetime": "2024-01-15T10:30:00+00:00",
+                            "violation": "20.0 kWh"
+                        },
+                        {
+                            "datetime": "2024-01-15T10:45:00+00:00",
+                            "violation": "15.0 kWh"
+                        }
+                    ]
+                }
+            ],
+            "resolved": [
+                {
+                    "asset": 42,
+                    "soc-maxima": [
+                        {
+                            "datetime": "2024-01-15T11:00:00+00:00",
+                            "margin": "40.0 kWh"
+                        },
+                        {
+                            "datetime": "2024-01-15T12:00:00+00:00",
+                            "margin": "35.0 kWh"
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
+
+Interpreting constraint results for optimization decisions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When constraints are all met:**
+
+An empty ``unresolved`` array indicates successful optimization.
+However, check the margins in ``resolved`` to understand how tight the constraints were:
+
+- Large margins (e.g., 50 kWh) suggest the device has significant flexibility headroom.
+- Small margins (e.g., 5 kWh) indicate the constraints were nearly violated.
+- Zero margin would mean the device hit the exact constraint limit.
+
+*Use case*: If you see very small margins, you may want to relax constraints or provide additional flexibility to create a more robust schedule.
+
+**When constraints are unresolved:**
+
+Unresolved constraints indicate the optimization problem was over-constrained. Common causes:
+
+- Conflicting constraints, such as a high minimum on too short notice.
+- Insufficient headroom within the grid capacity, caused by inflexible devices.
+
+The ``violation`` values tell you how much shortfall exists:
+
+- For ``soc-minima`` violations: The shortage in kWh. The device could not charge enough.
+- For ``soc-maxima`` violations: The excess in kWh. The device could not discharge enough.
+
+*Use case*: If a battery is reporting 20 kWh shortage for a planned trip, you may need to:
+
+- Allow more time for charging.
+- Install a larger battery.
+- Reduce the minimum SoC requirement.
+- Stretch the minimum SoC requirement over a longer time period (using the ``duration`` field) to continue charging in case the user plugs out later than expected.
+- Warn the user about the shortfall.
+- If the battery is in an EV, charge en-route.
+
+**When no constraints are defined:**
+
+If ``unresolved`` and ``resolved`` are both empty, no state-of-charge constraints were set.
+
+.. note:: Hard constraints (``soc-targets``) are never reported in results because the scheduler enforces them strictly by definition.
+          If a hard constraint cannot be met, the entire scheduling job will fail, not produce results with violations.
+
 Work on other schedulers
---------------------------
+---------------------------------------
 
 We believe the two schedulers (and their flex-models) we describe here are covering a lot of use cases already.
 Here are some thoughts on further innovation:
