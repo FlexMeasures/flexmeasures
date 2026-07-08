@@ -658,11 +658,21 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "aggregate-consumption": {
         "default": None,
         "description": rst_to_openapi(metadata.AGGREGATE_CONSUMPTION.description),
+        # todo: the field type is defined in asset_context.html in 3 places?
+        # "types": {
+        #     "backend": "typeTwo",
+        #     "ui": "A sensor which records the scheduled aggregate consumption.",
+        # },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "aggregate-production": {
         "default": None,
         "description": rst_to_openapi(metadata.AGGREGATE_PRODUCTION.description),
+        # todo: the field type is defined in asset_context.html in 3 places?
+        # "types": {
+        #     "backend": "typeTwo",
+        #     "ui": "A sensor which records the scheduled aggregate production.",
+        # },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "consumption-price": {
