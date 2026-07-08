@@ -74,9 +74,12 @@ class NoTimeSeriesSpecs(Schema):
 class CommitmentSchema(Schema):
     name = fields.Str(required=True, data_key="name")
     # Undocumented for now (not part of UI_FLEX_CONTEXT_SCHEMA, OpenAPI or Sphinx docs).
-    # Determines which commodity's devices this commitment binds (see
-    # StorageScheduler.convert_to_commitments, which matches this against each
-    # device's own `commodity`, defaulting to "electricity" as well).
+    # Internal bookkeeping only: not the documented way to associate a commitment
+    # with a commodity. API users should instead place the commitment under the
+    # relevant entry of the multi-commodity `commodities` list (one flex-context
+    # per commodity) -- see StorageScheduler.convert_to_commitments, which matches
+    # this field against each device's own `commodity`, defaulting to
+    # "electricity" as well.
     commodity = fields.Str(
         required=False,
         load_default="electricity",
