@@ -20,6 +20,10 @@ from flexmeasures.data.models.generic_assets import (
 )
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 from flexmeasures.data.models.forecasting.pipelines.train_predict import (
+    _load_job_config_payload,
+    _load_job_parameters_payload,
+    _make_job_config_payload,
+    _make_job_parameters_payload,
     run_train_predict_cycle_job,
 )
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -38,6 +42,92 @@ def _contains_orm_instance(value) -> bool:
     if isinstance(value, (list, tuple, set)):
         return any(_contains_orm_instance(v) for v in value)
     return False
+
+
+def test_train_predict_job_config_payload_preserves_plain_fields(
+    setup_fresh_test_forecast_data,
+):
+    future_regressor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    past_regressor = setup_fresh_test_forecast_data["solar-sensor-1"]
+
+    config = {
+        "model": "CustomLGBM",
+        "future_regressors": [future_regressor],
+        "past_regressors": [past_regressor],
+        "missing_threshold": 0.25,
+        "plain_future_option": {
+            "lower": "0 kW",
+            "upper": "20 kW",
+            "snap": {"0 kW": ["0 kW", "4 kW"]},
+        },
+    }
+
+    payload = _make_job_config_payload(config)
+
+    assert "future_regressors" not in payload
+    assert "past_regressors" not in payload
+    assert payload["future_regressor_ids"] == [future_regressor.id]
+    assert payload["past_regressor_ids"] == [past_regressor.id]
+    assert payload["plain_future_option"] == config["plain_future_option"]
+
+    restored_config = _load_job_config_payload(payload)
+
+    assert restored_config["future_regressors"] == [future_regressor]
+    assert restored_config["past_regressors"] == [past_regressor]
+    assert restored_config["plain_future_option"] == config["plain_future_option"]
+
+
+def test_train_predict_job_parameters_payload_preserves_plain_fields(
+    setup_fresh_test_forecast_data,
+):
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    sensor_to_save = setup_fresh_test_forecast_data["solar-sensor-1"]
+    parameters = {
+        "sensor": sensor,
+        "sensor_to_save": sensor_to_save,
+        "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
+        "plain_future_parameter": {"labels": ["expected", "preserved"]},
+    }
+
+    payload = _make_job_parameters_payload(parameters)
+
+    assert "sensor" not in payload
+    assert "sensor_to_save" not in payload
+    assert payload["sensor_id"] == sensor.id
+    assert payload["sensor_to_save_id"] == sensor_to_save.id
+    assert payload["plain_future_parameter"] == parameters["plain_future_parameter"]
+
+    restored_parameters = _load_job_parameters_payload(payload)
+
+    assert restored_parameters["sensor"] == sensor
+    assert restored_parameters["sensor_to_save"] == sensor_to_save
+    assert (
+        restored_parameters["plain_future_parameter"]
+        == parameters["plain_future_parameter"]
+    )
+
+
+def test_train_predict_job_payload_rejects_unexpected_orm_objects(
+    setup_fresh_test_forecast_data,
+):
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+
+    with pytest.raises(ValueError, match="payload.unexpected_sensor.*Sensor"):
+        _make_job_config_payload(
+            {
+                "future_regressors": [],
+                "past_regressors": [],
+                "unexpected_sensor": sensor,
+            }
+        )
+
+    with pytest.raises(ValueError, match="payload.unexpected_sensor.*Sensor"):
+        _make_job_parameters_payload(
+            {
+                "sensor": sensor,
+                "unexpected_sensor": sensor,
+            }
+        )
 
 
 def test_custom_lgbm_falls_back_when_daily_lag_is_under_sampled():
