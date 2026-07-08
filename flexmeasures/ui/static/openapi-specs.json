@@ -690,7 +690,7 @@
     "/api/v3_0/sensors/{id}/schedules/{uuid}": {
       "get": {
         "summary": "Get schedule for one device",
-        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n- \"unit\" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)\n- \"sign-convention\" (controls how power values are signed in the response; see below)\n\n<strong>Sign convention</strong>\n\nBy default (<code>sign-convention: consumption-positive</code>), the endpoint always returns schedules where\nconsumption is positive and production is negative, regardless of how the values are stored in the database.\nThis is the most common convention and matches the perspective of a consumer.\n\nSet <code>sign-convention: production-positive</code> to flip the sign so that production is returned as\npositive and consumption as negative. This matches the perspective of a producer.\n\nSet <code>sign-convention: wysiwyg</code> (<em>what-you-see-is-what-you-get</em>) to return the values with the same sign\nas database values and what is seen in UI charts. The values will indicate exactly what is stored,\nwhich is itself determined by the sensor's <code>consumption_is_positive</code> attribute (if set)\nor by the scheduler's default storage convention (production positive in the database).\n",
+        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n- \"unit\" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)\n- \"sign-convention\" (controls how power values are signed in the response; see below)\n\n<strong>Sign convention</strong>\n\nBy default (<code>sign-convention: consumption-positive</code>), the endpoint always returns schedules where\nconsumption is positive and production is negative, regardless of how the values are stored in the database.\nThis is the most common convention and matches the perspective of a consumer.\n\nSet <code>sign-convention: production-positive</code> to flip the sign so that production is returned as\npositive and consumption as negative. This matches the perspective of a producer.\n\nSet <code>sign-convention: wysiwyg</code> (<em>what-you-see-is-what-you-get</em>) to return the values with the same sign\nas database values and what is seen in UI charts. The values will indicate exactly what is stored,\nwhich is itself determined by the sensor's <code>consumption_is_positive</code> attribute (if set)\nor by the scheduler's default storage convention (production positive in the database).\n\n<strong>Constraint analysis</strong>\n\nFor detailed constraint analysis (unmet and resolved constraints), use the\n[GET /api/v3_0/jobs/<uuid>](#/Jobs/get_api_v3_0_jobs__uuid_) endpoint.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4209,7 +4209,7 @@
     "/api/v3_0/jobs/{uuid}": {
       "get": {
         "summary": "Get the status of a background job",
-        "description": "Look up a background job by its UUID and see whether it is\nqueued, running, finished, or failed.\n\nThe response includes a status message plus job metadata such\nas the queue name, function name, timestamps, and the job\nresult when available.\n\nFailed jobs also include traceback information when the worker\nstored it with the job result.\n",
+        "description": "Look up a background job by its UUID and see whether it is\nqueued, running, finished, or failed.\n\nThe response includes a status message plus job metadata such\nas the queue name, function name, timestamps, and the job\nresult when available.\n\nFailed jobs also include traceback information when the worker\nstored it with the job result.\n\nFor a finished scheduling job, <code>result</code> is an object. For a\n<code>StorageScheduler</code> job it holds soft state-of-charge constraint\nanalysis: <code>unresolved</code> lists constraints the scheduler could not\nsatisfy, and <code>resolved</code> lists constraints that were satisfied\nwith some margin. Each device entry's <code>soc-minima</code>/<code>soc-maxima</code>\nvalue is a list, holding one entry per violated slot (for\n<code>unresolved</code>) or per met slot with its margin (for <code>resolved</code>),\nordered chronologically. Both arrays are empty when the flex model\ndefines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other\nthan <code>StorageScheduler</code> was used. This is the only place\nconstraint analysis is available \u2014 the sensor schedule endpoint\n(<code>GET /api/v3_0/sensors/<id>/schedules/<uuid></code>) returns power\nvalues only.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4254,7 +4254,7 @@
                       "description": "Human-readable description of the job status."
                     },
                     "result": {
-                      "description": "Return value of the job function, or null when not yet available.",
+                      "description": "Return value of the job function, or null when not yet available. For a finished scheduling job, this is an object; a <code>StorageScheduler</code> job populates it with <code>unresolved</code>/<code>resolved</code> soft state-of-charge constraint analysis (empty arrays when the flex model defines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other than <code>StorageScheduler</code> was used).\n",
                       "nullable": true
                     },
                     "func_name": {
@@ -4310,7 +4310,24 @@
                     "value": {
                       "status": "FINISHED",
                       "message": "Scheduling job has finished.",
-                      "result": null,
+                      "result": {
+                        "unresolved": [
+                          {
+                            "asset": 42,
+                            "soc-minima": [
+                              {
+                                "datetime": "2024-01-01T10:00:00+00:00",
+                                "violation": "260.0 kWh"
+                              },
+                              {
+                                "datetime": "2024-01-01T10:15:00+00:00",
+                                "violation": "180.0 kWh"
+                              }
+                            ]
+                          }
+                        ],
+                        "resolved": []
+                      },
                       "func_name": "flexmeasures.data.services.scheduling.create_schedule",
                       "origin": "scheduling",
                       "enqueued_at": "2026-04-28T10:00:00+00:00",
