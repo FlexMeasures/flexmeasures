@@ -62,6 +62,27 @@ Note that:
 ``forecast-frequency`` together with ``max-forecast-horizon`` determine how the forecasting cycles advance through time.
 ``train-period``, ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
 
+Forecast output post-processing
+--------------------------------
+
+Forecaster configuration can clip and snap forecast values before they are stored.
+Use ``lower`` and ``upper`` to clip values to bounds, and ``snap`` to replace values in a configured interval with a target value.
+Units are optional; unitless values are interpreted in the output sensor unit.
+
+For example, this configuration clips forecasts to the 0-20 kW range and snaps values between 0 kW and 4 kW to 0 kW:
+
+.. code-block:: json
+
+    {
+      "lower": "0 kW",
+      "snap": {
+        "0 kW": ["0 kW", "4 kW"]
+      },
+      "upper": "20 kW"
+    }
+
+Pass the same object as the API ``config`` payload, or place it in a JSON or YAML file and pass it to ``flexmeasures add forecasts`` with ``--config``.
+
 Forecasting via the UI
 -----------------------
 
@@ -142,4 +163,3 @@ If you want to take regressors into account, in addition to merely past measurem
 
 Including regressors can significantly improve forecasting accuracy, especially when they are highly correlated with the target variable. For example, using irradiation forecasts as regressors can substantially improve solar production predictions.
 In `this weather forecast plugin <https://github.com/flexmeasures/flexmeasures-weather>`_, we enable you to collect regressor data for ``["temperature", "wind speed", "cloud cover", "irradiance"]``, at a location you select.
-
