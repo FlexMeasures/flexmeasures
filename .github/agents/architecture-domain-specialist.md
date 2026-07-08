@@ -577,6 +577,93 @@ After each assignment:
    - Added guidance on <specific topic>
    ```
 
+### Asset ID Keying Pattern (PR #2072)
+
+When scheduling results or constraint analysis shift from sensor-keyed to asset-keyed organization, you must prevent silent data corruption across data flow boundaries.
+
+**Problem**: A storage scheduler optimization changed constraint analysis results from sensor-keyed to asset-keyed organization. Without careful attention, Layer 1 (storage) produces asset-keyed dicts while Layer 2 (API) treats keys as sensor IDs, silently corrupting results.
+
+**Pattern**:
+
+1. **Identify all data flow stages**:
+   - **Storage layer**: How does the scheduler compute and store results?
+   - **API transformation**: How are results converted for the API response?
+   - **Client expectations**: What format do clients expect?
+   
+   Example: Constraint analysis produces Dict[int, Dict] where int is asset_id. API must transform this for clients while maintaining correctness.
+
+2. **Prevent format mismatches at boundaries**:
+   - Layer 1 produces asset-keyed dict (e.g., `{asset_id: {...}}`)
+   - Layer 2 MUST expect asset-keyed dict (not assume sensor-keyed)
+   - Add Marshmallow schemas to validate the transformation
+   - No silent conversions without schema validation
+   
+   Example pattern:
+   ```python
+   # ❌ Wrong: storage produces asset-keyed, API treats as sensor-keyed
+   constraint_result = {1: {}}  # asset_id 1 from scheduler
+   for sensor_id, data in constraint_result.items():  # Treats key as sensor_id!
+       ...
+   
+   # ✅ Correct: explicitly document and validate transformation
+   @dataclass
+   class ConstraintDataPerAsset:
+       """Storage layer produces Dict[asset_id, ...]"""
+       asset_id_keyed_result: Dict[int, Dict]
+   
+   class ConstraintResponseSchema(Schema):
+       """API transforms to client format but documents asset keying"""
+       assets = fields.List(fields.Nested(...))  # Asset-keyed response
+   ```
+
+3. **Update domain invariants**:
+   - Asset ID is the authoritative key (not sensor ID or device index)
+   - Multiple sensors may belong to the same asset
+   - Constraint analysis results grouped by asset, not sensor
+   - Document this in docstrings and type hints
+   
+   Example invariant addition to docstrings:
+   ```python
+   def get_constraints_for_assets(
+       asset_ids: List[int],
+       ...
+   ) -> Dict[int, ConstraintData]:
+       """Get constraint analysis results grouped by asset ID.
+       
+       Key domain invariant: Results are keyed by asset_id, not sensor_id.
+       Multiple sensors may belong to the same asset, but constraints
+       are computed and reported per-asset for scheduling purposes.
+       
+       Returns:
+           Dict mapping asset_id -> ConstraintData
+       """
+   ```
+
+4. **Test the transformation end-to-end**:
+   - Storage layer produces one format (may be optimized for efficiency)
+   - API layer transforms to client format (asset-keyed)
+   - Integration tests verify both format correctness and no data loss
+   
+   Example test structure:
+   ```python
+   def test_constraint_results_keyed_by_asset():
+       """Verify storage→API transformation preserves asset keying"""
+       # Storage layer produces asset-keyed result
+       result = scheduler.get_constraints()
+       assert all(isinstance(k, int) for k in result.keys())  # asset IDs
+       
+       # API layer transforms for response
+       response = transform_for_api(result)
+       assert response["assets"]  # asset-keyed response structure
+       
+       # Verify no data loss or corruption
+       assert len(response["assets"]) == len(result)
+   ```
+
+**Why it matters**: Asset-keyed results differ fundamentally from sensor-keyed results. A storage scheduler with 10 assets but 30 sensors uses asset-keyed for efficiency, but the API must still make this explicit to prevent Layer 2 from misinterpreting keys. Silent misinterpretation corrupts scheduling results without throwing errors.
+
+**Review trigger**: Any scheduler or constraint analysis code that changes result keying (from device-index to asset-id, or sensor-keyed to asset-keyed) — Add this documentation pattern and require tests that verify the transformation is not corrupted.
+
 ### Lessons Learned
 
 **Session 2026-03-24 (PR #2058 — add account_id to DataSource)**:
@@ -591,3 +678,10 @@ After each assignment:
 - **Schema parity gap**: The PR added `account_id` to `BeliefsSearchConfigSchema` but not to `Input` (io.py). These two schemas both expose `Sensor.search_beliefs` parameters; omitting a parameter from one creates a silent gap. The architecture agent must check both schemas on any search_beliefs parameter addition.
 - **Documentation vs. implementation mismatch**: The `reporting.rst` docs stated reporters can filter by `account_id`, but this only works if `Input` also has the field. Docs that outrun schema support mislead users. Always verify the full schema chain before documenting a feature.
 - **DataSource account_id=None for non-user sources**: The existing invariant (reporters/schedulers/forecasters have `account_id=None`) limits the usefulness of `account_id` filtering: it only matches user-type sources. PRs adding `account_id` filters should either document this limitation explicitly or reconsider the invariant.
+
+**Session 2026-07-02 (PR #2072 — storage scheduler asset keying optimization)**:
+
+- **Data flow format mismatches**: Storage scheduler optimization changed constraint analysis from sensor-keyed to asset-keyed results. The risk is high: Layer 1 produces asset-keyed dict, Layer 2 silently treats keys as sensor IDs, corrupting results without errors. This pattern must be documented and tested end-to-end.
+- **Multi-sensor per asset invariant**: Asset ID is the authoritative key, not sensor ID. Multiple sensors belong to the same asset; constraint results are grouped by asset for scheduling purposes. Docstrings and type hints must make this explicit to prevent misuse.
+- **Silent data corruption risk**: Unlike exceptions, format mismatches silently corrupt data. When keying changes (sensor→asset, device-index→asset-id), integration tests must verify the full transformation (storage format → API format) maintains data correctness and no loss.
+- **Added Asset ID Keying Pattern**: New section in instructions documents the pattern, data flow stages, format validation, domain invariants, and end-to-end testing requirements.

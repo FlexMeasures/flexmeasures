@@ -376,6 +376,77 @@ make update-docs
   - Testing all imports work before finalizing
   - ~500 lines for complete feature coverage
 
+- **PR #2072 (Scheduling Constraints Terminology)**: Cross-document terminology updates require systematic consistency checks:
+  - Terminology changes must be applied consistently across all affected documents
+  - Field references and terminology need updates in: docstrings, API docs, feature guides, and changelogs
+  - Validate completeness with grep searches to catch orphaned references
+  - Follow update order: code source → documentation → changelog
+
+### Cross-Document Consistency Pattern
+
+When updating API terminology that appears in multiple places (e.g., removing fields, renaming concepts, changing constraint names):
+
+1. **Identify all affected documents**:
+   ```bash
+   grep -r "old_term" documentation/
+   grep -r "old_term" flexmeasures/
+   ```
+   Look for: API docs, feature guides, changelog, docstrings, type hints, error messages
+
+2. **Update in order of authority** (source of truth first):
+   - Code docstrings and type hints (source of truth)
+   - Inline comments in code explaining the terms
+   - Feature documentation (`documentation/features/`)
+   - API reference and endpoints (`documentation/api/`)
+   - API changelog (`documentation/api/change_log.rst`)
+   - Deprecation warnings (if applicable)
+
+3. **Ensure consistency**:
+   - Use same terminology in all files
+   - Same capitalization and formatting
+   - Same context and examples
+   - Field references match across all docs
+
+4. **Verify completeness**:
+   ```bash
+   # After updates, verify old term is replaced everywhere
+   grep -r "old_term" documentation/ flexmeasures/
+   # Should return zero matches (except in changelog when documenting deprecation)
+   ```
+
+5. **Document the change**:
+   - Changelog entry explaining what changed and why
+   - Migration path if it's a breaking change
+   - Note affected endpoint versions
+
+6. **Commit strategy**:
+   - Commit docs and code changes together in logical groups
+   - Separate changelog commit if it's substantial
+   - Use atomic commits: one file or one logical change per commit
+
+**Example workflow:**
+
+```bash
+# 1. Search for all references to old terminology
+grep -r "scheduling_result" documentation/ flexmeasures/
+
+# 2. Update code docstrings first (they are the source of truth)
+# - Update parameter descriptions
+# - Update field names in class docstrings
+# - Update return value documentation
+
+# 3. Update feature guides and API docs
+# - Replace field references in examples
+# - Update field descriptions in API documentation
+# - Update endpoint descriptions
+
+# 4. Update changelog with clear migration notes
+
+# 5. Final verification
+grep -r "scheduling_result" documentation/ flexmeasures/
+# Should show only changelog entries mentioning the removal
+```
+
 ### Continuous Improvement
 
 - Monitor user questions (docs should answer them)
