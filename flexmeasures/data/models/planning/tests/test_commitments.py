@@ -1667,6 +1667,8 @@ def test_per_commodity_inflexible_device_sensors(app, db):
     db.session.commit()
 
     # A constant 8 kW inflexible gas load, recorded as beliefs.
+    # By default, power sensors store consumption as negative values
+    # (get_power_values flips the sign to the scheduler's consumption-positive convention).
     index = initialize_index(start, end, resolution)
 
     source = get_or_create_model(DataSource, name="test source", type="forecaster")
@@ -1676,7 +1678,7 @@ def test_per_commodity_inflexible_device_sensors(app, db):
             source=source,
             event_start=dt,
             belief_time=start,
-            event_value=8.0,
+            event_value=-8.0,
         )
         for dt in index
     ]
