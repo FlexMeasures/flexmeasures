@@ -146,6 +146,22 @@ def test_forecast_post_processing_interprets_unitless_values_in_sensor_unit():
     )
 
 
+def test_forecast_post_processing_interprets_unitless_snap_in_sensor_unit():
+    df = pd.DataFrame({"1h": [0.5, 2.5, 5.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"0": [0, 4]}},
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0, 0.0, 5.0]}),
+    )
+
+
 def test_forecast_post_processing_rejects_inconsistent_bounds():
     df = pd.DataFrame({"1h": [1.0]})
 
