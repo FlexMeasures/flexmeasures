@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timedelta
 
 from rq.job import Job
+from sqlalchemy import inspect as sa_inspect
 
 from flask import current_app
 
@@ -48,88 +49,70 @@ def _get_attached_data_source(data_source_id: int | None) -> DataSource | None:
     return attached_source
 
 
+def _assert_no_orm_objects(value: Any, path: str = "payload") -> None:
+    inspection = sa_inspect(value, raiseerr=False)
+    if inspection is not None and hasattr(inspection, "object"):
+        raise ValueError(
+            f"Queued forecasting job {path} contains a "
+            f"{value.__class__.__name__} ORM object. Pass its ID instead."
+        )
+
+    if isinstance(value, dict):
+        for key, nested_value in value.items():
+            _assert_no_orm_objects(nested_value, f"{path}.{key}")
+    elif isinstance(value, (list, tuple, set)):
+        for index, nested_value in enumerate(value):
+            _assert_no_orm_objects(nested_value, f"{path}[{index}]")
+
+
 def _make_job_config_payload(config: dict[str, Any]) -> dict[str, Any]:
     """Build the worker config payload without ORM objects."""
-    return {
-        "model": config["model"],
-        "future_regressor_ids": [
-            _sensor_id(sensor) for sensor in config["future_regressors"]
-        ],
-        "past_regressor_ids": [
-            _sensor_id(sensor) for sensor in config["past_regressors"]
-        ],
-        "missing_threshold": config["missing_threshold"],
-        "ensure_positive": config["ensure_positive"],
-        "train_start": config.get("train_start"),
-        "train_period": config["train_period"],
-        "max_training_period": config["max_training_period"],
-        "retrain_frequency": config["retrain_frequency"],
-        "train_period_in_hours": config["train_period_in_hours"],
-    }
+    payload = dict(config)
+    future_regressors = payload.pop("future_regressors", [])
+    past_regressors = payload.pop("past_regressors", [])
+    payload["future_regressor_ids"] = [
+        _sensor_id(sensor) for sensor in future_regressors
+    ]
+    payload["past_regressor_ids"] = [_sensor_id(sensor) for sensor in past_regressors]
+    _assert_no_orm_objects(payload)
+    return payload
 
 
 def _load_job_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Load the worker config through the active worker session."""
-    return {
-        "model": payload["model"],
-        "future_regressors": [
-            _get_attached_sensor(sensor_id)
-            for sensor_id in payload["future_regressor_ids"]
-        ],
-        "past_regressors": [
-            _get_attached_sensor(sensor_id)
-            for sensor_id in payload["past_regressor_ids"]
-        ],
-        "missing_threshold": payload["missing_threshold"],
-        "ensure_positive": payload["ensure_positive"],
-        "train_start": payload["train_start"],
-        "train_period": payload["train_period"],
-        "max_training_period": payload["max_training_period"],
-        "retrain_frequency": payload["retrain_frequency"],
-        "train_period_in_hours": payload["train_period_in_hours"],
-    }
+    config = dict(payload)
+    config["future_regressors"] = [
+        _get_attached_sensor(sensor_id)
+        for sensor_id in config.pop("future_regressor_ids", [])
+    ]
+    config["past_regressors"] = [
+        _get_attached_sensor(sensor_id)
+        for sensor_id in config.pop("past_regressor_ids", [])
+    ]
+    return config
 
 
 def _make_job_parameters_payload(parameters: dict[str, Any]) -> dict[str, Any]:
     """Build the worker parameter payload without ORM objects."""
-    sensor_id = _sensor_id(parameters["sensor"])
-    sensor_to_save_id = _sensor_id(parameters.get("sensor_to_save"))
+    payload = dict(parameters)
+    sensor_id = _sensor_id(payload.pop("sensor"))
+    sensor_to_save_id = _sensor_id(payload.pop("sensor_to_save", None))
     if sensor_id is None:
         raise ValueError("Cannot enqueue a forecasting job without a target sensor.")
-    return {
-        "sensor_id": sensor_id,
-        "sensor_to_save_id": sensor_to_save_id or sensor_id,
-        "model_save_dir": parameters["model_save_dir"],
-        "output_path": parameters["output_path"],
-        "end_date": parameters["end_date"],
-        "predict_start": parameters["predict_start"],
-        "predict_period_in_hours": parameters["predict_period_in_hours"],
-        "max_forecast_horizon": parameters["max_forecast_horizon"],
-        "forecast_frequency": parameters["forecast_frequency"],
-        "probabilistic": parameters["probabilistic"],
-        "save_belief_time": parameters["save_belief_time"],
-        "beliefs_before": parameters.get("beliefs_before"),
-        "m_viewpoints": parameters["m_viewpoints"],
-    }
+    payload["sensor_id"] = sensor_id
+    payload["sensor_to_save_id"] = sensor_to_save_id or sensor_id
+    _assert_no_orm_objects(payload)
+    return payload
 
 
 def _load_job_parameters_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Load the worker parameters through the active worker session."""
-    return {
-        "sensor": _get_attached_sensor(payload["sensor_id"]),
-        "sensor_to_save": _get_attached_sensor(payload["sensor_to_save_id"]),
-        "model_save_dir": payload["model_save_dir"],
-        "output_path": payload["output_path"],
-        "end_date": payload["end_date"],
-        "predict_start": payload["predict_start"],
-        "predict_period_in_hours": payload["predict_period_in_hours"],
-        "max_forecast_horizon": payload["max_forecast_horizon"],
-        "forecast_frequency": payload["forecast_frequency"],
-        "probabilistic": payload["probabilistic"],
-        "save_belief_time": payload["save_belief_time"],
-        "beliefs_before": payload.get("beliefs_before"),
-        "m_viewpoints": payload["m_viewpoints"],
-    }
+    parameters = dict(payload)
+    parameters["sensor"] = _get_attached_sensor(parameters.pop("sensor_id"))
+    parameters["sensor_to_save"] = _get_attached_sensor(
+        parameters.pop("sensor_to_save_id")
+    )
+    return parameters
 
 
 def run_train_predict_cycle_job(
@@ -415,16 +398,18 @@ class TrainPredictPipeline(Forecaster):
                 "sensor_id": sensor_to_save_id,
             }
             for cycle_params in cycles_job_params:
+                job_kwargs = {
+                    "config": job_config,
+                    "parameters": job_parameters,
+                    "data_source_id": data_source_id,
+                    "delete_model": self.delete_model,
+                    **cycle_params,
+                }
+                _assert_no_orm_objects(job_kwargs)
 
                 job = Job.create(
                     run_train_predict_cycle_job,
-                    kwargs={
-                        "config": job_config,
-                        "parameters": job_parameters,
-                        "data_source_id": data_source_id,
-                        "delete_model": self.delete_model,
-                        **cycle_params,
-                    },
+                    kwargs=job_kwargs,
                     connection=connection,
                     ttl=int(
                         current_app.config.get(
