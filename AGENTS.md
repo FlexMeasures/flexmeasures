@@ -1234,6 +1234,12 @@ Track and document when the Lead:
 - **Key insight**: "Inspecting code is not a substitute for a green test — write the
   test first and let it prove or disprove the concern."
 
+**Specific lesson learned (2026-06 feature branch sync)**:
+- **Session**: Computing first unmet targets
+- **Discovery**: Feature branch was 10+ commits behind `origin/main`; need explicit process rule
+- **Prevention**: Added `.github/instructions/feature-branch-sync.instructions.md` to guide all agents
+- **Key insight**: "Branch status checks must use git log, not git status — the latter only shows uncommitted changes"
+
 Update this file to prevent repeating the same mistakes.
 
 ## Session Close Checklist (MANDATORY)
@@ -1296,6 +1302,7 @@ This is a regression (see Regression Prevention section). You MUST:
 
 ### Pre-Commit Verification
 
+- [ ] **Branch in sync with main**: Run `git log --oneline origin/main...HEAD --left-right` — if `<` markers exist, `origin/main` has commits the branch lacks; merge before proceeding.
 - [ ] **All hooks pass**: `pre-commit run --all-files` (see `.github/instructions/pre-commit-hooks.instructions.md`)
 - [ ] **Changes committed**: If hooks modified files, changes included in commit
 
