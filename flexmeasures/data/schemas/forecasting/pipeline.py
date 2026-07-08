@@ -9,6 +9,7 @@ from isodate.duration import Duration
 from marshmallow import (
     fields,
     Schema,
+    validate,
     validates_schema,
     pre_load,
     post_load,
@@ -96,6 +97,34 @@ class TrainPredictPipelineConfigSchema(Schema):
             "cli": {
                 "option": "--ensure-positive",
             },
+        },
+    )
+    lower = fields.Raw(
+        required=False,
+        allow_none=True,
+        load_default=None,
+        metadata={
+            "description": "Optional lower bound for forecast values after prediction. Unitless values are interpreted in the output sensor unit.",
+            "example": "0 kW",
+        },
+    )
+    upper = fields.Raw(
+        required=False,
+        allow_none=True,
+        load_default=None,
+        metadata={
+            "description": "Optional upper bound for forecast values after prediction. Unitless values are interpreted in the output sensor unit.",
+            "example": "20 kW",
+        },
+    )
+    snap = fields.Dict(
+        keys=fields.Raw(),
+        values=fields.List(fields.Raw(), validate=validate.Length(equal=2)),
+        required=False,
+        load_default={},
+        metadata={
+            "description": "Optional mapping from snap targets to [lower, upper] intervals. Values inside an interval are replaced by the snap target before storage.",
+            "example": {"0 kW": ["0 kW", "4 kW"]},
         },
     )
     train_start = AwareDateTimeOrDateField(
