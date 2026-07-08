@@ -1,6 +1,7 @@
 ---
 name: api-backward-compatibility-specialist
 description: Protects users and integrators by ensuring API changes are backwards compatible, properly versioned, and well-documented
+model: sonnet
 ---
 
 # Agent: API & Backward Compatibility Specialist
