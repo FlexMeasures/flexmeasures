@@ -1,6 +1,7 @@
 ---
 name: ui-specialist
 description: Guards UI consistency, permission patterns, JavaScript interaction patterns, and template quality in the FlexMeasures web interface
+model: sonnet
 ---
 
 # Agent: UI Specialist

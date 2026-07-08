@@ -1,6 +1,7 @@
 ---
 name: documentation-developer-experience-specialist
 description: Ensures excellent documentation, clear error messages, and smooth developer workflows to keep FlexMeasures accessible
+model: sonnet
 ---
 
 # Agent: Documentation & Developer Experience Specialist
