@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import numbers
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import timely_beliefs as tb
@@ -9,10 +12,119 @@ from flexmeasures.data.models.time_series import Sensor
 from datetime import datetime, timedelta
 
 from flexmeasures.data import db
+from flexmeasures.utils.unit_utils import ur
 
 
 def negative_to_zero(x: np.ndarray) -> np.ndarray:
     return np.where(x < 0, 0, x)
+
+
+def _normalize_unit(unit: str | None) -> str:
+    """Normalize empty units for pint."""
+    return unit or "dimensionless"
+
+
+def _is_unitless(unit: str | None) -> bool:
+    """Check whether a parsed quantity carries no physical unit."""
+    return unit in (None, "", "dimensionless")
+
+
+def _quantity_to_sensor_value(value: Any, sensor_unit: str) -> float:
+    """Parse a configured quantity and return its magnitude in the sensor unit."""
+    to_unit = _normalize_unit(sensor_unit)
+
+    if isinstance(value, numbers.Real):
+        return float(value)
+
+    if not isinstance(value, str):
+        raise ValueError(
+            f"Forecast post-processing values must be numbers or quantity strings, not {type(value).__name__}."
+        )
+
+    try:
+        quantity = ur.Quantity(value)
+    except Exception as exc:
+        raise ValueError(
+            f"Could not parse forecast post-processing value '{value}'."
+        ) from exc
+
+    if _is_unitless(f"{quantity.units:~P}"):
+        return float(quantity.magnitude)
+
+    try:
+        return float(quantity.to(ur.Quantity(to_unit)).magnitude)
+    except Exception as exc:
+        raise ValueError(
+            f"Could not convert forecast post-processing value '{value}' to '{sensor_unit}'."
+        ) from exc
+
+
+def apply_forecast_post_processing(
+    data: pd.DataFrame,
+    horizon: int,
+    config: dict,
+    sensor_unit: str,
+) -> pd.DataFrame:
+    """Apply configured clipping and snapping to forecast horizon columns.
+
+    :param data:        DataFrame containing one column per forecast horizon.
+    :param horizon:     Maximum forecast horizon in time-steps.
+    :param config:      Forecaster config with optional ``lower``, ``upper`` and ``snap`` fields.
+    :param sensor_unit: Unit of the sensor to which forecasts will be saved.
+    :returns:           A DataFrame with post-processed forecast values.
+    """
+    lower = config.get("lower")
+    upper = config.get("upper")
+    snap = config.get("snap", {})
+
+    if lower is None and upper is None and not snap:
+        return data
+
+    processed = data.copy()
+    forecast_columns = [f"{h}h" for h in range(1, horizon + 1)]
+    lower_value = (
+        _quantity_to_sensor_value(lower, sensor_unit) if lower is not None else None
+    )
+    upper_value = (
+        _quantity_to_sensor_value(upper, sensor_unit) if upper is not None else None
+    )
+
+    if (
+        lower_value is not None
+        and upper_value is not None
+        and lower_value > upper_value
+    ):
+        raise ValueError(
+            "Forecast post-processing lower bound cannot be greater than upper bound."
+        )
+
+    for target, interval in snap.items():
+        if not isinstance(interval, (list, tuple)) or len(interval) != 2:
+            raise ValueError(
+                "Forecast post-processing snap intervals must contain exactly two bounds."
+            )
+
+        target_value = _quantity_to_sensor_value(target, sensor_unit)
+        interval_lower = _quantity_to_sensor_value(interval[0], sensor_unit)
+        interval_upper = _quantity_to_sensor_value(interval[1], sensor_unit)
+        if interval_lower > interval_upper:
+            raise ValueError(
+                "Forecast post-processing snap interval lower bound cannot be greater than upper bound."
+            )
+
+        for column in forecast_columns:
+            original_values = processed[column].copy()
+            mask = original_values.between(interval_lower, interval_upper)
+            if lower_value is not None:
+                mask &= original_values >= lower_value
+            if upper_value is not None:
+                mask &= original_values <= upper_value
+            processed.loc[mask, column] = target_value
+
+    processed[forecast_columns] = processed[forecast_columns].clip(
+        lower=lower_value, upper=upper_value, axis=None
+    )
+    return processed
 
 
 def data_to_bdf(
