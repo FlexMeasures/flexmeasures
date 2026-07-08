@@ -67,6 +67,7 @@ def _assert_no_orm_objects(value: Any, path: str = "payload") -> None:
 
 def _make_job_config_payload(config: dict[str, Any]) -> dict[str, Any]:
     """Build the worker config payload without ORM objects."""
+    # Preserve plain config fields, but replace ORM-backed regressors by IDs.
     payload = dict(config)
     future_regressors = payload.pop("future_regressors", [])
     past_regressors = payload.pop("past_regressors", [])
@@ -94,6 +95,7 @@ def _load_job_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _make_job_parameters_payload(parameters: dict[str, Any]) -> dict[str, Any]:
     """Build the worker parameter payload without ORM objects."""
+    # Preserve plain parameters, but replace ORM-backed sensors by IDs.
     payload = dict(parameters)
     sensor_id = _sensor_id(payload.pop("sensor"))
     sensor_to_save_id = _sensor_id(payload.pop("sensor_to_save", None))
