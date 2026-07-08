@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from collections import OrderedDict
 from datetime import timedelta
 from typing import Any, Callable, Dict
 
@@ -21,6 +23,7 @@ from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
     SensorReference,
+    OutputSensorReferenceSchema,
 )
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.units import UnitField
@@ -140,10 +143,100 @@ class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
     pass
 
 
-class FlexContextSchema(Schema):
-    """This schema defines fields that provide context to the portfolio to be optimized."""
+class SharedSchema(Schema):
+    """Shared schema for fields common across commodities in flex-context and commodity-context."""
 
-    # Device commitments
+    consumption_price = VariableQuantityField(
+        "/MWh",
+        required=False,
+        data_key="consumption-price",
+        return_magnitude=False,
+        metadata=metadata.CONSUMPTION_PRICE.to_dict(),
+    )
+
+    production_price = VariableQuantityField(
+        "/MWh",
+        required=False,
+        data_key="production-price",
+        return_magnitude=False,
+        metadata=metadata.PRODUCTION_PRICE.to_dict(),
+    )
+
+    ems_power_capacity_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-power-capacity",
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_POWER_CAPACITY.to_dict(),
+    )
+
+    ems_consumption_capacity_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-consumption-capacity",
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_CONSUMPTION_CAPACITY.to_dict(),
+    )
+
+    ems_production_capacity_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-production-capacity",
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PRODUCTION_CAPACITY.to_dict(),
+    )
+
+    ems_consumption_breach_price = VariableQuantityField(
+        "/MW",
+        data_key="site-consumption-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_CONSUMPTION_BREACH_PRICE.to_dict(),
+    )
+
+    ems_production_breach_price = VariableQuantityField(
+        "/MW",
+        data_key="site-production-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PRODUCTION_BREACH_PRICE.to_dict(),
+    )
+
+    ems_peak_consumption_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-peak-consumption",
+        value_validator=validate.Range(min=0),
+        load_default=ur.Quantity("0 kW"),
+        metadata=metadata.SITE_PEAK_CONSUMPTION.to_dict(),
+    )
+
+    ems_peak_consumption_price = VariableQuantityField(
+        "/MW",
+        data_key="site-peak-consumption-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PEAK_CONSUMPTION_PRICE.to_dict(),
+    )
+
+    ems_peak_production_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-peak-production",
+        value_validator=validate.Range(min=0),
+        load_default=ur.Quantity("0 kW"),
+        metadata=metadata.SITE_PEAK_PRODUCTION.to_dict(),
+    )
+
+    ems_peak_production_price = VariableQuantityField(
+        "/MW",
+        data_key="site-peak-production-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PEAK_PRODUCTION_PRICE.to_dict(),
+    )
+
+    # Breach prices for device capacity constraints
     consumption_breach_price = VariableQuantityField(
         "/MW",
         data_key="consumption-breach-price",
@@ -172,12 +265,13 @@ class FlexContextSchema(Schema):
         value_validator=validate.Range(min=0),
         metadata=metadata.SOC_MAXIMA_BREACH_PRICE.to_dict(),
     )
+
+    # Relaxation fields
     relax_constraints = fields.Bool(
         data_key="relax-constraints",
         load_default=False,
         metadata=metadata.RELAX_CONSTRAINTS.to_dict(),
     )
-    # Dev fields
     relax_soc_constraints = fields.Bool(
         data_key="relax-soc-constraints",
         load_default=False,
@@ -194,97 +288,6 @@ class FlexContextSchema(Schema):
         metadata=metadata.RELAX_SITE_CAPACITY_CONSTRAINTS.to_dict(),
     )
 
-    # Energy commitments
-    ems_power_capacity_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-power-capacity",
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_POWER_CAPACITY.to_dict(),
-    )
-    # todo: deprecated since flexmeasures==0.23
-    consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
-    production_price_sensor = SensorIdField(data_key="production-price-sensor")
-    consumption_price = VariableQuantityField(
-        "/MWh",
-        required=False,
-        data_key="consumption-price",
-        return_magnitude=False,
-        metadata=metadata.CONSUMPTION_PRICE.to_dict(),
-    )
-    production_price = VariableQuantityField(
-        "/MWh",
-        required=False,
-        data_key="production-price",
-        return_magnitude=False,
-        metadata=metadata.PRODUCTION_PRICE.to_dict(),
-    )
-
-    # Capacity breach commitments
-    ems_production_capacity_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-production-capacity",
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_PRODUCTION_CAPACITY.to_dict(),
-    )
-    ems_consumption_capacity_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-consumption-capacity",
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_CONSUMPTION_CAPACITY.to_dict(),
-    )
-    ems_consumption_breach_price = VariableQuantityField(
-        "/MW",
-        data_key="site-consumption-breach-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_CONSUMPTION_BREACH_PRICE.to_dict(),
-    )
-    ems_production_breach_price = VariableQuantityField(
-        "/MW",
-        data_key="site-production-breach-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_PRODUCTION_BREACH_PRICE.to_dict(),
-    )
-
-    # Peak consumption commitment
-    ems_peak_consumption_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-peak-consumption",
-        value_validator=validate.Range(min=0),
-        load_default=ur.Quantity("0 kW"),
-        metadata=metadata.SITE_PEAK_CONSUMPTION.to_dict(),
-    )
-    ems_peak_consumption_price = VariableQuantityField(
-        "/MW",
-        data_key="site-peak-consumption-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_PEAK_CONSUMPTION_PRICE.to_dict(),
-    )
-
-    # Peak production commitment
-    ems_peak_production_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-peak-production",
-        value_validator=validate.Range(min=0),
-        load_default=ur.Quantity("0 kW"),
-        metadata=metadata.SITE_PEAK_PRODUCTION.to_dict(),
-    )
-    ems_peak_production_price = VariableQuantityField(
-        "/MW",
-        data_key="site-peak-production-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_PEAK_PRODUCTION_PRICE.to_dict(),
-    )
-    # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
-
     commitments = fields.Nested(
         CommitmentSchema,
         data_key="commitments",
@@ -298,11 +301,19 @@ class FlexContextSchema(Schema):
         data_key="inflexible-device-sensors",
         metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
     )
-    aggregate_power = VariableQuantityField(
-        to_unit="MW",
-        data_key="aggregate-power",
+
+    # Aggregate output sensors
+    aggregate_consumption = fields.Nested(
+        OutputSensorReferenceSchema,
         required=False,
-        metadata=metadata.AGGREGATE_POWER.to_dict(),
+        data_key="aggregate-consumption",
+        metadata=metadata.AGGREGATE_CONSUMPTION.to_dict(),
+    )
+    aggregate_production = fields.Nested(
+        OutputSensorReferenceSchema,
+        required=False,
+        data_key="aggregate-production",
+        metadata=metadata.AGGREGATE_PRODUCTION.to_dict(),
     )
 
     def set_default_breach_prices(
@@ -321,6 +332,109 @@ class FlexContextSchema(Schema):
             )
         return data
 
+    @validates_schema(pass_original=True)
+    def _try_to_convert_price_units(self, data: dict, original_data: dict, **kwargs):
+        """Convert price units to the same unit and scale if they can (incl. same currency)."""
+
+        shared_currency_unit = None
+        previous_field_name = None
+        for field in self.declared_fields:
+            if field[-5:] == "price" and field in data:
+                price_field = self.declared_fields[field]
+                price_unit = price_field._get_unit(data[field])
+                currency_unit = str(
+                    (
+                        ur.Quantity(price_unit) / ur.Quantity(f"1{price_field.to_unit}")
+                    ).units
+                )
+
+                if shared_currency_unit is None:
+                    shared_currency_unit = str(
+                        ur.Quantity(currency_unit).to_base_units().units
+                    )
+                    previous_field_name = price_field.data_key
+                if not units_are_convertible(currency_unit, shared_currency_unit):
+                    field_name = price_field.data_key
+                    original_price_unit = price_field._get_original_unit(
+                        original_data[field_name], data[field]
+                    )
+                    error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit + price_field.to_unit}' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{original_price_unit}') for the '{field_name}' field."
+                    if shared_currency_unit not in price_unit:
+                        error_message += f" Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
+                    raise ValidationError(error_message, field_name=field_name)
+        if shared_currency_unit is not None:
+            data["shared_currency_unit"] = shared_currency_unit
+        elif sensor := data.get("consumption_price_sensor"):
+            data["shared_currency_unit"] = self._to_currency_per_mwh(sensor.unit)
+        elif sensor := data.get("production_price_sensor"):
+            data["shared_currency_unit"] = self._to_currency_per_mwh(sensor.unit)
+        else:
+            data["shared_currency_unit"] = "EUR"
+        return data
+
+    @staticmethod
+    def _to_currency_per_mwh(price_unit: str) -> str:
+        """Convert a price unit to a base currency used to express that price per MWh.
+
+        >>> FlexContextSchema()._to_currency_per_mwh("EUR/MWh")
+        'EUR'
+        >>> FlexContextSchema()._to_currency_per_mwh("EUR/kWh")
+        'EUR'
+        """
+        currency = str(ur.Quantity(price_unit + " * MWh").to_base_units().units)
+        return currency
+
+
+class CommodityFlexContextSchema(SharedSchema):
+    commodity = fields.Str(
+        required=False,
+        load_default="electricity",
+        data_key="commodity",
+        metadata=metadata.COMMODITY_FLEX_CONTEXT.to_dict(),
+    )
+
+    # For flex-context listings (per commodity), default relax_constraints to True
+    relax_constraints = fields.Bool(
+        data_key="relax-constraints",
+        load_default=True,
+        metadata=metadata.RELAX_CONSTRAINTS.to_dict(),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        commodity_field = self.fields.pop("commodity")
+        self.fields = OrderedDict(
+            [("commodity", commodity_field), *self.fields.items()]
+        )
+
+
+class FlexContextSchema(SharedSchema):
+    """This schema defines fields that provide context to the portfolio to be optimized."""
+
+    commodity_contexts = fields.Nested(
+        CommodityFlexContextSchema,
+        data_key="commodities",
+        required=False,
+        many=True,
+        metadata=dict(
+            description="For multi-commodity scheduling problems, the above fields can be set here per commodity.",
+        ),
+    )
+
+    # Energy commitments
+    # todo: deprecated since flexmeasures==0.23
+    consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
+    production_price_sensor = SensorIdField(data_key="production-price-sensor")
+
+    # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
+    aggregate_power = VariableQuantityField(
+        to_unit="MW",
+        data_key="aggregate-power",
+        required=False,
+        metadata=metadata.AGGREGATE_POWER.to_dict(),
+    )
+
     @validates("aggregate_power")
     def validate_aggregate_power_is_sensor(
         self,
@@ -333,6 +447,42 @@ class FlexContextSchema(Schema):
             )
         if not isinstance(aggregate_power, Sensor):
             raise ValidationError("The `aggregate-power` field can only be a Sensor.")
+
+    @validates("commodity_contexts")
+    def validate_commodity_contexts_shared_currency(
+        self, commodity_contexts: list[dict], **kwargs
+    ):
+        """Validate that all prices across commodity contexts share the same currency."""
+        if not commodity_contexts:
+            return
+
+        shared_currency_unit = None
+
+        for context in commodity_contexts:
+            # Check all price fields in this context
+            for field_name, field_value in context.items():
+                if field_name.endswith("_price") and field_value is not None:
+                    # Get the price unit
+                    if hasattr(field_value, "units"):
+                        price_unit = str(field_value.units)
+                    elif isinstance(field_value, ur.Quantity):
+                        price_unit = str(field_value.units)
+                    else:
+                        continue
+
+                    # Extract currency from the price unit
+                    # Price units are typically like "EUR/MWh" or "USD/MW"
+                    # Split by "/" and take first part as currency
+                    currency_unit = price_unit.split("/")[0].strip()
+
+                    if shared_currency_unit is None:
+                        shared_currency_unit = str(
+                            ur.Quantity(currency_unit).to_base_units().units
+                        )
+                    elif not units_are_convertible(currency_unit, shared_currency_unit):
+                        raise ValidationError(
+                            "all prices in the flex-context must share the same currency unit"
+                        )
 
     @validates_schema(pass_original=True)
     def check_prices(self, data: dict, original_data: dict, **kwargs):
@@ -430,59 +580,9 @@ class FlexContextSchema(Schema):
 
         return data
 
-    def _try_to_convert_price_units(self, data: dict, original_data: dict):
-        """Convert price units to the same unit and scale if they can (incl. same currency)."""
-
-        shared_currency_unit = None
-        previous_field_name = None
-        for field in self.declared_fields:
-            if field[-5:] == "price" and field in data:
-                price_field = self.declared_fields[field]
-                price_unit = price_field._get_unit(data[field])
-                currency_unit = str(
-                    (
-                        ur.Quantity(price_unit) / ur.Quantity(f"1{price_field.to_unit}")
-                    ).units
-                )
-
-                if shared_currency_unit is None:
-                    shared_currency_unit = str(
-                        ur.Quantity(currency_unit).to_base_units().units
-                    )
-                    previous_field_name = price_field.data_key
-                if not units_are_convertible(currency_unit, shared_currency_unit):
-                    field_name = price_field.data_key
-                    original_price_unit = price_field._get_original_unit(
-                        original_data[field_name], data[field]
-                    )
-                    error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit + price_field.to_unit}' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{original_price_unit}') for the '{field_name}' field."
-                    if shared_currency_unit not in price_unit:
-                        error_message += f" Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
-                    raise ValidationError(error_message, field_name=field_name)
-        if shared_currency_unit is not None:
-            data["shared_currency_unit"] = shared_currency_unit
-        elif sensor := data.get("consumption_price_sensor"):
-            data["shared_currency_unit"] = self._to_currency_per_mwh(sensor.unit)
-        elif sensor := data.get("production_price_sensor"):
-            data["shared_currency_unit"] = self._to_currency_per_mwh(sensor.unit)
-        else:
-            data["shared_currency_unit"] = "EUR"
-        return data
-
-    @staticmethod
-    def _to_currency_per_mwh(price_unit: str) -> str:
-        """Convert a price unit to a base currency used to express that price per MWh.
-
-        >>> FlexContextSchema()._to_currency_per_mwh("EUR/MWh")
-        'EUR'
-        >>> FlexContextSchema()._to_currency_per_mwh("EUR/kWh")
-        'EUR'
-        """
-        currency = str(ur.Quantity(price_unit + " * MWh").to_base_units().units)
-        return currency
-
 
 EXAMPLE_UNIT_TYPES: Dict[str, list[str]] = {
+    "commodity": ["electricity", "gas"],
     "energy-price": ["EUR/MWh", "JPY/kWh", "USD/MWh", "and other currencies."],
     "power-price": ["EUR/kW", "JPY/kW", "USD/kW", "and other currencies."],
     "power": ["MW", "kW"],
@@ -492,6 +592,26 @@ EXAMPLE_UNIT_TYPES: Dict[str, list[str]] = {
 }
 
 UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
+    "aggregate-consumption": {
+        "default": None,
+        "description": rst_to_openapi(metadata.AGGREGATE_CONSUMPTION.description),
+        # todo: the field type is defined in asset_context.html in 3 places?
+        # "types": {
+        #     "backend": "typeTwo",
+        #     "ui": "A sensor which records the scheduled aggregate consumption.",
+        # },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "aggregate-production": {
+        "default": None,
+        "description": rst_to_openapi(metadata.AGGREGATE_PRODUCTION.description),
+        # todo: the field type is defined in asset_context.html in 3 places?
+        # "types": {
+        #     "backend": "typeTwo",
+        #     "ui": "A sensor which records the scheduled aggregate production.",
+        # },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
     "consumption-price": {
         "default": None,  # Refers to default value of the field
         "description": rst_to_openapi(metadata.CONSUMPTION_PRICE.description),
@@ -760,6 +880,15 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "commodity": {
+        "default": "electricity",
+        "description": rst_to_openapi(metadata.COMMODITY_FLEX_MODEL.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "One fixed value only.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["commodity"],
+    },
 }
 
 
@@ -908,7 +1037,17 @@ class MultiSensorFlexModelSchema(Schema):
             and data["sensor"].asset != data["asset"]
         ):
             raise ValidationError("Sensor does not belong to asset.")
-        if "sensor" not in data and "asset" not in data:
+        # if (
+        #     "state-of-charge" in data["sensor_flex_model"]
+        #     and "asset" in data
+        #     and data["sensor_flex_model"]["state-of-charge"].asset != data["asset"]
+        # ):
+        #     raise ValidationError("Sensor does not belong to asset.")
+        if (
+            "sensor" not in data
+            and "state-of-charge" not in data["sensor_flex_model"]
+            and "asset" not in data
+        ):
             raise ValidationError("Specify either a sensor or an asset.")
 
     @pre_load
@@ -989,7 +1128,7 @@ class AssetTriggerSchema(Schema):
         data_key="flex-model",
         load_default=[],
     )
-    flex_context = fields.Dict(
+    flex_context = fields.Raw(
         required=False,
         data_key="flex-context",
         load_default={},
@@ -1007,6 +1146,37 @@ class AssetTriggerSchema(Schema):
             description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
         ),
     )
+
+    @pre_load
+    def normalize_flex_context_format(self, data, **kwargs):
+        """Normalize flex_context to always be a dict.
+
+        Accepts both:
+        - Single commodity dict: {"commodity": "electricity", ...}
+        - List of commodity dicts: [{"commodity": "electricity", ...}, {"commodity": "heat", ...}]
+        - MultiDict with multiple 'flex-context' entries (when JSON list is parsed by webargs)
+
+        If a list is provided, it is wrapped under the 'commodities' field.
+        If a dict is provided, it is kept as-is.
+        This ensures downstream code always sees a dict structure.
+        """
+        if "flex-context" in data:
+            raw_flex_context = data.get("flex-context")
+
+            # Check if data is a MultiDict with multiple 'flex-context' entries
+            # This happens when JSON contains a list which webargs converts to multiple entries
+            if hasattr(data, "getlist"):
+                # MultiDict case - get all values for 'flex-context'
+                flex_contexts = data.getlist("flex-context")
+                if len(flex_contexts) > 1:
+                    # Multiple commodities: wrap in a dict with commodity_contexts field
+                    data["flex-context"] = {"commodities": flex_contexts}
+                # If only 1 entry, leave as-is (it's already a dict)
+            elif isinstance(raw_flex_context, list):
+                # Regular list case
+                data["flex-context"] = {"commodities": raw_flex_context}
+            # else: already a dict, leave as-is
+        return data
 
     @validates_schema
     def check_flex_model_sensors(self, data, **kwargs):

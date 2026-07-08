@@ -4584,84 +4584,59 @@
         ],
         "additionalProperties": false
       },
+      "OutputSensorReference": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer",
+            "description": "ID of the sensor on which the data is recorded."
+          }
+        },
+        "required": [
+          "sensor"
+        ],
+        "additionalProperties": false
+      },
       "FlexContextOpenAPISchema": {
         "type": "object",
         "properties": {
-          "consumption-breach-price": {
-            "description": "This <strong>penalty value</strong> is used to discourage the violation of the <code>consumption-capacity</code> constraint in the flex-model.\nIt effectively treats the capacity as a <strong>soft constraint</strong>, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
-            "example": "10 EUR/kW",
+          "commodity": {
+            "type": "string",
+            "default": "electricity",
+            "description": "Commodity to which this part of the flex-context applies.\nDefaults to <code>\"electricity\"</code>.\n",
+            "examples": [
+              "electricity",
+              "gas"
+            ]
+          },
+          "consumption-price": {
+            "description": "The commodity price (e.g. electricity price) applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem.",
+            "examples": [
+              {
+                "sensor": 5
+              },
+              "0.29 EUR/kWh"
+            ],
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "production-breach-price": {
-            "description": "This <strong>penalty value</strong> is used to discourage the violation of the <code>production-capacity</code> constraint in the flex-model.\nIt effectively treats the capacity as a <strong>soft constraint</strong>, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
-            "example": "10 EUR/kW",
+          "production-price": {
+            "description": "The commodity price (e.g. electricity price) applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem, as long as the unit matches the <code>consumption-price</code> unit.",
+            "example": "0.12 EUR/kWh",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
-          },
-          "soc-minima-breach-price": {
-            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-minima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an internal nudge to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.\n",
-            "example": "120 EUR/kWh",
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
-          },
-          "soc-maxima-breach-price": {
-            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-maxima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an <strong>internal nudge</strong> to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\n",
-            "example": "120 EUR/kWh",
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
-          },
-          "relax-constraints": {
-            "type": "boolean",
-            "default": false,
-            "description": "If True (default is <code>False</code>), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to <code>True</code> to enable the default prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
-            "example": true
-          },
-          "relax-soc-constraints": {
-            "type": "boolean",
-            "default": false,
-            "description": "If True, avoids not meeting SoC minima/maxima as a relaxed constraint.",
-            "example": true
-          },
-          "relax-capacity-constraints": {
-            "type": "boolean",
-            "default": false,
-            "description": "If True, avoids breaching the desired device consumption/production capacity as a relaxed constraint.",
-            "example": true
-          },
-          "relax-site-capacity-constraints": {
-            "type": "boolean",
-            "default": false,
-            "description": "If True, avoids breaching the site consumption/production capacity as a relaxed constraint.",
-            "example": true
           },
           "site-power-capacity": {
             "description": "Maximum achievable power at the site's grid connection point, in either direction.\nBecomes a hard constraint in the optimization problem, which is especially suitable for physical limitations.\n",
             "example": "45kVA",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "consumption-price-sensor": {
-            "type": "integer"
-          },
-          "production-price-sensor": {
-            "type": "integer"
-          },
-          "consumption-price": {
-            "description": "The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem.",
-            "example": {
-              "sensor": 5
-            },
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
-          },
-          "production-price": {
-            "description": "The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem, as long as the unit matches the <code>consumption-price</code> unit.",
-            "example": "0.12 EUR/kWh",
+          "site-consumption-capacity": {
+            "description": "Maximum consumption power at the site's grid connection point.\nIf <code>site-power-capacity</code> is defined, the minimum between the <code>site-power-capacity</code> and <code>site-consumption-capacity</code> will be used.\nIf a <code>site-consumption-breach-price</code> is defined, the <code>site-consumption-capacity</code> becomes a soft constraint in the optimization problem.\nOtherwise, it becomes a hard constraint.\n",
+            "example": "45kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "site-production-capacity": {
             "description": "Maximum production power at the site's grid connection point.\nIf <code>site-power-capacity</code> is defined, the minimum between the <code>site-power-capacity</code> and <code>site-production-capacity</code> will be used.\nIf a <code>site-production-breach-price</code> is defined, the <code>site-production-capacity</code> becomes a soft constraint in the optimization problem.\nOtherwise, it becomes a hard constraint.\n",
             "example": "0kW",
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
-          },
-          "site-consumption-capacity": {
-            "description": "Maximum consumption power at the site's grid connection point.\nIf <code>site-power-capacity</code> is defined, the minimum between the <code>site-power-capacity</code> and <code>site-consumption-capacity</code> will be used.\nIf a <code>site-consumption-breach-price</code> is defined, the <code>site-consumption-capacity</code> becomes a soft constraint in the optimization problem.\nOtherwise, it becomes a hard constraint.\n",
-            "example": "45kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "site-consumption-breach-price": {
@@ -4698,6 +4673,50 @@
             "example": "260 EUR/MW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
+          "consumption-breach-price": {
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of the <code>consumption-capacity</code> constraint in the flex-model.\nIt effectively treats the capacity as a <strong>soft constraint</strong>, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
+            "example": "10 EUR/kW",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+          },
+          "production-breach-price": {
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of the <code>production-capacity</code> constraint in the flex-model.\nIt effectively treats the capacity as a <strong>soft constraint</strong>, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
+            "example": "10 EUR/kW",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+          },
+          "soc-minima-breach-price": {
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-minima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an internal nudge to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.\n",
+            "example": "120 EUR/kWh",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+          },
+          "soc-maxima-breach-price": {
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-maxima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an <strong>internal nudge</strong> to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\n",
+            "example": "120 EUR/kWh",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+          },
+          "relax-constraints": {
+            "type": "boolean",
+            "default": true,
+            "description": "If True (default is <code>False</code>), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to <code>True</code> to enable the default prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
+            "example": true
+          },
+          "relax-soc-constraints": {
+            "type": "boolean",
+            "default": false,
+            "description": "If True, avoids not meeting SoC minima/maxima as a relaxed constraint.",
+            "example": true
+          },
+          "relax-capacity-constraints": {
+            "type": "boolean",
+            "default": false,
+            "description": "If True, avoids breaching the desired device consumption/production capacity as a relaxed constraint.",
+            "example": true
+          },
+          "relax-site-capacity-constraints": {
+            "type": "boolean",
+            "default": false,
+            "description": "If True, avoids breaching the site consumption/production capacity as a relaxed constraint.",
+            "example": true
+          },
           "commitments": {
             "description": "Prior commitments. Support for this field in the UI is still under further development, but you can find more information in <a href=\"/ui/static/documentation/html/search.html?q=commitments\" target=\"_blank\">the docs</a>.",
             "example": [],
@@ -4717,12 +4736,19 @@
               "type": "integer"
             }
           },
-          "aggregate-power": {
-            "description": "Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.",
+          "aggregate-consumption": {
+            "description": "Sensor used to record the aggregate consumption schedule of all flexible and inflexible devices involved when scheduling this asset.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nDepending on which output sensors are defined:\n\n- <strong>Only</strong> <code>aggregate-consumption</code> <strong>defined</strong>: the full aggregate power schedule is stored on this sensor using the\n  consumption-positive sign convention (consumption positive, production negative).\n- <strong>Only</strong> <code>aggregate-production</code> <strong>defined</strong>: the full aggregate power schedule is stored on the aggregate-production sensor\n  with the production-positive convention (production positive, consumption negative).\n- <strong>Both defined</strong>: only the non-negative part of the aggregate schedule is stored on this sensor (zero for\n  time steps with net production), and only the non-positive part (sign-flipped) is stored on the\n  aggregate-production sensor.\n",
             "example": {
-              "sensor": 9
+              "sensor": 10
             },
-            "$ref": "#/components/schemas/SensorReference"
+            "$ref": "#/components/schemas/OutputSensorReference"
+          },
+          "aggregate-production": {
+            "description": "Sensor used to record the aggregate production schedule of all flexible and inflexible devices involved when scheduling this asset.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nSee the <code>aggregate-consumption</code> field for the full description of the split logic when both sensors are defined.\n",
+            "example": {
+              "sensor": 11
+            },
+            "$ref": "#/components/schemas/OutputSensorReference"
           }
         },
         "additionalProperties": false
@@ -6096,19 +6122,28 @@
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",
         "properties": {
+          "commodity": {
+            "type": "string",
+            "default": "electricity",
+            "description": "Commodity on which this device acts.\nDefaults to <code>\"electricity\"</code>.\n",
+            "examples": [
+              "electricity",
+              "gas"
+            ]
+          },
           "consumption": {
             "description": "Sensor used to record the scheduled power as seen from a consumption perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nDepending on which output sensors are defined:\n\n- <strong>Only</strong> <code>consumption</code> <strong>defined</strong>: the full power schedule is stored on this sensor using the\n  consumption-positive sign convention (consumption positive, production negative).\n- <strong>Only</strong> <code>production</code> <strong>defined</strong>: the full power schedule is stored on the production sensor\n  with the production-positive convention (production positive, consumption negative).\n- <strong>Both defined</strong>: only the non-negative part of the schedule is stored on this sensor (zero for\n  time steps with net production), and only the non-positive part (sign-flipped) is stored on the\n  production sensor.\n",
             "example": {
               "sensor": 14
             },
-            "$ref": "#/components/schemas/SensorReference"
+            "$ref": "#/components/schemas/OutputSensorReference"
           },
           "production": {
-            "description": "Sensor used to record the scheduled power as seen from a production perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nSee <code>consumption</code> for the full description of the split logic when both sensors are defined.\n",
+            "description": "Sensor used to record the scheduled power as seen from a production perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nSee the <code>consumption</code> field for the full description of the split logic when both sensors are defined.\n",
             "example": {
               "sensor": 15
             },
-            "$ref": "#/components/schemas/SensorReference"
+            "$ref": "#/components/schemas/OutputSensorReference"
           },
           "soc-at-start": {
             "type": "string",
@@ -6208,12 +6243,12 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "charging-efficiency": {
-            "description": "One-way conversion efficiency from electricity to the storage's state of charge.\nCan be a percentage, a ratio in the range [0,1], or a coefficient of performance (>1).\nDefaults to 100% (no conversion loss).\n",
+            "description": "One-way conversion efficiency from the commodity (e.g. electricity) to the storage's state of charge.\nCan be a percentage, a ratio in the range [0,1], or a coefficient of performance (>1).\nDefaults to 100% (no conversion loss).\n",
             "example": ".9",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "discharging-efficiency": {
-            "description": "One-way conversion efficiency from the storage's state of charge to electricity.\nDefaults to 100% (no conversion loss).",
+            "description": "One-way conversion efficiency from the storage's state of charge to the commodity (e.g. electricity).\nDefaults to 100% (no conversion loss).",
             "example": "90%",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
@@ -6296,9 +6331,12 @@
             }
           },
           "flex-context": {
-            "default": {},
-            "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
-            "$ref": "#/components/schemas/FlexContextOpenAPISchema"
+            "type": "array",
+            "default": [],
+            "description": "Flex-context per commodity. The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+            "items": {
+              "$ref": "#/components/schemas/FlexContextOpenAPISchema"
+            }
           },
           "sequential": {
             "type": "boolean",
