@@ -4,6 +4,8 @@ from collections import OrderedDict
 from datetime import timedelta
 from typing import Any, Callable, Dict
 
+from flask import current_app
+
 from marshmallow import (
     Schema,
     fields,
@@ -379,8 +381,56 @@ class SharedSchema(Schema):
         elif sensor := data.get("production_price_sensor"):
             data["shared_currency_unit"] = self._to_currency_per_mwh(sensor.unit)
         else:
+            # No user-given price fields at all: fall back to "EUR", but flag this
+            # as a default (not user-given), so cross-context/cross-schema currency
+            # comparisons can skip it (a price-free context should never trip a
+            # currency-mismatch error against the rest of a differently-currencied
+            # portfolio; see CommodityFlexContextSchema.fill_grid_connection_defaults
+            # and FlexContextSchema.validate_commodity_contexts_shared_currency).
             data["shared_currency_unit"] = "EUR"
+            data["shared_currency_unit_is_default"] = True
         return data
+
+    # Currency-denominated fields that CommodityFlexContextSchema's smart defaults
+    # (fill_grid_connection_defaults) may fill with a fallback "EUR" price/breach
+    # price when a context has no user-given price fields at all.
+    _CURRENCY_DENOMINATED_FIELDS = (
+        "consumption_price",
+        "production_price",
+        "ems_consumption_breach_price",
+        "ems_production_breach_price",
+        "consumption_breach_price",
+        "production_breach_price",
+        "soc_minima_breach_price",
+        "soc_maxima_breach_price",
+        "ems_peak_consumption_price",
+        "ems_peak_production_price",
+    )
+
+    @classmethod
+    def _rebase_default_context_currency(cls, context: dict, new_currency: str):
+        """Re-express a price-free context's fallback-currency fields in another currency.
+
+        Only called for a commodity context that had no user-given price fields
+        (``shared_currency_unit_is_default`` is True), once a real portfolio
+        currency becomes known (e.g. from the top-level flex-context, or from a
+        sibling commodity context). All of that context's currency-denominated
+        fields were filled with plain quantities in a fallback "EUR", so their
+        magnitudes carry over unchanged under the new currency label (no FX
+        conversion is implied or attempted).
+        """
+        for field in cls._CURRENCY_DENOMINATED_FIELDS:
+            value = context.get(field)
+            if not isinstance(value, ur.Quantity):
+                continue
+            old_units = str(value.units)
+            denominator = old_units.split("/", 1)[1] if "/" in old_units else None
+            new_unit = (
+                new_currency if denominator is None else f"{new_currency}/{denominator}"
+            )
+            context[field] = ur.Quantity(value.magnitude, new_unit)
+        context["shared_currency_unit"] = new_currency
+        context["shared_currency_unit_is_default"] = False
 
     @staticmethod
     def _to_currency_per_mwh(price_unit: str) -> str:
@@ -552,6 +602,19 @@ class CommodityFlexContextSchema(SharedSchema):
                     fields=[breach_price_field],
                     price=10000 * shared_currency / ur.Quantity("kW"),
                 )
+        elif data.get("relax_constraints") is False:
+            # relax-constraints defaults to True, so False here can only be an
+            # explicit user choice. Since relax-site-capacity-constraints is also
+            # not set/true, this 0 capacity ends up as a *hard* constraint, which
+            # is likely infeasible for any commodity with actual devices/flow.
+            current_app.logger.warning(
+                f"Commodity context '{data.get('commodity', 'electricity')}' has"
+                f" its '{field}' defaulted to a 0 capacity, but"
+                " 'relax-constraints' was explicitly set to False (and"
+                " 'relax-site-capacity-constraints' was not set to True), so this"
+                " ends up as a hard 0-capacity constraint, which is likely"
+                " infeasible."
+            )
 
 
 class FlexContextSchema(SharedSchema):
@@ -647,6 +710,11 @@ class FlexContextSchema(SharedSchema):
         shared_currency_unit = None
 
         for context in commodity_contexts:
+            if context.get("shared_currency_unit_is_default"):
+                # No user-given price fields in this context: its "EUR" currency is
+                # just a fallback, not a real constraint, so don't let it clash with
+                # a differently-currencied portfolio.
+                continue
             context_currency_unit = context.get("shared_currency_unit")
             if context_currency_unit is None:
                 continue
@@ -667,25 +735,44 @@ class FlexContextSchema(SharedSchema):
     # serve as the electricity context only when the commodities list has no
     # electricity entry (see _get_commodity_contexts in storage.py).
 
-    @validates_schema(pass_original=True)
-    def check_prices(self, data: dict, original_data: dict, **kwargs):
-        """Check assumptions about prices.
+    def _reconcile_commodity_context_currencies(self, data: dict) -> str:
+        """Backfill price-free contexts' currency with the portfolio's real currency.
 
-        1. The flex-context must contain at most 1 consumption price and at most 1 production price field.
-        2. All prices must share the same currency.
+        Determines the portfolio's real (user-given) shared currency, if any: the
+        top-level one, unless it's itself just a fallback (no user-given price
+        fields at the top level), in which case falls back to the first
+        non-default commodity context's currency, if any. Then rebases any
+        price-free ("default currency") commodity context onto that real currency,
+        so their 0-price/breach-price fills inherit it. Returns the (possibly
+        just-updated) top-level `shared_currency_unit`.
         """
+        commodity_contexts = data.get("commodity_contexts", []) or []
+        real_shared_currency_unit = None
+        if not data.get("shared_currency_unit_is_default"):
+            real_shared_currency_unit = data["shared_currency_unit"]
+        else:
+            for context in commodity_contexts:
+                if not context.get("shared_currency_unit_is_default"):
+                    real_shared_currency_unit = context["shared_currency_unit"]
+                    break
 
-        # The flex-context must contain at most 1 consumption price and at most 1 production price field
-        if "consumption_price_sensor" in data and "consumption_price" in data:
-            raise ValidationError(
-                "Must pass either consumption-price or consumption-price-sensor."
-            )
-        if "production_price_sensor" in data and "production_price" in data:
-            raise ValidationError(
-                "Must pass either production-price or production-price-sensor."
-            )
+        if real_shared_currency_unit is not None and data.get(
+            "shared_currency_unit_is_default"
+        ):
+            data["shared_currency_unit"] = real_shared_currency_unit
+            data["shared_currency_unit_is_default"] = False
 
-        # New price fields can only be used after updating to the new consumption-price and production-price fields
+        if real_shared_currency_unit is not None:
+            for context in commodity_contexts:
+                if context.get("shared_currency_unit_is_default"):
+                    self._rebase_default_context_currency(
+                        context, real_shared_currency_unit
+                    )
+
+        return data["shared_currency_unit"]
+
+    def _check_deprecated_price_sensor_migration(self, data: dict, original_data: dict):
+        """New price fields can only be used after updating to consumption-price/production-price."""
         field_map = {
             field.data_key: field_var
             for field_var, field in self.declared_fields.items()
@@ -718,14 +805,41 @@ class FlexContextSchema(SharedSchema):
                     f"""Please switch to using `production-price: {{"sensor": {data[field_map["production-price-sensor"]].id}}}`."""
                 )
 
+    @validates_schema(pass_original=True)
+    def check_prices(self, data: dict, original_data: dict, **kwargs):
+        """Check assumptions about prices.
+
+        1. The flex-context must contain at most 1 consumption price and at most 1 production price field.
+        2. All prices must share the same currency.
+        """
+
+        # The flex-context must contain at most 1 consumption price and at most 1 production price field
+        if "consumption_price_sensor" in data and "consumption_price" in data:
+            raise ValidationError(
+                "Must pass either consumption-price or consumption-price-sensor."
+            )
+        if "production_price_sensor" in data and "production_price" in data:
+            raise ValidationError(
+                "Must pass either production-price or production-price-sensor."
+            )
+
+        self._check_deprecated_price_sensor_migration(data, original_data)
+
         # make sure that the prices fields are valid price units
 
         # All prices must share the same unit
         data = self._try_to_convert_price_units(data, original_data)
-        shared_currency = ur.Quantity(data["shared_currency_unit"])
+        shared_currency = ur.Quantity(
+            self._reconcile_commodity_context_currencies(data)
+        )
 
         # Also check that top-level prices share their currency with any per-commodity contexts
         for context in data.get("commodity_contexts", []) or []:
+            if context.get("shared_currency_unit_is_default"):
+                # Already reconciled (or left as a harmless fallback, if no real
+                # currency was determinable anywhere) by
+                # _reconcile_commodity_context_currencies above.
+                continue
             context_currency_unit = context.get("shared_currency_unit")
             if context_currency_unit is None:
                 continue

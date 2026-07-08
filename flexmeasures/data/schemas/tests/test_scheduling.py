@@ -1282,6 +1282,71 @@ def test_flex_context_listing_shared_currency(
     check_schema_loads_data(schema=schema, data=flex_context_listing, fails=fails)
 
 
+def test_flex_context_listing_tolerates_price_free_context_in_other_currency():
+    """test_flex_context_listing_tolerates_price_free_context_in_other_currency:
+    a bare (price-free) commodity context must not trip the shared-currency check
+    against a differently-currencied portfolio, since it has no user-given prices
+    of its own -- its 0-price/breach-price fills should just inherit the
+    portfolio's real currency.
+    """
+    schema = FlexContextSchema()
+
+    # Case A: top-level price sets the portfolio currency.
+    loaded = schema.load(
+        {
+            "consumption-price": "10 USD/MWh",
+            "commodities": [
+                {"commodity": "electricity", "consumption-price": "10 USD/MWh"},
+                {"commodity": "gas"},
+            ],
+        }
+    )
+    assert loaded["shared_currency_unit"] == "USD"
+    gas_context = next(
+        c for c in loaded["commodity_contexts"] if c["commodity"] == "gas"
+    )
+    assert gas_context["shared_currency_unit"] == "USD"
+    assert str(gas_context["consumption_price"].units) == "USD/MWh"
+
+    # Case B: no top-level price; a sibling commodity context sets the currency.
+    loaded = schema.load(
+        {
+            "commodities": [
+                {"commodity": "electricity", "consumption-price": "10 USD/MWh"},
+                {"commodity": "gas"},
+            ],
+        }
+    )
+    assert loaded["shared_currency_unit"] == "USD"
+    gas_context = next(
+        c for c in loaded["commodity_contexts"] if c["commodity"] == "gas"
+    )
+    assert gas_context["shared_currency_unit"] == "USD"
+    assert str(gas_context["consumption_price"].units) == "USD/MWh"
+
+    # Case C: no price given anywhere -> falls back to EUR everywhere.
+    loaded = schema.load({"commodities": [{"commodity": "gas"}]})
+    assert loaded["shared_currency_unit"] == "EUR"
+    gas_context = loaded["commodity_contexts"][0]
+    assert gas_context["shared_currency_unit"] == "EUR"
+
+    # A genuine mismatch (both contexts have explicit, different currencies) must
+    # still be rejected.
+    check_schema_loads_data(
+        schema=schema,
+        data={
+            "consumption-price": "10 USD/MWh",
+            "commodities": [
+                {"commodity": "electricity", "consumption-price": "10 USD/MWh"},
+                {"commodity": "gas", "consumption-price": "10 EUR/MWh"},
+            ],
+        },
+        fails={
+            "commodities": "all prices in the flex-context must share the same currency unit"
+        },
+    )
+
+
 def test_flex_context_listing_rejects_duplicate_commodities(db, app):
     """test_flex_context_listing_rejects_duplicate_commodities: a commodity listed twice must be rejected."""
     schema = FlexContextSchema()
