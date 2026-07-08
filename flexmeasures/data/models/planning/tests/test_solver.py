@@ -1523,6 +1523,10 @@ def test_capacity(
     flex_context = {
         "production-price": {"sensor": add_market_prices["epex_da_production"].id},
         "consumption-price": {"sensor": add_market_prices["epex_da"].id},
+        # This test asserts hard-capacity semantics (constraint DataFrames), so opt out
+        # of the default constraint relaxation (which would use the physical capacity
+        # as the hard bound and penalize the contracted capacity only softly).
+        "relax-constraints": False,
     }
 
     def set_if_not_none(dictionary, key, value):
@@ -1621,7 +1625,8 @@ def test_device_power_capacity_uses_directional_capacity_before_site_fallback(
             "soc-max": 5,
             **configured_capacities,
         },
-        flex_context={"consumption-price": "1 EUR/MWh"},
+        # relax-constraints False: this test asserts hard-capacity semantics.
+        flex_context={"consumption-price": "1 EUR/MWh", "relax-constraints": False},
     )
     scheduler.deserialize_config()
 
@@ -1879,7 +1884,11 @@ def test_battery_power_capacity_as_sensor(
     resolution = timedelta(minutes=15)
     soc_at_start = 10
 
-    flex_context = {"site-power-capacity": "1100 kVA"}  # 1.1 MW
+    flex_context = {
+        "site-power-capacity": "1100 kVA",  # 1.1 MW
+        # relax-constraints False: this test asserts hard-capacity semantics.
+        "relax-constraints": False,
+    }
     if site_consumption_capacity_sensor:
         flex_context["site-consumption-capacity"] = {
             "sensor": capacity_sensors["site_power_capacity"].id

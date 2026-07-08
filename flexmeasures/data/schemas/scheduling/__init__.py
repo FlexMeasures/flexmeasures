@@ -41,6 +41,7 @@ from flexmeasures.utils.unit_utils import (
     is_capacity_price_unit,
     is_energy_price_unit,
     is_power_unit,
+    is_currency_unit,
     is_energy_unit,
 )
 from flexmeasures.utils.validation_utils import validate_variable_quantity
@@ -269,7 +270,7 @@ class SharedSchema(Schema):
     # Relaxation fields
     relax_constraints = fields.Bool(
         data_key="relax-constraints",
-        load_default=False,
+        load_default=True,
         metadata=metadata.RELAX_CONSTRAINTS.to_dict(),
     )
     relax_soc_constraints = fields.Bool(
@@ -393,13 +394,6 @@ class CommodityFlexContextSchema(SharedSchema):
         metadata=metadata.COMMODITY_FLEX_CONTEXT.to_dict(),
     )
 
-    # For flex-context listings (per commodity), default relax_constraints to True
-    relax_constraints = fields.Bool(
-        data_key="relax-constraints",
-        load_default=True,
-        metadata=metadata.RELAX_CONSTRAINTS.to_dict(),
-    )
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -411,6 +405,23 @@ class CommodityFlexContextSchema(SharedSchema):
 
 class FlexContextSchema(SharedSchema):
     """This schema defines fields that provide context to the portfolio to be optimized."""
+
+    # The single-dict flex-context form only supports the electricity commodity.
+    # Other commodities must be defined via the `commodities` list.
+    # Not part of the documented UI/OpenAPI fields.
+    commodity = fields.Str(
+        required=False,
+        load_default="electricity",
+        data_key="commodity",
+        validate=validate.OneOf(
+            ["electricity"],
+            error="The top-level flex-context dict only supports the 'electricity' "
+            "commodity. Use the `commodities` list to define other commodities.",
+        ),
+        metadata=dict(
+            description="Commodity of the single-dict flex-context form; only 'electricity' is supported here. Use the `commodities` list to define other commodities.",
+        ),
+    )
 
     commodity_contexts = fields.Nested(
         CommodityFlexContextSchema,
@@ -449,40 +460,61 @@ class FlexContextSchema(SharedSchema):
             raise ValidationError("The `aggregate-power` field can only be a Sensor.")
 
     @validates("commodity_contexts")
+    def validate_commodity_contexts_unique(
+        self, commodity_contexts: list[dict], **kwargs
+    ):
+        """Validate that each commodity is listed at most once.
+
+        `_get_commodity_contexts` (storage.py) builds a dict keyed by commodity, so
+        duplicate entries would otherwise silently overwrite each other.
+        """
+        commodities = [context["commodity"] for context in commodity_contexts]
+        seen = set()
+        duplicates = set()
+        for commodity in commodities:
+            if commodity in seen:
+                duplicates.add(commodity)
+            seen.add(commodity)
+        if duplicates:
+            raise ValidationError(
+                f"Each commodity may only be listed once in `commodities`. Duplicate(s): {sorted(duplicates)}."
+            )
+
+    @validates("commodity_contexts")
     def validate_commodity_contexts_shared_currency(
         self, commodity_contexts: list[dict], **kwargs
     ):
-        """Validate that all prices across commodity contexts share the same currency."""
+        """Validate that all prices across commodity contexts share the same currency.
+
+        Each commodity context already computed its own normalized ``shared_currency_unit``
+        (a base-unit currency string, e.g. "EUR") via the inherited
+        ``_try_to_convert_price_units`` schema-level validator. We simply compare those.
+        """
         if not commodity_contexts:
             return
 
         shared_currency_unit = None
 
         for context in commodity_contexts:
-            # Check all price fields in this context
-            for field_name, field_value in context.items():
-                if field_name.endswith("_price") and field_value is not None:
-                    # Get the price unit
-                    if hasattr(field_value, "units"):
-                        price_unit = str(field_value.units)
-                    elif isinstance(field_value, ur.Quantity):
-                        price_unit = str(field_value.units)
-                    else:
-                        continue
+            context_currency_unit = context.get("shared_currency_unit")
+            if context_currency_unit is None:
+                continue
+            if shared_currency_unit is None:
+                shared_currency_unit = context_currency_unit
+            elif not units_are_convertible(context_currency_unit, shared_currency_unit):
+                raise ValidationError(
+                    "all prices in the flex-context must share the same currency unit"
+                    f" (found both '{shared_currency_unit}' and '{context_currency_unit}')"
+                )
 
-                    # Extract currency from the price unit
-                    # Price units are typically like "EUR/MWh" or "USD/MW"
-                    # Split by "/" and take first part as currency
-                    currency_unit = price_unit.split("/")[0].strip()
-
-                    if shared_currency_unit is None:
-                        shared_currency_unit = str(
-                            ur.Quantity(currency_unit).to_base_units().units
-                        )
-                    elif not units_are_convertible(currency_unit, shared_currency_unit):
-                        raise ValidationError(
-                            "all prices in the flex-context must share the same currency unit"
-                        )
+    # Note: we deliberately tolerate a `commodities` list combined with top-level
+    # commodity-specific (SharedSchema) fields. In the API path, a multi-commodity
+    # list is normalized to {"commodities": [...]} and collect_flex_config then
+    # dict-merges the asset's db-stored flex-context (e.g. "site-power-capacity",
+    # "consumption-price") at the top level, so rejecting this mix would 422 any
+    # asset with stored electricity flex-context fields. Semantics: top-level fields
+    # serve as the electricity context only when the commodities list has no
+    # electricity entry (see _get_commodity_contexts in storage.py).
 
     @validates_schema(pass_original=True)
     def check_prices(self, data: dict, original_data: dict, **kwargs):
@@ -507,8 +539,10 @@ class FlexContextSchema(SharedSchema):
             field.data_key: field_var
             for field_var, field in self.declared_fields.items()
         }
+        # Only count fields that were explicitly passed (not filled in by a load_default,
+        # such as relax-constraints, which defaults to True).
         if any(
-            field_map[field] in data and data[field_map[field]]
+            field in original_data and data.get(field_map[field])
             for field in (
                 "soc-minima-breach-price",
                 "soc-maxima-breach-price",
@@ -538,6 +572,35 @@ class FlexContextSchema(SharedSchema):
         # All prices must share the same unit
         data = self._try_to_convert_price_units(data, original_data)
         shared_currency = ur.Quantity(data["shared_currency_unit"])
+
+        # Also check that top-level prices share their currency with any per-commodity contexts
+        for context in data.get("commodity_contexts", []) or []:
+            context_currency_unit = context.get("shared_currency_unit")
+            if context_currency_unit is None:
+                continue
+            if not units_are_convertible(
+                context_currency_unit, data["shared_currency_unit"]
+            ):
+                raise ValidationError(
+                    "all prices in the flex-context must share the same currency unit"
+                    f" (found both '{data['shared_currency_unit']}' at the top level and"
+                    f" '{context_currency_unit}' in a commodity context)",
+                    field_name="commodities",
+                )
+
+        # Skip filling default breach prices when:
+        # - the deprecated price sensor fields are used (those predate relaxation
+        #   support; filling defaults would silently change legacy behaviour), or
+        # - the shared currency is not an actual currency (e.g. a mis-united price
+        #   field slipped through _try_to_convert_price_units); filling defaults in a
+        #   nonsense currency would misattribute unit errors to the breach price
+        #   fields in downstream validation (e.g. DBFlexContextSchema).
+        if (
+            "consumption_price_sensor" in data
+            or "production_price_sensor" in data
+            or not is_currency_unit(data["shared_currency_unit"])
+        ):
+            return data
 
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
         if (
@@ -1176,6 +1239,15 @@ class AssetTriggerSchema(Schema):
                 # Regular list case
                 data["flex-context"] = {"commodities": raw_flex_context}
             # else: already a dict, leave as-is
+
+            # By now, flex-context should always be normalized to a dict. If it isn't
+            # (e.g. a bare string or number was passed), raise a 422 here instead of
+            # letting downstream code fail with a TypeError.
+            if not isinstance(data["flex-context"], dict):
+                raise ValidationError(
+                    "`flex-context` must be an object, or a list of objects.",
+                    field_name="flex-context",
+                )
         return data
 
     @validates_schema
