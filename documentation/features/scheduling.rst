@@ -149,6 +149,32 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
           The flexible device can still have its own power limit defined in its flex-model.
 
 
+.. _commodity_context_defaults:
+
+Smart defaults for commodity-context grid connections
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For multi-commodity scheduling problems, each entry of the top-level ``commodities`` list is itself a flex-context (a "commodity context") describing the grid connection for that commodity.
+A commodity context that leaves out some or all of its grid-connection fields (``consumption-price``, ``production-price``, ``site-consumption-capacity``, ``site-production-capacity`` and ``site-power-capacity``) gets sensible defaults for the missing fields, rather than failing or silently leaving the grid unconstrained.
+
+As a rule of thumb, a price given for a direction (consumption or production) implies a grid connection in that direction, with an unlimited capacity unless a capacity is also given; a capacity given for a direction (without a price) implies a 0 price in that direction; and anything not implied by a given field defaults to "no connection" (0 capacity, as a soft constraint).
+The exception is ``site-power-capacity`` given on its own, which sets a *hard* (symmetric) capacity limit instead.
+
+This leads to the following defaults, depending on which fields are explicitly given:
+
+- **Nothing given** (e.g. just ``{"commodity": "gas"}``): both ``site-consumption-capacity`` and ``site-production-capacity`` default to 0, as soft constraints (a breach is possible, but penalized). ``site-power-capacity`` stays unlimited.
+- **Only** ``consumption-price``: ``site-power-capacity`` and ``site-consumption-capacity`` stay unlimited; ``site-production-capacity`` defaults to 0 (soft).
+- **Only** ``production-price``: the mirror image, for production.
+- **Only** ``site-consumption-capacity``: ``site-power-capacity`` stays unlimited; ``consumption-price`` defaults to 0; ``site-production-capacity`` (and, transitively, ``production-price``) default to 0.
+- **Only** ``site-production-capacity``: the mirror image, for production.
+- **Only** ``site-power-capacity``: a *hard* constraint at that capacity, with ``site-consumption-capacity`` and ``site-production-capacity`` both set equal to it, and ``consumption-price``/``production-price`` defaulting to 0.
+
+For any combination of explicitly given fields, these rules apply per direction (consumption/production) independently, filling in only the fields not already determined by a given field.
+As a safety net, ``consumption-price`` still defaults to 0 if it remains unset after applying the rules above, since the scheduler requires a resolvable consumption price.
+
+.. note:: Setting ``relax-constraints`` to ``False`` on a commodity context that ends up with a smart-defaulted 0 hard capacity can make the schedule infeasible; FlexMeasures logs a warning in that case.
+
+
 .. _flex_models_and_schedulers:
 
 The flex-models & corresponding schedulers

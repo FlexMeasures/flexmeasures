@@ -476,8 +476,16 @@ class CommodityFlexContextSchema(SharedSchema):
         we derive sensible defaults from *which* of those five fields were explicitly
         given (inspecting the original input, not post-default-fill presence).
 
-        Precedence (single-field triggers; see the plan in `documentation/changelog.rst`
-        for cases 13/14):
+        A price given for a direction (consumption or production) implies a grid
+        connection in that direction, with an unlimited capacity unless a capacity
+        is also given; a capacity given for a direction (without a price) implies a
+        0 price in that direction; and anything not implied by a given field
+        defaults to "no connection" (0 capacity, as a soft constraint). The
+        exception is `site-power-capacity` given on its own, which sets a *hard*
+        (symmetric) capacity limit instead. See :ref:`commodity_context_defaults`
+        for the full user-facing explanation, including worked examples.
+
+        Precedence (single-field triggers):
 
         1. None of the five given (e.g. just `{"commodity": "gas"}`): no grid
            connection at all. `site-consumption-capacity` and
@@ -498,17 +506,13 @@ class CommodityFlexContextSchema(SharedSchema):
            equal to it (no breach price is filled in, so the constraint stays hard);
            `consumption-price` and `production-price` default to 0.
 
-        For any *combination* of explicitly given fields, only the fields not
-        determined by one of the rules above are filled in, applying the same rules
-        per direction (consumption / production) independently: a price given for a
-        direction implies a grid connection in that direction (its capacity is left
-        unlimited unless also given explicitly); a capacity given for a direction
-        (and no price) implies a 0 price in that direction. The "hard constraint"
-        rule (6) only applies when `site-power-capacity` is the *sole* field given.
         As a safety net (since the scheduler requires a resolvable consumption
         price), `consumption-price` defaults to 0 if still unset after applying the
         rules above (`production-price` already falls back to `consumption-price`
         at the scheduler level, so no separate safety net is needed for it).
+
+        A commodity context with no user-given price fields does not trip a spurious cross-currency error against a differently-currencied portfolio;
+        its 0-price/breach-price fields instead inherit the portfolio's real currency where determinable (from a top-level price or a sibling commodity context).
         """
 
         has_consumption_price = "consumption-price" in original_data
