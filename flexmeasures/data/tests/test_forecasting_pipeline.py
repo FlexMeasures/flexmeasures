@@ -11,6 +11,9 @@ from marshmallow import ValidationError
 from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+from flexmeasures.data.models.forecasting.utils import (
+    apply_forecast_post_processing,
+)
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.models.forecasting.pipelines.train import derive_daily_lag_steps
 from flexmeasures.data.models.generic_assets import (
@@ -87,6 +90,72 @@ def test_derive_daily_lag_steps_requires_divisible_resolution(caplog):
     assert any(
         "does not evenly divide one day" in message for message in caplog.messages
     )
+
+
+def test_forecast_post_processing_clips_and_snaps_values():
+    df = pd.DataFrame(
+        {
+            "1h": [-2.0, 2.0, 8.5, 11.5, 21.0],
+            "2h": [0.5, 3.5, 10.5, 12.5, 25.0],
+        }
+    )
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=2,
+        config={
+            "lower": "0 kW",
+            "snap": {
+                "0 kW": ["0 kW", "4 kW"],
+                "8 kW": ["8 kW", "11 kW"],
+                "12 kW": ["11 kW", "12 kW"],
+            },
+            "upper": "20 kW",
+        },
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame(
+            {
+                "1h": [0.0, 0.0, 8.0, 12.0, 20.0],
+                "2h": [0.0, 0.0, 8.0, 12.5, 20.0],
+            }
+        ),
+    )
+
+
+def test_forecast_post_processing_interprets_unitless_values_in_sensor_unit():
+    df = pd.DataFrame({"1h": [0.5, 1.3, 2.5]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={
+            "lower": 1,
+            "snap": {"1500 W": ["1.2 kW", "1.8 kW"]},
+            "upper": "2 kW",
+        },
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [1.0, 1.5, 2.0]}),
+    )
+
+
+def test_forecast_post_processing_rejects_inconsistent_bounds():
+    df = pd.DataFrame({"1h": [1.0]})
+
+    with pytest.raises(ValueError, match="lower bound cannot be greater"):
+        apply_forecast_post_processing(
+            data=df,
+            horizon=1,
+            config={"lower": "2 kW", "upper": "1 kW"},
+            sensor_unit="kW",
+        )
 
 
 @pytest.mark.parametrize(
