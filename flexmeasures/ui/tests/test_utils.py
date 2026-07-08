@@ -80,6 +80,7 @@ def test_ui_flexcontext_schema():
         "consumption-price-sensor",
         "production-price-sensor",
         "commodities",  # todo: https://github.com/FlexMeasures/flexmeasures/issues/2230
+        "commodity",  # single-dict form is electricity-only; not exposed in the UI
     ]
 
     schema_keys = []
