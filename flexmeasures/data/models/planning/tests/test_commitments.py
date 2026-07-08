@@ -629,7 +629,9 @@ def test_two_flexible_assets_with_commodity(app, db):
     schedules = scheduler.compute(skip_validation=True)
 
     assert isinstance(schedules, list)
-    assert len(schedules) == 3  # 2 storage schedules + 1 commitment costs
+    assert (
+        len(schedules) == 4
+    )  # 2 storage schedules + 1 commitment costs + 1 scheduling_result
 
     # Extract schedules by type
     storage_schedules = [
@@ -648,7 +650,6 @@ def test_two_flexible_assets_with_commodity(app, db):
     )
     battery_data = battery_schedule["data"]
 
-    # Get heat pump schedule
     hp_schedule = next(
         entry for entry in storage_schedules if entry["sensor"] == hp_power
     )
@@ -790,7 +791,9 @@ def test_mixed_gas_and_electricity_assets(app, db):
     schedules = scheduler.compute(skip_validation=True)
 
     assert isinstance(schedules, list)
-    assert len(schedules) == 3  # 2 storage schedules + 1 commitment costs
+    assert (
+        len(schedules) == 4
+    )  # 2 storage schedules + 1 commitment costs + 1 scheduling_result
 
     # Extract schedules by type
     storage_schedules = [
@@ -989,9 +992,9 @@ def test_two_devices_shared_stock(app, db):
         "(device schedules, commitment costs, SOC)."
     )
 
-    assert len(schedules) == 4, (
-        "Expected 4 outputs: two inverter schedules, one commitment_costs "
-        "object, and one state_of_charge schedule."
+    assert len(schedules) == 5, (
+        "Expected 5 outputs: two inverter schedules, one commitment_costs "
+        "object, one state_of_charge schedule, and one scheduling_result."
     )
 
     # ---- extract schedules

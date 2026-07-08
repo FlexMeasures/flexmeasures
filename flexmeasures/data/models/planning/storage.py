@@ -2219,7 +2219,9 @@ class StorageScheduler(MetaStorageScheduler):
             # Devices without a state-of-charge sensor are included as long as a
             # key can be derived from the power sensor's generic asset (or the
             # power sensor itself).
-            power_sensor = flex_model_d.get("sensor")
+            # In single-sensor mode the flex_model entry has no "sensor" key;
+            # fall back to self.sensor (set when the scheduler was given a Sensor).
+            power_sensor = flex_model_d.get("sensor") or self.sensor
             if (
                 power_sensor is not None
                 and hasattr(power_sensor, "generic_asset")
