@@ -407,6 +407,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         as_json: bool = False,
         compress_json: bool = False,
         resolution: str | timedelta | None = None,
+        use_materialized_view: bool = True,
+        include_live_tail: bool | None = None,
     ) -> tb.BeliefsDataFrame | str:
         """Search all beliefs about events for this sensor.
 
@@ -432,6 +434,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         :param as_json: return beliefs in JSON format (e.g. for use in charts) rather than as BeliefsDataFrame
         :param compress_json: return beliefs, sensors and sources as separate datasets to be used for lookups
         :param resolution: optionally set the resolution of data being displayed
+        :param use_materialized_view: if True (the default), the most recent beliefs may be looked up in a materialized view, if one is available and recently refreshed (see TimedBelief.search)
+        :param include_live_tail: whether queries served by the materialized view also look up events recorded since its last refresh; defaults to the FLEXMEASURES_MVIEW_ALWAYS_INCLUDE_LIVE_TAIL setting
         :returns: BeliefsDataFrame or JSON string (if as_json is True)
         """
         bdf = TimedBelief.search(
@@ -454,6 +458,8 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             one_deterministic_belief_per_event=one_deterministic_belief_per_event,
             one_deterministic_belief_per_event_per_source=one_deterministic_belief_per_event_per_source,
             resolution=resolution,
+            use_materialized_view=use_materialized_view,
+            include_live_tail=include_live_tail,
         )
         if as_json and not compress_json:
             df = bdf.reset_index()
@@ -904,6 +910,36 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         db.Model.__init__(self, **kwargs)
 
     @classmethod
+    def _get_mview_kwargs(
+        cls, use_materialized_view: bool, include_live_tail: bool | None
+    ) -> dict:
+        """Decide whether the most recent beliefs may be looked up in the materialized view,
+        which requires the view to exist (checked once at startup) and to have been
+        recently refreshed (as recorded in the latest_task_run table).
+        Events starting after the cutoff are looked up in the beliefs table instead,
+        so they are not missed even if they were recorded after the view's last refresh.
+        """
+        if not use_materialized_view:
+            return dict(use_materialized_view=False)
+
+        from flexmeasures.data import config as data_config
+        from flexmeasures.data.services.materialized_views import get_mview_cutoff
+
+        mview_cutoff = get_mview_cutoff()
+        if data_config.most_recent_beliefs_mview is None or mview_cutoff is None:
+            return dict(use_materialized_view=False)
+
+        if include_live_tail is None:
+            include_live_tail = current_app.config[
+                "FLEXMEASURES_MVIEW_ALWAYS_INCLUDE_LIVE_TAIL"
+            ]
+        return dict(
+            use_materialized_view=True,
+            most_recent_beliefs_mview=data_config.most_recent_beliefs_mview,
+            mview_cutoff=mview_cutoff if include_live_tail else None,
+        )
+
+    @classmethod
     def search(
         cls,
         sensors: Sensor | int | str | list[Sensor | int | str],
@@ -929,6 +965,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         one_deterministic_belief_per_event_per_source: bool = False,
         resolution: str | timedelta = None,
         sum_multiple: bool = True,
+        use_materialized_view: bool = True,
+        include_live_tail: bool | None = None,
     ) -> tb.BeliefsDataFrame | dict[str, tb.BeliefsDataFrame]:
         """Search all beliefs about events for the given sensors.
 
@@ -954,6 +992,10 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
         :param one_deterministic_belief_per_event_per_source: only return a single value per event per source (no probabilistic distribution)
         :param resolution: Optional timedelta or pandas freqstr used to resample the results **
         :param sum_multiple: if True, sum over multiple sensors; otherwise, return a dictionary with sensors as key, each holding a BeliefsDataFrame as its value
+        :param use_materialized_view: if True (the default), the most recent beliefs may be looked up in a materialized view,
+                                      if one is available and recently refreshed (and no belief timing filters are set)
+        :param include_live_tail: whether queries served by the materialized view also look up events recorded since its last refresh;
+                                  defaults to the FLEXMEASURES_MVIEW_ALWAYS_INCLUDE_LIVE_TAIL setting
 
         *  If user_source_ids is specified, the "user" source type is automatically included (and not excluded).
            Somewhat redundant, though still allowed, is to set both source_types and exclude_source_types.
@@ -1001,6 +1043,8 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 most_recent_events_only=most_recent_events_only,
             )
 
+        mview_kwargs = cls._get_mview_kwargs(use_materialized_view, include_live_tail)
+
         bdf_dict = {}
         for sensor in sensors:
             bdf = cls.search_session(
@@ -1017,6 +1061,7 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 **most_recent_filters,
                 custom_filter_criteria=source_criteria,
                 custom_join_targets=custom_join_targets,
+                **mview_kwargs,
             )
             if use_latest_version_per_event:
                 bdf = keep_latest_version(

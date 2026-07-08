@@ -960,6 +960,8 @@ class AssetAPI(FlaskView):
                 required=False, load_default=False
             ),
             "most_recent_beliefs_only": fields.Boolean(required=False),
+            "use_materialized_view": fields.Boolean(required=False, load_default=True),
+            "include_live_tail": fields.Boolean(required=False, load_default=None),
             "compress_json": fields.Boolean(required=False),
         },
         location="query",
