@@ -69,16 +69,32 @@ export function finishChartLoad(report, extra) {
         e.startTime >= report.t0 - 1 &&
         CHART_ENDPOINT_PATTERNS.some((p) => e.name.includes(p))
     )
-    .map((e) => ({
-      endpoint: shortEndpoint(e.name),
-      durationMs: round(e.duration),
-      transferKB: round((e.transferSize || 0) / 1024),
-      decodedKB: round((e.decodedBodySize || 0) / 1024),
-      fromCache: e.transferSize === 0 && e.decodedBodySize > 0,
-    }));
+    .map((e) => {
+      // Server-Timing "db" metric (set when FLEXMEASURES_PROFILE_DB_QUERIES is on):
+      // dur = total DB time (ms), description = "<n> queries".
+      const db = (e.serverTiming || []).find((s) => s.name === "db");
+      return {
+        endpoint: shortEndpoint(e.name),
+        durationMs: round(e.duration),
+        transferKB: round((e.transferSize || 0) / 1024),
+        decodedKB: round((e.decodedBodySize || 0) / 1024),
+        fromCache: e.transferSize === 0 && e.decodedBodySize > 0,
+        dbMs: db ? round(db.duration) : null,
+        dbQueries: db ? parseInt(db.description, 10) || 0 : null,
+      };
+    });
   report.networkMs = round(
     report.requests.reduce((sum, r) => Math.max(sum, r.durationMs), 0)
   );
+  // Total DB time and query count across this load's requests (null if the
+  // server-side DB profiler is disabled, so the panel can hide those rows).
+  const dbRequests = report.requests.filter((r) => r.dbMs !== null);
+  report.dbMs = dbRequests.length
+    ? round(dbRequests.reduce((sum, r) => sum + r.dbMs, 0))
+    : null;
+  report.dbQueries = dbRequests.length
+    ? dbRequests.reduce((sum, r) => sum + r.dbQueries, 0)
+    : null;
   delete report.t0;
 
   history.push(report);
@@ -147,6 +163,9 @@ function renderPanel(report) {
     "<table style='margin-top:4px;'>" +
     "<tr><td>data rows</td><td style='text-align:right;'><b>" + (report.rows === null ? "n/a" : report.rows) + "</b></td></tr>" +
     "<tr><td>network (longest request)</td><td style='text-align:right;'><b>" + report.networkMs + " ms</b></td></tr>" +
+    (report.dbQueries === null ? "" :
+      "<tr><td>DB queries (server)</td><td style='text-align:right;'><b>" + report.dbQueries + "</b></td></tr>" +
+      "<tr><td>DB time (server)</td><td style='text-align:right;'><b>" + report.dbMs + " ms</b></td></tr>") +
     "<tr><td>chart render</td><td style='text-align:right;'><b>" + report.renderMs + " ms</b></td></tr>" +
     "<tr><td>total</td><td style='text-align:right;'><b>" + report.totalMs + " ms</b></td></tr>" +
     "</table>" +

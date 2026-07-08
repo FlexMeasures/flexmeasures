@@ -136,6 +136,9 @@ class Config(object):
     FLEXMEASURES_HOSTS_AND_AUTH_START: dict[str, str] = {"flexmeasures.io": "2021-01"}
     FLEXMEASURES_PLUGINS: list[str] | str = []  # str will be checked for commas
     FLEXMEASURES_PROFILE_REQUESTS: bool = False
+    # Record per-request SQL query count and time; exposed via a Server-Timing
+    # header (read by the chart perf panel) and logged as [DB-PROFILE].
+    FLEXMEASURES_PROFILE_DB_QUERIES: bool = False
     FLEXMEASURES_PROFILER_CONFIG: dict = dict(
         async_mode="disabled",
         interval=0.01,  # 10 ms sampling interval, enables coarse timer

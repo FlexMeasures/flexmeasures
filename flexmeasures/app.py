@@ -216,6 +216,10 @@ def create(  # noqa C901
 
     # Profile endpoints (if needed, e.g. during development)
 
+    from flexmeasures.utils.db_profiler import register_db_query_profiler
+
+    register_db_query_profiler(app)
+
     @app.before_request
     def before_request():
         if app.config.get("FLEXMEASURES_PROFILE_REQUESTS", False):

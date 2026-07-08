@@ -39,6 +39,7 @@ db_schema.png
 htmlcov
 test/*
 profile_reports/*
+db_query_reports/*
 
 poetry.lock
 .venv
