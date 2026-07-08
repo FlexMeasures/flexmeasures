@@ -41,6 +41,7 @@ from flexmeasures.utils.unit_utils import (
     is_capacity_price_unit,
     is_energy_price_unit,
     is_power_unit,
+    is_currency_unit,
     is_energy_unit,
 )
 from flexmeasures.utils.validation_utils import validate_variable_quantity
@@ -538,8 +539,10 @@ class FlexContextSchema(SharedSchema):
             field.data_key: field_var
             for field_var, field in self.declared_fields.items()
         }
+        # Only count fields that were explicitly passed (not filled in by a load_default,
+        # such as relax-constraints, which defaults to True).
         if any(
-            field_map[field] in data and data[field_map[field]]
+            field in original_data and data.get(field_map[field])
             for field in (
                 "soc-minima-breach-price",
                 "soc-maxima-breach-price",
@@ -584,6 +587,20 @@ class FlexContextSchema(SharedSchema):
                     f" '{context_currency_unit}' in a commodity context)",
                     field_name="commodities",
                 )
+
+        # Skip filling default breach prices when:
+        # - the deprecated price sensor fields are used (those predate relaxation
+        #   support; filling defaults would silently change legacy behaviour), or
+        # - the shared currency is not an actual currency (e.g. a mis-united price
+        #   field slipped through _try_to_convert_price_units); filling defaults in a
+        #   nonsense currency would misattribute unit errors to the breach price
+        #   fields in downstream validation (e.g. DBFlexContextSchema).
+        if (
+            "consumption_price_sensor" in data
+            or "production_price_sensor" in data
+            or not is_currency_unit(data["shared_currency_unit"])
+        ):
+            return data
 
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
         if (
