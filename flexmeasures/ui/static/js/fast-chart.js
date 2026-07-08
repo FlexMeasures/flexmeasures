@@ -711,6 +711,27 @@ function buildLineBarOption(elementId, groups, opts) {
   const seriesMeta = [];
   const sensorColor = new Map();
 
+  // Share one x domain across all subplots, as Vega-Lite does (resolve.scale.x =
+  // "shared"), so the time axes stay aligned even when some subplots' data (e.g.
+  // fixed-value lines spanning the full window) reach further than others'.
+  let sharedMinTime = Infinity;
+  let sharedMaxTime = -Infinity;
+  groups.forEach((g) =>
+    g.series.forEach((s) =>
+      s.points.forEach((p) => {
+        const x = typeof p[0] === "number" ? p[0] : +new Date(p[0]);
+        if (isFinite(x)) {
+          if (x < sharedMinTime) sharedMinTime = x;
+          if (x > sharedMaxTime) sharedMaxTime = x;
+        }
+      })
+    )
+  );
+  const sharedXDomain =
+    isFinite(sharedMinTime) && isFinite(sharedMaxTime)
+      ? { min: sharedMinTime, max: sharedMaxTime }
+      : {};
+
   groups.forEach((group, i) => {
     const top = topOffset + i * (GRID_HEIGHT + gridGap);
     grids.push({
@@ -759,6 +780,7 @@ function buildLineBarOption(elementId, groups, opts) {
     xAxes.push({
       type: "time",
       gridIndex: i,
+      ...sharedXDomain, // keep every subplot on the same time domain
       axisLine: { onZero: false },
       axisPointer: { show: true }, // vertical ruler, as in the Vega-Lite charts
       splitLine: { show: true, lineStyle: { opacity: 0.5 } },
