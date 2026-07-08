@@ -411,6 +411,148 @@ class CommodityFlexContextSchema(SharedSchema):
             [("commodity", commodity_field), *self.fields.items()]
         )
 
+    @post_load(pass_original=True)
+    def fill_grid_connection_defaults(self, data: dict, original_data: dict, **kwargs):
+        """Fill in smarter defaults for a commodity context's grid-connection fields.
+
+        A commodity context (an entry of the top-level `commodities` list) may omit
+        some or all of the grid-connection fields (`consumption-price`,
+        `production-price`, `site-consumption-capacity`, `site-production-capacity`,
+        `site-power-capacity`). Rather than leaving those simply unset (which, for
+        `consumption-price`, would make the scheduler fail, since it requires one),
+        we derive sensible defaults from *which* of those five fields were explicitly
+        given (inspecting the original input, not post-default-fill presence).
+
+        Precedence (single-field triggers; see the plan in `documentation/changelog.rst`
+        for cases 13/14):
+
+        1. None of the five given (e.g. just `{"commodity": "gas"}`): no grid
+           connection at all. `site-consumption-capacity` and
+           `site-production-capacity` default to 0, as *soft* constraints (a default
+           breach price is filled in, so breaching is possible but penalized -- this
+           relies on `relax-constraints`/`relax-site-capacity-constraints`, which
+           default to True). `site-power-capacity` is left unlimited (unset).
+        2. Only `consumption-price` given: assume a grid connection for consumption.
+           `site-power-capacity` and `site-consumption-capacity` stay unlimited.
+           `site-production-capacity` defaults to 0 (soft).
+        3. Only `production-price` given: the mirror image of (2), for production.
+        4. Only `site-consumption-capacity` given: `site-power-capacity` stays
+           unlimited; `consumption-price` defaults to 0; `site-production-capacity`
+           (and, transitively, `production-price`) default to 0.
+        5. Only `site-production-capacity` given: the mirror image of (4).
+        6. Only `site-power-capacity` given: a *hard* constraint at that capacity.
+           `site-consumption-capacity` and `site-production-capacity` are both set
+           equal to it (no breach price is filled in, so the constraint stays hard);
+           `consumption-price` and `production-price` default to 0.
+
+        For any *combination* of explicitly given fields, only the fields not
+        determined by one of the rules above are filled in, applying the same rules
+        per direction (consumption / production) independently: a price given for a
+        direction implies a grid connection in that direction (its capacity is left
+        unlimited unless also given explicitly); a capacity given for a direction
+        (and no price) implies a 0 price in that direction. The "hard constraint"
+        rule (6) only applies when `site-power-capacity` is the *sole* field given.
+        As a safety net (since the scheduler requires a resolvable consumption
+        price), `consumption-price` defaults to 0 if still unset after applying the
+        rules above (`production-price` already falls back to `consumption-price`
+        at the scheduler level, so no separate safety net is needed for it).
+        """
+
+        has_consumption_price = "consumption-price" in original_data
+        has_production_price = "production-price" in original_data
+        has_consumption_capacity = "site-consumption-capacity" in original_data
+        has_production_capacity = "site-production-capacity" in original_data
+        has_power_capacity = "site-power-capacity" in original_data
+
+        any_given = (
+            has_consumption_price
+            or has_production_price
+            or has_consumption_capacity
+            or has_production_capacity
+            or has_power_capacity
+        )
+
+        currency = data.get("shared_currency_unit") or "EUR"
+        zero_price = ur.Quantity(f"0 {currency}/MWh")
+        zero_capacity = ur.Quantity("0 MW")
+
+        # Case 6: site-power-capacity is the only field given -> hard constraint.
+        if has_power_capacity and not (
+            has_consumption_price
+            or has_production_price
+            or has_consumption_capacity
+            or has_production_capacity
+        ):
+            power_capacity = data["ems_power_capacity_in_mw"]
+            data.setdefault("ems_consumption_capacity_in_mw", power_capacity)
+            data.setdefault("ems_production_capacity_in_mw", power_capacity)
+            data.setdefault("consumption_price", zero_price)
+            data.setdefault("production_price", zero_price)
+            return data
+
+        # Case 1: nothing given at all -> fully disconnected commodity.
+        if not any_given:
+            self._default_zero_capacity_as_soft_constraint(
+                data, "ems_consumption_capacity_in_mw", zero_capacity
+            )
+            self._default_zero_capacity_as_soft_constraint(
+                data, "ems_production_capacity_in_mw", zero_capacity
+            )
+            data.setdefault("consumption_price", zero_price)
+            return data
+
+        # Cases 2-5 and combinations thereof: fill in what's still missing, per
+        # direction (consumption/production), independently.
+        if not has_consumption_price and not has_consumption_capacity:
+            self._default_zero_capacity_as_soft_constraint(
+                data, "ems_consumption_capacity_in_mw", zero_capacity
+            )
+        if has_consumption_capacity and not has_consumption_price:
+            data.setdefault("consumption_price", zero_price)
+
+        if not has_production_price and not has_production_capacity:
+            self._default_zero_capacity_as_soft_constraint(
+                data, "ems_production_capacity_in_mw", zero_capacity
+            )
+        if has_production_capacity and not has_production_price:
+            data.setdefault("production_price", zero_price)
+
+        # Safety net: the scheduler requires a resolvable consumption price.
+        data.setdefault("consumption_price", zero_price)
+
+        return data
+
+    def _default_zero_capacity_as_soft_constraint(
+        self, data: dict, field: str, zero_capacity: ur.Quantity
+    ):
+        """Default a site capacity field to 0, as a *soft* constraint.
+
+        Also fills in a default breach price for that direction (unless one was
+        already set), so the 0 capacity is enforced as a soft constraint (breaching
+        is possible, but penalized) rather than a hard, potentially infeasible, one.
+        This mirrors FlexContextSchema.check_prices, but scoped to a single
+        commodity context, and only fired for capacities defaulted here (not for
+        capacities the caller explicitly set to 0).
+        """
+        if field in data:
+            # Already set (e.g. by an earlier rule in this method); leave it as-is.
+            return
+        data[field] = zero_capacity
+
+        breach_price_field = {
+            "ems_consumption_capacity_in_mw": "ems_consumption_breach_price",
+            "ems_production_capacity_in_mw": "ems_production_breach_price",
+        }[field]
+        if data.get("relax_site_capacity_constraints") or data.get("relax_constraints"):
+            if not data.get(breach_price_field):
+                currency = data.get("shared_currency_unit") or "EUR"
+                shared_currency = ur.Quantity(currency)
+                self.set_default_breach_prices(
+                    data,
+                    fields=[breach_price_field],
+                    price=10000 * shared_currency / ur.Quantity("kW"),
+                )
+
 
 class FlexContextSchema(SharedSchema):
     """This schema defines fields that provide context to the portfolio to be optimized."""
