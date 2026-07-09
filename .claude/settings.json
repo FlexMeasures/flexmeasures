@@ -27,7 +27,7 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/test-reminder.sh\"",
-            "if": "Bash(git commit:*)",
+            "if": "Bash(git push:*)",
             "timeout": 10
           }
         ]

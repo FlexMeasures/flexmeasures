@@ -7,7 +7,7 @@ transcript_path=$(echo "$input" | python3 -c "import json,sys; print(json.load(s
 
 if [ -n "$transcript_path" ] && [ -f "$transcript_path" ]; then
   if ! grep -Eq '"command":"[^"]*(poe test|pytest)' "$transcript_path"; then
-    echo "Reminder: no 'poe test' / 'pytest' run found yet in this session — consider running the test suite before committing." >&2
+    echo "Reminder: no 'poe test' / 'pytest' run found yet in this session — consider running the test suite before pushing / opening a PR." >&2
   fi
 fi
 
