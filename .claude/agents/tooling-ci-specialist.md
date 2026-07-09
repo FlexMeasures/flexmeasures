@@ -1,6 +1,6 @@
 ---
 name: tooling-ci-specialist
-description: Reviews GitHub Actions workflows, pre-commit hooks, and CI/CD pipelines to ensure automation reliability
+description: Reviews GitHub Actions workflows, pre-commit hooks, and CI/CD pipelines to ensure automation reliability. Invoke when a task edits .github/workflows/*, pre-commit config, or dependency/CI setup.
 model: sonnet
 ---
 

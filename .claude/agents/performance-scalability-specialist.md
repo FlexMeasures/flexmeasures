@@ -1,6 +1,6 @@
 ---
 name: performance-scalability-specialist
-description: Identifies performance bottlenecks, inefficient algorithms, and scalability issues to keep FlexMeasures fast under load
+description: Identifies performance bottlenecks, inefficient algorithms, and scalability issues to keep FlexMeasures fast under load. Invoke when a task adds a DB query loop, large in-memory computation, or touches a hot path (scheduling, data ingestion, API list endpoints).
 model: sonnet
 ---
 

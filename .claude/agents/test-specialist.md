@@ -1,6 +1,6 @@
 ---
 name: test-specialist
-description: Focuses on test coverage, quality, and testing best practices without modifying production code
+description: Focuses on test coverage, quality, and testing best practices without modifying production code. Invoke for any nontrivial production code change to verify/add test coverage, or when an existing test fails and its design intent needs investigating before changing it.
 model: sonnet
 ---
 

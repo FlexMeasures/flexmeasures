@@ -1,6 +1,6 @@
 ---
 name: architecture-domain-specialist
-description: Guards domain model, invariants, and architecture to maintain model clarity and prevent erosion of core principles
+description: Guards domain model, invariants, and architecture to maintain model clarity and prevent erosion of core principles. Invoke when a task touches GenericAsset/Sensor/TimedBelief/Scheduler relationships, adds a migration, or introduces a new cross-cutting abstraction.
 model: opus
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: ui-specialist
-description: Guards UI consistency, permission patterns, JavaScript interaction patterns, and template quality in the FlexMeasures web interface
+description: Guards UI consistency, permission patterns, JavaScript interaction patterns, and template quality in the FlexMeasures web interface. Invoke when a task touches flexmeasures/ui/**, Jinja2 templates, side panels, or permission-gated views.
 model: sonnet
 ---
 
