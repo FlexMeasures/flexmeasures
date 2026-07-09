@@ -30,6 +30,7 @@ from flexmeasures.data.utils import (
     SAVE_TO_DB_SUCCESS,
     SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
     SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+    TEMPLATE_COPY_GUIDANCE_PREFIX,
 )
 from flexmeasures.auth.policy import check_access
 from flexmeasures.api.common.responses import (
@@ -266,7 +267,7 @@ def _remove_template_copy_guidance(description: str | None) -> str | None:
         return description
 
     cleaned_description = re.sub(
-        r"\s*Copy this(?: asset)?\b.*?(?:\.\s*|$)",
+        rf"\s*{re.escape(TEMPLATE_COPY_GUIDANCE_PREFIX)}(?: asset)?\b.*?(?:\.\s*|$)",
         "",
         description,
         flags=re.IGNORECASE,
@@ -321,6 +322,9 @@ def _copy_direct_sensors(
             knowledge_horizon_fnc,
             deepcopy(source_sensor.knowledge_horizon_par),
         )
+        if isinstance(sensor_kwargs.get("attributes"), dict):
+            sensor_kwargs["attributes"] = deepcopy(sensor_kwargs["attributes"])
+            sensor_kwargs["attributes"].pop("template_role", None)
 
         new_sensor = Sensor(**sensor_kwargs)
         db.session.add(new_sensor)

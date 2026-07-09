@@ -17,6 +17,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.user import User, Role, AccountRole
 from flexmeasures.data.transactional import as_transaction
 from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.data.utils import TEMPLATE_COPY_GUIDANCE_PREFIX
 
 
 def add_default_data_sources(db: SQLAlchemy):
@@ -216,6 +217,7 @@ def _ensure_sensor(
 
 
 def _template_metadata(template_key: str) -> dict:
+    """Return the metadata block used to tag built-in asset templates."""
     return {
         "template": {
             "key": template_key,
@@ -241,7 +243,8 @@ def provision_default_template_assets(db: SQLAlchemy):
         asset_type=asset_types["battery"],
         description=(
             "Single battery asset with example power and state-of-charge sensors, "
-            "plus a basic storage flex-model. Copy this to start modeling a battery."
+            f"plus a basic storage flex-model. {TEMPLATE_COPY_GUIDANCE_PREFIX} to "
+            "start modeling a battery."
         ),
         attributes=_template_metadata("battery-template"),
     )
@@ -280,8 +283,9 @@ def provision_default_template_assets(db: SQLAlchemy):
         asset_type=asset_types["one-way_evse"],
         description=(
             "Single EV charger asset with example charging power and state-of-charge "
-            "sensors, plus a simple charging flex-model. Copy this to start building "
-            "a charger or EV charging setup."
+            "sensors, plus a simple charging flex-model. "
+            f"{TEMPLATE_COPY_GUIDANCE_PREFIX} to start building a charger or EV "
+            "charging setup."
         ),
         attributes=_template_metadata("ev-charger-template"),
     )
@@ -303,7 +307,8 @@ def provision_default_template_assets(db: SQLAlchemy):
     )
     ev_charger.flex_model = {
         "soc-max": "60 kWh",
-        "soc-min": "12 kWh",
+        "soc-min": "0 kWh",
+        "soc-minima": [{"value": "12 kWh"}],
         "roundtrip-efficiency": "90%",
         "power-capacity": "11 kW",
         "production-capacity": "0 kW",
@@ -321,8 +326,8 @@ def provision_default_template_assets(db: SQLAlchemy):
         asset_type=asset_types["heat-storage"],
         description=(
             "Single heat-pump-with-buffer style asset, represented as thermal storage "
-            "with example power and thermal state-of-charge sensors. Copy this to "
-            "start modeling heat flexibility."
+            "with example power and thermal state-of-charge sensors. "
+            f"{TEMPLATE_COPY_GUIDANCE_PREFIX} to start modeling heat flexibility."
         ),
         attributes=_template_metadata("heat-pump-template"),
     )

@@ -28,6 +28,7 @@ SAVE_TO_DB_SUCCESS_WITH_CHANGES_STATUSES = (
     SAVE_TO_DB_SUCCESS,
     SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
 )
+TEMPLATE_COPY_GUIDANCE_PREFIX = "Copy this"
 
 
 def save_to_session(objects: list[db.Model], overwrite: bool = False):

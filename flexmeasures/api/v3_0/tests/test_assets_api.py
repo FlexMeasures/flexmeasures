@@ -932,11 +932,24 @@ def test_copy_template_asset_drops_template_metadata(
     )
     db.session.add(template_asset)
     db.session.flush()
+    template_sensor = Sensor(
+        name="electricity-power",
+        generic_asset_id=template_asset.id,
+        unit="kW",
+        timezone="UTC",
+        event_resolution=timedelta(minutes=15),
+        attributes={"template_role": "power", "consumption_is_positive": True},
+    )
+    db.session.add(template_sensor)
+    db.session.flush()
 
     assert template_asset.attributes["template"]["key"] == "battery-template"
     assert "Copy this" in template_asset.description
 
     copied_asset = copy_asset(template_asset, account=prosumer_account)
+    copied_sensor = db.session.scalars(
+        select(Sensor).filter_by(generic_asset_id=copied_asset.id)
+    ).one()
 
     assert copied_asset.account_id == prosumer_account.id
     assert copied_asset.parent_asset_id is None
@@ -945,10 +958,12 @@ def test_copy_template_asset_drops_template_metadata(
         "Single battery asset with example power and state-of-charge sensors, "
         "plus a basic storage flex-model."
     )
+    assert copied_sensor.attributes == {"consumption_is_positive": True}
 
     # The source template stays available as a template for future copies.
     assert template_asset.attributes["template"]["key"] == "battery-template"
     assert "Copy this" in template_asset.description
+    assert template_sensor.attributes["template_role"] == "power"
 
 
 def test_copy_asset_to_another_account_preserves_config(
