@@ -62,7 +62,7 @@ Note that:
 ``forecast-frequency`` together with ``max-forecast-horizon`` determine how the forecasting cycles advance through time.
 ``train-period``, ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
 
-Forecast output post-processing
+Forecast post-processing
 --------------------------------
 
 Forecaster configuration can clip and snap forecast values before they are stored.
