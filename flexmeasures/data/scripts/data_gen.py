@@ -308,7 +308,7 @@ def provision_default_template_assets(db: SQLAlchemy):
     ev_charger.flex_model = {
         "soc-max": "60 kWh",
         "soc-min": "0 kWh",
-        "soc-minima": [{"value": "12 kWh"}],
+        "soc-minima": "12 kWh",
         "roundtrip-efficiency": "90%",
         "power-capacity": "11 kW",
         "production-capacity": "0 kW",
