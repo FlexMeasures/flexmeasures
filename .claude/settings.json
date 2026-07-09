@@ -1,4 +1,8 @@
 {
+  "companyAnnouncements": [
+    "Welcome to FlexMeasures! Review our developer guidelines at flexmeasures.readthedocs.io/stable/dev/setup-and-guidelines.html",
+    "Reminder: use `uv tool install pre-commit and `pre-commit install` to auto-apply formatting and code style suggestions."
+  ],
   "permissions": {
     "deny": [
       "Read(./instance/**)",
@@ -9,8 +13,25 @@
       "Read(./secrets/**)"
     ]
   },
-  "companyAnnouncements": [
-    "Welcome to FlexMeasures! Review our developer guidelines at flexmeasures.readthedocs.io/stable/dev/setup-and-guidelines.html",
-    "Reminder: use `uv tool install pre-commit and `pre-commit install` to auto-apply formatting and code style suggestions."
-  ]
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-commit-check.sh\"",
+            "if": "Bash(git commit:*)",
+            "timeout": 120
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/test-reminder.sh\"",
+            "if": "Bash(git commit:*)",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
 }
