@@ -752,26 +752,23 @@ def test_building_solver_day_2(
     # 1) 8 expensive, 8 cheap and 8 expensive hours
     # 2) 8 net-consumption, 8 net-production and 8 net-consumption hours
 
-    # Result after 8 hours
-    # 1) Sell what you begin with
-    # 2) The battery discharged as far as it could during the first 8 net-consumption hours
-    assert soc_schedule.loc[start + timedelta(hours=8)] == max(
+    soc_min_value = max(
         soc_min, ur.Quantity(battery.get_attribute("soc-min")).to("MWh").magnitude
     )
-
-    # Result after second 8 hour-interval
-    # 1) Buy what you can to sell later, when prices will be high again
-    # 2) The battery charged with PV power as far as it could during the middle 8 net-production hours
-    assert soc_schedule.loc[start + timedelta(hours=16)] == min(
+    soc_max_value = min(
         soc_max, ur.Quantity(battery.get_attribute("soc-max")).to("MWh").magnitude
     )
 
-    # Result at end of day
-    # 1) The battery sold out at the end of its planning horizon
-    # 2) The battery discharged as far as it could during the last 8 net-consumption hours
-    assert soc_schedule.iloc[-1] == max(
-        soc_min, ur.Quantity(battery.get_attribute("soc-min")).to("MWh").magnitude
-    )
+    # In both scenarios the battery should fully discharge in the first 8 hours,
+    # fully charge in the next 8, and fully discharge again in the last 8 (driven by
+    # 1) the dynamic price profile, or 2) the net-consumption/net-production profile of
+    # the inflexible devices, which are part of the electricity commodity device group).
+    # Result after 8 hours: discharged as far as possible.
+    assert soc_schedule.loc[start + timedelta(hours=8)] == soc_min_value
+    # Result after second 8 hour-interval: charged as far as possible.
+    assert soc_schedule.loc[start + timedelta(hours=16)] == soc_max_value
+    # Result at end of day: discharged as far as possible.
+    assert soc_schedule.iloc[-1] == soc_min_value
 
 
 def test_soc_bounds_timeseries(db, add_battery_assets):
@@ -1526,6 +1523,10 @@ def test_capacity(
     flex_context = {
         "production-price": {"sensor": add_market_prices["epex_da_production"].id},
         "consumption-price": {"sensor": add_market_prices["epex_da"].id},
+        # This test asserts hard-capacity semantics (constraint DataFrames), so opt out
+        # of the default constraint relaxation (which would use the physical capacity
+        # as the hard bound and penalize the contracted capacity only softly).
+        "relax-constraints": False,
     }
 
     def set_if_not_none(dictionary, key, value):
@@ -1569,8 +1570,14 @@ def test_capacity(
     assert all(device_constraints[0]["derivative min"] == -expected_capacity)
     assert all(device_constraints[0]["derivative max"] == expected_capacity)
 
-    assert all(ems_constraints["derivative min"] == expected_site_production_capacity)
-    assert all(ems_constraints["derivative max"] == expected_site_consumption_capacity)
+    # EMS constraints are kept per commodity; this single-battery case has only the
+    # default "electricity" commodity, so its constraints are in ems_constraints[0].
+    assert all(
+        ems_constraints[0]["derivative min"] == expected_site_production_capacity
+    )
+    assert all(
+        ems_constraints[0]["derivative max"] == expected_site_consumption_capacity
+    )
 
 
 @pytest.mark.parametrize(
@@ -1618,7 +1625,8 @@ def test_device_power_capacity_uses_directional_capacity_before_site_fallback(
             "soc-max": 5,
             **configured_capacities,
         },
-        flex_context={"consumption-price": "1 EUR/MWh"},
+        # relax-constraints False: this test asserts hard-capacity semantics.
+        flex_context={"consumption-price": "1 EUR/MWh", "relax-constraints": False},
     )
     scheduler.deserialize_config()
 
@@ -1876,7 +1884,11 @@ def test_battery_power_capacity_as_sensor(
     resolution = timedelta(minutes=15)
     soc_at_start = 10
 
-    flex_context = {"site-power-capacity": "1100 kVA"}  # 1.1 MW
+    flex_context = {
+        "site-power-capacity": "1100 kVA",  # 1.1 MW
+        # relax-constraints False: this test asserts hard-capacity semantics.
+        "relax-constraints": False,
+    }
     if site_consumption_capacity_sensor:
         flex_context["site-consumption-capacity"] = {
             "sensor": capacity_sensors["site_power_capacity"].id
@@ -1919,7 +1931,8 @@ def test_battery_power_capacity_as_sensor(
 
     data_to_solver = scheduler._prepare()
     device_constraints = data_to_solver[5][0]
-    ems_constraints = data_to_solver[6]
+    # EMS constraints are kept per commodity; index [0] selects the "electricity" group.
+    ems_constraints = data_to_solver[6][0]
 
     assert all(device_constraints["derivative min"].values == expected_production)
     assert all(device_constraints["derivative max"].values == expected_consumption)
@@ -2704,6 +2717,10 @@ def test_unavoidable_capacity_breach():
         end,
         resolution,
     )
+    # All commitments in this test are EMS-level and apply to device 0.
+    # The new grouped_commitment_equalities requires a device column to couple
+    # commitments to device flows.
+    empty_commitment["device"] = 0
     commitments = []
     commitments.append(empty_commitment.copy())
 
@@ -2849,6 +2866,8 @@ def test_multiple_commitments_per_group():
         end,
         resolution,
     )
+    # All commitments in this test apply to device 0.
+    empty_commitment["device"] = 0
     commitments = []
     commitments.append(empty_commitment.copy())
 
@@ -3021,6 +3040,13 @@ def test_multiple_devices_simultaneous_scheduler():
             resolution=resolution,
             market_prices=market_prices,
         )
+        # Couple the energy commitment to all devices so grouped_commitment_equalities
+        # can properly link it to device flows. A scalar device_group label is required
+        # to avoid creating a multi-dimensional Pyomo index from the device tuple.
+        energy_commitment["device"] = [tuple(range(num_devices))] * len(
+            energy_commitment
+        )
+        energy_commitment["device_group"] = "site"
         commitments.append(energy_commitment)
 
         # Model penalties for demand unmet per device
@@ -3320,6 +3346,8 @@ def test_multiple_devices_sequential_scheduler():
             resolution=resolution,
             market_prices=market_prices,
         )
+        # Couple the energy commitment to device 0 (each device is scheduled separately).
+        energy_commitment["device"] = 0
 
         ems_constraints = initialize_ems_constraints()
 

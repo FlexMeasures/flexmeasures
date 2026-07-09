@@ -13,10 +13,14 @@ v1.0.0 | July XX, 2026
 New features
 -------------
 * Floor off-clock API datetimes to a non-instantaneous sensor's resolution by default when ingesting sensor data, uploading sensor data, and handling scheduler flex-model timed events; configurable with the ``floor_datetimes_to_resolution`` sensor attribute [see `PR #2146 <https://www.github.com/FlexMeasures/flexmeasures/pull/2146>`_ and `PR #2194 <https://www.github.com/FlexMeasures/flexmeasures/pull/2194>`_]
+* Breaking behaviour change: the top-level flex-context's ``relax-constraints`` field now defaults to ``True`` (matching the default already used within each ``commodities`` entry), so constraint violations are softly penalized by default instead of being hard constraints, unless explicitly set to ``False`` [see `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_]
 * In the UI, asset and sensor lists can be filtered by ID prefix through API-backed search fields [see `PR #2231 <https://www.github.com/FlexMeasures/flexmeasures/pull/2231>`_]
 * Sensor references in flex-model and flex-context support various ways of filtering by source [see `PR #2209 <https://www.github.com/FlexMeasures/flexmeasures/pull/2209>`_]
 * Let storage scheduling infer missing ``power-capacity`` from directional device capacities before falling back to site capacity, and default the missing opposite capacity to zero when only a non-zero ``consumption-capacity`` or ``production-capacity`` is configured [see `PR #2222 <https://www.github.com/FlexMeasures/flexmeasures/pull/2222>`_]
+* Support multiple feeders to a shared storage [see `PR #2001 <https://www.github.com/FlexMeasures/flexmeasures/pull/2001>`_ ]
+* The flex-context can now define multiple commodities, each specifying their own prices and grid capacities [see `PR #1946 <https://www.github.com/FlexMeasures/flexmeasures/pull/1946>`_, `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_, `PR #2235 <https://www.github.com/FlexMeasures/flexmeasures/pull/2235>`_ and `PR #2271 <https://www.github.com/FlexMeasures/flexmeasures/pull/2271>`_]
 * CLI support for adding/editing account attributes [see `PR #2242 <https://www.github.com/FlexMeasures/flexmeasures/pull/2242>`_]
+* Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` soft state-of-charge constraint analysis (``soc-minima``/``soc-maxima`` violations or satisfied constraints, keyed by asset ID) for scheduling jobs; both arrays are empty when no SoC constraints were defined [see `PR #2072 <https://www.github.com/FlexMeasures/flexmeasures/pull/2072>`_]
 
 Infrastructure / Support
 ----------------------
@@ -68,11 +72,11 @@ v0.33.0 | June 1, 2026
 New features
 -------------
 * Added API and UI support for copying assets and their subtrees [see `PR #2017 <https://www.github.com/FlexMeasures/flexmeasures/pull/2017>`_ and `PR #2120 <https://www.github.com/FlexMeasures/flexmeasures/pull/2120>`_]
+* Added a unified job status endpoint ``GET /api/v3_0/jobs/<uuid>`` to retrieve the current execution status and result message for any background job [see `PR #2141 <https://www.github.com/FlexMeasures/flexmeasures/pull/2141>`_]
 * Improve UX after deleting a child asset through the UI [see `PR #2119 <https://www.github.com/FlexMeasures/flexmeasures/pull/2119>`_]
 * Improve source filtering in the sensor data GET endpoint by exposing the documented query parameters in Swagger and allowing filtering by the account linked to data sources [see `PR #2083 <https://www.github.com/FlexMeasures/flexmeasures/pull/2083>`_ and `PR #2151 <https://www.github.com/FlexMeasures/flexmeasures/pull/2151>`_]
 * Support sensor references for efficiency fields in storage flex-models [see `PR #2142 <https://www.github.com/FlexMeasures/flexmeasures/pull/2142>`_]
 * Introduce the ``consumption`` and ``production`` flex-model fields for the ``StorageScheduler`` to save schedules to [see `PR #2190 <https://www.github.com/FlexMeasures/flexmeasures/pull/2190>`_ and `PR #2213 <https://www.github.com/FlexMeasures/flexmeasures/pull/2213>`_]
-* Added a unified job status endpoint ``GET /api/v3_0/jobs/<uuid>`` to retrieve the current execution status and result message for any background job [see `PR #2141 <https://www.github.com/FlexMeasures/flexmeasures/pull/2141>`_]
 * Add ``flexmeasures jobs inspect-job`` CLI command to show job status and metadata information (similar to the job status endpoint in the API) [see `PR #2202 <https://www.github.com/FlexMeasures/flexmeasures/pull/2202>`_]
 * New ``GET /api/v3_0/sources`` endpoint to list accessible data sources and defined types, with ``only_latest=true`` by default to return only the most recent version per source [see `PR #2126 <https://www.github.com/FlexMeasures/flexmeasures/pull/2126>`_]
 * Add support for filtering sensor data GET requests by ``source-type`` on ``/api/v3_0/sensors/<id>/data`` [see `PR #2127 <https://www.github.com/FlexMeasures/flexmeasures/pull/2127>`_]

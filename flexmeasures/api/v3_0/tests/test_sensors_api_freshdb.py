@@ -246,6 +246,7 @@ def test_upload_sensor_data_with_unit_conversion_success(
             len(beliefs) == expected_num_beliefs
         ), f"Fetched {len(beliefs)} beliefs from the database, expecting {expected_num_beliefs}."
 
+        # approximate equality: unit conversion can differ slightly by pint/numpy version
         assert [b.event_value for b in beliefs] == pytest.approx(expected_event_values)
 
 
