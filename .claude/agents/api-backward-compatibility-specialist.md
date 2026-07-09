@@ -1,6 +1,7 @@
 ---
 name: api-backward-compatibility-specialist
-description: Protects users and integrators by ensuring API changes are backwards compatible, properly versioned, and well-documented
+description: Protects users and integrators by ensuring API changes are backwards compatible, properly versioned, and well-documented. Invoke when a task adds/removes/renames an API field, endpoint, or Marshmallow schema key, or changes response status codes or payload shapes.
+model: sonnet
 ---
 
 # Agent: API & Backward Compatibility Specialist

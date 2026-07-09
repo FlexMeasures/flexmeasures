@@ -72,36 +72,14 @@ elif soc_max > 0:
     ...
 ```
 
-**Why it matters**: Missing guards will raise `TypeError` when plugins or future PRs start
-passing `Sensor` objects for fields that currently only see plain values (e.g. `soc-max`
-in `StorageScheduler`). Adding the guard now is cheap; fixing crashes in production is not.
+Missing guards raise `TypeError` when plugins or future PRs pass `Sensor` objects for fields
+that currently only see plain values (e.g. `soc-max` in `StorageScheduler`).
 
-**Discovered in**: PR #1996 (`e03e91a`) — `_build_soc_schedule` received `soc_max` that could
-eventually be a `Sensor` when `VariableQuantityField` is used for `soc-max`.
+#### Pattern: @staticmethod for methods without instance state
 
-#### Pattern: @staticmethod for Methods Without Instance State
-
-When a scheduler or data-generator method does not access `self` or `cls`, it should be
-decorated with `@staticmethod`:
-
-```python
-# ❌ Before: unused self
-def _build_soc_schedule(self, soc_schedule, sensor, ...):
-    ...
-
-# ✅ After: explicit no-self contract
-@staticmethod
-def _build_soc_schedule(soc_schedule, sensor, ...):
-    ...
-```
-
-Benefits:
-- Signals intent: this is a pure function, not dependent on object state
-- Prevents accidental use of `self` (e.g. accessing stale cached state)
-- Easier to unit-test in isolation
-
-**Review trigger**: Any private method in a Scheduler or DataGenerator subclass that does not
-reference `self` or `cls` — propose `@staticmethod`.
+Any private method in a Scheduler or DataGenerator subclass that does not reference `self` or
+`cls` should be decorated `@staticmethod` — signals it's a pure function, prevents accidental
+use of stale instance state, and is easier to unit-test in isolation.
 
 ### Domain Boundaries
 
@@ -135,101 +113,13 @@ Marshmallow schemas define the canonical format for parameter dictionaries. All 
 - [ ] **Storage consistency**: Ensure DataSource.attributes, job.meta use schema format
 - [ ] **Schema parity**: When adding a filter/parameter to `Sensor.search_beliefs`, verify it is added to BOTH `Input` (io.py) AND `BeliefsSearchConfigSchema` (reporting/__init__.py). These two schemas serve overlapping purposes but are distinct classes — omitting one creates a silent gap where documented features silently fail at schema validation time.
 
-**Domain Pattern: Schema Format Migrations**
-
-When Marshmallow schemas change format (e.g., kebab-case migration in PR #1953):
-
-```python
-# Before: Python attributes and dict keys matched
-class ForecasterParametersSchema(Schema):
-    as_job = fields.Boolean()  # Python: as_job, Dict: "as_job" (same)
-
-# After: data_key introduces format difference
-class ForecasterParametersSchema(Schema):
-    as_job = fields.Boolean(data_key="as-job")  # Python: as_job, Dict: "as-job" (different!)
-```
-
-**Impact on Code**:
-
-```python
-# Schema output (what code receives)
-parameters = {
-    "as-job": True,           # ← This is the actual dict key
-    "sensor-to-save": 2,
-}
-
-# ✅ Correct: Use schema output format
-parameters.pop("as-job", None)          # Matches dict key
-value = parameters.get("sensor-to-save")
-
-# ❌ Wrong: Use Python attribute name
-parameters.pop("as_job", None)          # Key doesn't exist!
-value = parameters.get("sensor_to_save")  # Returns None
-```
-
-**Code Paths to Audit**:
-
-1. **Parameter cleaning**: Removing fields before storage
-   ```python
-   # flexmeasures/data/models/forecasting/__init__.py:111
-   def _clean_parameters(self, parameters: dict) -> dict:
-       fields_to_remove = ["as-job", "sensor-to-save"]  # Use data_key format
-   ```
-
-2. **Parameter access**: Reading values
-   ```python
-   as_job = params.get("as-job")  # Use data_key format
-   ```
-
-3. **Parameter storage**: DataSource attributes
-   ```python
-   source.attributes = {"data_generator": {"parameters": params}}  # params must use data_key format
-   ```
-
-4. **Parameter comparison**: Checking equality
-   ```python
-   if source1.attributes == source2.attributes:  # Both must use same format
-   ```
-
-**Enforcement**:
-
-When reviewing code that handles Marshmallow schema output:
-
-1. **Find the schema**: Locate schema class definition
-2. **List data_key mappings**: Create table of Python attr → dict key
-3. **Audit all dict operations**: Check `.get()`, `[]`, `.pop()`, `del`, assignment
-4. **Verify consistency**: All operations use same format (data_key values)
-5. **Test data source equality**: Verify different code paths create identical sources
-
-**Session 2026-02-08 Case Study**:
-
-**Bug**: `_clean_parameters` used snake_case keys, but Marshmallow output kebab-case
-
-```python
-# Marshmallow schema
-as_job = fields.Boolean(data_key="as-job")
-
-# Marshmallow output
-{"as-job": True}
-
-# _clean_parameters tried to remove
-fields_to_remove = ["as_job"]  # ❌ Wrong format
-
-# Result
-{"as-job": True}  # Not cleaned!
-```
-
-**Impact**: API-triggered and direct forecasts created different data sources because parameters weren't cleaned consistently.
-
-**Fix**: Update `_clean_parameters` to use kebab-case keys matching Marshmallow output.
-
-**Key Insight**: When schema format changes, all code paths handling those dictionaries must be updated. Tests comparing data sources detect these consistency issues.
-
-**Related Files**:
-- Schemas: `flexmeasures/data/schemas/forecasting/`
-- Parameter handling: `flexmeasures/data/models/forecasting/__init__.py`
-- Data sources: `flexmeasures/data/models/data_sources.py`
-- Tests: `flexmeasures/api/v3_0/tests/test_forecasting_api.py`
+When a schema migrates its `data_key` format (e.g. snake_case → kebab-case), every code path
+reading the resulting dict must be updated to match — parameter cleaning (e.g.
+`_clean_parameters` in `flexmeasures/data/models/forecasting/__init__.py`), parameter access,
+DataSource attribute storage, and RQ `job.meta`. Verify by locating the schema, listing its
+`data_key` mappings, and auditing every `.get()`/`.pop()`/`del`/assignment against those
+dictionaries — a mismatch silently produces two data sources with logically-equal but
+differently-cleaned parameters instead of raising an error.
 
 ## Domain Knowledge
 
@@ -303,7 +193,7 @@ fields_to_remove = ["as_job"]  # ❌ Wrong format
   ```python
   # ✅ Correct: Use relationship append
   entity.annotations.append(annotation)
-  
+
   # ❌ Wrong: Manual join table manipulation
   # Don't create association table entries directly
   ```
@@ -338,6 +228,26 @@ fields_to_remove = ["as_job"]  # ❌ Wrong format
 5. **Timezone Awareness**
    - All datetime objects MUST be timezone-aware
    - Sensors have explicit `timezone` field
+
+6. **DataSource lineage preservation**: `data_source.user_id` and `data_source.account_id` have
+   no DB-level FK constraint on purpose, so historical lineage survives user/account deletion.
+   The ORM uses `passive_deletes="all"` (on the relationship and its backref) to prevent
+   auto-nullification. When reviewing schema changes that drop a FK for this reason, verify
+   `passive_deletes="all"` is set both ways, and that tests assert orphaned values are *not*
+   nullified after parent deletion.
+
+7. **Non-user DataSource account_id is always None**: reporters, schedulers, and forecasters
+   never get an `account_id`, so any `account_id` filter (e.g. on `search_beliefs`) only ever
+   matches user-type sources. Flag this limitation wherever such filtering is documented.
+
+8. **Asset ID is the authoritative key for per-asset results** (not sensor ID or device index).
+   A storage scheduler may have far fewer assets than sensors, so constraint-analysis/scheduling
+   results are grouped by `asset_id`. When code changes result keying between layers (e.g.
+   sensor-keyed → asset-keyed), document the key type explicitly in docstrings/type hints and
+   add an integration test that asserts on key semantics (e.g.
+   `assert all(isinstance(k, int) for k in result.keys())`) — a misleading function name at a
+   layer boundary (e.g. `_sensor_keyed_to_asset_keyed` actually handling asset-keyed data) can
+   silently corrupt results with no exception raised.
 
 ### Architectural Layers
 
@@ -379,79 +289,40 @@ fields_to_remove = ["as_job"]  # ❌ Wrong format
 - **Wrong permission model**: Use "update" for annotations, not "create-children" (which is for owned hierarchies)
 - **Idempotency without detection**: get-or-create functions should return `(entity, is_new)` tuple
 
-### Annotation API Pattern (Session 2026-02-10)
+### Annotation API pattern
 
-When implementing POST endpoints for adding annotations to domain entities:
+When implementing POST endpoints that add annotations to a domain entity:
 
-#### 1. Idempotency Pattern
-```python
-# ✅ Correct: get_or_create returns tuple
-annotation, is_new = get_or_create_annotation(
-    content=...,
-    type=...,
-    source_id=...,
-    # ... other fields
-)
+1. `get_or_create_annotation(...)` returns `(annotation, is_new)`; return 201 if `is_new` else 200.
+2. Associate via `entity.annotations.append(annotation)`, never manual join-table inserts.
+3. Require `"update"` permission on the entity (not `"create-children"` — annotations are
+   independent, many-to-many entities, not an owned hierarchy).
+4. Validate annotation payload with a Marshmallow schema before creating it.
 
-# Return appropriate HTTP status
-if is_new:
-    return make_response({...}, 201)  # Created
-else:
-    return make_response({...}, 200)  # OK (already exists)
-```
-
-#### 2. Relationship Management Pattern
-```python
-# ✅ Correct: Use SQLAlchemy relationship append
-entity.annotations.append(annotation)
-db.session.commit()
-
-# ❌ Wrong: Manual join table manipulation
-# Don't create rows in association tables directly
-```
-
-#### 3. Permission Pattern
-For many-to-many relationships like annotations:
-- **Use "update" permission** to add annotation to entity
-- **Not "create-children"** (that's for owned hierarchies like GenericAsset→Sensor)
-- **Rationale**: Annotation is independent entity, can be associated with multiple entities
-
-#### 4. API Endpoint Structure
 ```python
 class AnnotationAPI(FlaskView):
     @route("/<resource_id>/annotations", methods=["POST"])
     @permission_required_for_context("update", ctx_arg_name="entity")
     def post(self, resource_id: int):
-        # 1. Load and validate entity
         entity = get_entity_or_abort(resource_id)
-        
-        # 2. Validate annotation data (Marshmallow schema)
         annotation_data = AnnotationSchema().load(request.json)
-        
-        # 3. Get or create annotation (idempotency)
         annotation, is_new = get_or_create_annotation(**annotation_data)
-        
-        # 4. Associate with entity (relationship append)
         entity.annotations.append(annotation)
         db.session.commit()
-        
-        # 5. Return appropriate status
         status_code = 201 if is_new else 200
         return make_response(AnnotationSchema().dump(annotation), status_code)
 ```
-
-#### 5. Review Checklist for Annotation Endpoints
-- [ ] Does `get_or_create_annotation()` return `(annotation, is_new)` tuple?
-- [ ] Does endpoint return 201 for new, 200 for existing?
-- [ ] Does code use `entity.annotations.append()` not manual join table?
-- [ ] Does endpoint require "update" permission not "create-children"?
-- [ ] Is annotation data validated with Marshmallow schema?
-- [ ] Is the association committed to database?
 
 **Related Files**:
 - Model: `flexmeasures/data/models/annotations.py`
 - API: `flexmeasures/api/v3_0/assets.py`, `flexmeasures/api/v3_0/sensors.py`
 - Schema: `flexmeasures/data/schemas/annotations.py`
+
+### Alembic migration checklist
+
+When reviewing a migration doing a bulk backfill or column/FK change: prefer a correlated
+subquery for bulk backfill, use SQLAlchemy Core stubs (no ORM model imports) inside the
+migration, use `batch_alter_table` for all ALTER operations, and match constraint names exactly.
 
 ### Related Files
 
@@ -469,7 +340,8 @@ class AnnotationAPI(FlaskView):
 - **Test Specialist**: Collaborate on testing domain invariants
 - **Performance Specialist**: Balance architectural purity with performance needs
 - **Data & Time Specialist**: Defer timezone/unit specifics, enforce awareness
-- **API Specialist**: Ensure API changes respect domain boundaries
+- **API Specialist**: Ensure API changes respect domain boundaries; flag when a domain model
+  change affects endpoint behavior or response shape
 - **Coordinator**: Escalate when domain model changes affect multiple agents
 
 ### When to Escalate to Coordinator
@@ -488,200 +360,8 @@ class AnnotationAPI(FlaskView):
 
 ## Self-Improvement Notes
 
-### When to Update Instructions
-
-- New domain entities are added to FlexMeasures
-- Domain invariants change or are discovered
-- Architectural patterns evolve
-- Recurring PR issues reveal blind spots
-- FlexMeasures adopts new frameworks or libraries
-
-### Learning from PRs
-
-- Track which domain violations slip through
-- Note recurring architectural anti-patterns
-- Document new invariants discovered during reviews
-- Update checklist when new patterns emerge
-
-### Continuous Improvement
-
-- Periodically audit domain model consistency
-- Review services layer for business logic leakage
-- Monitor coupling between layers
-- Propose refactorings when architecture degrades
-- Keep domain knowledge section updated with code changes
-
-* * *
-
-## Critical Requirements for Architecture Specialist
-
-### Must Verify Fixes Against Actual Scenarios
-
-**This agent MUST test fixes against the reported bug scenario, not just unit tests.**
-When reviewing or implementing domain model fixes:
-1. **Reproduce the bug scenario first**:
-   - Use the exact CLI commands or API calls from the bug report
-   - Use the same data, parameters, and context
-   - Verify the bug actually manifests as reported
-2. **Test the fix end-to-end**:
-   ```bash
-   # Example: Test a CLI fix
-   uv sync --group dev --group test
-   flexmeasures <command> <args>  # The exact command from bug report
-   ```
-3. **Verify domain invariants still hold**:
-   - Run relevant test suite: `uv run poe test`
-   - Check database constraints are satisfied
-   - Verify no regressions in related functionality
-4. **Document verification in commit**:
-   - Show that bug scenario now works
-   - Include test output or CLI results
-   - Explain what was verified
-
-### Must Make Atomic Commits
-
-See `.github/instructions/atomic-commits.instructions.md`. Never mix code changes with documentation or analysis files.
-
-Good commit practice:
-1. Code change (single logical unit)
-2. Test for that change (separate commit)
-3. Documentation update (separate commit)
-4. Agent instruction update (separate commit)
-
-### Must Verify Claims Before Stating Them
-
-**All claims about performance, behavior, or correctness must be verified.**
-Avoid unfounded claims like:
-- "This is 1000x faster" (without benchmarks)
-- "Tests pass" (without actually running them)
-- "This fixes the bug" (without testing the scenario)
-Instead:
-- Run actual benchmarks if claiming performance improvements
-- Execute tests and show output: `pytest -v path/to/tests`
-- Test the exact bug scenario and confirm it's fixed
-- Use FlexMeasures dev environment to verify CLI/API behavior
-
-### Self-Improvement Loop
-
-After each assignment:
-1. **Review what worked and what didn't**
-2. **Update this agent file** with lessons learned
-3. **Commit agent updates separately** using format:
-   ```
-   agents/architecture: learned <specific lesson>
-   
-   Context:
-   - Assignment revealed issue with <area>
-   
-   Change:
-   - Added guidance on <specific topic>
-   ```
-
-### Asset ID Keying Pattern (PR #2072)
-
-When scheduling results or constraint analysis shift from sensor-keyed to asset-keyed organization, you must prevent silent data corruption across data flow boundaries.
-
-**Problem**: A storage scheduler optimization changed constraint analysis results from sensor-keyed to asset-keyed organization. Without careful attention, Layer 1 (storage) produces asset-keyed dicts while Layer 2 (API) treats keys as sensor IDs, silently corrupting results.
-
-**Pattern**:
-
-1. **Identify all data flow stages**:
-   - **Storage layer**: How does the scheduler compute and store results?
-   - **API transformation**: How are results converted for the API response?
-   - **Client expectations**: What format do clients expect?
-   
-   Example: Constraint analysis produces Dict[int, Dict] where int is asset_id. API must transform this for clients while maintaining correctness.
-
-2. **Prevent format mismatches at boundaries**:
-   - Layer 1 produces asset-keyed dict (e.g., `{asset_id: {...}}`)
-   - Layer 2 MUST expect asset-keyed dict (not assume sensor-keyed)
-   - Add Marshmallow schemas to validate the transformation
-   - No silent conversions without schema validation
-   
-   Example pattern:
-   ```python
-   # ❌ Wrong: storage produces asset-keyed, API treats as sensor-keyed
-   constraint_result = {1: {}}  # asset_id 1 from scheduler
-   for sensor_id, data in constraint_result.items():  # Treats key as sensor_id!
-       ...
-   
-   # ✅ Correct: explicitly document and validate transformation
-   @dataclass
-   class ConstraintDataPerAsset:
-       """Storage layer produces Dict[asset_id, ...]"""
-       asset_id_keyed_result: Dict[int, Dict]
-   
-   class ConstraintResponseSchema(Schema):
-       """API transforms to client format but documents asset keying"""
-       assets = fields.List(fields.Nested(...))  # Asset-keyed response
-   ```
-
-3. **Update domain invariants**:
-   - Asset ID is the authoritative key (not sensor ID or device index)
-   - Multiple sensors may belong to the same asset
-   - Constraint analysis results grouped by asset, not sensor
-   - Document this in docstrings and type hints
-   
-   Example invariant addition to docstrings:
-   ```python
-   def get_constraints_for_assets(
-       asset_ids: List[int],
-       ...
-   ) -> Dict[int, ConstraintData]:
-       """Get constraint analysis results grouped by asset ID.
-       
-       Key domain invariant: Results are keyed by asset_id, not sensor_id.
-       Multiple sensors may belong to the same asset, but constraints
-       are computed and reported per-asset for scheduling purposes.
-       
-       Returns:
-           Dict mapping asset_id -> ConstraintData
-       """
-   ```
-
-4. **Test the transformation end-to-end**:
-   - Storage layer produces one format (may be optimized for efficiency)
-   - API layer transforms to client format (asset-keyed)
-   - Integration tests verify both format correctness and no data loss
-   
-   Example test structure:
-   ```python
-   def test_constraint_results_keyed_by_asset():
-       """Verify storage→API transformation preserves asset keying"""
-       # Storage layer produces asset-keyed result
-       result = scheduler.get_constraints()
-       assert all(isinstance(k, int) for k in result.keys())  # asset IDs
-       
-       # API layer transforms for response
-       response = transform_for_api(result)
-       assert response["assets"]  # asset-keyed response structure
-       
-       # Verify no data loss or corruption
-       assert len(response["assets"]) == len(result)
-   ```
-
-**Why it matters**: Asset-keyed results differ fundamentally from sensor-keyed results. A storage scheduler with 10 assets but 30 sensors uses asset-keyed for efficiency, but the API must still make this explicit to prevent Layer 2 from misinterpreting keys. Silent misinterpretation corrupts scheduling results without throwing errors.
-
-**Review trigger**: Any scheduler or constraint analysis code that changes result keying (from device-index to asset-id, or sensor-keyed to asset-keyed) — Add this documentation pattern and require tests that verify the transformation is not corrupted.
-
-### Lessons Learned
-
-**Session 2026-03-24 (PR #2058 — add account_id to DataSource)**:
-
-- **New domain invariant**: User-type DataSources now have `account_id` populated. Document new FK relationships and invariants in the Domain Knowledge section immediately.
-- **Migration checklist**: Added an explicit Alembic migration checklist after reviewing the migration for this PR. Key patterns: correlated subquery for bulk backfill, SQLAlchemy Core stubs (no ORM imports), `batch_alter_table` for all ALTER operations, exact constraint name matching.
-- **Missed API Specialist coordination**: The PR changed endpoint behavior (POST sensor data sets account_id on the created data source). The API Specialist should have been engaged to verify backward compatibility. When domain model changes affect how endpoints behave or what they return, flag for API Specialist review.
-- **Self-improvement failure**: Despite having explicit self-improvement requirements, no agent updated its instructions during this PR session. This was caught by the Coordinator post-hoc. The agent must update its own instructions as the LAST step of every assignment, not skip it.
-
-**Session 2026-04 (PR #2065 — add account_id filter to search_beliefs)**:
-
-- **Schema parity gap**: The PR added `account_id` to `BeliefsSearchConfigSchema` but not to `Input` (io.py). These two schemas both expose `Sensor.search_beliefs` parameters; omitting a parameter from one creates a silent gap. The architecture agent must check both schemas on any search_beliefs parameter addition.
-- **Documentation vs. implementation mismatch**: The `reporting.rst` docs stated reporters can filter by `account_id`, but this only works if `Input` also has the field. Docs that outrun schema support mislead users. Always verify the full schema chain before documenting a feature.
-- **DataSource account_id=None for non-user sources**: The existing invariant (reporters/schedulers/forecasters have `account_id=None`) limits the usefulness of `account_id` filtering: it only matches user-type sources. PRs adding `account_id` filters should either document this limitation explicitly or reconsider the invariant.
-
-**Session 2026-07-02 (PR #2072 — storage scheduler asset keying optimization)**:
-
-- **Data flow format mismatches**: Storage scheduler optimization changed constraint analysis from sensor-keyed to asset-keyed results. The risk is high: Layer 1 produces asset-keyed dict, Layer 2 silently treats keys as sensor IDs, corrupting results without errors. This pattern must be documented and tested end-to-end.
-- **Multi-sensor per asset invariant**: Asset ID is the authoritative key, not sensor ID. Multiple sensors belong to the same asset; constraint results are grouped by asset for scheduling purposes. Docstrings and type hints must make this explicit to prevent misuse.
-- **Silent data corruption risk**: Unlike exceptions, format mismatches silently corrupt data. When keying changes (sensor→asset, device-index→asset-id), integration tests must verify the full transformation (storage format → API format) maintains data correctness and no loss.
-- **Added Asset ID Keying Pattern**: New section in instructions documents the pattern, data flow stages, format validation, domain invariants, and end-to-end testing requirements.
+Update this file when: a new domain entity is added, a domain invariant changes or is
+discovered, an architectural pattern evolves, or a recurring PR issue reveals a blind spot in
+this checklist. Edit the relevant section in place — don't append a dated narrative. Before
+claiming a fix works, reproduce the original bug scenario (exact CLI/API call) and confirm it
+now passes, in addition to running `uv run poe test`.
