@@ -11,6 +11,22 @@
       "Read(./.env)",
       "Read(./.env.*)",
       "Read(./secrets/**)"
+    ],
+    "allow": [
+      "Bash(uv sync *)",
+      "Bash(uv pip *)",
+      "Bash(uv run *)",
+      "Bash(uv cache *)",
+      "Bash(uv tool *)",
+      "Bash(git fetch *)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git log *)",
+      "Bash(git worktree *)",
+      "Bash(pre-commit install *)",
+      "Bash(pre-commit run *)"
     ]
   },
   "hooks": {
