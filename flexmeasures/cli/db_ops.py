@@ -117,11 +117,15 @@ def refresh_materialized_views(concurrent: bool):
     The time of the last successful run is recorded in the latest_task_run table, which serves
     as the queries' cutoff between trusting the view and reading recent events from the beliefs
     table, and can be monitored with ``flexmeasures monitor latest-run``.
+
+    After refreshing, this also runs ANALYZE on the view, since autovacuum may not have
+    gotten to it yet, which would otherwise leave the query planner without up-to-date
+    statistics and prone to picking bad plans.
     """
     import time
 
     from sqlalchemy import text
-    from timely_beliefs.beliefs.materialized_views import refresh_mview_ddl
+    from timely_beliefs.beliefs.materialized_views import refresh_mview_ddl, MVIEW_NAME
 
     from flexmeasures.data.transactional import task_with_status_report
     from flexmeasures.data.models.task_runs import LatestTaskRun
@@ -130,14 +134,19 @@ def refresh_materialized_views(concurrent: bool):
     @task_with_status_report(MVIEW_REFRESH_TASK_NAME)
     def _refresh():
         ddl = refresh_mview_ddl(concurrently=concurrent)
+        # Autovacuum may lag behind the refresh, leaving the planner without fresh
+        # statistics, so we analyze the view explicitly right after refreshing it.
+        analyze_ddl = f"ANALYZE {MVIEW_NAME};"
         if concurrent:
             # REFRESH MATERIALIZED VIEW CONCURRENTLY cannot run inside a transaction block
             with db.engine.connect().execution_options(
                 isolation_level="AUTOCOMMIT"
             ) as connection:
                 connection.execute(text(ddl))
+                connection.execute(text(analyze_ddl))
         else:
             db.session.execute(text(ddl))
+            db.session.execute(text(analyze_ddl))
 
     start_time = time.time()
     click.secho(

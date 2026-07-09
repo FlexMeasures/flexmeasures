@@ -58,6 +58,10 @@ def upgrade():
     """
     )
 
+    # Autovacuum may not have analyzed the freshly created view yet, leaving the
+    # planner without statistics and prone to picking bad query plans until it does.
+    op.execute("ANALYZE most_recent_beliefs_mview;")
+
 
 def downgrade():
     op.execute("DROP MATERIALIZED VIEW IF EXISTS most_recent_beliefs_mview;")
