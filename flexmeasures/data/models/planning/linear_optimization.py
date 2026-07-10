@@ -878,21 +878,17 @@ def device_scheduler(  # noqa C901
         model.balance_group_range = RangeSet(0, len(balance_group_specs) - 1)
 
         def node_balance_rule(m, b, j):
-            """Balance the stock-side flows of an internal commodity node at every time step.
+            """Balance the power flows of an internal commodity node at every time step.
 
             Everything produced into the node must be consumed from it within the same
-            time step. Flows are converted to the stock side using each device's
-            derivative efficiencies, and any predefined stock delta counts as well.
+            time step. The balance sums the devices' commodity-side flows (ems_power);
+            derivative efficiencies and stock deltas describe each device's own
+            stock-side conversion (e.g. of a shared buffer) and do not enter the
+            commodity balance.
             """
             return (
                 0,
-                sum(
-                    m.device_power_down[d, j]
-                    / m.device_derivative_down_efficiency[d, j]
-                    + m.device_power_up[d, j] * m.device_derivative_up_efficiency[d, j]
-                    + m.stock_delta[d, j]
-                    for d in balance_group_specs[b]
-                ),
+                sum(m.ems_power[d, j] for d in balance_group_specs[b]),
                 0,
             )
 
