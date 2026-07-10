@@ -744,6 +744,7 @@ def test_fetch_sensor_stats(
         for source, record in response_content.items():
             assert record["First event start"]
             assert record["Last event end"]
+            assert record["Last recorded"]
             assert record["Min value"]
             assert record["Min value"]
             assert record["Max value"]
