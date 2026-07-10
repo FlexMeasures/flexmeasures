@@ -4511,11 +4511,7 @@
             }
           },
           "default": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": null,
+            "type": "string",
             "description": "Fallback quantity to use when the referenced sensor has missing values.",
             "example": "0 kWh"
           }
@@ -6122,7 +6118,7 @@
             "example": "3.1 kWh"
           },
           "soc-min": {
-            "description": "Lower boundary for all SoC values in the schedule.\nIf omitted, no lower boundary is applied.\nWhen passed as a fixed quantity, this is regarded as an unsurpassable physical limitation.\nWhen passed as a sensor reference or time series, it defines dynamic lower boundaries. Dynamic boundaries are soft constraints by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-minima-breach-price</code>.\nSensor references may include a <code>default</code> fallback quantity for missing sensor values, for example <code>{\"sensor\": 50, \"default\": \"0 kWh\"}</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep dynamic lower boundaries as hard constraints unless <code>soc-minima-breach-price</code> is supplied explicitly.\n",
+            "description": "Lower boundary for all SoC values in the schedule.\nIf omitted, no lower boundary is applied.\nThis boundary is soft in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-minima-breach-price</code>.\nWhen passed as a sensor reference or time series, it defines dynamic lower boundaries.\nSensor references may include a <code>default</code> fallback quantity for missing sensor values, for example <code>{\"sensor\": 50, \"default\": \"0 kWh\"}</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep lower boundaries as hard constraints unless <code>soc-minima-breach-price</code> is supplied explicitly.\n",
             "example": {
               "sensor": 50,
               "default": "0 kWh"
@@ -6130,7 +6126,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-max": {
-            "description": "Upper boundary for all SoC values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf omitted, no upper boundary is applied.\nWhen passed as a fixed quantity, this is regarded as an unsurpassable physical limitation.\nWhen passed as a sensor reference or time series, it defines dynamic upper boundaries. Dynamic boundaries are soft constraints by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-maxima-breach-price</code>.\nSensor references may include a <code>default</code> fallback quantity for missing sensor values, for example <code>{\"sensor\": 51, \"default\": \"100 kWh\"}</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep dynamic upper boundaries as hard constraints unless <code>soc-maxima-breach-price</code> is supplied explicitly.\n",
+            "description": "Upper boundary for all SoC values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf omitted, no upper boundary is applied.\nThis boundary is soft in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-maxima-breach-price</code>.\nWhen passed as a sensor reference or time series, it defines dynamic upper boundaries.\nSensor references may include a <code>default</code> fallback quantity for missing sensor values, for example <code>{\"sensor\": 51, \"default\": \"100 kWh\"}</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep upper boundaries as hard constraints unless <code>soc-maxima-breach-price</code> is supplied explicitly.\n",
             "example": {
               "sensor": 51,
               "default": "100 kWh"

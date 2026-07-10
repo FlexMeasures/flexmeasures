@@ -269,9 +269,9 @@ However, here are some tips to model a buffer correctly:
    - Set ``storage-efficiency`` to a value below 100% to model (heat) loss.
 
 If the flex model describes an infeasible problem for the storage scheduler, the failure should remain visible.
-By default, dynamic ``soc-min`` and ``soc-max`` boundaries are relaxed into soft constraints, so the scheduler can still return a useful schedule when these boundaries cannot be fully met.
+By default, ``soc-min`` and ``soc-max`` boundaries are relaxed into soft constraints, so the scheduler can still return a useful schedule when these boundaries cannot be fully met.
 The legacy ``soc-minima`` and ``soc-maxima`` aliases follow the same behavior.
-Exact ``soc-targets`` and fixed physical ``soc-min`` / ``soc-max`` bounds remain hard constraints.
+Exact ``soc-targets`` remain hard constraints, and ``soc-min`` / ``soc-max`` can be kept hard by setting ``relax-soc-constraints`` to ``False``.
 If those hard constraints make the problem infeasible, the scheduling job fails instead of producing a fallback schedule.
 
 It is important to take note of these failures. Often, misconfigured flex models are the reason.

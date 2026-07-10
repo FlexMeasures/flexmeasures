@@ -18,7 +18,7 @@ New features
 * Let storage scheduling infer missing ``power-capacity`` from directional device capacities before falling back to site capacity, and default the missing opposite capacity to zero when only a non-zero ``consumption-capacity`` or ``production-capacity`` is configured [see `PR #2222 <https://www.github.com/FlexMeasures/flexmeasures/pull/2222>`_]
 * CLI support for adding/editing account attributes [see `PR #2242 <https://www.github.com/FlexMeasures/flexmeasures/pull/2242>`_]
 * Relax storage SoC constraints by default and report infeasible storage schedules directly instead of saving fallback schedules [see `PR #2252 <https://www.github.com/FlexMeasures/flexmeasures/pull/2252>`_]
-* Support defining dynamic storage ``soc-min`` and ``soc-max`` boundaries with sensor references or time series, including sensor ``default`` fallbacks; ``soc-minima`` and ``soc-maxima`` remain supported as legacy aliases [see `PR #2267 <https://www.github.com/FlexMeasures/flexmeasures/pull/2267>`_]
+* Support defining ``default`` fallbacks on sensor references, and support dynamic storage ``soc-min`` and ``soc-max`` boundaries with sensor references or time series; ``soc-minima`` and ``soc-maxima`` remain supported as legacy aliases, and scalar ``soc-min`` / ``soc-max`` follow the default SoC relaxation behavior [see `PR #2267 <https://www.github.com/FlexMeasures/flexmeasures/pull/2267>`_]
 
 Infrastructure / Support
 ----------------------

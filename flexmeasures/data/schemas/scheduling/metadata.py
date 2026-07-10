@@ -232,20 +232,20 @@ Only kWh and MWh are allowed.
 SOC_MIN = MetaData(
     description="""Lower boundary for all SoC values in the schedule.
 If omitted, no lower boundary is applied.
-When passed as a fixed quantity, this is regarded as an unsurpassable physical limitation.
-When passed as a sensor reference or time series, it defines dynamic lower boundaries. Dynamic boundaries are soft constraints by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-minima-breach-price``.
+This boundary is soft in the optimization problem by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-minima-breach-price``.
+When passed as a sensor reference or time series, it defines dynamic lower boundaries.
 Sensor references may include a ``default`` fallback quantity for missing sensor values, for example ``{"sensor": 50, "default": "0 kWh"}``.
-Set ``relax-soc-constraints`` to ``False`` to keep dynamic lower boundaries as hard constraints unless ``soc-minima-breach-price`` is supplied explicitly. [#maximum_overlap]_ [#projecting_scheduling_constraints]_
+Set ``relax-soc-constraints`` to ``False`` to keep lower boundaries as hard constraints unless ``soc-minima-breach-price`` is supplied explicitly. [#maximum_overlap]_ [#projecting_scheduling_constraints]_
 """,
     example={"sensor": 50, "default": "0 kWh"},
 )
 SOC_MAX = MetaData(
     description="""Upper boundary for all SoC values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).
 If omitted, no upper boundary is applied.
-When passed as a fixed quantity, this is regarded as an unsurpassable physical limitation.
-When passed as a sensor reference or time series, it defines dynamic upper boundaries. Dynamic boundaries are soft constraints by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-maxima-breach-price``.
+This boundary is soft in the optimization problem by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-maxima-breach-price``.
+When passed as a sensor reference or time series, it defines dynamic upper boundaries.
 Sensor references may include a ``default`` fallback quantity for missing sensor values, for example ``{"sensor": 51, "default": "100 kWh"}``.
-Set ``relax-soc-constraints`` to ``False`` to keep dynamic upper boundaries as hard constraints unless ``soc-maxima-breach-price`` is supplied explicitly. [#minimum_overlap]_ [#projecting_scheduling_constraints]_
+Set ``relax-soc-constraints`` to ``False`` to keep upper boundaries as hard constraints unless ``soc-maxima-breach-price`` is supplied explicitly. [#minimum_overlap]_ [#projecting_scheduling_constraints]_
 """,
     example={"sensor": 51, "default": "100 kWh"},
 )
