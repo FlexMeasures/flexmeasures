@@ -592,7 +592,12 @@ def _set_flex_model_output_sensors_consumption_is_positive(
             (consumption_sensor, True),
             (production_sensor, False),
         ]:
-            if sensor is None:
+            if not isinstance(sensor, Sensor):
+                # Raw (not yet deserialized) flex models reference sensors by id,
+                # e.g. when an asset-level trigger collects the DB flex models of
+                # descendant assets; the flex-model schema resolves and validates
+                # those references later, and this attribute is then set at
+                # schedule-saving time instead.
                 continue
             field_name = "consumption_schedule" if intended else "production_schedule"
             existing = sensor.attributes.get("consumption_is_positive")
