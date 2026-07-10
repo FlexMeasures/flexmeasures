@@ -157,6 +157,9 @@ class MetaStorageScheduler(Scheduler):
         production_capacity = [
             flex_model_d.get("production_capacity") for flex_model_d in flex_model
         ]
+        operation_modes = [
+            flex_model_d.get("operation_modes") for flex_model_d in flex_model
+        ]
         charging_efficiency = [
             flex_model_d.get("charging_efficiency") for flex_model_d in flex_model
         ]
@@ -694,6 +697,17 @@ class MetaStorageScheduler(Scheduler):
             )
             device_constraints[d]["derivative max"] = power_capacity_in_mw[d]
             device_constraints[d]["derivative min"] = -power_capacity_in_mw[d]
+
+            # Power bands (S2 operation modes): carried on the constraints frame,
+            # in signed MW (positive is consumption), for the device scheduler.
+            if operation_modes[d]:
+                device_constraints[d].attrs["operation_modes"] = [
+                    (
+                        float(mode["power_range"][0].to("MW").magnitude),
+                        float(mode["power_range"][1].to("MW").magnitude),
+                    )
+                    for mode in operation_modes[d]
+                ]
 
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_positive"
@@ -1839,6 +1853,9 @@ class StorageScheduler(MetaStorageScheduler):
             device_constraints=device_constraints,
             ems_constraints=ems_constraints,
             commitments=commitments,
+            device_power_bands=[
+                dc.attrs.get("operation_modes") for dc in device_constraints
+            ],
             initial_stock=[
                 (
                     soc_at_start_d * (timedelta(hours=1) / resolution)
