@@ -55,7 +55,7 @@ Each device also needs output sensors to record its schedule (since these device
 Storing the flex-models on the assets
 ---------------------------------------
 
-Rather than sending a flex-model with the trigger request, we store each asset's (partial) flex-model directly on the asset. FlexMeasures will walk the tree and collect these into one combined flex-model when scheduling the site (see ``GenericAsset.get_flex_model`` and ``Scheduler.collect_flex_config``).
+Rather than sending a flex-model with the trigger request, we store each asset's (partial) flex-model directly on the asset. FlexMeasures walks the asset tree and collects these into one combined flex-model when scheduling the site.
 
 You can set an asset's flex-model with ``PATCH /api/v3_0/assets/<id>``, sending a ``flex_model`` field with the JSON below. (The FlexMeasures UI's flex-model editor on the asset's properties page supports this too, and even suggests the parent asset as a candidate for the ``group`` field.)
 
@@ -151,7 +151,7 @@ You can inspect any of these with:
 
     $ flexmeasures show beliefs --sensor 21 --start ${TOMORROW}T00:00:00+01:00 --duration PT4H
 
-The group's aggregate power never exceeds 2.5 kW in either direction — even though the battery and PV could individually reach 2 kW each (4 kW combined) — because the hybrid inverter's hard ``power-capacity`` caps their sum. This mirrors the scenario from `issue #2092 <https://github.com/FlexMeasures/flexmeasures/issues/2092>`_, and is exercised end-to-end (at the planning level, bypassing the API/CLI layer but exercising the same DB-tree flex-model collection) by the test ``test_pure_db_tree_group_constraint`` in ``flexmeasures/data/models/planning/tests/test_group_constraints.py``.
+The group's aggregate power never exceeds 2.5 kW in either direction — even though the battery and PV could individually reach 2 kW each (4 kW combined) — because the hybrid inverter's hard ``power-capacity`` caps their sum. Without the group, the scheduler could plan the battery to charge at full power during peak PV production, which the inverter physically cannot deliver.
 
 .. note:: If a device only ever consumes or only ever produces, you only need to define the corresponding single output sensor (as we did for the PV installation above). Only devices (or groups) that can go both ways need both a ``consumption`` and a ``production`` output sensor.
 
