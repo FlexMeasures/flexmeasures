@@ -297,6 +297,22 @@ def idle_after_reaching_target(
     return schedule
 
 
+def _resolve_duplicate_events(df: pd.DataFrame, resolve_overlaps: str) -> pd.DataFrame:
+    """Resolve duplicate event starts left over after belief simplification.
+
+    Beliefs about the same event from multiple sources (e.g. a data source that
+    churned versions between posts) each survive most_recent_beliefs_only, and
+    duplicate index labels make the subsequent reindex raise
+    "cannot reindex on an axis with duplicate labels", failing the whole
+    scheduling job. Resolve them with the same policy the caller chose for
+    overlapping time series segments ('first', 'max' or 'min').
+    """
+    if not df.index.has_duplicates:
+        return df
+    agg = resolve_overlaps if resolve_overlaps in ("max", "min") else "first"
+    return df.groupby(level=0, sort=True).agg(agg)
+
+
 def get_series_from_quantity_or_sensor(
     variable_quantity: Sensor | SensorReference | list[dict] | ur.Quantity,
     unit: ur.Quantity | str,
@@ -372,7 +388,11 @@ def get_series_from_quantity_or_sensor(
                 boundary_policy=resolve_overlaps,
                 keep_only_most_recent_belief=True,
             )
-        time_series = simplify_index(bdf).reindex(index).squeeze(axis=1)
+        time_series = (
+            _resolve_duplicate_events(simplify_index(bdf), resolve_overlaps)
+            .reindex(index)
+            .squeeze(axis=1)
+        )
         time_series = convert_units(
             time_series, variable_quantity.unit, unit, resolution
         )
@@ -393,7 +413,11 @@ def get_series_from_quantity_or_sensor(
                 boundary_policy=resolve_overlaps,
                 keep_only_most_recent_belief=True,
             )
-        time_series = simplify_index(bdf).reindex(index).squeeze(axis=1)
+        time_series = (
+            _resolve_duplicate_events(simplify_index(bdf), resolve_overlaps)
+            .reindex(index)
+            .squeeze(axis=1)
+        )
         time_series = convert_units(
             time_series, variable_quantity.unit, unit, resolution
         )
