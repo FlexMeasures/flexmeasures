@@ -1351,7 +1351,7 @@ requires-dist = [
     { name = "sentry-sdk", extras = ["flask"], specifier = ">=2.52.0" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "tabulate", specifier = ">=0.9.0" },
-    { name = "timely-beliefs", extras = ["forecast"], specifier = ">=4.0.0" },
+    { name = "timely-beliefs", extras = ["forecast"], specifier = ">=4.0.1" },
     { name = "tldextract", specifier = ">=5.3.1" },
     { name = "uniplot", specifier = ">=0.12.1" },
     { name = "urllib3", specifier = ">=2.7.0" },
@@ -4239,7 +4239,7 @@ wheels = [
 
 [[package]]
 name = "timely-beliefs"
-version = "4.0.0"
+version = "4.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "importlib-metadata", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
@@ -4256,9 +4256,9 @@ dependencies = [
     { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.12' and os_name != 'nt' and sys_platform == 'darwin') or (python_full_version >= '3.12' and os_name != 'nt' and sys_platform == 'linux') or (python_full_version >= '3.12' and sys_platform == 'win32')" },
     { name = "sqlalchemy", marker = "(os_name != 'nt' and sys_platform == 'darwin') or (os_name != 'nt' and sys_platform == 'linux') or sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bb/5d/575138165ff06550b32279bb618062e6bbc7340fdc9a75d3bf122f3eea79/timely_beliefs-4.0.0.tar.gz", hash = "sha256:5283e9fbb1cf44bc5aac0ae20f0f674dcab61a88c94abd309c40dd270fd6c74c", size = 798670, upload-time = "2026-07-06T08:15:17.216665Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/80/e7/9594492e2c9e1e5509fa3e7f67c847b86328db46b3bd8808a8fc2c4df8e6/timely_beliefs-4.0.1.tar.gz", hash = "sha256:8f1779d8423abbc149dbeea8f357c919bff1fc40ca76ebfeefe7a58f3a1983e5", size = 801526, upload-time = "2026-07-10T08:12:43.454Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/05/e0/b88e0321c25d77513fafbc59581829c18747de7822513f8c9ed21343725d/timely_beliefs-4.0.0-py2.py3-none-any.whl", hash = "sha256:92063d9c03eca9fefa2369b570d8b7cc001f332a389110e59bc594224becf495", size = 813681, upload-time = "2026-07-06T08:15:15.265758Z" },
+    { url = "https://files.pythonhosted.org/packages/42/da/65fc9ffd8df6f0a98d609ec3712179cfcfab9901c80887c056556b807b3f/timely_beliefs-4.0.1-py2.py3-none-any.whl", hash = "sha256:930099aa466fbc3fa5ec637c266d64c3f8e4af229e3f2666848c284bdefb28d6", size = 816689, upload-time = "2026-07-10T08:12:41.777Z" },
 ]
 
 [package.optional-dependencies]
