@@ -43,6 +43,7 @@ def device_scheduler(  # noqa C901
     initial_stock: float | list[float] = 0,
     stock_groups: dict[int, list[int]] | None = None,
     ems_constraint_groups: list[list[int]] | None = None,
+    device_power_bands: list[list[tuple[float, float]] | None] | None = None,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -80,6 +81,11 @@ def device_scheduler(  # noqa C901
                                     device:                     0 (corresponds to device d; if not set, commitment is on an EMS level)
     :param initial_stock:       initial stock for each device. Use a list with the same number of devices as device_constraints,
                                 or use a single value to set the initial stock to be the same for all devices.
+    :param device_power_bands:  optional per-device list of signed power bands (min, max), in flow units
+                                (e.g. MW, positive for consumption). A device with bands must operate within
+                                one of its bands at every time step (see S2 operation modes); this introduces
+                                binary variables (one per device per band per time step). Use None (per device
+                                or for the whole argument) for devices without band restrictions.
 
     Potentially deprecated arguments:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
@@ -326,6 +332,15 @@ def device_scheduler(  # noqa C901
             device_constraints[d]["stock delta"] = (
                 device_constraints[d]["stock delta"].astype(float).fillna(0)
             )
+
+    # Look up power bands (S2 operation modes) per device
+    if device_power_bands is None:
+        device_power_bands = [None] * len(device_constraints)
+    band_lookup: dict[int, list[tuple[float, float]]] = {
+        d: list(bands)
+        for d, bands in enumerate(device_power_bands)
+        if bands is not None and len(bands) > 0
+    }
 
     # Add indices for devices (d), datetimes (j) and commitments (c)
     model.d = RangeSet(0, len(device_constraints) - 1, doc="Set of devices")
@@ -776,6 +791,49 @@ def device_scheduler(  # noqa C901
 
     model.device_power_equalities = Constraint(
         model.d, model.j, rule=device_derivative_equalities
+    )
+
+    # Power bands (S2 operation modes): a banded device must operate within
+    # exactly one of its declared signed power ranges at every time step.
+    model.db = Set(
+        dimen=2,
+        initialize=lambda m: (
+            (d, b) for d, bands in band_lookup.items() for b in range(len(bands))
+        ),
+        doc="Set of (device, band) pairs for devices with power bands",
+    )
+    model.device_band = Var(model.db, model.j, domain=Binary, initialize=0)
+
+    def device_band_choice(m, d, b, j):
+        """Each banded device runs in exactly one band per time step (tied to band 0)."""
+        if b != 0:
+            return Constraint.Skip
+        return sum(m.device_band[d, b_, j] for b_ in range(len(band_lookup[d]))) == 1
+
+    def device_band_power_lower(m, d, b, j):
+        """Device power at least the chosen band's minimum."""
+        if b != 0:
+            return Constraint.Skip
+        return m.device_power_down[d, j] + m.device_power_up[d, j] >= sum(
+            m.device_band[d, b_, j] * band_lookup[d][b_][0]
+            for b_ in range(len(band_lookup[d]))
+        )
+
+    def device_band_power_upper(m, d, b, j):
+        """Device power at most the chosen band's maximum."""
+        if b != 0:
+            return Constraint.Skip
+        return m.device_power_down[d, j] + m.device_power_up[d, j] <= sum(
+            m.device_band[d, b_, j] * band_lookup[d][b_][1]
+            for b_ in range(len(band_lookup[d]))
+        )
+
+    model.device_band_choice = Constraint(model.db, model.j, rule=device_band_choice)
+    model.device_band_power_lower = Constraint(
+        model.db, model.j, rule=device_band_power_lower
+    )
+    model.device_band_power_upper = Constraint(
+        model.db, model.j, rule=device_band_power_upper
     )
 
     # Add objective

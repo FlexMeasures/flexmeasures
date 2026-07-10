@@ -76,6 +76,40 @@ class EfficiencyField(QuantityField):
         )
 
 
+class OperationModeSchema(Schema):
+    """One operation mode of a device, in the sense of the S2 standard.
+
+    A device with operation modes can only run at a power within one of the
+    declared modes' power ranges at any given time. The power range is signed:
+    positive values denote consumption and negative values denote production.
+    A device that can only be off or run at exactly 883.7 W declares:
+
+        [{"power-range": ["0 W", "0 W"]}, {"power-range": ["883.7 W", "883.7 W"]}]
+    """
+
+    power_range = fields.List(
+        QuantityField(
+            to_unit="MW",
+            default_src_unit="MW",
+            return_magnitude=False,
+        ),
+        data_key="power-range",
+        required=True,
+        validate=validate.Length(equal=2),
+        metadata=dict(
+            description="Signed power range [min, max] of this operation mode "
+            "(positive is consumption, negative is production).",
+        ),
+    )
+
+    @validates_schema
+    def check_range_order(self, data: dict, **kwargs):
+        if data["power_range"][0] > data["power_range"][1]:
+            raise ValidationError(
+                "The minimum of an operation mode's power-range cannot exceed its maximum."
+            )
+
+
 class StorageFlexModelSchema(Schema):
     """
     This schema lists fields we require when scheduling storage assets.
@@ -146,6 +180,19 @@ class StorageFlexModelSchema(Schema):
         data_key="production-capacity",
         required=False,
         metadata=metadata.PRODUCTION_CAPACITY.to_dict(),
+    )
+
+    operation_modes = fields.List(
+        fields.Nested(OperationModeSchema()),
+        data_key="operation-modes",
+        required=False,
+        validate=validate.Length(min=1),
+        metadata=dict(
+            description="Operation modes (S2 terminology) confining the device's "
+            "power to a set of power bands, e.g. a device that cannot modulate "
+            "below a minimum power. The device must operate within one of the "
+            "declared power ranges at every time step.",
+        ),
     )
 
     # Activation prices
