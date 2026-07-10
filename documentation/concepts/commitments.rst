@@ -141,7 +141,7 @@ Typical translations include:
 
 - tariffs (``consumption-price``, ``production-price``) → an ``"energy"`` FlowCommitment with zero baseline so net consumption/production is priced;
 - peak/excess limits (``site-peak-production``, ``site-peak-production-price``, etc.) → dedicated peak FlowCommitment(s);
-- storage-related fields (``soc-minima``, ``soc-minima-breach-price``, etc.) → StockCommitment(s).
+- storage-related fields (``soc-min``, ``soc-max``, legacy ``soc-minima`` and ``soc-maxima``, and the SoC breach prices) → StockCommitment(s).
 
 
 Let us look at some concrete examples. 

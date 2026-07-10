@@ -64,6 +64,10 @@ There is more information being used by the scheduler, such as the battery's cap
                 ],
                 "soc-usage": [{"sensor": 73}]
             }
+
+        The ``soc-maxima`` field in this combined fixed-plus-dynamic example is a
+        supported legacy alias. Prefer dynamic ``soc-max`` when no separate global
+        ``soc-max`` value is needed.
             
             $ flexmeasures add schedule \                                      
                 --sensor 2 \

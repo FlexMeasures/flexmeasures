@@ -40,10 +40,11 @@ Constraining the cycling to occur within a static 25-85% SoC range can be modell
 
 A starting SoC below 15 kWh (25%) will lead to immediate charging to get within limits (as shown above).
 Likewise, a starting SoC above 51 kWh (85%) would lead to immediate discharging.
-Setting a SoC target outside of the static range leads to an infeasible problem and will be rejected by the FlexMeasures API.
+By default, these boundaries are soft constraints, so the scheduler may breach them when necessary and will penalize the breach.
+To enforce them as hard limits, set ``"relax-soc-constraints": false`` in the flex-context.
+An exact ``soc-targets`` value remains hard and can still make a schedule infeasible when it conflicts with hard limits.
 
-The soc-min and soc-max settings are constant constraints.
-To enable a temporary target SoC of more than 85% (for car reservations, see the next section), it is necessary to relax the ``soc-max`` field to 60 kWh (100%), and to instead use the ``soc-maxima`` field to convey the desired upper limit for regular cycling:
+To enable a temporary target SoC of more than 85% (for car reservations, see the next section), this example keeps a global ``soc-max`` of 60 kWh and uses the legacy ``soc-maxima`` alias for the desired upper limit during regular cycling:
 
 .. code-block:: json
 
@@ -61,7 +62,9 @@ To enable a temporary target SoC of more than 85% (for car reservations, see the
         }
     }
 
-The maxima constraints should be relaxed—or withheld entirely—within some time window before any SoC target (as shown above).
+The ``soc-maxima`` field is retained for backwards compatibility and is deprecated for new configurations.
+When no separate global ``soc-max`` is needed, use a dynamic ``soc-max`` time series instead.
+The dynamic maximum should be relaxed—or withheld entirely—within some time window before any SoC target (as shown above).
 This time window should be at least wide enough to allow the target to be reached in time, and can be made wider to allow the scheduler to take advantage of favourable market prices along the way.
 
 
@@ -70,13 +73,13 @@ This time window should be at least wide enough to allow the target to be reache
 Car reservations
 ================
 
-Given a reservation for 8 AM on February 5th, constraint 2 can be modelled through the following (additional) ``soc-minima`` constraint:
+Given a reservation for 8 AM on February 5th, constraint 2 can be modelled through the following dynamic ``soc-min`` constraint:
 
 .. code-block:: json
 
     {
         "flex-model": {
-            "soc-minima": [
+            "soc-min": [
                 {
                     "value": "57 kWh",
                     "datetime": "2024-02-05T08:00:00+01:00"
@@ -86,13 +89,13 @@ Given a reservation for 8 AM on February 5th, constraint 2 can be modelled throu
     }
 
 This constraint also signals that if the car is not plugged out of the Charge Point at 8 AM, the scheduler is in principle allowed to start discharging immediately afterwards.
-To make sure the car remains at or above 95% SoC for some time, additional soc-minima constraints should be set accordingly, taking into account the scheduling resolution (here, 5 minutes). For example, to keep it charged (nearly) fully until 8.15 AM:
+To make sure the car remains at or above 95% SoC for some time, additional dynamic ``soc-min`` constraints should be set accordingly, taking into account the scheduling resolution (here, 5 minutes). For example, to keep it charged (nearly) fully until 8.15 AM:
 
 .. code-block:: json
 
     {
         "flex-model": {
-            "soc-minima": [
+            "soc-min": [
                 {
                     "value": "57 kWh",
                     "start": "2024-02-05T08:00:00+01:00",
@@ -109,7 +112,7 @@ Alternatively, to keep the car from discharging altogether during that time, lim
 
     {
         "flex-model": {
-            "soc-minima": [
+            "soc-min": [
                 {
                     "value": "57 kWh",
                     "datetime": "2024-02-05T08:00:00+01:00"
@@ -125,7 +128,7 @@ Alternatively, to keep the car from discharging altogether during that time, lim
         }
     }
 
-.. note:: In case the ``soc-minima`` field defines partially overlapping time periods, FlexMeasures automatically resolves this by selecting the maximum. Likewise, the minimum is selected for partially overlapping time periods in the ``soc-maxima``, ``power-capacity``, ``production-capacity`` and ``consumption-capacity`` flex-model fields, and also in the ``site-power-capacity``, ``site-production-capacity`` and ``site-consumption-capacity`` flex-context fields.
+.. note:: In case the dynamic ``soc-min`` field defines partially overlapping time periods, FlexMeasures automatically resolves this by selecting the maximum. The legacy ``soc-minima`` and ``soc-maxima`` aliases remain supported. Likewise, the minimum is selected for partially overlapping time periods in the dynamic ``soc-max`` field, ``power-capacity``, ``production-capacity`` and ``consumption-capacity`` flex-model fields, and also in the ``site-power-capacity``, ``site-production-capacity`` and ``site-consumption-capacity`` flex-context fields.
 
 .. _earning_by_cycling:
 
