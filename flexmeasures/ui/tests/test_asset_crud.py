@@ -466,3 +466,75 @@ def test_admin_only_buttons_on_properties_page(
         assert b"Create asset" in page.data
     else:
         assert b"Create asset" not in page.data
+
+
+def test_group_field_hints_on_properties_page(
+    db, client, as_admin, setup_accounts, setup_generic_asset_types
+):
+    """The properties page should hint at using the parent asset as `group`,
+    depending on whether the (child's) parent or the asset itself defines a
+    power-capacity in its flex-model."""
+
+    # Parent with a power-capacity in its flex-model, and a child without a group set.
+    parent_with_capacity = GenericAsset(
+        name="parent-with-power-capacity",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        latitude=10,
+        longitude=100,
+        flex_model={"power-capacity": "400kW"},
+    )
+    db.session.add(parent_with_capacity)
+    db.session.flush()
+
+    child = GenericAsset(
+        name="child-of-parent-with-power-capacity",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        latitude=10,
+        longitude=100,
+        parent_asset_id=parent_with_capacity.id,
+    )
+    db.session.add(child)
+
+    # Parent without children with power-capacity and without children (no hints).
+    lone_asset = GenericAsset(
+        name="lone-asset-no-hints",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        latitude=10,
+        longitude=100,
+    )
+    db.session.add(lone_asset)
+    db.session.commit()
+
+    # (a) child whose parent has power-capacity: expect the "join parent group" hint.
+    child_page = client.get(
+        url_for("AssetCrudUI:properties", id=child.id),
+        follow_redirects=True,
+    )
+    assert child_page.status_code == 200
+    assert b"parent-with-power-capacity" in child_page.data
+    assert b"power-capacity" in child_page.data
+    assert f'group: {{"asset": {parent_with_capacity.id} }}'.encode() in child_page.data
+
+    # (b) parent with power-capacity and children: expect the "children can join" hint.
+    parent_page = client.get(
+        url_for("AssetCrudUI:properties", id=parent_with_capacity.id),
+        follow_redirects=True,
+    )
+    assert parent_page.status_code == 200
+    assert b"Child assets can" in parent_page.data
+    assert (
+        f'group: {{"asset": {parent_with_capacity.id} }}'.encode() in parent_page.data
+    )
+
+    # (c) an asset with neither a parent with power-capacity, nor children with
+    # power-capacity of its own: expect no hints.
+    lone_page = client.get(
+        url_for("AssetCrudUI:properties", id=lone_asset.id),
+        follow_redirects=True,
+    )
+    assert lone_page.status_code == 200
+    assert b"Consider setting" not in lone_page.data
+    assert b"Child assets can" not in lone_page.data

@@ -381,6 +381,22 @@
                                         </div>
                                     </div>
 
+                                    {% if parent_has_power_capacity %}
+                                    <div class="alert alert-secondary py-2 px-3 mt-2 mb-0" role="alert">
+                                        <i class="fa fa-info-circle pe-1"></i>
+                                        The parent asset <b>{{ parent_asset_name }}</b> defines a
+                                        <code>power-capacity</code>. Consider setting <code>group: {"asset": {{ parent_asset_id }} }</code>
+                                        so this device counts toward the parent's limit.
+                                    </div>
+                                    {% elif own_has_power_capacity and has_child_assets %}
+                                    <div class="alert alert-secondary py-2 px-3 mt-2 mb-0" role="alert">
+                                        <i class="fa fa-info-circle pe-1"></i>
+                                        This asset defines a <code>power-capacity</code>. Child assets can
+                                        reference <code>group: {"asset": {{ asset.id }} }</code> in their own
+                                        flex-model to share this capacity limit.
+                                    </div>
+                                    {% endif %}
+
                                     <div id="flexInfoContainer" class="mt-3"></div>
                                 </div>
 
@@ -435,6 +451,15 @@
 
         // This variable is used to prevent reRenderForm from running on initial load
         let hasInitialized = false;
+
+        // Info used to hint the user towards using the parent asset as the `group`
+        // for the flex-model's `group` field (and vice versa, hinting the parent
+        // that its children can join its power-capacity group).
+        const parentAssetId = {{ parent_asset_id | tojson | safe }};
+        const parentAssetName = {{ parent_asset_name | tojson | safe }};
+        const parentHasPowerCapacity = {{ parent_has_power_capacity | tojson | safe }};
+        const ownHasPowerCapacity = {{ own_has_power_capacity | tojson | safe }};
+        const hasChildAssets = {{ has_child_assets | tojson | safe }};
 
         const schemaSpecs = {{ flex_model_schema | tojson | safe  }};
         const assetFlexModelSchema = {};
@@ -586,6 +611,27 @@
                 senSearchResEle.style.display = 'none';
             }
 
+            function setCardGroupAsset(assetId) {
+                if (!assetId) {
+                    return;
+                }
+
+                const flexModel = getFlexModel();
+                flexModel["group"] = { "asset": assetId };
+                setFlexModel(flexModel);
+
+                setTimeout(() => {
+                    const card = document.getElementById('group-control');
+                    if (!card) {
+                        return;
+                    }
+                    setActiveCard(card);
+                    card.classList.add('border-on-click');
+                    renderSelectInfoCards('group');
+                    renderFlexInputOptions();
+                }, 500);
+            }
+
             async function searchSensors() {
                 const searchValue = sensorSearchBar.value.toLowerCase();
                 spinnerElement.style.display = 'flex';
@@ -684,6 +730,37 @@
                         `
                         : "";
 
+                    // Hint towards using the parent asset as the value for `group`,
+                    // especially when the parent already limits the group's power.
+                    let groupParentHint = "";
+                    if (modelKey === "group" && parentAssetId) {
+                        const powerCapacityNote = parentHasPowerCapacity
+                            ? `The parent asset <b>${parentAssetName}</b> defines a <code>power-capacity</code>. Consider joining that group so this device counts toward the parent's limit.`
+                            : `Consider using the parent asset <b>${parentAssetName}</b> as the group.`;
+                        groupParentHint = `
+                            <div class="pt-2 fw-normal">
+                                <i class="fa fa-info-circle pe-1"></i>${powerCapacityNote}
+                                <div class="pt-2">
+                                    <button type="button" id="useParentAsGroupBtn" class="btn btn-secondary btn-sm">
+                                        Use parent asset "${parentAssetName}" as group
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    // Hint towards the fact that children can reference this asset
+                    // as their `group`, when this asset itself has a power-capacity.
+                    let powerCapacityChildrenHint = "";
+                    if (modelKey === "power-capacity" && ownHasPowerCapacity && hasChildAssets) {
+                        powerCapacityChildrenHint = `
+                            <div class="pt-2 fw-normal">
+                                <i class="fa fa-info-circle pe-1"></i>
+                                This asset has child assets. They can set <code>group: {"asset": {{ asset.id }} }</code> in their own flex-model's <code>group</code> field, to share this power-capacity limit.
+                            </div>
+                        `;
+                    }
+
                     flexInfoContainer.innerHTML = `
                     <div>
                         <div class="alert alert-info" role="alert">
@@ -693,14 +770,23 @@
                             </div>
 
                             ${storageEfficiencyWarning}
+                            ${groupParentHint}
+                            ${powerCapacityChildrenHint}
 
-                             <div class="pt-2 fw-bold"> 
+                             <div class="pt-2 fw-bold">
                                 Possible types: <span class="fw-normal"> ${schemaSpecs[modelKey]["types"]["ui"] || "No types available."} </span> <br/>
                                 Example units: <span class="fw-normal"> ${schemaSpecs[modelKey]["example-units"].join(", ")} </span>
                             </div>
                         </div>
                     </div>
                 `;
+
+                    const useParentAsGroupBtn = document.getElementById('useParentAsGroupBtn');
+                    if (useParentAsGroupBtn) {
+                        useParentAsGroupBtn.onclick = function () {
+                            setCardGroupAsset(parentAssetId);
+                        };
+                    }
                 } else {
                     flexInfoContainer.innerHTML = "";
                 }

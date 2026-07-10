@@ -19,6 +19,7 @@ from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.sensors import (
+    SensorIdField,
     SensorReference,
     SensorReferenceSchema,
     OutputSensorReferenceSchema,
@@ -41,6 +42,33 @@ def _validate_group_sensor_is_power_sensor(group: dict):
             "The `group` field must reference a sensor with a power unit.",
             field_name="sensor",
         )
+
+
+class GroupReferenceSchema(SensorReferenceSchema):
+    """Reference to a group of devices whose aggregate power is constrained.
+
+    Accepts exactly one of:
+      - ``{"sensor": <id>}``: the group's aggregate power is stored on this power sensor
+        (the sensor must itself carry a flex-model entry defining the group's
+        constraints).
+      - ``{"asset": <id>}``: the group is identified by the flex-model entry on this
+        asset (typically a sub-EMS/asset in the tree). Such a group entry defines no
+        power sensor of its own; instead it may define ``consumption`` and/or
+        ``production`` output sensors on which the group's aggregate power gets saved,
+        following the usual output-sensor conventions.
+    """
+
+    sensor = SensorIdField(required=False)
+    asset = GenericAssetIdField(required=False)
+
+    @validates_schema
+    def validate_exactly_one_reference(self, data: dict, **kwargs):
+        has_sensor = "sensor" in data
+        has_asset = "asset" in data
+        if has_sensor == has_asset:  # both or neither
+            raise ValidationError(
+                "The `group` field must reference exactly one of 'sensor' or 'asset'."
+            )
 
 
 #  Telling type hints what to expect after schema parsing
@@ -161,7 +189,7 @@ class StorageFlexModelSchema(Schema):
     )
 
     group = fields.Nested(
-        SensorReferenceSchema,
+        GroupReferenceSchema,
         data_key="group",
         required=False,
         metadata=metadata.GROUP.to_dict(),
@@ -452,7 +480,7 @@ class DBStorageFlexModelSchema(Schema):
     production = fields.Nested(OutputSensorReferenceSchema)
 
     group = fields.Nested(
-        SensorReferenceSchema,
+        GroupReferenceSchema,
         data_key="group",
         required=False,
         metadata=metadata.GROUP.to_dict(),

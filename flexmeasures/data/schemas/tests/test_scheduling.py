@@ -920,7 +920,7 @@ def test_flex_model_schemas(
                 schema.load(flex_model)
 
 
-def test_storage_flex_model_group_field(db, app, setup_dummy_sensors):
+def test_storage_flex_model_group_field(db, app, setup_dummy_sensors, dummy_asset):
     """The `group` field should load a `{"sensor": <id>}` reference to a power Sensor,
     reject non-power sensors, and reject unknown sensor IDs."""
     energy_sensor, _, _, power_sensor = setup_dummy_sensors
@@ -942,6 +942,18 @@ def test_storage_flex_model_group_field(db, app, setup_dummy_sensors):
         # An unknown sensor ID is rejected (by SensorIdField)
         with pytest.raises(ValidationError, match="No sensor found"):
             schema.load({"group": {"sensor": -1}})
+
+        # A valid asset reference loads to a GenericAsset
+        flex_model = schema.load({"group": {"asset": dummy_asset.id}})
+        assert flex_model["group"]["asset"] == dummy_asset
+
+        # Both sensor and asset given: rejected
+        with pytest.raises(ValidationError, match="exactly one"):
+            schema.load({"group": {"sensor": power_sensor.id, "asset": dummy_asset.id}})
+
+        # Neither sensor nor asset given: rejected
+        with pytest.raises(ValidationError, match="exactly one"):
+            schema.load({"group": {}})
 
 
 @pytest.mark.parametrize(
