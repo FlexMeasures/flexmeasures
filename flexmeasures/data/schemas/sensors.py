@@ -564,7 +564,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             ).deserialize(value["sensor"], None, None)
 
         default = None
-        if "default" in value and value["default"] is not None:
+        if "default" in value:
             default = self._deserialize_default(value["default"], attr, data, **kwargs)
 
         # If no source filter or default keys are present, keep returning a plain Sensor.
@@ -1081,8 +1081,8 @@ class SensorReferenceSchema(Schema):
         ),
     )
     default = fields.String(
-        load_default=None,
-        allow_none=True,
+        required=False,
+        allow_none=False,
         metadata=dict(
             description="Fallback quantity to use when the referenced sensor has missing values.",
             example="0 kWh",

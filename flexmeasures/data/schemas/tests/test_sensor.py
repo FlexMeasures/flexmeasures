@@ -223,13 +223,27 @@ def test_sensor_reference_with_default(setup_dummy_sensors):
     assert result.default == ur.Quantity("0.5 MWh")
 
 
-def test_sensor_reference_schema_accepts_null_default(setup_dummy_sensors):
+def test_sensor_reference_schema_rejects_null_default(setup_dummy_sensors):
     sensor1, _, _, _ = setup_dummy_sensors
 
-    result = SensorReferenceSchema().load({"sensor": sensor1.id, "default": None})
+    with pytest.raises(ValidationError) as exc_info:
+        SensorReferenceSchema().load({"sensor": sensor1.id, "default": None})
 
-    assert result["sensor"] == sensor1
-    assert result["default"] is None
+    assert "default" in exc_info.value.messages
+
+
+def test_sensor_reference_field_rejects_null_default(setup_dummy_sensors):
+    """``default`` must be a concrete fallback quantity when provided."""
+    sensor1, _, _, _ = setup_dummy_sensors
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    with pytest.raises(ValidationError) as exc_info:
+        field.deserialize({"sensor": sensor1.id, "default": None})
+
+    assert (
+        "Sensor reference `default` must be a quantity string or a numeric value with a known default source unit."
+        in str(exc_info.value)
+    )
 
 
 def test_sensor_reference_with_source_types(setup_dummy_sensors):
