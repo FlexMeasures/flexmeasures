@@ -10,7 +10,10 @@ Create Date: 2025-08-08 04:55:33.722545
 
 """
 
+import logging
+
 from alembic import op
+import sqlalchemy as sa
 
 # revision identifiers
 revision = "c98798csds8c"
@@ -18,8 +21,32 @@ down_revision = "55d8936a55f9"
 branch_labels = None
 depends_on = None
 
+logger = logging.getLogger("alembic.runtime.migration")
+
+# Measured creation rate for the view plus its indexes (see FlexMeasures PR #1671):
+# roughly 1 minute per 15 million rows in the timed_belief table.
+ROWS_PER_MINUTE = 15_000_000
+
 
 def upgrade():
+    # Set a duration expectation, based on the table's estimated row count
+    # (pg_class.reltuples, so we don't pay for an exact COUNT on a large table).
+    n_rows = (
+        op.get_bind()
+        .execute(
+            sa.text(
+                "SELECT reltuples::bigint FROM pg_class WHERE relname = 'timed_belief'"
+            )
+        )
+        .scalar_one_or_none()
+    )
+    if n_rows is not None and n_rows > 0:
+        minutes = max(1, round(n_rows / ROWS_PER_MINUTE))
+        logger.info(
+            f"Creating a materialized view over the timed_belief table"
+            f" (~{n_rows:,} rows): expect this to take ~{minutes} minute(s)."
+        )
+
     op.execute(
         """
         CREATE MATERIALIZED VIEW most_recent_beliefs_mview AS
