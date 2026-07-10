@@ -4810,6 +4810,33 @@
             "default": false,
             "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
             "example": true
+          },
+          "lower": {
+            "default": null,
+            "description": "Optional lower bound for forecast values after prediction. Unitless values are interpreted in the output sensor unit.",
+            "example": "0 kW"
+          },
+          "upper": {
+            "default": null,
+            "description": "Optional upper bound for forecast values after prediction. Unitless values are interpreted in the output sensor unit.",
+            "example": "20 kW"
+          },
+          "snap": {
+            "type": "object",
+            "default": {},
+            "description": "Optional mapping from snap targets to [first, second] intervals. Values inside an interval are replaced by the snap target before storage. The target must lie within the interval (on a bound or inside it). The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead.",
+            "example": {
+              "0 kW": [
+                "0 kW",
+                "4 kW"
+              ]
+            },
+            "additionalProperties": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {}
+            }
           }
         },
         "additionalProperties": false
