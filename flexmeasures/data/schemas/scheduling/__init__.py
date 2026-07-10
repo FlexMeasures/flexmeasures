@@ -658,66 +658,100 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "aggregate-consumption": {
         "default": None,
         "description": rst_to_openapi(metadata.AGGREGATE_CONSUMPTION.description),
-        # todo: the field type is defined in asset_context.html in 3 places?
-        # "types": {
-        #     "backend": "typeTwo",
-        #     "ui": "A sensor which records the scheduled aggregate consumption.",
-        # },
+        "types": {
+            "backend": "typeTwo",
+            "ui": "One dynamic signal (via a sensor) only.",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "aggregate-production": {
         "default": None,
         "description": rst_to_openapi(metadata.AGGREGATE_PRODUCTION.description),
-        # todo: the field type is defined in asset_context.html in 3 places?
-        # "types": {
-        #     "backend": "typeTwo",
-        #     "ui": "A sensor which records the scheduled aggregate production.",
-        # },
+        "types": {
+            "backend": "typeTwo",
+            "ui": "One dynamic signal (via a sensor) only.",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "consumption-price": {
         "default": None,  # Refers to default value of the field
         "description": rst_to_openapi(metadata.CONSUMPTION_PRICE.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "One dynamic signal (via a sensor) only.",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "production-price": {
         "default": None,
         "description": rst_to_openapi(metadata.PRODUCTION_PRICE.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "One dynamic signal (via a sensor) only.",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "site-power-capacity": {
         "default": None,
         "description": rst_to_openapi(metadata.SITE_POWER_CAPACITY.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": ["kVA", "MVA"] + EXAMPLE_UNIT_TYPES["power"],
     },
     "site-production-capacity": {
         "default": None,
         "description": rst_to_openapi(metadata.SITE_PRODUCTION_CAPACITY.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "site-consumption-capacity": {
         "default": None,
         "description": rst_to_openapi(metadata.SITE_CONSUMPTION_CAPACITY.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "soc-minima-breach-price": {
         "default": None,
         "description": rst_to_openapi(metadata.SOC_MINIMA_BREACH_PRICE.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "soc-maxima-breach-price": {
         "default": None,
         "description": rst_to_openapi(metadata.SOC_MAXIMA_BREACH_PRICE.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
     },
     "consumption-breach-price": {
         "default": None,
         "description": rst_to_openapi(metadata.CONSUMPTION_BREACH_PRICE.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "production-breach-price": {
         "default": None,
         "description": rst_to_openapi(metadata.PRODUCTION_BREACH_PRICE.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-consumption-breach-price": {
@@ -725,6 +759,10 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(
             metadata.SITE_CONSUMPTION_BREACH_PRICE.description
         ),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-production-breach-price": {
@@ -732,41 +770,73 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(
             metadata.SITE_PRODUCTION_BREACH_PRICE.description
         ),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-peak-consumption": {
         "default": None,
         "description": rst_to_openapi(metadata.SITE_PEAK_CONSUMPTION.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "site-peak-production": {
         "default": None,
         "description": rst_to_openapi(metadata.SITE_PEAK_PRODUCTION.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "site-peak-consumption-price": {
         "default": None,
         "description": rst_to_openapi(metadata.SITE_PEAK_CONSUMPTION_PRICE.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "site-peak-production-price": {
         "default": None,
         "description": rst_to_openapi(metadata.SITE_PEAK_PRODUCTION_PRICE.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
     "inflexible-device-sensors": {
         "default": [],
         "description": rst_to_openapi(metadata.INFLEXIBLE_DEVICE_SENSORS.description),
+        "types": {
+            "backend": "typeFour",
+            "ui": "A list of sensors.",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "commitments": {
         "default": None,
         "description": rst_to_openapi(metadata.COMMITMENTS.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "aggregate-power": {
         "default": None,
         "description": rst_to_openapi(metadata.AGGREGATE_POWER.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "One dynamic signal (via a sensor) only.",
+        },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
 }
