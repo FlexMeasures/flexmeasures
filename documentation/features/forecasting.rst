@@ -66,10 +66,10 @@ Forecast post-processing
 --------------------------------
 
 Forecaster configuration can clip and snap forecast values before they are stored.
-Use ``lower`` and ``upper`` to clip values to bounds, and ``snap`` to replace values in a configured interval with a target value.
+Use ``lower`` and ``upper`` to clip values to bounds, and ``snap`` to replace values inside a configured interval with a target value.
 Units are optional; unitless values are interpreted in the output sensor unit.
 
-For example, this configuration clips forecasts to the 0-20 kW range and snaps values between 0 kW and 4 kW to 0 kW:
+For example, this configuration clips forecasts to the 0-20 kW range and snaps values in ``[0 kW, 4 kW)`` to 0 kW:
 
 .. code-block:: json
 
@@ -80,6 +80,14 @@ For example, this configuration clips forecasts to the 0-20 kW range and snaps v
       },
       "upper": "20 kW"
     }
+
+Snapping is "traditional": the snap target must be one of the two interval bounds, so values always snap to a boundary rather than to a value outside the interval.
+The first bound is inclusive and the second is exclusive, so an interval reads as ``[first, second)``.
+Listing the bounds in reverse order flips the closed side: ``["10 kW", "4 kW"]`` means ``(4 kW, 10 kW]``.
+This keeps adjacent intervals unambiguous — a value on a shared boundary belongs to the interval that opens at it.
+For instance, given ``{"0 kW": ["0 kW", "4 kW"], "10 kW": ["4 kW", "10 kW"]}``, a forecast of exactly 4 kW snaps to 10 kW.
+
+Snapping runs first and clipping runs afterwards, so ``lower``/``upper`` always take precedence: a snap target outside the bounds is clipped back into range.
 
 Pass the same object as the API ``config`` payload, or place it in a JSON or YAML file and pass it to ``flexmeasures add forecasts`` with ``--config``.
 
