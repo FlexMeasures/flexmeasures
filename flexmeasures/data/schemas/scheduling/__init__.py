@@ -764,10 +764,6 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "commodities": {
         "default": None,
         "description": rst_to_openapi(metadata.COMMODITIES.description),
-        "types": {
-            "backend": "typeFour",
-            "ui": "A list of per-commodity flex-contexts.",
-        },
         "example-units": EXAMPLE_UNIT_TYPES["commodity"],
     },
 }
