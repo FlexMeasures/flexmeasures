@@ -943,6 +943,15 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "group": {
+        "default": None,
+        "description": rst_to_openapi(metadata.GROUP.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A power sensor representing a group of devices; also records the group's scheduled aggregate power.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
     "commodity": {
         "default": "electricity",
         "description": rst_to_openapi(metadata.COMMODITY_FLEX_MODEL.description),
