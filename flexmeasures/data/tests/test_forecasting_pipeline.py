@@ -279,6 +279,18 @@ def test_forecast_post_processing_rejects_snap_target_off_the_interval():
         )
 
 
+def test_forecast_post_processing_rejects_incompatible_units():
+    df = pd.DataFrame({"1h": [1.0]})
+
+    with pytest.raises(ValueError, match="Could not convert"):
+        apply_forecast_post_processing(
+            data=df,
+            horizon=1,
+            config={"lower": "5 m"},
+            sensor_unit="kW",
+        )
+
+
 @pytest.mark.parametrize(
     ["config", "params", "as_job", "expected_error"],
     [

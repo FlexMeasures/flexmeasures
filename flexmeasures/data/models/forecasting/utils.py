@@ -13,16 +13,11 @@ from flexmeasures.data.models.time_series import Sensor
 from datetime import datetime, timedelta
 
 from flexmeasures.data import db
-from flexmeasures.utils.unit_utils import ur
+from flexmeasures.utils.unit_utils import units_are_convertible, ur
 
 
 def negative_to_zero(x: np.ndarray) -> np.ndarray:
     return np.where(x < 0, 0, x)
-
-
-def _normalize_unit(unit: str | None) -> str:
-    """Normalize empty units for pint."""
-    return unit or "dimensionless"
 
 
 def _is_unitless(unit: str | None) -> bool:
@@ -32,8 +27,6 @@ def _is_unitless(unit: str | None) -> bool:
 
 def _quantity_to_sensor_value(value: Any, sensor_unit: str) -> float:
     """Parse a configured quantity and return its magnitude in the sensor unit."""
-    to_unit = _normalize_unit(sensor_unit)
-
     if isinstance(value, numbers.Real):
         return float(value)
 
@@ -49,15 +42,16 @@ def _quantity_to_sensor_value(value: Any, sensor_unit: str) -> float:
             f"Could not parse forecast post-processing value '{value}'."
         ) from exc
 
-    if _is_unitless(f"{quantity.units:~P}"):
+    from_unit = f"{quantity.units:~P}"
+    if _is_unitless(from_unit):
         return float(quantity.magnitude)
 
-    try:
-        return float(quantity.to(ur.Quantity(to_unit)).magnitude)
-    except Exception as exc:
+    to_unit = sensor_unit or "dimensionless"
+    if not units_are_convertible(from_unit, to_unit, duration_known=False):
         raise ValueError(
             f"Could not convert forecast post-processing value '{value}' to '{sensor_unit}'."
-        ) from exc
+        )
+    return float(quantity.to(to_unit).magnitude)
 
 
 def _parse_snap_intervals(
