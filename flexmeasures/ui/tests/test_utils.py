@@ -79,7 +79,6 @@ def test_ui_flexcontext_schema():
         "relax-site-capacity-constraints",
         "consumption-price-sensor",
         "production-price-sensor",
-        "commodities",  # todo: https://github.com/FlexMeasures/flexmeasures/issues/2230
         "commodity",  # single-dict form is electricity-only; not exposed in the UI
     ]
 
@@ -97,6 +96,25 @@ def test_ui_flexcontext_schema():
     assert (
         schema_keys - set(exclude_fields) == schema_keys
     ), "If this fails, you may have added UI support for a new flex-context field, but forgot to remove it from exclude_fields."
+
+
+def test_ui_flexcontext_schema_per_commodity_flags():
+    """The context editor relies on each UI schema entry telling whether the field
+    can also be set within a commodity context (an entry of the commodities list)."""
+    from flexmeasures.data.schemas.scheduling import CommodityFlexContextSchema
+
+    commodity_context_keys = {
+        schema_field.data_key or field_name
+        for field_name, schema_field in CommodityFlexContextSchema().fields.items()
+    }
+    for field_name, entry in UI_FLEX_CONTEXT_SCHEMA.items():
+        assert entry["per-commodity"] == (field_name in commodity_context_keys), (
+            f"UI schema entry '{field_name}' has a per-commodity flag that contradicts "
+            "CommodityFlexContextSchema."
+        )
+    # The commodities list itself cannot be nested inside a commodity context,
+    # and the editor manages it through the commodity tab bar.
+    assert UI_FLEX_CONTEXT_SCHEMA["commodities"]["per-commodity"] is False
 
 
 def test_ui_flexmodel_schema():

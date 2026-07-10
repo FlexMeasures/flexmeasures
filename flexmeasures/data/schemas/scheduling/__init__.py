@@ -839,7 +839,28 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    # The commodities list is not offered as an addable field in the editor;
+    # the UI manages it through a commodity tab bar instead.
+    "commodities": {
+        "default": None,
+        "description": rst_to_openapi(metadata.COMMODITIES.description),
+        "types": {
+            "backend": "typeFour",
+            "ui": "A list of per-commodity flex-contexts.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["commodity"],
+    },
 }
+
+# Mark which flex-context fields can also be set within each entry of the
+# commodities list (i.e. which fields CommodityFlexContextSchema shares),
+# so the UI editor can offer the right fields per commodity tab.
+_COMMODITY_CONTEXT_DATA_KEYS = {
+    schema_field.data_key or field_name
+    for field_name, schema_field in CommodityFlexContextSchema().fields.items()
+}
+for _field_name, _entry in UI_FLEX_CONTEXT_SCHEMA.items():
+    _entry["per-commodity"] = _field_name in _COMMODITY_CONTEXT_DATA_KEYS
 
 UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
     "consumption": {
