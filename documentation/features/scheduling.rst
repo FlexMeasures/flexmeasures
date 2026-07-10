@@ -196,6 +196,12 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - ``commodity``
      - |COMMODITY_FLEX_MODEL.example|
      - .. include:: ../_autodoc/COMMODITY_FLEX_MODEL.rst
+   * - ``coupling``
+     - |COUPLING.example|
+     - .. include:: ../_autodoc/COUPLING.rst
+   * - ``coupling-coefficient``
+     - |COUPLING_COEFFICIENT.example|
+     - .. include:: ../_autodoc/COUPLING_COEFFICIENT.rst
    * - ``consumption``
      - |CONSUMPTION.example|
      - .. include:: ../_autodoc/CONSUMPTION.rst

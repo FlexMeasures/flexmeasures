@@ -1197,3 +1197,46 @@ def test_asset_trigger_schema_rejects_malformed_flex_context(app):
     with pytest.raises(ValidationError) as e_info:
         schema.normalize_flex_context_format({"flex-context": "not-a-dict-or-list"})
     assert "flex-context" in str(e_info.value)
+
+
+@pytest.mark.parametrize(
+    "capacity_fields, fails",
+    [
+        # Input device: production blocked, direction is unambiguous
+        ({"production-capacity": "0 kW"}, False),
+        # Output device: consumption blocked, direction is unambiguous
+        ({"consumption-capacity": "0 kW"}, False),
+        # Output device with a bounded input side still has one blocked direction
+        ({"consumption-capacity": "5 kW", "production-capacity": "0 kW"}, False),
+        # Neither direction blocked: ambiguous
+        ({}, True),
+        # Both directions open: ambiguous
+        ({"consumption-capacity": "5 kW", "production-capacity": "5 kW"}, True),
+        # Both directions blocked: degenerate (device pinned to zero flow)
+        ({"consumption-capacity": "0 kW", "production-capacity": "0 kW"}, True),
+    ],
+)
+def test_coupling_direction_must_be_unambiguous(app, capacity_fields, fails):
+    """test_coupling_direction_must_be_unambiguous: a device with a `coupling` field must
+    have exactly one directional capacity fixed to zero, so the sign of its coupling
+    coefficient can be inferred."""
+    schema = StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None)
+    flex_model = {
+        "power-capacity": "20 kW",
+        "coupling": "chp",
+        "coupling-coefficient": 0.5,
+        **capacity_fields,
+    }
+    if fails:
+        with pytest.raises(ValidationError) as e_info:
+            schema.load(flex_model)
+        assert "unambiguous flow direction" in str(e_info.value)
+    else:
+        schema.load(flex_model)
+
+
+def test_uncoupled_device_needs_no_directional_capacities(app):
+    """test_uncoupled_device_needs_no_directional_capacities: the coupling-direction check
+    only applies to devices that define a `coupling` field."""
+    schema = StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None)
+    schema.load({"power-capacity": "20 kW"})
