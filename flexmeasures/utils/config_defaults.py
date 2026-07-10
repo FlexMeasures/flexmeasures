@@ -154,6 +154,7 @@ class Config(object):
         "EVSE": ["one-way_evse", "two-way_evse"],
     }  # how to group assets by asset types
     FLEXMEASURES_LP_SOLVER: str = "appsi_highs"
+    FLEXMEASURES_LP_SOLVER_OPTIONS: dict[str, str | int | float] = {}
     FLEXMEASURES_JOB_TTL: timedelta = timedelta(days=1)
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(days=2)
     FLEXMEASURES_MAX_PLANNING_HORIZON: timedelta | int | None = (
