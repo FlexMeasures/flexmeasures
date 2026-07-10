@@ -94,10 +94,11 @@ class JobAPI(FlaskView):
             ``unresolved``) or per met slot with its margin (for ``resolved``),
             ordered chronologically. Both arrays are empty when the flex model
             defines no ``soc-minima``/``soc-maxima``, or when a scheduler other
-            than ``StorageScheduler`` was used. This is the only place
-            constraint analysis is available — the sensor schedule endpoint
-            (``GET /api/v3_0/sensors/<id>/schedules/<uuid>``) returns power
-            values only.
+            than ``StorageScheduler`` was used. The ``num-beliefs`` field holds
+            the total number of beliefs (scheduled values) saved to the database.
+            This is the only place constraint analysis is available — the sensor
+            schedule endpoint (``GET /api/v3_0/sensors/<id>/schedules/<uuid>``)
+            returns power values only.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -140,7 +141,9 @@ class JobAPI(FlaskView):
                           constraint analysis (empty arrays when the flex model
                           defines no ``soc-minima``/``soc-maxima``, or when a
                           scheduler other than ``StorageScheduler`` was used).
-                        nullable: true
+                         The ``num-beliefs`` field holds the total number of
+                         beliefs (scheduled values) saved to the database.
+                       nullable: true
                       func_name:
                         type: string
                         description: Fully-qualified name of the function executed by this job.
@@ -193,6 +196,7 @@ class JobAPI(FlaskView):
                                 - datetime: "2024-01-01T10:15:00+00:00"
                                   violation: "180.0 kWh"
                           resolved: []
+                          num-beliefs: 96
                         func_name: "flexmeasures.data.services.scheduling.create_schedule"
                         origin: scheduling
                         enqueued_at: "2026-04-28T10:00:00+00:00"
