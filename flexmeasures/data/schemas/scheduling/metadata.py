@@ -81,8 +81,16 @@ See the ``aggregate-consumption`` field for the full description of the split lo
     example={"sensor": 11},
 )
 COMMITMENTS = MetaData(
-    description="Prior commitments. Support for this field in the UI is still under further development, but you can find more information in :ref:`commitments`.",
-    example=[],
+    description="""Prior commitments. Each commitment needs a ``name`` and a ``baseline``, plus at least one deviation price (``up-price`` and/or ``down-price``); its ``commodity`` defaults to electricity.
+You can find more information in :ref:`commitments`.
+""",
+    example=[
+        {
+            "name": "capacity contract",
+            "baseline": "100 kW",
+            "up-price": {"sensor": 5},
+        }
+    ],
 )
 CONSUMPTION_PRICE = MetaData(
     description="The commodity price (e.g. electricity price) applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. [#old_consumption_price_field]_",

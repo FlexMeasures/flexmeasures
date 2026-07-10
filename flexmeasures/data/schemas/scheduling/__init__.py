@@ -70,7 +70,16 @@ class NoTimeSeriesSpecs(Schema):
 
 
 class CommitmentSchema(Schema):
-    name = fields.Str(required=True, data_key="name")
+    name = fields.Str(required=True, data_key="name", validate=validate.Length(min=1))
+    commodity = fields.Str(
+        required=False,
+        load_default="electricity",
+        data_key="commodity",
+        metadata=dict(
+            description="Commodity whose devices this commitment binds. Defaults to electricity.",
+            example="electricity",
+        ),
+    )
     baseline = VariableQuantityField("MW", required=False, data_key="baseline")
     up_price = VariableQuantityField("/MW", required=False, data_key="up-price")
     down_price = VariableQuantityField(
