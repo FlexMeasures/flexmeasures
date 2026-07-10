@@ -42,10 +42,14 @@ def upgrade():
     )
     if n_rows is not None and n_rows > 0:
         minutes = max(1, round(n_rows / ROWS_PER_MINUTE))
-        logger.info(
+        message = (
             f"Creating a materialized view over the timed_belief table"
-            f" (~{n_rows:,} rows): expect this to take ~{minutes} minute(s)."
+            f" (~{n_rows:,} rows): expect this to take up to ~{minutes} minute(s)."
         )
+        # Also print: FlexMeasures' logging setup does not surface the alembic
+        # logger, and the whole point of this message is to be seen.
+        print(message, flush=True)
+        logger.info(message)
 
     op.execute(
         """
