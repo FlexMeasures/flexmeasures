@@ -1786,7 +1786,7 @@ def test_electricity_device_indices_exclude_other_commodities():
 
 
 def test_commitment_commodity_does_not_bind_other_commodity_devices():
-    """test_commitment_commodity_does_not_bind_other_commodity_devices: a commitment
+    """A commitment
     listed under the flex-context's `commitments` should only bind devices of its own
     `commodity` (defaulting to "electricity", like devices do). A gas commitment
     should therefore not create a FlowCommitment against an electricity device, and
