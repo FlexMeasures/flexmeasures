@@ -1315,7 +1315,13 @@ class MetaStorageScheduler(Scheduler):
         flex_model,
         **timing_kwargs,
     ) -> list[FlowCommitment | StockCommitment]:
-        """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
+        """Convert list of commitment specifications (dicts) to a list of FlowCommitments.
+
+        User-given commitment names are namespaced with a "custom:" prefix, so users can
+        pick any name without colliding with the commitments the scheduler sets up
+        internally (e.g. "electricity net energy" or "any soc minima"). The prefixed
+        name is what shows up in the commitment costs of the scheduling results.
+        """
         commitment_specs = self.flex_context.get("commitments", [])
         if len(commitment_specs) == 0:
             return []
@@ -1324,6 +1330,11 @@ class MetaStorageScheduler(Scheduler):
         price_unit = self.flex_context["shared_currency_unit"] + "/MW"
         commitments = []
         for commitment_spec in commitment_specs:
+            # Namespace the user-given name (guarding against double prefixing,
+            # in case the specs are converted more than once).
+            if not commitment_spec["name"].startswith("custom:"):
+                commitment_spec["name"] = f"custom:{commitment_spec['name']}"
+
             # Convert baseline, up_price and down_price to pd.Series, then create FlowCommitment
             if "up_price" in commitment_spec:
                 commitment_spec["upwards_deviation_price"] = (
