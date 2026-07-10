@@ -8,9 +8,23 @@
       "Read(./instance/**)",
       "Read(./flexmeasures-instance/**)",
       "Read(**.sql)",
-      "Read(./.env)",
-      "Read(./.env.*)",
-      "Read(./secrets/**)"
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(./secrets/**)",
+      "Bash(cat *.env*)",
+      "Bash(head *.env*)",
+      "Bash(tail *.env*)",
+      "Bash(less *.env*)",
+      "Bash(more *.env*)",
+      "Bash(nl *.env*)",
+      "Bash(xxd *.env*)",
+      "Bash(od *.env*)",
+      "Bash(strings *.env*)",
+      "Bash(sort *.env*)",
+      "Bash(awk * *.env*)",
+      "Bash(sed * *.env*)",
+      "Bash(grep * *.env*)",
+      "Bash(rg * *.env*)"
     ],
     "allow": [
       "Bash(uv sync *)",
@@ -34,6 +48,10 @@
       {
         "matcher": "Bash",
         "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-env-read.sh\""
+          },
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-commit-check.sh\"",
