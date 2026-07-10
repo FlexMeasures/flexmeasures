@@ -6178,6 +6178,13 @@
             "example": "0 kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
+          "group": {
+            "description": "Reference to a power sensor (<code>{\"sensor\": <id>}</code>) representing a group of devices whose aggregate power is constrained.\nThe group sensor itself should get its own flex-model entry defining the group's <code>power-capacity</code> (hard constraint) and/or <code>consumption-capacity</code>/<code>production-capacity</code> (soft constraints with default breach prices).\nThe group's scheduled aggregate power is saved to the group sensor.\n",
+            "example": {
+              "sensor": 5
+            },
+            "$ref": "#/components/schemas/SensorReference"
+          },
           "prefer-curtailing-later": {
             "type": "boolean",
             "default": true,

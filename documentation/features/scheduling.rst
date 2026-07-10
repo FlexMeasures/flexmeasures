@@ -259,6 +259,9 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - ``production-capacity``
      - |PRODUCTION_CAPACITY.example| (only consumption)
      - .. include:: ../_autodoc/PRODUCTION_CAPACITY.rst
+   * - ``group``
+     - |GROUP.example|
+     - .. include:: ../_autodoc/GROUP.rst
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 
@@ -267,6 +270,32 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 .. [#minimum_overlap] In case this field defines partially overlapping time periods, the minimum value is selected. See :ref:`variable_quantities`.
 
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
+
+
+Intermediate power constraints
+"""""""""""""""""""""""""""""""
+
+In a multi-device flex-model list, a device entry may declare a ``group`` field referencing a power sensor that represents a group of devices, for example a hybrid inverter shared by a battery and PV installation, or a feeder shared by several devices. This lets you model an intermediate power constraint that sits between the individual devices and the site as a whole.
+
+The group sensor gets its own flex-model entry, defining constraints on the group's aggregate (summed) power:
+
+- ``power-capacity`` on the group is a **hard** constraint (applied in both directions).
+- ``consumption-capacity`` and ``production-capacity`` on the group are **soft** constraints, enforced with the same default breach prices used at the site level (10000 currency/kW); users cannot configure custom breach prices for groups.
+
+The group's scheduled aggregate power is saved to the group sensor as a schedule output. Groups can be nested (a group entry may itself reference a parent group), but cyclic references are rejected. Groups require a multi-device flex-model; they are rejected when scheduling a single sensor.
+
+Example, for a 2.5 kW hybrid inverter (sensor 5) shared by a battery (sensor 1) and PV installation (sensor 2), taken from `issue #2092 <https://github.com/FlexMeasures/flexmeasures/issues/2092>`_:
+
+.. code-block:: json
+
+    [
+        {"sensor": 1, "power-capacity": "2 kW", "group": {"sensor": 5}},
+        {"sensor": 2, "production-capacity": "2 kW", "consumption-capacity": "0 kW", "group": {"sensor": 5}},
+        {"sensor": 5, "power-capacity": "2.5 kW"}
+    ]
+
+Here, the battery and PV installation may each individually schedule up to 2 kW, but their combined power flowing through the shared inverter is hard-limited to 2.5 kW.
+
 
 Usually, not the whole flexibility model is needed.
 FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.
