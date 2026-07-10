@@ -6199,7 +6199,21 @@
           "operation-modes": {
             "type": "array",
             "minItems": 1,
-            "description": "Operation modes (S2 terminology) confining the device's power to a set of power bands, e.g. a device that cannot modulate below a minimum power. The device must operate within one of the declared power ranges at every time step.",
+            "description": "Confine the device's power to one of several power ranges at every time step.\nEach operation mode declares a signed power range (positive is consumption, negative is production).\nThis is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).\nTerminology and semantics follow the `operation modes of the S2 standard <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/>`_.\nDeclaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.\n",
+            "example": [
+              {
+                "power-range": [
+                  "0 W",
+                  "0 W"
+                ]
+              },
+              {
+                "power-range": [
+                  "883.7 W",
+                  "883.7 W"
+                ]
+              }
+            ],
             "items": {
               "$ref": "#/components/schemas/OperationMode"
             }

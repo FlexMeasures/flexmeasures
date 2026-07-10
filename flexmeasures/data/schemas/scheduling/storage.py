@@ -187,12 +187,7 @@ class StorageFlexModelSchema(Schema):
         data_key="operation-modes",
         required=False,
         validate=validate.Length(min=1),
-        metadata=dict(
-            description="Operation modes (S2 terminology) confining the device's "
-            "power to a set of power bands, e.g. a device that cannot modulate "
-            "below a minimum power. The device must operate within one of the "
-            "declared power ranges at every time step.",
-        ),
+        metadata=metadata.OPERATION_MODES.to_dict(),
     )
 
     # Activation prices
