@@ -521,6 +521,14 @@ class MetaStorageScheduler(Scheduler):
                     as_instantaneous_events=True,
                     resolve_overlaps="max",
                 )
+            if self.flex_context.get("soc_minima_breach_price") is not None:
+                soc_min[d], soc_minima[d] = self._relax_scalar_soc_minimum(
+                    soc_min=soc_min[d],
+                    soc_minima=soc_minima[d],
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                )
             if (
                 self.flex_context.get("soc_minima_breach_price") is not None
                 and soc_minima[d] is not None
@@ -594,6 +602,14 @@ class MetaStorageScheduler(Scheduler):
                     beliefs_before=belief_time,
                     as_instantaneous_events=True,
                     resolve_overlaps="min",
+                )
+            if self.flex_context.get("soc_maxima_breach_price") is not None:
+                soc_max[d], soc_maxima[d] = self._relax_scalar_soc_maximum(
+                    soc_max=soc_max[d],
+                    soc_maxima=soc_maxima[d],
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
                 )
             if (
                 self.flex_context.get("soc_maxima_breach_price") is not None
@@ -1025,6 +1041,62 @@ class MetaStorageScheduler(Scheduler):
             commitments.append(FlowCommitment(**commitment_spec))
 
         return commitments
+
+    @staticmethod
+    def _relax_scalar_soc_minimum(
+        soc_min: float | None,
+        soc_minima: (
+            Sensor | SensorReference | list[dict] | ur.Quantity | pd.Series | None
+        ),
+        **timing_kwargs,
+    ) -> tuple[
+        None, Sensor | SensorReference | list[dict] | ur.Quantity | pd.Series | None
+    ]:
+        """Move a fixed SoC minimum into the relaxed minima path.
+
+        If legacy dynamic minima are also configured, the fixed minimum still tightens
+        them, but no longer stays behind as a hard constraint.
+        """
+        if soc_min is None:
+            return None, soc_minima
+        if soc_minima is None:
+            return None, soc_min * ur.Quantity("MWh")
+        soc_minima = get_continuous_series_sensor_or_quantity(
+            variable_quantity=soc_minima,
+            unit="MWh",
+            as_instantaneous_events=True,
+            resolve_overlaps="max",
+            **timing_kwargs,
+        )
+        return None, soc_minima.clip(lower=soc_min)
+
+    @staticmethod
+    def _relax_scalar_soc_maximum(
+        soc_max: float | None,
+        soc_maxima: (
+            Sensor | SensorReference | list[dict] | ur.Quantity | pd.Series | None
+        ),
+        **timing_kwargs,
+    ) -> tuple[
+        None, Sensor | SensorReference | list[dict] | ur.Quantity | pd.Series | None
+    ]:
+        """Move a fixed SoC maximum into the relaxed maxima path.
+
+        If legacy dynamic maxima are also configured, the fixed maximum still tightens
+        them, but no longer stays behind as a hard constraint.
+        """
+        if soc_max is None:
+            return None, soc_maxima
+        if soc_maxima is None:
+            return None, soc_max * ur.Quantity("MWh")
+        soc_maxima = get_continuous_series_sensor_or_quantity(
+            variable_quantity=soc_maxima,
+            unit="MWh",
+            as_instantaneous_events=True,
+            resolve_overlaps="min",
+            **timing_kwargs,
+        )
+        return None, soc_maxima.clip(upper=soc_max)
 
     def persist_flex_model(self):
         """Store new soc info as GenericAsset attributes
