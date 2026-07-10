@@ -41,6 +41,10 @@ The ``flex-context`` is independent of the type of flexible device that is optim
 With the flexibility context, we aim to describe the system in which the flexible assets operate, such as its physical and contractual limitations.
 For multi-commodity scheduling problems, the flex-context can be defined separately per commodity (e.g. electricity and gas). See :ref:`tut_multi_commodity` for a hands-on example.
 
+A commodity that defines no energy prices in the flex-context (e.g. a heat or steam network without a grid connection) is treated as an internal node:
+its devices must balance each other at every time step, so everything produced into the node is consumed from it within the same time step.
+Devices that convert between commodities (such as a CHP unit, gas boiler or electric heater) are described in the flex-model, one entry per commodity port, tied together by a ``coupling`` group.
+
 Fields can have fixed values, but some fields can also point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
 The full list of flex-context fields follows below.
 For more details on the possible formats for field values, see :ref:`variable_quantities`.

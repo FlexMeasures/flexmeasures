@@ -220,6 +220,11 @@ class MetaStorageScheduler(Scheduler):
         # of each device model. Devices sharing the same coupling name form a group.
         self.coupling_groups = self._build_coupling_groups(device_models)
 
+        # Balance groups for internal commodity nodes (commodities without energy
+        # prices, i.e. without a grid connection) are derived further below, once
+        # the devices of each commodity are enumerated.
+        self.balance_groups: dict[str, list[int]] = {}
+
         # List the asset(s) and sensor(s) being scheduled
         if self.asset is not None:
             if not isinstance(self.flex_model, list):
@@ -409,9 +414,23 @@ class MetaStorageScheduler(Scheduler):
                 production_price = consumption_price
 
             if consumption_price is None:
-                raise ValueError(
-                    f"Missing consumption price for commodity '{commodity}'."
+                if commodity == "electricity":
+                    # Electricity is assumed to be grid-connected, so a missing
+                    # price is treated as a configuration error rather than as
+                    # an internal node.
+                    raise ValueError(
+                        f"Missing consumption price for commodity '{commodity}'."
+                    )
+                # A non-electricity commodity without energy prices is treated as an
+                # internal node (e.g. a heat or steam network without a grid
+                # connection): its devices must balance each other at every time
+                # step, and it needs no commitments or EMS-level capacity constraints.
+                current_app.logger.info(
+                    f"Commodity '{commodity}' has no energy prices; treating it as an "
+                    f"internal node whose devices (indices {devices}) balance each other."
                 )
+                self.balance_groups[commodity] = list(devices)
+                continue
 
             # Energy prices for this commodity.
             up_deviation_prices = get_continuous_series_sensor_or_quantity(
@@ -2650,6 +2669,7 @@ class StorageScheduler(MetaStorageScheduler):
             initial_stock=initial_stock,
             stock_groups=self.stock_groups,
             coupling_groups=self.coupling_groups if self.coupling_groups else None,
+            balance_groups=getattr(self, "balance_groups", None) or None,
         )
         if "infeasible" in (tc := scheduler_results.solver.termination_condition):
             raise InfeasibleProblemException(tc)
