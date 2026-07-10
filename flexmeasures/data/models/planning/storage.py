@@ -134,14 +134,52 @@ class MetaStorageScheduler(Scheduler):
         if not isinstance(flex_model, list):
             flex_model = [flex_model]
 
+        if is_single_sensor_mode and any(
+            isinstance(fm, dict) and fm.get("group") for fm in flex_model
+        ):
+            raise ValueError(
+                "The 'group' field is only supported in multi-device flex-models."
+            )
+
+        # Identify group entries: entries carrying intermediate power constraints on a
+        # group of devices (e.g. a sub-EMS). A group entry is a flex-model entry whose
+        # own `sensor` matches the sensor referenced by another entry's `group` field.
+        def _group_sensor_id(fm: dict) -> int | None:
+            group = fm.get("group")
+            if not group:
+                return None
+            group_sensor = group.get("sensor") if isinstance(group, dict) else group
+            if group_sensor is None:
+                return None
+            return group_sensor.id if isinstance(group_sensor, Sensor) else group_sensor
+
+        group_sensor_ids: set[int] = set()
+        for fm in flex_model:
+            gid = _group_sensor_id(fm)
+            if gid is not None:
+                group_sensor_ids.add(gid)
+
         # Identify stock models: entries not defining a power sensor, but only a (state-of-charge) sensor
         self.stock_models = {}
 
-        device_models = []  # everything except stock models
+        device_models = []  # everything except stock models and group entries
         stock_models = {}  # stock models only
+        group_models: dict[int, dict] = {}  # group sensor id -> group entry
 
         missing_soc_sensor_i = -len(flex_model)
         for fm in flex_model:
+
+            # group entry: this entry's own sensor is the aggregate sensor referenced by
+            # another entry's `group` field. Group entries are not schedulable devices;
+            # they carry constraints on the summed power of their member devices.
+            fm_sensor = fm.get("sensor")
+            if fm_sensor is not None:
+                fm_sensor_id = (
+                    fm_sensor.id if isinstance(fm_sensor, Sensor) else fm_sensor
+                )
+                if fm_sensor_id in group_sensor_ids:
+                    group_models[fm_sensor_id] = fm
+                    continue
 
             # stock model: entry in the flex-model list where the sensor key is the state-of-charge sensor of the device (e.g. a stock)
             # Only apply this detection in multi-device mode; in single-sensor mode the power sensor is self.sensor (not in the fm dict)
@@ -212,6 +250,130 @@ class MetaStorageScheduler(Scheduler):
             device_models  # Store filtered model for later use in _build_soc_schedule
         )
 
+        # Map each device sensor id to its index in device_models, for resolving group
+        # membership by sensor id.
+        device_sensor_id_to_index: dict[int, int] = {}
+        for d, fm in enumerate(device_models):
+            sensor_d = fm.get("sensor")
+            if sensor_d is not None:
+                sensor_id = sensor_d.id if isinstance(sensor_d, Sensor) else sensor_d
+                device_sensor_id_to_index[sensor_id] = d
+
+        device_only_fields = (
+            "soc_at_start",
+            "soc_min",
+            "soc_max",
+            "soc_minima",
+            "soc_maxima",
+            "soc_targets",
+            "soc_gain",
+            "soc_usage",
+            "state_of_charge",
+            "storage_efficiency",
+            "charging_efficiency",
+            "discharging_efficiency",
+            "roundtrip_efficiency",
+            "consumption",
+            "production",
+        )
+
+        self._group_models = group_models
+        self._group_to_devices: dict[int, list[int]] = {}
+
+        def _resolve_group_leaf_devices(
+            gid: int, path: tuple[int, ...] = ()
+        ) -> list[int]:
+            if gid in path:
+                raise ValueError(
+                    f"Cyclic 'group' reference detected involving group sensor {gid}."
+                )
+            if gid in self._group_to_devices:
+                return self._group_to_devices[gid]
+            group_entry = group_models.get(gid)
+            if group_entry is None:
+                raise ValueError(
+                    f"The 'group' field references sensor {gid}, but no flex-model "
+                    f"entry was found for that sensor. Add a flex-model entry for "
+                    f"the group sensor {gid}."
+                )
+            direct_member_gid = _group_sensor_id(group_entry)
+            leaves: list[int] = []
+            seen: set[int] = set()
+            for d, fm in enumerate(device_models):
+                member_gid = _group_sensor_id(fm)
+                if member_gid == gid:
+                    if d not in seen:
+                        leaves.append(d)
+                        seen.add(d)
+            # Also resolve members that are themselves groups pointing at this group
+            for other_gid, other_entry in group_models.items():
+                if other_gid == gid:
+                    continue
+                if _group_sensor_id(other_entry) == gid:
+                    for leaf in _resolve_group_leaf_devices(other_gid, path + (gid,)):
+                        if leaf not in seen:
+                            leaves.append(leaf)
+                            seen.add(leaf)
+            if direct_member_gid is not None:
+                # This group entry is itself a member of another group; that is
+                # resolved from the other side (the outer group's own resolution),
+                # so nothing more to do here.
+                pass
+            self._group_to_devices[gid] = leaves
+            return leaves
+
+        if not skip_validation:
+            dangling = group_sensor_ids - set(group_models.keys())
+            if dangling:
+                raise ValueError(
+                    "The 'group' field references sensor(s) "
+                    f"{sorted(dangling)}, but no flex-model entry was found for "
+                    "the group sensor(s). Add a flex-model entry for the group "
+                    "sensor(s), carrying the group's power-capacity, "
+                    "consumption-capacity and/or production-capacity."
+                )
+            for gid, group_entry in group_models.items():
+                offending = [
+                    field for field in device_only_fields if group_entry.get(field)
+                ]
+                if offending:
+                    raise ValueError(
+                        f"Group entry for sensor {gid} carries device-only field(s) "
+                        f"{offending}, which is not allowed: group entries only "
+                        "describe constraints on the group's aggregate power."
+                    )
+                if not any(
+                    group_entry.get(field) is not None
+                    for field in (
+                        "power_capacity_in_mw",
+                        "consumption_capacity",
+                        "production_capacity",
+                    )
+                ):
+                    raise ValueError(
+                        f"Group entry for sensor {gid} defines none of "
+                        "'power-capacity', 'consumption-capacity' or "
+                        "'production-capacity'; such an entry has no effect."
+                    )
+
+        for gid in list(group_models.keys()):
+            leaves = _resolve_group_leaf_devices(gid)
+            if not leaves:
+                if not skip_validation:
+                    raise ValueError(
+                        f"The 'group' field references sensor {gid}, but no device "
+                        f"in the flex-model belongs to that group."
+                    )
+            if not skip_validation and leaves:
+                commodities = {
+                    device_models[d].get("commodity", "electricity") for d in leaves
+                }
+                if len(commodities) > 1:
+                    raise ValueError(
+                        f"All member devices of group {gid} must share the same "
+                        f"commodity; found {sorted(commodities)}."
+                    )
+
         # Rebuild stock_groups using only device_models (which have sensors)
         # This ensures the mapping aligns with the device indices
         self.stock_groups = self._build_stock_groups(device_models)
@@ -223,7 +385,7 @@ class MetaStorageScheduler(Scheduler):
             sensors: list[Sensor | None] = [fm.get("sensor") for fm in device_models]
             assets: list[Asset | None] = [  # noqa: F841
                 s.asset if s is not None else flex_model_d.get("asset")
-                for s, flex_model_d in zip(sensors, self.flex_model)
+                for s, flex_model_d in zip(sensors, device_models)
             ]
             if resolution is None:
                 # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
@@ -238,12 +400,16 @@ class MetaStorageScheduler(Scheduler):
             asset = self.sensor.generic_asset
             assets = [asset]  # noqa: F841
 
-        # For backwards compatibility with the single asset scheduler
-        flex_model = self.flex_model.copy()
-        if not isinstance(flex_model, list):
-            flex_model = [flex_model]
+        # For backwards compatibility with the single asset scheduler.
+        # Use device_models (not self.flex_model) so that indices line up with
+        # `sensors`/`assets` and the per-device lists built below: self.flex_model may
+        # also contain stock-only entries and group entries, which are not devices.
+        if is_single_sensor_mode:
+            flex_model = self.flex_model.copy()
+            if not isinstance(flex_model, list):
+                flex_model = [flex_model]
         else:
-            flex_model = [flex_model_d.copy() for flex_model_d in flex_model]
+            flex_model = [flex_model_d.copy() for flex_model_d in device_models]
         for flex_model_d in flex_model:
             self._default_missing_directional_capacity_to_zero(flex_model_d)
         num_flexible_devices = len(device_models)
@@ -707,6 +873,154 @@ class MetaStorageScheduler(Scheduler):
                 commodity_ems_constraints["derivative min"] = ems_production_capacity
             ems_constraints.append(commodity_ems_constraints)
             ems_constraint_groups.append(list(devices))
+
+        # Intermediate power constraints on groups of devices (sub-EMS's), declared via
+        # the `group` field on flex-model entries. See MetaStorageScheduler._prepare
+        # docstring notes on groups above.
+        default_group_breach_price = ur.Quantity(
+            f"10000 {self.flex_context['shared_currency_unit']}/kW"
+        )
+        for group_sensor_id, leaf_members in self._group_to_devices.items():
+            if not leaf_members:
+                continue
+            group_entry = self._group_models[group_sensor_id]
+            group_commodity = device_models[leaf_members[0]].get(
+                "commodity", "electricity"
+            )
+            group_devices = device_list_series(leaf_members, index)
+
+            group_power_capacity = get_continuous_series_sensor_or_quantity(
+                variable_quantity=group_entry.get("power_capacity_in_mw"),
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                resolve_overlaps="min",
+            )
+            group_consumption_capacity = get_continuous_series_sensor_or_quantity(
+                variable_quantity=group_entry.get("consumption_capacity"),
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                max_value=group_power_capacity,
+                resolve_overlaps="min",
+            )
+            group_production_capacity = -1 * get_continuous_series_sensor_or_quantity(
+                variable_quantity=group_entry.get("production_capacity"),
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                max_value=group_power_capacity,
+                resolve_overlaps="min",
+            )
+
+            # Hard bound: the group's summed power may never exceed its (physical)
+            # power capacity, in either direction.
+            group_ems_constraints = initialize_df(
+                StorageScheduler.COLUMNS, start, end, resolution
+            )
+            group_ems_constraints["derivative max"] = group_power_capacity
+            group_ems_constraints["derivative min"] = -group_power_capacity
+            ems_constraints.append(group_ems_constraints)
+            ems_constraint_groups.append(list(leaf_members))
+
+            currency_unit = self.flex_context["shared_currency_unit"]
+
+            # Soft bound: directional (consumption/production) capacities on the group
+            # are enforced via breach commitments with default breach prices (no
+            # user-set prices are supported for groups), mirroring the site-level
+            # ems_consumption_breach_price / ems_production_breach_price pattern.
+            if group_entry.get("consumption_capacity") is not None:
+                any_group_consumption_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=default_group_breach_price,
+                        unit=currency_unit + "/MW",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                all_group_consumption_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=default_group_breach_price,
+                        unit=currency_unit + "/MW*h",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                commitments.append(
+                    FlowCommitment(
+                        name=f"group {group_sensor_id} any consumption breach",
+                        quantity=group_consumption_capacity,
+                        upwards_deviation_price=any_group_consumption_breach_price,
+                        _type="any",
+                        index=index,
+                        device=group_devices,
+                        device_group=f"group:{group_sensor_id}",
+                        commodity=group_commodity,
+                    )
+                )
+                commitments.append(
+                    FlowCommitment(
+                        name=f"group {group_sensor_id} all consumption breaches",
+                        quantity=group_consumption_capacity,
+                        upwards_deviation_price=all_group_consumption_breach_price,
+                        index=index,
+                        device=group_devices,
+                        device_group=f"group:{group_sensor_id}",
+                        commodity=group_commodity,
+                    )
+                )
+
+            if group_entry.get("production_capacity") is not None:
+                any_group_production_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=default_group_breach_price,
+                        unit=currency_unit + "/MW",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                all_group_production_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=default_group_breach_price,
+                        unit=currency_unit + "/MW*h",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                commitments.append(
+                    FlowCommitment(
+                        name=f"group {group_sensor_id} any production breach",
+                        quantity=group_production_capacity,
+                        downwards_deviation_price=-any_group_production_breach_price,
+                        _type="any",
+                        index=index,
+                        device=group_devices,
+                        device_group=f"group:{group_sensor_id}",
+                        commodity=group_commodity,
+                    )
+                )
+                commitments.append(
+                    FlowCommitment(
+                        name=f"group {group_sensor_id} all production breaches",
+                        quantity=group_production_capacity,
+                        downwards_deviation_price=-all_group_production_breach_price,
+                        index=index,
+                        device=group_devices,
+                        device_group=f"group:{group_sensor_id}",
+                        commodity=group_commodity,
+                    )
+                )
 
         # Keep one price frame for later preference logic.
         # The existing "prefer charging sooner" code uses `up_deviation_prices`.
@@ -2614,6 +2928,29 @@ class StorageScheduler(MetaStorageScheduler):
                     commodity_aggregate.clip(upper=0)
                 )
 
+    def _add_group_schedules(
+        self, storage_schedule: dict, ems_schedule: list[pd.Series]
+    ) -> None:
+        """Save each group's aggregate power schedule under the group's own sensor,
+        summed over its leaf member devices (in-place on storage_schedule).
+        """
+        group_models = getattr(self, "_group_models", None) or {}
+        group_to_devices = getattr(self, "_group_to_devices", None) or {}
+        for group_sensor_id, leaf_members in group_to_devices.items():
+            group_entry = group_models.get(group_sensor_id)
+            group_sensor = group_entry.get("sensor") if group_entry else None
+            if group_sensor is None or not leaf_members:
+                continue
+            if group_sensor in storage_schedule:
+                raise ValueError(
+                    f"Sensor {group_sensor.id} is used both as a device sensor and "
+                    "as a group sensor; a sensor cannot be both."
+                )
+            storage_schedule[group_sensor] = pd.concat(
+                [ems_schedule[d] for d in leaf_members],
+                axis=1,
+            ).sum(axis=1)
+
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
@@ -2663,6 +3000,8 @@ class StorageScheduler(MetaStorageScheduler):
                 storage_schedule[sensor] = ems_schedule[d]
             elif sensor is not None and sensor in storage_schedule:
                 storage_schedule[sensor] += ems_schedule[d]
+
+        self._add_group_schedules(storage_schedule, ems_schedule)
 
         # Obtain the aggregate power schedule, too, if the flex-context states the associated sensor. Fill with the sum of schedules made here.
         # Restricted to electricity devices (flexible and inflexible), per decision.

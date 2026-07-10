@@ -20,6 +20,7 @@ from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.sensors import (
     SensorReference,
+    SensorReferenceSchema,
     OutputSensorReferenceSchema,
     VariableQuantityField,
 )
@@ -30,6 +31,17 @@ from flexmeasures.utils.unit_utils import (
 )
 
 ALLOWED_COMMODITIES = {"electricity", "gas"}
+
+
+def _validate_group_sensor_is_power_sensor(group: dict):
+    """Check that the sensor referenced by the `group` field measures power."""
+    sensor = group.get("sensor")
+    if isinstance(sensor, (Sensor, SensorReference)) and not is_power_unit(sensor.unit):
+        raise ValidationError(
+            "The `group` field must reference a sensor with a power unit.",
+            field_name="sensor",
+        )
+
 
 #  Telling type hints what to expect after schema parsing
 SoCTarget = TypedDict(
@@ -146,6 +158,13 @@ class StorageFlexModelSchema(Schema):
         data_key="production-capacity",
         required=False,
         metadata=metadata.PRODUCTION_CAPACITY.to_dict(),
+    )
+
+    group = fields.Nested(
+        SensorReferenceSchema,
+        data_key="group",
+        required=False,
+        metadata=metadata.GROUP.to_dict(),
     )
 
     # Activation prices
@@ -341,6 +360,10 @@ class StorageFlexModelSchema(Schema):
                 "The `state-of-charge` field can only be a Sensor or a time series."
             )
 
+    @validates("group")
+    def validate_group(self, group: dict, **kwargs):
+        _validate_group_sensor_is_power_sensor(group)
+
     @validates("asset")
     def validate_asset(self, asset: Asset, **kwargs):
         if self.sensor is not None and self.sensor.asset != asset:
@@ -427,6 +450,13 @@ class DBStorageFlexModelSchema(Schema):
 
     consumption = fields.Nested(OutputSensorReferenceSchema)
     production = fields.Nested(OutputSensorReferenceSchema)
+
+    group = fields.Nested(
+        SensorReferenceSchema,
+        data_key="group",
+        required=False,
+        metadata=metadata.GROUP.to_dict(),
+    )
 
     soc_min = VariableQuantityField(
         to_unit="MWh",
@@ -567,6 +597,10 @@ class DBStorageFlexModelSchema(Schema):
             field: (self.declared_fields[field].data_key or field)
             for field in self.declared_fields
         }
+
+    @validates("group")
+    def validate_group(self, group: dict, **kwargs):
+        _validate_group_sensor_is_power_sensor(group)
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):

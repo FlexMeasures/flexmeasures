@@ -392,3 +392,10 @@ For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference yo
 """,
     example="0 kW",
 )
+GROUP = MetaData(
+    description="""Reference to a power sensor (``{"sensor": <id>}``) representing a group of devices whose aggregate power is constrained.
+The group sensor itself should get its own flex-model entry defining the group's ``power-capacity`` (hard constraint) and/or ``consumption-capacity``/``production-capacity`` (soft constraints with default breach prices).
+The group's scheduled aggregate power is saved to the group sensor.
+""",
+    example={"sensor": 5},
+)

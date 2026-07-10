@@ -9,6 +9,7 @@ v3.0-32 | July XX, 2026
 """"""""""""""""""""""""
 
 - Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` arrays, each keyed by asset ID. For scheduling jobs, this surfaces soft state-of-charge constraint analysis: ``soc-minima`` and ``soc-maxima`` violations (with a ``violation`` magnitude) or satisfied constraints (with a ``margin`` headroom). Both arrays are empty when no SoC constraints were defined.
+- Added a ``group`` field to the storage flex-model, accepted by the `/assets/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ (POST) endpoint, referencing a power sensor representing a group of devices (e.g. a shared inverter or feeder). The group's ``power-capacity`` is enforced as a hard constraint on the group's aggregate power, while its ``consumption-capacity``/``production-capacity`` are enforced as soft constraints with default breach prices; the group's scheduled aggregate power is saved to the group sensor.
 
 v3.0-31 | 2026-06-01
 """"""""""""""""""""
