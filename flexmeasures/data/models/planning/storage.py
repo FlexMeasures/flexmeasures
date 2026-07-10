@@ -143,43 +143,72 @@ class MetaStorageScheduler(Scheduler):
 
         # Identify group entries: entries carrying intermediate power constraints on a
         # group of devices (e.g. a sub-EMS). A group entry is a flex-model entry whose
-        # own `sensor` matches the sensor referenced by another entry's `group` field.
-        def _group_sensor_id(fm: dict) -> int | None:
+        # own `sensor` matches the sensor referenced by another entry's `group` field, or
+        # whose own `asset` matches the asset referenced by another entry's `group`
+        # field (in which case the entry defines no power sensor of its own).
+        def _ref_id(value) -> int | None:
+            if value is None:
+                return None
+            return value.id if hasattr(value, "id") else value
+
+        def _group_key(fm: dict) -> tuple[str, int] | None:
+            """Return a normalized ('sensor', id) or ('asset', id) key for the group
+            a flex-model entry's `group` field references, or None if it has none."""
             group = fm.get("group")
             if not group:
                 return None
-            group_sensor = group.get("sensor") if isinstance(group, dict) else group
-            if group_sensor is None:
-                return None
-            return group_sensor.id if isinstance(group_sensor, Sensor) else group_sensor
+            if isinstance(group, dict):
+                group_sensor_id = _ref_id(group.get("sensor"))
+                group_asset_id = _ref_id(group.get("asset"))
+            else:
+                # backwards-compat: a raw sensor id/object
+                group_sensor_id = _ref_id(group)
+                group_asset_id = None
+            if group_sensor_id is not None:
+                return ("sensor", group_sensor_id)
+            if group_asset_id is not None:
+                return ("asset", group_asset_id)
+            return None
 
-        group_sensor_ids: set[int] = set()
+        def _group_key_label(gkey: tuple[str, int]) -> str:
+            kind, gid = gkey
+            return f"{kind} {gid}"
+
+        group_keys: set[tuple[str, int]] = set()
         for fm in flex_model:
-            gid = _group_sensor_id(fm)
-            if gid is not None:
-                group_sensor_ids.add(gid)
+            gkey = _group_key(fm)
+            if gkey is not None:
+                group_keys.add(gkey)
 
         # Identify stock models: entries not defining a power sensor, but only a (state-of-charge) sensor
         self.stock_models = {}
 
         device_models = []  # everything except stock models and group entries
         stock_models = {}  # stock models only
-        group_models: dict[int, dict] = {}  # group sensor id -> group entry
+        group_models: dict[tuple[str, int], dict] = {}  # group key -> group entry
 
         missing_soc_sensor_i = -len(flex_model)
         for fm in flex_model:
 
-            # group entry: this entry's own sensor is the aggregate sensor referenced by
-            # another entry's `group` field. Group entries are not schedulable devices;
-            # they carry constraints on the summed power of their member devices.
-            fm_sensor = fm.get("sensor")
-            if fm_sensor is not None:
-                fm_sensor_id = (
-                    fm_sensor.id if isinstance(fm_sensor, Sensor) else fm_sensor
-                )
-                if fm_sensor_id in group_sensor_ids:
-                    group_models[fm_sensor_id] = fm
-                    continue
+            # group entry: this entry's own sensor/asset is the aggregate sensor/asset
+            # referenced by another entry's `group` field. Group entries are not
+            # schedulable devices; they carry constraints on the summed power of their
+            # member devices.
+            fm_sensor_id = _ref_id(fm.get("sensor"))
+            if fm_sensor_id is not None and ("sensor", fm_sensor_id) in group_keys:
+                group_models[("sensor", fm_sensor_id)] = fm
+                continue
+            fm_asset_id = _ref_id(fm.get("asset"))
+            if fm_asset_id is not None and ("asset", fm_asset_id) in group_keys:
+                if fm_sensor_id is not None:
+                    raise ValueError(
+                        f"Group entry for asset {fm_asset_id} is referenced by "
+                        "asset, but also carries a 'sensor' field; an asset-"
+                        "referenced group entry must not define its own power "
+                        "sensor."
+                    )
+                group_models[("asset", fm_asset_id)] = fm
+                continue
 
             # stock model: entry in the flex-model list where the sensor key is the state-of-charge sensor of the device (e.g. a stock)
             # Only apply this detection in multi-device mode; in single-sensor mode the power sensor is self.sensor (not in the fm dict)
@@ -273,74 +302,75 @@ class MetaStorageScheduler(Scheduler):
             "charging_efficiency",
             "discharging_efficiency",
             "roundtrip_efficiency",
-            "consumption",
-            "production",
         )
 
         self._group_models = group_models
-        self._group_to_devices: dict[int, list[int]] = {}
+        self._group_to_devices: dict[tuple[str, int], list[int]] = {}
 
         def _resolve_group_leaf_devices(
-            gid: int, path: tuple[int, ...] = ()
+            gkey: tuple[str, int], path: tuple[tuple[str, int], ...] = ()
         ) -> list[int]:
-            if gid in path:
+            if gkey in path:
                 raise ValueError(
-                    f"Cyclic 'group' reference detected involving group sensor {gid}."
+                    f"Cyclic 'group' reference detected involving group "
+                    f"{_group_key_label(gkey)}."
                 )
-            if gid in self._group_to_devices:
-                return self._group_to_devices[gid]
-            group_entry = group_models.get(gid)
+            if gkey in self._group_to_devices:
+                return self._group_to_devices[gkey]
+            group_entry = group_models.get(gkey)
             if group_entry is None:
                 raise ValueError(
-                    f"The 'group' field references sensor {gid}, but no flex-model "
-                    f"entry was found for that sensor. Add a flex-model entry for "
-                    f"the group sensor {gid}."
+                    f"The 'group' field references {_group_key_label(gkey)}, but no "
+                    f"flex-model entry was found for it. Add a flex-model entry for "
+                    f"the group {_group_key_label(gkey)}."
                 )
-            direct_member_gid = _group_sensor_id(group_entry)
             leaves: list[int] = []
             seen: set[int] = set()
             for d, fm in enumerate(device_models):
-                member_gid = _group_sensor_id(fm)
-                if member_gid == gid:
+                member_gkey = _group_key(fm)
+                if member_gkey == gkey:
                     if d not in seen:
                         leaves.append(d)
                         seen.add(d)
             # Also resolve members that are themselves groups pointing at this group
-            for other_gid, other_entry in group_models.items():
-                if other_gid == gid:
+            for other_gkey, other_entry in group_models.items():
+                if other_gkey == gkey:
                     continue
-                if _group_sensor_id(other_entry) == gid:
-                    for leaf in _resolve_group_leaf_devices(other_gid, path + (gid,)):
+                if _group_key(other_entry) == gkey:
+                    for leaf in _resolve_group_leaf_devices(other_gkey, path + (gkey,)):
                         if leaf not in seen:
                             leaves.append(leaf)
                             seen.add(leaf)
-            if direct_member_gid is not None:
-                # This group entry is itself a member of another group; that is
-                # resolved from the other side (the outer group's own resolution),
-                # so nothing more to do here.
-                pass
-            self._group_to_devices[gid] = leaves
+            self._group_to_devices[gkey] = leaves
             return leaves
 
         if not skip_validation:
-            dangling = group_sensor_ids - set(group_models.keys())
+            dangling = group_keys - set(group_models.keys())
             if dangling:
                 raise ValueError(
-                    "The 'group' field references sensor(s) "
-                    f"{sorted(dangling)}, but no flex-model entry was found for "
-                    "the group sensor(s). Add a flex-model entry for the group "
-                    "sensor(s), carrying the group's power-capacity, "
+                    "The 'group' field references "
+                    f"{sorted(_group_key_label(g) for g in dangling)}, but no "
+                    "flex-model entry was found for it. Add a flex-model entry for "
+                    "the group, carrying the group's power-capacity, "
                     "consumption-capacity and/or production-capacity."
                 )
-            for gid, group_entry in group_models.items():
+            for gkey, group_entry in group_models.items():
                 offending = [
                     field for field in device_only_fields if group_entry.get(field)
                 ]
                 if offending:
                     raise ValueError(
-                        f"Group entry for sensor {gid} carries device-only field(s) "
-                        f"{offending}, which is not allowed: group entries only "
-                        "describe constraints on the group's aggregate power."
+                        f"Group entry for {_group_key_label(gkey)} carries "
+                        f"device-only field(s) {offending}, which is not allowed: "
+                        "group entries only describe constraints on the group's "
+                        "aggregate power."
+                    )
+                if gkey[0] == "asset" and group_entry.get("sensor") is not None:
+                    raise ValueError(
+                        f"Group entry for {_group_key_label(gkey)} is referenced by "
+                        "asset, but also carries a 'sensor' field; an asset-"
+                        "referenced group entry must not define its own power "
+                        "sensor."
                     )
                 if not any(
                     group_entry.get(field) is not None
@@ -351,18 +381,18 @@ class MetaStorageScheduler(Scheduler):
                     )
                 ):
                     raise ValueError(
-                        f"Group entry for sensor {gid} defines none of "
+                        f"Group entry for {_group_key_label(gkey)} defines none of "
                         "'power-capacity', 'consumption-capacity' or "
                         "'production-capacity'; such an entry has no effect."
                     )
 
-        for gid in list(group_models.keys()):
-            leaves = _resolve_group_leaf_devices(gid)
+        for gkey in list(group_models.keys()):
+            leaves = _resolve_group_leaf_devices(gkey)
             if not leaves:
                 if not skip_validation:
                     raise ValueError(
-                        f"The 'group' field references sensor {gid}, but no device "
-                        f"in the flex-model belongs to that group."
+                        f"The 'group' field references {_group_key_label(gkey)}, "
+                        "but no device in the flex-model belongs to that group."
                     )
             if not skip_validation and leaves:
                 commodities = {
@@ -370,8 +400,8 @@ class MetaStorageScheduler(Scheduler):
                 }
                 if len(commodities) > 1:
                     raise ValueError(
-                        f"All member devices of group {gid} must share the same "
-                        f"commodity; found {sorted(commodities)}."
+                        f"All member devices of group {_group_key_label(gkey)} must "
+                        f"share the same commodity; found {sorted(commodities)}."
                     )
 
         # Rebuild stock_groups using only device_models (which have sensors)
@@ -880,10 +910,11 @@ class MetaStorageScheduler(Scheduler):
         default_group_breach_price = ur.Quantity(
             f"10000 {self.flex_context['shared_currency_unit']}/kW"
         )
-        for group_sensor_id, leaf_members in self._group_to_devices.items():
+        for group_key, leaf_members in self._group_to_devices.items():
             if not leaf_members:
                 continue
-            group_entry = self._group_models[group_sensor_id]
+            group_entry = self._group_models[group_key]
+            group_label = f"{group_key[0]}:{group_key[1]}"
             group_commodity = device_models[leaf_members[0]].get(
                 "commodity", "electricity"
             )
@@ -955,24 +986,24 @@ class MetaStorageScheduler(Scheduler):
                 )
                 commitments.append(
                     FlowCommitment(
-                        name=f"group {group_sensor_id} any consumption breach",
+                        name=f"group {group_label} any consumption breach",
                         quantity=group_consumption_capacity,
                         upwards_deviation_price=any_group_consumption_breach_price,
                         _type="any",
                         index=index,
                         device=group_devices,
-                        device_group=f"group:{group_sensor_id}",
+                        device_group=f"group:{group_label}",
                         commodity=group_commodity,
                     )
                 )
                 commitments.append(
                     FlowCommitment(
-                        name=f"group {group_sensor_id} all consumption breaches",
+                        name=f"group {group_label} all consumption breaches",
                         quantity=group_consumption_capacity,
                         upwards_deviation_price=all_group_consumption_breach_price,
                         index=index,
                         device=group_devices,
-                        device_group=f"group:{group_sensor_id}",
+                        device_group=f"group:{group_label}",
                         commodity=group_commodity,
                     )
                 )
@@ -1000,24 +1031,24 @@ class MetaStorageScheduler(Scheduler):
                 )
                 commitments.append(
                     FlowCommitment(
-                        name=f"group {group_sensor_id} any production breach",
+                        name=f"group {group_label} any production breach",
                         quantity=group_production_capacity,
                         downwards_deviation_price=-any_group_production_breach_price,
                         _type="any",
                         index=index,
                         device=group_devices,
-                        device_group=f"group:{group_sensor_id}",
+                        device_group=f"group:{group_label}",
                         commodity=group_commodity,
                     )
                 )
                 commitments.append(
                     FlowCommitment(
-                        name=f"group {group_sensor_id} all production breaches",
+                        name=f"group {group_label} all production breaches",
                         quantity=group_production_capacity,
                         downwards_deviation_price=-all_group_production_breach_price,
                         index=index,
                         device=group_devices,
-                        device_group=f"group:{group_sensor_id}",
+                        device_group=f"group:{group_label}",
                         commodity=group_commodity,
                     )
                 )
@@ -2714,54 +2745,85 @@ class StorageScheduler(MetaStorageScheduler):
         """
         schedules: dict = {}
         for d, flex_model_d in enumerate(flex_model):
-            consumption_field = flex_model_d.get("consumption")
-            production_field = flex_model_d.get("production")
-            consumption_sensor = (
-                consumption_field["sensor"]
-                if isinstance(consumption_field, dict) and "sensor" in consumption_field
-                else None
-            )
-            production_sensor = (
-                production_field["sensor"]
-                if isinstance(production_field, dict) and "sensor" in production_field
-                else None
-            )
-            if consumption_sensor is None and production_sensor is None:
-                continue
             power_series = ems_schedule[d]  # in MW; consumption is positive
-            if consumption_sensor is not None and production_sensor is None:
-                # Full power profile on the consumption sensor (consumption positive, production negative).
-                schedules[consumption_sensor] = convert_units(
-                    power_series,
-                    "MW",
-                    consumption_sensor.unit,
-                    event_resolution=consumption_sensor.event_resolution,
-                )
-            elif production_sensor is not None and consumption_sensor is None:
-                # Full power profile on the production sensor in native scheduler convention.
-                # make_schedule inverts the sign via consumption_is_positive=False on the sensor.
-                schedules[production_sensor] = convert_units(
-                    power_series,
-                    "MW",
-                    production_sensor.unit,
-                    event_resolution=production_sensor.event_resolution,
-                )
-            else:
-                # Both sensors defined: clip to non-negative (consumption) and non-positive (production) parts.
-                # make_schedule inverts the sign for the production sensor via consumption_is_positive=False.
-                schedules[consumption_sensor] = convert_units(
-                    power_series.clip(lower=0),
-                    "MW",
-                    consumption_sensor.unit,
-                    event_resolution=consumption_sensor.event_resolution,
-                )
-                schedules[production_sensor] = convert_units(
-                    power_series.clip(upper=0),
-                    "MW",
-                    production_sensor.unit,
-                    event_resolution=production_sensor.event_resolution,
-                )
+            StorageScheduler._split_schedule_over_output_sensors(
+                flex_model_d, power_series, schedules
+            )
         return schedules
+
+    @staticmethod
+    def _split_schedule_over_output_sensors(
+        flex_model_d: dict,
+        power_series: pd.Series,
+        schedules: dict,
+    ) -> None:
+        """Save a power schedule (in MW, consumption positive) to the output sensor(s)
+        (``consumption``/``production``) defined on a single flex-model entry, in-place
+        on ``schedules`` (mapping output sensor -> power schedule).
+
+        Follows the same conventions as :func:`_build_consumption_production_schedules`:
+
+        - **Only** ``consumption`` **sensor defined**: the full power schedule is written to that
+          sensor using the scheduler's native sign convention (consumption positive, production
+          negative). ``make_schedule`` applies no further sign change because the sensor already
+          has ``consumption_is_positive=True``.
+        - **Only** ``production`` **sensor defined**: the full power schedule is written to that
+          sensor in the scheduler's native sign convention (consumption positive, production
+          negative). ``make_schedule`` inverts the sign based on the sensor's
+          ``consumption_is_positive=False`` attribute so that production is stored as positive values.
+        - **Both** ``consumption`` **and** ``production`` **sensors defined**: only the non-negative
+          part of the schedule (charging / consuming) is written to the consumption sensor, and only
+          the non-positive part (discharging / producing, still as negative values) is written to
+          the production sensor. ``make_schedule`` inverts the sign for the production sensor.
+
+        Unit conversion from MW to each sensor's unit is applied.
+        """
+        consumption_field = flex_model_d.get("consumption")
+        production_field = flex_model_d.get("production")
+        consumption_sensor = (
+            consumption_field["sensor"]
+            if isinstance(consumption_field, dict) and "sensor" in consumption_field
+            else None
+        )
+        production_sensor = (
+            production_field["sensor"]
+            if isinstance(production_field, dict) and "sensor" in production_field
+            else None
+        )
+        if consumption_sensor is None and production_sensor is None:
+            return
+        if consumption_sensor is not None and production_sensor is None:
+            # Full power profile on the consumption sensor (consumption positive, production negative).
+            schedules[consumption_sensor] = convert_units(
+                power_series,
+                "MW",
+                consumption_sensor.unit,
+                event_resolution=consumption_sensor.event_resolution,
+            )
+        elif production_sensor is not None and consumption_sensor is None:
+            # Full power profile on the production sensor in native scheduler convention.
+            # make_schedule inverts the sign via consumption_is_positive=False on the sensor.
+            schedules[production_sensor] = convert_units(
+                power_series,
+                "MW",
+                production_sensor.unit,
+                event_resolution=production_sensor.event_resolution,
+            )
+        else:
+            # Both sensors defined: clip to non-negative (consumption) and non-positive (production) parts.
+            # make_schedule inverts the sign for the production sensor via consumption_is_positive=False.
+            schedules[consumption_sensor] = convert_units(
+                power_series.clip(lower=0),
+                "MW",
+                consumption_sensor.unit,
+                event_resolution=consumption_sensor.event_resolution,
+            )
+            schedules[production_sensor] = convert_units(
+                power_series.clip(upper=0),
+                "MW",
+                production_sensor.unit,
+                event_resolution=production_sensor.event_resolution,
+            )
 
     def _reconstruct_commodity_to_devices(self) -> dict[str, list[int]]:
         """Reconstruct the mapping of commodity -> device indices as enumerated by `_prepare()`.
@@ -2928,28 +2990,69 @@ class StorageScheduler(MetaStorageScheduler):
                     commodity_aggregate.clip(upper=0)
                 )
 
+    @staticmethod
+    def _merge_group_output_schedules(
+        consumption_production_schedule: dict, group_output_schedules: dict
+    ) -> None:
+        """Merge group output schedules (already unit-converted) into
+        ``consumption_production_schedule`` in-place, avoiding overwrite of a device's
+        own output sensor with a group's."""
+        for out_sensor, out_schedule in group_output_schedules.items():
+            if out_sensor in consumption_production_schedule:
+                raise ValueError(
+                    f"Sensor {out_sensor.id} is used as an output sensor both by a "
+                    "device and by a group; a sensor cannot be both."
+                )
+            consumption_production_schedule[out_sensor] = out_schedule
+
     def _add_group_schedules(
         self, storage_schedule: dict, ems_schedule: list[pd.Series]
-    ) -> None:
-        """Save each group's aggregate power schedule under the group's own sensor,
-        summed over its leaf member devices (in-place on storage_schedule).
+    ) -> dict:
+        """Save each group's aggregate power schedule.
+
+        - Sensor-referenced groups: the aggregate is saved under the group's own power
+          sensor (as before), added in-place to ``storage_schedule`` (still in MW,
+          native scheduler convention; unit conversion happens later, alongside other
+          device sensors).
+        - Asset-referenced groups: the group entry defines no power sensor of its own;
+          instead, the aggregate is saved via the group entry's own ``consumption``/
+          ``production`` output sensors, if defined.
+        - Either kind of group may additionally define ``consumption``/``production``
+          output sensors, in which case the aggregate is also split/saved there.
+
+        The ``consumption``/``production`` output schedules are returned separately
+        (already unit-converted, like ``_build_consumption_production_schedules``)
+        rather than added to ``storage_schedule``, to avoid double unit conversion.
+
+        :returns: Dict mapping each group output sensor to its power schedule.
         """
         group_models = getattr(self, "_group_models", None) or {}
         group_to_devices = getattr(self, "_group_to_devices", None) or {}
-        for group_sensor_id, leaf_members in group_to_devices.items():
-            group_entry = group_models.get(group_sensor_id)
-            group_sensor = group_entry.get("sensor") if group_entry else None
-            if group_sensor is None or not leaf_members:
+        group_output_schedules: dict = {}
+        for group_key, leaf_members in group_to_devices.items():
+            group_entry = group_models.get(group_key)
+            if group_entry is None or not leaf_members:
                 continue
-            if group_sensor in storage_schedule:
-                raise ValueError(
-                    f"Sensor {group_sensor.id} is used both as a device sensor and "
-                    "as a group sensor; a sensor cannot be both."
-                )
-            storage_schedule[group_sensor] = pd.concat(
+            group_aggregate = pd.concat(
                 [ems_schedule[d] for d in leaf_members],
                 axis=1,
             ).sum(axis=1)
+
+            group_sensor = group_entry.get("sensor")
+            if group_sensor is not None:
+                if group_sensor in storage_schedule:
+                    raise ValueError(
+                        f"Sensor {group_sensor.id} is used both as a device sensor "
+                        "and as a group sensor; a sensor cannot be both."
+                    )
+                storage_schedule[group_sensor] = group_aggregate
+
+            # For both sensor-ref and asset-ref groups, also honor any consumption/
+            # production output sensors defined on the group entry itself.
+            self._split_schedule_over_output_sensors(
+                group_entry, group_aggregate, group_output_schedules
+            )
+        return group_output_schedules
 
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
@@ -3001,7 +3104,9 @@ class StorageScheduler(MetaStorageScheduler):
             elif sensor is not None and sensor in storage_schedule:
                 storage_schedule[sensor] += ems_schedule[d]
 
-        self._add_group_schedules(storage_schedule, ems_schedule)
+        group_output_schedules = self._add_group_schedules(
+            storage_schedule, ems_schedule
+        )
 
         # Obtain the aggregate power schedule, too, if the flex-context states the associated sensor. Fill with the sum of schedules made here.
         # Restricted to electricity devices (flexible and inflexible), per decision.
@@ -3052,6 +3157,9 @@ class StorageScheduler(MetaStorageScheduler):
 
         consumption_production_schedule = self._build_consumption_production_schedules(
             flex_model_for_soc, ems_schedule
+        )
+        self._merge_group_output_schedules(
+            consumption_production_schedule, group_output_schedules
         )
 
         # Resample each device schedule to the resolution of the device's power sensor
@@ -3130,9 +3238,11 @@ class StorageScheduler(MetaStorageScheduler):
                 for sensor, soc in soc_schedule.items()
             ]
             # Determine which sensors are consumption vs. production output sensors
+            group_models_for_output = getattr(self, "_group_models", None) or {}
             consumption_output_sensors = {
                 flex_model_d["consumption"]["sensor"]
-                for flex_model_d in flex_model_for_soc
+                for flex_model_d in list(flex_model_for_soc)
+                + list(group_models_for_output.values())
                 if isinstance(flex_model_d.get("consumption"), dict)
                 and "sensor" in flex_model_d["consumption"]
             }

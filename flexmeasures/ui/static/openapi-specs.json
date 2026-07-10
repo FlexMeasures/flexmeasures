@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.0.0"
+    "version": "0.33.2"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -6119,6 +6119,62 @@
         ],
         "additionalProperties": false
       },
+      "GroupReference": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer"
+          },
+          "source-types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from sources with these source types (e.g. 'user', 'script', 'forecaster', 'scheduler').",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exclude-source-types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Exclude beliefs from sources with these source types.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sources": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from these data source IDs.",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "source-account": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from data sources linked to these account IDs.",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "asset": {
+            "type": "integer"
+          }
+        },
+        "description": "Sensor reference from which to look up a variable quantity."
+      },
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",
         "properties": {
@@ -6179,11 +6235,11 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "group": {
-            "description": "Reference to a power sensor (<code>{\"sensor\": <id>}</code>) representing a group of devices whose aggregate power is constrained.\nThe group sensor itself should get its own flex-model entry defining the group's <code>power-capacity</code> (hard constraint) and/or <code>consumption-capacity</code>/<code>production-capacity</code> (soft constraints with default breach prices).\nThe group's scheduled aggregate power is saved to the group sensor.\n",
+            "description": "Reference to a group of devices whose aggregate power is constrained, given as either a power sensor (<code>{\"sensor\": <id>}</code>) or an asset (<code>{\"asset\": <id>}</code>) - exactly one of the two.\nThe referenced sensor or asset should itself get its own flex-model entry defining the group's <code>power-capacity</code> (hard constraint) and/or <code>consumption-capacity</code>/<code>production-capacity</code> (soft constraints with default breach prices).\nWhen the group is referenced by <code>sensor</code>, the group's scheduled aggregate power is saved to that group sensor.\nWhen the group is referenced by <code>asset</code> (e.g. a sub-EMS asset in the tree), the group entry defines no power sensor of its own; the group's aggregate power is instead saved via that entry's own <code>consumption</code> and/or <code>production</code> output sensors, following the usual output-sensor conventions.\n",
             "example": {
               "sensor": 5
             },
-            "$ref": "#/components/schemas/SensorReference"
+            "$ref": "#/components/schemas/GroupReference"
           },
           "prefer-curtailing-later": {
             "type": "boolean",

@@ -959,11 +959,12 @@ def test_asset_trigger_with_group_power_constraint(
         control_job_id = control_response.json["schedule"]
 
     work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
-    assert (
-        Job.fetch(
-            control_job_id, connection=app.queues["scheduling"].connection
-        ).is_finished
-        is True
+    control_job = Job.fetch(
+        control_job_id, connection=app.queues["scheduling"].connection
+    )
+    assert control_job.is_finished is True, (
+        f"control job ended as '{control_job.get_status()}': "
+        f"{control_job.latest_result().exc_string if control_job.latest_result() else None}"
     )
     control_scheduler_source = get_data_source_for_job(
         Job.fetch(control_job_id, connection=app.queues["scheduling"].connection)
