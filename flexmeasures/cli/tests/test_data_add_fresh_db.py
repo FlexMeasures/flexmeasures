@@ -301,6 +301,10 @@ def test_add_process(
     # call command
     result = runner.invoke(add_schedule, cli_input)
     check_command_ran_without_error(result)
+    # ProcessScheduler's make_schedule() call returns a dict (not the boolean
+    # True), which used to be falsy enough to silently suppress this message;
+    # confirm the message still appears.
+    assert "New schedule is stored." in result.output
 
     process_power_sensor = db.session.get(Sensor, process_power_sensor_id)
     schedule = process_power_sensor.search_beliefs()
@@ -372,6 +376,51 @@ def test_add_account(
     else:
         # fail because "Test ConsultancyClient Account" already exists
         assert result.exit_code == 1
+
+
+def test_add_process_toy_account_reuses_existing_root_assets(app, fresh_db):
+    from flexmeasures.cli.data_add import add_toy_account
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_toy_account)
+    assert result.exit_code == 0, result.output
+
+    result = runner.invoke(add_toy_account, ["--kind", "process"])
+    assert result.exit_code == 0, result.output
+
+    toy_account = fresh_db.session.execute(
+        select(Account).filter_by(name="Toy Account")
+    ).scalar_one()
+    root_buildings = (
+        fresh_db.session.execute(
+            select(Asset).filter_by(
+                name="toy-building",
+                owner=toy_account,
+                parent_asset_id=None,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    root_processes = (
+        fresh_db.session.execute(
+            select(Asset).filter_by(
+                name="toy-process",
+                owner=toy_account,
+                parent_asset_id=None,
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    assert len(root_buildings) == 1
+    assert len(root_processes) == 1
+    assert {sensor.name for sensor in root_processes[0].sensors} == {
+        "Power (Inflexible)",
+        "Power (Breakable)",
+        "Power (Shiftable)",
+    }
 
 
 @pytest.mark.parametrize("storage_power_capacity", ["sensor", "quantity", None])

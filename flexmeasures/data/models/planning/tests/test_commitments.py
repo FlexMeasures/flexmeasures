@@ -12,7 +12,8 @@ from flexmeasures.data.models.planning.utils import (
     initialize_index,
 )
 from flexmeasures.data.models.planning.storage import StorageScheduler
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.utils import save_to_db
@@ -552,7 +553,7 @@ def test_two_flexible_assets_with_commodity(app, db):
 
     # ---- assets
     battery = GenericAsset(
-        name="Battery",
+        name="Battery (two flexible assets with commodity)",
         generic_asset_type=battery_type,
         attributes={"energy-capacity": "100 kWh"},
     )
@@ -629,7 +630,9 @@ def test_two_flexible_assets_with_commodity(app, db):
     schedules = scheduler.compute(skip_validation=True)
 
     assert isinstance(schedules, list)
-    assert len(schedules) == 3  # 2 storage schedules + 1 commitment costs
+    assert (
+        len(schedules) == 4
+    )  # 2 storage schedules + 1 commitment costs + 1 scheduling_result
 
     # Extract schedules by type
     storage_schedules = [
@@ -648,7 +651,6 @@ def test_two_flexible_assets_with_commodity(app, db):
     )
     battery_data = battery_schedule["data"]
 
-    # Get heat pump schedule
     hp_schedule = next(
         entry for entry in storage_schedules if entry["sensor"] == hp_power
     )
@@ -706,13 +708,13 @@ def test_mixed_gas_and_electricity_assets(app, db):
     resolution = pd.Timedelta("1h")
 
     battery = GenericAsset(
-        name="Battery",
+        name="Battery (mixed gas and electricity)",
         generic_asset_type=battery_type,
         attributes={"energy-capacity": "100 kWh"},
     )
 
     gas_boiler = GenericAsset(
-        name="Gas Boiler",
+        name="Gas Boiler (mixed gas and electricity)",
         generic_asset_type=boiler_type,
     )
 
@@ -763,20 +765,18 @@ def test_mixed_gas_and_electricity_assets(app, db):
         },
     ]
 
-    flex_context = {
-        "commodities": [
-            {
-                "commodity": "electricity",
-                "consumption-price": "100 EUR/MWh",  # electricity price
-                "production-price": "100 EUR/MWh",
-            },
-            {
-                "commodity": "gas",
-                "consumption-price": "50 EUR/MWh",  # gas price
-                "production-price": "50 EUR/MWh",
-            },
-        ]
-    }
+    flex_context = [
+        {
+            "commodity": "electricity",
+            "consumption-price": "100 EUR/MWh",  # electricity price
+            "production-price": "100 EUR/MWh",
+        },
+        {
+            "commodity": "gas",
+            "consumption-price": "50 EUR/MWh",  # gas price
+            "production-price": "50 EUR/MWh",
+        },
+    ]
 
     scheduler = StorageScheduler(
         asset_or_sensor=battery,
@@ -792,7 +792,9 @@ def test_mixed_gas_and_electricity_assets(app, db):
     schedules = scheduler.compute(skip_validation=True)
 
     assert isinstance(schedules, list)
-    assert len(schedules) == 3  # 2 storage schedules + 1 commitment costs
+    assert (
+        len(schedules) == 4
+    )  # 2 storage schedules + 1 commitment costs + 1 scheduling_result
 
     # Extract schedules by type
     storage_schedules = [
@@ -991,9 +993,9 @@ def test_two_devices_shared_stock(app, db):
         "(device schedules, commitment costs, SOC)."
     )
 
-    assert len(schedules) == 4, (
-        "Expected 4 outputs: two inverter schedules, one commitment_costs "
-        "object, and one state_of_charge schedule."
+    assert len(schedules) == 5, (
+        "Expected 5 outputs: two inverter schedules, one commitment_costs "
+        "object, one state_of_charge schedule, and one scheduling_result."
     )
 
     # ---- extract schedules
@@ -2213,3 +2215,231 @@ def test_factory_chp_dispatch():
         atol=1e-4,
         obj="Scenario C: e-heater fills remaining 5 kW heat demand",
     )
+
+
+def test_all_gas_flex_model_without_electricity_device(app, db):
+    """test_all_gas_flex_model_without_electricity_device: a flex-model with only gas
+    devices (no electricity device at all) should not raise a KeyError, now that
+    commodity_to_devices["electricity"] is built with setdefault().
+    """
+    boiler_type = get_or_create_model(GenericAssetType, name="gas-boiler")
+
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-02T00:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    gas_boiler = GenericAsset(
+        name="Gas Boiler (all-gas flex-model test)",
+        generic_asset_type=boiler_type,
+    )
+    db.session.add(gas_boiler)
+    db.session.commit()
+
+    boiler_power = Sensor(
+        name="boiler power",
+        unit="kW",
+        event_resolution=resolution,
+        generic_asset=gas_boiler,
+    )
+    db.session.add(boiler_power)
+    db.session.commit()
+
+    flex_model = [
+        {
+            "sensor": boiler_power.id,
+            "commodity": "gas",
+            "power-capacity": "30 kW",
+            "consumption-capacity": "30 kW",
+            "production-capacity": "0 kW",
+            "soc-usage": ["1 kW"],
+            "soc-min": 0.0,
+            "soc-max": 0.0,
+            "soc-at-start": 0.0,
+        },
+    ]
+
+    flex_context = [
+        {
+            "commodity": "gas",
+            "consumption-price": "50 EUR/MWh",
+            "production-price": "50 EUR/MWh",
+        },
+    ]
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=gas_boiler,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    # This used to raise KeyError("electricity") in _prepare().
+    schedules = scheduler.compute(skip_validation=True)
+
+    storage_schedules = [
+        entry for entry in schedules if entry.get("name") == "storage_schedule"
+    ]
+    assert len(storage_schedules) == 1
+    boiler_schedule = storage_schedules[0]["data"]
+    assert (boiler_schedule == 1.0).all()
+
+
+def test_per_commodity_inflexible_device_sensors(app, db):
+    """test_per_commodity_inflexible_device_sensors: an inflexible-device-sensor declared
+    inside a (non-electricity) commodity context should constrain that commodity's site
+    capacity and be reflected in the flexible device's schedule (since its consumption
+    capacity leaves no room for the inflexible load plus more).
+    """
+    boiler_type = get_or_create_model(GenericAssetType, name="gas-boiler")
+
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T04:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    gas_site = GenericAsset(
+        name="Gas Site (per-commodity inflexible sensor test)",
+        generic_asset_type=boiler_type,
+    )
+    db.session.add(gas_site)
+    db.session.commit()
+
+    flexible_boiler_power = Sensor(
+        name="flexible boiler power",
+        unit="kW",
+        event_resolution=resolution,
+        generic_asset=gas_site,
+    )
+    inflexible_gas_load = Sensor(
+        name="inflexible gas load",
+        unit="kW",
+        event_resolution=resolution,
+        generic_asset=gas_site,
+    )
+    gas_aggregate_consumption = Sensor(
+        name="gas aggregate consumption",
+        unit="kW",
+        event_resolution=resolution,
+        generic_asset=gas_site,
+    )
+    db.session.add_all(
+        [flexible_boiler_power, inflexible_gas_load, gas_aggregate_consumption]
+    )
+    db.session.commit()
+
+    # A constant 8 kW inflexible gas load, recorded as beliefs.
+    # By default, power sensors store consumption as negative values
+    # (get_power_values flips the sign to the scheduler's consumption-positive convention).
+    index = initialize_index(start, end, resolution)
+
+    source = get_or_create_model(DataSource, name="test source", type="forecaster")
+    beliefs = [
+        TimedBelief(
+            sensor=inflexible_gas_load,
+            source=source,
+            event_start=dt,
+            belief_time=start,
+            event_value=-8.0,
+        )
+        for dt in index
+    ]
+    db.session.add_all(beliefs)
+    db.session.commit()
+
+    flex_model = [
+        {
+            "sensor": flexible_boiler_power.id,
+            "commodity": "gas",
+            "power-capacity": "30 kW",
+            "consumption-capacity": "30 kW",
+            "production-capacity": "0 kW",
+            "soc-usage": ["1 kW"],
+            "soc-min": 0.0,
+            "soc-max": 0.0,
+            "soc-at-start": 0.0,
+        },
+    ]
+
+    flex_context = [
+        {
+            "commodity": "gas",
+            "consumption-price": "50 EUR/MWh",
+            "production-price": "50 EUR/MWh",
+            "site-consumption-capacity": "10 kW",
+            "inflexible-device-sensors": [inflexible_gas_load.id],
+            "aggregate-consumption": {"sensor": gas_aggregate_consumption.id},
+        },
+    ]
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=gas_site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    schedules = scheduler.compute(skip_validation=True)
+
+    storage_schedules = [
+        entry for entry in schedules if entry.get("name") == "storage_schedule"
+    ]
+    boiler_schedule = next(
+        entry for entry in storage_schedules if entry["sensor"] == flexible_boiler_power
+    )["data"]
+
+    # With an 8 kW inflexible gas load counted against the 10 kW site-consumption-capacity,
+    # the flexible boiler (which otherwise consumes a constant 1 kW) is left at most 2 kW of
+    # headroom.
+    assert (boiler_schedule <= 2.0 + 1e-6).all()
+
+    # The aggregate-consumption schedule for the gas commodity must include the inflexible
+    # gas load. Before the fix, the per-commodity inflexible sensor got no device constraints
+    # (its device index was silently dropped), so the aggregate would only reflect the
+    # flexible boiler's ~1 kW instead of 8 + 1 = 9 kW.
+    aggregate_schedule = next(
+        entry
+        for entry in storage_schedules
+        if entry["sensor"] == gas_aggregate_consumption
+    )["data"]
+    expected_aggregate = boiler_schedule + 8.0
+    assert aggregate_schedule.values == pytest.approx(
+        expected_aggregate.values, abs=1e-6
+    ), (
+        "Aggregate gas consumption should include the 8 kW inflexible gas load "
+        "on top of the flexible boiler's schedule."
+    )
+
+
+def test_electricity_device_indices_exclude_other_commodities():
+    """test_electricity_device_indices_exclude_other_commodities: the device indices used
+    for the aggregate-power sum should cover only electricity devices (flexible and
+    inflexible), not gas devices, nor per-commodity inflexible devices of other commodities.
+    """
+    scheduler = object.__new__(StorageScheduler)
+    # Flexible devices: 0 = electricity, 1 = gas, 2 = electricity (implicit default)
+    scheduler._device_models = [
+        {"commodity": "electricity"},
+        {"commodity": "gas"},
+        {},  # defaults to electricity
+    ]
+    scheduler.flex_model = scheduler._device_models
+    # Top-level inflexible sensors (electricity): indices 3 and 4.
+    # Gas commodity context with one inflexible sensor: index 5.
+    scheduler.flex_context = {
+        "inflexible_device_sensors": ["el_sensor_a", "el_sensor_b"],
+        "commodity_contexts": [
+            {"commodity": "gas", "inflexible_device_sensors": ["gas_sensor"]},
+        ],
+    }
+
+    mapping = scheduler._reconstruct_commodity_to_devices()
+    assert mapping["electricity"] == [0, 2, 3, 4]
+    assert mapping["gas"] == [1, 5]
+    assert scheduler._electricity_device_indices() == [0, 2, 3, 4]

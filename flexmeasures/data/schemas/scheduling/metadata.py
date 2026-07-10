@@ -42,8 +42,36 @@ Must be a list of integers.
     example=[3, 4],
 )
 AGGREGATE_POWER = MetaData(
-    description="""Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.""",
+    description="""[Deprecated field] Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.
+To avoid using the field, use ``aggregate-consumption`` or ``aggregate-production`` instead, which make clear the sign convention.
+""",
     example={"sensor": 9},
+)
+AGGREGATE_CONSUMPTION = MetaData(
+    description="""Sensor used to record the aggregate consumption schedule of all flexible and inflexible devices involved when scheduling this asset.
+
+The sign convention is determined by the key name, and is stored on the sensor itself using the ``consumption_is_positive`` attribute.
+
+Depending on which output sensors are defined:
+
+- **Only** ``aggregate-consumption`` **defined**: the full aggregate power schedule is stored on this sensor using the
+  consumption-positive sign convention (consumption positive, production negative).
+- **Only** ``aggregate-production`` **defined**: the full aggregate power schedule is stored on the aggregate-production sensor
+  with the production-positive convention (production positive, consumption negative).
+- **Both defined**: only the non-negative part of the aggregate schedule is stored on this sensor (zero for
+  time steps with net production), and only the non-positive part (sign-flipped) is stored on the
+  aggregate-production sensor.
+""",
+    example={"sensor": 10},
+)
+AGGREGATE_PRODUCTION = MetaData(
+    description="""Sensor used to record the aggregate production schedule of all flexible and inflexible devices involved when scheduling this asset.
+
+The sign convention is determined by the key name, and is stored on the sensor itself using the ``consumption_is_positive`` attribute.
+
+See the ``aggregate-consumption`` field for the full description of the split logic when both sensors are defined.
+""",
+    example={"sensor": 11},
 )
 COMMITMENTS = MetaData(
     description="Prior commitments. Support for this field in the UI is still under further development, but you can find more information in :ref:`commitments`.",
@@ -217,7 +245,7 @@ PRODUCTION = MetaData(
 
 The sign convention is determined by the key name, and is stored on the sensor itself using the ``consumption_is_positive`` attribute.
 
-See ``consumption`` for the full description of the split logic when both sensors are defined.
+See the ``consumption`` field for the full description of the split logic when both sensors are defined.
 """,
     example={"sensor": 15},
 )
@@ -239,7 +267,8 @@ Only kWh and MWh are allowed.
     example="kWh",
 )
 SOC_MIN = MetaData(
-    description="""A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).
+    description="""A constant and non-negotiable lower boundary for all SoC values in the schedule.
+If omitted, no lower boundary is applied.
 If used, this is regarded as an unsurpassable physical limitation.
 To set softer boundaries, use the ``soc-minima`` flex-model field instead together with the ``soc-minima-breach-price`` field in the flex-context. [#quantity_field]_
 """,
@@ -247,6 +276,7 @@ To set softer boundaries, use the ``soc-minima`` flex-model field instead togeth
 )
 SOC_MAX = MetaData(
     description="""A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).
+If omitted, no upper boundary is applied.
 If used, this is regarded as an unsurpassable physical limitation.
 To set softer boundaries, use the ``soc-maxima`` flex-model field instead together with the ``soc-maxima-breach-price`` field in the flex-context. [#quantity_field]_
 """,
@@ -346,7 +376,9 @@ Boolean option only.
     example=True,
 )
 POWER_CAPACITY = MetaData(
-    description="Device-level power constraint. How much power can be applied to this asset. [#minimum_overlap]_",
+    description="""Symmetric device-level power constraint. How much power can be applied to this asset in either direction.
+If omitted, the scheduler infers this limit from the greatest of ``consumption-capacity`` and ``production-capacity`` when either is configured, before falling back to ``site-power-capacity``.
+When exactly one of ``consumption-capacity`` or ``production-capacity`` is configured to non-zero capacity, the missing opposite capacity defaults to zero. [#minimum_overlap]_""",
     example="50 kVA",
 )
 CONSUMPTION_CAPACITY = MetaData(

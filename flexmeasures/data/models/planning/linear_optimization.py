@@ -607,6 +607,33 @@ def device_scheduler(  # noqa C901
     #     return final_stock_change
 
     def _get_stock_change(m, d, j):
+        """Determine final stock change of the stock group of device d until time j.
+
+        Apply conversion efficiencies to conversion from flow to stock change and vice versa,
+        and apply storage efficiencies to stock levels from one datetime to the next.
+        """
+        #     if isinstance(initial_stock, list):
+        #         # No initial stock defined for inflexible device
+        #         initial_stock_d = initial_stock[d] if d < len(initial_stock) else 0
+        #     else:
+        #         initial_stock_d = initial_stock
+        #
+        #     stock_changes = [
+        #         (
+        #             m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
+        #             + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
+        #             + m.stock_delta[d, k]
+        #         )
+        #         for k in range(0, j + 1)
+        #     ]
+        #     efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
+        #     final_stock_change = [
+        #         stock - initial_stock_d
+        #         for stock in apply_stock_changes_and_losses(
+        #             initial_stock_d, stock_changes, efficiencies
+        #         )
+        #     ][-1]
+        #     return final_stock_change
 
         # determine the stock group of this device
         group = device_to_group[d]

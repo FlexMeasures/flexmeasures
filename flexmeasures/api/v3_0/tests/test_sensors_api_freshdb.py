@@ -7,8 +7,24 @@ from flask import url_for
 from sqlalchemy import select
 from timely_beliefs import BeliefsDataFrame
 
+from flexmeasures import Sensor
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.api.v3_0.tests.utils import generate_csv_content, get_sensor_by_name
+
+
+def _unused_id_with_prefix(db, model, id_prefix: str) -> int:
+    matching_id = int(f"{id_prefix}0")
+    while db.session.get(model, matching_id) is not None:
+        matching_id = int(f"{matching_id}0")
+    return matching_id
+
+
+def _unused_id_containing_but_not_starting_with(db, model, id_prefix: str) -> int:
+    leading_digit = "9" if not id_prefix.startswith("9") else "8"
+    decoy_id = int(f"{leading_digit}{id_prefix}")
+    while db.session.get(model, decoy_id) is not None:
+        decoy_id = int(f"{leading_digit}{decoy_id}")
+    return decoy_id
 
 
 @pytest.mark.parametrize(
@@ -230,7 +246,8 @@ def test_upload_sensor_data_with_unit_conversion_success(
             len(beliefs) == expected_num_beliefs
         ), f"Fetched {len(beliefs)} beliefs from the database, expecting {expected_num_beliefs}."
 
-        assert [b.event_value for b in beliefs] == expected_event_values
+        # approximate equality: unit conversion can differ slightly by pint/numpy version
+        assert [b.event_value for b in beliefs] == pytest.approx(expected_event_values)
 
 
 @pytest.mark.parametrize(
@@ -402,3 +419,61 @@ def test_upload_sensor_data_with_unit_conversion_failure(
         )
     else:
         pytest.fail("Test case did not fail as expected.")
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_fetch_sensors_can_filter_by_sensor_id_prefix(
+    client,
+    fresh_db,
+    setup_api_fresh_test_data,
+    requesting_user,
+):
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+    id_prefix = str(sensor.id)
+    matching_sensor_id = _unused_id_with_prefix(fresh_db, Sensor, id_prefix)
+    decoy_sensor_id = _unused_id_containing_but_not_starting_with(
+        fresh_db, Sensor, id_prefix
+    )
+    matching_sensor = Sensor(
+        name="matching sensor ID prefix",
+        unit=sensor.unit,
+        event_resolution=sensor.event_resolution,
+        generic_asset=sensor.generic_asset,
+    )
+    matching_sensor.id = matching_sensor_id
+    decoy_sensor = Sensor(
+        name="decoy sensor ID substring",
+        unit=sensor.unit,
+        event_resolution=sensor.event_resolution,
+        generic_asset=sensor.generic_asset,
+    )
+    decoy_sensor.id = decoy_sensor_id
+    fresh_db.session.add_all([matching_sensor, decoy_sensor])
+    fresh_db.session.flush()
+
+    response = client.get(
+        url_for("SensorAPI:index"),
+        query_string={
+            "asset_id": sensor.generic_asset_id,
+            "filter": id_prefix,
+        },
+    )
+
+    assert response.status_code == 200
+    sensor_ids = [s["id"] for s in response.json]
+    assert set(sensor_ids) == {sensor.id, matching_sensor.id}
+    assert decoy_sensor.id not in sensor_ids
+    assert all(str(sensor_id).startswith(id_prefix) for sensor_id in sensor_ids)
+
+    full_id_response = client.get(
+        url_for("SensorAPI:index"),
+        query_string={
+            "asset_id": sensor.generic_asset_id,
+            "filter": str(matching_sensor.id),
+        },
+    )
+
+    assert full_id_response.status_code == 200
+    assert [s["id"] for s in full_id_response.json] == [matching_sensor.id]

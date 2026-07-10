@@ -15,6 +15,8 @@ EXCLUDED_METADATA = {
     "RELAX_CAPACITY_CONSTRAINTS",
     "RELAX_SITE_CAPACITY_CONSTRAINTS",
     "RELAX_SOC_CONSTRAINTS",
+    "COMMODITY_FLEX_CONTEXT",  # Documented as "commodity" in flex-context section
+    "COMMODITY_FLEX_MODEL",  # Documented as "commodity" in flex-model section
 }
 
 

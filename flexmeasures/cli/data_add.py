@@ -1348,12 +1348,12 @@ def add_schedule(  # noqa C901
                 **MsgStyle.SUCCESS,
             )
     else:
-        success = make_schedule(
+        make_schedule(
             asset_or_sensor=get_asset_or_sensor_ref(asset_or_sensor),
             dry_run=dry_run,
             **scheduling_kwargs,
         )
-        if success and not dry_run:
+        if not dry_run:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
 
@@ -1675,6 +1675,53 @@ def launch_editor(filename: str) -> dict:
         return content
 
 
+def get_or_create_toy_asset(
+    asset_name: str,
+    asset_type: str,
+    asset_types: dict[str, GenericAssetType],
+    account_owner: Account,
+    location: tuple[float, float],
+    parent_asset_id: int | None = None,
+    flex_context: dict | None = None,
+    flex_model: dict | None = None,
+    **asset_attributes,
+) -> GenericAsset:
+    asset_query = select(GenericAsset).filter_by(
+        name=asset_name,
+        account_id=account_owner.id,
+    )
+    if parent_asset_id is None:
+        asset_query = asset_query.filter(GenericAsset.parent_asset_id.is_(None))
+    else:
+        asset_query = asset_query.filter_by(parent_asset_id=parent_asset_id)
+    asset = db.session.execute(asset_query).scalar_one_or_none()
+
+    if asset is not None:
+        return asset
+
+    asset_kwargs: Dict[str, Any] = {}
+    if parent_asset_id is not None:
+        asset_kwargs["parent_asset_id"] = parent_asset_id
+    if flex_context is not None:
+        asset_kwargs["flex_context"] = flex_context
+    if flex_model is not None:
+        asset_kwargs["flex_model"] = flex_model
+
+    asset = GenericAsset(
+        name=asset_name,
+        generic_asset_type=asset_types[asset_type],
+        owner=account_owner,
+        latitude=location[0],
+        longitude=location[1],
+        attributes=asset_attributes,
+        **asset_kwargs,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    click.echo(f"Created {repr(asset)}")
+    return asset
+
+
 @fm_add_data.command("toy-account")
 @with_appcontext
 @click.option(
@@ -1745,6 +1792,7 @@ def add_toy_account(kind: str, name: str):
     )
 
     account_id = user.account_id
+    account_owner = db.session.get(Account, account_id)
 
     def create_asset_with_one_sensor(
         asset_name: str,
@@ -1756,23 +1804,16 @@ def add_toy_account(kind: str, name: str):
         flex_model: dict | None = None,
         **asset_attributes,
     ):
-        asset_kwargs: Dict[str, Any] = {}
-        if parent_asset_id is not None:
-            asset_kwargs["parent_asset_id"] = parent_asset_id
-        if flex_context is not None:
-            asset_kwargs["flex_context"] = flex_context
-        if flex_model is not None:
-            asset_kwargs["flex_model"] = flex_model
-
-        asset = get_or_create_model(
-            GenericAsset,
-            name=asset_name,
-            generic_asset_type=asset_types[asset_type],
-            owner=db.session.get(Account, account_id),
-            latitude=location[0],
-            longitude=location[1],
-            attributes=asset_attributes,
-            **asset_kwargs,
+        asset = get_or_create_toy_asset(
+            asset_name=asset_name,
+            asset_type=asset_type,
+            asset_types=asset_types,
+            account_owner=account_owner,
+            location=location,
+            parent_asset_id=parent_asset_id,
+            flex_context=flex_context,
+            flex_model=flex_model,
+            **asset_attributes,
         )
 
         sensor_specs = dict(
@@ -1789,13 +1830,12 @@ def add_toy_account(kind: str, name: str):
         return sensor
 
     # create building asset
-    building_asset = get_or_create_model(
-        GenericAsset,
-        name="toy-building",
-        generic_asset_type=asset_types["building"],
-        owner=db.session.get(Account, account_id),
-        latitude=location[0],
-        longitude=location[1],
+    building_asset = get_or_create_toy_asset(
+        asset_name="toy-building",
+        asset_type="building",
+        asset_types=asset_types,
+        account_owner=account_owner,
+        location=location,
         flex_context={
             "site-power-capacity": "500 kVA",
             "consumption-price": {"sensor": day_ahead_sensor.id},
