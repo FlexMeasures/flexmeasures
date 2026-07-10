@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import numbers
 from typing import Any
 
@@ -59,6 +60,42 @@ def _quantity_to_sensor_value(value: Any, sensor_unit: str) -> float:
         ) from exc
 
 
+def _parse_snap_intervals(
+    snap: dict, sensor_unit: str
+) -> list[tuple[float, float, float]]:
+    """Validate and parse a snap mapping into ``(target, first, second)`` triples.
+
+    Snapping is "traditional": each value that falls inside an interval is replaced
+    by a target that is itself one of the interval's boundaries. The first boundary
+    is treated as inclusive and the second as exclusive, so listing the boundaries in
+    reverse order flips which side is closed (``["4 kW", "10 kW"]`` means ``[4, 10)``
+    while ``["10 kW", "4 kW"]`` means ``(4, 10]``). This keeps adjacent intervals
+    unambiguous: a shared boundary belongs to whichever interval opens at it.
+    """
+    parsed = []
+    for target, interval in snap.items():
+        if not isinstance(interval, (list, tuple)) or len(interval) != 2:
+            raise ValueError(
+                "Forecast post-processing snap intervals must contain exactly two bounds."
+            )
+
+        target_value = _quantity_to_sensor_value(target, sensor_unit)
+        first = _quantity_to_sensor_value(interval[0], sensor_unit)
+        second = _quantity_to_sensor_value(interval[1], sensor_unit)
+        if math.isclose(first, second):
+            raise ValueError(
+                "Forecast post-processing snap interval bounds must differ."
+            )
+        if not (
+            math.isclose(target_value, first) or math.isclose(target_value, second)
+        ):
+            raise ValueError(
+                "Forecast post-processing snap target must equal one of its interval bounds."
+            )
+        parsed.append((target_value, first, second))
+    return parsed
+
+
 def apply_forecast_post_processing(
     data: pd.DataFrame,
     horizon: int,
@@ -66,6 +103,10 @@ def apply_forecast_post_processing(
     sensor_unit: str,
 ) -> pd.DataFrame:
     """Apply configured clipping and snapping to forecast horizon columns.
+
+    Snapping runs first, on the unmodified predictions, so intervals cannot cascade.
+    Clipping to ``lower``/``upper`` runs afterwards and always takes precedence, so a
+    snap target outside the bounds is still clipped back into range.
 
     :param data:        DataFrame containing one column per forecast horizon.
     :param horizon:     Maximum forecast horizon in time-steps.
@@ -75,7 +116,7 @@ def apply_forecast_post_processing(
     """
     lower = config.get("lower")
     upper = config.get("upper")
-    snap = config.get("snap", {})
+    snap = config.get("snap") or {}
 
     if lower is None and upper is None and not snap:
         return data
@@ -98,27 +139,18 @@ def apply_forecast_post_processing(
             "Forecast post-processing lower bound cannot be greater than upper bound."
         )
 
-    for target, interval in snap.items():
-        if not isinstance(interval, (list, tuple)) or len(interval) != 2:
-            raise ValueError(
-                "Forecast post-processing snap intervals must contain exactly two bounds."
-            )
+    snap_intervals = _parse_snap_intervals(snap, sensor_unit)
 
-        target_value = _quantity_to_sensor_value(target, sensor_unit)
-        interval_lower = _quantity_to_sensor_value(interval[0], sensor_unit)
-        interval_upper = _quantity_to_sensor_value(interval[1], sensor_unit)
-        if interval_lower > interval_upper:
-            raise ValueError(
-                "Forecast post-processing snap interval lower bound cannot be greater than upper bound."
-            )
-
-        for column in forecast_columns:
-            original_values = processed[column].copy()
-            mask = original_values.between(interval_lower, interval_upper)
-            if lower_value is not None:
-                mask &= original_values >= lower_value
-            if upper_value is not None:
-                mask &= original_values <= upper_value
+    for column in forecast_columns:
+        # Snap against the pre-snap predictions so intervals cannot chain into each other.
+        original_values = processed[column]
+        for target_value, first, second in snap_intervals:
+            if first <= second:
+                # First bound inclusive, second exclusive: [first, second).
+                mask = (original_values >= first) & (original_values < second)
+            else:
+                # Reversed order flips the closed side: (second, first].
+                mask = (original_values > second) & (original_values <= first)
             processed.loc[mask, column] = target_value
 
     processed[forecast_columns] = processed[forecast_columns].clip(

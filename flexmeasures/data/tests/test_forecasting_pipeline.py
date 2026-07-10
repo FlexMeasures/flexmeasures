@@ -134,7 +134,7 @@ def test_forecast_post_processing_interprets_unitless_values_in_sensor_unit():
         horizon=1,
         config={
             "lower": 1,
-            "snap": {"1500 W": ["1.2 kW", "1.8 kW"]},
+            "snap": {"1.2 kW": ["1.2 kW", "1.8 kW"]},
             "upper": "2 kW",
         },
         sensor_unit="kW",
@@ -142,7 +142,7 @@ def test_forecast_post_processing_interprets_unitless_values_in_sensor_unit():
 
     pd.testing.assert_frame_equal(
         processed,
-        pd.DataFrame({"1h": [1.0, 1.5, 2.0]}),
+        pd.DataFrame({"1h": [1.0, 1.2, 2.0]}),
     )
 
 
@@ -168,13 +168,90 @@ def test_forecast_post_processing_converts_snap_units_to_sensor_unit():
     processed = apply_forecast_post_processing(
         data=df,
         horizon=1,
-        config={"snap": {"1000 W": ["1200 W", "1800 W"]}},
+        config={"snap": {"1200 W": ["1200 W", "1800 W"]}},
         sensor_unit="kW",
     )
 
     pd.testing.assert_frame_equal(
         processed,
-        pd.DataFrame({"1h": [1.1, 1.0, 1.9]}),
+        pd.DataFrame({"1h": [1.1, 1.2, 1.9]}),
+    )
+
+
+def test_forecast_post_processing_snap_bounds_are_half_open():
+    """The first bound is inclusive, the second exclusive: [first, second)."""
+    df = pd.DataFrame({"1h": [0.0, 2.0, 4.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"0 kW": ["0 kW", "4 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # 0 is included and snaps to 0; 4 is excluded and is left untouched.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0, 0.0, 4.0]}),
+    )
+
+
+def test_forecast_post_processing_reversed_snap_bounds_close_the_upper_side():
+    """Listing bounds in reverse order snaps the closed side: (second, first]."""
+    df = pd.DataFrame({"1h": [4.0, 7.0, 10.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"10 kW": ["10 kW", "4 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # 4 is excluded, 10 is included; both 7 and 10 snap up to 10.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [4.0, 10.0, 10.0]}),
+    )
+
+
+def test_forecast_post_processing_adjacent_intervals_share_a_boundary_unambiguously():
+    """A value on a shared boundary belongs to the interval that opens at it."""
+    df = pd.DataFrame({"1h": [3.0, 4.0, 9.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={
+            "snap": {
+                "0 kW": ["0 kW", "4 kW"],
+                "10 kW": ["4 kW", "10 kW"],
+            }
+        },
+        sensor_unit="kW",
+    )
+
+    # 3 -> 0 ([0, 4)), 4 -> 10 ([4, 10)), 9 -> 10 ([4, 10)).
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0, 10.0, 10.0]}),
+    )
+
+
+def test_forecast_post_processing_clip_takes_precedence_over_snap():
+    """A snap target outside the clip bounds is still clipped back into range."""
+    df = pd.DataFrame({"1h": [-3.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"lower": "0 kW", "snap": {"-5 kW": ["-5 kW", "-1 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # -3 snaps to -5, which is then clipped up to the lower bound of 0.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0]}),
     )
 
 
@@ -186,6 +263,18 @@ def test_forecast_post_processing_rejects_inconsistent_bounds():
             data=df,
             horizon=1,
             config={"lower": "2 kW", "upper": "1 kW"},
+            sensor_unit="kW",
+        )
+
+
+def test_forecast_post_processing_rejects_snap_target_off_the_interval():
+    df = pd.DataFrame({"1h": [1.0]})
+
+    with pytest.raises(ValueError, match="snap target must equal one of its interval"):
+        apply_forecast_post_processing(
+            data=df,
+            horizon=1,
+            config={"snap": {"11 kW": ["13 kW", "15 kW"]}},
             sensor_unit="kW",
         )
 
