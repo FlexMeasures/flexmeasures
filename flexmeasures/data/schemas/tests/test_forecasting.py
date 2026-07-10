@@ -676,3 +676,19 @@ def test_forecaster_config_schema_rejects_invalid_snap_interval_shape():
         )
 
     assert "snap" in exc.value.messages
+
+
+def test_forecaster_config_schema_rejects_unparseable_bound():
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load({"lower": "not a quantity"})
+
+    assert "lower" in exc.value.messages
+
+
+def test_forecaster_config_schema_rejects_unparseable_snap_value():
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(
+            {"snap": {"0 kW": ["0 kW", "not a quantity"]}}
+        )
+
+    assert "snap" in exc.value.messages

@@ -167,7 +167,7 @@ class TrainPredictPipeline(Forecaster):
             post_processing_config={
                 "lower": self._config.get("lower"),
                 "upper": self._config.get("upper"),
-                "snap": self._config.get("snap", {}),
+                "snap": self._config.get("snap"),
             },
         )
         logging.info(
