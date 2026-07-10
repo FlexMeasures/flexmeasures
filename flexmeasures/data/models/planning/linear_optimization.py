@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from flask import current_app
 import pandas as pd
 import numpy as np
@@ -28,7 +30,6 @@ from flexmeasures.data.models.planning import (
     StockCommitment,
 )
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
-from flexmeasures.utils.calculations import apply_stock_changes_and_losses
 
 infinity = float("inf")
 
@@ -536,6 +537,10 @@ def device_scheduler(  # noqa C901
     )
     model.device_power_up = Var(model.d, model.j, domain=NonNegativeReals, initialize=0)
     model.device_power_sign = Var(model.d, model.j, domain=Binary, initialize=0)
+    # Stock per device per time step, coupled recursively by device_stock_balance.
+    # Having it as a variable (rather than a running sum expression) keeps the number
+    # of model nonzeros linear, rather than quadratic, in the scheduling horizon.
+    model.device_stock = Var(model.d, model.j, domain=Reals, initialize=0)
     model.commitment_downwards_deviation = Var(
         model.c,
         domain=NonPositiveReals,
@@ -550,76 +555,50 @@ def device_scheduler(  # noqa C901
     )
     model.commitment_sign = Var(model.c, domain=Binary, initialize=0)
 
-    def _get_stock_change(m, d, j):
-        """Determine final stock change of the stock group of device d until time j.
-
-        Apply conversion efficiencies to conversion from flow to stock change and vice versa,
-        and apply storage efficiencies to stock levels from one datetime to the next.
-        """
-        #     if isinstance(initial_stock, list):
-        #         # No initial stock defined for inflexible device
-        #         initial_stock_d = initial_stock[d] if d < len(initial_stock) else 0
-        #     else:
-        #         initial_stock_d = initial_stock
-        #
-        #     stock_changes = [
-        #         (
-        #             m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
-        #             + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
-        #             + m.stock_delta[d, k]
-        #         )
-        #         for k in range(0, j + 1)
-        #     ]
-        #     efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
-        #     final_stock_change = [
-        #         stock - initial_stock_d
-        #         for stock in apply_stock_changes_and_losses(
-        #             initial_stock_d, stock_changes, efficiencies
-        #         )
-        #     ][-1]
-        #     return final_stock_change
-
-        # determine the stock group of this device
-        group = device_to_group[d]
-
-        # all devices belonging to this stock
-        devices = [dev for dev, g in device_to_group.items() if g == group]
-
-        # initial stock
+    def _initial_stock_of(d):
         if isinstance(initial_stock, list):
-            initial_stock_g = initial_stock[d] if d < len(initial_stock) else 0
-        else:
-            initial_stock_g = initial_stock
+            # No initial stock defined for inflexible device
+            return initial_stock[d] if d < len(initial_stock) else 0
+        return initial_stock
 
-        stock_changes = []
+    def _stock_change_at(m, d, j):
+        """Stock change of device d's stock group during time step j (before losses)."""
+        group = device_to_group[d]
+        devices = [dev for dev, g in device_to_group.items() if g == group]
+        return sum(
+            m.device_power_down[dev, j] / m.device_derivative_down_efficiency[dev, j]
+            + m.device_power_up[dev, j] * m.device_derivative_up_efficiency[dev, j]
+            + m.stock_delta[dev, j]
+            for dev in devices
+        )
 
-        for k in range(0, j + 1):
+    def _loss_coefficients(efficiency: float) -> tuple[float, float]:
+        """Coefficients (a, b) of one step of the stock recursion, for `how="linear"`.
 
-            change = 0
+        stock[j] = a * stock[j-1] + b * change[j]
 
-            for dev in devices:
-                change += (
-                    m.device_power_down[dev, k]
-                    / m.device_derivative_down_efficiency[dev, k]
-                    + m.device_power_up[dev, k]
-                    * m.device_derivative_up_efficiency[dev, k]
-                    + m.stock_delta[dev, k]
-                )
+        Mirrors :func:`apply_stock_changes_and_losses`, which we cannot call here
+        because it expects numbers, while `change[j]` is a Pyomo expression. The
+        storage efficiency is a Param, so `a` and `b` are plain floats.
+        """
+        if efficiency == 1:
+            return 1.0, 1.0
+        return efficiency, (efficiency - 1) / math.log(efficiency)
 
-            stock_changes.append(change)
+    def device_stock_balance(m, d, j):
+        """Recursively couple a device's stock to the previous step's stock.
 
-        efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
+        Expressing stock[j] as a running sum over all k <= j (as this once did) makes
+        the number of nonzeros grow quadratically with the scheduling horizon. The
+        recursion below is equivalent and keeps it linear.
+        """
+        a, b = _loss_coefficients(m.device_efficiency[d, j])
+        previous = m.device_stock[d, j - 1] if j > 0 else _initial_stock_of(d)
+        return m.device_stock[d, j] == a * previous + b * _stock_change_at(m, d, j)
 
-        final_stock_change = [
-            stock - initial_stock_g
-            for stock in apply_stock_changes_and_losses(
-                initial_stock_g,
-                stock_changes,
-                efficiencies,
-            )
-        ][-1]
-
-        return final_stock_change
+    def _get_stock_change(m, d, j):
+        """Stock change of the stock group of device d, from the start until time j."""
+        return m.device_stock[d, j] - _initial_stock_of(d)
 
     # Add constraints as a tuple of (lower bound, value, upper bound)
     def device_bounds(m, d, j):
@@ -746,6 +725,7 @@ def device_scheduler(  # noqa C901
         model.cjg, rule=grouped_commitment_equalities
     )
 
+    model.device_stock_balance = Constraint(model.d, model.j, rule=device_stock_balance)
     model.device_energy_bounds = Constraint(model.d, model.j, rule=device_bounds)
     model.device_power_bounds = Constraint(
         model.d, model.j, rule=device_derivative_bounds
