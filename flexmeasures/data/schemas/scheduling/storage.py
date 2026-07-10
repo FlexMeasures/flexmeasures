@@ -401,6 +401,7 @@ class StorageFlexModelSchema(Schema):
         if data.get("soc_at_start") is not None:
             data["soc_at_start"] = (data["soc_at_start"] / ur.Quantity("MWh")).magnitude
 
+        # Canonical dynamic bounds reuse the scheduler's existing minima/maxima path internally.
         dynamic_types = (Sensor, SensorReference, list)
         if isinstance(data.get("soc_min"), dynamic_types):
             if data.get("soc_minima") is not None:
