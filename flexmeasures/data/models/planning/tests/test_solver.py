@@ -783,6 +783,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
             end,
             resolution,
             flex_model=flex_model,
+            flex_context={"relax-soc-constraints": False},
         )
         schedule = scheduler.compute()
 
@@ -1268,6 +1269,7 @@ def test_infeasible_problem_error(db, add_battery_assets):
             end,
             resolution,
             flex_model=flex_model,
+            flex_context={"relax-soc-constraints": False},
         )
         schedule = scheduler.compute()
 
@@ -1349,6 +1351,7 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
             ],
             "soc-unit": "MWh",
         },
+        flex_context={"relax-soc-constraints": False},
     )
 
     (
@@ -2070,6 +2073,7 @@ def test_battery_stock_delta_sensor(
         end,
         resolution,
         flex_model=flex_model,
+        flex_context={"relax-soc-constraints": False},
     )
 
     if stock_delta_sensor == "delta fails":
@@ -2427,6 +2431,7 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
                 "site-power-capacity": "100 MW",
                 "production-price": {"sensor": epex_da.id},
                 "consumption-price": {"sensor": epex_da.id},
+                "relax-soc-constraints": False,
             },
         )
         return scheduler.compute()
