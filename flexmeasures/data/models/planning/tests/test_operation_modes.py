@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 
+from flexmeasures.data.models.planning import FlowCommitment
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import initialize_index
 
@@ -39,22 +40,25 @@ def _one_device_setup(stock_target: float):
         },
         index=index,
     )
-    up_price = pd.Series([10, 1, 10, 1], index=index)
-    down_price = pd.Series(0, index=index)
-    quantity = pd.Series(0, index=index)
-    return device_constraints, ems_constraints, quantity, down_price, up_price
+    energy_commitment = FlowCommitment(
+        name="energy",
+        index=index,
+        quantity=0,
+        upwards_deviation_price=pd.Series([10, 1, 10, 1], index=index),
+        downwards_deviation_price=0,
+        device=pd.Series(0, index=index),
+    )
+    return device_constraints, ems_constraints, energy_commitment
 
 
 def _schedule(device_power_bands=None, stock_target: float = 1.2):
-    device_constraints, ems_constraints, quantity, down, up = _one_device_setup(
+    device_constraints, ems_constraints, energy_commitment = _one_device_setup(
         stock_target
     )
     schedule, costs, results, model = device_scheduler(
         device_constraints,
         ems_constraints,
-        commitment_quantities=[quantity],
-        commitment_downwards_deviation_price=[down],
-        commitment_upwards_deviation_price=[up],
+        commitments=[energy_commitment],
         device_power_bands=device_power_bands,
     )
     assert "optimal" in str(results.solver.termination_condition)
