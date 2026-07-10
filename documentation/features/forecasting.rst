@@ -81,7 +81,7 @@ For example, this configuration clips forecasts to the 0-20 kW range and snaps v
       "upper": "20 kW"
     }
 
-Snapping is "traditional": the snap target must be one of the two interval bounds, so values always snap to a boundary rather than to a value outside the interval.
+The snap target must lie within its interval (on a bound or inside it), so values never snap to a value outside the interval. A target inside the interval snaps the whole band to that value, for example ``{"2 kW": ["0 kW", "4 kW"]}`` snaps everything in ``[0 kW, 4 kW)`` to 2 kW.
 The first bound is inclusive and the second is exclusive, so an interval reads as ``[first, second)``.
 Listing the bounds in reverse order flips the closed side: ``["10 kW", "4 kW"]`` means ``(4 kW, 10 kW]``.
 This keeps adjacent intervals unambiguous — a value on a shared boundary belongs to the interval that opens at it.

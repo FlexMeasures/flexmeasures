@@ -134,7 +134,7 @@ def test_forecast_post_processing_interprets_unitless_values_in_sensor_unit():
         horizon=1,
         config={
             "lower": 1,
-            "snap": {"1.2 kW": ["1.2 kW", "1.8 kW"]},
+            "snap": {"1500 W": ["1.2 kW", "1.8 kW"]},
             "upper": "2 kW",
         },
         sensor_unit="kW",
@@ -142,7 +142,7 @@ def test_forecast_post_processing_interprets_unitless_values_in_sensor_unit():
 
     pd.testing.assert_frame_equal(
         processed,
-        pd.DataFrame({"1h": [1.0, 1.2, 2.0]}),
+        pd.DataFrame({"1h": [1.0, 1.5, 2.0]}),
     )
 
 
@@ -267,10 +267,28 @@ def test_forecast_post_processing_rejects_inconsistent_bounds():
         )
 
 
-def test_forecast_post_processing_rejects_snap_target_off_the_interval():
+def test_forecast_post_processing_allows_snap_target_inside_the_interval():
+    """The snap target may lie inside the interval, not only on a bound."""
+    df = pd.DataFrame({"1h": [0.5, 3.9, 4.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"2 kW": ["0 kW", "4 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # Everything in [0, 4) collapses to the interior target 2; 4 is excluded.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [2.0, 2.0, 4.0]}),
+    )
+
+
+def test_forecast_post_processing_rejects_snap_target_outside_the_interval():
     df = pd.DataFrame({"1h": [1.0]})
 
-    with pytest.raises(ValueError, match="snap target must equal one of its interval"):
+    with pytest.raises(ValueError, match="snap target must lie within its interval"):
         apply_forecast_post_processing(
             data=df,
             horizon=1,

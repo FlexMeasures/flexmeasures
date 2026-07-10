@@ -59,12 +59,13 @@ def _parse_snap_intervals(
 ) -> list[tuple[float, float, float]]:
     """Validate and parse a snap mapping into ``(target, first, second)`` triples.
 
-    Snapping is "traditional": each value that falls inside an interval is replaced
-    by a target that is itself one of the interval's boundaries. The first boundary
-    is treated as inclusive and the second as exclusive, so listing the boundaries in
-    reverse order flips which side is closed (``["4 kW", "10 kW"]`` means ``[4, 10)``
-    while ``["10 kW", "4 kW"]`` means ``(4, 10]``). This keeps adjacent intervals
-    unambiguous: a shared boundary belongs to whichever interval opens at it.
+    Each value that falls inside an interval is replaced by a target that must lie
+    within that interval (on a bound or inside it), so values never snap to a value
+    outside their interval. The first boundary is treated as inclusive and the second
+    as exclusive, so listing the boundaries in reverse order flips which side is closed
+    (``["4 kW", "10 kW"]`` means ``[4, 10)`` while ``["10 kW", "4 kW"]`` means
+    ``(4, 10]``). This keeps adjacent intervals unambiguous: a shared boundary belongs
+    to whichever interval opens at it.
     """
     parsed = []
     for target, interval in snap.items():
@@ -80,11 +81,9 @@ def _parse_snap_intervals(
             raise ValueError(
                 "Forecast post-processing snap interval bounds must differ."
             )
-        if not (
-            math.isclose(target_value, first) or math.isclose(target_value, second)
-        ):
+        if not min(first, second) <= target_value <= max(first, second):
             raise ValueError(
-                "Forecast post-processing snap target must equal one of its interval bounds."
+                "Forecast post-processing snap target must lie within its interval bounds."
             )
         parsed.append((target_value, first, second))
     return parsed

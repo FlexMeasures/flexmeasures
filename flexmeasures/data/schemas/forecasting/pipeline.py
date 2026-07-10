@@ -138,7 +138,7 @@ class TrainPredictPipelineConfigSchema(Schema):
         required=False,
         load_default={},
         metadata={
-            "description": "Optional mapping from snap targets to [first, second] intervals. Values inside an interval are replaced by the snap target before storage. The target must be one of the two bounds. The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead.",
+            "description": "Optional mapping from snap targets to [first, second] intervals. Values inside an interval are replaced by the snap target before storage. The target must lie within the interval (on a bound or inside it). The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead.",
             "example": {"0 kW": ["0 kW", "4 kW"]},
         },
     )
