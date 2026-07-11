@@ -111,6 +111,90 @@ sensor_schema = SensorSchema()
 sensors_schema = SensorSchema(many=True)
 
 
+def _forecast_automation_sensor_refs(
+    parameters: dict, config: dict
+) -> tuple[list, list]:
+    read_refs = [parameters.get("sensor")]
+    for key in ("regressors", "future-regressors", "past-regressors"):
+        read_refs.extend(config.get(key) or [])
+    write_refs = [parameters.get("sensor-to-save") or parameters.get("sensor")]
+    return read_refs, write_refs
+
+
+def _report_automation_sensor_refs(parameters: dict) -> tuple[list, list]:
+    read_refs = [
+        entry.get("sensor")
+        for entry in parameters.get("input") or []
+        if isinstance(entry, dict)
+    ]
+    write_refs = [
+        entry.get("sensor")
+        for entry in parameters.get("output") or []
+        if isinstance(entry, dict)
+    ]
+    return read_refs, write_refs
+
+
+def _schedule_automation_sensor_refs(parameters: dict) -> tuple[list, list]:
+    read_refs: list = []
+    write_refs: list = []
+    for entry in parameters.get("flex-model") or []:
+        if isinstance(entry, dict):
+            write_refs.append(entry.get("sensor"))
+            if isinstance(entry.get("state-of-charge"), dict):
+                read_refs.append(entry["state-of-charge"].get("sensor"))
+    flex_context = parameters.get("flex-context") or {}
+    if isinstance(flex_context, dict):
+        for value in flex_context.values():
+            if isinstance(value, dict):
+                read_refs.append(value.get("sensor"))
+            elif isinstance(value, list):
+                for item in value:
+                    read_refs.append(
+                        item.get("sensor") if isinstance(item, dict) else item
+                    )
+    return read_refs, write_refs
+
+
+def _check_automation_sensor_access(
+    automation_type: str, parameters: dict, config: dict
+):
+    """Check that the current user may read every sensor referenced in an
+    automation's parameters/config, and record data on the sensors the
+    automation would write to.
+
+    Sensor references that do not resolve are skipped here; schema validation
+    of the parameters rejects them later.
+
+    :raises Forbidden: if any check fails (answered with 403).
+    """
+    parameters = parameters or {}
+    config = config or {}
+    if automation_type == "forecasts":
+        read_refs, write_refs = _forecast_automation_sensor_refs(parameters, config)
+    elif automation_type == "reports":
+        read_refs, write_refs = _report_automation_sensor_refs(parameters)
+    elif automation_type == "schedules":
+        read_refs, write_refs = _schedule_automation_sensor_refs(parameters)
+    else:
+        read_refs, write_refs = [], []
+
+    def resolve(value) -> Sensor | None:
+        try:
+            return db.session.get(Sensor, int(value))
+        except (TypeError, ValueError):
+            return None
+
+    for value in read_refs:
+        sensor = resolve(value)
+        if sensor is not None:
+            check_access(sensor, "read")
+    for value in write_refs:
+        sensor = resolve(value)
+        if sensor is not None:
+            check_access(sensor, "create-children")
+
+
 def sensor_term_filter(term: str):
     filters = [Sensor.name.ilike(f"%{term}%")]
     if term.isdecimal():
@@ -1377,6 +1461,13 @@ class AssetAPI(FlaskView):
             automation_data = AutomationCreationSchema().load(body)
         except ValidationError as e:
             return unprocessable_entity(e.messages)
+        # Guard against referencing sensors outside the caller's reach
+        # (raises Forbidden, answered with 403)
+        _check_automation_sensor_access(
+            automation_data["type"],
+            automation_data["parameters"],
+            automation_data["config"],
+        )
         try:
             automation, warnings = create_automation(
                 asset=asset,

@@ -130,7 +130,7 @@ Automating reports
 --------------------
 
 Reports can be queued as background jobs (add ``--as-job`` to ``flexmeasures add report``, and let a worker process the ``reporting`` queue, see :ref:`redis-queue`),
-and computed on a recurring basis by an *automation* defined on the asset (see :ref:`automating_forecasts` for the full introduction, including how to run automations).
+and computed on a recurring basis by an *automation* defined on the asset (see :ref:`automations` for the full concept, including how to manage and run automations).
 
 One-off reporting jobs can also be triggered via the API, mirroring how forecasts and schedules are triggered.
 ``POST /api/v3_0/assets/<id>/reports/trigger`` takes the reporter class, its configuration and the report parameters (which must reference at least one output sensor, assumed to belong to the asset or one of its (grand)children):
@@ -162,7 +162,8 @@ while the report parameters are stored on the automation itself and their timing
 
 - Use ``start-offset`` and/or ``end-offset`` fields (comma-separated Pandas offsets, like the CLI options above) for a rolling window relative to the run time,
   in the timezone of the first output sensor. For instance, ``"start-offset": "-1D,DB"`` with ``"end-offset": "DB"`` reports on the whole previous day.
-- Omit timing fields entirely to report on the last cron period: from the previous cron fire time until the run time.
+- Omit timing fields entirely to report on the period since the automation's actual last run
+  (falling back to the last cron period — from the previous cron fire time until the run time — when no last run is known, e.g. on the first run).
 - Absolute ``start``/``end`` fields are also accepted, but draw a warning, as each run would then compute the same period.
 
 For example, this automation computes a report over each past day, every morning at 1 AM:

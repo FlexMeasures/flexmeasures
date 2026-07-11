@@ -213,6 +213,24 @@ def test_prepare_report_parameters(app):
     assert pd.Timestamp(message["start"]) == now - pd.Timedelta(hours=1)
     assert pd.Timestamp(message["end"]) == now
 
+    # with a known actual last run, the window starts there instead
+    app.redis_connection.set("automation-last-run:1234", "2026-07-11T09:30:00+02:00")
+    try:
+        message = prepare_report_parameters(
+            {}, "0 * * * *", now=now, automation_id=1234
+        )
+        assert pd.Timestamp(message["start"]) == pd.Timestamp(
+            "2026-07-11T09:30:00+02:00"
+        )
+        assert pd.Timestamp(message["end"]) == now
+        # an unknown automation id still falls back to the last cron period
+        message = prepare_report_parameters(
+            {}, "0 * * * *", now=now, automation_id=5678
+        )
+        assert pd.Timestamp(message["start"]) == now - pd.Timedelta(hours=1)
+    finally:
+        app.redis_connection.delete("automation-last-run:1234")
+
     # offsets applied to the run time; "DB" floors to the day begin
     message = prepare_report_parameters(
         {"start-offset": "-1D,DB", "end-offset": "DB"}, "0 1 * * *", now=now
@@ -309,6 +327,22 @@ def test_add_report_automation(app, fresh_db, setup_dummy_data, tmp_path):
     assert result.exit_code != 0
     assert "reporter is required" in result.output
 
+    # invalid time offsets are rejected (they would otherwise be silently skipped at run time)
+    result = runner.invoke(
+        add_automation,
+        _report_automation_cli_input(
+            tmp_path,
+            sensor1_id,
+            sensor2_id,
+            report_sensor_id,
+            parameters_extra={
+                "start-offset": "P1D,DB"
+            },  # ISO duration, not a Pandas offset
+        ),
+    )
+    assert result.exit_code != 0
+    assert "Invalid start-offset" in result.output
+
 
 def test_run_report_automation(app, fresh_db, setup_dummy_data, clean_redis, tmp_path):
     """A due reports automation queues a reporting job; a worker computes and saves the report."""
@@ -347,6 +381,9 @@ def test_run_report_automation(app, fresh_db, setup_dummy_data, clean_redis, tmp
         "automation_id": automation.id,
     }
 
+    # the covered-until anchor is only recorded once the job succeeds
+    assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
+
     # process the job and check the report got saved
     work_on_rq(app.queues["reporting"])
     report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
@@ -355,6 +392,15 @@ def test_run_report_automation(app, fresh_db, setup_dummy_data, clean_redis, tmp
         event_ends_before="2023-04-10T10:00:00+00:00",
     )
     assert (stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
+
+    # the successful job recorded the end of the report window as covered
+    import pandas as pd
+
+    covered_until = app.redis_connection.get(f"automation-last-run:{automation.id}")
+    assert covered_until is not None
+    assert pd.Timestamp(covered_until.decode()) == pd.Timestamp(
+        "2023-04-10T10:00:00+00:00"
+    )
 
 
 def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
@@ -396,6 +442,9 @@ def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
         and job.meta["trigger"]["automation_id"] in automation_ids
         for job in jobs
     )
+    # the run got recorded (used e.g. to anchor default report windows)
+    for automation in automations:
+        assert app.redis_connection.get(f"automation-last-run:{automation.id}")
     # running again within the same minute does not queue jobs twice
     n_jobs = len(jobs)
     result = runner.invoke(run_automations)

@@ -585,7 +585,7 @@ Here are some thoughts on further innovation:
 Automating schedules
 --------------------
 
-Like forecasts, schedules can be computed on a recurring basis by an *automation* defined on the asset (see :ref:`automating_forecasts` for the full introduction, including how to run automations).
+Like forecasts, schedules can be computed on a recurring basis by an *automation* defined on the asset (see :ref:`automations` for the full concept, including how to manage and run automations).
 The automation's parameters form a schedule trigger message, as accepted by the `[POST] /assets/(id)/schedules/trigger <../api/v3_0.html>`_ API endpoint (without the asset id).
 Omit the ``start`` field to schedule from the run time on each run (floored to the ``resolution`` field, if given).
 As usual, the flex-context and flex-model can also (partly) live on the asset itself, in which case a minimal trigger message suffices.
