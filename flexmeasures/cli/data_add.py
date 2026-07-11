@@ -46,6 +46,13 @@ from flexmeasures.data.scripts.data_gen import (
     add_default_asset_types,
 )
 from flexmeasures.data.services.automations import create_automation
+from flexmeasures.data.services.report_templates import (
+    PLACEHOLDER,
+    find_placeholders,
+    get_report_template,
+    list_report_templates,
+    merge_template_parameters,
+)
 from flexmeasures.data.services.data_sources import (
     get_or_create_source,
     get_data_generator,
@@ -1055,6 +1062,52 @@ def _assemble_forecaster_config_and_parameters(
     return config, parameters
 
 
+def _apply_report_template(
+    template_name: str,
+    reporter_class: str | None,
+    config: dict,
+    parameters: dict,
+    user_provided_timing: bool = False,
+) -> tuple[str | None, dict, dict]:
+    """Use a prepared report template as defaults for the reporter class, config and parameters.
+
+    Anything the user provided wins: an explicitly given reporter class is kept,
+    and top-level config/parameters keys override the template's.
+    """
+    template = get_report_template(template_name)
+    if template is None:
+        available_templates = ", ".join(t["name"] for t in list_report_templates())
+        click.secho(
+            f"Unknown report template '{template_name}'."
+            f" Available report templates: {available_templates}.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    reporter_class = reporter_class or template.get("reporter")
+    config = {**(template.get("config") or {}), **config}
+    parameters = merge_template_parameters(
+        template.get("parameters") or {},
+        parameters,
+        user_provided_timing=user_provided_timing,
+    )
+    return reporter_class, config, parameters
+
+
+def _abort_on_unfilled_placeholders(config: dict, parameters: dict):
+    """Abort with a clear validation error if template placeholders were left unfilled."""
+    placeholders = [f"config: {path}" for path in find_placeholders(config)] + [
+        f"parameters: {path}" for path in find_placeholders(parameters)
+    ]
+    if placeholders:
+        click.secho(
+            f"Invalid report definition: replace the '{PLACEHOLDER}' template placeholders"
+            " with your own values (usually sensor IDs) in the following fields:\n- "
+            + "\n- ".join(placeholders),
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+
 @fm_add_data.command("forecasts")
 @click.option(
     "--resolution",
@@ -1261,6 +1314,15 @@ def add_forecast(  # noqa: C901
     " Use the command `flexmeasures show reporters` to list all the available reporters.",
 )
 @click.option(
+    "--template",
+    "template_name",
+    required=False,
+    type=click.STRING,
+    help="Name of a prepared report template to use as defaults for the reporter, config and parameters"
+    " (only used for --type reports). Any --config/--parameters files and other options override it."
+    " Use the command `flexmeasures show report-templates` to list all the available templates.",
+)
+@click.option(
     "--source",
     "source",
     required=False,
@@ -1296,6 +1358,7 @@ def add_automation(
     inactive: bool = False,
     forecaster_class: str = "TrainPredictPipeline",
     reporter_class: str | None = None,
+    template_name: str | None = None,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
     parameters_file: TextIOBase | None = None,
@@ -1311,8 +1374,8 @@ def add_automation(
       flexmeasures add automation --asset 3 --name "Hourly schedules"
         --cron "0 * * * *" --type schedules --parameters trigger-message.yml
       flexmeasures add automation --asset 3 --name "Daily self-consumption report"
-        --cron "0 1 * * *" --type reports --reporter PandasReporter
-        --config reporter-config.yml --parameters report-parameters.yml
+        --cron "0 1 * * *" --type reports --template self-consumption
+        --parameters report-parameters.yml
 
     For forecasts and reports, the data generator configuration is stored on a
     data source, and the parameters are validated and stored on the automation itself.
@@ -1327,6 +1390,19 @@ def add_automation(
     config, parameters = _assemble_forecaster_config_and_parameters(
         kwargs, config_file, parameters_file
     )
+
+    if template_name is not None:
+        if automation_type != "reports":
+            click.secho(
+                "The --template option is only supported for report automations (--type reports).",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
+        reporter_class, config, parameters = _apply_report_template(
+            template_name, reporter_class, config, parameters
+        )
+    if automation_type == "reports":
+        _abort_on_unfilled_placeholders(config, parameters)
 
     # The service validates the parameters by automation type (we store them serialized)
     try:
@@ -1568,10 +1644,20 @@ def add_schedule(  # noqa C901
 @click.option(
     "--reporter",
     "reporter_class",
-    default="PandasReporter",
+    default=None,
     type=click.STRING,
-    help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin."
+    help="Reporter class registered in flexmeasures.data.models.reporting or in an available flexmeasures plugin"
+    " (defaults to PandasReporter, or to the template's reporter if --template is given)."
     " Use the command `flexmeasures show reporters` to list all the available reporters.",
+)
+@click.option(
+    "--template",
+    "template_name",
+    required=False,
+    type=click.STRING,
+    help="Name of a prepared report template to use as defaults for the reporter, config and parameters."
+    " Any --config/--parameters files and other options override it."
+    " Use the command `flexmeasures show report-templates` to list all the available templates.",
 )
 @click.option(
     "--start",
@@ -1656,7 +1742,8 @@ def add_schedule(  # noqa C901
     "To process the job, run a worker (on any computer, but configured to the same databases) to process the 'reporting' queue. Defaults to False.",
 )
 def add_report(  # noqa: C901
-    reporter_class: str,
+    reporter_class: str | None = None,
+    template_name: str | None = None,
     source: DataSource | None = None,
     config_file: TextIOBase | None = None,
     parameters_file: TextIOBase | None = None,
@@ -1700,6 +1787,30 @@ def add_report(  # noqa: C901
 
     if edit_parameters:
         parameters = launch_editor("/tmp/parameters.yml")
+
+    if template_name is not None:
+        reporter_class, config, parameters = _apply_report_template(
+            template_name,
+            reporter_class,
+            config,
+            parameters,
+            user_provided_timing=any(
+                timing_option is not None
+                for timing_option in (start, end, start_offset, end_offset)
+            ),
+        )
+    if reporter_class is None:
+        reporter_class = "PandasReporter"
+
+    # Offset fields in the parameters (e.g. from a template) serve as fallbacks for the CLI options
+    start_offset = (
+        start_offset if start_offset is not None else parameters.get("start-offset")
+    )
+    end_offset = end_offset if end_offset is not None else parameters.get("end-offset")
+    parameters.pop("start-offset", None)
+    parameters.pop("end-offset", None)
+
+    _abort_on_unfilled_placeholders(config, parameters)
 
     # check if sensor is not provided in the `parameters` description
     if "output" not in parameters or len(parameters["output"]) == 0:

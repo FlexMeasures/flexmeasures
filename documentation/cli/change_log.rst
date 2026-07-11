@@ -12,6 +12,8 @@ since v1.0.0 | July XX, 2026
 * Add ``flexmeasures add automation``, ``flexmeasures edit automation`` and ``flexmeasures delete automation`` to manage automations (recurring tasks on an asset, computing forecasts, schedules or reports).
 * Add an ``--as-job`` flag to ``flexmeasures add report``, to queue a reporting job (processed by workers of the new ``reporting`` queue) instead of computing directly.
 * Add ``flexmeasures jobs run-automations`` to queue jobs for all automations that are due to run this minute (run this once per minute, e.g. via cron).
+* Add ``flexmeasures show report-templates`` to list prepared report templates, or print one in full (with ``--name``).
+* Add a ``--template`` option to ``flexmeasures add report`` and ``flexmeasures add automation`` (type ``reports``), to start from a prepared report template (any ``--config``/``--parameters`` files and other options override it).
 
 since v0.33.0 | June 01, 2026
 =================================
