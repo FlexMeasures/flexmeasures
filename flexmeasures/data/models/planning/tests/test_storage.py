@@ -149,12 +149,12 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
     # No production peak
     np.testing.assert_almost_equal(costs["electricity production peak"], 0)
 
-    # Sample commitments
+    # Sample commitments (user-given names are namespaced with a "custom:" prefix)
     np.testing.assert_almost_equal(
-        costs["a sample commitment penalizing peaks"], 4 * (1 - 0.4)
+        costs["custom:a sample commitment penalizing peaks"], 4 * (1 - 0.4)
     )
     np.testing.assert_almost_equal(
-        costs["a sample commitment penalizing demand/supply"], 1 * (1 - 0.4)
+        costs["custom:a sample commitment penalizing demand/supply"], 1 * (1 - 0.4)
     )
 
     # Check consumption/production output sensor schedules.
