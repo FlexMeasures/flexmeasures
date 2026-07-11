@@ -4575,6 +4575,10 @@
           "name": {
             "type": "string"
           },
+          "commodity": {
+            "type": "string",
+            "default": "electricity"
+          },
           "baseline": {},
           "up-price": {},
           "down-price": {}
