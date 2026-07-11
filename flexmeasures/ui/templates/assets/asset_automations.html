@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% set active_page = "assets" %}
+
+{% block title %} {{ asset.name }} - Automations {% endblock %}
+
+{% block divs %}
+{% block breadcrumbs %} {{ super() }} {% endblock %}
+
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-sm-2"></div>
+    <div class="col-sm-8">
+      <div class="card p-3">
+
+        <h4>
+          Automations of {{ asset.name }}
+          <span class="fa fa-info-circle" title="
+          This table shows the automations defined on this asset: recurring tasks, such as computing forecasts.
+
+An active automation runs whenever its recurrence (a cron string) matches the current time. Each run queues jobs.
+          "></span>
+        </h4>
+        <p>
+          Recent jobs created by these automations are listed on the
+          <a href="/assets/{{ asset.id }}/status">status page</a>.
+        </p>
+
+        <ul class="nav nav-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="forecasts-tab" data-bs-toggle="tab" data-bs-target="#forecasts-tab-pane" type="button" role="tab">Forecasts</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link disabled" type="button" role="tab" title="Coming soon" aria-disabled="true">Schedules</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link disabled" type="button" role="tab" title="Coming soon" aria-disabled="true">Reports</button>
+          </li>
+        </ul>
+        <div class="tab-content">
+          <div class="tab-pane fade show active" id="forecasts-tab-pane" role="tabpanel">
+            <div class="table-responsive">
+              <table id="automationsTable" class="table table-striped w-100"></table>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-warning d-none mt-2" id="automations_err"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const assetId = "{{ asset.id }}";
+
+  // Escape user-controlled strings before interpolating them into HTML
+  function esc(value) {
+    return String(value ?? "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  function AutomationRow(automation) {
+    const createdAt = automation.created_at;
+    return {
+      id: automation.id,
+      name: esc(automation.name),
+      created_at: `
+        <span title="${esc(createdAt)}">
+          ${createdAt ? esc(getHumanFriendlyDeltaOrTimeStr(createdAt)) : "Unknown"}
+        </span>
+      `,
+      active: `<span title="${automation.active ? 'Active' : 'Inactive'}">${automation.active ? "🟢" : "⚪"}</span>`,
+      recurrence: `<span title="${esc(automation.cronstr)}">${esc(automation.recurrence_description)}</span>`,
+      jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">…</span>`,
+      details: `<a href="#" class="btn btn-default btn-success" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</a>
+        <div class="modal fade" id="AutomationDetailsModal-${automation.id}" tabindex="-1" role="dialog">
+          <div class="modal-dialog modal-lg"><div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Automation '${esc(automation.name)}' (ID: ${automation.id})</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="AutomationDetailsBody-${automation.id}">Loading ...</div>
+          </div></div>
+        </div>`,
+    };
+  }
+
+  function loadAutomationDetails(automationId) {
+    $.ajax({
+      url: `/api/v3_0/assets/${assetId}/automations/${automationId}`,
+      method: "GET",
+      success: function (res) {
+        // Show job stats in the table row
+        const jobStats = res.job_stats || {};
+        const statsStr = Object.keys(jobStats).length
+          ? Object.entries(jobStats).map(([status, count]) => `${status}: ${count}`).join(", ")
+          : "none";
+        $(`#automation-jobs-${automationId}`).text(statsStr);
+
+        // Fill the details modal
+        const generator = res.generator
+          ? `${res.generator.description} (data source ${res.generator.id})`
+          : "None";
+        $(`#AutomationDetailsBody-${automationId}`).html(`
+          <h6>Data generator</h6>
+          <p>${esc(generator)}</p>
+          <h6>Parameters</h6>
+          <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
+          <h6>Recently created jobs</h6>
+          <pre>${esc(JSON.stringify(jobStats, null, 4))}</pre>
+        `);
+        if (res.redis_connection_err) {
+          $("#automations_err").removeClass("d-none").text(res.redis_connection_err);
+        }
+      },
+      error: function (xhr) {
+        $(`#automation-jobs-${automationId}`).text("unknown");
+        $(`#AutomationDetailsBody-${automationId}`).text("Could not load details.");
+      },
+    });
+  }
+
+  $(document).ready(function () {
+    const automationsTable = $("#automationsTable").DataTable({
+      searching: false,
+      paging: false,
+      info: false,
+      ordering: false,
+      language: {
+        emptyTable: "No automations have been defined on this asset yet. They can be created with the CLI command `flexmeasures add automation`.",
+      },
+      columns: [
+        { data: "name", title: "Name" },
+        { data: "created_at", title: "Created At" },
+        { data: "active", title: "Active" },
+        { data: "recurrence", title: "Recurrence" },
+        { data: "jobs", title: "Jobs" },
+        { data: "details", title: "", className: "text-right" },
+      ],
+      ajax: function (data, callback) {
+        $.ajax({
+          url: `/api/v3_0/assets/${assetId}/automations`,
+          method: "GET",
+          success: function (res) {
+            const automations = res.automations.length ? res.automations.map(AutomationRow) : [];
+            callback({ data: automations });
+            // Load more details per automation asynchronously
+            res.automations.forEach(automation => loadAutomationDetails(automation.id));
+          },
+          error: function (xhr) {
+            console.error("Error fetching automations:", xhr);
+            callback({ data: [] });
+          },
+        });
+      },
+    });
+
+    $.fn.dataTable.ext.errMode = 'none';
+  });
+</script>
+{% endblock %}

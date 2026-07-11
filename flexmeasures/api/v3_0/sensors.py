@@ -1943,6 +1943,8 @@ class SensorAPI(FlaskView):
         except ValidationError as err:
             return unprocessable_entity(err.messages)
 
+        forecaster.set_job_trigger("API")
+
         # Queue forecasting job
         try:
             pipeline_returns = forecaster.compute(parameters=parameters, as_job=True)

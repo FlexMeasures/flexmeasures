@@ -31,6 +31,7 @@ class DataGenerator:
 
     _config: dict = None
     _parameters: dict = None
+    _job_trigger: dict | None = None
 
     _parameters_schema: Schema | None = None
     _config_schema: Schema | None = None
@@ -97,6 +98,15 @@ class DataGenerator:
             self._config = self._config_schema.load(config)
         elif len(kwargs) == 0:
             self._config = self._config_schema.load({})
+
+    def set_job_trigger(self, origin: str, automation_id: int | None = None):
+        """Record how any queued jobs got created (e.g. via the CLI, the API or an automation).
+
+        This information is stored on the jobs themselves (as job meta data).
+        """
+        self._job_trigger = {"origin": origin}
+        if automation_id is not None:
+            self._job_trigger["automation_id"] = automation_id
 
     def _compute(self, **kwargs) -> list[dict[str, Any]]:
         """Overwrite with the actual computation of your data generator.

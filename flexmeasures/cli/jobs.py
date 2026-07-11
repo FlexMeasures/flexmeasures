@@ -30,7 +30,13 @@ from sqlalchemy.orm import configure_mappers
 from tabulate import tabulate
 import pandas as pd
 
+from flexmeasures.data import db
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
+from flexmeasures.data.services.automations import (
+    floor_to_minute,
+    get_due_automations,
+    run_automation,
+)
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 from flexmeasures.utils.job_utils import work_on_rq
@@ -53,6 +59,61 @@ REGISTRY_MAP = dict(
 @click.group("jobs")
 def fm_jobs():
     """FlexMeasures: Job queueing."""
+
+
+@fm_jobs.command("run-automations")
+@with_appcontext
+def run_automations():
+    """
+    Queue jobs for all automations that are due to run this minute.
+
+    An automation is due when its cron string (interpreted in the FLEXMEASURES_TIMEZONE)
+    matches the current minute. Run this command once per minute (e.g. via cron):
+
+    \b
+        * * * * * flexmeasures jobs run-automations
+
+    A Redis-based guard prevents queueing jobs twice if the command happens to run
+    more than once within the same minute.
+    """
+    now = floor_to_minute(server_now())
+    due_automations = get_due_automations(now)
+    if not due_automations:
+        click.secho(f"No automations due at {now}.", **MsgStyle.SUCCESS)
+        return
+
+    connection = app.queues["forecasting"].connection
+    n_run = 0
+    n_failed = 0
+    for automation in due_automations:
+        # guard against running the same automation twice within the same minute
+        guard_key = f"automation-run:{automation.id}:{now.isoformat()}"
+        if not connection.set(guard_key, 1, nx=True, ex=120):
+            click.secho(
+                f"Automation {automation.id} ('{automation.name}') already ran at {now}. Skipping.",
+                **MsgStyle.WARN,
+            )
+            continue
+        try:
+            returns = run_automation(automation)
+            n_jobs = returns.get("n_jobs") if returns else 0
+            click.secho(
+                f"Automation {automation.id} ('{automation.name}') queued {n_jobs} forecasting job(s) for asset {automation.asset_id}.",
+                **MsgStyle.SUCCESS,
+            )
+            n_run += 1
+        except Exception as e:
+            db.session.rollback()
+            # release the guard, so a retry within the same minute can still queue jobs
+            connection.delete(guard_key)
+            click.secho(
+                f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {e}",
+                **MsgStyle.ERROR,
+            )
+            n_failed += 1
+    if n_failed:
+        click.secho(f"{n_run} automation(s) ran, {n_failed} failed.", **MsgStyle.ERROR)
+        raise click.exceptions.Exit(1)
 
 
 @fm_jobs.command("stats")

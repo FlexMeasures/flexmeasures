@@ -19,7 +19,9 @@ from flexmeasures.data.schemas.attributes import validate_special_attributes
 from flexmeasures.data.schemas import AssetIdField
 from flexmeasures.data.schemas.sensors import SensorIdField
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
+from flexmeasures.data.schemas.automations import AutomationIdField, CronField
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import (
@@ -51,6 +53,66 @@ def _resolve_secret_path(
 @click.group("edit")
 def fm_edit_data():
     """FlexMeasures: Edit data."""
+
+
+@fm_edit_data.command("automation")
+@with_appcontext
+@click.option(
+    "--id",
+    "automation",
+    required=True,
+    type=AutomationIdField(),
+    help="ID of the automation to edit.",
+)
+@click.option(
+    "--name",
+    "name",
+    required=False,
+    type=click.STRING,
+    help="New name of the automation.",
+)
+@click.option(
+    "--cron",
+    "cronstr",
+    required=False,
+    type=CronField(),
+    help='New recurrence of the automation as a cron string, e.g. "0 6 * * *".',
+)
+@click.option(
+    "--activate/--deactivate",
+    "active",
+    default=None,
+    help="Activate or deactivate the automation.",
+)
+def edit_automation(
+    automation: Automation,
+    name: str | None = None,
+    cronstr: str | None = None,
+    active: bool | None = None,
+):
+    """Edit the name, recurrence (cron string) or activation status of an automation."""
+    changes = []
+    if name is not None and name != automation.name:
+        changes.append(f"name: '{automation.name}' → '{name}'")
+        automation.name = name
+    if cronstr is not None and cronstr != automation.cronstr:
+        changes.append(f"cron string: '{automation.cronstr}' → '{cronstr}'")
+        automation.cronstr = cronstr
+    if active is not None and active != automation.active:
+        changes.append("activated" if active else "deactivated")
+        automation.active = active
+    if not changes:
+        click.secho("Nothing to change.", **MsgStyle.WARN)
+        return
+    AssetAuditLog.add_record(
+        automation.asset,
+        f"Updated automation '{automation.name}' ({automation.id}): {'; '.join(changes)}. Via CLI.",
+    )
+    db.session.commit()
+    click.secho(
+        f"Successfully updated automation '{automation.name}' (ID: {automation.id}): {'; '.join(changes)}.",
+        **MsgStyle.SUCCESS,
+    )
 
 
 @fm_edit_data.command("attribute")

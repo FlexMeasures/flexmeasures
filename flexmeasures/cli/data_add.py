@@ -17,7 +17,7 @@ from pathlib import Path
 from io import TextIOBase
 from string import Template
 
-from marshmallow import validate
+from marshmallow import validate, ValidationError
 import pandas as pd
 import pytz
 from flask import current_app as app
@@ -57,6 +57,8 @@ from flexmeasures.data.models.time_series import (
 )
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.models.automations import Automation
+from flexmeasures.data.schemas.automations import CronField
 from flexmeasures.data.schemas import (
     AccountIdField,
     AwareDateTimeField,
@@ -1007,6 +1009,49 @@ def add_holidays(
     )
 
 
+def _assemble_forecaster_config_and_parameters(
+    kwargs: dict,
+    config_file: TextIOBase | None = None,
+    parameters_file: TextIOBase | None = None,
+    edit_config: bool = False,
+    edit_parameters: bool = False,
+) -> tuple[dict, dict]:
+    """Build the forecaster config and (serialized) forecast parameters
+    from optional files, editors and remaining CLI options.
+
+    CLI options matching config schema fields are popped from kwargs into the config;
+    all remaining options become (kebab-cased) parameters. None values are dropped.
+    """
+    config = dict()
+    if config_file:
+        config = yaml.safe_load(config_file)
+    for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
+        field_value = kwargs.pop(field_name, None)
+        if field_value is not None:
+            config[field.data_key] = field_value
+
+    if edit_config:
+        config = launch_editor("/tmp/config.yml")
+
+    parameters = dict()
+    if parameters_file:
+        parameters = yaml.safe_load(parameters_file)
+
+    if edit_parameters:
+        parameters = launch_editor("/tmp/parameters.yml")
+
+    # Move remaining kwargs to parameters, converting from snake_case to kebab-case to match schema expectation
+    for k, v in kwargs.items():
+        kebab_key = snake_to_kebab(k)
+        if kebab_key not in parameters:
+            parameters[kebab_key] = v
+
+    # Drop None values
+    parameters = {k: v for k, v in parameters.items() if v is not None}
+
+    return config, parameters
+
+
 @fm_add_data.command("forecasts")
 @click.option(
     "--resolution",
@@ -1116,30 +1161,9 @@ def add_forecast(  # noqa: C901
         )
     del kwargs["resolution"]
 
-    config = dict()
-
-    if config_file:
-        config = yaml.safe_load(config_file)
-    for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
-        if field_value := kwargs.pop(field_name, None):
-            config[field.data_key] = field_value
-
-    if edit_config:
-        config = launch_editor("/tmp/config.yml")
-
-    parameters = dict()
-
-    if parameters_file:
-        parameters = yaml.safe_load(parameters_file)
-
-    if edit_parameters:
-        parameters = launch_editor("/tmp/parameters.yml")
-
-    # Move remaining kwargs to parameters, converting from snake_case to kebab-case to match schema expectation
-    for k, v in kwargs.items():
-        kebab_key = snake_to_kebab(k)
-        if kebab_key not in parameters:
-            parameters[kebab_key] = v
+    config, parameters = _assemble_forecaster_config_and_parameters(
+        kwargs, config_file, parameters_file, edit_config, edit_parameters
+    )
 
     forecaster = get_data_generator(
         source=source,
@@ -1149,9 +1173,9 @@ def add_forecast(  # noqa: C901
         data_generator_type=Forecaster,
     )
 
+    forecaster.set_job_trigger("CLI")
+
     try:
-        # Drop None values
-        parameters = {k: v for k, v in parameters.items() if v is not None}
         pipeline_returns = forecaster.compute(as_job=as_job, parameters=parameters)
 
         # Empty result
@@ -1178,6 +1202,155 @@ def add_forecast(  # noqa: C901
     except Exception as e:
         click.echo(f"Error running Train-Predict Pipeline: {str(e)}")
         raise
+
+
+@fm_add_data.command("automation")
+@with_appcontext
+@click.option(
+    "--asset",
+    "asset",
+    required=True,
+    type=AssetIdField(),
+    help="ID of the asset to automate a recurring task for.",
+)
+@click.option(
+    "--name",
+    "name",
+    required=True,
+    type=click.STRING,
+    help="Name of the automation.",
+)
+@click.option(
+    "--cron",
+    "cronstr",
+    required=True,
+    type=CronField(),
+    help='Recurrence of the automation as a cron string, e.g. "0 6 * * *" for daily at 6 AM (in the FLEXMEASURES_TIMEZONE).',
+)
+@click.option(
+    "--type",
+    "automation_type",
+    default="forecasts",
+    show_default=True,
+    type=click.Choice(Automation.SUPPORTED_TYPES),
+    help="Type of task to automate.",
+)
+@click.option(
+    "--inactive",
+    "inactive",
+    is_flag=True,
+    help="Add this flag to create the automation in deactivated state.",
+)
+@click.option(
+    "--forecaster",
+    "forecaster_class",
+    default="TrainPredictPipeline",
+    type=click.STRING,
+    help="Forecaster class registered in flexmeasures.data.models.forecasting or in an available flexmeasures plugin."
+    " Use the command `flexmeasures show forecasters` to list all the available forecasters.",
+)
+@click.option(
+    "--source",
+    "source",
+    required=False,
+    type=DataSourceIdField(),
+    help="DataSource ID of the `Forecaster`.",
+)
+@click.option(
+    "--config",
+    "config_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to the JSON or YAML file with the configuration of the forecaster.",
+)
+@click.option(
+    "--parameters",
+    "parameters_file",
+    required=False,
+    type=click.File("r"),
+    help="Path to the JSON or YAML file with the forecast parameters (passed to the compute step on each run of the automation).",
+)
+@add_cli_options_from_schema(ForecasterParametersSchema())
+@add_cli_options_from_schema(TrainPredictPipelineConfigSchema())
+def add_automation(
+    asset: GenericAsset,
+    name: str,
+    cronstr: str,
+    automation_type: str,
+    inactive: bool = False,
+    forecaster_class: str = "TrainPredictPipeline",
+    source: DataSource | None = None,
+    config_file: TextIOBase | None = None,
+    parameters_file: TextIOBase | None = None,
+    **kwargs,
+):
+    """
+    Add an automation: a recurring task (for now, computing forecasts) on an asset.
+
+    \b
+    Example
+      flexmeasures add automation --asset 3 --name "Day-ahead PV forecasts"
+        --cron "0 6 * * *" --sensor 2092 --regressors 2093
+
+    The forecaster configuration is stored on a data source, and the forecast
+    parameters are validated and stored on the automation itself.
+    Each time the automation runs, forecasting jobs are queued
+    (see `flexmeasures jobs run-automations`).
+    """
+    config, parameters = _assemble_forecaster_config_and_parameters(
+        kwargs, config_file, parameters_file
+    )
+
+    # Validate the parameters using the forecast parameters schema (we store them serialized)
+    try:
+        deserialized_parameters = ForecasterParametersSchema().load(parameters)
+    except ValidationError as e:
+        click.secho(f"Invalid forecast parameters: {e.messages}", **MsgStyle.ERROR)
+        raise click.Abort()
+    sensor = deserialized_parameters.get("sensor")
+    if isinstance(sensor, Sensor) and sensor.generic_asset_id != asset.id:
+        click.secho(
+            f"Warning: the sensor to forecast ({sensor.id}) does not belong to asset {asset.id}.",
+            **MsgStyle.WARN,
+        )
+
+    forecaster = get_data_generator(
+        source=source,
+        model=forecaster_class,
+        config=config,
+        save_config=True,
+        data_generator_type=Forecaster,
+    )
+    if forecaster is None:
+        click.secho(
+            f"Could not set up forecaster '{forecaster_class}'.", **MsgStyle.ERROR
+        )
+        raise click.Abort()
+    generator = (
+        forecaster.data_source
+    )  # looks up or creates the data source storing the forecaster config
+    db.session.flush()
+
+    automation = Automation(
+        asset_id=asset.id,
+        type=automation_type,
+        name=name,
+        cronstr=cronstr,
+        active=not inactive,
+        generator_id=generator.id,
+        parameters=parameters,
+    )
+    db.session.add(automation)
+    db.session.flush()
+    AssetAuditLog.add_record(
+        asset, f"Created automation '{name}' ({automation.id}) via CLI."
+    )
+    db.session.commit()
+    click.secho(
+        f"Successfully created {'inactive ' if inactive else ''}automation '{name}' (ID: {automation.id})"
+        f" to compute {automation_type} for asset {asset.id}, recurring per cron string '{cronstr}'.",
+        **MsgStyle.SUCCESS,
+    )
 
 
 @fm_add_data.command("schedule")
