@@ -22,6 +22,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.audit_log import AssetAuditLog, AuditLog
 from flexmeasures.data.schemas.automations import AutomationIdField, CronField
+from flexmeasures.data.services.automations import update_automation
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.utils import save_to_db
 from flexmeasures.cli.utils import (
@@ -91,23 +92,12 @@ def edit_automation(
     active: bool | None = None,
 ):
     """Edit the name, recurrence (cron string) or activation status of an automation."""
-    changes = []
-    if name is not None and name != automation.name:
-        changes.append(f"name: '{automation.name}' → '{name}'")
-        automation.name = name
-    if cronstr is not None and cronstr != automation.cronstr:
-        changes.append(f"cron string: '{automation.cronstr}' → '{cronstr}'")
-        automation.cronstr = cronstr
-    if active is not None and active != automation.active:
-        changes.append("activated" if active else "deactivated")
-        automation.active = active
+    changes = update_automation(
+        automation, name=name, cronstr=cronstr, active=active, origin="CLI"
+    )
     if not changes:
         click.secho("Nothing to change.", **MsgStyle.WARN)
         return
-    AssetAuditLog.add_record(
-        automation.asset,
-        f"Updated automation '{automation.name}' ({automation.id}): {'; '.join(changes)}. Via CLI.",
-    )
     db.session.commit()
     click.secho(
         f"Successfully updated automation '{automation.name}' (ID: {automation.id}): {'; '.join(changes)}.",

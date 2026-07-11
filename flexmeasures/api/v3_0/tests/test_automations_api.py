@@ -150,3 +150,146 @@ def test_get_nonexistent_automation(
             url_for("AssetAPI:get_automation", id=battery.id, automation_id=9999),
         )
     assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "requesting_user, expected_status_code",
+    [
+        ("test_prosumer_user@seita.nl", 403),  # plain account member
+        ("test_prosumer_user_2@seita.nl", 201),  # account admin
+        ("test_dummy_user_3@seita.nl", 403),  # different account
+    ],
+    indirect=["requesting_user"],
+)
+def test_post_automation(
+    app,
+    db,
+    add_battery_assets,
+    requesting_user,
+    expected_status_code,
+):
+    """Only account admins (and consultants) can create automations; parameters are validated by type."""
+    battery = add_battery_assets["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Posted schedules",
+                "cronstr": "0 0 * * *",
+                "type": "schedules",
+                "parameters": {"duration": "PT12H"},
+            },
+        )
+    assert response.status_code == expected_status_code
+    if expected_status_code == 201:
+        assert response.json["name"] == "Posted schedules"
+        assert response.json["active"] is True
+        assert response.json["recurrence_description"] == "At 00:00"
+        automation = db.session.get(Automation, response.json["id"])
+        assert automation.parameters == {"duration": "PT12H"}
+        # clean up for other tests in this module
+        db.session.delete(automation)
+        db.session.flush()
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_automation_with_invalid_parameters(
+    app,
+    add_battery_assets,
+    requesting_user,
+):
+    battery = add_battery_assets["Test battery"]
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Bad forecasts",
+                "cronstr": "0 6 * * *",
+                "type": "forecasts",
+                "parameters": {},  # missing required sensor
+            },
+        )
+    assert response.status_code == 422
+    assert "sensor" in str(response.json)
+
+
+@pytest.mark.parametrize(
+    "requesting_user, expected_status_code",
+    [
+        ("test_prosumer_user@seita.nl", 403),  # plain account member
+        ("test_prosumer_user_2@seita.nl", 200),  # account admin
+    ],
+    indirect=["requesting_user"],
+)
+def test_patch_automation(
+    app,
+    db,
+    add_battery_assets,
+    add_automations,
+    requesting_user,
+    expected_status_code,
+):
+    battery = add_battery_assets["Test battery"]
+    automation = add_automations[0]
+    original_name = automation.name
+    with app.test_client() as client:
+        response = client.patch(
+            url_for(
+                "AssetAPI:patch_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+            json={"name": "Renamed via API", "active": False},
+        )
+    assert response.status_code == expected_status_code
+    if expected_status_code == 200:
+        assert response.json["name"] == "Renamed via API"
+        assert response.json["active"] is False
+        # restore for other tests in this module
+        automation.name = original_name
+        automation.active = True
+        db.session.flush()
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_delete_automation(
+    app,
+    db,
+    add_battery_assets,
+    add_automations,
+    requesting_user,
+):
+    battery = add_battery_assets["Test battery"]
+    automation = Automation(
+        asset_id=battery.id,
+        type="forecasts",
+        name="To be deleted",
+        cronstr="0 6 * * *",
+        parameters={"sensor": battery.sensors[0].id},
+    )
+    db.session.add(automation)
+    db.session.flush()
+    with app.test_client() as client:
+        response = client.delete(
+            url_for(
+                "AssetAPI:delete_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+        )
+        assert response.status_code == 204
+        assert db.session.get(Automation, automation.id) is None
+
+        # deleting again yields the documented 404
+        response = client.delete(
+            url_for(
+                "AssetAPI:delete_automation",
+                id=battery.id,
+                automation_id=automation.id,
+            ),
+        )
+        assert response.status_code == 404

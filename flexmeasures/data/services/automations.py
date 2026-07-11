@@ -119,6 +119,138 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     return counts
 
 
+def create_automation(
+    asset,
+    name: str,
+    cronstr: str,
+    automation_type: str = "forecasts",
+    active: bool = True,
+    parameters: dict | None = None,
+    forecaster_class: str = "TrainPredictPipeline",
+    config: dict | None = None,
+    source=None,
+    origin: str = "API",
+) -> tuple[Automation, list[str]]:
+    """Create an automation (not committed yet), validating its parameters by type.
+
+    For forecasts, the forecaster config is stored on a data source.
+    An audit log record is added to the asset.
+
+    :raises marshmallow.ValidationError: if the parameters are invalid.
+    :raises ValueError: if the forecaster cannot be set up.
+    :returns: the automation and a list of warnings.
+    """
+    from marshmallow import ValidationError
+
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+    from flexmeasures.data.models.time_series import Sensor
+
+    parameters = parameters or {}
+    warnings: list[str] = []
+    generator_id = None
+    if automation_type == "forecasts":
+        from flexmeasures.data.schemas.forecasting.pipeline import (
+            ForecasterParametersSchema,
+        )
+        from flexmeasures.data.services.data_sources import get_data_generator
+
+        deserialized_parameters = ForecasterParametersSchema().load(parameters)
+        sensor = deserialized_parameters.get("sensor")
+        if isinstance(sensor, Sensor) and sensor.generic_asset_id != asset.id:
+            warnings.append(
+                f"The sensor to forecast ({sensor.id}) does not belong to asset {asset.id}."
+            )
+        forecaster = get_data_generator(
+            source=source,
+            model=forecaster_class,
+            config=config or {},
+            save_config=True,
+            data_generator_type=Forecaster,
+        )
+        if forecaster is None:
+            raise ValueError(f"Could not set up forecaster '{forecaster_class}'.")
+        generator = (
+            forecaster.data_source
+        )  # looks up or creates the data source storing the forecaster config
+        db.session.flush()
+        generator_id = generator.id
+    elif automation_type == "schedules":
+        from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+
+        AssetTriggerSchema().load(
+            prepare_schedule_trigger_message(parameters, asset.id)
+        )
+        if "start" in parameters:
+            warnings.append(
+                "The schedule 'start' is fixed, so each run will compute the same period."
+                " Omit 'start' to schedule from the run time instead."
+            )
+    else:
+        raise ValidationError(
+            f"Automation type '{automation_type}' is not supported (supported types: {Automation.SUPPORTED_TYPES})."
+        )
+
+    automation = Automation(
+        asset_id=asset.id,
+        type=automation_type,
+        name=name,
+        cronstr=cronstr,
+        active=active,
+        generator_id=generator_id,
+        parameters=parameters,
+    )
+    db.session.add(automation)
+    db.session.flush()
+    AssetAuditLog.add_record(
+        asset, f"Created automation '{name}' ({automation.id}) via {origin}."
+    )
+    return automation, warnings
+
+
+def update_automation(
+    automation: Automation,
+    name: str | None = None,
+    cronstr: str | None = None,
+    active: bool | None = None,
+    origin: str = "API",
+) -> list[str]:
+    """Update an automation's name, cron string and/or activation status (not committed yet).
+
+    An audit log record is added to the asset.
+
+    :returns: a list of (human-readable) changes; empty if nothing changed.
+    """
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    changes = []
+    if name is not None and name != automation.name:
+        changes.append(f"name: '{automation.name}' → '{name}'")
+        automation.name = name
+    if cronstr is not None and cronstr != automation.cronstr:
+        changes.append(f"cron string: '{automation.cronstr}' → '{cronstr}'")
+        automation.cronstr = cronstr
+    if active is not None and active != automation.active:
+        changes.append("activated" if active else "deactivated")
+        automation.active = active
+    if changes:
+        AssetAuditLog.add_record(
+            automation.asset,
+            f"Updated automation '{automation.name}' ({automation.id}): {'; '.join(changes)}. Via {origin}.",
+        )
+    return changes
+
+
+def delete_automation(automation: Automation, origin: str = "API"):
+    """Delete an automation (not committed yet), recording it in the asset's audit log."""
+    from flexmeasures.data.models.audit_log import AssetAuditLog
+
+    AssetAuditLog.add_record(
+        automation.asset,
+        f"Deleted automation '{automation.name}' ({automation.id}) via {origin}.",
+    )
+    db.session.delete(automation)
+
+
 def run_automation(automation: Automation) -> dict[str, Any] | None:
     """Queue the jobs for one run of an automation.
 
