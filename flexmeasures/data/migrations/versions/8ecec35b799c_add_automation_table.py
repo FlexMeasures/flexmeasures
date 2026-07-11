@@ -43,7 +43,7 @@ def upgrade():
             ["generator_id"],
             ["data_source.id"],
             name=op.f("automation_generator_id_data_source_fkey"),
-            ondelete="CASCADE",
+            ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("automation_pkey")),
     )

@@ -99,7 +99,10 @@ Sensors shown on this page are the ones relevant for correct functioning of the 
       `,
       queue: job.queue,
       entity: job.entity,
-      created_via: job.created_via || "",
+      // escape, as this cell is rendered as HTML and may contain a user-defined automation name
+      created_via: String(job.created_via || "").replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      }[c])),
       status: `<span title="${jobStatusMessage}">${jobStatusIcon}</span>`,
       info: `<a href="#" class="btn btn-default btn-success" data-bs-target="#JobMetadataModal-${job.metadata_hash}" data-bs-toggle="modal">Info</a>
         <div class="modal fade" id="JobMetadataModal-${job.metadata_hash}" tabindex="-1" role="dialog">

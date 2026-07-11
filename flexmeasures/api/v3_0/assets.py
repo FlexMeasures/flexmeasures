@@ -43,7 +43,7 @@ from flexmeasures.data.models.annotations import Annotation, get_or_create_annot
 from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
-from flexmeasures.data.schemas.automations import AutomationIdField, AutomationSchema
+from flexmeasures.data.schemas.automations import AutomationSchema
 from flexmeasures.data.services.automations import (
     describe_cronstr,
     get_automation_job_stats,
@@ -1197,19 +1197,17 @@ class AssetAPI(FlaskView):
             automations_data.append(automation_data)
         return {"automations": automations_data}, 200
 
-    @route("/<id>/automations/<automation_id>", methods=["GET"])
+    @route("/<id>/automations/<int:automation_id>", methods=["GET"])
     @use_kwargs(
         {
             "asset": AssetIdField(data_key="id"),
-            "automation": AutomationIdField(data_key="automation_id"),
+            "automation_id": fields.Int(),
         },
         location="path",
     )
-    @permission_required_for_context("read", ctx_arg_name="automation")
+    @permission_required_for_context("read", ctx_arg_name="asset")
     @as_json
-    def get_automation(
-        self, id: int, automation_id: int, asset: GenericAsset, automation: Automation
-    ):
+    def get_automation(self, id: int, automation_id: int, asset: GenericAsset):
         """
         .. :quickref: Assets; Get details of one automation defined on an asset.
 
@@ -1276,9 +1274,10 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
-        if automation.asset_id != asset.id:
+        automation = db.session.get(Automation, automation_id)
+        if automation is None or automation.asset_id != asset.id:
             return {
-                "message": f"Automation {automation.id} does not belong to asset {asset.id}."
+                "message": f"Asset {asset.id} has no automation with id {automation_id}."
             }, 404
         automation_data = automation_schema.dump(automation)
         automation_data["recurrence_description"] = describe_cronstr(automation.cronstr)

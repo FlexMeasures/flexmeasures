@@ -133,3 +133,20 @@ def test_get_automation_of_other_asset(
             ),
         )
     assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_nonexistent_automation(
+    app,
+    add_battery_assets,
+    add_automations,
+    requesting_user,
+):
+    battery = add_battery_assets["Test battery"]
+    with app.test_client() as client:
+        response = client.get(
+            url_for("AssetAPI:get_automation", id=battery.id, automation_id=9999),
+        )
+    assert response.status_code == 404

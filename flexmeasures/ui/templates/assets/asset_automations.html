@@ -53,24 +53,31 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
 <script>
   const assetId = "{{ asset.id }}";
 
+  // Escape user-controlled strings before interpolating them into HTML
+  function esc(value) {
+    return String(value ?? "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
   function AutomationRow(automation) {
     const createdAt = automation.created_at;
     return {
       id: automation.id,
-      name: automation.name,
+      name: esc(automation.name),
       created_at: `
-        <span title="${createdAt}">
-          ${createdAt ? getHumanFriendlyDeltaOrTimeStr(createdAt) : "Unknown"}
+        <span title="${esc(createdAt)}">
+          ${createdAt ? esc(getHumanFriendlyDeltaOrTimeStr(createdAt)) : "Unknown"}
         </span>
       `,
       active: `<span title="${automation.active ? 'Active' : 'Inactive'}">${automation.active ? "🟢" : "⚪"}</span>`,
-      recurrence: `<span title="${automation.cronstr}">${automation.recurrence_description}</span>`,
+      recurrence: `<span title="${esc(automation.cronstr)}">${esc(automation.recurrence_description)}</span>`,
       jobs: `<span id="automation-jobs-${automation.id}" title="Recently created jobs, per job status">…</span>`,
       details: `<a href="#" class="btn btn-default btn-success" data-bs-target="#AutomationDetailsModal-${automation.id}" data-bs-toggle="modal">Details</a>
         <div class="modal fade" id="AutomationDetailsModal-${automation.id}" tabindex="-1" role="dialog">
           <div class="modal-dialog modal-lg"><div class="modal-content">
             <div class="modal-header">
-              <h5 class="modal-title">Automation '${automation.name}' (ID: ${automation.id})</h5>
+              <h5 class="modal-title">Automation '${esc(automation.name)}' (ID: ${automation.id})</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="AutomationDetailsBody-${automation.id}">Loading ...</div>
@@ -97,11 +104,11 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
           : "None";
         $(`#AutomationDetailsBody-${automationId}`).html(`
           <h6>Data generator</h6>
-          <p>${generator}</p>
+          <p>${esc(generator)}</p>
           <h6>Parameters</h6>
-          <pre>${JSON.stringify(res.parameters, null, 4)}</pre>
+          <pre>${esc(JSON.stringify(res.parameters, null, 4))}</pre>
           <h6>Recently created jobs</h6>
-          <pre>${JSON.stringify(jobStats, null, 4)}</pre>
+          <pre>${esc(JSON.stringify(jobStats, null, 4))}</pre>
         `);
         if (res.redis_connection_err) {
           $("#automations_err").removeClass("d-none").text(res.redis_connection_err);

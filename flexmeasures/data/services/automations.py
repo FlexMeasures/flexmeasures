@@ -61,9 +61,24 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     """
     from flask import current_app
 
+    # Jobs are cached under the forecast target sensor(s), which may belong
+    # to a different asset than the automation's own asset.
+    sensor_ids = {sensor.id for sensor in automation.asset.sensors}
+    for key in ("sensor", "sensor-to-save"):
+        value = (automation.parameters or {}).get(key)
+        if value is not None:
+            try:
+                sensor_ids.add(int(value))
+            except (TypeError, ValueError):
+                pass
+
     counts: dict[str, int] = {}
-    for sensor in automation.asset.sensors:
-        for job in current_app.job_cache.get(sensor.id, "forecasting", "sensor"):
+    seen_job_ids: set[str] = set()
+    for sensor_id in sensor_ids:
+        for job in current_app.job_cache.get(sensor_id, "forecasting", "sensor"):
+            if job.id in seen_job_ids:
+                continue
+            seen_job_ids.add(job.id)
             if job.meta.get("trigger", {}).get("automation_id") == automation.id:
                 status = str(job.get_status().value)
                 counts[status] = counts.get(status, 0) + 1
@@ -89,5 +104,8 @@ def run_automation(automation: Automation) -> dict[str, Any] | None:
         raise ValueError(
             f"Data source {automation.generator_id} of automation {automation.id} does not store a Forecaster."
         )
+    # The data generator instance is cached on the data source, which may be shared
+    # by several automations, so wipe any parameter state from a previous run.
+    forecaster._parameters = None
     forecaster.set_job_trigger("automation", automation_id=automation.id)
     return forecaster.compute(as_job=True, parameters=dict(automation.parameters))

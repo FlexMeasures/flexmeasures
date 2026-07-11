@@ -7,11 +7,7 @@ from __future__ import annotations
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.mutable import MutableDict
 
-from flexmeasures.auth.policy import (
-    AuthModelMixin,
-    ACCOUNT_ADMIN_ROLE,
-    CONSULTANT_ROLE,
-)
+from flexmeasures.auth.policy import AuthModelMixin
 from flexmeasures.data import db
 from flexmeasures.utils.time_utils import server_now
 
@@ -42,7 +38,7 @@ class Automation(db.Model, AuthModelMixin):
     cronstr = db.Column(db.String(80), nullable=False)
     active = db.Column(db.Boolean, nullable=False, default=True)
     generator_id = db.Column(
-        db.Integer, db.ForeignKey("data_source.id", ondelete="CASCADE"), nullable=True
+        db.Integer, db.ForeignKey("data_source.id", ondelete="SET NULL"), nullable=True
     )
     parameters = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
 
@@ -58,26 +54,16 @@ class Automation(db.Model, AuthModelMixin):
     def __acl__(self):
         """
         Whoever can read the asset can read its automations.
-        Creating, updating and deleting automations is allowed for
-        account admins and consultants.
+        Updating and deleting automations is allowed for whoever can delete
+        the asset (i.e. account admins and consultants).
         """
-        account_id = self.asset.account_id if self.asset is not None else None
-        owner = self.asset.owner if self.asset is not None else None
-        admin_or_consultant = [
-            (f"account:{account_id}", f"role:{ACCOUNT_ADMIN_ROLE}"),
-            (
-                (
-                    f"account:{owner.consultancy_account_id}",
-                    f"role:{CONSULTANT_ROLE}",
-                )
-                if owner is not None
-                else ()
-            ),
-        ]
+        if self.asset is None:
+            return {}
+        asset_acl = self.asset.__acl__()
         return {
-            "read": self.asset.__acl__()["read"] if self.asset is not None else [],
-            "update": admin_or_consultant,
-            "delete": admin_or_consultant,
+            "read": asset_acl["read"],
+            "update": asset_acl["delete"],
+            "delete": asset_acl["delete"],
         }
 
     def __repr__(self):

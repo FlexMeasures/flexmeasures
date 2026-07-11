@@ -104,6 +104,8 @@ def run_automations():
             n_run += 1
         except Exception as e:
             db.session.rollback()
+            # release the guard, so a retry within the same minute can still queue jobs
+            connection.delete(guard_key)
             click.secho(
                 f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {e}",
                 **MsgStyle.ERROR,

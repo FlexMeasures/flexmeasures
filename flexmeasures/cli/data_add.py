@@ -1009,6 +1009,49 @@ def add_holidays(
     )
 
 
+def _assemble_forecaster_config_and_parameters(
+    kwargs: dict,
+    config_file: TextIOBase | None = None,
+    parameters_file: TextIOBase | None = None,
+    edit_config: bool = False,
+    edit_parameters: bool = False,
+) -> tuple[dict, dict]:
+    """Build the forecaster config and (serialized) forecast parameters
+    from optional files, editors and remaining CLI options.
+
+    CLI options matching config schema fields are popped from kwargs into the config;
+    all remaining options become (kebab-cased) parameters. None values are dropped.
+    """
+    config = dict()
+    if config_file:
+        config = yaml.safe_load(config_file)
+    for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
+        field_value = kwargs.pop(field_name, None)
+        if field_value is not None:
+            config[field.data_key] = field_value
+
+    if edit_config:
+        config = launch_editor("/tmp/config.yml")
+
+    parameters = dict()
+    if parameters_file:
+        parameters = yaml.safe_load(parameters_file)
+
+    if edit_parameters:
+        parameters = launch_editor("/tmp/parameters.yml")
+
+    # Move remaining kwargs to parameters, converting from snake_case to kebab-case to match schema expectation
+    for k, v in kwargs.items():
+        kebab_key = snake_to_kebab(k)
+        if kebab_key not in parameters:
+            parameters[kebab_key] = v
+
+    # Drop None values
+    parameters = {k: v for k, v in parameters.items() if v is not None}
+
+    return config, parameters
+
+
 @fm_add_data.command("forecasts")
 @click.option(
     "--resolution",
@@ -1118,30 +1161,9 @@ def add_forecast(  # noqa: C901
         )
     del kwargs["resolution"]
 
-    config = dict()
-
-    if config_file:
-        config = yaml.safe_load(config_file)
-    for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
-        if field_value := kwargs.pop(field_name, None):
-            config[field.data_key] = field_value
-
-    if edit_config:
-        config = launch_editor("/tmp/config.yml")
-
-    parameters = dict()
-
-    if parameters_file:
-        parameters = yaml.safe_load(parameters_file)
-
-    if edit_parameters:
-        parameters = launch_editor("/tmp/parameters.yml")
-
-    # Move remaining kwargs to parameters, converting from snake_case to kebab-case to match schema expectation
-    for k, v in kwargs.items():
-        kebab_key = snake_to_kebab(k)
-        if kebab_key not in parameters:
-            parameters[kebab_key] = v
+    config, parameters = _assemble_forecaster_config_and_parameters(
+        kwargs, config_file, parameters_file, edit_config, edit_parameters
+    )
 
     forecaster = get_data_generator(
         source=source,
@@ -1154,8 +1176,6 @@ def add_forecast(  # noqa: C901
     forecaster.set_job_trigger("CLI")
 
     try:
-        # Drop None values
-        parameters = {k: v for k, v in parameters.items() if v is not None}
         pipeline_returns = forecaster.compute(as_job=as_job, parameters=parameters)
 
         # Empty result
@@ -1277,25 +1297,9 @@ def add_automation(
     Each time the automation runs, forecasting jobs are queued
     (see `flexmeasures jobs run-automations`).
     """
-    config = dict()
-    if config_file:
-        config = yaml.safe_load(config_file)
-    for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
-        if field_value := kwargs.pop(field_name, None):
-            config[field.data_key] = field_value
-
-    parameters = dict()
-    if parameters_file:
-        parameters = yaml.safe_load(parameters_file)
-
-    # Move remaining kwargs to parameters, converting from snake_case to kebab-case to match schema expectation
-    for k, v in kwargs.items():
-        kebab_key = snake_to_kebab(k)
-        if kebab_key not in parameters:
-            parameters[kebab_key] = v
-
-    # Drop None values
-    parameters = {k: v for k, v in parameters.items() if v is not None}
+    config, parameters = _assemble_forecaster_config_and_parameters(
+        kwargs, config_file, parameters_file
+    )
 
     # Validate the parameters using the forecast parameters schema (we store them serialized)
     try:
