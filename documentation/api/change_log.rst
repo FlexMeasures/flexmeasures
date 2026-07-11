@@ -8,6 +8,7 @@ API change log
 v3.0-32 | July XX, 2026
 """"""""""""""""""""""""
 
+- Added ``POST /api/v3_0/assets/<id>/reports/trigger`` to queue a one-off reporting job (to be picked up by a worker processing the ``reporting`` queue), mirroring how forecasts and schedules are triggered. The job status can be polled via ``GET /api/v3_0/jobs/<uuid>``.
 - Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` arrays, each keyed by asset ID. For scheduling jobs, this surfaces soft state-of-charge constraint analysis: ``soc-minima`` and ``soc-maxima`` violations (with a ``violation`` magnitude) or satisfied constraints (with a ``margin`` headroom). Both arrays are empty when no SoC constraints were defined.
 
 v3.0-31 | 2026-06-01

@@ -132,6 +132,31 @@ Automating reports
 Reports can be queued as background jobs (add ``--as-job`` to ``flexmeasures add report``, and let a worker process the ``reporting`` queue, see :ref:`redis-queue`),
 and computed on a recurring basis by an *automation* defined on the asset (see :ref:`automations` for the full concept, including how to manage and run automations).
 
+One-off reporting jobs can also be triggered via the API, mirroring how forecasts and schedules are triggered.
+``POST /api/v3_0/assets/<id>/reports/trigger`` takes the reporter class, its configuration and the report parameters (which must reference at least one output sensor, assumed to belong to the asset or one of its (grand)children):
+
+.. code-block:: json
+
+    {
+        "reporter": "PandasReporter",
+        "config": {
+            "required_input": [{"name": "sensor_1"}, {"name": "sensor_2"}],
+            "required_output": [{"name": "df_agg"}],
+            "transformations": [
+                {"df_input": "sensor_1", "method": "add", "args": ["@sensor_2"], "df_output": "df_agg"},
+                {"method": "resample_events", "args": ["2h"]}
+            ]
+        },
+        "parameters": {
+            "input": [{"name": "sensor_1", "sensor": 1}, {"name": "sensor_2", "sensor": 2}],
+            "output": [{"name": "df_agg", "sensor": 3}],
+            "start": "2023-04-10T00:00:00+00:00",
+            "end": "2023-04-10T10:00:00+00:00"
+        }
+    }
+
+The response contains the id of the queued reporting job, whose status can be polled via the generic job status endpoint (``GET /api/v3_0/jobs/<uuid>``).
+
 The reporter and its configuration are stored on a data source (steady across runs, so all report results attribute to the same source),
 while the report parameters are stored on the automation itself and their timing is resolved freshly on each run:
 

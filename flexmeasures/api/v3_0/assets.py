@@ -56,6 +56,12 @@ from flexmeasures.data.services.automations import (
     update_automation,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
+from flexmeasures.data.models.reporting import Reporter
+from flexmeasures.data.schemas.reporting import (
+    ReporterParametersSchema,
+    ReportTriggerSchema,
+)
+from flexmeasures.data.services.data_sources import get_data_generator
 from flexmeasures.data.queries.generic_assets import (
     filter_assets_under_root,
     query_assets_by_search_terms,
@@ -2047,6 +2053,158 @@ class AssetAPI(FlaskView):
             return unprocessable_entity(str(err))
 
         response = dict(schedule=job.id)
+        d, s = request_processed()
+        return dict(**response, **d), s
+
+    @route("/<id>/reports/trigger", methods=["POST"])
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id")},
+        location="path",
+    )
+    # Simplification of checking for create-children access on each of the output sensors,
+    # which assumes each of the output sensors belongs to the given asset.
+    @permission_required_for_context("create-children", ctx_arg_name="asset")
+    @as_json
+    def trigger_report(self, id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Trigger a one-off reporting job for this asset.
+
+        ---
+        post:
+          summary: Trigger a one-off reporting job for this asset.
+          description: |
+            Trigger FlexMeasures to compute a report as a background job
+            (to be picked up by a worker processing the `reporting` queue),
+            mirroring how forecasts and schedules are triggered.
+
+            In this request, you can describe:
+
+            - the reporter class to use (see the CLI command `flexmeasures show reporters` for the available reporters)
+            - the reporter's configuration (static parameters, stored on the reporter's data source, e.g. the transformations of a `PandasReporter`)
+            - the report parameters (dynamic parameters, such as which `input` data to use, which `output` sensors to save the report to, and the `start` and `end` of the reporting window)
+
+            The asset in the URL path scopes permissions: triggering reports requires
+            `create-children` access to the asset. The report parameters must reference
+            at least one output sensor, which is assumed to belong to the given asset
+            (either directly or indirectly, by being assigned to one of the asset's (grand)children).
+
+            The response contains the id of the queued reporting job,
+            whose status can be polled via [GET /api/v3_0/jobs/(uuid)](#/Jobs/get_api_v3_0_jobs__uuid_).
+            Once the job finishes, the report is saved to the database
+            and can be retrieved from the output sensor(s).
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              $ref: '#/components/parameters/AssetIdPath'
+          requestBody:
+            content:
+              application/json:
+                schema: ReportTriggerSchema
+                examples:
+                  aggregation_report:
+                    summary: Sum two sensors into a report sensor
+                    description: |
+                      This message triggers a `PandasReporter` report that adds up the data
+                      of sensors 1 and 2 and saves the result to sensor 3.
+                    value:
+                      reporter: PandasReporter
+                      config:
+                        required_input:
+                          - name: sensor_1
+                          - name: sensor_2
+                        required_output:
+                          - name: df_agg
+                        transformations:
+                          - df_input: sensor_1
+                            method: add
+                            args: ["@sensor_2"]
+                            df_output: df_agg
+                      parameters:
+                        input:
+                          - name: sensor_1
+                            sensor: 1
+                          - name: sensor_2
+                            sensor: 2
+                        output:
+                          - name: df_agg
+                            sensor: 3
+                        start: "2023-04-10T00:00:00+00:00"
+                        end: "2023-04-10T10:00:00+00:00"
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  schema:
+                    type: object
+                  examples:
+                    successful_response:
+                      description: |
+                        This message indicates that the reporting request has been processed without any error.
+                        A reporting job has been created with some Universally Unique Identifier (UUID),
+                        which will be picked up by a worker.
+                        The given UUID may be used to poll the job status: see [GET /api/v3_0/jobs/(uuid)](#/Jobs/get_api_v3_0_jobs__uuid_).
+                      value:
+                        status: PROCESSED
+                        report: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        message: "Request has been processed."
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        body = request.get_json(silent=True)
+        if not body:
+            return unprocessable_entity("No JSON data provided.")
+        try:
+            report_data = ReportTriggerSchema().load(body)
+        except ValidationError as e:
+            return unprocessable_entity(e.messages)
+        parameters = report_data["parameters"]
+        try:
+            ReporterParametersSchema().load(parameters)
+        except ValidationError as e:
+            return unprocessable_entity({"parameters": e.messages})
+        if not parameters.get("output"):
+            return unprocessable_entity(
+                {"parameters": {"output": ["At least one output sensor is required."]}}
+            )
+        # Guard against referencing sensors outside the caller's reach
+        # (raises Forbidden, answered with 403)
+        _check_automation_sensor_access("reports", parameters, {})
+        try:
+            reporter = get_data_generator(
+                source=None,
+                model=report_data["reporter"],
+                config=report_data["config"],
+                save_config=True,
+                data_generator_type=Reporter,
+            )
+        except ValidationError as e:
+            return unprocessable_entity({"config": e.messages})
+        if reporter is None:
+            return unprocessable_entity(
+                f"Reporter class `{report_data['reporter']}` not available."
+                " Use the CLI command `flexmeasures show reporters` to list all the available reporters."
+            )
+        reporter.set_job_trigger("API")
+        try:
+            returns = reporter.compute(as_job=True, parameters=parameters)
+        except ValidationError as e:
+            return unprocessable_entity({"parameters": e.messages})
+        except ValueError as e:
+            return unprocessable_entity(str(e))
+
+        response = dict(report=returns["job_id"])
         d, s = request_processed()
         return dict(**response, **d), s
 
