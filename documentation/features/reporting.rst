@@ -130,7 +130,7 @@ Automating reports
 --------------------
 
 Reports can be queued as background jobs (add ``--as-job`` to ``flexmeasures add report``, and let a worker process the ``reporting`` queue, see :ref:`redis-queue`),
-and computed on a recurring basis by an *automation* defined on the asset (see :ref:`automating_forecasts` for the full introduction, including how to run automations).
+and computed on a recurring basis by an *automation* defined on the asset (see :ref:`automations` for the full concept, including how to manage and run automations).
 
 The reporter and its configuration are stored on a data source (steady across runs, so all report results attribute to the same source),
 while the report parameters are stored on the automation itself and their timing is resolved freshly on each run:
