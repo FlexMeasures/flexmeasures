@@ -769,6 +769,15 @@ def build_asset_jobs_data(
                 current_app.job_cache.get(sensor.id, "forecasting", "sensor"),
             )
         )
+        jobs.append(
+            (
+                "reporting",
+                "sensor",
+                sensor.id,
+                sensor.name,
+                current_app.job_cache.get(sensor.id, "reporting", "sensor"),
+            )
+        )
 
     jobs_data = list()
     # Building the actual return list - we also unpack lists of jobs, each to its own entry, and we add error info

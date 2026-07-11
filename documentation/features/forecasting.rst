@@ -178,7 +178,7 @@ In `this weather forecast plugin <https://github.com/flexmeasures/flexmeasures-w
 Automating forecasts
 --------------------
 
-Instead of asking for forecasts one at a time, you can set up an *automation*: a recurring task defined on an asset.
+Instead of asking for forecasts one at a time, you can set up an *automation*: a recurring task defined on an asset (see :ref:`automations` for the full concept, including how to manage and run automations).
 On each run, the automation queues forecasting jobs (so make sure a worker is processing the ``forecasting`` queue, see :ref:`redis-queue`).
 When the automation was created, its forecast parameters (see above) were stored, and validated with the same schema that the CLI and API use.
 Timing parameters are resolved on each run — for instance, the forecast start defaults to the time the automation runs, so each run produces fresh forecasts.
@@ -207,4 +207,4 @@ Automations defined on an asset can be viewed on the asset's *Automations* page 
 Account admins and consultants can also create, (de)activate and delete automations right there on the page,
 or through the API (`[POST] /assets/(id)/automations`, `[PATCH] /assets/(id)/automations/(automation_id)` and `[DELETE] /assets/(id)/automations/(automation_id)`).
 
-Schedules can be automated in the same way — see :ref:`automating_schedules`.
+Schedules and reports can be automated in the same way — see :ref:`automating_schedules` and :ref:`automating_reports`.

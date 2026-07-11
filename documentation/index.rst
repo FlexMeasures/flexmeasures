@@ -175,6 +175,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     features/scheduling
     features/forecasting
     features/reporting
+    features/automations
 
 .. toctree::
     :caption: Tutorials

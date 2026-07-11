@@ -40,7 +40,7 @@ of which some are referred to in this documentation.
 ``flexmeasures add annotation``                   Add annotation to accounts, assets and/or sensors.
 ``flexmeasures add toy-account``                  Create a toy account, for tutorials and trying things.
 ``flexmeasures add report``                       Create a report.
-``flexmeasures add automation``                   Add an automation: a recurring task (computing forecasts or schedules) on an asset.
+``flexmeasures add automation``                   Add an automation: a recurring task (computing forecasts, schedules or reports) on an asset.
 ================================================= =======================================
 
 

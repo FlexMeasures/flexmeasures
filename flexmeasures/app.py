@@ -110,7 +110,7 @@ def create(  # noqa C901
         forecasting=Queue(connection=redis_conn, name="forecasting"),
         scheduling=Queue(connection=redis_conn, name="scheduling"),
         ingestion=Queue(connection=redis_conn, name="ingestion"),
-        # reporting=Queue(connection=redis_conn, name="reporting"),
+        reporting=Queue(connection=redis_conn, name="reporting"),
         # labelling=Queue(connection=redis_conn, name="labelling"),
         # alerting=Queue(connection=redis_conn, name="alerting"),
     )
