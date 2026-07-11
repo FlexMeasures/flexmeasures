@@ -8,9 +8,9 @@ import numpy as np
 import pandas as pd
 from darts import TimeSeries
 from darts.dataprocessing.transformers import MissingValuesFiller
-from flexmeasures.data.models.time_series import Sensor
 from timely_beliefs import utils as tb_utils
 
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 
 
@@ -90,11 +90,11 @@ class BasePipeline:
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
         self.future_regressors = [
             f"{sensor.name} (ID: {sensor.id})_FR-{idx}"
-            for idx, sensor in enumerate(future_regressors)
+            for idx, sensor in enumerate(self.future)
         ]
         self.past_regressors = [
             f"{sensor.name} (ID: {sensor.id})_PR-{idx}"
-            for idx, sensor in enumerate(past_regressors)
+            for idx, sensor in enumerate(self.past)
         ]
         self.predict_start = predict_start if predict_start else None
         self.predict_end = predict_end if predict_end else None

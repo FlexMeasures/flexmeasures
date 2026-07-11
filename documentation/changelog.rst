@@ -16,6 +16,7 @@ New features
 * Breaking behaviour change: the top-level flex-context's ``relax-constraints`` field now defaults to ``True`` (matching the default already used within each ``commodities`` entry), so constraint violations are softly penalized by default instead of being hard constraints, unless explicitly set to ``False`` [see `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_]
 * Support for creating new assets by using another asset as a template from the UI. [see `PR #2195 <https://www.github.com/FlexMeasures/flexmeasures/pull/2195>`_ and `PR #2268 <https://www.github.com/FlexMeasures/flexmeasures/pull/2268>`_
 * In the UI, asset and sensor lists can be filtered by ID prefix through API-backed search fields [see `PR #2231 <https://www.github.com/FlexMeasures/flexmeasures/pull/2231>`_]
+* Support configurable lower and upper bounds and snapping for forecast post-processing [see `PR #2273 <https://www.github.com/FlexMeasures/flexmeasures/pull/2273>`_]
 * Floor off-clock API datetimes to a non-instantaneous sensor's resolution by default when ingesting sensor data, uploading sensor data, and handling scheduler flex-model timed events; configurable with the ``floor_datetimes_to_resolution`` sensor attribute [see `PR #2146 <https://www.github.com/FlexMeasures/flexmeasures/pull/2146>`_]
 * Sensor references in flex-model and flex-context support various ways of filtering by source [see `PR #2209 <https://www.github.com/FlexMeasures/flexmeasures/pull/2209>`_]
 * Let storage scheduling infer missing ``power-capacity`` from directional device capacities before falling back to site capacity, and default the missing opposite capacity to zero when only a non-zero ``consumption-capacity`` or ``production-capacity`` is configured [see `PR #2222 <https://www.github.com/FlexMeasures/flexmeasures/pull/2222>`_]
@@ -35,11 +36,13 @@ Infrastructure / Support
 * Document the ``TRUSTED_HOSTS`` setting to safeguard against host poisoning from clients [see `PR #2246 <https://www.github.com/FlexMeasures/flexmeasures/pull/2246>`_]
 * Document the various ways to inspect a (scheduling) job [see `PR #2247 <https://www.github.com/FlexMeasures/flexmeasures/pull/2247>`_]
 * Automate Docker Hub image publishing and a PyPI install smoke test on release, add a manually-triggered QA workflow that runs the toy tutorials and HEMS walkthrough against a local Docker Compose stack, and add a helper script to list merged PRs since the last tag [see `PR #2260 <https://www.github.com/FlexMeasures/flexmeasures/pull/2260>`_]
+* Make toy tutorials robust against pre-existing IDs [see `PR #2269 <https://www.github.com/FlexMeasures/flexmeasures/pull/2269>`_]
 
 Bugfixes
 -----------
 * Let storage scheduling treat missing constant SoC bounds as unconstrained lower or upper bounds [see `PR #2221 <https://www.github.com/FlexMeasures/flexmeasures/pull/2221>`_]
 * Allow root assets belonging to different accounts to share the same name, while keeping asset names unique among root assets within the same account and among children of the same parent [see `PR #2226 <https://www.github.com/FlexMeasures/flexmeasures/pull/2226>`_]
+* Fix queued train-predict forecasting jobs losing their resolved forecast window or failing on detached database objects in workers [see `PR #2035 <https://www.github.com/FlexMeasures/flexmeasures/pull/2035>`_]
 
 
 v0.33.1 | July 1, 2026
