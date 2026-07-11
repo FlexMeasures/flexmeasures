@@ -245,6 +245,19 @@ class AssetCrudUI(FlaskView):
         )
 
     @login_required
+    @route("/<id>/automations")
+    def automations(self, id: str):
+        """GET from /assets/<id>/automations to show the automations defined on the asset."""
+        asset = get_asset_by_id_or_raise_notfound(id)
+        check_access(asset, "read")
+
+        return render_flexmeasures_template(
+            "assets/asset_automations.html",
+            asset=asset,
+            current_page="Automations",
+        )
+
+    @login_required
     def post(self, id: str):  # noqa: C901
         """
         Either "create" a new asset from POST data.

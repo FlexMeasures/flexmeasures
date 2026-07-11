@@ -47,6 +47,11 @@ def get_breadcrumb_info(
                     "name": "Status",
                     "type": "Asset",
                 },
+                {
+                    "url": url_for("AssetCrudUI:automations", id=entity.id),
+                    "name": "Automations",
+                    "type": "Asset",
+                },
             ]
 
         except Exception as e:
