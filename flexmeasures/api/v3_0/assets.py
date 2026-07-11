@@ -1175,7 +1175,7 @@ class AssetAPI(FlaskView):
                             type: forecasts
                             name: Day-ahead PV forecasts
                             cronstr: "0 6 * * *"
-                            recurrence_description: "At 06:00 AM"
+                            recurrence_description: "At 06:00"
                             active: true
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
@@ -1252,7 +1252,7 @@ class AssetAPI(FlaskView):
                         type: forecasts
                         name: Day-ahead PV forecasts
                         cronstr: "0 6 * * *"
-                        recurrence_description: "At 06:00 AM"
+                        recurrence_description: "At 06:00"
                         active: true
                         parameters:
                           sensor: 2092

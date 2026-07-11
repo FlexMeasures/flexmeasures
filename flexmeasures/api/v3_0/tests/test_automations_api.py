@@ -78,7 +78,7 @@ def test_get_automations(
     day_ahead = next(a for a in automations if a["name"] == "Day-ahead forecasts")
     assert day_ahead["type"] == "forecasts"
     assert day_ahead["cronstr"] == "0 6 * * *"
-    assert day_ahead["recurrence_description"] == "At 06:00 AM"
+    assert day_ahead["recurrence_description"] == "At 06:00"
     assert day_ahead["active"] is True
     assert day_ahead["created_at"] is not None
     # generator and parameters are not listed

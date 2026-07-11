@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from cron_descriptor import get_description
+from cron_descriptor import get_description, Options
 from croniter import croniter
 from sqlalchemy import select
 
@@ -18,9 +18,15 @@ from flexmeasures.utils.time_utils import get_timezone, server_now
 
 
 def describe_cronstr(cronstr: str) -> str:
-    """Describe a cron string in natural language, e.g. "At 06:00 AM"."""
+    """Describe a cron string in natural language, e.g. "At 06:00".
+
+    Explicitly renders times in 24-hour format, as cron-descriptor otherwise
+    picks a format based on the system locale.
+    """
+    options = Options()
+    options.use_24hour_time_format = True
     try:
-        return get_description(cronstr)
+        return get_description(cronstr, options)
     except Exception:
         return cronstr
 

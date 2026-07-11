@@ -3136,7 +3136,7 @@
                       "type": "forecasts",
                       "name": "Day-ahead PV forecasts",
                       "cronstr": "0 6 <em> </em> *",
-                      "recurrence_description": "At 06:00 AM",
+                      "recurrence_description": "At 06:00",
                       "active": true,
                       "parameters": {
                         "sensor": 2092
@@ -3214,7 +3214,7 @@
                           "type": "forecasts",
                           "name": "Day-ahead PV forecasts",
                           "cronstr": "0 6 <em> </em> *",
-                          "recurrence_description": "At 06:00 AM",
+                          "recurrence_description": "At 06:00",
                           "active": true
                         }
                       ]
