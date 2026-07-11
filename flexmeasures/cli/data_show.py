@@ -858,6 +858,56 @@ def list_reporters():
         list_data_generators("reporter")
 
 
+@fm_show_data.command("report-templates")
+@with_appcontext
+@click.option(
+    "--name",
+    "name",
+    required=False,
+    type=click.STRING,
+    help="Print the full YAML of the template with this name (e.g. to pipe it to a file).",
+)
+def show_report_templates(name: str | None = None):
+    """
+    Show prepared report templates: ready-made report definitions to start from.
+
+    Fill in your own sensors (replacing the FILL_IN placeholders) and pass a template
+    to `flexmeasures add report` or `flexmeasures add automation --type reports`
+    using the --template option.
+    """
+    from flexmeasures.data.services.report_templates import (
+        get_report_template_text,
+        list_report_templates,
+    )
+
+    if name is not None:
+        template_text = get_report_template_text(name)
+        if template_text is None:
+            click.secho(
+                f"Unknown report template '{name}'."
+                " Use `flexmeasures show report-templates` to list the available templates.",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
+        click.echo(template_text)
+        return
+
+    click.echo("Prepared report templates:\n")
+    click.echo(
+        tabulate(
+            [
+                (template["name"], template["reporter"], template["description"])
+                for template in list_report_templates()
+            ],
+            headers=["Name", "Reporter", "Description"],
+        )
+    )
+    click.echo(
+        "\nUse `flexmeasures show report-templates --name <name>` to print a template in full,"
+        "\nor pass `--template <name>` to `flexmeasures add report` or `flexmeasures add automation --type reports`."
+    )
+
+
 @fm_show_data.command("schedulers")
 @with_appcontext
 def list_schedulers():

@@ -147,3 +147,51 @@ For example, this automation computes a report over each past day, every morning
 
     flexmeasures add automation --asset 3 --name "Daily aggregation report" --cron "0 1 * * *" --type reports \
       --reporter PandasReporter --config reporter-config.yml --parameters report-parameters.yml
+
+
+.. _report_templates:
+
+Report templates
+--------------------
+
+FlexMeasures ships with prepared report templates: ready-made report definitions (a reporter class, a complete reporter config and a parameters skeleton),
+so you don't have to author a report definition from scratch. List them with:
+
+.. code-block:: bash
+
+    $ flexmeasures show report-templates
+
+    Name              Reporter              Description
+    ----------------  --------------------  ---------------------------------------------------------------------------------------------------------------
+    energy-costs      ProfitOrLossReporter  Energy costs over the reporting window, from a power/energy sensor and a consumption price sensor (costs are positive).
+    self-consumption  PandasReporter        Share of produced energy consumed on-site, from a production and a consumption sensor.
+
+Print a template in full (e.g. to pipe it to a file and edit it):
+
+.. code-block:: bash
+
+    $ flexmeasures show report-templates --name self-consumption > self-consumption.yml
+
+In a template's parameters skeleton, you fill in your own sensors by replacing the ``FILL_IN`` placeholders
+(a clear validation error points out any placeholders you left unfilled).
+The templates also recommend a rolling reporting window (``start-offset``/``end-offset`` fields, reporting on the previous day), for recurring use.
+
+You can pass a template directly to ``flexmeasures add report`` or ``flexmeasures add automation --type reports`` with the ``--template`` option.
+The template then acts as defaults: an explicitly given ``--reporter`` and any top-level keys in your ``--config``/``--parameters`` files override it,
+and if you provide any timing fields yourself (``start``/``end``/offsets, in the parameters or as CLI options), the template's recommended timing fields are dropped.
+For example, this sets up a daily self-consumption report in which only the sensors needed to be filled in:
+
+.. code-block:: bash
+
+    $ echo "
+      input:
+        - name: production
+          sensor: 1
+        - name: consumption
+          sensor: 2
+      output:
+        - name: self-consumption
+          sensor: 3
+      " > parameters.yml
+    $ flexmeasures add automation --asset 3 --name "Daily self-consumption report" \
+        --cron "0 1 * * *" --type reports --template self-consumption --parameters parameters.yml

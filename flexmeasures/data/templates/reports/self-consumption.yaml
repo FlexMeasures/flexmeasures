@@ -1,0 +1,53 @@
+# Prepared report template: self-consumption.
+#
+# Computes the share of produced energy that is consumed on-site,
+# using the PandasReporter with a production and a consumption sensor.
+# Replace each FILL_IN placeholder with one of your own sensor IDs.
+name: self-consumption
+description: Share of produced energy consumed on-site, from a production and a consumption sensor.
+reporter: PandasReporter
+config:
+  required_input:
+    # The production and consumption sensors should record positive values in the same unit.
+    - name: production
+    - name: consumption
+  required_output:
+    - name: self-consumption
+  transformations:
+    # Production consumed on-site: the elementwise minimum of production and consumption.
+    - df_input: production
+      df_output: self-consumption
+      method: clip
+      kwargs:
+        upper: "@consumption"
+    # Average both over the reporting periods
+    # (edit "1D" to match the event resolution of your output sensor).
+    - method: resample_events
+      args: ["1D"]
+      df_output: self-consumption
+    - df_input: production
+      df_output: total-production
+      method: resample_events
+      args: ["1D"]
+    # The share of production consumed on-site: a fraction between 0 and 1.
+    - df_input: self-consumption
+      df_output: self-consumption
+      method: div
+      args: ["@total-production"]
+parameters:
+  input:
+    # The sensor recording produced power/energy (positive values).
+    - name: production
+      sensor: FILL_IN
+    # The sensor recording consumed power/energy (positive values).
+    - name: consumption
+      sensor: FILL_IN
+  output:
+    # The sensor to store the report (a dimensionless fraction between 0 and 1).
+    - name: self-consumption
+      sensor: FILL_IN
+  # Rolling reporting window, recommended for recurring use (e.g. in an automation):
+  # each run reports on the previous day. Replace with fixed "start" and "end"
+  # datetimes for a one-off report.
+  start-offset: -1D,DB
+  end-offset: DB
