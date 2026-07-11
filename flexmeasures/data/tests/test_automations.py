@@ -44,3 +44,8 @@ def test_run_schedule_automation(
         "origin": "automation",
         "automation_id": automation.id,
     }
+
+    # trigger provenance must not affect job identity: the same schedule request
+    # from another origin dedupes onto the same job (via the job cache)
+    returns_2 = run_automation(automation)
+    assert returns_2["job_id"] == returns["job_id"]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from flask import url_for
+from sqlalchemy import select
 
 from flexmeasures.data.models.automations import Automation
 
@@ -191,6 +192,55 @@ def test_post_automation(
         # clean up for other tests in this module
         db.session.delete(automation)
         db.session.flush()
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_post_automation_with_foreign_sensor(
+    app,
+    db,
+    setup_accounts,
+    add_battery_assets,
+    requesting_user,
+):
+    """Referencing a sensor outside the caller's reach is forbidden."""
+    from datetime import timedelta
+
+    from flexmeasures.data.models.generic_assets import GenericAsset
+    from flexmeasures.data.models.time_series import Sensor
+
+    battery = add_battery_assets["Test battery"]
+    foreign_asset = GenericAsset(
+        name="Foreign asset",
+        generic_asset_type=battery.generic_asset_type,
+        owner=setup_accounts["Dummy"],
+    )
+    foreign_sensor = Sensor(
+        "foreign power",
+        generic_asset=foreign_asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add(foreign_sensor)
+    db.session.flush()
+    with app.test_client() as client:
+        response = client.post(
+            url_for("AssetAPI:post_automation", id=battery.id),
+            json={
+                "name": "Sneaky forecasts",
+                "cronstr": "0 6 * * *",
+                "type": "forecasts",
+                "parameters": {"sensor": foreign_sensor.id},
+            },
+        )
+    assert response.status_code == 403
+    assert (
+        db.session.execute(
+            select(Automation).filter_by(name="Sneaky forecasts")
+        ).scalar_one_or_none()
+        is None
+    )
 
 
 @pytest.mark.parametrize(

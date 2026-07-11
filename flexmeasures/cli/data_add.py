@@ -1684,6 +1684,13 @@ def add_report(  # noqa: C901
             **MsgStyle.ERROR,
         )
         raise click.Abort()
+    if as_job and not save_config:
+        # the worker rebuilds the reporter from its data source, so the config must be stored there
+        click.secho(
+            "Saving the reporter config to its data source (required for --as-job).",
+            **MsgStyle.WARN,
+        )
+        save_config = True
 
     config = dict()
 
