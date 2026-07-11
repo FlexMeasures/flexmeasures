@@ -40,6 +40,7 @@ of which some are referred to in this documentation.
 ``flexmeasures add annotation``                   Add annotation to accounts, assets and/or sensors.
 ``flexmeasures add toy-account``                  Create a toy account, for tutorials and trying things.
 ``flexmeasures add report``                       Create a report.
+``flexmeasures add automation``                   Add an automation: a recurring task (for now, computing forecasts) on an asset.
 ================================================= =======================================
 
 
@@ -72,6 +73,7 @@ of which some are referred to in this documentation.
 ``flexmeasures edit resample-data``               Assign a new event resolution to an existing sensor and resample its data accordingly.
 ``flexmeasures edit transfer-parenthood``         (Re)assign parent assets.
 ``flexmeasures edit transfer-ownership``          Transfer the ownership of an asset and its children to a different account.
+``flexmeasures edit automation``                  Edit the name, recurrence or activation status of an automation.
 ================================================= =======================================
 
 ``delete`` - Delete data
@@ -90,6 +92,7 @@ of which some are referred to in this documentation.
 ``flexmeasures delete prognoses``                 Delete forecasts and schedules (forecasts > 0).
 ``flexmeasures delete unchanged-beliefs``         Delete unchanged beliefs.
 ``flexmeasures delete nan-beliefs``               Delete NaN beliefs.
+``flexmeasures delete automation``                Delete an automation.
 ================================================= =======================================
 
 
@@ -114,6 +117,7 @@ of which some are referred to in this documentation.
 ``flexmeasures jobs run-job``                     Run a single job (useful for debugging it)
 ``flexmeasures jobs inspect-job``                 Inspect a background job and print its current status, result and metadata.
 ``flexmeasures jobs stats``                       Show estimated live statistics of the queueing system.
+``flexmeasures jobs run-automations``             Queue jobs for all automations that are due to run this minute (run this once per minute, e.g. via cron).
 ================================================= =======================================
 
 

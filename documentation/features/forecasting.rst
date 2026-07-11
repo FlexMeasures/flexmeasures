@@ -171,3 +171,36 @@ If you want to take regressors into account, in addition to merely past measurem
 
 Including regressors can significantly improve forecasting accuracy, especially when they are highly correlated with the target variable. For example, using irradiation forecasts as regressors can substantially improve solar production predictions.
 In `this weather forecast plugin <https://github.com/flexmeasures/flexmeasures-weather>`_, we enable you to collect regressor data for ``["temperature", "wind speed", "cloud cover", "irradiance"]``, at a location you select.
+
+
+.. _automating_forecasts:
+
+Automating forecasts
+--------------------
+
+Instead of asking for forecasts one at a time, you can set up an *automation*: a recurring task defined on an asset.
+On each run, the automation queues forecasting jobs (so make sure a worker is processing the ``forecasting`` queue, see :ref:`redis-queue`).
+When the automation was created, its forecast parameters (see above) were stored, and validated with the same schema that the CLI and API use.
+Timing parameters are resolved on each run — for instance, the forecast start defaults to the time the automation runs, so each run produces fresh forecasts.
+
+Here is how you create an automation in the CLI, asking for daily (at 6 AM) forecasts of sensor 12:
+
+.. code-block:: bash
+
+    flexmeasures add automation --asset 3 --name "Daily PV forecasts" --cron "0 6 * * *" --sensor 12
+
+The recurrence is defined by a cron string (interpreted in the ``FLEXMEASURES_TIMEZONE``).
+Automations are active by default (use ``--inactive`` to create them in deactivated state).
+Use ``flexmeasures edit automation`` to rename, re-schedule (``--cron``), activate or deactivate an automation, and ``flexmeasures delete automation`` to remove one.
+These changes are recorded in the asset's audit log.
+
+For automations to actually run, let a cron job execute the following command once per minute:
+
+.. code-block:: bash
+
+    * * * * * flexmeasures jobs run-automations
+
+Each due automation then queues its forecasting jobs.
+The jobs record how they were created, which is shown on the asset's status page (UI), where recent jobs are listed.
+
+Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html>`_.
