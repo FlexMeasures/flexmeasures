@@ -2178,6 +2178,9 @@ class AssetAPI(FlaskView):
             return unprocessable_entity(
                 {"parameters": {"output": ["At least one output sensor is required."]}}
             )
+        # Guard against referencing sensors outside the caller's reach
+        # (raises Forbidden, answered with 403)
+        _check_automation_sensor_access("reports", parameters, {})
         try:
             reporter = get_data_generator(
                 source=None,
