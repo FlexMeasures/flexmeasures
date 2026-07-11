@@ -117,7 +117,7 @@ of which some are referred to in this documentation.
 ``flexmeasures jobs run-job``                     Run a single job (useful for debugging it)
 ``flexmeasures jobs inspect-job``                 Inspect a background job and print its current status, result and metadata.
 ``flexmeasures jobs stats``                       Show estimated live statistics of the queueing system.
-``flexmeasures jobs run-automations``             Queue jobs for all automations that are due to run this minute (run this once per minute, e.g. via cron).
+``flexmeasures jobs run-automations``             Queue jobs for all automations that are due to run this minute (run this once per minute, e.g. via cron), catching up on missed minutes.
 ================================================= =======================================
 
 

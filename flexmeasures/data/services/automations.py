@@ -4,7 +4,7 @@ Logic for running automations (see also the CLI command `flexmeasures jobs run-a
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from cron_descriptor import get_description, Options
@@ -44,14 +44,36 @@ def get_due_automations(now: datetime | None = None) -> list[Automation]:
     if now is None:
         now = server_now()
     now = floor_to_minute(now)
+    return [automation for automation, _ in get_due_automations_in_window(now, now)]
+
+
+def get_due_automations_in_window(
+    start: datetime, end: datetime
+) -> list[tuple[Automation, list[datetime]]]:
+    """Return active automations due at any minute from start through end (both inclusive),
+    together with the minutes at which they are due.
+
+    Each automation is listed at most once, even if its cron string matches several
+    minutes within the window (callers are expected to run it only once per invocation).
+    Cron strings are interpreted in the FLEXMEASURES_TIMEZONE.
+    """
+    start = floor_to_minute(start)
+    end = floor_to_minute(end)
     active_automations = (
         db.session.scalars(select(Automation).filter_by(active=True)).unique().all()
     )
-    return [
-        automation
-        for automation in active_automations
-        if croniter.match(automation.cronstr, now)
-    ]
+    results = []
+    for automation in active_automations:
+        due_minutes = []
+        minute = start
+        while minute <= end:
+            if croniter.match(automation.cronstr, minute):
+                due_minutes.append(minute)
+            # floor again so DST transitions are handled correctly
+            minute = floor_to_minute(minute + timedelta(minutes=1))
+        if due_minutes:
+            results.append((automation, due_minutes))
+    return results
 
 
 def get_automation_job_stats(automation: Automation) -> dict[str, int]:

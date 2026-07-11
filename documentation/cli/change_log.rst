@@ -11,6 +11,7 @@ since v1.0.0 | July XX, 2026
 * Add ``flexmeasures delete secret`` to remove an encrypted secret from an account or asset.
 * Add ``flexmeasures add automation``, ``flexmeasures edit automation`` and ``flexmeasures delete automation`` to manage automations (recurring tasks on an asset; for now, computing forecasts).
 * Add ``flexmeasures jobs run-automations`` to queue jobs for all automations that are due to run this minute (run this once per minute, e.g. via cron).
+* Let ``flexmeasures jobs run-automations`` catch up on minutes missed by previous invocations (e.g. due to host downtime), bounded by a new ``--max-catchup`` option (60 minutes by default); an automation due in several missed minutes still runs only once per invocation.
 
 since v0.33.0 | June 01, 2026
 =================================

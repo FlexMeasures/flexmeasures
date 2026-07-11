@@ -203,4 +203,10 @@ For automations to actually run, let a cron job execute the following command on
 Each due automation then queues its forecasting jobs.
 The jobs record how they were created, which is shown on the asset's status page (UI), where recent jobs are listed.
 
+The runner remembers (in Redis) the last minute it processed.
+If your cron job misses some minutes (e.g. due to host downtime or overload), the next invocation catches up:
+it also matches automations against the missed minutes, up to a maximum catch-up window (``--max-catchup``, 60 minutes by default; set it to 0 to disable catching up).
+An automation that was due in several missed minutes still runs only *once per invocation* — its timing parameters (such as the forecast start) are resolved against the current time, so queueing multiple identical jobs would be wasteful.
+Minutes missed for longer than the catch-up window are skipped.
+
 Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html>`_.

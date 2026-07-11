@@ -34,7 +34,7 @@ from flexmeasures.data import db
 from flexmeasures.data.schemas import AssetIdField, SensorIdField
 from flexmeasures.data.services.automations import (
     floor_to_minute,
-    get_due_automations,
+    get_due_automations_in_window,
     run_automation,
 )
 from flexmeasures.data.services.scheduling import handle_scheduling_exception
@@ -61,9 +61,22 @@ def fm_jobs():
     """FlexMeasures: Job queueing."""
 
 
+LAST_TICK_KEY = "automation-runner:last-tick"
+
+
 @fm_jobs.command("run-automations")
 @with_appcontext
-def run_automations():
+@click.option(
+    "--max-catchup",
+    "max_catchup",
+    type=click.IntRange(min=0),
+    default=60,
+    show_default=True,
+    help="Maximum catch-up window, in minutes. If previous invocations missed some minutes"
+    " (e.g. due to host downtime), also process those missed minutes, up to this many"
+    " minutes back. Set to 0 to disable catching up.",
+)
+def run_automations(max_catchup: int):
     """
     Queue jobs for all automations that are due to run this minute.
 
@@ -73,28 +86,69 @@ def run_automations():
     \b
         * * * * * flexmeasures jobs run-automations
 
+    The runner remembers (in Redis) the last minute it processed. If some minutes were
+    missed since then (e.g. due to host downtime or overload), it catches up by also
+    matching automations against the missed minutes, up to --max-catchup minutes back.
+    An automation that was due in several missed minutes still runs only once per
+    invocation, as its (time-related) parameters are resolved against the current time,
+    so queueing multiple identical jobs would be wasteful.
+
     A Redis-based guard prevents queueing jobs twice if the command happens to run
-    more than once within the same minute.
+    more than once within the same minute (or over overlapping catch-up windows).
     """
     now = floor_to_minute(server_now())
-    due_automations = get_due_automations(now)
+    connection = app.queues["forecasting"].connection
+
+    # Determine the window of minutes to process: from just after the last processed
+    # minute (bounded by the maximum catch-up window) through the current minute.
+    start = now
+    if max_catchup > 0:
+        last_tick = connection.get(LAST_TICK_KEY)
+        if last_tick is not None:
+            if isinstance(last_tick, bytes):
+                last_tick = last_tick.decode()
+            start = max(
+                datetime.fromisoformat(last_tick) + timedelta(minutes=1),
+                now - timedelta(minutes=max_catchup),
+            )
+            # always process the current minute, even if the last tick lies in the future
+            start = min(floor_to_minute(start), now)
+    if start < now:
+        click.secho(
+            f"Catching up on missed minutes: processing {start} through {now}.",
+            **MsgStyle.WARN,
+        )
+
+    due_automations = get_due_automations_in_window(start, now)
     if not due_automations:
         click.secho(f"No automations due at {now}.", **MsgStyle.SUCCESS)
+        connection.set(LAST_TICK_KEY, now.isoformat())
         return
 
-    connection = app.queues["forecasting"].connection
     n_run = 0
     n_failed = 0
-    for automation in due_automations:
-        # guard against running the same automation twice within the same minute
-        guard_key = f"automation-run:{automation.id}:{now.isoformat()}"
-        if not connection.set(guard_key, 1, nx=True, ex=120):
+    for automation, due_minutes in due_automations:
+        # Guard against running the same automation twice for the same minute
+        # (by concurrent invocations, or by invocations with overlapping catch-up windows).
+        guard_keys = [
+            f"automation-run:{automation.id}:{minute.isoformat()}"
+            for minute in due_minutes
+        ]
+        acquired_keys = [
+            guard_key
+            for guard_key in guard_keys
+            if connection.set(guard_key, 1, nx=True, ex=120)
+        ]
+        if not acquired_keys:
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') already ran at {now}. Skipping.",
+                f"Automation {automation.id} ('{automation.name}') already ran at {due_minutes[-1]}. Skipping.",
                 **MsgStyle.WARN,
             )
             continue
         try:
+            # Even if the automation was due in several minutes within the window,
+            # we run it only once: its (time-related) parameters are resolved against
+            # the current time, so queueing multiple identical jobs would be wasteful.
             returns = run_automation(automation)
             n_jobs = returns.get("n_jobs") if returns else 0
             click.secho(
@@ -104,13 +158,16 @@ def run_automations():
             n_run += 1
         except Exception as e:
             db.session.rollback()
-            # release the guard, so a retry within the same minute can still queue jobs
-            connection.delete(guard_key)
+            # release the guards, so a retry can still queue jobs
+            connection.delete(*acquired_keys)
             click.secho(
                 f"Automation {automation.id} ('{automation.name}') failed to queue jobs: {e}",
                 **MsgStyle.ERROR,
             )
             n_failed += 1
+    # Remember the last minute we processed, so the next invocation can catch up
+    # in case it misses some minutes.
+    connection.set(LAST_TICK_KEY, now.isoformat())
     if n_failed:
         click.secho(f"{n_run} automation(s) ran, {n_failed} failed.", **MsgStyle.ERROR)
         raise click.exceptions.Exit(1)
