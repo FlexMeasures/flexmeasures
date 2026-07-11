@@ -97,9 +97,11 @@ def run_automations():
         try:
             returns = run_automation(automation)
             n_jobs = returns.get("n_jobs") if returns else 0
-            queue_name = {"forecasts": "forecasting", "schedules": "scheduling"}.get(
-                automation.type, automation.type
-            )
+            queue_name = {
+                "forecasts": "forecasting",
+                "schedules": "scheduling",
+                "reports": "reporting",
+            }.get(automation.type, automation.type)
             click.secho(
                 f"Automation {automation.id} ('{automation.name}') queued {n_jobs} {queue_name} job(s) for asset {automation.asset_id}.",
                 **MsgStyle.SUCCESS,
@@ -420,7 +422,7 @@ def inspect_job(job_id: str):
     "--queue",
     default=None,
     required=True,
-    help="State which queue(s) to work on (using '|' as separator), e.g. 'forecasting', 'scheduling', 'ingestion' or 'forecasting|scheduling'.",
+    help="State which queue(s) to work on (using '|' as separator), e.g. 'forecasting', 'scheduling', 'ingestion', 'reporting' or 'forecasting|scheduling'.",
 )
 @click.option(
     "--name",
@@ -439,7 +441,7 @@ def inspect_job(job_id: str):
 )
 def run_worker(queue: str, name: str | None, with_scheduler: bool):
     """
-    Start a worker process for forecasting, scheduling and/or ingestion jobs.
+    Start a worker process for forecasting, scheduling, ingestion and/or reporting jobs.
 
     We use the app context to find out which redis queues to use.
     """

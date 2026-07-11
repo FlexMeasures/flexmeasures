@@ -233,6 +233,7 @@ def depopulate_prognoses(
     if not sensor:
         num_forecasting_jobs_deleted = app.queues["forecasting"].empty()
         num_scheduling_jobs_deleted = app.queues["scheduling"].empty()
+        num_reporting_jobs_deleted = app.queues["reporting"].empty()
 
     # Clear all forecasts (data with positive horizon)
     query = delete(TimedBelief).filter(TimedBelief.belief_horizon > timedelta(hours=0))
@@ -245,6 +246,7 @@ def depopulate_prognoses(
     if not sensor:
         click.echo("Deleted %d Forecast Jobs" % num_forecasting_jobs_deleted)
         click.echo("Deleted %d Schedule Jobs" % num_scheduling_jobs_deleted)
+        click.echo("Deleted %d Report Jobs" % num_reporting_jobs_deleted)
     click.echo("Deleted %d forecasts (ex-ante beliefs)" % num_forecasts_deleted)
 
 
