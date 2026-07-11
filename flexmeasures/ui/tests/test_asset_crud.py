@@ -40,6 +40,7 @@ def test_new_asset_page(client, setup_assets, as_admin):
         "graphs",
         "properties",
         "auditlog",
+        "automations",
     ],
 )
 def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
@@ -57,6 +58,9 @@ def test_asset_page(db, client, setup_assets, as_prosumer_user1, view):
         follow_redirects=True,
     )
     assert asset_page.status_code == 200
+    if view == "automations":
+        assert "Automations of".encode() in asset_page.data
+        assert "Forecasts".encode() in asset_page.data
     if view in ("get", "context"):
         assert "Show sensors".encode() in asset_page.data
         assert "Edit flex-context".encode() in asset_page.data
