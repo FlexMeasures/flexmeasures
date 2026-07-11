@@ -22,6 +22,7 @@ import sqlalchemy as sa
 from flexmeasures.data import db
 from flexmeasures import Sensor, Account, Asset
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.data_sources import DataSource, DEFAULT_DATASOURCE_TYPES
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.schemas.generic_assets import SensorsToShowSchema
@@ -787,6 +788,17 @@ def build_asset_jobs_data(
                 else None
             )
 
+            # Show how the job was created (e.g. via the CLI, the API or an automation)
+            trigger = job.meta.get("trigger", {})
+            created_via = trigger.get("origin", "")
+            if trigger.get("automation_id") is not None:
+                automation = db.session.get(Automation, trigger["automation_id"])
+                created_via = (
+                    f"automation '{automation.name}' ({automation.id})"
+                    if automation is not None
+                    else f"automation {trigger['automation_id']} (deleted)"
+                )
+
             metadata = json.dumps({**job.meta, "job_id": job.id}, default=str, indent=4)
             jobs_data.append(
                 {
@@ -798,6 +810,7 @@ def build_asset_jobs_data(
                     "status": job.get_status(),
                     "err": job_err,
                     "enqueued_at": job.enqueued_at,
+                    "created_via": created_via,
                     "metadata_hash": hashlib.sha256(metadata.encode()).hexdigest(),
                 }
             )

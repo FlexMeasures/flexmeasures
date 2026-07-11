@@ -414,6 +414,8 @@ class TrainPredictPipeline(Forecaster):
                 "end": self._parameters["end_date"].isoformat(),
                 "sensor_id": sensor_to_save_id,
             }
+            if self._job_trigger:
+                job_metadata["trigger"] = self._job_trigger
             for cycle_params in cycles_job_params:
                 job_kwargs = {
                     "config": job_config,
