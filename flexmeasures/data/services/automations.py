@@ -84,8 +84,44 @@ def prepare_schedule_trigger_message(parameters: dict, asset_id: int) -> dict:
     return message
 
 
+def _last_run_redis_key(automation_id: int) -> str:
+    return f"automation-last-run:{automation_id}"
+
+
+def record_automation_run(automation: Automation, now: datetime | None = None):
+    """Remember (in Redis) when this automation last ran.
+
+    This is used to anchor default report windows to the actual last run.
+    """
+    from flask import current_app
+
+    if now is None:
+        now = server_now()
+    current_app.redis_connection.set(
+        _last_run_redis_key(automation.id), floor_to_minute(now).isoformat()
+    )
+
+
+def get_automation_last_run(automation_id: int) -> datetime | None:
+    """When this automation last ran, if known (the record lives in Redis)."""
+    from flask import current_app
+
+    value = current_app.redis_connection.get(_last_run_redis_key(automation_id))
+    if not value:
+        return None
+    if isinstance(value, bytes):
+        value = value.decode()
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
 def prepare_report_parameters(
-    parameters: dict, cronstr: str, now: datetime | None = None
+    parameters: dict,
+    cronstr: str,
+    now: datetime | None = None,
+    automation_id: int | None = None,
 ) -> dict:
     """Complete stored report parameters into a message for the ReporterParametersSchema.
 
@@ -94,8 +130,9 @@ def prepare_report_parameters(
     - "start-offset" and "end-offset" fields hold comma-separated Pandas offsets
       (e.g. "-1D,DB" for the start of the previous day), applied to the run time
       (or to the given absolute start/end), in the timezone of the first output sensor.
-    - Without offsets or absolutes, the window defaults to the last cron period:
-      from the previous cron fire time until the run time.
+    - Without offsets or absolutes, the window runs since the automation's actual
+      last run, falling back to the last cron period (from the previous cron fire
+      time until the run time) when no last run is known (e.g. on the first run).
     """
     message = dict(parameters)
     if now is None:
@@ -136,9 +173,15 @@ def prepare_report_parameters(
             end if end is not None else pd.Timestamp(now), end_offset
         )
 
-    # Default to the last cron period: from the previous cron fire time until the run time
+    # Default to the window since the actual last run, falling back to the last
+    # cron period (from the previous cron fire time until the run time)
     if start is None:
-        start = croniter(cronstr, now).get_prev(datetime)
+        last_run = (
+            get_automation_last_run(automation_id)
+            if automation_id is not None
+            else None
+        )
+        start = last_run or croniter(cronstr, now).get_prev(datetime)
     if end is None:
         end = now
 
@@ -378,14 +421,17 @@ def run_automation(automation: Automation) -> dict[str, Any] | None:
     :returns: a dict like {"job_id": <uuid>, "n_jobs": <int>}.
     """
     if automation.type == "forecasts":
-        return _run_forecast_automation(automation)
+        returns = _run_forecast_automation(automation)
     elif automation.type == "schedules":
-        return _run_schedule_automation(automation)
+        returns = _run_schedule_automation(automation)
     elif automation.type == "reports":
-        return _run_report_automation(automation)
-    raise NotImplementedError(
-        f"Automations of type '{automation.type}' cannot be run yet."
-    )
+        returns = _run_report_automation(automation)
+    else:
+        raise NotImplementedError(
+            f"Automations of type '{automation.type}' cannot be run yet."
+        )
+    record_automation_run(automation)
+    return returns
 
 
 def _run_forecast_automation(automation: Automation) -> dict[str, Any] | None:
@@ -420,7 +466,7 @@ def _run_report_automation(automation: Automation) -> dict[str, Any] | None:
     reporter._parameters = None
     reporter.set_job_trigger("automation", automation_id=automation.id)
     parameters = prepare_report_parameters(
-        dict(automation.parameters), automation.cronstr
+        dict(automation.parameters), automation.cronstr, automation_id=automation.id
     )
     return reporter.compute(as_job=True, parameters=parameters)
 

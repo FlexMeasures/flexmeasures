@@ -213,6 +213,24 @@ def test_prepare_report_parameters(app):
     assert pd.Timestamp(message["start"]) == now - pd.Timedelta(hours=1)
     assert pd.Timestamp(message["end"]) == now
 
+    # with a known actual last run, the window starts there instead
+    app.redis_connection.set("automation-last-run:1234", "2026-07-11T09:30:00+02:00")
+    try:
+        message = prepare_report_parameters(
+            {}, "0 * * * *", now=now, automation_id=1234
+        )
+        assert pd.Timestamp(message["start"]) == pd.Timestamp(
+            "2026-07-11T09:30:00+02:00"
+        )
+        assert pd.Timestamp(message["end"]) == now
+        # an unknown automation id still falls back to the last cron period
+        message = prepare_report_parameters(
+            {}, "0 * * * *", now=now, automation_id=5678
+        )
+        assert pd.Timestamp(message["start"]) == now - pd.Timedelta(hours=1)
+    finally:
+        app.redis_connection.delete("automation-last-run:1234")
+
     # offsets applied to the run time; "DB" floors to the day begin
     message = prepare_report_parameters(
         {"start-offset": "-1D,DB", "end-offset": "DB"}, "0 1 * * *", now=now
@@ -396,6 +414,9 @@ def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
         and job.meta["trigger"]["automation_id"] in automation_ids
         for job in jobs
     )
+    # the run got recorded (used e.g. to anchor default report windows)
+    for automation in automations:
+        assert app.redis_connection.get(f"automation-last-run:{automation.id}")
     # running again within the same minute does not queue jobs twice
     n_jobs = len(jobs)
     result = runner.invoke(run_automations)
