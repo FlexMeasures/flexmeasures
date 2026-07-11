@@ -1782,3 +1782,83 @@ def test_electricity_device_indices_exclude_other_commodities():
     assert mapping["electricity"] == [0, 2, 3, 4]
     assert mapping["gas"] == [1, 5]
     assert scheduler._electricity_device_indices() == [0, 2, 3, 4]
+
+
+def test_sensor_scoped_commitment_binds_aggregate_of_selected_devices(app, db):
+    """A commitment scoped to specific sensors (here: two e-heaters) binds their
+    aggregate flow as one commitment: a baseline of 10 MW with a steep penalty on
+    downward deviation keeps their combined consumption at 10 MW even though a
+    cheaper allocation (0 MW) exists, while an unscoped battery stays unaffected.
+    """
+    heater_type = get_or_create_model(GenericAssetType, name="e-heater")
+    site = GenericAsset(
+        name="Band site (scoped commitment test)", generic_asset_type=heater_type
+    )
+    db.session.add(site)
+    db.session.flush()
+
+    resolution = pd.Timedelta("1h")
+    start = pd.Timestamp("2026-02-01T00:00:00+01:00")
+    end = pd.Timestamp("2026-02-01T04:00:00+01:00")
+
+    def sensor(name):
+        s = Sensor(
+            name=name, unit="MW", event_resolution=resolution, generic_asset=site
+        )
+        db.session.add(s)
+        return s
+
+    heater_1 = sensor("band heater 1")
+    heater_2 = sensor("band heater 2")
+    db.session.flush()
+
+    flex_model = [
+        {
+            # Heaters burn money at the consumption price; without the band
+            # commitment the optimum is to stay off.
+            "sensor": heater_1.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+        },
+        {
+            "sensor": heater_2.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+        },
+    ]
+    flex_context = {
+        "consumption-price": "50 EUR/MWh",
+        "production-price": "50 EUR/MWh",
+        "site-power-capacity": "1 GW",
+        "commitments": [
+            {
+                "name": "reserved band",
+                "sensors": [heater_1.id, heater_2.id],
+                "baseline": "10 MW",
+                # Steep penalty for consuming less than the band (negative price
+                # penalizes downward deviation); consuming more is free.
+                "down-price": "-10000 EUR/MWh",
+            }
+        ],
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+    results = scheduler.compute(skip_validation=True)
+    schedules = {
+        r["sensor"]: r["data"] for r in results if r.get("name") == "storage_schedule"
+    }
+    combined = schedules[heater_1] + schedules[heater_2]
+    # The band keeps the aggregate at 10 MW (cheapest way to avoid the penalty),
+    # even though each heater alone (8 MW max) could not carry it.
+    np.testing.assert_allclose(combined.iloc[:-1], 10.0, rtol=1e-4)
