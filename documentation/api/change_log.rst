@@ -9,14 +9,14 @@ v3.0-32 | July XX, 2026
 """"""""""""""""""""""""
 
 - Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` arrays, each keyed by asset ID. For scheduling jobs, this surfaces soft state-of-charge constraint analysis: ``soc-minima`` and ``soc-maxima`` violations (with a ``violation`` magnitude) or satisfied constraints (with a ``margin`` headroom). Both arrays are empty when no SoC constraints were defined.
+- **Field canonicalization** for background job tracking:
+  * The ``job_id`` field is now the canonical way to identify background jobs returned by `/sensors/<id>/schedules/trigger`, `/assets/<id>/schedules/trigger`, and `/sensors/<id>/forecasts/trigger` endpoints. If applicable, the triggered response now also returns a ``job_results_url`` pointing to the sensor-specific results endpoint, alongside the generic ``job_monitor_url``.
+  * Legacy `schedule` field (in scheduling endpoints) and `forecast` field (in forecasting endpoints) are deprecated but remain in responses for backward compatibility. All responses include a ``_deprecated_fields`` object with machine-readable migration guidance for each deprecated field, including the recommended replacement and version in which it was deprecated.
+
 
 v3.0-31 | 2026-06-01
 """"""""""""""""""""
  - Support filtering assets and sensors by ID prefix in the ``filter`` query parameter of ``GET /assets``, ``GET /assets/<id>/sensors`` and ``GET /sensors``.
-- **Field canonicalization** for background job tracking:
-  * The ``job_id`` field is now the canonical way to identify background jobs returned by `/sensors/<id>/schedules/trigger`, `/assets/<id>/schedules/trigger`, and `/sensors/<id>/forecasts/trigger` endpoints. If applicable, the triggered response now also returns a ``job_results_url`` pointing to the sensor-specific results endpoint, alongside the generic ``job_monitor_url``.
-  * Legacy `schedule` field (in scheduling endpoints) and `forecast` field (in forecasting endpoints) are deprecated but remain in responses for backward compatibility. All responses include a ``_deprecated_fields`` object with machine-readable migration guidance for each deprecated field, including the recommended replacement and removal date.
-
 
 v3.0-31 | 2026-06-01
 """"""""""""""""""""

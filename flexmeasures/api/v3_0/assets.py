@@ -1513,7 +1513,6 @@ class AssetAPI(FlaskView):
                             schedule:
                               use: "job_id"
                               deprecated_since: "1.0.0"
-                              removal_date: "2.0.0"
                               note: "The 'schedule' response field is deprecated; use 'job_id'"
               400:
                 description: INVALID_DATA
@@ -1556,7 +1555,9 @@ class AssetAPI(FlaskView):
             return unprocessable_entity(str(err))
 
         # Keep legacy `schedule` key for backward compatibility; prefer `job_id`.
-        d, s = request_accepted_for_processing(job.id, legacy_key="schedule")
+        d, s = request_accepted_for_processing(
+            job.id, legacy_key="schedule", deprecated_since="1.0.0"
+        )
         return d, s
 
     @route("/<id>/kpis", methods=["GET"])

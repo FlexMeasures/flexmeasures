@@ -1021,7 +1021,6 @@ class SensorAPI(FlaskView):
                           schedule:
                             use: "job_id"
                             deprecated_since: "1.0.0"
-                            removal_date: "2.0.0"
                             note: "The 'schedule' response field is deprecated; use 'job_id'"
             400:
               description: INVALID_DATA
@@ -1074,6 +1073,7 @@ class SensorAPI(FlaskView):
         d, s = request_accepted_for_processing(
             job.id,
             legacy_key="schedule",
+            deprecated_since="1.0.0",
             job_results_url=url_for(
                 "SensorAPI:get_schedule", id=sensor.id, uuid=job.id
             ),
@@ -2010,7 +2010,6 @@ class SensorAPI(FlaskView):
                       forecast:
                         use: "job_id"
                         deprecated_since: "1.0.0"
-                        removal_date: "2.0.0"
                         note: "The 'forecast' response field is deprecated; use 'job_id' instead"
             401:
               description: UNAUTHORIZED
@@ -2056,6 +2055,7 @@ class SensorAPI(FlaskView):
         d, s = request_accepted_for_processing(
             pipeline_returns["job_id"],
             legacy_key="forecast",
+            deprecated_since="1.0.0",
             job_results_url=url_for(
                 "SensorAPI:get_forecast", id=id, uuid=pipeline_returns["job_id"]
             ),

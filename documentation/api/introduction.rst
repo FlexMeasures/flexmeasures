@@ -271,7 +271,6 @@ For example, when scheduling endpoints switched from ``schedule`` to ``job_id`` 
             "schedule": {
                 "use": "job_id",
                 "deprecated_since": "1.0.0",
-                "removal_date": "2.0.0",
                 "note": "The 'schedule' response field is deprecated; use 'job_id' instead"
             }
         }
@@ -281,7 +280,7 @@ Clients should:
 
 - Use the ``_deprecated_fields`` object to identify which fields are deprecated in their version.
 - Migrate to use the canonical field names (indicated by the ``"use"`` field).
-- Plan upgrades before the ``"removal_date"`` to avoid breakage when the deprecated fields are removed in a future API version.
+- Plan upgrades based on the deprecation guidance to avoid breakage when deprecated fields are eventually removed in a future API version.
 
 Clients
 ^^^^^^^

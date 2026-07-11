@@ -386,7 +386,6 @@ def request_accepted_for_processing(
     message: str = "Request has been accepted for processing.",
     legacy_key: str | None = None,
     deprecated_since: str | None = None,
-    removal_date: str | None = None,
     job_results_url: str | None = None,
 ) -> ResponseTuple:
     """
@@ -417,7 +416,6 @@ def request_accepted_for_processing(
             legacy_key: dict(
                 use="job_id",
                 deprecated_since=deprecated_since or server_now().date().isoformat(),
-                removal_date=removal_date,
                 note=(f"The '{legacy_key}' response field is deprecated; use 'job_id'"),
             )
         }

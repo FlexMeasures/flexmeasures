@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.0.0"
+    "version": "0.33.2"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -1438,7 +1438,6 @@
                     "forecast": {
                       "use": "job_id",
                       "deprecated_since": "1.0.0",
-                      "removal_date": "2.0.0",
                       "note": "The 'forecast' response field is deprecated; use 'job_id' instead"
                     }
                   }
@@ -1621,7 +1620,6 @@
                         "schedule": {
                           "use": "job_id",
                           "deprecated_since": "1.0.0",
-                          "removal_date": "2.0.0",
                           "note": "The 'schedule' response field is deprecated; use 'job_id'"
                         }
                       }
@@ -4123,7 +4121,6 @@
                         "schedule": {
                           "use": "job_id",
                           "deprecated_since": "1.0.0",
-                          "removal_date": "2.0.0",
                           "note": "The 'schedule' response field is deprecated; use 'job_id'"
                         }
                       }
