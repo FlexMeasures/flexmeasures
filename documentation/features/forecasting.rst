@@ -207,4 +207,4 @@ Automations defined on an asset can be viewed on the asset's *Automations* page 
 Account admins and consultants can also create, (de)activate and delete automations right there on the page,
 or through the API (`[POST] /assets/(id)/automations`, `[PATCH] /assets/(id)/automations/(automation_id)` and `[DELETE] /assets/(id)/automations/(automation_id)`).
 
-Schedules can be automated in the same way — see :ref:`automating_schedules`.
+Schedules and reports can be automated in the same way — see :ref:`automating_schedules` and :ref:`automating_reports`.

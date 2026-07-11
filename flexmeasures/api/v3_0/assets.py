@@ -1379,7 +1379,7 @@ class AssetAPI(FlaskView):
                 automation_type=automation_data["type"],
                 active=automation_data["active"],
                 parameters=automation_data["parameters"],
-                forecaster_class=automation_data["forecaster"],
+                generator_class=automation_data["generator"],
                 config=automation_data["config"],
                 origin="API",
             )

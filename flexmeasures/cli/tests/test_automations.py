@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 import pytest
+import yaml
 
 from sqlalchemy import select
 
@@ -194,6 +195,166 @@ def test_run_schedule_automation_dispatch(app, fresh_db, setup_dummy_data, monke
     assert start.minute % 15 == 0
     assert abs((server_now() - start).total_seconds()) < 16 * 60
     assert calls["kwargs"]["end"] - start == timedelta(hours=12)
+
+
+def test_prepare_report_parameters(app):
+    """Report start/end resolve per run: from Pandas offsets, or defaulting to the last cron period."""
+    import pandas as pd
+
+    from flexmeasures.data.services.automations import prepare_report_parameters
+    from flexmeasures.utils.time_utils import get_timezone
+
+    now = pd.Timestamp("2026-07-11T14:00:00+02:00")
+    # without an output sensor, offsets resolve in the platform timezone
+    local_now = now.tz_convert(get_timezone())
+
+    # default: the last cron period (hourly cron -> the previous hour)
+    message = prepare_report_parameters({}, "0 * * * *", now=now)
+    assert pd.Timestamp(message["start"]) == now - pd.Timedelta(hours=1)
+    assert pd.Timestamp(message["end"]) == now
+
+    # offsets applied to the run time; "DB" floors to the day begin
+    message = prepare_report_parameters(
+        {"start-offset": "-1D,DB", "end-offset": "DB"}, "0 1 * * *", now=now
+    )
+    assert (
+        pd.Timestamp(message["start"]) == (local_now - pd.Timedelta(days=1)).normalize()
+    )
+    assert pd.Timestamp(message["end"]) == local_now.normalize()
+    assert "start-offset" not in message and "end-offset" not in message
+
+    # absolute datetimes pass through untouched
+    message = prepare_report_parameters(
+        {"start": "2026-01-01T00:00:00+01:00", "end": "2026-01-02T00:00:00+01:00"},
+        "0 1 * * *",
+        now=now,
+    )
+    assert pd.Timestamp(message["start"]) == pd.Timestamp("2026-01-01T00:00:00+01:00")
+    assert pd.Timestamp(message["end"]) == pd.Timestamp("2026-01-02T00:00:00+01:00")
+
+
+def _report_automation_cli_input(
+    tmp_path, sensor1_id, sensor2_id, report_sensor_id, parameters_extra=None
+):
+    """CLI input for a report automation using a simple PandasReporter aggregation."""
+    reporter_config = dict(
+        required_input=[{"name": "sensor_1"}, {"name": "sensor_2"}],
+        required_output=[{"name": "df_agg"}],
+        transformations=[
+            dict(
+                df_input="sensor_1",
+                method="add",
+                args=["@sensor_2"],
+                df_output="df_agg",
+            ),
+            dict(method="resample_events", args=["2h"]),
+        ],
+    )
+    parameters = dict(
+        input=[
+            dict(name="sensor_1", sensor=sensor1_id),
+            dict(name="sensor_2", sensor=sensor2_id),
+        ],
+        output=[dict(name="df_agg", sensor=report_sensor_id)],
+        **(parameters_extra or {}),
+    )
+    config_file = tmp_path / "reporter_config.yml"
+    config_file.write_text(yaml.dump(reporter_config))
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text(yaml.dump(parameters))
+    return [
+        "--asset", "1",
+        "--name", "Aggregation report",
+        "--cron", "0 1 * * *",
+        "--type", "reports",
+        "--reporter", "PandasReporter",
+        "--config", str(config_file),
+        "--parameters", str(parameters_file),
+    ]  # fmt: skip
+
+
+def test_add_report_automation(app, fresh_db, setup_dummy_data, tmp_path):
+    """Create a reports automation; the reporter config lands on a data source."""
+    from flexmeasures.cli.data_add import add_automation
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_automation,
+        _report_automation_cli_input(
+            tmp_path,
+            sensor1_id,
+            sensor2_id,
+            report_sensor_id,
+            parameters_extra={"start-offset": "-1D,DB", "end-offset": "DB"},
+        ),
+    )
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    assert automation.type == "reports"
+    assert automation.generator is not None
+    assert automation.generator.model == "PandasReporter"
+    assert automation.parameters["start-offset"] == "-1D,DB"
+
+    # a reports automation without a reporter is rejected
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "No reporter",
+            "--cron", "0 1 * * *",
+            "--type", "reports",
+        ],
+    )  # fmt: skip
+    assert result.exit_code != 0
+    assert "reporter is required" in result.output
+
+
+def test_run_report_automation(app, fresh_db, setup_dummy_data, clean_redis, tmp_path):
+    """A due reports automation queues a reporting job; a worker computes and saves the report."""
+    from flexmeasures.cli.data_add import add_automation
+    from flexmeasures.cli.jobs import run_automations
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.utils.job_utils import work_on_rq
+
+    sensor1_id, sensor2_id, report_sensor_id, _ = setup_dummy_data
+    runner = app.test_cli_runner()
+    cli_input = _report_automation_cli_input(
+        tmp_path,
+        sensor1_id,
+        sensor2_id,
+        report_sensor_id,
+        # the dummy data lives in April 2023, so use an absolute reporting window
+        parameters_extra={
+            "start": "2023-04-10T00:00:00+00:00",
+            "end": "2023-04-10T10:00:00+00:00",
+        },
+    )
+    cli_input[cli_input.index("0 1 * * *")] = "* * * * *"  # due every minute
+    result = runner.invoke(add_automation, cli_input)
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+
+    result = runner.invoke(run_automations)
+    assert result.exit_code == 0, result.output
+    assert "queued 1 reporting job(s)" in result.output, result.output
+
+    # the queued job recorded how it was created
+    jobs = app.queues["reporting"].jobs
+    assert len(jobs) == 1
+    assert jobs[0].meta["trigger"] == {
+        "origin": "automation",
+        "automation_id": automation.id,
+    }
+
+    # process the job and check the report got saved
+    work_on_rq(app.queues["reporting"])
+    report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
+    stored_report = report_sensor.search_beliefs(
+        event_starts_after="2023-04-10T00:00:00+00:00",
+        event_ends_before="2023-04-10T10:00:00+00:00",
+    )
+    assert (stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
 
 
 def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):

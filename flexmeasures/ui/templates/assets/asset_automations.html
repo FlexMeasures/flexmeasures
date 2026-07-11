@@ -15,7 +15,7 @@
         <h4>
           Automations of {{ asset.name }}
           <span class="fa fa-info-circle" title="
-          This table shows the automations defined on this asset: recurring tasks, such as computing forecasts and schedules.
+          This table shows the automations defined on this asset: recurring tasks, such as computing forecasts, schedules and reports.
 
 An active automation runs whenever its recurrence (a cron string) matches the current time. Each run queues jobs.
           "></span>
@@ -48,6 +48,7 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
                   <select class="form-select" id="automationType">
                     <option value="forecasts" selected>forecasts</option>
                     <option value="schedules">schedules</option>
+                    <option value="reports">reports</option>
                   </select>
                 </div>
                 <div class="mb-3">
@@ -56,10 +57,21 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
                   <div class="form-text">In the platform timezone, e.g. "0 6 * * *" for daily at 6:00.</div>
                 </div>
                 <div class="mb-3">
+                  <label for="automationGenerator" class="form-label">Data generator</label>
+                  <input type="text" class="form-control" id="automationGenerator" placeholder="TrainPredictPipeline">
+                  <div class="form-text">
+                    Forecaster class (defaults to TrainPredictPipeline) or reporter class (required for type reports, e.g. PandasReporter). Not used for schedules.
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label for="automationConfig" class="form-label">Data generator config (JSON)</label>
+                  <textarea class="form-control" id="automationConfig" rows="2" placeholder="{}"></textarea>
+                </div>
+                <div class="mb-3">
                   <label for="automationParameters" class="form-label">Parameters (JSON)</label>
                   <textarea class="form-control" id="automationParameters" rows="4" placeholder='{"sensor": 2092}'></textarea>
                   <div class="form-text">
-                    Forecast parameters (for type forecasts) or a schedule trigger message (for type schedules).
+                    Forecast parameters (for type forecasts), a schedule trigger message (for type schedules), or report parameters (for type reports).
                   </div>
                 </div>
                 <div class="form-check mb-3">
@@ -85,7 +97,7 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
             <button class="nav-link" id="schedules-tab" data-bs-toggle="tab" data-bs-target="#schedules-tab-pane" type="button" role="tab">Schedules</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link disabled" type="button" role="tab" title="Coming soon" aria-disabled="true">Reports</button>
+            <button class="nav-link" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports-tab-pane" type="button" role="tab">Reports</button>
           </li>
         </ul>
         <div class="tab-content">
@@ -97,6 +109,11 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
           <div class="tab-pane fade" id="schedules-tab-pane" role="tabpanel">
             <div class="table-responsive">
               <table id="automationsTable-schedules" class="table table-striped w-100"></table>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="reports-tab-pane" role="tabpanel">
+            <div class="table-responsive">
+              <table id="automationsTable-reports" class="table table-striped w-100"></table>
             </div>
           </div>
         </div>
@@ -225,7 +242,7 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
       url: `/api/v3_0/assets/${assetId}/automations`,
       method: "GET",
       success: function (res) {
-        for (const automationType of ["forecasts", "schedules"]) {
+        for (const automationType of ["forecasts", "schedules", "reports"]) {
           makeAutomationsTable(
             automationType,
             res.automations.filter(automation => automation.type === automationType),
@@ -234,7 +251,7 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
       },
       error: function (xhr) {
         console.error("Error fetching automations:", xhr);
-        for (const automationType of ["forecasts", "schedules"]) {
+        for (const automationType of ["forecasts", "schedules", "reports"]) {
           makeAutomationsTable(automationType, []);
         }
       },
@@ -280,6 +297,16 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
           return;
         }
       }
+      let config = {};
+      const configText = $("#automationConfig").val().trim();
+      if (configText) {
+        try {
+          config = JSON.parse(configText);
+        } catch (e) {
+          $("#newAutomationErr").removeClass("d-none").text("The data generator config is not valid JSON.");
+          return;
+        }
+      }
       $.ajax({
         url: `/api/v3_0/assets/${assetId}/automations`,
         method: "POST",
@@ -289,6 +316,8 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
           type: $("#automationType").val(),
           cronstr: $("#automationCron").val(),
           active: $("#automationActive").is(":checked"),
+          generator: $("#automationGenerator").val().trim() || null,
+          config: config,
           parameters: parameters,
         }),
         success: () => location.reload(),
