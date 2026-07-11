@@ -327,6 +327,22 @@ def test_add_report_automation(app, fresh_db, setup_dummy_data, tmp_path):
     assert result.exit_code != 0
     assert "reporter is required" in result.output
 
+    # invalid time offsets are rejected (they would otherwise be silently skipped at run time)
+    result = runner.invoke(
+        add_automation,
+        _report_automation_cli_input(
+            tmp_path,
+            sensor1_id,
+            sensor2_id,
+            report_sensor_id,
+            parameters_extra={
+                "start-offset": "P1D,DB"
+            },  # ISO duration, not a Pandas offset
+        ),
+    )
+    assert result.exit_code != 0
+    assert "Invalid start-offset" in result.output
+
 
 def test_run_report_automation(app, fresh_db, setup_dummy_data, clean_redis, tmp_path):
     """A due reports automation queues a reporting job; a worker computes and saves the report."""
@@ -365,6 +381,9 @@ def test_run_report_automation(app, fresh_db, setup_dummy_data, clean_redis, tmp
         "automation_id": automation.id,
     }
 
+    # the covered-until anchor is only recorded once the job succeeds
+    assert not app.redis_connection.get(f"automation-last-run:{automation.id}")
+
     # process the job and check the report got saved
     work_on_rq(app.queues["reporting"])
     report_sensor = fresh_db.session.get(Sensor, report_sensor_id)
@@ -373,6 +392,15 @@ def test_run_report_automation(app, fresh_db, setup_dummy_data, clean_redis, tmp
         event_ends_before="2023-04-10T10:00:00+00:00",
     )
     assert (stored_report.values.T == [1, 2 + 3, 4 + 5, 6 + 7, 8 + 9]).all()
+
+    # the successful job recorded the end of the report window as covered
+    import pandas as pd
+
+    covered_until = app.redis_connection.get(f"automation-last-run:{automation.id}")
+    assert covered_until is not None
+    assert pd.Timestamp(covered_until.decode()) == pd.Timestamp(
+        "2023-04-10T10:00:00+00:00"
+    )
 
 
 def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):

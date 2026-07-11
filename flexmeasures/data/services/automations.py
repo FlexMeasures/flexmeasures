@@ -84,26 +84,48 @@ def prepare_schedule_trigger_message(parameters: dict, asset_id: int) -> dict:
     return message
 
 
+def validate_offset_chain(offset_chain: str):
+    """Raise a ValueError on any offset that apply_offset_chain would silently skip.
+
+    Valid offsets are Pandas offset strings, plus "DB" (day begin) and "HB" (hour begin).
+    """
+    from pandas.tseries.frequencies import to_offset
+
+    for offset in str(offset_chain).split(","):
+        offset = offset.strip()
+        if offset.lower() in ("db", "hb"):
+            continue
+        try:
+            to_offset(offset)
+        except ValueError:
+            raise ValueError(
+                f"'{offset}' is not a valid Pandas offset string (nor 'DB'/'HB')."
+            )
+
+
 def _last_run_redis_key(automation_id: int) -> str:
     return f"automation-last-run:{automation_id}"
 
 
-def record_automation_run(automation: Automation, now: datetime | None = None):
-    """Remember (in Redis) when this automation last ran.
+def record_automation_run(automation_id: int, now: datetime | None = None):
+    """Remember (in Redis) until when this automation's work is covered.
 
-    This is used to anchor default report windows to the actual last run.
+    For forecasts and schedules automations, this is the (enqueue) run time.
+    For reports automations, the reporting job records the end of the report window
+    instead, upon success (see run_report_job), so a failed report job does not
+    create a permanent gap in the reported periods.
     """
     from flask import current_app
 
     if now is None:
         now = server_now()
     current_app.redis_connection.set(
-        _last_run_redis_key(automation.id), floor_to_minute(now).isoformat()
+        _last_run_redis_key(automation_id), floor_to_minute(now).isoformat()
     )
 
 
 def get_automation_last_run(automation_id: int) -> datetime | None:
-    """When this automation last ran, if known (the record lives in Redis)."""
+    """Until when this automation's work is covered, if known (the record lives in Redis)."""
     from flask import current_app
 
     value = current_app.redis_connection.get(_last_run_redis_key(automation_id))
@@ -130,14 +152,16 @@ def prepare_report_parameters(
     - "start-offset" and "end-offset" fields hold comma-separated Pandas offsets
       (e.g. "-1D,DB" for the start of the previous day), applied to the run time
       (or to the given absolute start/end), in the timezone of the first output sensor.
-    - Without offsets or absolutes, the window runs since the automation's actual
-      last run, falling back to the last cron period (from the previous cron fire
-      time until the run time) when no last run is known (e.g. on the first run).
+    - Without offsets or absolutes, the window runs since the end of the automation's
+      last (successfully) covered window, falling back to the last cron period (from
+      the previous cron fire time until the run time) when none is known (e.g. on the
+      first run).
     """
     message = dict(parameters)
     if now is None:
         now = server_now()
-    now = floor_to_minute(now)
+    # Cron strings are interpreted in the platform timezone (like the runner does)
+    platform_now = floor_to_minute(now)
 
     # Compute the run time in the timezone local to the first output sensor
     # (matching `flexmeasures add report`), falling back to the platform timezone.
@@ -156,7 +180,7 @@ def prepare_report_parameters(
             output_sensor = None
         if output_sensor is not None:
             tz = pytz.timezone(output_sensor.timezone)
-    now = now.astimezone(tz)
+    now = platform_now.astimezone(tz)
 
     start_offset = message.pop("start-offset", None)
     end_offset = message.pop("end-offset", None)
@@ -173,15 +197,17 @@ def prepare_report_parameters(
             end if end is not None else pd.Timestamp(now), end_offset
         )
 
-    # Default to the window since the actual last run, falling back to the last
-    # cron period (from the previous cron fire time until the run time)
+    # Default to the window since the last covered window's end, falling back to
+    # the last cron period (from the previous cron fire time until the run time)
     if start is None:
         last_run = (
             get_automation_last_run(automation_id)
             if automation_id is not None
             else None
         )
-        start = last_run or croniter(cronstr, now).get_prev(datetime)
+        # NB the cron fallback uses the platform timezone, matching how the runner
+        # decides when the automation fires
+        start = last_run or croniter(cronstr, platform_now).get_prev(datetime)
     if end is None:
         end = now
 
@@ -215,9 +241,18 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     parameters = automation.parameters or {}
     if automation.type == "schedules":
         # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
-        # and under individual sensors (per-device jobs).
+        # and under individual device sensors (per-device jobs), which may belong
+        # to child assets rather than the automation's own (site) asset.
+        sensor_ids = _relevant_sensor_ids(
+            automation,
+            [
+                entry.get("sensor")
+                for entry in parameters.get("flex-model", []) or []
+                if isinstance(entry, dict)
+            ],
+        )
         cache_refs = [(automation.asset_id, "scheduling", "asset")] + [
-            (sensor.id, "scheduling", "sensor") for sensor in automation.asset.sensors
+            (sensor_id, "scheduling", "sensor") for sensor_id in sensor_ids
         ]
     elif automation.type == "reports":
         sensor_ids = _relevant_sensor_ids(
@@ -249,6 +284,103 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
     return counts
 
 
+def _prepare_forecast_automation(
+    asset, parameters: dict, generator_class: str | None, config: dict | None, source
+) -> tuple[int, list[str]]:
+    """Validate forecast automation parameters and set up the forecaster's data source."""
+    from flexmeasures.data.models.time_series import Sensor
+    from flexmeasures.data.schemas.forecasting.pipeline import (
+        ForecasterParametersSchema,
+    )
+    from flexmeasures.data.services.data_sources import get_data_generator
+
+    warnings = []
+    deserialized_parameters = ForecasterParametersSchema().load(parameters)
+    sensor = deserialized_parameters.get("sensor")
+    if isinstance(sensor, Sensor) and sensor.generic_asset_id != asset.id:
+        warnings.append(
+            f"The sensor to forecast ({sensor.id}) does not belong to asset {asset.id}."
+        )
+    forecaster = get_data_generator(
+        source=source,
+        model=generator_class or "TrainPredictPipeline",
+        config=config or {},
+        save_config=True,
+        data_generator_type=Forecaster,
+    )
+    if forecaster is None:
+        raise ValueError(f"Could not set up forecaster '{generator_class}'.")
+    generator = (
+        forecaster.data_source
+    )  # looks up or creates the data source storing the forecaster config
+    db.session.flush()
+    return generator.id, warnings
+
+
+def _prepare_schedule_automation(asset, parameters: dict) -> tuple[None, list[str]]:
+    """Validate schedule automation parameters (the scheduler's data source is resolved at job time)."""
+    from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+
+    warnings = []
+    AssetTriggerSchema().load(prepare_schedule_trigger_message(parameters, asset.id))
+    if "start" in parameters:
+        warnings.append(
+            "The schedule 'start' is fixed, so each run will compute the same period."
+            " Omit 'start' to schedule from the run time instead."
+        )
+    return None, warnings
+
+
+def _prepare_report_automation(
+    parameters: dict,
+    cronstr: str,
+    generator_class: str | None,
+    config: dict | None,
+    source,
+) -> tuple[int, list[str]]:
+    """Validate report automation parameters and set up the reporter's data source."""
+    from marshmallow import ValidationError
+
+    from flexmeasures.data.services.data_sources import get_data_generator
+
+    warnings = []
+    if generator_class is None and source is None:
+        raise ValidationError(
+            "A reporter is required for report automations (e.g. PandasReporter)."
+        )
+    for offset_field in ("start-offset", "end-offset"):
+        if offset_field in parameters:
+            try:
+                validate_offset_chain(parameters[offset_field])
+            except ValueError as e:
+                raise ValidationError(f"Invalid {offset_field}: {e}")
+    reporter = get_data_generator(
+        source=source,
+        model=generator_class,
+        config=config or {},
+        save_config=True,
+        data_generator_type=Reporter,
+    )
+    if reporter is None:
+        raise ValueError(f"Could not set up reporter '{generator_class}'.")
+    # Validate with the chosen reporter's own parameters schema,
+    # which may extend the base ReporterParametersSchema.
+    reporter._parameters_schema.load(prepare_report_parameters(parameters, cronstr))
+    if (
+        "start" in parameters or "end" in parameters
+    ) and "start-offset" not in parameters:
+        warnings.append(
+            "The report period is (partly) fixed, so each run may compute the same period."
+            " Use 'start-offset'/'end-offset' (Pandas offsets applied to the run time),"
+            " or omit timing fields to report on the period since the last run instead."
+        )
+    generator = (
+        reporter.data_source
+    )  # looks up or creates the data source storing the reporter config
+    db.session.flush()
+    return generator.id, warnings
+
+
 def create_automation(
     asset,
     name: str,
@@ -273,82 +405,18 @@ def create_automation(
     from marshmallow import ValidationError
 
     from flexmeasures.data.models.audit_log import AssetAuditLog
-    from flexmeasures.data.models.time_series import Sensor
-    from flexmeasures.data.services.data_sources import get_data_generator
 
     parameters = parameters or {}
-    warnings: list[str] = []
-    generator_id = None
     if automation_type == "forecasts":
-        from flexmeasures.data.schemas.forecasting.pipeline import (
-            ForecasterParametersSchema,
+        generator_id, warnings = _prepare_forecast_automation(
+            asset, parameters, generator_class, config, source
         )
-
-        deserialized_parameters = ForecasterParametersSchema().load(parameters)
-        sensor = deserialized_parameters.get("sensor")
-        if isinstance(sensor, Sensor) and sensor.generic_asset_id != asset.id:
-            warnings.append(
-                f"The sensor to forecast ({sensor.id}) does not belong to asset {asset.id}."
-            )
-        forecaster = get_data_generator(
-            source=source,
-            model=generator_class or "TrainPredictPipeline",
-            config=config or {},
-            save_config=True,
-            data_generator_type=Forecaster,
-        )
-        if forecaster is None:
-            raise ValueError(f"Could not set up forecaster '{generator_class}'.")
-        generator = (
-            forecaster.data_source
-        )  # looks up or creates the data source storing the forecaster config
-        db.session.flush()
-        generator_id = generator.id
     elif automation_type == "schedules":
-        from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
-
-        AssetTriggerSchema().load(
-            prepare_schedule_trigger_message(parameters, asset.id)
-        )
-        if "start" in parameters:
-            warnings.append(
-                "The schedule 'start' is fixed, so each run will compute the same period."
-                " Omit 'start' to schedule from the run time instead."
-            )
+        generator_id, warnings = _prepare_schedule_automation(asset, parameters)
     elif automation_type == "reports":
-        from flexmeasures.data.schemas.reporting import ReporterParametersSchema
-
-        if generator_class is None and source is None:
-            raise ValidationError(
-                "A reporter is required for report automations (e.g. PandasReporter)."
-            )
-        try:
-            prepared_parameters = prepare_report_parameters(parameters, cronstr)
-        except ValueError as e:
-            raise ValidationError(f"Invalid time offsets: {e}")
-        ReporterParametersSchema().load(prepared_parameters)
-        if (
-            "start" in parameters or "end" in parameters
-        ) and "start-offset" not in parameters:
-            warnings.append(
-                "The report period is (partly) fixed, so each run may compute the same period."
-                " Use 'start-offset'/'end-offset' (Pandas offsets applied to the run time),"
-                " or omit timing fields to report on the last cron period instead."
-            )
-        reporter = get_data_generator(
-            source=source,
-            model=generator_class,
-            config=config or {},
-            save_config=True,
-            data_generator_type=Reporter,
+        generator_id, warnings = _prepare_report_automation(
+            parameters, cronstr, generator_class, config, source
         )
-        if reporter is None:
-            raise ValueError(f"Could not set up reporter '{generator_class}'.")
-        generator = (
-            reporter.data_source
-        )  # looks up or creates the data source storing the reporter config
-        db.session.flush()
-        generator_id = generator.id
     else:
         raise ValidationError(
             f"Automation type '{automation_type}' is not supported (supported types: {Automation.SUPPORTED_TYPES})."
@@ -420,17 +488,21 @@ def run_automation(automation: Automation) -> dict[str, Any] | None:
 
     :returns: a dict like {"job_id": <uuid>, "n_jobs": <int>}.
     """
+    now = server_now()
     if automation.type == "forecasts":
         returns = _run_forecast_automation(automation)
     elif automation.type == "schedules":
         returns = _run_schedule_automation(automation)
     elif automation.type == "reports":
-        returns = _run_report_automation(automation)
+        # NB the reporting job itself records the end of the report window upon
+        # success (see run_report_job), so failed jobs do not create gaps in the
+        # reported periods.
+        return _run_report_automation(automation, now=now)
     else:
         raise NotImplementedError(
             f"Automations of type '{automation.type}' cannot be run yet."
         )
-    record_automation_run(automation)
+    record_automation_run(automation.id, now=now)
     return returns
 
 
@@ -451,7 +523,9 @@ def _run_forecast_automation(automation: Automation) -> dict[str, Any] | None:
     return forecaster.compute(as_job=True, parameters=dict(automation.parameters))
 
 
-def _run_report_automation(automation: Automation) -> dict[str, Any] | None:
+def _run_report_automation(
+    automation: Automation, now: datetime | None = None
+) -> dict[str, Any] | None:
     if automation.generator is None:
         raise ValueError(
             f"Automation {automation.id} has no data generator to run (generator_id is not set)."
@@ -466,7 +540,10 @@ def _run_report_automation(automation: Automation) -> dict[str, Any] | None:
     reporter._parameters = None
     reporter.set_job_trigger("automation", automation_id=automation.id)
     parameters = prepare_report_parameters(
-        dict(automation.parameters), automation.cronstr, automation_id=automation.id
+        dict(automation.parameters),
+        automation.cronstr,
+        now=now,
+        automation_id=automation.id,
     )
     return reporter.compute(as_job=True, parameters=parameters)
 
