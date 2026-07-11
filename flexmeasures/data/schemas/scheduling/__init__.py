@@ -85,6 +85,15 @@ class CommitmentSchema(Schema):
         load_default="electricity",
         data_key="commodity",
     )
+    # Optional scoping: bind this commitment to the aggregate flow of the
+    # devices whose power sensors are listed, rather than binding each device
+    # of the matching commodity separately. Useful to commit a band on a
+    # subset of devices (e.g. an aFRR band on a site's e-heaters).
+    sensors = fields.List(
+        SensorIdField(),
+        required=False,
+        data_key="sensors",
+    )
     baseline = VariableQuantityField("MW", required=False, data_key="baseline")
     up_price = VariableQuantityField("/MW", required=False, data_key="up-price")
     down_price = VariableQuantityField(
