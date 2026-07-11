@@ -1,0 +1,131 @@
+# HEMS integration QA: run the flexmeasures-client HEMS saldering-transition
+# example (examples/hems_saldering_transition.py) against a live FlexMeasures
+# server built from this checkout, with a real scheduling worker.
+#
+# The example provisions its own assets/sensors/data, triggers schedules with
+# per-slot recourse rules (flex-model field `include-response`), projects the
+# plan onto device modes and exits nonzero on any failed expectation, so it
+# doubles as an end-to-end check of the recourse-rules API contract.
+#
+# NOTE: this workflow needs a flexmeasures-client release (or ref) that
+# contains the `cem` subpackage and the `include_response` kwarg
+# (branch feat/cem-recourse). Until that is merged/released, dispatch this
+# workflow manually with `client-ref` pointing at such a ref; with the
+# default (main) the HEMS example is not available yet and the job will fail.
+
+name: hems-integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      client-ref:
+        description: "flexmeasures-client git ref (branch, tag or SHA) to test against"
+        required: false
+        default: "main"
+
+env:
+  # Git ref of https://github.com/FlexMeasures/flexmeasures-client to install.
+  CLIENT_REF: ${{ github.event.inputs.client-ref || 'main' }}
+
+jobs:
+  hems-integration:
+    runs-on: ubuntu-latest
+    name: "HEMS example against live FlexMeasures"
+    steps:
+      - name: Check out src from Git
+        uses: actions/checkout@v6
+
+      - name: Set up test environment
+        uses: ./.github/actions/setup-test-env
+        with:
+          python-version: "3.12"
+
+      - name: Write FlexMeasures config
+        run: |
+          cat > ~/.flexmeasures.cfg <<EOF
+          SQLALCHEMY_DATABASE_URI = "postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test"
+          FLEXMEASURES_ENV = "development"
+          FLEXMEASURES_REDIS_URL = "127.0.0.1"
+          FLEXMEASURES_REDIS_PORT = 6379
+          FLEXMEASURES_REDIS_DB_NR = 0
+          FLEXMEASURES_REDIS_PASSWORD = None
+          SECRET_KEY = "hems-integration-secret"
+          SECURITY_TOTP_SECRETS = {"1": "hems-integration-totp"}
+          LOGGING_LEVEL = "INFO"
+          EOF
+
+      - name: Initialize database and toy account
+        run: |
+          uv run flexmeasures db upgrade
+          uv run flexmeasures add toy-account
+
+      - name: Start FlexMeasures server and scheduling worker
+        run: |
+          nohup uv run flexmeasures run -p 5000 > /tmp/fm-server.log 2>&1 &
+          nohup uv run flexmeasures jobs run-worker --queue scheduling > /tmp/fm-worker.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:5000/api/v3_0/health/ready > /dev/null; then
+              echo "Server is up."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Server did not become healthy in time." >&2
+          tail -50 /tmp/fm-server.log >&2
+          exit 1
+
+      - name: Install flexmeasures-client (ref ${{ env.CLIENT_REF }})
+        run: |
+          # Shallow-clone the client repo: the HEMS example lives in examples/,
+          # which is not shipped in the wheel.
+          git clone --depth 1 --branch "$CLIENT_REF" \
+            https://github.com/FlexMeasures/flexmeasures-client /tmp/fm-client \
+            || (git clone https://github.com/FlexMeasures/flexmeasures-client /tmp/fm-client \
+                && git -C /tmp/fm-client checkout "$CLIENT_REF")
+          uv pip install /tmp/fm-client
+
+      - name: Run the HEMS saldering-transition example
+        env:
+          FM_HOST: localhost:5000
+          FM_EMAIL: toy-user@flexmeasures.io
+          FM_PASSWORD: toy-password
+        run: |
+          timeout 600 uv run python /tmp/fm-client/examples/hems_saldering_transition.py
+
+      - name: Show server and worker logs
+        if: always()
+        run: |
+          echo "=== server log ==="; tail -100 /tmp/fm-server.log || true
+          echo "=== worker log ==="; tail -100 /tmp/fm-worker.log || true
+
+    services:
+      postgres:
+        image: postgres:17.4
+        env:
+          POSTGRES_USER: flexmeasures_test
+          POSTGRES_PASSWORD: flexmeasures_test
+          POSTGRES_DB: flexmeasures_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U flexmeasures_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: flexmeasures_test
+      PGDB: flexmeasures_test
+      PGPASSWORD: flexmeasures_test
