@@ -85,41 +85,53 @@ def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data):
 
 
 def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
-    """An active automation due this minute queues forecasting jobs (with trigger meta data); an inactive one does not."""
+    """Active automations due this minute queue forecasting jobs (with trigger meta data); inactive ones do not.
+
+    We use two automations with the same forecaster config (thus sharing a generator data source),
+    to make sure one automation's run does not pollute the other's.
+    """
     from flexmeasures.cli.data_add import add_automation
     from flexmeasures.cli.jobs import run_automations
 
-    sensor_id = setup_dummy_data[0]
+    sensor1_id, sensor2_id = setup_dummy_data[0], setup_dummy_data[1]
     runner = app.test_cli_runner()
-    cli_input = {
-        "asset": 1,
-        "name": "Every minute",
-        "cron": "* * * * *",  # due every minute
-        "sensor": sensor_id,
-    }
-    result = runner.invoke(add_automation, to_flags(cli_input))
-    assert "Successfully created" in result.output, result.output
-    automation = fresh_db.session.execute(select(Automation)).scalar_one()
+    for name, sensor_id in [
+        ("Every minute", sensor1_id),
+        ("Also every minute", sensor2_id),
+    ]:
+        cli_input = {
+            "asset": 1,
+            "name": name,
+            "cron": "* * * * *",  # due every minute
+            "sensor": sensor_id,
+        }
+        result = runner.invoke(add_automation, to_flags(cli_input))
+        assert "Successfully created" in result.output, result.output
+    automations = fresh_db.session.scalars(select(Automation)).all()
+    assert automations[0].generator_id == automations[1].generator_id
 
     result = runner.invoke(run_automations)
-    assert "queued" in result.output, result.output
+    assert result.exit_code == 0, result.output
+    assert result.output.count("queued") == 2, result.output
 
     # check the queued jobs recorded how they were created
     jobs = app.queues["forecasting"].jobs
     assert len(jobs) > 0
+    automation_ids = {automation.id for automation in automations}
     assert all(
-        job.meta["trigger"] == {"origin": "automation", "automation_id": automation.id}
+        job.meta["trigger"]["origin"] == "automation"
+        and job.meta["trigger"]["automation_id"] in automation_ids
         for job in jobs
     )
-
     # running again within the same minute does not queue jobs twice
     n_jobs = len(jobs)
     result = runner.invoke(run_automations)
-    assert "already ran" in result.output, result.output
+    assert result.output.count("already ran") == 2, result.output
     assert len(app.queues["forecasting"].jobs) == n_jobs
 
-    # an inactive automation is not due
-    automation.active = False
+    # inactive automations are not due
+    for automation in automations:
+        automation.active = False
     fresh_db.session.commit()
     app.redis_connection.flushdb()
     result = runner.invoke(run_automations)
