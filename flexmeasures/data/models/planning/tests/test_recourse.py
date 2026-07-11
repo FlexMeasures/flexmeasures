@@ -295,3 +295,29 @@ def test_recourse_gain_flat_symmetric_prices(app, db):
         site_power_capacity="100 kW",
     )
     np.testing.assert_allclose(data["gain"], 0)
+
+
+def test_recourse_gain_mixed_day(app, db):
+    """The gain classification is per-slot: on a mixed day, K flips slot by slot.
+
+    Slots 0 and 2 have symmetric positive prices (50/50 EUR/MWh) and slack site
+    capacity, so they stay K = 0 even though other slots of the same day are
+    asymmetric. Slots 1 and 3 have production price 0 != consumption price 50,
+    so they get K = -1.
+    """
+    site, battery_power, load_sensor, price_fields, end = _build_site(
+        db,
+        site_name="Recourse site (mixed day)",
+        consumption_prices=[50, 50, 50, 50],
+        production_prices=[50, 0, 50, 0],
+        load_kw=None,
+    )
+    data = _compute_recourse(
+        site,
+        battery_power,
+        load_sensor,
+        price_fields,
+        end,
+        site_power_capacity="100 kW",
+    )
+    np.testing.assert_allclose(data["gain"], [0, -1, 0, -1], err_msg="gain per slot")
