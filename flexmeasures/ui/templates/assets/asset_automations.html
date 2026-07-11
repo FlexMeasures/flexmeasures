@@ -25,6 +25,58 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
           <a href="/assets/{{ asset.id }}/status">status page</a>.
         </p>
 
+        {% if user_can_manage_automations %}
+        <div class="mb-2 text-end">
+          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newAutomationModal">New automation</button>
+        </div>
+
+        <!-- CREATE AUTOMATION MODAL -->
+        <div class="modal fade" id="newAutomationModal" tabindex="-1" role="dialog">
+          <div class="modal-dialog"><div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">New automation for {{ asset.name }}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="newAutomationForm">
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label for="automationName" class="form-label">Name</label>
+                  <input type="text" class="form-control" id="automationName" maxlength="80" required>
+                </div>
+                <div class="mb-3">
+                  <label for="automationType" class="form-label">Type</label>
+                  <select class="form-select" id="automationType">
+                    <option value="forecasts" selected>forecasts</option>
+                    <option value="schedules">schedules</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label for="automationCron" class="form-label">Recurrence (cron string)</label>
+                  <input type="text" class="form-control" id="automationCron" placeholder="0 6 * * *" required>
+                  <div class="form-text">In the platform timezone, e.g. "0 6 * * *" for daily at 6:00.</div>
+                </div>
+                <div class="mb-3">
+                  <label for="automationParameters" class="form-label">Parameters (JSON)</label>
+                  <textarea class="form-control" id="automationParameters" rows="4" placeholder='{"sensor": 2092}'></textarea>
+                  <div class="form-text">
+                    Forecast parameters (for type forecasts) or a schedule trigger message (for type schedules).
+                  </div>
+                </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="automationActive" checked>
+                  <label class="form-check-label" for="automationActive">Active</label>
+                </div>
+                <div class="alert alert-danger d-none" id="newAutomationErr"></div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create</button>
+              </div>
+            </form>
+          </div></div>
+        </div>
+        {% endif %}
+
         <ul class="nav nav-tabs" role="tablist">
           <li class="nav-item" role="presentation">
             <button class="nav-link active" id="forecasts-tab" data-bs-toggle="tab" data-bs-target="#forecasts-tab-pane" type="button" role="tab">Forecasts</button>
@@ -57,6 +109,7 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
 
 <script>
   const assetId = "{{ asset.id }}";
+  const userCanManage = {{ user_can_manage_automations | tojson }};
 
   // Escape user-controlled strings before interpolating them into HTML
   function esc(value) {
@@ -88,6 +141,12 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
             <div class="modal-body" id="AutomationDetailsBody-${automation.id}">Loading ...</div>
           </div></div>
         </div>`,
+      actions: `
+        <button class="btn btn-sm btn-outline-secondary automation-toggle" data-id="${automation.id}" data-active="${automation.active}">
+          ${automation.active ? "Deactivate" : "Activate"}
+        </button>
+        <button class="btn btn-sm btn-outline-danger automation-delete" data-id="${automation.id}" data-name="${esc(automation.name)}">Delete</button>
+      `,
     };
   }
 
@@ -133,7 +192,8 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
       info: false,
       ordering: false,
       language: {
-        emptyTable: `No ${automationType} automations have been defined on this asset yet. They can be created with the CLI command \`flexmeasures add automation\`.`,
+        emptyTable: `No ${automationType} automations have been defined on this asset yet.`
+          + (userCanManage ? " Create one with the 'New automation' button, or with the CLI command `flexmeasures add automation`." : ""),
       },
       columns: [
         { data: "name", title: "Name" },
@@ -142,11 +202,21 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
         { data: "recurrence", title: "Recurrence" },
         { data: "jobs", title: "Jobs" },
         { data: "details", title: "", className: "text-right" },
+        ...(userCanManage ? [{ data: "actions", title: "", className: "text-right" }] : []),
       ],
       data: automations.map(AutomationRow),
     });
     // Load more details per automation asynchronously
     automations.forEach(automation => loadAutomationDetails(automation.id));
+  }
+
+  function apiError(xhr, fallbackMessage) {
+    try {
+      const response = JSON.parse(xhr.responseText);
+      return JSON.stringify(response.message || response);
+    } catch (e) {
+      return fallbackMessage;
+    }
   }
 
   $(document).ready(function () {
@@ -168,6 +238,64 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
           makeAutomationsTable(automationType, []);
         }
       },
+    });
+
+    // (De)activate an automation
+    $(document).on("click", ".automation-toggle", function () {
+      const automationId = $(this).data("id");
+      const activate = !($(this).data("active") === true || $(this).data("active") === "true");
+      $.ajax({
+        url: `/api/v3_0/assets/${assetId}/automations/${automationId}`,
+        method: "PATCH",
+        contentType: "application/json",
+        data: JSON.stringify({ active: activate }),
+        success: () => location.reload(),
+        error: (xhr) => showToast(apiError(xhr, "Could not update the automation."), "error"),
+      });
+    });
+
+    // Delete an automation
+    $(document).on("click", ".automation-delete", function () {
+      const automationId = $(this).data("id");
+      const name = $(this).data("name");
+      if (!confirm(`Delete automation '${name}'?`)) return;
+      $.ajax({
+        url: `/api/v3_0/assets/${assetId}/automations/${automationId}`,
+        method: "DELETE",
+        success: () => location.reload(),
+        error: (xhr) => showToast(apiError(xhr, "Could not delete the automation."), "error"),
+      });
+    });
+
+    // Create an automation
+    $("#newAutomationForm").submit(function (event) {
+      event.preventDefault();
+      let parameters = {};
+      const parametersText = $("#automationParameters").val().trim();
+      if (parametersText) {
+        try {
+          parameters = JSON.parse(parametersText);
+        } catch (e) {
+          $("#newAutomationErr").removeClass("d-none").text("Parameters are not valid JSON.");
+          return;
+        }
+      }
+      $.ajax({
+        url: `/api/v3_0/assets/${assetId}/automations`,
+        method: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({
+          name: $("#automationName").val(),
+          type: $("#automationType").val(),
+          cronstr: $("#automationCron").val(),
+          active: $("#automationActive").is(":checked"),
+          parameters: parameters,
+        }),
+        success: () => location.reload(),
+        error: function (xhr) {
+          $("#newAutomationErr").removeClass("d-none").text(apiError(xhr, "Could not create the automation."));
+        },
+      });
     });
   });
 </script>

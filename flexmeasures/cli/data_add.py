@@ -45,7 +45,7 @@ from flexmeasures.data.scripts.data_gen import (
     populate_initial_structure,
     add_default_asset_types,
 )
-from flexmeasures.data.services.automations import prepare_schedule_trigger_message
+from flexmeasures.data.services.automations import create_automation
 from flexmeasures.data.services.data_sources import (
     get_or_create_source,
     get_data_generator,
@@ -1311,67 +1311,31 @@ def add_automation(
         kwargs, config_file, parameters_file
     )
 
-    # Validate the parameters using the forecast parameters schema (we store them serialized)
-    generator_id = None
-    if automation_type == "forecasts":
-        try:
-            deserialized_parameters = ForecasterParametersSchema().load(parameters)
-        except ValidationError as e:
-            click.secho(f"Invalid forecast parameters: {e.messages}", **MsgStyle.ERROR)
-            raise click.Abort()
-        sensor = deserialized_parameters.get("sensor")
-        if isinstance(sensor, Sensor) and sensor.generic_asset_id != asset.id:
-            click.secho(
-                f"Warning: the sensor to forecast ({sensor.id}) does not belong to asset {asset.id}.",
-                **MsgStyle.WARN,
-            )
-
-        forecaster = get_data_generator(
-            source=source,
-            model=forecaster_class,
+    # The service validates the parameters by automation type (we store them serialized)
+    try:
+        automation, warnings = create_automation(
+            asset=asset,
+            name=name,
+            cronstr=cronstr,
+            automation_type=automation_type,
+            active=not inactive,
+            parameters=parameters,
+            forecaster_class=forecaster_class,
             config=config,
-            save_config=True,
-            data_generator_type=Forecaster,
+            source=source,
+            origin="CLI",
         )
-        if forecaster is None:
-            click.secho(
-                f"Could not set up forecaster '{forecaster_class}'.", **MsgStyle.ERROR
-            )
-            raise click.Abort()
-        generator = (
-            forecaster.data_source
-        )  # looks up or creates the data source storing the forecaster config
-        db.session.flush()
-        generator_id = generator.id
-    else:  # schedules
-        try:
-            AssetTriggerSchema().load(
-                prepare_schedule_trigger_message(parameters, asset.id)
-            )
-        except ValidationError as e:
-            click.secho(f"Invalid schedule parameters: {e.messages}", **MsgStyle.ERROR)
-            raise click.Abort()
-        if "start" in parameters:
-            click.secho(
-                "Warning: the schedule 'start' is fixed, so each run will compute the same period."
-                " Omit 'start' to schedule from the run time instead.",
-                **MsgStyle.WARN,
-            )
-
-    automation = Automation(
-        asset_id=asset.id,
-        type=automation_type,
-        name=name,
-        cronstr=cronstr,
-        active=not inactive,
-        generator_id=generator_id,
-        parameters=parameters,
-    )
-    db.session.add(automation)
-    db.session.flush()
-    AssetAuditLog.add_record(
-        asset, f"Created automation '{name}' ({automation.id}) via CLI."
-    )
+    except ValidationError as e:
+        click.secho(
+            f"Invalid {automation_type[:-1]} parameters: {e.messages}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    except ValueError as e:
+        click.secho(str(e), **MsgStyle.ERROR)
+        raise click.Abort()
+    for warning in warnings:
+        click.secho(f"Warning: {warning}", **MsgStyle.WARN)
     db.session.commit()
     click.secho(
         f"Successfully created {'inactive ' if inactive else ''}automation '{name}' (ID: {automation.id})"

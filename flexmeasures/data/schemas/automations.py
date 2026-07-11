@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from croniter import croniter
-from marshmallow import fields, validates, ValidationError
+from marshmallow import fields, validate, validates, Schema, ValidationError
 
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.automations import Automation
@@ -37,6 +37,41 @@ class AutomationIdField(MarshmallowClickMixin, fields.Int):
     def _serialize(self, automation, attr, data, **kwargs):
         """Turn an Automation into an automation id."""
         return automation.id
+
+
+class AutomationCreationSchema(Schema):
+    """Request schema for creating an automation (the asset comes from the URL path).
+
+    The parameters are validated separately, by the schema matching the automation type.
+    """
+
+    type = fields.Str(
+        load_default="forecasts",
+        validate=validate.OneOf(Automation.SUPPORTED_TYPES),
+    )
+    name = fields.Str(required=True, validate=validate.Length(min=1, max=80))
+    cronstr = CronField(required=True)
+    active = fields.Bool(load_default=True)
+    parameters = fields.Dict(keys=fields.Str(), load_default=dict)
+    forecaster = fields.Str(
+        load_default="TrainPredictPipeline",
+        metadata={"description": "Forecaster class (only used for type 'forecasts')."},
+    )
+    config = fields.Dict(
+        keys=fields.Str(),
+        load_default=dict,
+        metadata={
+            "description": "Forecaster configuration (only used for type 'forecasts')."
+        },
+    )
+
+
+class AutomationUpdateSchema(Schema):
+    """Request schema for updating an automation's name, cron string and/or activation status."""
+
+    name = fields.Str(validate=validate.Length(min=1, max=80))
+    cronstr = CronField()
+    active = fields.Bool()
 
 
 class AutomationSchema(ma.SQLAlchemySchema):

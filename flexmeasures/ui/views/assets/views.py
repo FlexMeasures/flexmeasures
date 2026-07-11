@@ -254,6 +254,8 @@ class AssetCrudUI(FlaskView):
         return render_flexmeasures_template(
             "assets/asset_automations.html",
             asset=asset,
+            # managing automations requires the same principals that may delete the asset
+            user_can_manage_automations=user_can_delete(asset),
             current_page="Automations",
         )
 
