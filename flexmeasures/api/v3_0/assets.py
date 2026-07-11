@@ -40,8 +40,14 @@ from flexmeasures.data.services.job_cache import NoRedisConfigured
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data import db
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
+from flexmeasures.data.models.automations import Automation
 from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.audit_log import AssetAuditLog
+from flexmeasures.data.schemas.automations import AutomationIdField, AutomationSchema
+from flexmeasures.data.services.automations import (
+    describe_cronstr,
+    get_automation_job_stats,
+)
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.queries.generic_assets import (
     filter_assets_under_root,
@@ -84,6 +90,7 @@ from flexmeasures.data.utils import get_downsample_function_and_value
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
 annotation_schema = AnnotationSchema()
+automation_schema = AutomationSchema()
 # creating this once to avoid recreating it on every request
 default_list_assets_schema = AssetSchema(many=True, only=default_response_fields)
 patch_asset_schema = AssetSchema(partial=True, exclude=["account_id"])
@@ -1123,6 +1130,175 @@ class AssetAPI(FlaskView):
         }
 
         return response, 200
+
+    @route("/<id>/automations", methods=["GET"])
+    @use_kwargs(
+        {"asset": AssetIdField(data_key="id")},
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    @as_json
+    def get_automations(self, id: int, asset: GenericAsset):
+        """
+        .. :quickref: Assets; Get all automations defined on an asset.
+
+        ---
+        get:
+          summary: Get all automations defined on an asset.
+          description: |
+            The response will be a list of automations: recurring tasks (for now, computing forecasts)
+            defined on the asset. Each entry shows the automation's ID, when it was created,
+            its type, name, activation status, and its recurrence, both as a cron string
+            and described in natural language.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset to get the automations for.
+              schema:
+                type: integer
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    automations:
+                      summary: List of automations
+                      value:
+                        automations:
+                          - id: 1
+                            created_at: "2026-07-11T00:00:00+00:00"
+                            asset_id: 1
+                            type: forecasts
+                            name: Day-ahead PV forecasts
+                            cronstr: "0 6 * * *"
+                            recurrence_description: "At 06:00 AM"
+                            active: true
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        automations_data = []
+        for automation in asset.automations:
+            automation_data = automation_schema.dump(automation)
+            automation_data["recurrence_description"] = describe_cronstr(
+                automation.cronstr
+            )
+            automations_data.append(automation_data)
+        return {"automations": automations_data}, 200
+
+    @route("/<id>/automations/<automation_id>", methods=["GET"])
+    @use_kwargs(
+        {
+            "asset": AssetIdField(data_key="id"),
+            "automation": AutomationIdField(data_key="automation_id"),
+        },
+        location="path",
+    )
+    @permission_required_for_context("read", ctx_arg_name="automation")
+    @as_json
+    def get_automation(
+        self, id: int, automation_id: int, asset: GenericAsset, automation: Automation
+    ):
+        """
+        .. :quickref: Assets; Get details of one automation defined on an asset.
+
+        ---
+        get:
+          summary: Get details of one automation defined on an asset.
+          description: |
+            In addition to the fields shown when listing automations, the response shows
+            the automation's parameters (for forecasts, these are the forecast parameters
+            used on each run), information about the data generator that runs it,
+            and counts of recently created jobs, per job status.
+            Note that jobs in Redis have a limited TTL, so not all past jobs will be counted.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              required: true
+              description: ID of the asset.
+              schema:
+                type: integer
+            - in: path
+              name: automation_id
+              required: true
+              description: ID of the automation.
+              schema:
+                type: integer
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  examples:
+                    automation:
+                      summary: Automation details
+                      value:
+                        id: 1
+                        created_at: "2026-07-11T00:00:00+00:00"
+                        asset_id: 1
+                        type: forecasts
+                        name: Day-ahead PV forecasts
+                        cronstr: "0 6 * * *"
+                        recurrence_description: "At 06:00 AM"
+                        active: true
+                        parameters:
+                          sensor: 2092
+                        generator:
+                          id: 6
+                          description: "forecaster 'TrainPredictPipeline' (v1)"
+                        job_stats:
+                          finished: 3
+                          failed: 1
+                        redis_connection_err: null
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            404:
+              description: NOT_FOUND
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        if automation.asset_id != asset.id:
+            return {
+                "message": f"Automation {automation.id} does not belong to asset {asset.id}."
+            }, 404
+        automation_data = automation_schema.dump(automation)
+        automation_data["recurrence_description"] = describe_cronstr(automation.cronstr)
+        automation_data["parameters"] = automation.parameters
+        automation_data["generator"] = (
+            {
+                "id": automation.generator.id,
+                "description": automation.generator.description,
+            }
+            if automation.generator is not None
+            else None
+        )
+        redis_connection_err = None
+        try:
+            automation_data["job_stats"] = get_automation_job_stats(automation)
+        except NoRedisConfigured as e:
+            automation_data["job_stats"] = {}
+            redis_connection_err = e.args[0]
+        automation_data["redis_connection_err"] = redis_connection_err
+        return automation_data, 200
 
     @route("/<id>/jobs", methods=["GET"])
     @use_kwargs(
