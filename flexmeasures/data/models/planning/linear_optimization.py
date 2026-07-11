@@ -35,12 +35,14 @@ infinity = float("inf")
 
 def device_scheduler(  # noqa C901
     device_constraints: list[pd.DataFrame],
-    ems_constraints: pd.DataFrame,
+    ems_constraints: pd.DataFrame | list[pd.DataFrame],
     commitment_quantities: list[pd.Series] | None = None,
     commitment_downwards_deviation_price: list[pd.Series] | list[float] | None = None,
     commitment_upwards_deviation_price: list[pd.Series] | list[float] | None = None,
     commitments: list[pd.DataFrame] | list[Commitment] | None = None,
     initial_stock: float | list[float] = 0,
+    stock_groups: dict[int, list[int]] | None = None,
+    ems_constraint_groups: list[list[int]] | None = None,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -63,6 +65,13 @@ def device_scheduler(  # noqa C901
     :param ems_constraints:     EMS constraints are on an EMS level. Handled constraints (listed by column name):
                                     derivative max: maximum flow
                                     derivative min: minimum flow
+                                May be a single DataFrame (the constraint is applied to the summed flow of all devices),
+                                or a list of DataFrames (one per device group). In the latter case, ``ems_constraint_groups``
+                                lists the device indices each DataFrame applies to. The StorageScheduler uses one device
+                                group per commodity, so each commodity gets its own EMS-level capacity constraint.
+    :param ems_constraint_groups: For each EMS constraint DataFrame, the list of device indices it applies to. When omitted,
+                                each EMS constraint is applied to the summed flow of all devices (legacy behaviour). A device
+                                may appear in more than one group.
     :param commitments:         Commitments are on an EMS level by default. Handled parameters (listed by column name):
                                     quantity:                   for example, 5.5
                                     downwards deviation price:  10.1
@@ -100,6 +109,42 @@ def device_scheduler(  # noqa C901
     resolution = pd.to_timedelta(device_constraints[0].index.freq).to_pytimedelta()
     end = device_constraints[0].index.to_pydatetime()[-1] + resolution
 
+    # Normalise EMS constraints to a list of (DataFrame, device-group) pairs.
+    # A single DataFrame (legacy behaviour) applies to the summed flow of all devices;
+    # a list of DataFrames applies one EMS-level constraint per device group, as set up
+    # per commodity by the StorageScheduler.
+    all_devices = list(range(len(device_constraints)))
+    if isinstance(ems_constraints, pd.DataFrame):
+        ems_constraints_list = [ems_constraints]
+        ems_constraint_device_groups = [all_devices]
+    else:
+        ems_constraints_list = ems_constraints
+        if ems_constraint_groups is None:
+            if len(ems_constraints_list) > 1:
+                raise ValueError(
+                    "When passing multiple EMS constraint DataFrames, you must also specify ems_constraint_groups."
+                )
+            ems_constraint_device_groups = [all_devices for _ in ems_constraints_list]
+        else:
+            ems_constraint_device_groups = ems_constraint_groups
+
+    # map device -> primary stock group (used for per-device stock bounds)
+    # and map stock group -> all member devices (used for stock accumulation).
+    device_to_group = {}
+
+    if stock_groups:
+        for g, devices in stock_groups.items():
+            for d in devices:
+                device_to_group[d] = g
+        # For devices not in any stock group (e.g., inflexible devices),
+        # map them to themselves so they're treated as individual groups
+        for d in range(len(device_constraints)):
+            if d not in device_to_group:
+                device_to_group[d] = d
+    else:
+        for d in range(len(device_constraints)):
+            device_to_group[d] = d
+
     # Move commitments from old structure to new
     if commitments is None:
         commitments = []
@@ -134,6 +179,20 @@ def device_scheduler(  # noqa C901
             df["upwards deviation price"] = up
             df["group"] = group
             commitments.append(df)
+
+    # commodity → set(device indices)
+    commodity_devices = {}
+
+    for df in commitments:
+        if "commodity" not in df.columns or "device" not in df.columns:
+            continue
+
+        for _, row in df[["commodity", "device"]].dropna().iterrows():
+            devices = row["device"]
+            if not isinstance(devices, (list, tuple, set)):
+                devices = [devices]
+
+            commodity_devices.setdefault(row["commodity"], set()).update(devices)
 
     # Check if commitments have the same time window and resolution as the constraints
     for commitment in commitments:
@@ -207,6 +266,38 @@ def device_scheduler(  # noqa C901
 
     commitments, commitment_mapping = convert_commitments_to_subcommitments(commitments)
 
+    device_group_lookup = {}
+
+    for c, df in enumerate(commitments):
+        if "device" not in df.columns:
+            # EMS-level commitment: no device grouping needed here;
+            # handled by ems_flow_commitment_equalities.
+            continue
+
+        has_device_group = "device_group" in df.columns
+        if has_device_group:
+            rows = df[["device", "device_group"]].dropna()
+        else:
+            # Backwards-compatible default: each device is its own group.
+            # This preserves the behaviour of old-style DataFrame commitments that
+            # pre-date the device_group feature (e.g. from initialize_device_commitment).
+            rows = df[["device"]].dropna()
+
+        device_group_lookup[c] = {}
+
+        for _, row in rows.iterrows():
+            d = row["device"]
+            # When no device_group column is present, use the device id itself as
+            # the group label so that each device forms an independent group.
+            g = row["device_group"] if has_device_group else d
+
+            if isinstance(d, (list, tuple, set, np.ndarray)):
+                devices = set(d)
+            else:
+                devices = {d}
+
+            device_group_lookup[c].setdefault(g, set()).update(devices)
+
     # Oversimplified check for a convex cost curve
     df = pd.concat(commitments)[
         ["upwards deviation price", "downwards deviation price"]
@@ -243,12 +334,23 @@ def device_scheduler(  # noqa C901
     )
     model.c = RangeSet(0, len(commitments) - 1, doc="Set of commitments")
 
-    # Add 2D indices for commitment datetimes (cj)
+    # Add 2D indices for commitment device groups (cg)
+    def commitment_device_groups_init(m):
+        return ((c, g) for c, groups in device_group_lookup.items() for g in groups)
 
+    model.cg = Set(dimen=2, initialize=commitment_device_groups_init)
+
+    # Add 2D indices for commitment datetimes (cj)
     def commitments_init(m):
         return ((c, j) for c in m.c for j in commitments[c]["j"])
 
     model.cj = Set(dimen=2, initialize=commitments_init)
+
+    # Add 3D indices for commitment datetime device groups (cjg)
+    def commitment_time_device_groups_init(m):
+        return ((c, j, g) for (c, j) in m.cj for (_, g) in m.cg if _ == c)
+
+    model.cjg = Set(dimen=3, initialize=commitment_time_device_groups_init)
 
     # Add parameters
     def price_down_select(m, c):
@@ -315,15 +417,15 @@ def device_scheduler(  # noqa C901
         else:
             return np.nanmax([min_v, equal_v])
 
-    def ems_derivative_max_select(m, j):
-        v = ems_constraints["derivative max"].iloc[j]
+    def ems_derivative_max_select(m, g, j):
+        v = ems_constraints_list[g]["derivative max"].iloc[j]
         if np.isnan(v):
             return infinity
         else:
             return v
 
-    def ems_derivative_min_select(m, j):
-        v = ems_constraints["derivative min"].iloc[j]
+    def ems_derivative_min_select(m, g, j):
+        v = ems_constraints_list[g]["derivative min"].iloc[j]
         if np.isnan(v):
             return -infinity
         else:
@@ -362,6 +464,40 @@ def device_scheduler(  # noqa C901
     def device_stock_delta(m, d, j):
         return device_constraints[d]["stock delta"].iloc[j]
 
+    def grouped_commitment_equalities(m, c, j, g):
+        """
+        Enforce a commitment deviation constraint on the aggregate of devices in a group.
+
+        For commitment ``c`` at time index ``j``, this constraint couples the commitment
+        baseline (plus deviation variables) to the summed flow or stock of all devices
+        belonging to device group ``g``. StockCommitments aggregate device stocks, while
+        FlowCommitments aggregate device flows. Constraints are skipped if the commitment
+        is inactive at ``(c, j)`` or if the group contains no devices.
+        """
+        if m.commitment_quantity[c, j] == -infinity:
+            return Constraint.Skip
+
+        devices_in_group = device_group_lookup.get(c, {}).get(g, set())
+        if not devices_in_group:
+            return Constraint.Skip
+
+        center = (
+            m.commitment_quantity[c, j]
+            + m.commitment_downwards_deviation[c]
+            + m.commitment_upwards_deviation[c]
+        )
+
+        if commitments[c]["class"].apply(lambda cl: cl == StockCommitment).all():
+            center -= sum(_get_stock_change(m, d, j) for d in devices_in_group)
+        else:
+            center -= sum(m.ems_power[d, j] for d in devices_in_group)
+
+        return (
+            0 if "upwards deviation price" in commitments[c].columns else None,
+            center,
+            0 if "downwards deviation price" in commitments[c].columns else None,
+        )
+
     model.up_price = Param(model.c, initialize=price_up_select)
     model.down_price = Param(model.c, initialize=price_down_select)
     model.commitment_quantity = Param(
@@ -375,8 +511,15 @@ def device_scheduler(  # noqa C901
     model.device_derivative_min = Param(
         model.d, model.j, initialize=device_derivative_min_select
     )
-    model.ems_derivative_max = Param(model.j, initialize=ems_derivative_max_select)
-    model.ems_derivative_min = Param(model.j, initialize=ems_derivative_min_select)
+    model.eg = RangeSet(
+        0, len(ems_constraints_list) - 1, doc="Set of EMS constraint (device) groups"
+    )
+    model.ems_derivative_max = Param(
+        model.eg, model.j, initialize=ems_derivative_max_select
+    )
+    model.ems_derivative_min = Param(
+        model.eg, model.j, initialize=ems_derivative_min_select
+    )
     model.device_efficiency = Param(model.d, model.j, initialize=device_efficiency)
     model.device_derivative_down_efficiency = Param(
         model.d, model.j, initialize=device_derivative_down_efficiency
@@ -408,32 +551,74 @@ def device_scheduler(  # noqa C901
     model.commitment_sign = Var(model.c, domain=Binary, initialize=0)
 
     def _get_stock_change(m, d, j):
-        """Determine final stock change of device d until time j.
+        """Determine final stock change of the stock group of device d until time j.
 
         Apply conversion efficiencies to conversion from flow to stock change and vice versa,
         and apply storage efficiencies to stock levels from one datetime to the next.
         """
-        if isinstance(initial_stock, list):
-            # No initial stock defined for inflexible device
-            initial_stock_d = initial_stock[d] if d < len(initial_stock) else 0
-        else:
-            initial_stock_d = initial_stock
+        #     if isinstance(initial_stock, list):
+        #         # No initial stock defined for inflexible device
+        #         initial_stock_d = initial_stock[d] if d < len(initial_stock) else 0
+        #     else:
+        #         initial_stock_d = initial_stock
+        #
+        #     stock_changes = [
+        #         (
+        #             m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
+        #             + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
+        #             + m.stock_delta[d, k]
+        #         )
+        #         for k in range(0, j + 1)
+        #     ]
+        #     efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
+        #     final_stock_change = [
+        #         stock - initial_stock_d
+        #         for stock in apply_stock_changes_and_losses(
+        #             initial_stock_d, stock_changes, efficiencies
+        #         )
+        #     ][-1]
+        #     return final_stock_change
 
-        stock_changes = [
-            (
-                m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
-                + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
-                + m.stock_delta[d, k]
-            )
-            for k in range(0, j + 1)
-        ]
+        # determine the stock group of this device
+        group = device_to_group[d]
+
+        # all devices belonging to this stock
+        devices = [dev for dev, g in device_to_group.items() if g == group]
+
+        # initial stock
+        if isinstance(initial_stock, list):
+            initial_stock_g = initial_stock[d] if d < len(initial_stock) else 0
+        else:
+            initial_stock_g = initial_stock
+
+        stock_changes = []
+
+        for k in range(0, j + 1):
+
+            change = 0
+
+            for dev in devices:
+                change += (
+                    m.device_power_down[dev, k]
+                    / m.device_derivative_down_efficiency[dev, k]
+                    + m.device_power_up[dev, k]
+                    * m.device_derivative_up_efficiency[dev, k]
+                    + m.stock_delta[dev, k]
+                )
+
+            stock_changes.append(change)
+
         efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
+
         final_stock_change = [
-            stock - initial_stock_d
+            stock - initial_stock_g
             for stock in apply_stock_changes_and_losses(
-                initial_stock_d, stock_changes, efficiencies
+                initial_stock_g,
+                stock_changes,
+                efficiencies,
             )
         ][-1]
+
         return final_stock_change
 
     # Add constraints as a tuple of (lower bound, value, upper bound)
@@ -476,8 +661,15 @@ def device_scheduler(  # noqa C901
         """Derivative down if sign points down, derivative not down if sign points up."""
         return -m.device_power_down[d, j] <= Md * (1 - m.device_power_sign[d, j])
 
-    def ems_derivative_bounds(m, j):
-        return m.ems_derivative_min[j], sum(m.ems_power[:, j]), m.ems_derivative_max[j]
+    def ems_derivative_bounds(m, g, j):
+        devices = ems_constraint_device_groups[g]
+        if not devices:
+            return Constraint.Skip
+        return (
+            m.ems_derivative_min[g, j],
+            sum(m.ems_power[d, j] for d in devices),
+            m.ems_derivative_max[g, j],
+        )
 
     def commitment_up_derivative_sign(m, c):
         """Up deviation active only if sign points up."""
@@ -516,45 +708,30 @@ def device_scheduler(  # noqa C901
         )
 
     def ems_flow_commitment_equalities(m, c, j):
-        """Couple EMS flows (sum over devices) to each commitment.
+        """Couple EMS flow commitments to device flows, optionally filtered by commodity."""
 
-        - Creates an inequality for one-sided commitments.
-        - Creates an equality for two-sided commitments and for groups of size 1.
-        """
-        if (
-            "device" in commitments[c].columns
-            and not pd.isnull(commitments[c]["device"]).all()
-        ) or m.commitment_quantity[c, j] == -infinity:
-            # Commitment c does not concern EMS
+        if commitments[c]["class"].iloc[0] != FlowCommitment:
             return Constraint.Skip
-        if (
-            "class" in commitments[c].columns
-            and not (
-                commitments[c]["class"].apply(lambda cl: cl == FlowCommitment)
-            ).all()
-        ):
-            raise NotImplementedError(
-                "StockCommitment on an EMS level has not been implemented. Please file a GitHub ticket explaining your use case."
-            )
+
+        # Legacy behavior: no commodity → sum over all devices
+        if "commodity" not in commitments[c].columns:
+            devices = m.d
+        else:
+            commodity = commitments[c]["commodity"].iloc[0]
+            if pd.isna(commodity):
+                devices = m.d
+            else:
+                devices = commodity_devices.get(commodity, set())
+                if not devices:
+                    return Constraint.Skip
+
         return (
-            (
-                0
-                if len(commitments[c]) == 1
-                or "upwards deviation price" in commitments[c].columns
-                else None
-            ),
-            # 0 if "upwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
+            None,
             m.commitment_quantity[c, j]
             + m.commitment_downwards_deviation[c]
             + m.commitment_upwards_deviation[c]
-            - sum(m.ems_power[:, j]),
-            (
-                0
-                if len(commitments[c]) == 1
-                or "downwards deviation price" in commitments[c].columns
-                else None
-            ),
-            # 0 if "downwards deviation price" in commitments[c].columns else None,  # todo: possible simplification
+            - sum(m.ems_power[d, j] for d in devices),
+            None,
         )
 
     def device_derivative_equalities(m, d, j):
@@ -564,6 +741,10 @@ def device_scheduler(  # noqa C901
             m.device_power_up[d, j] + m.device_power_down[d, j] - m.ems_power[d, j],
             0,
         )
+
+    model.grouped_commitment_equalities = Constraint(
+        model.cjg, rule=grouped_commitment_equalities
+    )
 
     model.device_energy_bounds = Constraint(model.d, model.j, rule=device_bounds)
     model.device_power_bounds = Constraint(
@@ -581,7 +762,7 @@ def device_scheduler(  # noqa C901
     model.device_power_down_sign = Constraint(
         model.d, model.j, rule=device_down_derivative_sign
     )
-    model.ems_power_bounds = Constraint(model.j, rule=ems_derivative_bounds)
+    model.ems_power_bounds = Constraint(model.eg, model.j, rule=ems_derivative_bounds)
     if not convex_cost_curve:
         model.commitment_up_derivative_sign_con = Constraint(
             model.c, rule=commitment_up_derivative_sign
@@ -592,9 +773,7 @@ def device_scheduler(  # noqa C901
     model.ems_power_commitment_equalities = Constraint(
         model.cj, rule=ems_flow_commitment_equalities
     )
-    model.device_energy_commitment_equalities = Constraint(
-        model.cj, model.d, rule=device_stock_commitment_equalities
-    )
+
     model.device_power_equalities = Constraint(
         model.d, model.j, rule=device_derivative_equalities
     )
@@ -672,6 +851,22 @@ def device_scheduler(  # noqa C901
         )
 
     model.commitment_costs = commitment_costs
+    commodity_costs = {}
+    for c in model.c:
+        commodity = None
+        if "commodity" in commitments[c].columns:
+            commodity = commitments[c]["commodity"].iloc[0]
+        if commodity is None or (isinstance(commodity, float) and np.isnan(commodity)):
+            continue
+
+        cost = value(
+            model.commitment_downwards_deviation[c] * model.down_price[c]
+            + model.commitment_upwards_deviation[c] * model.up_price[c]
+        )
+        commodity_costs[commodity] = commodity_costs.get(commodity, 0) + cost
+
+    model.commodity_costs = commodity_costs
+
     # model.pprint()
     # model.display()
     # print(results.solver.termination_condition)

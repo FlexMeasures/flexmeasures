@@ -206,10 +206,30 @@ class GenericAsset(db.Model, AuthModelMixin):
         db.CheckConstraint(
             "parent_asset_id != id", name="generic_asset_self_reference_ck"
         ),
-        db.UniqueConstraint(
+        db.Index(
+            "generic_asset_name_parent_asset_id_key",
             "name",
             "parent_asset_id",
-            name="generic_asset_name_parent_asset_id_key",
+            unique=True,
+            postgresql_where=db.text("parent_asset_id IS NOT NULL"),
+            sqlite_where=db.text("parent_asset_id IS NOT NULL"),
+        ),
+        db.Index(
+            "generic_asset_root_account_id_name_key",
+            "account_id",
+            "name",
+            unique=True,
+            postgresql_where=db.text(
+                "parent_asset_id IS NULL AND account_id IS NOT NULL"
+            ),
+            sqlite_where=db.text("parent_asset_id IS NULL AND account_id IS NOT NULL"),
+        ),
+        db.Index(
+            "generic_asset_public_root_name_key",
+            "name",
+            unique=True,
+            postgresql_where=db.text("parent_asset_id IS NULL AND account_id IS NULL"),
+            sqlite_where=db.text("parent_asset_id IS NULL AND account_id IS NULL"),
         ),
         db.UniqueConstraint(
             "account_id",
@@ -224,6 +244,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
+    secrets = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
     sensors_to_show = db.Column(
         MutableList.as_mutable(JSONB), nullable=False, default=[]
     )
@@ -283,6 +304,8 @@ class GenericAsset(db.Model, AuthModelMixin):
             self.flex_model = {}
         if self.attributes is None:
             self.attributes = {}
+        if self.secrets is None:
+            self.secrets = {}
 
         # For backwards compatibility, when setting attributes that served as flex-model fields,
         # move them to the flex_context (and don't store them as attributes)

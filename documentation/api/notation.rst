@@ -64,6 +64,23 @@ Unless stated otherwise, values of such fields can take one of the following for
 
   The unit of the data is specified on the sensor.
 
+  A sensor reference can optionally include a source filter, so it keeps pointing at the right data even when multiple sources (e.g. a forecast and a schedule) record beliefs on the same sensor:
+
+  .. code-block:: json
+
+     {
+         "site-consumption-capacity": {"sensor": 55, "source-types": ["forecaster"]}
+     }
+
+  The supported filter keys are:
+
+  - ``source-types`` / ``exclude-source-types``: include or exclude sources by type (e.g. ``"forecaster"``, ``"scheduler"``, ``"user"``). **Recommended** over a specific ``source`` or ``sources`` ID, because forecasters and schedulers are versioned — a version bump gives new data a new source ID, but the source-type stays the same, so filters based on it don't need updating.
+  - ``source-account``: a list of account IDs, to filter by the account(s) linked to data sources. Useful in multi-tenant setups where several accounts run their own forecasters or schedulers.
+  - ``sources``: a list of specific data source IDs.
+  - ``source``: a single specific data source ID.
+
+  This is the same source filtering mechanism described under :ref:`sources`, just scoped to sensor references inside flex-model/flex-context fields rather than GET data endpoints.
+
 
 Timeseries
 ^^^^^^^^^^
@@ -288,6 +305,12 @@ For the ``GET /api/v3_0/sensors/<id>/data`` endpoint specifically, source filter
 - ``source``: filter by data source ID
 - ``source-account``: filter by the account ID linked to data sources
 - ``source-type``: filter by the type of data source (e.g. 'forecaster' or 'scheduler')
+
+.. note::
+
+   If schedules are recorded on the same sensor as measurements or forecasts, source filtering can be used to distinguish them.
+   An alternative is to model schedules on dedicated sensors; see :ref:`one_or_multiple_sensors`.
+
 
 .. _units:
 

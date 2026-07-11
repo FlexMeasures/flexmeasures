@@ -12,10 +12,10 @@ from isodate import parse_duration
 import pandas as pd
 import numpy as np
 from flask import request, jsonify, Flask
+from flask.testing import FlaskCliRunner
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
-
 from werkzeug.exceptions import (
     InternalServerError,
     BadRequest,
@@ -68,10 +68,23 @@ Such fixtures can be recognised by having fresh_db appended to their name.
 """
 
 
+class CustomFlaskCliRunner(FlaskCliRunner):
+    """A CLI test runner that lets exceptions propagate instead of catching them.
+
+    This makes test failures more informative: instead of seeing only a non-zero
+    exit code, the full exception with traceback is shown directly.
+    """
+
+    def invoke(self, *args, **kwargs):
+        kwargs.setdefault("catch_exceptions", False)
+        return super().invoke(*args, **kwargs)
+
+
 @pytest.fixture(scope="session")
 def app():
     print("APP FIXTURE")
     test_app = create_app(env="testing")
+    test_app.test_cli_runner_class = CustomFlaskCliRunner
 
     with test_app.app_context():
         yield test_app
