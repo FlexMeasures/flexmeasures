@@ -204,3 +204,5 @@ Each due automation then queues its forecasting jobs.
 The jobs record how they were created, which is shown on the asset's status page (UI), where recent jobs are listed.
 
 Automations defined on an asset can be viewed on the asset's *Automations* page in the UI, and listed with the API endpoint `[GET] /assets/(id)/automations <../api/v3_0.html>`_.
+
+Schedules can be automated in the same way — see :ref:`automating_schedules`.

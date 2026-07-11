@@ -97,8 +97,11 @@ def run_automations():
         try:
             returns = run_automation(automation)
             n_jobs = returns.get("n_jobs") if returns else 0
+            queue_name = {"forecasts": "forecasting", "schedules": "scheduling"}.get(
+                automation.type, automation.type
+            )
             click.secho(
-                f"Automation {automation.id} ('{automation.name}') queued {n_jobs} forecasting job(s) for asset {automation.asset_id}.",
+                f"Automation {automation.id} ('{automation.name}') queued {n_jobs} {queue_name} job(s) for asset {automation.asset_id}.",
                 **MsgStyle.SUCCESS,
             )
             n_run += 1

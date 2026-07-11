@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pytest
 
 from sqlalchemy import select
@@ -82,6 +84,116 @@ def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data):
     result = runner.invoke(add_automation, to_flags(cli_input))
     assert result.exit_code != 0
     assert "Invalid value for '--cron'" in result.output
+
+
+def test_add_schedule_automation(app, fresh_db, setup_dummy_data, tmp_path):
+    """Create a schedules automation; parameters are validated as a schedule trigger message."""
+    from flexmeasures.cli.data_add import add_automation
+
+    runner = app.test_cli_runner()
+
+    # invalid parameters (unknown field) are rejected
+    parameters_file = tmp_path / "parameters.yml"
+    parameters_file.write_text("not-a-trigger-field: 1\n")
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Bad schedules",
+            "--cron", "0 * * * *",
+            "--type", "schedules",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert result.exit_code != 0
+    assert "Invalid schedule parameters" in result.output
+
+    # minimal valid parameters (flex config can live on the asset)
+    parameters_file.write_text('duration: "PT12H"\n')
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Half-day schedules",
+            "--cron", "0 * * * *",
+            "--type", "schedules",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert "Successfully created" in result.output, result.output
+    automation = fresh_db.session.execute(
+        select(Automation).filter_by(name="Half-day schedules")
+    ).scalar_one()
+    assert automation.type == "schedules"
+    assert automation.generator_id is None
+    assert automation.parameters == {"duration": "PT12H"}
+
+    # a fixed start draws a warning
+    parameters_file.write_text('start: "2026-01-01T00:00:00+01:00"\n')
+    result = runner.invoke(
+        add_automation,
+        [
+            "--asset", "1",
+            "--name", "Fixed-start schedules",
+            "--cron", "0 * * * *",
+            "--type", "schedules",
+            "--parameters", str(parameters_file),
+        ],
+    )  # fmt: skip
+    assert "Successfully created" in result.output, result.output
+    assert "each run will compute the same period" in result.output
+
+
+def test_run_schedule_automation_dispatch(app, fresh_db, setup_dummy_data, monkeypatch):
+    """Running a schedules automation queues a scheduling job with trigger meta data.
+
+    We monkeypatch the job creator to avoid needing a fully schedulable asset here.
+    """
+    from flexmeasures.data.models.generic_assets import GenericAsset
+    from flexmeasures.data.services import scheduling
+    from flexmeasures.data.services.automations import run_automation
+    from flexmeasures.utils.time_utils import server_now
+
+    asset = fresh_db.session.get(GenericAsset, 1)
+    automation = Automation(
+        asset_id=asset.id,
+        type="schedules",
+        name="Test schedules",
+        cronstr="0 * * * *",
+        parameters={"duration": "PT12H", "resolution": "PT15M"},
+    )
+    fresh_db.session.add(automation)
+    fresh_db.session.flush()
+
+    calls = {}
+
+    def fake_create_simultaneous_scheduling_job(asset, **kwargs):
+        calls["asset"] = asset
+        calls["kwargs"] = kwargs
+
+        class FakeJob:
+            id = "fake-job-id"
+
+        return FakeJob()
+
+    monkeypatch.setattr(
+        scheduling,
+        "create_simultaneous_scheduling_job",
+        fake_create_simultaneous_scheduling_job,
+    )
+
+    returns = run_automation(automation)
+    assert returns == {"job_id": "fake-job-id", "n_jobs": 1}
+    assert calls["asset"].id == asset.id
+    assert calls["kwargs"]["trigger"] == {
+        "origin": "automation",
+        "automation_id": automation.id,
+    }
+    # start defaulted to (roughly) now, floored to the 15-minute resolution
+    start = calls["kwargs"]["start"]
+    assert start.minute % 15 == 0
+    assert abs((server_now() - start).total_seconds()) < 16 * 60
+    assert calls["kwargs"]["end"] - start == timedelta(hours=12)
 
 
 def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
