@@ -4195,6 +4195,125 @@
         ]
       }
     },
+    "/api/v3_0/assets/{id}/reports/trigger": {
+      "post": {
+        "summary": "Trigger a one-off reporting job for this asset.",
+        "description": "Trigger FlexMeasures to compute a report as a background job\n(to be picked up by a worker processing the `reporting` queue),\nmirroring how forecasts and schedules are triggered.\n\nIn this request, you can describe:\n\n- the reporter class to use (see the CLI command `flexmeasures show reporters` for the available reporters)\n- the reporter's configuration (static parameters, stored on the reporter's data source, e.g. the transformations of a `PandasReporter`)\n- the report parameters (dynamic parameters, such as which `input` data to use, which `output` sensors to save the report to, and the `start` and `end` of the reporting window)\n\nThe asset in the URL path scopes permissions: triggering reports requires\n`create-children` access to the asset. The report parameters must reference\nat least one output sensor, which is assumed to belong to the given asset\n(either directly or indirectly, by being assigned to one of the asset's (grand)children).\n\nThe response contains the id of the queued reporting job,\nwhose status can be polled via [GET /api/v3_0/jobs/(uuid)](#/Jobs/get_api_v3_0_jobs__uuid_).\nOnce the job finishes, the report is saved to the database\nand can be retrieved from the output sensor(s).\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "$ref": "#/components/parameters/AssetIdPath"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportTriggerSchema"
+              },
+              "examples": {
+                "aggregation_report": {
+                  "summary": "Sum two sensors into a report sensor",
+                  "description": "This message triggers a `PandasReporter` report that adds up the data\nof sensors 1 and 2 and saves the result to sensor 3.\n",
+                  "value": {
+                    "reporter": "PandasReporter",
+                    "config": {
+                      "required_input": [
+                        {
+                          "name": "sensor_1"
+                        },
+                        {
+                          "name": "sensor_2"
+                        }
+                      ],
+                      "required_output": [
+                        {
+                          "name": "df_agg"
+                        }
+                      ],
+                      "transformations": [
+                        {
+                          "df_input": "sensor_1",
+                          "method": "add",
+                          "args": [
+                            "@sensor_2"
+                          ],
+                          "df_output": "df_agg"
+                        }
+                      ]
+                    },
+                    "parameters": {
+                      "input": [
+                        {
+                          "name": "sensor_1",
+                          "sensor": 1
+                        },
+                        {
+                          "name": "sensor_2",
+                          "sensor": 2
+                        }
+                      ],
+                      "output": [
+                        {
+                          "name": "df_agg",
+                          "sensor": 3
+                        }
+                      ],
+                      "start": "2023-04-10T00:00:00+00:00",
+                      "end": "2023-04-10T10:00:00+00:00"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "examples": {
+                  "successful_response": {
+                    "description": "This message indicates that the reporting request has been processed without any error.\nA reporting job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID may be used to poll the job status: see [GET /api/v3_0/jobs/(uuid)](#/Jobs/get_api_v3_0_jobs__uuid_).\n",
+                    "value": {
+                      "status": "PROCESSED",
+                      "report": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "message": "Request has been processed."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
     "/api/v3_0/assets/{id}/schedules/trigger": {
       "post": {
         "summary": "Trigger scheduling job for any number of devices",
@@ -5614,6 +5733,30 @@
             "type": "boolean"
           }
         },
+        "additionalProperties": false
+      },
+      "ReportTriggerSchema": {
+        "type": "object",
+        "properties": {
+          "reporter": {
+            "type": "string",
+            "description": "Reporter class registered in flexmeasures.data.models.reporting or in an available FlexMeasures plugin (e.g. PandasReporter). Use the CLI command `flexmeasures show reporters` to list all the available reporters."
+          },
+          "config": {
+            "type": "object",
+            "description": "Reporter configuration (static parameters, stored on the reporter's data source).",
+            "additionalProperties": {}
+          },
+          "parameters": {
+            "type": "object",
+            "description": "Report parameters (dynamic parameters, such as `input`, `output`, `start` and `end`).",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "parameters",
+          "reporter"
+        ],
         "additionalProperties": false
       },
       "CopyAssetSchema": {

@@ -40,6 +40,37 @@ class ReporterParametersSchema(Schema):
     belief_horizon = DurationField(required=False)
 
 
+class ReportTriggerSchema(Schema):
+    """Request schema for triggering a one-off reporting job (the asset comes from the URL path).
+
+    The parameters are validated separately: first against the base ReporterParametersSchema,
+    and then against the reporter's own parameters schema.
+    """
+
+    reporter = fields.Str(
+        required=True,
+        metadata={
+            "description": "Reporter class registered in flexmeasures.data.models.reporting"
+            " or in an available FlexMeasures plugin (e.g. PandasReporter)."
+            " Use the CLI command `flexmeasures show reporters` to list all the available reporters."
+        },
+    )
+    config = fields.Dict(
+        keys=fields.Str(),
+        load_default=dict,
+        metadata={
+            "description": "Reporter configuration (static parameters, stored on the reporter's data source)."
+        },
+    )
+    parameters = fields.Dict(
+        keys=fields.Str(),
+        required=True,
+        metadata={
+            "description": "Report parameters (dynamic parameters, such as `input`, `output`, `start` and `end`)."
+        },
+    )
+
+
 class BeliefsSearchConfigSchema(Schema):
     """
     This schema implements the required fields to perform a TimedBeliefs search
