@@ -12,7 +12,9 @@ v1.0.0 | July XX, 2026
 
 New features
 -------------
+
 * Breaking behaviour change: the top-level flex-context's ``relax-constraints`` field now defaults to ``True`` (matching the default already used within each ``commodities`` entry), so constraint violations are softly penalized by default instead of being hard constraints, unless explicitly set to ``False`` [see `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_]
+* Support for creating new assets by using another asset as a template from the UI. [see `PR #2195 <https://www.github.com/FlexMeasures/flexmeasures/pull/2195>`_ and `PR #2268 <https://www.github.com/FlexMeasures/flexmeasures/pull/2268>`_
 * In the UI, asset and sensor lists can be filtered by ID prefix through API-backed search fields [see `PR #2231 <https://www.github.com/FlexMeasures/flexmeasures/pull/2231>`_]
 * Support configurable lower and upper bounds and snapping for forecast post-processing [see `PR #2273 <https://www.github.com/FlexMeasures/flexmeasures/pull/2273>`_]
 * Floor off-clock API datetimes to a non-instantaneous sensor's resolution by default when ingesting sensor data, uploading sensor data, and handling scheduler flex-model timed events; configurable with the ``floor_datetimes_to_resolution`` sensor attribute [see `PR #2146 <https://www.github.com/FlexMeasures/flexmeasures/pull/2146>`_]
@@ -84,7 +86,6 @@ New features
 * New ``GET /api/v3_0/sources`` endpoint to list accessible data sources and defined types, with ``only_latest=true`` by default to return only the most recent version per source [see `PR #2126 <https://www.github.com/FlexMeasures/flexmeasures/pull/2126>`_]
 * Add support for filtering sensor data GET requests by ``source-type`` on ``/api/v3_0/sensors/<id>/data`` [see `PR #2127 <https://www.github.com/FlexMeasures/flexmeasures/pull/2127>`_]
 * Making monitoring alerts more flexible: allow ``flexmeasures monitor`` alerts to target one or more user IDs or email addresses with ``--recipient``; ``flexmeasures monitor last-seen`` can now narrow monitored users to one or more accounts with ``--account`` or to client accounts with ``--consultancy`` [see `PR #2158 <https://www.github.com/FlexMeasures/flexmeasures/pull/2158>`_]
-* Support for creating new assets by using another asset as a template from the UI. [see `PR #2195 <https://www.github.com/FlexMeasures/flexmeasures/pull/2195>`_]
 * Improve LightGBM daily seasonal lag handling for sub-hourly forecasting sensors [see `PR #2157 <https://www.github.com/FlexMeasures/flexmeasures/pull/2157>`_]
 
 Infrastructure / Support
