@@ -202,23 +202,19 @@ def _relevant_sensor_ids(automation: Automation, parameter_values: list) -> set[
     return sensor_ids
 
 
-def get_automation_job_stats(automation: Automation) -> dict[str, int]:
-    """Count the jobs created by this automation, per job status.
+def _job_cache_refs(automation: Automation) -> set[tuple[int, str, str]]:
+    """The job cache entries where this automation's jobs may live.
 
-    Note that jobs in Redis have a limited TTL, so this only counts fairly recent jobs.
+    Forecasting and reporting jobs are cached under their target/output sensor(s),
+    which may belong to a different asset than the automation's own asset.
+    Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
+    and under individual sensors (per-device jobs).
     """
-    from flask import current_app
-
-    # Determine the job cache entries to scan. Forecasting and reporting jobs
-    # are cached under their target/output sensor(s), which may belong to a
-    # different asset than the automation's own asset.
     parameters = automation.parameters or {}
     if automation.type == "schedules":
-        # Scheduling jobs are cached under the asset (multi-device wrap-up jobs)
-        # and under individual sensors (per-device jobs).
-        cache_refs = [(automation.asset_id, "scheduling", "asset")] + [
+        return {(automation.asset_id, "scheduling", "asset")} | {
             (sensor.id, "scheduling", "sensor") for sensor in automation.asset.sensors
-        ]
+        }
     elif automation.type == "reports":
         sensor_ids = _relevant_sensor_ids(
             automation,
@@ -228,25 +224,62 @@ def get_automation_job_stats(automation: Automation) -> dict[str, int]:
                 if isinstance(output, dict)
             ],
         )
-        cache_refs = [(sensor_id, "reporting", "sensor") for sensor_id in sensor_ids]
+        return {(sensor_id, "reporting", "sensor") for sensor_id in sensor_ids}
     else:
         sensor_ids = _relevant_sensor_ids(
             automation,
             [parameters.get("sensor"), parameters.get("sensor-to-save")],
         )
-        cache_refs = [(sensor_id, "forecasting", "sensor") for sensor_id in sensor_ids]
+        return {(sensor_id, "forecasting", "sensor") for sensor_id in sensor_ids}
 
-    counts: dict[str, int] = {}
+
+def _count_automation_jobs(
+    cache_refs: set[tuple[int, str, str]], automation_ids: set[int]
+) -> dict[int, dict[str, int]]:
+    """Count jobs per automation and job status, in a single pass over the given job cache entries."""
+    from flask import current_app
+
+    counts: dict[int, dict[str, int]] = {
+        automation_id: {} for automation_id in automation_ids
+    }
     seen_job_ids: set[str] = set()
     for entity_id, queue, asset_or_sensor_type in cache_refs:
         for job in current_app.job_cache.get(entity_id, queue, asset_or_sensor_type):
             if job.id in seen_job_ids:
                 continue
             seen_job_ids.add(job.id)
-            if job.meta.get("trigger", {}).get("automation_id") == automation.id:
+            automation_id = job.meta.get("trigger", {}).get("automation_id")
+            if automation_id in counts:
                 status = str(job.get_status().value)
-                counts[status] = counts.get(status, 0) + 1
+                counts[automation_id][status] = counts[automation_id].get(status, 0) + 1
     return counts
+
+
+def get_automation_job_stats(automation: Automation) -> dict[str, int]:
+    """Count the jobs created by this automation, per job status.
+
+    Note that jobs in Redis have a limited TTL, so this only counts fairly recent jobs.
+    """
+    return _count_automation_jobs(_job_cache_refs(automation), {automation.id})[
+        automation.id
+    ]
+
+
+def get_asset_automations_job_stats(asset) -> dict[int, dict[str, int]]:
+    """Count the jobs created by each of the asset's automations, per job status,
+    in a single pass over the relevant job cache entries.
+
+    Note that jobs in Redis have a limited TTL, so this only counts fairly recent jobs.
+    """
+    automations = asset.automations
+    if not automations:
+        return {}
+    cache_refs: set[tuple[int, str, str]] = set()
+    for automation in automations:
+        cache_refs |= _job_cache_refs(automation)
+    return _count_automation_jobs(
+        cache_refs, {automation.id for automation in automations}
+    )
 
 
 def create_automation(

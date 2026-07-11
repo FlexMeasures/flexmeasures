@@ -3298,7 +3298,7 @@
     "/api/v3_0/assets/{id}/automations": {
       "get": {
         "summary": "Get all automations defined on an asset.",
-        "description": "The response will be a list of automations: recurring tasks (for now, computing forecasts)\ndefined on the asset. Each entry shows the automation's ID, when it was created,\nits type, name, activation status, and its recurrence, both as a cron string\nand described in natural language.\n",
+        "description": "The response will be a list of automations: recurring tasks (computing forecasts,\nschedules or reports) defined on the asset. Each entry shows the automation's ID,\nwhen it was created, its type, name, activation status, its recurrence (both as a\ncron string and described in natural language), and counts of recently created\njobs per job status (note that jobs in Redis have a limited TTL, so not all past\njobs are counted).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3333,9 +3333,13 @@
                           "name": "Day-ahead PV forecasts",
                           "cronstr": "0 6 <em> </em> *",
                           "recurrence_description": "At 06:00",
-                          "active": true
+                          "active": true,
+                          "job_stats": {
+                            "finished": 3
+                          }
                         }
-                      ]
+                      ],
+                      "redis_connection_err": null
                     }
                   }
                 }
