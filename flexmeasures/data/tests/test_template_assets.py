@@ -32,7 +32,7 @@ def test_provision_default_template_assets_creates_single_asset_templates(
     assert ev_charger.attributes["template"]["key"] == "ev-charger-template"
     assert ev_charger.description.startswith("Single EV charger asset")
     assert ev_charger.flex_model["soc-min"] == "0 kWh"
-    assert ev_charger.flex_model["soc-minima"] == [{"value": "12 kWh"}]
+    assert ev_charger.flex_model["soc-minima"] == "12 kWh"
 
     heat_pump = assets_by_name["Heat Pump Template"]
     assert heat_pump.generic_asset_type.name == "heat-storage"
