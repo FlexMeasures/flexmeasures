@@ -27,9 +27,13 @@ from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
-from flexmeasures.data.models.planning.storage import StorageScheduler
+from flexmeasures.data.models.planning.storage import (
+    StorageScheduler,
+    SCHEDULING_RESULT_KEY,
+)
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.models.planning.process import ProcessScheduler
+from flexmeasures.data.services.scheduling_result import SchedulingJobResult
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
@@ -701,9 +705,12 @@ def make_schedule(  # noqa: C901
     scheduler_specs: dict | None = None,
     dry_run: bool = False,
     **scheduler_kwargs: dict,
-) -> bool:
+) -> dict:
     """
-    This function computes a schedule. It returns True if it ran successfully.
+    This function computes a schedule. It returns a dict, empty on schedulers
+    that don't (yet) produce further analysis. If the scheduler produced soft
+    state-of-charge constraint analysis (see ``SchedulingJobResult``), the dict
+    instead holds that analysis under ``unresolved`` and ``resolved`` keys.
 
     It can be queued as a job (see create_scheduling_job).
     In that case, it will probably run on a different FlexMeasures node than where the job is created.
@@ -799,7 +806,14 @@ def make_schedule(  # noqa: C901
         rq_job.save_meta()
 
     # Save any result that specifies a sensor to save it to
+    scheduling_result_dict: dict = SchedulingJobResult().to_dict()
     for result in consumption_schedule:
+        if result.get("name") == SCHEDULING_RESULT_KEY:
+            scheduling_result_dict = result["data"].to_dict()
+            continue
+        if rq_job and result["name"] == "commitment_costs":
+            rq_job.meta["scheduler_info"]["commitment_costs"] = result["data"]
+            continue
         if "sensor" not in result:
             continue
 
@@ -842,7 +856,7 @@ def make_schedule(  # noqa: C901
         scheduler.persist_flex_model()
         db.session.commit()
 
-    return True
+    return scheduling_result_dict
 
 
 def find_scheduler_class(asset_or_sensor: Asset | Sensor) -> type:
