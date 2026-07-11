@@ -2984,8 +2984,12 @@ class StorageScheduler(MetaStorageScheduler):
                 },
                 index=index,
             )
-            if self.round_to_decimals:
-                data = data.round(self.round_to_decimals)
+            # Note: we deliberately do not round the rule data here. Rounding to
+            # self.round_to_decimals decimals in MW would be coarser than the
+            # schedule values, which are rounded in the sensor's own unit (e.g. kW),
+            # breaking the respond(reference) == p identity by up to half a
+            # rounding step. The API serves the rules converted to the same unit
+            # as the schedule values, so full precision keeps them consistent.
             # Optional explicit reference ("main meter") sensor of this commodity,
             # from the flex-context's `reference-sensor` field.
             reference_sensor = commodity_contexts.get(commodity, {}).get(
