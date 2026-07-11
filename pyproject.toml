@@ -50,6 +50,9 @@ dependencies = [
     "isodate>=0.7.2",
     "click>=8.2.0",
     "click-default-group>=1.2.4",
+    # for automations: matching cron strings and describing them in natural language
+    "croniter>=2.0.0",
+    "cron-descriptor>=1.4.0",
     "email-validator>=2.3.0",
     "rq>=2.6.1",
     # sort order

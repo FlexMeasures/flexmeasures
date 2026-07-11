@@ -49,6 +49,7 @@ def configure_db_for(app: Flask):
             user,
             task_runs,
             forecasting,
+            automations,
         )  # noqa: F401
 
         # This would create db structure based on models, but you should use `flask db upgrade` for that.
