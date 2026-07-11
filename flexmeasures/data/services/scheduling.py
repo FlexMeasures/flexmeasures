@@ -807,12 +807,32 @@ def make_schedule(  # noqa: C901
 
     # Save any result that specifies a sensor to save it to
     scheduling_result_dict: dict = SchedulingJobResult().to_dict()
+    recourse_rules: dict = {}
     for result in consumption_schedule:
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
             continue
         if rq_job and result["name"] == "commitment_costs":
             rq_job.meta["scheduler_info"]["commitment_costs"] = result["data"]
+            continue
+        if result.get("name") == "recourse_rule":
+            # Recourse rules (SeitaBV/ems#231) are not stored as sensor data;
+            # they are kept in the job meta, so the schedule-serving API can
+            # include them in its response.
+            df = result["data"]
+            reference_sensor = result.get("reference_sensor")
+            recourse_rules[result["sensor"].id] = {
+                "start": df.index[0].isoformat(),
+                "resolution": duration_isoformat(pd.to_timedelta(df.index.freq)),
+                "unit": result.get("unit", "MW"),
+                "reference-sensor": (
+                    reference_sensor.id if reference_sensor is not None else None
+                ),
+                "gain": df["gain"].tolist(),
+                "band_min": df["band_min"].tolist(),
+                "band_max": df["band_max"].tolist(),
+                "reference": df["reference"].tolist(),
+            }
             continue
         if "sensor" not in result:
             continue
@@ -851,6 +871,10 @@ def make_schedule(  # noqa: C901
             print(
                 f"\nNot saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"
             )
+
+    if rq_job and recourse_rules:
+        rq_job.meta["recourse_rules"] = recourse_rules
+        rq_job.save_meta()
 
     if not dry_run:
         scheduler.persist_flex_model()

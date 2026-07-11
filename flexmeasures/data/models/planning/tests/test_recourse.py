@@ -116,6 +116,9 @@ def _compute_recourse(
             "soc-at-start": "0.005 MWh",
             "soc-min": "0 MWh",
             "soc-max": "0.02 MWh",
+            # Opt in through the flex-model field (rather than the scheduler
+            # attribute), which also covers the schema wiring.
+            "include-response": True,
         }
     ]
     flex_context = {
@@ -135,7 +138,6 @@ def _compute_recourse(
         flex_context=flex_context,
         return_multiple=True,
     )
-    scheduler.include_response = True
     results = scheduler.compute()
     rules = [r for r in results if r["name"] == "recourse_rule"]
     assert len(rules) == 1

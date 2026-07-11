@@ -160,6 +160,14 @@ class StorageFlexModelSchema(Schema):
         metadata=metadata.PREFER_CHARGING_SOONER.to_dict(),
     )
 
+    include_response = fields.Bool(
+        data_key="include-response",
+        load_default=False,
+        metadata=dict(
+            description="Opt-in: also compute per-slot recourse rules (response gain, feasibility band and reference forecast) for each flexible device, served along with the schedule.",
+        ),
+    )
+
     # Timezone placeholders for the soc_maxima, soc_minima and soc_targets fields are overridden in __init__
     soc_maxima = VariableQuantityField(
         to_unit="MWh",

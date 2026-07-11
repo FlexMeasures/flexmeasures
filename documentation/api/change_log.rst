@@ -8,6 +8,7 @@ API change log
 v3.0-32 | July XX, 2026
 """"""""""""""""""""""""
 
+- Extended ``GET /api/v3_0/sensors/<id>/schedules/<uuid>`` with an opt-in ``response`` field: when a schedule is triggered with the new flex-model field ``include-response``, each schedule value is accompanied by a per-slot recourse rule object with ``reference-sensor`` (the commodity's main-meter sensor, set via the new flex-context field ``reference-sensor``, or null), ``reference``, ``gain``, ``band`` and ``retrigger-on-band-exit``, in the same unit and sign convention as the schedule values. Clients that ignore the field get today's behaviour.
 - Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` arrays, each keyed by asset ID. For scheduling jobs, this surfaces soft state-of-charge constraint analysis: ``soc-minima`` and ``soc-maxima`` violations (with a ``violation`` magnitude) or satisfied constraints (with a ``margin`` headroom). Both arrays are empty when no SoC constraints were defined.
 
 v3.0-31 | 2026-06-01

@@ -303,6 +303,14 @@ class SharedSchema(Schema):
         metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
     )
 
+    reference_sensor = SensorIdField(
+        required=False,
+        data_key="reference-sensor",
+        metadata=dict(
+            description="Sensor recording this commodity's main meter. Used as the explicit reference sensor in recourse rules (see the flex-model field `include-response`).",
+        ),
+    )
+
     # Aggregate output sensors
     aggregate_consumption = fields.Nested(
         OutputSensorReferenceSchema,

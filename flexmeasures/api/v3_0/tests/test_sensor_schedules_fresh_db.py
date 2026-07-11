@@ -1030,3 +1030,83 @@ def link_sensors(fresh_db, asset, sensors):
         [sensor.id for sensor in sensors]
     )
     fresh_db.session.add(asset)
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_trigger_and_get_schedule_with_recourse_response(
+    app,
+    add_market_prices_fresh_db,
+    add_battery_assets_fresh_db,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    """The GET schedule payload gains per-slot "response" objects when the flex-model
+    sets ``include-response``, and stays unchanged otherwise (backward compatibility).
+
+    The response objects describe the recourse rule
+    ``setpoint(m) = clip(p + gain * (m - reference), band[0], band[1])``
+    in the same unit and sign convention as the schedule values.
+    """
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+    sensor = (
+        Sensor.query.filter(Sensor.name == "power")
+        .join(GenericAsset, GenericAsset.id == Sensor.generic_asset_id)
+        .filter(GenericAsset.name == "Test battery")
+        .one_or_none()
+    )
+
+    def trigger_and_get_schedule(include_response: bool) -> dict:
+        message = message_for_trigger_schedule(resolution="PT1H")
+        if include_response:
+            message["flex-model"]["include-response"] = True
+        message["flex-context"] = {
+            "consumption-price": {"sensor": price_sensor_id},
+            "production-price": {"sensor": price_sensor_id},
+            "site-power-capacity": "1 TW",  # big enough to avoid infeasibilities
+            # Stand-in for the site's main-meter sensor
+            "reference-sensor": sensor.id,
+        }
+        with app.test_client() as client:
+            trigger_schedule_response = client.post(
+                url_for("SensorAPI:trigger_schedule", id=sensor.id),
+                json=message,
+            )
+            assert trigger_schedule_response.status_code == 200
+            job_id = trigger_schedule_response.json["schedule"]
+        work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+        assert (
+            Job.fetch(
+                job_id, connection=app.queues["scheduling"].connection
+            ).is_finished
+            is True
+        )
+        with app.test_client() as client:
+            get_schedule_response = client.get(
+                url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+            )
+        assert get_schedule_response.status_code == 200
+        return get_schedule_response.json
+
+    # Backwards compatibility: without the opt-in, the payload is unchanged.
+    schedule = trigger_and_get_schedule(include_response=False)
+    assert "response" not in schedule
+
+    # With the opt-in, one response object accompanies each schedule value.
+    schedule = trigger_and_get_schedule(include_response=True)
+    response_objects = schedule["response"]
+    assert len(response_objects) == len(schedule["values"])
+    for value, response_object in zip(schedule["values"], response_objects):
+        assert response_object["retrigger-on-band-exit"] is True
+        assert response_object["reference-sensor"] == sensor.id
+        assert response_object["gain"] in (0, -1)
+        band_min, band_max = response_object["band"]
+        # The band is bounded by the device's power capacity (2 MW), so both sides
+        # are finite, and the scheduled value lies within the band.
+        assert band_min is not None and band_max is not None
+        assert band_min - 1e-6 <= value <= band_max + 1e-6
+        # The battery is the only device of its commodity here, so the reference
+        # (net commodity flow, including the device's own planned power) equals
+        # the scheduled value.
+        assert response_object["reference"] == pytest.approx(value, abs=1e-6)

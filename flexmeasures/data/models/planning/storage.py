@@ -142,6 +142,13 @@ class MetaStorageScheduler(Scheduler):
         if not isinstance(flex_model, list):
             flex_model = [flex_model]
 
+        # Opt-in for per-slot recourse rules (flex-model field `include-response`);
+        # any device requesting it enables it for all flexible devices of the schedule.
+        if any(
+            isinstance(fm, dict) and fm.get("include_response") for fm in flex_model
+        ):
+            self.include_response = True
+
         # Identify stock models: entries not defining a power sensor, but only a (state-of-charge) sensor
         self.stock_models = {}
 
@@ -2829,6 +2836,7 @@ class StorageScheduler(MetaStorageScheduler):
         n = len(index)
 
         commodity_to_devices = self._reconstruct_commodity_to_devices()
+        commodity_contexts = self._get_commodity_contexts()
         device_models = getattr(self, "_device_models", None) or []
         device_commodity = {
             d: (
@@ -2978,12 +2986,18 @@ class StorageScheduler(MetaStorageScheduler):
             )
             if self.round_to_decimals:
                 data = data.round(self.round_to_decimals)
+            # Optional explicit reference ("main meter") sensor of this commodity,
+            # from the flex-context's `reference-sensor` field.
+            reference_sensor = commodity_contexts.get(commodity, {}).get(
+                "reference_sensor"
+            )
             entries.append(
                 {
                     "name": "recourse_rule",
                     "sensor": sensors[d],
                     "data": data,
                     "unit": "MW",
+                    "reference_sensor": reference_sensor,
                 }
             )
         return entries

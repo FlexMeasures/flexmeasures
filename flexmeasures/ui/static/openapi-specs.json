@@ -789,6 +789,40 @@
                       "type": "string",
                       "description": "Unit of the schedule's values."
                     },
+                    "response": {
+                      "type": "array",
+                      "description": "Per-slot recourse rules (only present when the schedule was triggered with the\nflex-model field <code>include-response</code> set to true). Each object corresponds to one\nschedule value and describes how the device should respond locally to deviations\nof its commodity's main meter from the reference forecast, following\n<code>setpoint(m) = clip(p + gain * (m - reference), band[0], band[1])</code>,\nwhere <code>p</code> is the scheduled value. Values share the schedule's unit and sign\nconvention; a band side of null means unconstrained.\n",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "reference-sensor": {
+                            "type": "integer",
+                            "nullable": true,
+                            "description": "ID of the commodity's main-meter sensor (from the flex-context field <code>reference-sensor</code>), if configured."
+                          },
+                          "reference": {
+                            "type": "number",
+                            "description": "The forecasted net flow of the device's commodity, including the device's own scheduled value."
+                          },
+                          "gain": {
+                            "type": "number",
+                            "description": "Response gain (0 means follow the plan; -1 means absorb main-meter surprises 1:1)."
+                          },
+                          "band": {
+                            "type": "array",
+                            "items": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "description": "Feasibility band [min, max] within which deviating this slot is known safe."
+                          },
+                          "retrigger-on-band-exit": {
+                            "type": "boolean",
+                            "description": "Whether a new schedule should be triggered when the meter leaves the band."
+                          }
+                        }
+                      }
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -4736,6 +4770,10 @@
               "type": "integer"
             }
           },
+          "reference-sensor": {
+            "type": "integer",
+            "description": "Sensor recording this commodity's main meter. Used as the explicit reference sensor in recourse rules (see the flex-model field `include-response`)."
+          },
           "aggregate-consumption": {
             "description": "Sensor used to record the aggregate consumption schedule of all flexible and inflexible devices involved when scheduling this asset.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nDepending on which output sensors are defined:\n\n- <strong>Only</strong> <code>aggregate-consumption</code> <strong>defined</strong>: the full aggregate power schedule is stored on this sensor using the\n  consumption-positive sign convention (consumption positive, production negative).\n- <strong>Only</strong> <code>aggregate-production</code> <strong>defined</strong>: the full aggregate power schedule is stored on the aggregate-production sensor\n  with the production-positive convention (production positive, consumption negative).\n- <strong>Both defined</strong>: only the non-negative part of the aggregate schedule is stored on this sensor (zero for\n  time steps with net production), and only the non-positive part (sign-flipped) is stored on the\n  aggregate-production sensor.\n",
             "example": {
@@ -6216,6 +6254,11 @@
             "default": true,
             "description": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True).\nIt also signals a preference to discharge later.\nBoolean option only.\n",
             "example": true
+          },
+          "include-response": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt-in: also compute per-slot recourse rules (response gain, feasibility band and reference forecast) for each flexible device, served along with the schedule."
           },
           "soc-maxima": {
             "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nIf a <code>soc-maxima-breach-price</code> is defined, the <code>soc-maxima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
