@@ -52,6 +52,7 @@ from flexmeasures.data.services.automations import (
     create_automation,
     delete_automation as remove_automation,
     describe_cronstr,
+    get_asset_automations_job_stats,
     get_automation_job_stats,
     update_automation,
 )
@@ -1237,10 +1238,12 @@ class AssetAPI(FlaskView):
         get:
           summary: Get all automations defined on an asset.
           description: |
-            The response will be a list of automations: recurring tasks (for now, computing forecasts)
-            defined on the asset. Each entry shows the automation's ID, when it was created,
-            its type, name, activation status, and its recurrence, both as a cron string
-            and described in natural language.
+            The response will be a list of automations: recurring tasks (computing forecasts,
+            schedules or reports) defined on the asset. Each entry shows the automation's ID,
+            when it was created, its type, name, activation status, its recurrence (both as a
+            cron string and described in natural language), and counts of recently created
+            jobs per job status (note that jobs in Redis have a limited TTL, so not all past
+            jobs are counted).
           security:
             - ApiKeyAuth: []
           parameters:
@@ -1268,6 +1271,9 @@ class AssetAPI(FlaskView):
                             cronstr: "0 6 * * *"
                             recurrence_description: "At 06:00"
                             active: true
+                            job_stats:
+                              finished: 3
+                        redis_connection_err: null
             400:
               description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
             401:
@@ -1279,14 +1285,24 @@ class AssetAPI(FlaskView):
           tags:
             - Assets
         """
+        redis_connection_err = None
+        try:
+            job_stats = get_asset_automations_job_stats(asset)
+        except NoRedisConfigured as e:
+            job_stats = {}
+            redis_connection_err = e.args[0]
         automations_data = []
         for automation in asset.automations:
             automation_data = automation_schema.dump(automation)
             automation_data["recurrence_description"] = describe_cronstr(
                 automation.cronstr
             )
+            automation_data["job_stats"] = job_stats.get(automation.id, {})
             automations_data.append(automation_data)
-        return {"automations": automations_data}, 200
+        return {
+            "automations": automations_data,
+            "redis_connection_err": redis_connection_err,
+        }, 200
 
     @route("/<id>/automations/<int:automation_id>", methods=["GET"])
     @use_kwargs(

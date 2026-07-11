@@ -82,6 +82,7 @@ def test_get_automations(
     assert day_ahead["recurrence_description"] == "At 06:00"
     assert day_ahead["active"] is True
     assert day_ahead["created_at"] is not None
+    assert day_ahead["job_stats"] == {}  # this automation has not queued any jobs
     # generator and parameters are not listed
     assert "generator_id" not in day_ahead
     assert "generator" not in day_ahead
