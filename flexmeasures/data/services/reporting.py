@@ -48,7 +48,11 @@ def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
 
     job = Job.create(
         run_report_job,
-        kwargs=dict(data_source_id=data_source_id, parameters=parameters),
+        kwargs=dict(
+            data_source_id=data_source_id,
+            parameters=parameters,
+            automation_id=(reporter._job_trigger or {}).get("automation_id"),
+        ),
         connection=current_app.queues[queue].connection,
         ttl=int(
             current_app.config.get(
@@ -74,11 +78,15 @@ def create_reporting_job(reporter: "Reporter", queue: str = "reporting") -> Job:
     return job
 
 
-def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
+def run_report_job(
+    data_source_id: int, parameters: dict, automation_id: int | None = None
+) -> list[dict]:
     """Compute a report (with the data generator stored on the given data source)
     and save the results to the database.
 
     This function is meant to be run by a worker processing the reporting queue.
+    If the report was triggered by an automation, the end of the report window is
+    recorded upon success, so the automation's next default window starts there.
     """
     from flexmeasures.data.models.data_sources import DataSource
     from flexmeasures.data.models.reporting import Reporter
@@ -89,10 +97,22 @@ def run_report_job(data_source_id: int, parameters: dict) -> list[dict]:
     reporter = source.data_generator
     if not isinstance(reporter, Reporter):
         raise ValueError(f"Data source {data_source_id} does not store a Reporter.")
+    # The data generator instance is cached on the data source, which may be shared
+    # (e.g. within a long-lived worker process), so wipe any previous parameter state.
+    reporter._parameters = None
     results = reporter.compute(parameters=parameters)
     for result in results:
         save_to_db(result["data"])
     db.session.commit()
+
+    if automation_id is not None and parameters.get("end"):
+        from datetime import datetime
+
+        from flexmeasures.data.services.automations import record_automation_run
+
+        record_automation_run(
+            automation_id, now=datetime.fromisoformat(parameters["end"])
+        )
 
     # return a light summary (the report data itself is stored in the database)
     return [
