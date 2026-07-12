@@ -279,7 +279,7 @@ def test_get_job_status_finished_with_unresolved_soc_minima(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
         # run the scheduling job
