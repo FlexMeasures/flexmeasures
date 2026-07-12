@@ -81,7 +81,9 @@ def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data):
     }
     result = runner.invoke(add_automation, to_flags(cli_input))
     assert result.exit_code != 0
-    assert "Invalid value for '--cron'" in result.output
+    # NB click reports the offending value; once it reports the validation message
+    # instead (see PR #2303), the cron string's own error text shows up here.
+    assert "Invalid value" in result.output
 
 
 def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
