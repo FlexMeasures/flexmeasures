@@ -288,32 +288,38 @@
                       }}
                     </td>
                   </tr>
-                  {% if account.primary_color %}
+                  {% if account.primary_color or account.secondary_color %}
                   <tr>
-                    <td>Primary Color</td>
+                    <td>Colors</td>
                     <td>
-                      <div
-                        style="
-                          width: 20px;
-                          height: 20px;
-                          background-color: {{ account.primary_color }};
-                          display: inline-block;
-                        "
-                      ></div>
-                    </td>
-                  </tr>
-                  {% endif %} {% if account.secondary_color %}
-                  <tr>
-                    <td>Secondary Color</td>
-                    <td>
-                      <div
-                        style="
-                          width: 20px;
-                          height: 20px;
-                          background-color: {{ account.secondary_color }};
-                          display: inline-block;
-                        "
-                      ></div>
+                      {% if account.primary_color %}
+                      <span class="me-3">
+                        Primary
+                        <span
+                          style="
+                            width: 20px;
+                            height: 20px;
+                            background-color: {{ account.primary_color }};
+                            display: inline-block;
+                            vertical-align: middle;
+                          "
+                        ></span>
+                      </span>
+                      {% endif %}
+                      {% if account.secondary_color %}
+                      <span>
+                        Secondary
+                        <span
+                          style="
+                            width: 20px;
+                            height: 20px;
+                            background-color: {{ account.secondary_color }};
+                            display: inline-block;
+                            vertical-align: middle;
+                          "
+                        ></span>
+                      </span>
+                      {% endif %}
                     </td>
                   </tr>
                   {% endif %} {% if account.logo_url %}
