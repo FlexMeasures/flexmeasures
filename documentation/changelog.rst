@@ -22,6 +22,8 @@ New features
 * Support commodity-converting devices, such as a CHP, e-boiler or heat pump, by describing each of the device's commodity ports as a flex-model entry sharing one ``coupling`` group with fixed flow ratios (``coupling-coefficient``) [see `PR #2218 <https://www.github.com/FlexMeasures/flexmeasures/pull/2218>`_]
 * Commodities without energy prices in the flex-context (e.g. a heat or steam network without a grid connection) are scheduled as internal nodes whose devices must balance each other at every time step [see `PR #2279 <https://www.github.com/FlexMeasures/flexmeasures/pull/2279>`_]
 * Commodity contexts that omit grid-connection fields (prices and site capacities) now get smart defaults instead of failing or silently leaving the grid unconstrained — for instance, a bare ``{"commodity": "gas"}`` is treated as having no grid connection; see :ref:`commodity_context_defaults` for the full rules [see `PR #2272 <https://www.github.com/FlexMeasures/flexmeasures/pull/2272>`_]
+* In the UI, the flex-context editor supports editing commitments (name, commodity, baseline and deviation prices, each accepting a fixed value or a sensor), also within each commodity context [see `PR #2287 <https://www.github.com/FlexMeasures/flexmeasures/pull/2287>`_]
+* Commitments in the flex-context support a ``commodity`` field, defaulting to electricity, to bind a commitment to that commodity's devices [see `PR #2287 <https://www.github.com/FlexMeasures/flexmeasures/pull/2287>`_]
 * CLI support for adding/editing account attributes [see `PR #2242 <https://www.github.com/FlexMeasures/flexmeasures/pull/2242>`_]
 * Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` soft state-of-charge constraint analysis (``soc-minima``/``soc-maxima`` violations or satisfied constraints, keyed by asset ID) for scheduling jobs; both arrays are empty when no SoC constraints were defined [see `PR #2072 <https://www.github.com/FlexMeasures/flexmeasures/pull/2072>`_]
 
@@ -39,6 +41,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Namespace user-given commitment names with a ``custom:`` prefix, so they cannot shadow the commitments the scheduler sets up internally (whose costs are reported in the same name-keyed dict of the scheduling results) [see `PR #2285 <https://www.github.com/FlexMeasures/flexmeasures/pull/2285>`_]
 * Let storage scheduling treat missing constant SoC bounds as unconstrained lower or upper bounds [see `PR #2221 <https://www.github.com/FlexMeasures/flexmeasures/pull/2221>`_]
 * Allow root assets belonging to different accounts to share the same name, while keeping asset names unique among root assets within the same account and among children of the same parent [see `PR #2226 <https://www.github.com/FlexMeasures/flexmeasures/pull/2226>`_]
 * Fix queued train-predict forecasting jobs losing their resolved forecast window or failing on detached database objects in workers [see `PR #2035 <https://www.github.com/FlexMeasures/flexmeasures/pull/2035>`_]

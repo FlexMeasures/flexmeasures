@@ -4573,7 +4573,14 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
+          },
+          "commodity": {
+            "type": "string",
+            "default": "electricity",
+            "description": "Commodity whose devices this commitment binds. Defaults to electricity.",
+            "example": "electricity"
           },
           "commodity": {
             "type": "string",
@@ -4722,8 +4729,16 @@
             "example": true
           },
           "commitments": {
-            "description": "Prior commitments. Support for this field in the UI is still under further development, but you can find more information in <a href=\"/ui/static/documentation/html/search.html?q=commitments\" target=\"_blank\">the docs</a>.",
-            "example": [],
+            "description": "Prior commitments. Each commitment needs a <code>name</code> and a <code>baseline</code>, plus at least one deviation price (<code>up-price</code> and/or <code>down-price</code>); its <code>commodity</code> defaults to electricity.\nYou can find more information in <a href=\"/ui/static/documentation/html/search.html?q=commitments\" target=\"_blank\">the docs</a>.\n",
+            "example": [
+              {
+                "name": "capacity contract",
+                "baseline": "100 kW",
+                "up-price": {
+                  "sensor": 5
+                }
+              }
+            ],
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Commitment"

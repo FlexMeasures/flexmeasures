@@ -33,6 +33,13 @@ Defaults to ``"electricity"``.
 """,
     examples=["electricity", "gas"],
 )
+COMMODITIES = MetaData(
+    description="""List of per-commodity flex-contexts (one for each commodity, e.g. electricity and gas), each holding the prices and grid-connection fields for that commodity.
+The fields given at the top level of the flex-context describe the electricity commodity.
+See :ref:`tut_multi_commodity` for a hands-on example.
+""",
+    example=[{"commodity": "gas", "consumption-price": {"sensor": 5}}],
+)
 INFLEXIBLE_DEVICE_SENSORS = MetaData(
     description="""Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
 For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.
@@ -74,8 +81,16 @@ See the ``aggregate-consumption`` field for the full description of the split lo
     example={"sensor": 11},
 )
 COMMITMENTS = MetaData(
-    description="Prior commitments. Support for this field in the UI is still under further development, but you can find more information in :ref:`commitments`.",
-    example=[],
+    description="""Prior commitments. Each commitment needs a ``name`` and a ``baseline``, plus at least one deviation price (``up-price`` and/or ``down-price``); its ``commodity`` defaults to electricity.
+You can find more information in :ref:`commitments`.
+""",
+    example=[
+        {
+            "name": "capacity contract",
+            "baseline": "100 kW",
+            "up-price": {"sensor": 5},
+        }
+    ],
 )
 CONSUMPTION_PRICE = MetaData(
     description="The commodity price (e.g. electricity price) applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. [#old_consumption_price_field]_",

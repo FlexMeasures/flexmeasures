@@ -3,6 +3,7 @@ import pytest
 import numpy as np
 
 from flexmeasures.data.services.utils import get_or_create_model
+from flexmeasures.utils.unit_utils import ur
 from flexmeasures.data.models.planning import (
     Commitment,
     StockCommitment,
@@ -2608,3 +2609,44 @@ def test_sensor_scoped_commitment_binds_aggregate_of_selected_devices(app, db):
     # The band keeps the aggregate at 10 MW (cheapest way to avoid the penalty),
     # even though each heater alone (8 MW max) could not carry it.
     np.testing.assert_allclose(combined.iloc[:-1], 10.0, rtol=1e-4)
+
+
+def test_user_commitment_names_are_namespaced(app):
+    """User-given commitment names get a "custom:" prefix, so they cannot shadow
+    the commitments the scheduler sets up internally (e.g. "electricity net energy"),
+    whose costs are reported in the same name-keyed dict.
+    """
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T04:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                # Deliberately shadowing an internal commitment name
+                "name": "electricity net energy",
+                "baseline": ur.Quantity("0 MW"),
+                "up_price": ur.Quantity("100 EUR/MWh"),
+            },
+        ],
+    }
+    flex_model = [{"commodity": "electricity"}]
+
+    commitments = scheduler.convert_to_commitments(
+        flex_model,
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=start,
+    )
+    assert len(commitments) == 1
+    assert commitments[0].name == "custom:electricity net energy"
+
+    # Converting the same specs again must not double the prefix.
+    commitments = scheduler.convert_to_commitments(
+        flex_model,
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=start,
+    )
+    assert commitments[0].name == "custom:electricity net energy"
