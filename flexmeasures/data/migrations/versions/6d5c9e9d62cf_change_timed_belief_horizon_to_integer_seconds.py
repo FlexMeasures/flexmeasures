@@ -1,7 +1,7 @@
-"""change timed belief horizon to integer minutes
+"""change timed belief horizon to integer seconds
 
 Also delete duplicate beliefs that would have become duplicate primary keys after the change
-(we keep the most recent beliefs). Those are beliefs with sub-minute differences in belieff horizons.
+(we keep the most recent beliefs). Those are beliefs with sub-second differences in belief horizons.
 That last part is not reversible.
 
 Revision ID: 6d5c9e9d62cf
@@ -23,6 +23,31 @@ depends_on = None
 
 
 def upgrade():
+    out_of_range_beliefs = (
+        op.get_bind()
+        .execute(
+            sa.text(
+                """
+            SELECT COUNT(*)
+            FROM timed_belief
+            WHERE
+                EXTRACT(EPOCH FROM belief_horizon) < -2147483648
+                OR EXTRACT(EPOCH FROM belief_horizon) > 2147483647
+            """
+            )
+        )
+        .scalar_one()
+    )
+    if out_of_range_beliefs:
+        print(
+            f"Found {out_of_range_beliefs} timed_belief rows with belief_horizon "
+            "outside the supported integer-second range of about 68 years."
+        )
+        raise RuntimeError(
+            "Cannot convert timed_belief.belief_horizon to integer seconds: "
+            f"{out_of_range_beliefs} rows exceed the signed INTEGER range."
+        )
+
     deleted_duplicate_beliefs = (
         op.get_bind()
         .execute(
@@ -35,7 +60,7 @@ def upgrade():
                         PARTITION BY
                             source_id,
                             event_start,
-                            FLOOR(EXTRACT(EPOCH FROM belief_horizon) / 60)::INTEGER,
+                            FLOOR(EXTRACT(EPOCH FROM belief_horizon))::INTEGER,
                             cumulative_probability,
                             sensor_id
                         ORDER BY belief_horizon ASC
@@ -60,14 +85,14 @@ def upgrade():
     print(
         "Deleted "
         f"{deleted_duplicate_beliefs} timed_belief rows that would have become "
-        "duplicate primary keys after converting belief_horizon to integer minutes."
+        "duplicate primary keys after converting belief_horizon to integer seconds."
     )
     op.alter_column(
         "timed_belief",
         "belief_horizon",
         existing_type=postgresql.INTERVAL(),
         type_=sa.Integer(),
-        postgresql_using="FLOOR(EXTRACT(EPOCH FROM belief_horizon) / 60)::INTEGER",
+        postgresql_using="FLOOR(EXTRACT(EPOCH FROM belief_horizon))::INTEGER",
     )
 
 
@@ -77,5 +102,5 @@ def downgrade():
         "belief_horizon",
         existing_type=sa.Integer(),
         type_=postgresql.INTERVAL(),
-        postgresql_using="belief_horizon * interval '1 minute'",
+        postgresql_using="belief_horizon * interval '1 second'",
     )
