@@ -88,7 +88,6 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     assert battery_power.empty
 
     # Work on jobs
-    queued_jobs[0].perform()
     work_on_rq(queue, handle_scheduling_exception)
 
     # Check that the jobs completed successfully
