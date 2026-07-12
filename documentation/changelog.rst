@@ -40,6 +40,7 @@ Bugfixes
 * Fix forecasting with past or future regressors, which raised a ``TypeError`` on pandas 2.2 and higher [see `PR #2303 <https://www.github.com/FlexMeasures/flexmeasures/pull/2303>`_]
 * Show why a CLI option was rejected (e.g. "No account found with id 9999") instead of only echoing the offending value [see `PR #2303 <https://www.github.com/FlexMeasures/flexmeasures/pull/2303>`_]
 * Fix the task detail page returning a 500 for jobs whose meta data is not JSON-serializable [see `PR #2303 <https://www.github.com/FlexMeasures/flexmeasures/pull/2303>`_]
+* Roll back before retrying the query behind ``[GET] /api/ops/getLatestTaskRun``, which otherwise reports an aborted transaction instead of the original database error [see `PR #2303 <https://www.github.com/FlexMeasures/flexmeasures/pull/2303>`_]
 * Let storage scheduling treat missing constant SoC bounds as unconstrained lower or upper bounds [see `PR #2221 <https://www.github.com/FlexMeasures/flexmeasures/pull/2221>`_]
 * Allow root assets belonging to different accounts to share the same name, while keeping asset names unique among root assets within the same account and among children of the same parent [see `PR #2226 <https://www.github.com/FlexMeasures/flexmeasures/pull/2226>`_]
 * Fix queued train-predict forecasting jobs losing their resolved forecast window or failing on detached database objects in workers [see `PR #2035 <https://www.github.com/FlexMeasures/flexmeasures/pull/2035>`_]
