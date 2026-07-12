@@ -464,7 +464,7 @@ def test_asset_sensors_metadata(
     ]
 
 
-def test_build_asset_jobs_data(db, app, add_battery_assets):
+def test_build_asset_jobs_data(db, app, add_battery_assets, clean_redis):
     """Check that we get both types of jobs for a battery asset."""
     battery_asset = add_battery_assets["Test battery"]
     battery = battery_asset.sensors[0]

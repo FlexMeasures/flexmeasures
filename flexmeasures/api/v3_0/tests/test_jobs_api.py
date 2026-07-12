@@ -54,6 +54,7 @@ def test_get_job_status_requires_read_access(
     add_battery_assets,
     battery_soc_sensor,
     keep_scheduling_queue_empty,
+    clean_redis,
     requesting_user,
     expected_status_code,
 ):
