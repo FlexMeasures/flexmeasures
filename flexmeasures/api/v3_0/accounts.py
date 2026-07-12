@@ -203,7 +203,7 @@ class AccountAPI(FlaskView):
 
             - Admin users can create accounts.
             - Consultant users can create accounts only if their account has the
-              `CONSULTANCY_ACCOUNT_ROLE` account role.
+              {{CONSULTANCY_ACCOUNT_ROLE}} account role.
             - For consultant users, the newly created account is automatically
               linked to their own account as consultancy account.
 
@@ -302,7 +302,9 @@ class AccountAPI(FlaskView):
 
             **Restrictions on Fields:**
             - The **id** field is read-only and cannot be updated.
-            - The **consultancy_account_id** field can only be edited if the current user has an **admin** role.
+            - The **consultancy_account_id** field can be edited by admins. Non-admin users can only set it to their
+              own account, and only if their account has the {{CONSULTANCY_ACCOUNT_ROLE}} account role and they have
+              the consultant or account-admin user role.
 
           security:
             - ApiKeyAuth: []
@@ -346,37 +348,10 @@ class AccountAPI(FlaskView):
             403:
               description: INVALID_SENDER
             422:
-              description: UNPROCESSABLE_ENTITY (e.g., trying to update 'consultancy_account_id' without admin rights)
+              description: UNPROCESSABLE_ENTITY (e.g., trying to update 'consultancy_account_id' to a non-existing account)
           tags:
             - Accounts
         """
-
-        # Get existing consultancy_account_id
-        existing_consultancy_account_id = (
-            account.consultancy_account.id if account.consultancy_account else None
-        )
-
-        if not user_has_admin_access(current_user, "update"):
-            if "consultancy_account_id" in account_data:
-                return {
-                    "errors": ["You are not allowed to update consultancy_account_id"]
-                }, 401
-        else:
-            # Check if consultancy_account_id has changed
-            if "consultancy_account_id" in account_data:
-                new_consultancy_account_id = account_data.get("consultancy_account_id")
-                if new_consultancy_account_id is None:
-                    pass  # Allow clearing the consultancy relationship
-                elif existing_consultancy_account_id != new_consultancy_account_id:
-                    new_consultant_account = db.session.query(Account).get(
-                        new_consultancy_account_id
-                    )
-                    # Validate new consultant account
-                    if (
-                        not new_consultant_account
-                        or new_consultant_account.id == account.id
-                    ):
-                        return {"errors": ["Invalid consultancy_account_id"]}, 422
 
         # Track modified fields
         fields_to_check = [

@@ -4,9 +4,11 @@ from flask import url_for
 from flask_login import current_user
 from sqlalchemy import select
 
+from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import AccountRole
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.auth.policy import CONSULTANCY_ACCOUNT_ROLE
+from flexmeasures.utils.time_utils import server_now
 
 from flexmeasures.ui.tests.utils import login, logout
 
@@ -122,6 +124,19 @@ def test_create_account_page_access_control(
     assert response.status_code == expected_status_code
 
 
+def test_create_account_page_shows_default_consultancy_for_non_admin(
+    db, client, as_consultant
+):
+    _set_consultant_account_role(db, True)
+
+    response = client.get(url_for("AccountCrudUI:new"), follow_redirects=True)
+
+    assert response.status_code == 200
+    assert b"Consultancy account" in response.data
+    assert b"Test Consultancy Account" in response.data
+    assert b"The new account will be linked as a client account" in response.data
+
+
 def test_account_page_add_client_account_button_for_consultancy_account(
     db, client, as_consultant
 ):
@@ -134,6 +149,66 @@ def test_account_page_add_client_account_button_for_consultancy_account(
     )
     assert account_page.status_code == 200
     assert b"Add client account" in account_page.data
+
+
+def test_account_page_no_add_client_account_button_for_client_account(
+    db, client, as_consultant
+):
+    _set_consultant_account_role(db, True)
+    client_account_id = find_user_by_email("test_consultant_client@seita.nl").account.id
+
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=client_account_id),
+        follow_redirects=True,
+    )
+
+    assert account_page.status_code == 200
+    assert b"Add client account" not in account_page.data
+
+
+def test_account_page_shows_consultancy_account_for_client_account(
+    db, client, as_consultant
+):
+    client_account_id = find_user_by_email("test_consultant_client@seita.nl").account.id
+
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=client_account_id),
+        follow_redirects=True,
+    )
+
+    assert account_page.status_code == 200
+    assert b"Consultancy" in account_page.data
+    assert b"Test Consultancy Account" in account_page.data
+
+
+def test_account_page_lists_client_accounts_for_consultancy_account(
+    db, client, as_consultant
+):
+    consultancy_account_id = find_user_by_email("test_consultant@seita.nl").account.id
+
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=consultancy_account_id),
+        follow_redirects=True,
+    )
+
+    assert account_page.status_code == 200
+    assert b"Client accounts" in account_page.data
+    assert b"Test ConsultancyClient Account" in account_page.data
+
+
+def test_account_page_shows_no_client_accounts_for_non_consultancy_account(
+    db, client, as_prosumer_user1
+):
+    account_id = find_user_by_email("test_prosumer_user@seita.nl").account.id
+
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=account_id),
+        follow_redirects=True,
+    )
+
+    assert account_page.status_code == 200
+    assert b"Client accounts" in account_page.data
+    assert b"None" in account_page.data
 
 
 def test_account_page_no_add_client_account_button_for_non_consultancy_account(
@@ -161,6 +236,42 @@ def test_account_page_add_client_account_button_for_site_admin(db, client, as_ad
     )
     assert account_page.status_code == 200
     assert b"Add client account" in account_page.data
+
+
+def test_account_page_account_roles_are_editable_for_site_admin(db, client, as_admin):
+    account_id = find_user_by_email("test_prosumer_user@seita.nl").account.id
+
+    account_page = client.get(
+        url_for("AccountCrudUI:get", account_id=account_id),
+        follow_redirects=True,
+    )
+
+    assert account_page.status_code == 200
+    assert b'id="account_roles"' in account_page.data
+    assert b'name="account_roles"' in account_page.data
+    assert b"Prosumer" in account_page.data
+
+
+def test_account_audit_log_shows_acting_user_name_and_id(db, client, as_admin):
+    user = find_user_by_email("test_prosumer_user@seita.nl")
+    audit_log = AuditLog(
+        event_datetime=server_now(),
+        event="Test account audit event",
+        active_user_id=user.id,
+        active_user_name=user.username,
+        affected_account_id=user.account.id,
+    )
+    db.session.add(audit_log)
+    db.session.commit()
+
+    audit_log_page = client.get(
+        url_for("AccountCrudUI:auditlog", account_id=user.account.id),
+        follow_redirects=True,
+    )
+
+    assert audit_log_page.status_code == 200
+    assert b"Acting User" in audit_log_page.data
+    assert f"{user.username} (Id: {user.id})".encode() in audit_log_page.data
 
 
 def test_account_page_forbidden_for_different_account_user(

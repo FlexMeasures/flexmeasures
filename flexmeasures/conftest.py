@@ -172,9 +172,6 @@ def create_test_accounts(db) -> dict[str, Account]:
     )
     db.session.add(multi_role_account)
     consultancy_account_role = AccountRole(
-        name="Consultancy", description="A consultancy account"
-    )
-    consultancy_account_role = AccountRole(
         name=CONSULTANCY_ACCOUNT_ROLE,
         description="Consultancy account that can create own client accounts",
     )

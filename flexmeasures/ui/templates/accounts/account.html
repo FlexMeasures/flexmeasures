@@ -53,13 +53,34 @@
                         data-bs-toggle="tooltip"
                         title="Primary color to use in UI, in hex format. Defaults to FlexMeasures' primary color (#1a3443)"
                       ></span>
+                      <div class="input-group mt-1">
+                        <input
+                          type="text"
+                          class="form-control"
+                          data-bs-placement="right"
+                          id="primary_color"
+                          name="primary_color"
+                          value="{{ account.primary_color or '' }}"
+                        />
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-secondary"
+                          data-color-picker-target="primary_color_picker"
+                        >
+                          Pick
+                        </button>
+                        <span
+                          class="input-group-text"
+                          id="primary_color_swatch"
+                          style="background-color: {{ account.primary_color or '#1a3443' }}; min-width: 2.5rem;"
+                        ></span>
+                      </div>
                       <input
-                        type="text"
-                        class="form-control"
-                        data-bs-placement="right"
-                        id="primary_color"
-                        name="primary_color"
-                        value="{{ account.primary_color or '' }}"
+                        type="color"
+                        class="visually-hidden"
+                        id="primary_color_picker"
+                        value="{{ account.primary_color or '#1a3443' }}"
+                        title="Choose primary color"
                       />
                     </div>
                   </div>
@@ -78,12 +99,33 @@
                         data-bs-toggle="tooltip"
                         title="Secondary color to use in UI, in hex format. Defaults to FlexMeasures' secondary color (#f1a122)"
                       ></span>
+                      <div class="input-group mt-1">
+                        <input
+                          type="text"
+                          class="form-control"
+                          id="secondary_color"
+                          name="secondary_color"
+                          value="{{ account.secondary_color or '' }}"
+                        />
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-secondary"
+                          data-color-picker-target="secondary_color_picker"
+                        >
+                          Pick
+                        </button>
+                        <span
+                          class="input-group-text"
+                          id="secondary_color_swatch"
+                          style="background-color: {{ account.secondary_color or '#f1a122' }}; min-width: 2.5rem;"
+                        ></span>
+                      </div>
                       <input
-                        type="text"
-                        class="form-control"
-                        id="secondary_color"
-                        name="secondary_color"
-                        value="{{ account.secondary_color or '' }}"
+                        type="color"
+                        class="visually-hidden"
+                        id="secondary_color_picker"
+                        value="{{ account.secondary_color or '#f1a122' }}"
+                        title="Choose secondary color"
                       />
                     </div>
                   </div>
@@ -113,6 +155,29 @@
                   </div>
 
                   {% if user_is_admin %}
+                  <div class="form-group">
+                    <div class="col-md-3">
+                      <label for="account_roles" class="control-label"
+                        >Account roles</label
+                      >
+                      <select
+                        class="form-select"
+                        id="account_roles"
+                        name="account_roles"
+                        multiple
+                      >
+                        {% for role_name, role_id in account_role_options.items() %}
+                        <option
+                          value="{{ role_id }}"
+                          {% if role_name in selected_account_roles %}selected{% endif %}
+                        >
+                          {{ role_name }}
+                        </option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  </div>
+
                   <div class="form-group">
                     <div class="col-md-3">
                       <label for="consultant_account_id" class="control-label"
@@ -192,6 +257,30 @@
                     <td>ID</td>
                     <td>{{ account.id }}</td>
                   </tr>
+                  {% if account.consultancy_account %}
+                  <tr>
+                    <td>Consultancy</td>
+                    <td>
+                      <a href="{{ url_for('AccountCrudUI:get', account_id=account.consultancy_account.id) }}">
+                        {{ account.consultancy_account.name }}
+                      </a>
+                    </td>
+                  </tr>
+                  {% endif %}
+                  <tr>
+                    <td>Client accounts</td>
+                    <td>
+                      {% if account.consultancy_client_accounts %}
+                      {% for client_account in account.consultancy_client_accounts %}
+                      <a href="{{ url_for('AccountCrudUI:get', account_id=client_account.id) }}">
+                        {{ client_account.name }}
+                      </a>{% if not loop.last %}, {% endif %}
+                      {% endfor %}
+                      {% else %}
+                      None
+                      {% endif %}
+                    </td>
+                  </tr>
                   <tr>
                     <td>Roles</td>
                     <td>
@@ -199,12 +288,7 @@
                       }}
                     </td>
                   </tr>
-                  {% if account.consultancy_account_name %}
-                  <tr>
-                    <td>Consultancy</td>
-                    <td>{{ account.consultancy_account_name }}</td>
-                  </tr>
-                  {% endif %} {% if account.primary_color %}
+                  {% if account.primary_color %}
                   <tr>
                     <td>Primary Color</td>
                     <td>
@@ -684,47 +768,103 @@ $(document).ready(function () {
   const basePath = window.location.origin;
   const form = document.getElementById("editaccount");
 
-  form.addEventListener("submit", function (event) {
-    event.preventDefault(); // Prevent the default form submission
+  function syncColorPicker(pickerId, inputId, swatchId) {
+    const picker = document.getElementById(pickerId);
+    const input = document.getElementById(inputId);
+    const swatch = document.getElementById(swatchId);
+    const pickButton = document.querySelector(
+      `[data-color-picker-target="${pickerId}"]`
+    );
 
-    // Collect form data
-    const formData = new FormData(event.target);
-    // create json payload from formData and set empty string to null
-    let payload;
-    payload = JSON.stringify(
-      Object.fromEntries(
+    if (picker === null || input === null || swatch === null) {
+      return;
+    }
+
+    function updateSwatch(color) {
+      if (/^#[0-9a-fA-F]{6}$/.test(color)) {
+        swatch.style.backgroundColor = color;
+        picker.value = color;
+      }
+    }
+
+    if (pickButton !== null) {
+      pickButton.addEventListener("click", function () {
+        picker.click();
+      });
+    }
+
+    picker.addEventListener("input", function () {
+      input.value = picker.value;
+      updateSwatch(picker.value);
+    });
+
+    input.addEventListener("input", function () {
+      updateSwatch(input.value);
+    });
+  }
+
+  syncColorPicker("primary_color_picker", "primary_color", "primary_color_swatch");
+  syncColorPicker(
+    "secondary_color_picker",
+    "secondary_color",
+    "secondary_color_swatch"
+  );
+
+  if (form !== null) {
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+
+      const formData = new FormData(event.target);
+      const payload = Object.fromEntries(
         Array.from(formData.entries()).map(([key, value]) => [
           key,
           value === "" ? null : value,
         ])
-      )
-    );
+      );
 
-    // Make a PATCH request to the API
-    fetch(basePath + "/api/v3_0/accounts/" + "{{account.id}}", {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: payload,
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.status == 200) {
-          showToast("Account updated successfully!", "success");
-        } else {
+      const accountRolesSelect = document.getElementById("account_roles");
+      if (accountRolesSelect !== null) {
+        payload.account_roles = Array.from(accountRolesSelect.selectedOptions).map(
+          (option) => Number(option.value)
+        );
+      }
+
+      fetch(basePath + "/api/v3_0/accounts/" + "{{account.id}}", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+        .then((response) =>
+          response.json().then((data) => ({
+            ok: response.ok,
+            data: data,
+          }))
+        )
+        .then(({ ok, data }) => {
+          if (ok) {
+            showToast("Account updated successfully!", "success");
+            return;
+          }
+
           if (data.message && typeof data.message === "string") {
             showToast(data.message, "error");
-          } else {
-            const errors = data.message.json;
+            return;
+          }
 
+          const errors = data.message && data.message.json ? data.message.json : data.errors;
+          if (errors) {
             for (const key in errors) {
               showToast(`${key}: ${errors[key]}`, "error");
             }
+            return;
           }
-        }
-      });
-  });
+
+          showToast("Could not update account.", "error");
+        });
+    });
+  }
 </script>
 {% block paginate_tables_script %} {{ super() }} {% endblock %}
 

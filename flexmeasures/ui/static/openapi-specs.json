@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.0.0"
+    "version": "0.33.2"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -1805,7 +1805,7 @@
       },
       "patch": {
         "summary": "Update an existing account.",
-        "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n<strong>Restrictions on Fields:</strong>\n- The <strong>id</strong> field is read-only and cannot be updated.\n- The <strong>consultancy_account_id</strong> field can only be edited if the current user has an <strong>admin</strong> role.\n",
+        "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n<strong>Restrictions on Fields:</strong>\n- The <strong>id</strong> field is read-only and cannot be updated.\n- The <strong>consultancy_account_id</strong> field can be edited by admins. Non-admin users can only set it to their\n  own account, and only if their account has the Consultancy account role and they have\n  the consultant or account-admin user role.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1874,7 +1874,7 @@
             "description": "INVALID_SENDER"
           },
           "422": {
-            "description": "UNPROCESSABLE_ENTITY (e.g., trying to update 'consultancy_account_id' without admin rights)"
+            "description": "UNPROCESSABLE_ENTITY (e.g., trying to update 'consultancy_account_id' to a non-existing account)"
           }
         },
         "tags": [
@@ -2015,7 +2015,7 @@
       },
       "post": {
         "summary": "Create a new account.",
-        "description": "Create a new account with a required name.\n\n- Admin users can create accounts.\n- Consultant users can create accounts only if their account has the\n  `CONSULTANCY_ACCOUNT_ROLE` account role.\n- For consultant users, the newly created account is automatically\n  linked to their own account as consultancy account.\n",
+        "description": "Create a new account with a required name.\n\n- Admin users can create accounts.\n- Consultant users can create accounts only if their account has the\n  Consultancy account role.\n- For consultant users, the newly created account is automatically\n  linked to their own account as consultancy account.\n",
         "security": [
           {
             "ApiKeyAuth": []

@@ -16,7 +16,7 @@ ADMIN_READER_ROLE = "admin-reader"
 ACCOUNT_ADMIN_ROLE = "account-admin"
 CONSULTANT_ROLE = "consultant"
 
-# Account Roels
+# Account Roles
 CONSULTANCY_ACCOUNT_ROLE = "Consultancy"
 
 # constants to allow access to certain groups
@@ -96,7 +96,7 @@ class FlexMeasuresPlatform(AuthModelMixin):
         return {
             "create-children": [  # this applies to accounts
                 f"role:{ADMIN_ROLE}",
-                (  # FM makes sure they are clients
+                (  # FM makes sure the new accounts are clients of the consultant account
                     f"role:{CONSULTANT_ROLE}",
                     f"account-role:{CONSULTANCY_ACCOUNT_ROLE}",
                 ),

@@ -52,11 +52,21 @@ class AccountCrudUI(FlaskView):
         selected_consultancy_account_id = request.args.get(
             "consultancy_account_id", default=None, type=int
         )
+        selected_consultancy_account_name = None
+        if user_is_admin and selected_consultancy_account_id is not None:
+            selected_consultancy_account = db.session.get(
+                Account, selected_consultancy_account_id
+            )
+            if selected_consultancy_account is not None:
+                selected_consultancy_account_name = selected_consultancy_account.name
+        elif not user_is_admin:
+            selected_consultancy_account_name = current_user.account.name
         return render_flexmeasures_template(
             "accounts/account_create.html",
             user_is_admin=user_is_admin,
             accounts=potential_consultant_accounts,
             selected_consultancy_account_id=selected_consultancy_account_id,
+            selected_consultancy_account_name=selected_consultancy_account_name,
         )
 
     @login_required
@@ -96,7 +106,9 @@ class AccountCrudUI(FlaskView):
             user_can_create_children = False
 
         user_is_admin = user_has_admin_access(current_user, "read")
-        can_add_client_account = user_can_add_accounts()
+        can_add_client_account = user_can_add_accounts() and (
+            user_is_admin or account.id == current_user.account.id
+        )
 
         account_role_options = {
             role.name: role.id for role in db.session.scalars(select(AccountRole)).all()

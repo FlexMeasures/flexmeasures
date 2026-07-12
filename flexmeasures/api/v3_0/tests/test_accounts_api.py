@@ -207,6 +207,26 @@ def test_consultant_cannot_update_account_consultant(
 
 
 @pytest.mark.parametrize(
+    "requesting_user",
+    ["test_consultant@seita.nl"],
+    indirect=["requesting_user"],
+)
+def test_consultant_can_set_own_account_as_consultancy_account(
+    client, setup_api_test_data, requesting_user
+):
+    """consultancy_account_id PATCH validation is handled by AccountPatchSchema."""
+    client_account = requesting_user.account.consultancy_client_accounts[0]
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=client_account.id),
+        json={"consultancy_account_id": requesting_user.account.id},
+    )
+
+    assert response.status_code == 200
+    assert response.json["consultancy_account_id"] == requesting_user.account.id
+
+
+@pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
 def test_patch_account_attributes(client, setup_api_test_data, requesting_user, db):
