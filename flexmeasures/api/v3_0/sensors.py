@@ -36,6 +36,7 @@ from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
 )
 from flexmeasures.api.common.schemas.sensors import SensorId  # noqa F401
 from flexmeasures.api.common.schemas.users import AccountIdField
+from flexmeasures.api.common.rate_limiting import limit_triggers
 from flexmeasures.api.common.utils.api_utils import process_sensor_data_ingestion
 from flexmeasures.data.services.utils import job_status_description
 from flexmeasures.api.common.utils.deprecation_utils import (
@@ -795,6 +796,7 @@ class SensorAPI(FlaskView):
         return dict(**response, **d), s
 
     @route("/<id>/schedules/trigger", methods=["POST"])
+    @limit_triggers()
     @use_kwargs(
         {"sensor": SensorIdField(data_key="id")},
         location="path",
@@ -1842,6 +1844,7 @@ class SensorAPI(FlaskView):
         return {"sensors_data": status_data}, 200
 
     @route("/<id>/forecasts/trigger", methods=["POST"])
+    @limit_triggers()
     @use_args(
         ForecastingTriggerSchema(
             # partial=True,

@@ -769,6 +769,72 @@ Password of the redis server.
 
 Default: ``None``
 
+.. _rate-limiting-config:
+
+API rate limiting
+-----------------
+
+FlexMeasures rate-limits its API, to protect the server against clients which ask for more than their fair share ―
+in particular against clients which re-trigger expensive computations like scheduling in a tight loop.
+
+Two limits apply. A default limit applies to every API endpoint, and a stricter limit applies to the endpoints
+which trigger scheduling and forecasting. Requests which exceed a limit are answered with a ``429`` status code,
+and a ``Retry-After`` header telling the client how long to wait.
+
+Counts are kept in Redis (see :ref:`redis-config`), so that all your workers share them. If Redis cannot be
+reached, FlexMeasures lets requests through rather than refusing them.
+
+.. note:: The limiter runs before authentication, so requests without valid credentials are counted per IP address.
+
+Individual accounts can be given their own limits, which take precedence over the settings below, by setting the
+``rate_limits`` account attribute (with ``flexmeasures edit attribute``). Use the value ``"unlimited"`` to exempt
+an account from a limit altogether:
+
+.. code-block:: json
+
+    {
+        "rate_limits": {
+            "default": "1000 per minute",
+            "trigger": "unlimited"
+        }
+    }
+
+RATELIMIT_ENABLED
+^^^^^^^^^^^^^^^^^
+
+Whether to rate-limit the API at all. Set this to ``False`` to turn rate limiting off.
+
+Default: ``True``
+
+FLEXMEASURES_API_DEFAULT_RATE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How often a client may call any API endpoint. Counted per user (or per IP address, if unauthenticated).
+The health endpoints are exempt, so that monitoring cannot lock itself out.
+
+Default: ``"500 per minute"``
+
+FLEXMEASURES_API_TRIGGER_RATE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How often a client may trigger a schedule or a forecast. This is the expensive work, so this limit is stricter
+than the default one.
+
+Default: ``"10 per 5 minutes"``
+
+FLEXMEASURES_API_RATE_LIMIT_KEY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+What ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT`` is counted against. How often it is reasonable to re-compute a
+schedule is a business decision, so you decide what shares a budget:
+
+- ``"account+asset"``: each asset gets its own budget, so scheduling one asset never blocks another.
+- ``"account"``: the account has a single budget, shared by all of its assets and users.
+- ``"user"``: each user gets their own budget.
+
+Default: ``"account+asset"``
+
+
 Demonstrations
 --------------
 

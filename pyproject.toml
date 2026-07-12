@@ -78,6 +78,8 @@ dependencies = [
     "flask-marshmallow>=1.4.0",
     "flask-cors>=6.0.2",
     "flask-swagger-ui>=5.21.0",
+    # Note: the redis extra (used for rate-limit storage) currently pins redis<8
+    "Flask-Limiter[redis]>=4.0",
     "sentry-sdk[flask]>=2.52.0",
     "marshmallow>=3",
     # See GH#1450 (failing tests on older Python versions)
