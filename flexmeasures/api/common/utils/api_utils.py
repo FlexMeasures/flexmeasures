@@ -30,6 +30,7 @@ from flexmeasures.data.utils import (
     SAVE_TO_DB_SUCCESS,
     SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
     SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+    TEMPLATE_COPY_GUIDANCE_PREFIX,
 )
 from flexmeasures.auth.policy import check_access
 from flexmeasures.api.common.responses import (
@@ -260,6 +261,34 @@ def convert_asset_json_fields(asset_kwargs):
     return asset_kwargs
 
 
+def _remove_template_copy_guidance(description: str | None) -> str | None:
+    """Strip template-specific copy instructions from an asset description."""
+    if not description:
+        return description
+
+    cleaned_description = re.sub(
+        rf"\s*{re.escape(TEMPLATE_COPY_GUIDANCE_PREFIX)}(?: asset)?\b.*?(?:\.\s*|$)",
+        "",
+        description,
+        flags=re.IGNORECASE,
+    ).strip()
+    return cleaned_description or None
+
+
+def _sanitize_copied_asset_kwargs(asset_kwargs: dict) -> dict:
+    """Turn a copied template into a regular asset payload."""
+    attributes = asset_kwargs.get("attributes")
+    if isinstance(attributes, dict) and "template" in attributes:
+        sanitized_attributes: dict = deepcopy(attributes)
+        sanitized_attributes.pop("template", None)
+        asset_kwargs["attributes"] = sanitized_attributes
+        asset_kwargs["description"] = _remove_template_copy_guidance(
+            asset_kwargs.get("description")
+        )
+
+    return asset_kwargs
+
+
 def _copy_direct_sensors(
     source_asset: GenericAsset, copied_asset: GenericAsset
 ) -> dict[int, int]:
@@ -293,6 +322,9 @@ def _copy_direct_sensors(
             knowledge_horizon_fnc,
             deepcopy(source_sensor.knowledge_horizon_par),
         )
+        if isinstance(sensor_kwargs.get("attributes"), dict):
+            sensor_kwargs["attributes"] = deepcopy(sensor_kwargs["attributes"])
+            sensor_kwargs["attributes"].pop("template_role", None)
 
         new_sensor = Sensor(**sensor_kwargs)
         db.session.add(new_sensor)
@@ -465,6 +497,7 @@ def _copy_asset_subtree(
     # set external_id to None to avoid conflicts with unique constraint on (account_id, external_id)
     asset_kwargs["external_id"] = None
     asset_kwargs = convert_asset_json_fields(asset_kwargs)
+    asset_kwargs = _sanitize_copied_asset_kwargs(asset_kwargs)
 
     copied_asset = GenericAsset(**asset_kwargs)
     db.session.add(copied_asset)

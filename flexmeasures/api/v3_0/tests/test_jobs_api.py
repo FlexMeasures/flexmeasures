@@ -54,6 +54,7 @@ def test_get_job_status_requires_read_access(
     add_battery_assets,
     battery_soc_sensor,
     keep_scheduling_queue_empty,
+    clean_redis,
     requesting_user,
     expected_status_code,
 ):
@@ -234,8 +235,12 @@ def test_get_job_status_finished(
     # True it used to return unconditionally); this is a StorageScheduler
     # job, so `result` is the soft SoC constraint analysis dict, and since
     # this flex model defines no soc-minima/soc-maxima, both arrays are
-    # simply empty here
-    assert data["result"] == {"unresolved": [], "resolved": []}
+    # simply empty here; a 24-hour schedule at 15-minute resolution yields
+    # 96 beliefs
+    result = data["result"]
+    assert result["unresolved"] == []
+    assert result["resolved"] == []
+    assert result["num-beliefs"] == 96
     assert data["exc_info"] is None
 
 
@@ -294,7 +299,9 @@ def test_get_job_status_finished_with_unresolved_soc_minima(
 
     result = data["result"]
     assert isinstance(result, dict)
-    assert set(result.keys()) == {"unresolved", "resolved"}
+    assert set(result.keys()) == {"unresolved", "resolved", "num-beliefs"}
+    assert isinstance(result["num-beliefs"], int)
+    assert result["num-beliefs"] > 0
 
     asset_id = add_battery_assets["Test battery"].id
     unresolved_entry = next(
