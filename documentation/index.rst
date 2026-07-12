@@ -242,6 +242,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     host/docker
     host/data
     host/deployment
+    host/multi-tenancy
     configuration
     host/white-labelling
     host/queues

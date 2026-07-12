@@ -38,6 +38,7 @@ Infrastructure / Support
 * Document the various ways to inspect a (scheduling) job [see `PR #2247 <https://www.github.com/FlexMeasures/flexmeasures/pull/2247>`_]
 * Automate Docker Hub image publishing and a PyPI install smoke test on release, add a manually-triggered QA workflow that runs the toy tutorials and HEMS walkthrough against a local Docker Compose stack, and add a helper script to list merged PRs since the last tag [see `PR #2260 <https://www.github.com/FlexMeasures/flexmeasures/pull/2260>`_]
 * Make toy tutorials robust against pre-existing IDs [see `PR #2269 <https://www.github.com/FlexMeasures/flexmeasures/pull/2269>`_]
+* Document multi-tenancy and consultancy tenant structures for hosts [see `PR #2176 <https://www.github.com/FlexMeasures/flexmeasures/pull/2176>`_]
 
 Bugfixes
 -----------
@@ -85,6 +86,7 @@ New features
 * Added API and UI support for copying assets and their subtrees [see `PR #2017 <https://www.github.com/FlexMeasures/flexmeasures/pull/2017>`_ and `PR #2120 <https://www.github.com/FlexMeasures/flexmeasures/pull/2120>`_]
 * Added a unified job status endpoint ``GET /api/v3_0/jobs/<uuid>`` to retrieve the current execution status and result message for any background job [see `PR #2141 <https://www.github.com/FlexMeasures/flexmeasures/pull/2141>`_]
 * Improve UX after deleting a child asset through the UI [see `PR #2119 <https://www.github.com/FlexMeasures/flexmeasures/pull/2119>`_]
+* Allow admins and consultants to create accounts via a new ``POST /api/v3_0/accounts`` endpoint and a corresponding UI form, and let admins edit account roles in the account UI [see `PR #2176 <https://www.github.com/FlexMeasures/flexmeasures/pull/2176>`_]
 * Improve source filtering in the sensor data GET endpoint by exposing the documented query parameters in Swagger and allowing filtering by the account linked to data sources [see `PR #2083 <https://www.github.com/FlexMeasures/flexmeasures/pull/2083>`_ and `PR #2151 <https://www.github.com/FlexMeasures/flexmeasures/pull/2151>`_]
 * Support sensor references for efficiency fields in storage flex-models [see `PR #2142 <https://www.github.com/FlexMeasures/flexmeasures/pull/2142>`_]
 * Introduce the ``consumption`` and ``production`` flex-model fields for the ``StorageScheduler`` to save schedules to [see `PR #2190 <https://www.github.com/FlexMeasures/flexmeasures/pull/2190>`_ and `PR #2213 <https://www.github.com/FlexMeasures/flexmeasures/pull/2213>`_]
