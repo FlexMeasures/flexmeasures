@@ -245,6 +245,25 @@ class StorageFlexModelSchema(Schema):
         validate=validate.Length(min=1),
         metadata=metadata.SOC_USAGE.to_dict(),
     )
+    commodity = fields.Str(
+        data_key="commodity",
+        load_default="electricity",
+        metadata=metadata.COMMODITY_FLEX_MODEL.to_dict(),
+    )
+
+    coupling = fields.Str(
+        data_key="coupling",
+        required=False,
+        load_default=None,
+        metadata=metadata.COUPLING.to_dict(),
+    )
+    coupling_coefficient = fields.Float(
+        data_key="coupling-coefficient",
+        required=False,
+        load_default=1.0,
+        validate=validate.Range(min=0, min_inclusive=False),
+        metadata=metadata.COUPLING_COEFFICIENT.to_dict(),
+    )
 
     def __init__(
         self,
@@ -393,6 +412,33 @@ class StorageFlexModelSchema(Schema):
     def validate_commodity(self, commodity: str, **kwargs):
         if not isinstance(commodity, str) or not commodity.strip():
             raise ValidationError("commodity must be a non-empty string.")
+
+    @validates_schema
+    def validate_coupling_direction_is_unambiguous(self, data: dict, **kwargs):
+        """A coupled device must have an inferable flow direction.
+
+        The sign of the coupling coefficient is inferred from directional capacities:
+        a fixed zero consumption-capacity marks an output device, a fixed zero
+        production-capacity marks an input device. When both directional capacities
+        allow flow (or are given in a form whose value cannot be checked statically,
+        such as a sensor reference), the direction is ambiguous, so we reject the
+        flex-model rather than silently treating the device as an input.
+        """
+        if data.get("coupling") is None:
+            return
+
+        def _is_fixed_zero(value) -> bool:
+            return isinstance(value, ur.Quantity) and float(value.magnitude) == 0.0
+
+        consumption_blocked = _is_fixed_zero(data.get("consumption_capacity"))
+        production_blocked = _is_fixed_zero(data.get("production_capacity"))
+        if consumption_blocked == production_blocked:
+            raise ValidationError(
+                "A device with a 'coupling' field must have an unambiguous flow direction: "
+                "set either its consumption-capacity (for an output device) or its "
+                "production-capacity (for an input device) to a fixed 0, but not both.",
+                field_name="coupling",
+            )
 
     @post_load
     def post_load_sequence(self, data: dict, **kwargs) -> dict:

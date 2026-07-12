@@ -33,6 +33,13 @@ Defaults to ``"electricity"``.
 """,
     examples=["electricity", "gas"],
 )
+COMMODITIES = MetaData(
+    description="""List of per-commodity flex-contexts (one for each commodity, e.g. electricity and gas), each holding the prices and grid-connection fields for that commodity.
+The fields given at the top level of the flex-context describe the electricity commodity.
+See :ref:`tut_multi_commodity` for a hands-on example.
+""",
+    example=[{"commodity": "gas", "consumption-price": {"sensor": 5}}],
+)
 INFLEXIBLE_DEVICE_SENSORS = MetaData(
     description="""Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
 For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.
@@ -74,8 +81,16 @@ See the ``aggregate-consumption`` field for the full description of the split lo
     example={"sensor": 11},
 )
 COMMITMENTS = MetaData(
-    description="Prior commitments. Support for this field in the UI is still under further development, but you can find more information in :ref:`commitments`.",
-    example=[],
+    description="""Prior commitments. Each commitment needs a ``name`` and a ``baseline``, plus at least one deviation price (``up-price`` and/or ``down-price``); its ``commodity`` defaults to electricity.
+You can find more information in :ref:`commitments`.
+""",
+    example=[
+        {
+            "name": "capacity contract",
+            "baseline": "100 kW",
+            "up-price": {"sensor": 5},
+        }
+    ],
 )
 CONSUMPTION_PRICE = MetaData(
     description="The commodity price (e.g. electricity price) applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. [#old_consumption_price_field]_",
@@ -222,6 +237,25 @@ COMMODITY_FLEX_MODEL = MetaData(
 Defaults to ``"electricity"``.
 """,
     examples=["electricity", "gas"],
+)
+COUPLING = MetaData(
+    description="""Name of the coupling group this device belongs to.
+Devices sharing the same coupling name are constrained to have proportionally related power flows, via a hard equality constraint.
+Use this to model a device that converts one commodity into another, by describing each of its commodity ports as a separate device.
+For example, a combined heat and power (CHP) unit is described as a gas input device, a heat output device and an electricity output device, all sharing one coupling name.
+Use together with ``coupling-coefficient`` to set the flow ratios.
+""",
+    example="chp",
+)
+COUPLING_COEFFICIENT = MetaData(
+    description="""Positive coupling magnitude for this device within its coupling group.
+The scheduler couples the power flows of all devices in the group: each device's power is its coupling coefficient times the group's common flow level.
+The flow direction of each device is inferred from its directional capacities: a device with ``consumption-capacity: "0 kW"`` is an output (producing) device, and a device with ``production-capacity: "0 kW"`` is an input (consuming) device.
+Exactly one of the two directional capacities must be set to a fixed zero for each coupled device.
+For example, a CHP unit with 50% thermal and 30% electrical efficiency uses a gas input device (coefficient 1), a heat output device (coefficient 0.5) and an electricity output device (coefficient 0.3).
+Defaults to 1.
+""",
+    example=0.5,
 )
 CONSUMPTION = MetaData(
     description="""Sensor used to record the scheduled power as seen from a consumption perspective.

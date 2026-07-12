@@ -35,6 +35,7 @@ from flexmeasures.data.schemas.scheduling import (
     CommodityFlexContextSchema,
     FlexContextSchema,
     MultiSensorFlexModelSchema,
+    SharedSchema,
 )
 from flexmeasures.data.schemas.sensors import SensorReference, VariableQuantityField
 from flexmeasures.data.services.scheduling_result import SchedulingJobResult
@@ -216,6 +217,15 @@ class MetaStorageScheduler(Scheduler):
         # This ensures the mapping aligns with the device indices
         self.stock_groups = self._build_stock_groups(device_models)
 
+        # Build coupling_groups from the 'coupling' and 'coupling_coefficient' fields
+        # of each device model. Devices sharing the same coupling name form a group.
+        self.coupling_groups = self._build_coupling_groups(device_models)
+
+        # Balance groups for internal commodity nodes (commodities without energy
+        # prices, i.e. without a grid connection) are derived further below, once
+        # the devices of each commodity are enumerated.
+        self.balance_groups: dict[str, list[int]] = {}
+
         # List the asset(s) and sensor(s) being scheduled
         if self.asset is not None:
             if not isinstance(self.flex_model, list):
@@ -238,12 +248,6 @@ class MetaStorageScheduler(Scheduler):
             asset = self.sensor.generic_asset
             assets = [asset]  # noqa: F841
 
-        # For backwards compatibility with the single asset scheduler
-        flex_model = self.flex_model.copy()
-        if not isinstance(flex_model, list):
-            flex_model = [flex_model]
-        else:
-            flex_model = [flex_model_d.copy() for flex_model_d in flex_model]
         for flex_model_d in flex_model:
             self._default_missing_directional_capacity_to_zero(flex_model_d)
         num_flexible_devices = len(device_models)
@@ -410,10 +414,33 @@ class MetaStorageScheduler(Scheduler):
             if production_price is None:
                 production_price = consumption_price
 
-            if consumption_price is None:
-                raise ValueError(
-                    f"Missing consumption price for commodity '{commodity}'."
+            # A context without user-given price fields may still carry smart-defaulted
+            # zero prices (see CommodityFlexContextSchema.fill_grid_connection_defaults),
+            # in which case it is flagged with prices_are_defaulted.
+            has_no_user_given_prices = consumption_price is None or (
+                commodity_context.get("prices_are_defaulted", False)
+                and consumption_price_sensor is None
+                and production_price_sensor is None
+            )
+
+            if has_no_user_given_prices:
+                if commodity == "electricity":
+                    # Electricity is assumed to be grid-connected, so a missing
+                    # price is treated as a configuration error rather than as
+                    # an internal node.
+                    raise ValueError(
+                        f"Missing consumption price for commodity '{commodity}'."
+                    )
+                # A non-electricity commodity without energy prices is treated as an
+                # internal node (e.g. a heat or steam network without a grid
+                # connection): its devices must balance each other at every time
+                # step, and it needs no commitments or EMS-level capacity constraints.
+                current_app.logger.info(
+                    f"Commodity '{commodity}' has no energy prices; treating it as an "
+                    f"internal node whose devices (indices {devices}) balance each other."
                 )
+                self.balance_groups[commodity] = list(devices)
+                continue
 
             # Energy prices for this commodity.
             up_deviation_prices = get_continuous_series_sensor_or_quantity(
@@ -1315,7 +1342,13 @@ class MetaStorageScheduler(Scheduler):
         flex_model,
         **timing_kwargs,
     ) -> list[FlowCommitment | StockCommitment]:
-        """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
+        """Convert list of commitment specifications (dicts) to a list of FlowCommitments.
+
+        User-given commitment names are namespaced with a "custom:" prefix, so users can
+        pick any name without colliding with the commitments the scheduler sets up
+        internally (e.g. "electricity net energy" or "any soc minima"). The prefixed
+        name is what shows up in the commitment costs of the scheduling results.
+        """
         commitment_specs = self.flex_context.get("commitments", [])
         if len(commitment_specs) == 0:
             return []
@@ -1324,6 +1357,11 @@ class MetaStorageScheduler(Scheduler):
         price_unit = self.flex_context["shared_currency_unit"] + "/MW"
         commitments = []
         for commitment_spec in commitment_specs:
+            # Namespace the user-given name (guarding against double prefixing,
+            # in case the specs are converted more than once).
+            if not commitment_spec["name"].startswith("custom:"):
+                commitment_spec["name"] = f"custom:{commitment_spec['name']}"
+
             # Convert baseline, up_price and down_price to pd.Series, then create FlowCommitment
             if "up_price" in commitment_spec:
                 commitment_spec["upwards_deviation_price"] = (
@@ -1351,6 +1389,43 @@ class MetaStorageScheduler(Scheduler):
                 start, end, timing_kwargs["resolution"]
             )
             commitment_commodity = commitment_spec.get("commodity", "electricity")
+
+            # A commitment scoped to specific sensors binds the *aggregate* flow
+            # of those devices as one commitment, rather than each device separately.
+            scoped_sensors = commitment_spec.pop("sensors", None)
+            if scoped_sensors is not None:
+                scoped_sensor_ids = {
+                    sensor.id if hasattr(sensor, "id") else sensor
+                    for sensor in scoped_sensors
+                }
+                scoped_devices = [
+                    d
+                    for d, flex_model_d in enumerate(flex_model)
+                    if getattr(flex_model_d.get("sensor"), "id", None)
+                    in scoped_sensor_ids
+                ]
+                if not scoped_devices:
+                    current_app.logger.warning(
+                        f"Commitment '{commitment_spec.get('name')}' is scoped to"
+                        f" sensors {sorted(scoped_sensor_ids)}, none of which appear"
+                        " in the flex-model. This commitment will not bind any device."
+                    )
+                    continue
+                index = commitment_spec["index"]
+                group_label = commitment_spec.get("name", "scoped commitment")
+                commitment = FlowCommitment(
+                    device=pd.Series([scoped_devices] * len(index), index=index),
+                    # device_group maps device index -> group label; one shared
+                    # label makes the engine bind the aggregate flow.
+                    device_group=pd.Series(
+                        {d: group_label for d in scoped_devices}
+                    ),
+                    **commitment_spec,
+                )
+                commitments.append(commitment)
+                continue
+
+            bound_device_count = 0
             for d, flex_model_d in enumerate(flex_model):
                 device_commodity = flex_model_d.get("commodity", "electricity")
                 if device_commodity != commitment_commodity:
@@ -1361,6 +1436,15 @@ class MetaStorageScheduler(Scheduler):
                     **commitment_spec,
                 )
                 commitments.append(commitment)
+                bound_device_count += 1
+            if bound_device_count == 0:
+                current_app.logger.warning(
+                    f"Commitment '{commitment_spec.get('name')}' has commodity"
+                    f" '{commitment_commodity}', which matches none of the devices"
+                    " in the flex-model. This commitment will not bind any device"
+                    " (check for a typo in the commitment's `commodity` field, or in"
+                    " a device's `commodity` field in the flex-model)."
+                )
 
         return commitments
 
@@ -1408,9 +1492,17 @@ class MetaStorageScheduler(Scheduler):
                     commodity_flex_context
                 )
 
-            # Ensure all flex-contexts share the same currency unit
+            # Ensure all flex-contexts share the same currency unit. Contexts with
+            # no user-given price fields at all (shared_currency_unit_is_default)
+            # only carry a fallback "EUR" currency, which isn't a real constraint,
+            # so they're skipped here and instead backfilled below, once a real
+            # portfolio currency is known.
             shared_currency_unit = None
+            default_currency_contexts = []
             for commodity_flex_context in self.flex_context:
+                if commodity_flex_context.get("shared_currency_unit_is_default"):
+                    default_currency_contexts.append(commodity_flex_context)
+                    continue
                 context_currency_unit = commodity_flex_context["shared_currency_unit"]
                 if shared_currency_unit is None:
                     shared_currency_unit = context_currency_unit
@@ -1420,6 +1512,20 @@ class MetaStorageScheduler(Scheduler):
                     raise ValidationError(
                         f"All prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
                     )
+
+            # Let price-free contexts inherit the portfolio's actual currency,
+            # where determinable (i.e. when at least one other context set one).
+            if shared_currency_unit is not None:
+                for commodity_flex_context in default_currency_contexts:
+                    SharedSchema._rebase_default_context_currency(
+                        commodity_flex_context, shared_currency_unit
+                    )
+            elif default_currency_contexts:
+                # No context anywhere gave an explicit price: fall back to the
+                # (shared) default currency already stamped on each of them.
+                shared_currency_unit = default_currency_contexts[0][
+                    "shared_currency_unit"
+                ]
 
             # Nest the flex-contexts per commodity under the commodity_contexts field
             self.flex_context = dict(
@@ -2651,6 +2757,8 @@ class StorageScheduler(MetaStorageScheduler):
             commitments=commitments,
             initial_stock=initial_stock,
             stock_groups=self.stock_groups,
+            coupling_groups=self.coupling_groups if self.coupling_groups else None,
+            balance_groups=getattr(self, "balance_groups", None) or None,
         )
         if "infeasible" in (tc := scheduler_results.solver.termination_condition):
             raise InfeasibleProblemException(tc)
