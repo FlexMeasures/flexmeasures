@@ -2517,9 +2517,9 @@ def test_commitment_commodity_does_not_bind_other_commodity_devices():
 
     assert len(commitments) == 2
 
-    gas_commitment = next(c for c in commitments if c.name == "gas commitment")
+    gas_commitment = next(c for c in commitments if c.name == "custom:gas commitment")
     electricity_commitment = next(
-        c for c in commitments if c.name == "electricity commitment"
+        c for c in commitments if c.name == "custom:electricity commitment"
     )
 
     # The gas commitment binds only the gas device (index 1), not the electricity
