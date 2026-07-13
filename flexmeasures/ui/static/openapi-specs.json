@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.33.2"
+    "version": "1.0.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -4270,7 +4270,7 @@
     "/api/v3_0/jobs/{uuid}": {
       "get": {
         "summary": "Get the status of a background job",
-        "description": "Look up a background job by its UUID and see whether it is\nqueued, running, finished, or failed.\n\nThe response includes a status message plus job metadata such\nas the queue name, function name, timestamps, and the job\nresult when available.\n\nFailed jobs also include traceback information when the worker\nstored it with the job result.\n\nFor a finished scheduling job, <code>result</code> is an object. For a\n<code>StorageScheduler</code> job it holds soft state-of-charge constraint\nanalysis: <code>unresolved</code> lists constraints the scheduler could not\nsatisfy, and <code>resolved</code> lists constraints that were satisfied\nwith some margin. Each device entry's <code>soc-minima</code>/<code>soc-maxima</code>\nvalue is a list, holding one entry per violated slot (for\n<code>unresolved</code>) or per met slot with its margin (for <code>resolved</code>),\nordered chronologically. Both arrays are empty when the flex model\ndefines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other\nthan <code>StorageScheduler</code> was used. This is the only place\nconstraint analysis is available \u2014 the sensor schedule endpoint\n(<code>GET /api/v3_0/sensors/<id>/schedules/<uuid></code>) returns power\nvalues only.\n",
+        "description": "Look up a background job by its UUID and see whether it is\nqueued, running, finished, or failed.\n\nThe response includes a status message plus job metadata such\nas the queue name, function name, timestamps, and the job\nresult when available.\n\nFailed jobs also include traceback information when the worker\nstored it with the job result.\n\nFor a finished scheduling job, <code>result</code> is an object. For a\n<code>StorageScheduler</code> job it holds soft state-of-charge constraint\nanalysis: <code>unresolved</code> lists constraints the scheduler could not\nsatisfy, and <code>resolved</code> lists constraints that were satisfied\nwith some margin. Each device entry's <code>soc-minima</code>/<code>soc-maxima</code>\nvalue is a list, holding one entry per violated slot (for\n<code>unresolved</code>) or per met slot with its margin (for <code>resolved</code>),\nordered chronologically. Both arrays are empty when the flex model\ndefines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other\nthan <code>StorageScheduler</code> was used. The <code>num-beliefs</code> field holds\nthe total number of beliefs (scheduled values) saved to the database.\nThis is the only place constraint analysis is available \u2014 the sensor\nschedule endpoint (<code>GET /api/v3_0/sensors/<id>/schedules/<uuid></code>)\nreturns power values only.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4315,7 +4315,7 @@
                       "description": "Human-readable description of the job status."
                     },
                     "result": {
-                      "description": "Return value of the job function, or null when not yet available. For a finished scheduling job, this is an object; a <code>StorageScheduler</code> job populates it with <code>unresolved</code>/<code>resolved</code> soft state-of-charge constraint analysis (empty arrays when the flex model defines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other than <code>StorageScheduler</code> was used).\n",
+                      "description": "Return value of the job function, or null when not yet available. For a finished scheduling job, this is an object; a <code>StorageScheduler</code> job populates it with <code>unresolved</code>/<code>resolved</code> soft state-of-charge constraint analysis (empty arrays when the flex model defines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other than <code>StorageScheduler</code> was used). The <code>num-beliefs</code> field holds the total number of beliefs (scheduled values) saved to the database.\n",
                       "nullable": true
                     },
                     "func_name": {
@@ -4387,7 +4387,8 @@
                             ]
                           }
                         ],
-                        "resolved": []
+                        "resolved": [],
+                        "num-beliefs": 96
                       },
                       "func_name": "flexmeasures.data.services.scheduling.create_schedule",
                       "origin": "scheduling",
