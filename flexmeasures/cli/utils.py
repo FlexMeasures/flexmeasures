@@ -447,6 +447,23 @@ def split_commas(ctx, param, value):
     return list(set([x.strip() for x in result if x.strip()]))
 
 
+def make_cli_options_optional(*option_names):
+    """Decorator to relax the required flag on the named CLI options.
+
+    Useful when schema-derived options (see add_cli_options_from_schema) are
+    only conditionally required; apply above the decorator that adds them,
+    and enforce requiredness in the command body (e.g. by schema validation).
+    """
+
+    def decorator(command):
+        for param in getattr(command, "__click_params__", []):
+            if param.name in option_names:
+                param.required = False
+        return command
+
+    return decorator
+
+
 def add_cli_options_from_schema(schema):
     """Decorator to add CLI options based on a Marshmallow schema's fields."""
 

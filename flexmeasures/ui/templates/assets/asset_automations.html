@@ -15,7 +15,7 @@
         <h4>
           Automations of {{ asset.name }}
           <span class="fa fa-info-circle" title="
-          This table shows the automations defined on this asset: recurring tasks, such as computing forecasts.
+          This table shows the automations defined on this asset: recurring tasks, such as computing forecasts and schedules.
 
 An active automation runs whenever its recurrence (a cron string) matches the current time. Each run queues jobs.
           "></span>
@@ -30,7 +30,7 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
             <button class="nav-link active" id="forecasts-tab" data-bs-toggle="tab" data-bs-target="#forecasts-tab-pane" type="button" role="tab">Forecasts</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link disabled" type="button" role="tab" title="Coming soon" aria-disabled="true">Schedules</button>
+            <button class="nav-link" id="schedules-tab" data-bs-toggle="tab" data-bs-target="#schedules-tab-pane" type="button" role="tab">Schedules</button>
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link disabled" type="button" role="tab" title="Coming soon" aria-disabled="true">Reports</button>
@@ -39,7 +39,12 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
         <div class="tab-content">
           <div class="tab-pane fade show active" id="forecasts-tab-pane" role="tabpanel">
             <div class="table-responsive">
-              <table id="automationsTable" class="table table-striped w-100"></table>
+              <table id="automationsTable-forecasts" class="table table-striped w-100"></table>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="schedules-tab-pane" role="tabpanel">
+            <div class="table-responsive">
+              <table id="automationsTable-schedules" class="table table-striped w-100"></table>
             </div>
           </div>
         </div>
@@ -121,14 +126,14 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
     });
   }
 
-  $(document).ready(function () {
-    const automationsTable = $("#automationsTable").DataTable({
+  function makeAutomationsTable(automationType, automations) {
+    $(`#automationsTable-${automationType}`).DataTable({
       searching: false,
       paging: false,
       info: false,
       ordering: false,
       language: {
-        emptyTable: "No automations have been defined on this asset yet. They can be created with the CLI command `flexmeasures add automation`.",
+        emptyTable: `No ${automationType} automations have been defined on this asset yet. They can be created with the CLI command \`flexmeasures add automation\`.`,
       },
       columns: [
         { data: "name", title: "Name" },
@@ -138,25 +143,32 @@ An active automation runs whenever its recurrence (a cron string) matches the cu
         { data: "jobs", title: "Jobs" },
         { data: "details", title: "", className: "text-right" },
       ],
-      ajax: function (data, callback) {
-        $.ajax({
-          url: `/api/v3_0/assets/${assetId}/automations`,
-          method: "GET",
-          success: function (res) {
-            const automations = res.automations.length ? res.automations.map(AutomationRow) : [];
-            callback({ data: automations });
-            // Load more details per automation asynchronously
-            res.automations.forEach(automation => loadAutomationDetails(automation.id));
-          },
-          error: function (xhr) {
-            console.error("Error fetching automations:", xhr);
-            callback({ data: [] });
-          },
-        });
+      data: automations.map(AutomationRow),
+    });
+    // Load more details per automation asynchronously
+    automations.forEach(automation => loadAutomationDetails(automation.id));
+  }
+
+  $(document).ready(function () {
+    $.fn.dataTable.ext.errMode = 'none';
+    $.ajax({
+      url: `/api/v3_0/assets/${assetId}/automations`,
+      method: "GET",
+      success: function (res) {
+        for (const automationType of ["forecasts", "schedules"]) {
+          makeAutomationsTable(
+            automationType,
+            res.automations.filter(automation => automation.type === automationType),
+          );
+        }
+      },
+      error: function (xhr) {
+        console.error("Error fetching automations:", xhr);
+        for (const automationType of ["forecasts", "schedules"]) {
+          makeAutomationsTable(automationType, []);
+        }
       },
     });
-
-    $.fn.dataTable.ext.errMode = 'none';
   });
 </script>
 {% endblock %}

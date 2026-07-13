@@ -212,6 +212,7 @@ def create_scheduling_job(
     scheduler_specs: dict | None = None,
     depends_on: Job | list[Job] | None = None,
     success_callback: Callable | None = None,
+    trigger: dict | None = None,
     **scheduler_kwargs,
 ) -> Job:
     """
@@ -236,6 +237,8 @@ def create_scheduling_job(
     :param force_new_job_creation:  If True, this attribute forces a new job to be created (skipping cache).
     :param success_callback:        Callback function that runs on success
                                     (this argument is used by the @job_cache decorator).
+    :param trigger:                 Optionally, info about how the job got created (e.g. via the CLI,
+                                    the API or an automation), stored as job meta data.
     :returns:                       The job.
 
     """
@@ -288,6 +291,8 @@ def create_scheduling_job(
     )
 
     job.meta["asset_or_sensor"] = asset_or_sensor
+    if trigger:
+        job.meta["trigger"] = trigger
     job.meta["scheduler_kwargs"] = scheduler_kwargs
 
     # Serialize start, end, resolution and belief_time
@@ -347,6 +352,7 @@ def create_sequential_scheduling_job(
     scheduler_specs: dict | None = None,
     depends_on: list[Job] | None = None,
     success_callback: Callable | None = None,
+    trigger: dict | None = None,
     **scheduler_kwargs,
 ) -> Job:
     """Create a chain of underlying jobs, one for each device, with one additional job to wrap up.
@@ -410,6 +416,7 @@ def create_sequential_scheduling_job(
             enqueue=enqueue,
             depends_on=previous_job,
             force_new_job_creation=force_new_job_creation,
+            trigger=trigger,
         )
         jobs.append(job)
         previous_sensors.append(sensor.id)
@@ -434,6 +441,8 @@ def create_sequential_scheduling_job(
         connection=current_app.queues["scheduling"].connection,
     )
     job.meta["asset_or_sensor"] = get_asset_or_sensor_ref(asset)
+    if trigger:
+        job.meta["trigger"] = trigger
     job.save_meta()
 
     try:
@@ -463,6 +472,7 @@ def create_simultaneous_scheduling_job(
     scheduler_specs: dict | None = None,
     depends_on: list[Job] | None = None,
     success_callback: Callable | None = None,
+    trigger: dict | None = None,
     **scheduler_kwargs,
 ) -> Job:
     """Create a single job to schedule all devices at once.
@@ -510,6 +520,7 @@ def create_simultaneous_scheduling_job(
         depends_on=depends_on,
         success_callback=success_callback,
         force_new_job_creation=force_new_job_creation,
+        trigger=trigger,
     )
 
     try:

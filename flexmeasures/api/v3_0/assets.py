@@ -1712,6 +1712,7 @@ class AssetAPI(FlaskView):
                 asset=asset,
                 enqueue=True,
                 force_new_job_creation=force_new_job_creation,
+                trigger={"origin": "API"},
                 **scheduler_kwargs,
             )
         except ValidationError as err:

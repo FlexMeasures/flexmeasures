@@ -22,7 +22,7 @@ class Automation(db.Model, AuthModelMixin):
 
     __tablename__ = "automation"
 
-    SUPPORTED_TYPES = ["forecasts"]  # later also "schedules" and "reports"
+    SUPPORTED_TYPES = ["forecasts", "schedules"]  # later also "reports"
 
     id = db.Column(db.Integer, autoincrement=True, primary_key=True)
     created_at = db.Column(
