@@ -52,11 +52,6 @@ class DatabaseSchemaRevisionStatus:
         )
 
 
-def database_schema_is_migrated_to_head(app) -> bool:
-    """Return whether the connected database is already at the Alembic head(s)."""
-    return get_database_schema_revision_status(app).is_migrated_to_head
-
-
 def get_database_schema_revision_status(app) -> DatabaseSchemaRevisionStatus:
     """Return current and expected Alembic head revisions for the connected database."""
     from sqlalchemy.exc import OperationalError, ProgrammingError

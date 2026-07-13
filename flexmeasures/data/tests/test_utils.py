@@ -4,7 +4,6 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from flexmeasures.data import db
 from flexmeasures.data.utils import (
-    database_schema_is_migrated_to_head,
     format_database_schema_revision_status,
     get_database_schema_revision_status,
 )
@@ -45,7 +44,7 @@ def test_database_schema_is_migrated_to_head_when_revisions_match(app, monkeypat
         lambda config: _DummyScriptDirectory(("head-a",)),
     )
 
-    assert database_schema_is_migrated_to_head(app) is True
+    assert get_database_schema_revision_status(app).is_migrated_to_head is True
 
 
 def test_database_schema_revision_status_includes_current_and_expected_heads(
@@ -85,7 +84,7 @@ def test_database_schema_is_not_migrated_to_head_when_revisions_differ(
         lambda config: _DummyScriptDirectory(("head-a",)),
     )
 
-    assert database_schema_is_migrated_to_head(app) is False
+    assert get_database_schema_revision_status(app).is_migrated_to_head is False
 
 
 def test_database_schema_is_not_migrated_to_head_when_revision_lookup_fails(
@@ -104,7 +103,7 @@ def test_database_schema_is_not_migrated_to_head_when_revision_lookup_fails(
         lambda config: _DummyScriptDirectory(("head-a",)),
     )
 
-    assert database_schema_is_migrated_to_head(app) is False
+    assert get_database_schema_revision_status(app).is_migrated_to_head is False
 
 
 def test_database_schema_revision_status_records_connectivity_failure(app, monkeypatch):
