@@ -458,6 +458,7 @@ def test_save_state_of_charge_percent_sensor(
         "site-production-capacity": "1MW",
         "site-consumption-capacity": "1MW",
         "relax-soc-constraints": False,
+        "relax-constraints": False,
     }
 
     create_scheduling_job(

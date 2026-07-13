@@ -781,6 +781,25 @@ When ``FLEXMEASURES_MODE=demo``\ , this can hold login credentials (demo user em
 
 Default: ``None``
 
+FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether FlexMeasures should create its built-in starter template assets when the
+application starts.
+
+If ``True``, FlexMeasures provisions a small set of public starter templates,
+such as ``Battery Template``, ``EV Charger Template`` and ``Heat Pump Template``,
+if they do not exist yet. Together with the asset copy workflow, new users will
+find FlexMeasures to be more useful out of the box.
+
+If one of these built-in templates is deleted while this setting remains
+``True``, FlexMeasures will recreate the missing template on the next
+application startup.
+
+If ``False``, no template assets are created automatically at startup.
+
+Default: ``True``
+
 .. _sunset-config:
 
 Sunset

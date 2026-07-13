@@ -62,6 +62,9 @@ def get_task_run():
         ).first()
     except (sqla_exc.ResourceClosedError, sqla_exc.DatabaseError):
         # This is an attempt to make this more stable against some rare condition we encounter. Let's try once more.
+        # NB roll back first: the failed statement leaves the transaction in an aborted state,
+        # in which any further statement (including this retry) is rejected by the database.
+        db.session.rollback()
         time.sleep(2)
         last_known_run = db.session.scalars(
             select(LatestTaskRun).filter(LatestTaskRun.name == task_name).limit(1)

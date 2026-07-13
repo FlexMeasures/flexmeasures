@@ -19,7 +19,7 @@ Make a schedule
 
 After going through the setup, we can finally create the schedule, which is the main benefit of FlexMeasures (smart real-time control).
 
-We'll ask FlexMeasures for a schedule for our battery, specifically to store it on the (dis)charging sensor (ID 2).
+We'll ask FlexMeasures for a schedule for our battery, specifically to store it on the battery power sensor we created in :ref:`tut_load_data`.
 
 To keep this short, we'll only ask for a 12-hour window starting at 7am. Finally, the scheduler should know what the state of charge of the battery is when the schedule starts (50%) and also that the SoC should never fall below 50 kWh.
 
@@ -39,7 +39,7 @@ There is more information being used by the scheduler, such as the battery's cap
         .. code-block:: bash
 
             $ flexmeasures add schedule \
-                --sensor 2 \
+                --sensor ${FM_TOY_BATTERY_SENSOR_ID} \
                 --start ${TOMORROW}T07:00+01:00 \
                 --duration PT12H \
                 --soc-at-start 50% \
@@ -70,7 +70,7 @@ There is more information being used by the scheduler, such as the battery's cap
         ``soc-max`` value is needed.
             
             $ flexmeasures add schedule \                                      
-                --sensor 2 \
+                --sensor ${FM_TOY_BATTERY_SENSOR_ID} \
                 --start 2024-02-04T07:00+01:00 \
                 --duration PT24H \
                 --soc-at-start 50% \

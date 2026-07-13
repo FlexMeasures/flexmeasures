@@ -54,6 +54,7 @@ def test_get_job_status_requires_read_access(
     add_battery_assets,
     battery_soc_sensor,
     keep_scheduling_queue_empty,
+    clean_redis,
     requesting_user,
     expected_status_code,
 ):
@@ -230,9 +231,92 @@ def test_get_job_status_finished(
     assert data["enqueued_at"] is not None
     assert data["started_at"] is not None
     assert data["ended_at"] is not None
-    # scheduling jobs return True on success; result must be present in the response
-    assert data["result"] is not None
+    # every finished scheduling job now returns an object (not the boolean
+    # True it used to return unconditionally); this is a StorageScheduler
+    # job, so `result` is the soft SoC constraint analysis dict, and since
+    # this flex model defines no soc-minima/soc-maxima, both arrays are
+    # simply empty here; a 24-hour schedule at 15-minute resolution yields
+    # 96 beliefs
+    result = data["result"]
+    assert result["unresolved"] == []
+    assert result["resolved"] == []
+    assert result["num-beliefs"] == 96
     assert data["exc_info"] is None
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_job_status_finished_with_unresolved_soc_minima(
+    app,
+    add_market_prices,
+    add_battery_assets,
+    battery_soc_sensor,
+    add_charging_station_assets,
+    keep_scheduling_queue_empty,
+    requesting_user,
+    db,
+):
+    """A finished StorageScheduler job whose flex model defines an unreachable
+    soc-minima (as a soft constraint, via a breach price) should surface that
+    violation directly under `result`, replacing the boolean `True` that a
+    finished scheduling job would otherwise return. The old separate
+    `scheduling_result` field must no longer be present.
+    """
+    sensor = add_battery_assets["Test battery"].sensors[0]
+    message = message_for_trigger_schedule()
+    # soc-max is 40 kWh, so a soc-minima target beyond that is unreachable
+    # regardless of power capacity.
+    message["flex-model"]["soc-minima"] = [
+        {"value": 1000, "datetime": "2015-01-01T12:00:00+01:00"}
+    ]
+    message["flex-context"] = {
+        "soc-minima-breach-price": "1 EUR/kWh",  # makes it a soft constraint
+    }
+
+    with app.test_client() as client:
+        trigger_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message,
+        )
+        assert trigger_response.status_code == 200
+        job_id = trigger_response.json["schedule"]
+
+        # run the scheduling job
+        work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+        job = Job.fetch(job_id, connection=app.queues["scheduling"].connection)
+        assert job.is_finished
+
+        # query the generic job endpoint
+        response = client.get(
+            url_for("JobAPI:get_job_status", uuid=job_id),
+        )
+
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    data = response.json
+    assert data["status"] == "FINISHED"
+
+    result = data["result"]
+    assert isinstance(result, dict)
+    assert set(result.keys()) == {"unresolved", "resolved", "num-beliefs"}
+    assert isinstance(result["num-beliefs"], int)
+    assert result["num-beliefs"] > 0
+
+    asset_id = add_battery_assets["Test battery"].id
+    unresolved_entry = next(
+        (e for e in result["unresolved"] if e["asset"] == asset_id), None
+    )
+    assert unresolved_entry is not None, "Expected an unresolved soc-minima entry"
+    assert "soc-minima" in unresolved_entry
+    assert isinstance(unresolved_entry["soc-minima"], list)
+    assert len(unresolved_entry["soc-minima"]) >= 1
+    for violation in unresolved_entry["soc-minima"]:
+        assert "datetime" in violation
+        assert "violation" in violation
+
+    # the old separate field must really be gone
+    assert "scheduling_result" not in data
 
 
 @pytest.mark.parametrize(
@@ -296,6 +380,7 @@ def test_get_job_status_failed_infeasible_schedule_includes_exc_info(
 ):
     charging_station = add_charging_station_assets["Test charging station"].sensors[0]
     message = message_for_trigger_schedule(with_targets=True, realistic_targets=False)
+    message["flex-model"]["soc-targets"][0]["value"] = 250000
     message["flex-context"] = {"relax-soc-constraints": False}
 
     with app.test_client() as client:
@@ -317,10 +402,8 @@ def test_get_job_status_failed_infeasible_schedule_includes_exc_info(
     assert response.status_code == 200
     data = response.json
     assert data["status"] == "FAILED"
-    assert "infeasible problem" in data["message"].lower()
-    assert (
-        "ValueError: The input data yields an infeasible problem." in data["exc_info"]
-    )
+    assert "infeasible" in data["message"].lower()
+    assert "InfeasibleProblemException" in data["exc_info"]
 
 
 def test_get_job_status_unauthenticated(
