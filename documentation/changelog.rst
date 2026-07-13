@@ -24,6 +24,7 @@ New features
 * The flex-context can now define multiple commodities, each specifying their own prices and grid capacities [see `PR #1946 <https://www.github.com/FlexMeasures/flexmeasures/pull/1946>`_, `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_, `PR #2235 <https://www.github.com/FlexMeasures/flexmeasures/pull/2235>`_ and `PR #2271 <https://www.github.com/FlexMeasures/flexmeasures/pull/2271>`_]
 * CLI support for adding/editing account attributes [see `PR #2242 <https://www.github.com/FlexMeasures/flexmeasures/pull/2242>`_]
 * Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` soft state-of-charge constraint analysis (``soc-minima``/``soc-maxima`` violations or satisfied constraints, keyed by asset ID) for scheduling jobs; both arrays are empty when no SoC constraints were defined [see `PR #2072 <https://www.github.com/FlexMeasures/flexmeasures/pull/2072>`_]
+* New ``soc-value-at-end`` flex-model field for storage devices: assigns a marginal value (fixed quantity or sensor reference) to energy left in storage at the end of the scheduling horizon, countering myopic depletion of the storage [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 * Extended the scheduling job ``result`` field with a ``num-beliefs`` field reporting the total number of beliefs (scheduled values) saved to the database [see `PR #2280 <https://www.github.com/FlexMeasures/flexmeasures/pull/2280>`_]
 
 Infrastructure / Support

@@ -232,6 +232,9 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - ``soc-usage``
      - |SOC_USAGE.example|
      - .. include:: ../_autodoc/SOC_USAGE.rst
+   * - ``soc-value-at-end``
+     - |SOC_VALUE_AT_END.example|
+     - .. include:: ../_autodoc/SOC_VALUE_AT_END.rst
    * - ``roundtrip-efficiency``
      - |ROUNDTRIP_EFFICIENCY.example|
      - .. include:: ../_autodoc/ROUNDTRIP_EFFICIENCY.rst
