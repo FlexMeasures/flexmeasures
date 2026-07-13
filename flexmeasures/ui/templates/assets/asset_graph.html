@@ -845,12 +845,18 @@
             rangeWrapper.className = "mt-2";
             rangeWrapper.style.display = currentMode === "range" ? "" : "none";
 
+            // Repeat the "Fixed range…" explanation here: by the time the user is filling
+            // these in, the option's own tooltip is out of reach.
+            const rangeTitle = options.find((opt) => opt.value === "range").title;
+            rangeWrapper.title = rangeTitle;
+
             const makeNumberInput = (id, placeholder, initialValue) => {
                 const input = document.createElement("input");
                 input.type = "number";
                 input.className = "form-control form-control-sm d-inline-block w-auto me-2";
                 input.id = id;
                 input.placeholder = placeholder;
+                input.title = rangeTitle;
                 if (initialValue !== undefined && initialValue !== null) {
                     input.value = initialValue;
                 }
