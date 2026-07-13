@@ -72,6 +72,7 @@ class Config(object):
     SECURITY_TOKEN_MAX_AGE: int = 60 * 60 * 6  # six hours
     SECURITY_TRACKABLE: bool = False  # this is more in line with modern privacy law
     SECURITY_PASSWORD_SALT: str | None = None
+    FLEXMEASURES_SECRETS_ENCRYPTION_KEYS: dict[str, str] | None = None
 
     # Two Factor Authentication
     SECURITY_TWO_FACTOR_ENABLED_METHODS = [
@@ -127,6 +128,7 @@ class Config(object):
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
     FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS: tuple | None = None
+    FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP: bool = True
     # Configuration used for entity addressing:
     # This setting contains the domain on which FlexMeasures runs
     # and the first month when the domain was under the current owner's administration
@@ -212,8 +214,8 @@ class Config(object):
 
 
 #  names of settings which cannot be None
-#  SECRET_KEY is also required but utils.app_utils.set_secret_key takes care of this better.
-#  SECURITY_TOTP_SECRETS is also required but utils.app_utils.set_totp_secrets takes care of this better.
+#  SECRET_KEY is also required but utils.secrets_utils.set_secret_key takes care of this better.
+#  SECURITY_TOTP_SECRETS is also required but utils.secrets_utils.set_totp_secrets takes care of this better.
 required: list[str] = ["SQLALCHEMY_DATABASE_URI"]
 
 #  settings whose absence should trigger a warning
@@ -257,6 +259,7 @@ class DevelopmentConfig(Config):
 class TestingConfig(Config):
     DEBUG: bool = True  # this seems to be important for logging in, not sure why
     LOGGING_LEVEL: int = logging.INFO
+    FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP: bool = False
     WTF_CSRF_ENABLED: bool = False  # also necessary for logging in during tests
 
     SECRET_KEY: str = "dummy-key-for-testing"

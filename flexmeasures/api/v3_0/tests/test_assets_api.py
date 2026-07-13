@@ -170,6 +170,37 @@ def test_get_assets(
         assert turbine["account_id"] == setup_accounts["Supplier"].id
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_filtered_by_asset_type(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
+    supplier_account = setup_accounts["Supplier"]
+    supplier_account_id = supplier_account.id
+    supplier_assets = supplier_account.generic_assets
+
+    requested_type_id = supplier_assets[0].generic_asset_type_id
+    expected_assets = [
+        asset
+        for asset in supplier_assets
+        if asset.generic_asset_type_id == requested_type_id
+    ]
+
+    response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={
+            "account_id": supplier_account_id,
+            "asset_type": requested_type_id,
+        },
+    )
+
+    assert response.status_code == 200
+    assert len(response.json) == len(expected_assets)
+    assert all(
+        asset["generic_asset_type"]["id"] == requested_type_id
+        for asset in response.json
+    )
+
+
 @pytest.mark.parametrize(
     "requesting_user, sort_by, sort_dir, expected_name_of_first_sensor",
     [
@@ -874,6 +905,65 @@ def test_copy_asset_increments_name_under_same_parent(
     third_copy = copy_asset(battery, parent_asset=parent)
     assert third_copy.parent_asset_id == parent.id
     assert third_copy.name == f"{battery.name} (Copy 3)"
+
+
+def test_copy_template_asset_drops_template_metadata(
+    setup_api_test_data, setup_accounts, db
+):
+    """Copying a template should yield a regular asset in the target account."""
+    prosumer_account = setup_accounts["Prosumer"]
+    battery = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    assert battery is not None
+
+    template_asset = GenericAsset(
+        name="Battery Template",
+        generic_asset_type_id=battery.generic_asset_type_id,
+        account_id=None,
+        description=(
+            "Single battery asset with example power and state-of-charge sensors, "
+            "plus a basic storage flex-model. Copy this to start modeling a battery."
+        ),
+        attributes={"template": {"key": "battery-template", "has_scenarios": False}},
+    )
+    db.session.add(template_asset)
+    db.session.flush()
+    template_sensor = Sensor(
+        name="electricity-power",
+        generic_asset_id=template_asset.id,
+        unit="kW",
+        timezone="UTC",
+        event_resolution=timedelta(minutes=15),
+        attributes={"template_role": "power", "consumption_is_positive": True},
+    )
+    db.session.add(template_sensor)
+    db.session.flush()
+
+    assert template_asset.attributes["template"]["key"] == "battery-template"
+    assert "Copy this" in template_asset.description
+
+    copied_asset = copy_asset(template_asset, account=prosumer_account)
+    copied_sensor = db.session.scalars(
+        select(Sensor).filter_by(generic_asset_id=copied_asset.id)
+    ).one()
+
+    assert copied_asset.account_id == prosumer_account.id
+    assert copied_asset.parent_asset_id is None
+    assert copied_asset.attributes == {}
+    assert copied_asset.description == (
+        "Single battery asset with example power and state-of-charge sensors, "
+        "plus a basic storage flex-model."
+    )
+    assert copied_sensor.attributes == {"consumption_is_positive": True}
+
+    # The source template stays available as a template for future copies.
+    assert template_asset.attributes["template"]["key"] == "battery-template"
+    assert "Copy this" in template_asset.description
+    assert template_sensor.attributes["template_role"] == "power"
 
 
 def test_copy_asset_to_another_account_preserves_config(

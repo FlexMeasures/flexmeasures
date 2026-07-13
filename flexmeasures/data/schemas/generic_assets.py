@@ -349,6 +349,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     id = ma.auto_field(dump_only=True)
     name = fields.Str(required=True)
+    description = fields.Str(required=False, allow_none=True)
     account_id = ma.auto_field()
     owner = ma.Nested("AccountSchema", dump_only=True, only=("id", "name"))
     latitude = LatitudeField(allow_none=True)
@@ -547,6 +548,24 @@ class GenericAssetTypeSchema(ma.SQLAlchemySchema):
 
     class Meta:
         model = GenericAssetType
+
+
+class AssetTypeIdField(MarshmallowClickMixin, fields.Int):
+    """Field that deserializes to a GenericAssetType and serializes back to an integer."""
+
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> GenericAssetType:
+        """Turn a generic asset type id into a GenericAssetType."""
+        asset_type_id: int = super()._deserialize(value, attr, data, **kwargs)
+        asset_type = db.session.get(GenericAssetType, asset_type_id)
+        if asset_type is None:
+            raise FMValidationError(
+                f"No generic asset type found with id {asset_type_id}."
+            )
+        return asset_type
+
+    def _serialize(self, value: GenericAssetType, attr, obj, **kwargs):
+        """Turn a GenericAssetType into a generic asset type id."""
+        return value.id
 
 
 class GenericAssetIdField(MarshmallowClickMixin, fields.Int):

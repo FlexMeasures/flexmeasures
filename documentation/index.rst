@@ -53,13 +53,13 @@ The main purpose of FlexMeasures is to create optimized schedules. Let's have a 
             $ docker pull postgres; docker run --name pg-docker -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
             $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" && export SECRET_KEY=notsecret && export SECURITY_TOTP_SECRETS={"1":"something-secret"}
             $ flexmeasures db upgrade  # create tables
-            $ flexmeasures add toy-account --kind battery  # setup account incl. a user, battery (ID 2) and market (ID 1)
-            $ flexmeasures add beliefs --sensor 2 --source toy-user prices-tomorrow.csv --timezone utc  # load prices, also possible per API
-            $ flexmeasures add schedule --sensor 2 \
+            $ eval "$(flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"  # setup account incl. a user, battery, solar and market
+            $ flexmeasures add beliefs --sensor ${FM_TOY_PRICE_SENSOR_ID} --source toy-user prices-tomorrow.csv --timezone utc  # load prices, also possible per API
+            $ flexmeasures add schedule --sensor ${FM_TOY_BATTERY_SENSOR_ID} \
                 --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-                --soc-at-start 50% --flex-context '{"consumption-price": {"sensor": 1}}' \
+                --soc-at-start 50% --flex-context '{"consumption-price": {"sensor": '"${FM_TOY_PRICE_SENSOR_ID}"'}}' \
                 --flex-model '{"roundtrip-efficiency": "90%"}' # this is also possible per API
-            $ flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
+            $ flexmeasures show beliefs --sensor ${FM_TOY_BATTERY_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
     
 
 A short explanation of the optimization shown above: This battery is optimized to buy power cheaply and sell it at expensive times - the red-dotted line is what FlexMeasures computed to be the best schedule, given all knowledge (in this case, the prices shown in blue). However, in the example in the middle tab, the battery has to store local solar power as well (orange line), which constrains how much it can do with its capacity (that's why the schedule is limited in capacity and thus cycling less energy overall than on the left).
@@ -99,8 +99,8 @@ What FlexMeasures does
 
 .. _use_cases_and_users:
 
-Use cases & Users
-------------------
+FlexMeasures in practice
+------------------------
 
 .. tabs::
 
@@ -114,13 +114,13 @@ Use cases & Users
 
         You decide what to optimize for ― prices, CO₂, peaks.
 
-        It becomes even more interesting to use FlexMeasures in *integrated scenarios* with increased complexity. For example, in modern domestic/office settings that combine solar panels, electric heating and EV charging, in industry settings that optimize for self-consumption of local solar panels, or when consumers can engage with multiple markets simultaneously.
+        It becomes even more interesting to use FlexMeasures in *integrated scenarios* with increased complexity. For example, in modern domestic/office settings that combine solar panels, heating (with electricity or gas) and EV charging, in industry settings that optimize for self-consumption of local solar panels, or when consumers can engage with multiple markets simultaneously.
 
         In these cases, our goal is that FlexMeasures helps you to achieve *"value stacking"*, which is often required to achieve a positive business case. Multiple sources of value can combine with multiple types of assets.
 
   .. tab:: Users
 
-        As possible users, we see energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers, or medium/large industrials who are looking for support in their internal digital tooling.
+        As possible users, we see IoT or energy service companies (ESCOs) who want to build real-time apps & services around energy flexibility for their customers. Also, medium/large industrials who are looking for smart decision support in their internal digital toolchain, servicing electrification.
 
         However, even small companies and hobby projects might find FlexMeasures useful! We are constantly improving the ease of use.
 
@@ -136,6 +136,16 @@ Use cases & Users
         ..    :scale: 40%
 
         This image should also make clear how to extend FlexMeasures on the edges to make it work for your exact use case ― by gateway integration, plugins and using FlexMeasures via its API.
+
+  .. tab:: Hosts
+
+        FlexMeasures is dockerized. In the cloud, FlexMeasures can be hosted on a single web server or on a scalable infrastructure.
+        We recommend that several FlexMeasures containers are run, with different main tasks, which you can scale as required.
+        See an example setup below or go to :ref:`deployment` for more information.
+
+        .. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/refs/heads/main/architecture/cloud-hosting-FlexMeasures-scalable.drawio.png
+            :align: center
+        ..    :scale: 40%
 
 
 
@@ -175,6 +185,8 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     tut/toy-example-expanded
     tut/toy-example-multiasset-curtailment
     tut/flex-model-v2g
+    tut/multi-feed-storage
+    tut/multi-commodity
     tut/toy-example-process
     tut/toy-example-reporter
     tut/posting_data
@@ -230,6 +242,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     host/docker
     host/data
     host/deployment
+    host/multi-tenancy
     configuration
     host/white-labelling
     host/queues
@@ -244,6 +257,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     plugin/introduction
     plugin/showcase
     plugin/customisation
+    plugin/storing-platform-secrets
 
 
 .. toctree::
@@ -258,7 +272,9 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     dev/auth
     dev/dependency-management
     dev/api
+    dev/connection-secrets
     dev/automated-deploy-via-GHActions
+    dev/release_process
 
 .. autosummary::
    :caption: Code Documentation
@@ -288,4 +304,3 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
 .. * :ref:`genindex`
 .. * :ref:`modindex`
 .. * :ref:`search`
-

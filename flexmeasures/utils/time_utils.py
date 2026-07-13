@@ -64,6 +64,18 @@ def naive_utc_from(dt: datetime) -> datetime:
         return dt.astimezone(pytz.utc).replace(tzinfo=None)
 
 
+def as_utc_isoformat(dt: datetime | None) -> str | None:
+    """Return an ISO-formatted UTC datetime string.
+
+    If dt is naive, assume it already represents UTC time.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat()
+
+
 def tz_index_naively(
     data: pd.DataFrame | pd.Series | pd.DatetimeIndex,
 ) -> pd.DataFrame | pd.Series | pd.DatetimeIndex:

@@ -1,0 +1,83 @@
+
+# This workflow builds and pushes a Docker image to Docker Hub whenever a
+# GitHub Release is published, tagging it with the release version and,
+# for stable (non-pre-release) releases, also as `latest`.
+#
+# Requires the DOCKERHUB_USERNAME and DOCKERHUB_TOKEN repository secrets
+# to be configured under Settings -> Secrets and variables -> Actions.
+
+name: Publish Docker image
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to build/push (e.g. v1.0.0). Required when run manually."
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  docker-publish:
+    runs-on: ubuntu-latest
+    # Dedicated environments with protections for publishing are strongly recommended.
+    # For more information, see: https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment#deployment-protection-rules
+    environment:
+      name: dockerhub
+    steps:
+      - name: Determine version and image tags
+        id: version
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            echo "No tag available (release.tag_name and inputs.tag are both empty)." >&2
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+          # `github.event.release.prerelease` is a boolean field GitHub sets
+          # on the `release` webhook payload, reflecting whether the "Set as
+          # a pre-release" checkbox was ticked when the GitHub Release was
+          # created. We only want stable releases to also claim `:latest`.
+          IMAGE_TAGS="lfenergy/flexmeasures:${TAG}"
+          if [ "${{ github.event.release.prerelease }}" != "true" ]; then
+            IMAGE_TAGS="${IMAGE_TAGS}
+          lfenergy/flexmeasures:latest"
+          fi
+          {
+            echo "image-tags<<EOF"
+            echo "$IMAGE_TAGS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.version.outputs.tag }}
+          fetch-depth: 0 # full history + tags, required for hatch-vcs to resolve the version
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        # Built once, pushed under both tags: pushing `latest` re-tags the
+        # exact image just built and pushed under the version tag, rather
+        # than triggering a second (functionally identical, but distinct)
+        # build.
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.version.outputs.image-tags }}
+
+      - name: Summary
+        run: |
+          echo "Pushed: ${{ steps.version.outputs.image-tags }}" >> "$GITHUB_STEP_SUMMARY"

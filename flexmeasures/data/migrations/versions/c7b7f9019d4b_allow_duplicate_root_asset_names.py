@@ -19,7 +19,15 @@ depends_on = None
 
 def upgrade():
     op.drop_constraint(
-        "generic_asset_name_parent_asset_id_key", "generic_asset", type_="unique"
+        "generic_asset_name_parent_asset_id_key",
+        "generic_asset",
+        type_="unique",
+        if_exists=True,
+    )
+    op.drop_index(
+        "generic_asset_name_parent_asset_id_key",
+        table_name="generic_asset",
+        if_exists=True,
     )
     op.create_index(
         "generic_asset_name_parent_asset_id_key",
@@ -48,9 +56,21 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_index("generic_asset_public_root_name_key", table_name="generic_asset")
-    op.drop_index("generic_asset_root_account_id_name_key", table_name="generic_asset")
-    op.drop_index("generic_asset_name_parent_asset_id_key", table_name="generic_asset")
+    op.drop_index(
+        "generic_asset_public_root_name_key",
+        table_name="generic_asset",
+        if_exists=True,
+    )
+    op.drop_index(
+        "generic_asset_root_account_id_name_key",
+        table_name="generic_asset",
+        if_exists=True,
+    )
+    op.drop_index(
+        "generic_asset_name_parent_asset_id_key",
+        table_name="generic_asset",
+        if_exists=True,
+    )
     op.create_unique_constraint(
         "generic_asset_name_parent_asset_id_key",
         "generic_asset",

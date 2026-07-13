@@ -104,22 +104,24 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
         kwargs["exclude"] = ["asset"]
         super().__init__(*args, **kwargs)
 
-    flex_context = fields.Nested(
-        flex_context_schema_openAPI,
-        required=True,
+    flex_context = fields.List(
+        fields.Nested(
+            flex_context_schema_openAPI(),
+        ),
+        load_default=[],
         data_key="flex-context",
         metadata=dict(
-            description="The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+            description="Flex-context per commodity. The flex-context is validated according to the scheduler's `FlexContextSchema`.",
         ),
     )
     flex_model = fields.List(
         fields.Nested(
             storage_flex_model_schema_openAPI(exclude=["asset"]),
-            required=True,
-            data_key="flex-model",
-            metadata=dict(
-                description="Flex-model per device (identified by `sensor`). The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
-            ),
+        ),
+        load_default=[],
+        data_key="flex-model",
+        metadata=dict(
+            description="Flex-model per device (identified by `sensor`). The flex-model may (partly) also be defined on the asset, and sending it here overrides those settings for the schedule at hand. The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
         ),
     )
 
@@ -275,6 +277,7 @@ class AssetAPI(FlaskView):
         fields_in_response: list[str] | None,
         all_accessible: bool,
         include_public: bool,
+        asset_type: GenericAssetType | None = None,
         account: Account | None = None,
         root_asset: GenericAsset | None = None,
         max_depth: int | None = None,
@@ -295,6 +298,7 @@ class AssetAPI(FlaskView):
               - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
               - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
+              - The `asset_type` query parameter can be used to filter by generic asset type ID.
               - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).
               - The `depth` query parameter can be used to search only a max number of descendant generations from the root.
 
@@ -371,6 +375,10 @@ class AssetAPI(FlaskView):
         filter_statement = GenericAsset.account_id.in_(account_ids)
         if include_public:
             filter_statement = filter_statement | GenericAsset.account_id.is_(None)
+        if asset_type is not None:
+            filter_statement = filter_statement & (
+                GenericAsset.generic_asset_type_id == asset_type.id
+            )
 
         query = query_assets_by_search_terms(
             search_terms=filter,
@@ -1784,10 +1792,20 @@ class AssetAPI(FlaskView):
         # permission is sufficient (any account member may add children to an asset).
         # When creating a top-level asset (no parent), we fall back to the account-level
         # create-children check, which requires account-admin or consultant.
+        # Special case: public-to-public copies (both None) require site admin.
         if resolved_parent is not None:
             check_access(resolved_parent, "create-children")
-        else:
+        elif resolved_account is not None:
             check_access(resolved_account, "create-children")
+        else:
+            # Public asset copy (account_id=None, parent_asset_id=None).
+            # Only site admins may create public assets.
+            if not running_as_cli() and not user_has_admin_access(
+                current_user, "update"
+            ):
+                raise Forbidden(
+                    "Only site admins may create public assets (account_id=None)."
+                )
 
         try:
             new_asset = copy_asset(asset, account=account, parent_asset=parent_asset)
