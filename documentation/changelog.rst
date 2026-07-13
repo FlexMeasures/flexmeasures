@@ -26,6 +26,7 @@ New features
 * Improve chart axis domain for event values not around zero, with a per-sub-chart ``y-axis`` option in ``sensors_to_show`` (default ``zero``, which pads the axis out to include zero) that can be set to ``data`` to fit a sub-chart's y-axis to the values shown, or to an explicit ``[min, max]`` domain that the axis will cover at least (expanding to fit data beyond it), editable from the graph editor [see `PR #2244 <https://www.github.com/FlexMeasures/flexmeasures/pull/2244>`_]
 * Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` soft state-of-charge constraint analysis (``soc-minima``/``soc-maxima`` violations or satisfied constraints, keyed by asset ID) for scheduling jobs; both arrays are empty when no SoC constraints were defined [see `PR #2072 <https://www.github.com/FlexMeasures/flexmeasures/pull/2072>`_]
 * Extended the scheduling job ``result`` field with a ``num-beliefs`` field reporting the total number of beliefs (scheduled values) saved to the database [see `PR #2280 <https://www.github.com/FlexMeasures/flexmeasures/pull/2280>`_]
+* New storage flex-model field ``operation-modes`` confines a device's power to one of several power bands, following the S2 standard's operation modes — for example, a device that is either off or running at one fixed power [see `Issue #2113 <https://www.github.com/FlexMeasures/flexmeasures/issues/2113>`_]
 
 Infrastructure / Support
 ----------------------

@@ -392,3 +392,15 @@ For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference yo
 """,
     example="0 kW",
 )
+OPERATION_MODES = MetaData(
+    description="""Confine the device's power to one of several power ranges at every time step.
+Each operation mode declares a signed power range (positive is consumption, negative is production).
+This is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).
+Terminology and semantics follow the `operation modes of the S2 standard <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/>`_.
+Declaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.
+""",
+    example=[
+        {"power-range": ["0 W", "0 W"]},
+        {"power-range": ["883.7 W", "883.7 W"]},
+    ],
+)

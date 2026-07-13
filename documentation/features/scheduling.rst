@@ -259,6 +259,9 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - ``production-capacity``
      - |PRODUCTION_CAPACITY.example| (only consumption)
      - .. include:: ../_autodoc/PRODUCTION_CAPACITY.rst
+   * - ``operation-modes``
+     - |OPERATION_MODES.example|
+     - .. include:: ../_autodoc/OPERATION_MODES.rst
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 
