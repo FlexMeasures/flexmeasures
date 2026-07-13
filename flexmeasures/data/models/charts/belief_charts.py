@@ -538,15 +538,16 @@ def _setup_event_start_field(
 
 
 def _setup_event_value_field(
-    sensor_type: str, unit: str, include_zero: bool = True
+    sensor_type: str, unit: str, fit_to_data: bool = False
 ) -> dict:
     """Set up the event value field definition.
 
     Args:
         sensor_type: Type of sensor
         unit: Unit for display
-        include_zero: Whether the shared y-axis should be forced to include zero
-            (default behaviour). Set to False to opt out.
+        fit_to_data: Whether the shared y-axis should be fitted to the data,
+            instead of being padded out to include zero (default behaviour).
+            Set to True to opt in.
 
     Returns:
         Field definition dictionary
@@ -558,12 +559,12 @@ def _setup_event_value_field(
         stack=None,
         **FIELD_DEFINITIONS["event_value"],
     )
-    if include_zero and unit == "%":
+    if fit_to_data:
+        event_value_field_definition["scale"] = dict(zero=False)
+    elif unit == "%":
         event_value_field_definition["scale"] = dict(
             domain={"unionWith": [0, 105]}, nice=False
         )
-    elif not include_zero:
-        event_value_field_definition["scale"] = dict(zero=False)
     return event_value_field_definition
 
 
@@ -779,7 +780,7 @@ def _process_sensor_entry(
     sensor_type = determine_shared_sensor_type(row_sensors)
 
     event_value_field_definition = _setup_event_value_field(
-        sensor_type, unit, entry.get("include-zero", True)
+        sensor_type, unit, entry.get("fit-to-data", False)
     )
     shared_tooltip = _setup_shared_tooltip(
         event_value_field_definition, sensor_type, sensor_title

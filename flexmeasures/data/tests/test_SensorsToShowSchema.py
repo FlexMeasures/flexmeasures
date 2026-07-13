@@ -153,47 +153,45 @@ def test_dict_with_sensors_as_int():
         schema.deserialize(input_value)
 
 
-def test_include_zero_survives_deserialize_plots_shorthand():
+def test_fit_to_data_survives_deserialize_plots_shorthand():
     schema = SensorsToShowSchema()
     input_value = [
-        {"title": "Prices", "include-zero": False, "plots": [{"sensors": [3, 4]}]}
+        {"title": "Prices", "fit-to-data": True, "plots": [{"sensors": [3, 4]}]}
     ]
     expected_output = [
-        {"title": "Prices", "include-zero": False, "plots": [{"sensors": [3, 4]}]}
+        {"title": "Prices", "fit-to-data": True, "plots": [{"sensors": [3, 4]}]}
     ]
     assert schema.deserialize(input_value) == expected_output
 
 
-def test_include_zero_survives_deserialize_sensor_shorthand():
+def test_fit_to_data_survives_deserialize_sensor_shorthand():
     schema = SensorsToShowSchema()
-    input_value = [{"title": "Prices", "include-zero": False, "sensor": 42}]
+    input_value = [{"title": "Prices", "fit-to-data": True, "sensor": 42}]
     expected_output = [
-        {"title": "Prices", "include-zero": False, "plots": [{"sensor": 42}]}
+        {"title": "Prices", "fit-to-data": True, "plots": [{"sensor": 42}]}
     ]
     assert schema.deserialize(input_value) == expected_output
 
 
-def test_include_zero_survives_deserialize_sensors_shorthand():
+def test_fit_to_data_survives_deserialize_sensors_shorthand():
     schema = SensorsToShowSchema()
-    input_value = [{"title": "Prices", "include-zero": False, "sensors": [3, 4]}]
+    input_value = [{"title": "Prices", "fit-to-data": True, "sensors": [3, 4]}]
     expected_output = [
-        {"title": "Prices", "include-zero": False, "plots": [{"sensors": [3, 4]}]}
+        {"title": "Prices", "fit-to-data": True, "plots": [{"sensors": [3, 4]}]}
     ]
     assert schema.deserialize(input_value) == expected_output
 
 
-def test_include_zero_not_boolean_raises():
+def test_fit_to_data_not_boolean_raises():
     schema = SensorsToShowSchema()
     input_value = [
-        {"title": "Prices", "include-zero": "yes", "plots": [{"sensors": [3, 4]}]}
+        {"title": "Prices", "fit-to-data": "yes", "plots": [{"sensors": [3, 4]}]}
     ]
-    with pytest.raises(
-        ValidationError, match="'include-zero' value must be a boolean."
-    ):
+    with pytest.raises(ValidationError, match="'fit-to-data' value must be a boolean."):
         schema.deserialize(input_value)
 
 
-def test_flatten_ignores_include_zero():
+def test_flatten_ignores_fit_to_data():
     schema = SensorsToShowSchema()
-    input_value = [{"include-zero": False, "plots": [{"sensors": [1, 2]}]}]
+    input_value = [{"fit-to-data": True, "plots": [{"sensors": [1, 2]}]}]
     assert schema.flatten(input_value) == [1, 2]

@@ -35,10 +35,11 @@ class SensorsToShowSchema(fields.Field):
 
     The `sensors_to_show` attribute defines which sensors should be displayed for a particular asset.
     It supports various input formats, which are standardized into a list of dictionaries, each containing
-    a `title` (optional), an `include-zero` (optional boolean, default `True`) and a `plots` list, this list
+    a `title` (optional), a `fit-to-data` (optional boolean, default `False`) and a `plots` list, this list
     then consist of dictionaries with keys such as `sensor`, `asset` or `sensors`.
-    The `include-zero` key controls whether the shared y-axis for that sub-chart should be forced to include
-    zero; set it to `False` on an entry to opt its sub-chart out of that behaviour.
+    The `fit-to-data` key controls whether the shared y-axis for that sub-chart should be fitted to the data
+    instead of being padded out to include zero; set it to `True` on an entry to opt its sub-chart into that
+    behaviour.
 
     - A single sensor ID (int): `42` -> `{"title": None, "plots": [{"sensor": 42}]}`
     - A list of sensor IDs (list of ints): `[42, 43]` -> `{"title": None, "plots": [{"sensors": [42, 43]}]}`
@@ -115,11 +116,11 @@ class SensorsToShowSchema(fields.Field):
 
         item["title"] = title or "No Title"
 
-        include_zero_kwargs = {}
-        if "include-zero" in item:
-            if not isinstance(item["include-zero"], bool):
-                raise ValidationError("'include-zero' value must be a boolean.")
-            include_zero_kwargs["include-zero"] = item["include-zero"]
+        fit_to_data_kwargs = {}
+        if "fit-to-data" in item:
+            if not isinstance(item["fit-to-data"], bool):
+                raise ValidationError("'fit-to-data' value must be a boolean.")
+            fit_to_data_kwargs["fit-to-data"] = item["fit-to-data"]
 
         if "sensor" in item:
             sensor = item["sensor"]
@@ -127,7 +128,7 @@ class SensorsToShowSchema(fields.Field):
                 raise ValidationError("'sensor' value must be an integer.")
             return {
                 "title": title,
-                **include_zero_kwargs,
+                **fit_to_data_kwargs,
                 "plots": [{"sensor": sensor}],
             }
         elif "sensors" in item:
@@ -138,7 +139,7 @@ class SensorsToShowSchema(fields.Field):
                 raise ValidationError("'sensors' value must be a list of integers.")
             return {
                 "title": title,
-                **include_zero_kwargs,
+                **fit_to_data_kwargs,
                 "plots": [{"sensors": sensors}],
             }
         elif "plots" in item:
@@ -148,7 +149,7 @@ class SensorsToShowSchema(fields.Field):
             for plot in plots:
                 self._validate_single_plot(plot)
 
-            return {"title": title, **include_zero_kwargs, "plots": plots}
+            return {"title": title, **fit_to_data_kwargs, "plots": plots}
         else:
             raise ValidationError(
                 "Dictionary must contain either 'sensor', 'sensors' or 'plots' key."
