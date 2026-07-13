@@ -50,7 +50,7 @@ def database_schema_is_migrated_to_head(app) -> bool:
         return False
 
     try:
-        with db.engine.connect() as connection:
+        with app.app_context(), db.engine.connect() as connection:
             current_heads = set(
                 MigrationContext.configure(connection).get_current_heads()
             )
