@@ -128,6 +128,7 @@ class Config(object):
     FLEXMEASURES_TIMEZONE: str = "Asia/Seoul"
     FLEXMEASURES_HIDE_NAN_IN_UI: bool = False
     FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS: tuple | None = None
+    FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP: bool = True
     # Configuration used for entity addressing:
     # This setting contains the domain on which FlexMeasures runs
     # and the first month when the domain was under the current owner's administration
@@ -258,6 +259,7 @@ class DevelopmentConfig(Config):
 class TestingConfig(Config):
     DEBUG: bool = True  # this seems to be important for logging in, not sure why
     LOGGING_LEVEL: int = logging.INFO
+    FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP: bool = False
     WTF_CSRF_ENABLED: bool = False  # also necessary for logging in during tests
 
     SECRET_KEY: str = "dummy-key-for-testing"
