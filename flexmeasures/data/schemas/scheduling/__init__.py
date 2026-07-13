@@ -73,8 +73,8 @@ class NoTimeSeriesSpecs(Schema):
 class CommitmentSchema(Schema):
     name = fields.Str(required=True, data_key="name")
     baseline = VariableQuantityField("MW", required=False, data_key="baseline")
-    up_price = VariableQuantityField("/MW", required=False, data_key="up-price")
-    down_price = VariableQuantityField(
+    up_price = PriceField("/MW", required=False, data_key="up-price")
+    down_price = PriceField(
         "/MW",
         required=False,
         data_key="down-price",
@@ -364,6 +364,13 @@ class SharedSchema(Schema):
                     if shared_currency_unit not in price_unit:
                         error_message += f" Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
                     raise ValidationError(error_message, field_name=field_name)
+        # Also hold the nested commitment prices to the shared currency
+        shared_currency_unit, previous_field_name = (
+            self._validate_commitment_price_units(
+                data, shared_currency_unit, previous_field_name
+            )
+        )
+
         if shared_currency_unit is not None:
             data["shared_currency_unit"] = shared_currency_unit
         elif sensor := data.get("consumption_price_sensor"):
@@ -373,6 +380,46 @@ class SharedSchema(Schema):
         else:
             data["shared_currency_unit"] = "EUR"
         return data
+
+    def _validate_commitment_price_units(
+        self,
+        data: dict,
+        shared_currency_unit: str | None,
+        previous_field_name: str | None,
+    ) -> tuple[str | None, str | None]:
+        """Hold the nested commitment prices to the shared currency."""
+        for commitment in data.get("commitments", []):
+            for field, price_field in CommitmentSchema._declared_fields.items():
+                if not isinstance(price_field, PriceField) or field not in commitment:
+                    continue
+                price_unit = price_field._get_unit(commitment[field])
+                currency_unit = self._extract_currency_unit(price_unit)
+                if shared_currency_unit is None:
+                    shared_currency_unit = str(
+                        ur.Quantity(currency_unit).to_base_units().units
+                    )
+                    previous_field_name = price_field.data_key
+                if not units_are_convertible(currency_unit, shared_currency_unit):
+                    field_name = price_field.data_key
+                    error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit}/MWh' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{price_unit}') for the '{field_name}' field of commitment '{commitment.get('name')}'. Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
+                    raise ValidationError(error_message, field_name="commitments")
+        return shared_currency_unit, previous_field_name
+
+    @staticmethod
+    def _extract_currency_unit(price_unit: str) -> str:
+        """Obtain the currency part of a price unit, whose denominator may vary.
+
+        >>> FlexContextSchema()._extract_currency_unit("EUR/MWh")
+        'EUR'
+        >>> FlexContextSchema()._extract_currency_unit("USD/MW")
+        'USD'
+        """
+        q = ur.Quantity(f"1 {price_unit}")
+        for denominator in ("MWh", "MW"):
+            candidate = str((q * ur.Quantity(f"1 {denominator}")).to_base_units().units)
+            if is_currency_unit(candidate):
+                return candidate
+        return str(q.units)
 
     @staticmethod
     def _to_currency_per_mwh(price_unit: str) -> str:
