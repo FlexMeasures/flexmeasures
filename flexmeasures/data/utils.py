@@ -41,10 +41,15 @@ class DatabaseSchemaRevisionStatus:
 
     current_heads: tuple[str, ...]
     expected_heads: tuple[str, ...]
+    inspection_error: str | None = None
 
     @property
     def is_migrated_to_head(self) -> bool:
-        return bool(self.current_heads) and self.current_heads == self.expected_heads
+        return (
+            self.inspection_error is None
+            and bool(self.current_heads)
+            and self.current_heads == self.expected_heads
+        )
 
 
 def database_schema_is_migrated_to_head(app) -> bool:
@@ -72,7 +77,13 @@ def get_database_schema_revision_status(app) -> DatabaseSchemaRevisionStatus:
             current_heads = tuple(
                 sorted(MigrationContext.configure(connection).get_current_heads())
             )
-    except (OperationalError, ProgrammingError):
+    except OperationalError as exc:
+        return DatabaseSchemaRevisionStatus(
+            current_heads=(),
+            expected_heads=expected_heads,
+            inspection_error=str(exc),
+        )
+    except ProgrammingError:
         current_heads = ()
 
     return DatabaseSchemaRevisionStatus(

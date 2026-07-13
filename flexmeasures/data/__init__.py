@@ -39,11 +39,18 @@ def register_at(app: Flask):
             not app.database_schema_is_migrated_to_head
             and not _is_running_db_upgrade_command()
         ):
-            app.logger.warning(
-                "Database schema is not at the Alembic head revision "
-                f"({format_database_schema_revision_status(revision_status)}). "
-                "Run `flexmeasures db upgrade` before starting the app."
-            )
+            if revision_status.inspection_error is not None:
+                app.logger.error(
+                    "Could not determine the database schema revision. "
+                    "Check database connectivity and configuration before starting the app. "
+                    f"Details: {revision_status.inspection_error}"
+                )
+            else:
+                app.logger.error(
+                    "Database schema is not at the Alembic head revision "
+                    f"({format_database_schema_revision_status(revision_status)}). "
+                    "Run `flexmeasures db upgrade` before starting the app."
+                )
 
     global ma
     ma.init_app(app)
