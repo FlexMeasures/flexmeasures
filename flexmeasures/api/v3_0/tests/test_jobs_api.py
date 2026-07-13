@@ -403,7 +403,9 @@ def test_get_job_status_failed_infeasible_schedule_includes_exc_info(
     data = response.json
     assert data["status"] == "FAILED"
     assert "infeasible" in data["message"].lower()
-    assert "InfeasibleProblemException" in data["exc_info"]
+    assert (
+        "ValueError: The input data yields an infeasible problem." in data["exc_info"]
+    )
 
 
 def test_get_job_status_unauthenticated(
