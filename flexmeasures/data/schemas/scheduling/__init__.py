@@ -24,6 +24,7 @@ from flexmeasures.data.schemas.sensors import (
     SensorIdField,
     SensorReference,
     OutputSensorReferenceSchema,
+    PriceField,
 )
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.units import UnitField
@@ -147,7 +148,7 @@ class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
 class SharedSchema(Schema):
     """Shared schema for fields common across commodities in flex-context and commodity-context."""
 
-    consumption_price = VariableQuantityField(
+    consumption_price = PriceField(
         "/MWh",
         required=False,
         data_key="consumption-price",
@@ -155,7 +156,7 @@ class SharedSchema(Schema):
         metadata=metadata.CONSUMPTION_PRICE.to_dict(),
     )
 
-    production_price = VariableQuantityField(
+    production_price = PriceField(
         "/MWh",
         required=False,
         data_key="production-price",
@@ -187,7 +188,7 @@ class SharedSchema(Schema):
         metadata=metadata.SITE_PRODUCTION_CAPACITY.to_dict(),
     )
 
-    ems_consumption_breach_price = VariableQuantityField(
+    ems_consumption_breach_price = PriceField(
         "/MW",
         data_key="site-consumption-breach-price",
         required=False,
@@ -195,7 +196,7 @@ class SharedSchema(Schema):
         metadata=metadata.SITE_CONSUMPTION_BREACH_PRICE.to_dict(),
     )
 
-    ems_production_breach_price = VariableQuantityField(
+    ems_production_breach_price = PriceField(
         "/MW",
         data_key="site-production-breach-price",
         required=False,
@@ -212,7 +213,7 @@ class SharedSchema(Schema):
         metadata=metadata.SITE_PEAK_CONSUMPTION.to_dict(),
     )
 
-    ems_peak_consumption_price = VariableQuantityField(
+    ems_peak_consumption_price = PriceField(
         "/MW",
         data_key="site-peak-consumption-price",
         required=False,
@@ -229,7 +230,7 @@ class SharedSchema(Schema):
         metadata=metadata.SITE_PEAK_PRODUCTION.to_dict(),
     )
 
-    ems_peak_production_price = VariableQuantityField(
+    ems_peak_production_price = PriceField(
         "/MW",
         data_key="site-peak-production-price",
         required=False,
@@ -238,28 +239,28 @@ class SharedSchema(Schema):
     )
 
     # Breach prices for device capacity constraints
-    consumption_breach_price = VariableQuantityField(
+    consumption_breach_price = PriceField(
         "/MW",
         data_key="consumption-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         metadata=metadata.CONSUMPTION_BREACH_PRICE.to_dict(),
     )
-    production_breach_price = VariableQuantityField(
+    production_breach_price = PriceField(
         "/MW",
         data_key="production-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         metadata=metadata.PRODUCTION_BREACH_PRICE.to_dict(),
     )
-    soc_minima_breach_price = VariableQuantityField(
+    soc_minima_breach_price = PriceField(
         "/MWh",
         data_key="soc-minima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         metadata=metadata.SOC_MINIMA_BREACH_PRICE.to_dict(),
     )
-    soc_maxima_breach_price = VariableQuantityField(
+    soc_maxima_breach_price = PriceField(
         "/MWh",
         data_key="soc-maxima-breach-price",
         required=False,
@@ -340,7 +341,7 @@ class SharedSchema(Schema):
         shared_currency_unit = None
         previous_field_name = None
         for field in self.declared_fields:
-            if field[-5:] == "price" and field in data:
+            if isinstance(self.declared_fields[field], PriceField) and field in data:
                 price_field = self.declared_fields[field]
                 price_unit = price_field._get_unit(data[field])
                 currency_unit = str(

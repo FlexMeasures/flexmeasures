@@ -36,7 +36,11 @@ from flexmeasures.data.schemas.scheduling import (
     FlexContextSchema,
     MultiSensorFlexModelSchema,
 )
-from flexmeasures.data.schemas.sensors import SensorReference, VariableQuantityField
+from flexmeasures.data.schemas.sensors import (
+    SensorReference,
+    VariableQuantityField,
+    PriceField,
+)
 from flexmeasures.data.services.scheduling_result import SchedulingJobResult
 from flexmeasures.utils.calculations import (
     integrate_time_series,
@@ -1440,6 +1444,7 @@ class MetaStorageScheduler(Scheduler):
         self.collect_flex_config()
         self._deserialize_flex_context()
         self._deserialize_flex_model()
+        self._validate_flex_model_price_units()
 
     def _deserialize_flex_context(self):
         if isinstance(self.flex_context, dict):
@@ -1474,6 +1479,37 @@ class MetaStorageScheduler(Scheduler):
             raise TypeError(
                 f"Unsupported type of flex-context: '{type(self.flex_context)}'"
             )
+
+    def _validate_flex_model_price_units(self):
+        """Check that price fields in the flex-model use the flex-context's shared currency.
+
+        The flex-context validates that all its price fields share one currency
+        (its ``shared_currency_unit``); here we hold the flex-model's price fields
+        (declared as PriceField) to that same currency, so that unit conversion
+        cannot fail later, when the scheduler runs.
+        """
+        shared_currency_unit = self.flex_context.get("shared_currency_unit")
+        if shared_currency_unit is None:
+            return
+        flex_model = (
+            self.flex_model if isinstance(self.flex_model, list) else [self.flex_model]
+        )
+        for flex_model_d in flex_model:
+            for field_name, field in StorageFlexModelSchema._declared_fields.items():
+                if (
+                    not isinstance(field, PriceField)
+                    or flex_model_d.get(field_name) is None
+                ):
+                    continue
+                price_unit = field._get_unit(flex_model_d[field_name])
+                currency_unit = str(
+                    (ur.Quantity(price_unit) / ur.Quantity(f"1{field.to_unit}")).units
+                )
+                if not units_are_convertible(currency_unit, shared_currency_unit):
+                    raise ValidationError(
+                        f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit + field.to_unit}', because the flex-context uses '{shared_currency_unit}' as its currency. However, the '{field.data_key}' field in the flex-model uses an incompatible price unit ('{price_unit}').",
+                        field_name=field.data_key,
+                    )
 
     def _deserialize_flex_model(self):
         if isinstance(self.flex_model, dict):

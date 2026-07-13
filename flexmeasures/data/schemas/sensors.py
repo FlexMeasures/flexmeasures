@@ -678,6 +678,18 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         return unit
 
 
+class PriceField(VariableQuantityField):
+    """VariableQuantityField for monetary values.
+
+    Price fields participate in currency validation: all price fields in the
+    flex-context must share one currency (recorded as the flex-context's
+    ``shared_currency_unit``), and price fields in a flex-model must use a
+    currency that is convertible to the flex-context's shared currency.
+    """
+
+    pass
+
+
 class RepurposeValidatorToIgnoreSensorsAndLists(validate.Validator):
     """Validator that executes another validator (the one you initialize it with) only on non-Sensor and non-list values."""
 
