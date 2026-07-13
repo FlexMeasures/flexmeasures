@@ -175,9 +175,10 @@ class SensorsToShowSchema(fields.Field):
             ):
                 raise ValidationError(error_message)
             minimum, maximum = y_axis
-            if minimum >= maximum:
+            # An equal minimum and maximum is allowed: it keeps that single value in view.
+            if minimum > maximum:
                 raise ValidationError(
-                    "'y-axis' domain minimum must be lower than its maximum."
+                    "'y-axis' domain minimum cannot exceed its maximum."
                 )
             return [minimum, maximum]
         else:

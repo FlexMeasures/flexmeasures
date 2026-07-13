@@ -467,7 +467,32 @@
             );
         }
 
+        // An unusable "Fixed range…" is never written into the state, so saving would
+        // silently drop it — or keep a stale earlier range — and still report success.
+        // Read the inputs rather than the state, and refuse the save instead.
+        function findInvalidYAxisRange() {
+            const graphs = getSensorToShow();
+            for (const [index, item] of graphs.entries()) {
+                const select = document.getElementById(`yAxisSelect_${index}`);
+                if (!select || select.value !== "range") continue;
+                const minVal = parseFloat(document.getElementById(`yAxisMin_${index}`).value);
+                const maxVal = parseFloat(document.getElementById(`yAxisMax_${index}`).value);
+                if (Number.isNaN(minVal) || Number.isNaN(maxVal) || minVal > maxVal) {
+                    return item.title || `Graph ${index + 1}`;
+                }
+            }
+            return null;
+        }
+
         saveChangesBtn.onclick = async function () {
+            const invalidGraph = findInvalidYAxisRange();
+            if (invalidGraph !== null) {
+                showToast(
+                    `Not saved: the y-axis range of '${invalidGraph}' needs two numbers, with Min no higher than Max.`,
+                    "error",
+                );
+                return;
+            }
             await updateAssetSensorsToShow();
         };
         addPlotBtn.onclick = async function () {
@@ -800,7 +825,7 @@
                 {
                     value: "range",
                     text: "Fixed range…",
-                    title: "The axis always covers at least this range, and expands if the data goes beyond it.",
+                    title: "The axis always covers at least this range, and expands if the data goes beyond it. Set Min and Max to the same number to always keep that one value in view.",
                 },
             ];
             for (const opt of options) {
@@ -845,7 +870,7 @@
 
             const feedback = document.createElement("div");
             feedback.className = "invalid-feedback d-block d-none";
-            feedback.textContent = "Enter two numbers with Min lower than Max.";
+            feedback.textContent = "Enter two numbers, with Min no higher than Max.";
 
             const validateAndStoreRange = () => {
                 const minVal = parseFloat(minInput.value);
@@ -855,7 +880,7 @@
                     maxInput.value !== "" &&
                     !Number.isNaN(minVal) &&
                     !Number.isNaN(maxVal) &&
-                    minVal < maxVal;
+                    minVal <= maxVal;
                 if (valid) {
                     minInput.classList.remove("is-invalid");
                     maxInput.classList.remove("is-invalid");

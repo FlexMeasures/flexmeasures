@@ -229,21 +229,21 @@ def test_y_axis_min_greater_than_max_raises():
     ]
     with pytest.raises(
         ValidationError,
-        match="'y-axis' domain minimum must be lower than its maximum.",
+        match="'y-axis' domain minimum cannot exceed its maximum.",
     ):
         schema.deserialize(input_value)
 
 
-def test_y_axis_min_equal_max_raises():
+def test_y_axis_min_equal_max_is_allowed():
+    """A degenerate domain is a valid way to always keep one specific value in view."""
     schema = SensorsToShowSchema()
     input_value = [
         {"title": "Prices", "y-axis": [10, 10], "plots": [{"sensors": [3, 4]}]}
     ]
-    with pytest.raises(
-        ValidationError,
-        match="'y-axis' domain minimum must be lower than its maximum.",
-    ):
-        schema.deserialize(input_value)
+    expected_output = [
+        {"title": "Prices", "y-axis": [10, 10], "plots": [{"sensors": [3, 4]}]}
+    ]
+    assert schema.deserialize(input_value) == expected_output
 
 
 def test_flatten_ignores_y_axis():
