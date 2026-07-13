@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.33.2"
+    "version": "1.0.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -6408,6 +6408,11 @@
               }
             ],
             "items": {}
+          },
+          "soc-value-at-end": {
+            "description": "Marginal value assigned to energy left in storage at the end of the scheduling horizon.\nWithout it, the scheduler sees no benefit in ending the horizon with a non-zero state of charge, which can lead to myopic behaviour such as fully depleting the storage towards the end of the horizon.\nIt must use the same currency as the other price settings and cannot be negative.\nSet it per device (for example, lower for a heat pump's thermal buffer than for a battery, due to the difference between the COP and the battery's charging efficiency), either as a fixed quantity or as a sensor reference.\n",
+            "example": "60 EUR/MWh",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "sensor": {
             "type": "integer",

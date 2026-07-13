@@ -862,6 +862,15 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "soc-value-at-end": {
+        "default": None,
+        "description": rst_to_openapi(metadata.SOC_VALUE_AT_END.description),
+        "types": {
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["energy-price"],
+    },
     "roundtrip-efficiency": {
         "default": None,
         "description": rst_to_openapi(metadata.ROUNDTRIP_EFFICIENCY.description),

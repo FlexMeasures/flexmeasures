@@ -314,6 +314,14 @@ These are hard constraints, which means that any infeasible state-of-charge targ
 """,
     example=[{"datetime": "2024-02-05T08:00:00+01:00", "value": "3.2 kWh"}],
 )
+SOC_VALUE_AT_END = MetaData(
+    description="""Marginal value assigned to energy left in storage at the end of the scheduling horizon.
+Without it, the scheduler sees no benefit in ending the horizon with a non-zero state of charge, which can lead to myopic behaviour such as fully depleting the storage towards the end of the horizon.
+It must use the same currency as the other price settings and cannot be negative.
+Set it per device (for example, lower for a heat pump's thermal buffer than for a battery, due to the difference between the COP and the battery's charging efficiency), either as a fixed quantity or as a sensor reference.
+""",
+    example="60 EUR/MWh",
+)
 SOC_GAIN = MetaData(
     description="""SoC gain per time step, e.g. from a secondary energy source. Useful if energy is inserted by an external process (in-flow).
 This field allows setting multiple components, either fixed or dynamic, which add up to an aggregated gain.

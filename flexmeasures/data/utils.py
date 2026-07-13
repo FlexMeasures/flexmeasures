@@ -4,6 +4,10 @@ Utils around the data models and db sessions
 
 from __future__ import annotations
 
+from alembic.config import Config as AlembicConfig
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from dataclasses import dataclass
 from flask import current_app
 from timely_beliefs import BeliefsDataFrame, BeliefsSeries
 from sqlalchemy import select
@@ -29,6 +33,72 @@ SAVE_TO_DB_SUCCESS_WITH_CHANGES_STATUSES = (
     SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
 )
 TEMPLATE_COPY_GUIDANCE_PREFIX = "Copy this"
+
+
+@dataclass(frozen=True)
+class DatabaseSchemaRevisionStatus:
+    """Alembic revision status for the connected database."""
+
+    current_heads: tuple[str, ...]
+    expected_heads: tuple[str, ...]
+    inspection_error: str | None = None
+
+    @property
+    def is_migrated_to_head(self) -> bool:
+        return (
+            self.inspection_error is None
+            and bool(self.current_heads)
+            and self.current_heads == self.expected_heads
+        )
+
+
+def get_database_schema_revision_status(app) -> DatabaseSchemaRevisionStatus:
+    """Return current and expected Alembic head revisions for the connected database."""
+    from sqlalchemy.exc import OperationalError, ProgrammingError
+
+    migrate_extension = app.extensions.get("migrate")
+    if migrate_extension is None:
+        return DatabaseSchemaRevisionStatus(current_heads=(), expected_heads=())
+
+    alembic_config = AlembicConfig()
+    alembic_config.set_main_option("script_location", migrate_extension.directory)
+    script = ScriptDirectory.from_config(alembic_config)
+    expected_heads = tuple(sorted(script.get_heads()))
+    if not expected_heads:
+        return DatabaseSchemaRevisionStatus(current_heads=(), expected_heads=())
+
+    try:
+        with app.app_context(), db.engine.connect() as connection:
+            current_heads = tuple(
+                sorted(MigrationContext.configure(connection).get_current_heads())
+            )
+    except OperationalError as exc:
+        return DatabaseSchemaRevisionStatus(
+            current_heads=(),
+            expected_heads=expected_heads,
+            inspection_error=str(exc),
+        )
+    except ProgrammingError:
+        current_heads = ()
+
+    return DatabaseSchemaRevisionStatus(
+        current_heads=current_heads,
+        expected_heads=expected_heads,
+    )
+
+
+def format_database_schema_revision_status(
+    status: DatabaseSchemaRevisionStatus,
+) -> str:
+    """Format Alembic revisions for host-facing log messages."""
+
+    def format_heads(heads: tuple[str, ...]) -> str:
+        return ", ".join(heads) if heads else "unknown"
+
+    return (
+        f"current revision(s): {format_heads(status.current_heads)}; "
+        f"head revision(s): {format_heads(status.expected_heads)}"
+    )
 
 
 def save_to_session(objects: list[db.Model], overwrite: bool = False):

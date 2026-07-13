@@ -25,6 +25,7 @@ New features
 * CLI support for adding/editing account attributes [see `PR #2242 <https://www.github.com/FlexMeasures/flexmeasures/pull/2242>`_]
 * Improve chart axis domain for event values not around zero, with a per-sub-chart ``y-axis`` option in ``sensors_to_show`` (default ``zero``, which pads the axis out to include zero) that can be set to ``data`` to fit a sub-chart's y-axis to the values shown, or to an explicit ``[min, max]`` domain that the axis will cover at least (expanding to fit data beyond it), editable from the graph editor [see `PR #2244 <https://www.github.com/FlexMeasures/flexmeasures/pull/2244>`_]
 * Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` soft state-of-charge constraint analysis (``soc-minima``/``soc-maxima`` violations or satisfied constraints, keyed by asset ID) for scheduling jobs; both arrays are empty when no SoC constraints were defined [see `PR #2072 <https://www.github.com/FlexMeasures/flexmeasures/pull/2072>`_]
+* New ``soc-value-at-end`` flex-model field for storage devices: assigns a marginal value (fixed quantity or sensor reference) to energy left in storage at the end of the scheduling horizon, countering myopic depletion of the storage [see `PR #2310 <https://www.github.com/FlexMeasures/flexmeasures/pull/2310>`_]
 * Extended the scheduling job ``result`` field with a ``num-beliefs`` field reporting the total number of beliefs (scheduled values) saved to the database [see `PR #2280 <https://www.github.com/FlexMeasures/flexmeasures/pull/2280>`_]
 * New storage flex-model field ``operation-modes`` confines a device's power to one of several power bands, following the S2 standard's operation modes — for example, a device that is either off or running at one fixed power [see `Issue #2113 <https://www.github.com/FlexMeasures/flexmeasures/issues/2113>`_]
 
@@ -41,6 +42,7 @@ Infrastructure / Support
 * Automate Docker Hub image publishing and a PyPI install smoke test on release, add a manually-triggered QA workflow that runs the toy tutorials and HEMS walkthrough against a local Docker Compose stack, and add a helper script to list merged PRs since the last tag [see `PR #2260 <https://www.github.com/FlexMeasures/flexmeasures/pull/2260>`_]
 * Make toy tutorials robust against pre-existing IDs [see `PR #2269 <https://www.github.com/FlexMeasures/flexmeasures/pull/2269>`_]
 * Document multi-tenancy and consultancy tenant structures for hosts [see `PR #2176 <https://www.github.com/FlexMeasures/flexmeasures/pull/2176>`_]
+* Warn hosts when the database schema is not at the latest migration, and skip startup template provisioning until migrations are applied [see `PR #2309 <https://www.github.com/FlexMeasures/flexmeasures/pull/2309>`_]
 
 Bugfixes
 -----------

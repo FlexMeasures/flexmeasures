@@ -288,6 +288,14 @@ class StorageFlexModelSchema(Schema):
         metadata=metadata.SOC_USAGE.to_dict(),
     )
 
+    soc_value_at_end = VariableQuantityField(
+        "/MWh",
+        data_key="soc-value-at-end",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SOC_VALUE_AT_END.to_dict(),
+    )
+
     def __init__(
         self,
         start: datetime,
@@ -529,6 +537,13 @@ class DBStorageFlexModelSchema(Schema):
         required=False,
         validate=validate.Length(min=1),
         metadata={"deprecated field": "soc-usage"},
+    )
+
+    soc_value_at_end = VariableQuantityField(
+        "/MWh",
+        data_key="soc-value-at-end",
+        required=False,
+        value_validator=validate.Range(min=0),
     )
 
     roundtrip_efficiency = EfficiencyField(

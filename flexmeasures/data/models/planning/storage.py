@@ -256,6 +256,7 @@ class MetaStorageScheduler(Scheduler):
         soc_maxima = [None] * num_flexible_devices
         soc_gain = [None] * num_flexible_devices
         soc_usage = [None] * num_flexible_devices
+        soc_value_at_end = [None] * num_flexible_devices
         prefer_charging_sooner = [None] * num_flexible_devices
         prefer_curtailing_later = [None] * num_flexible_devices
 
@@ -277,6 +278,7 @@ class MetaStorageScheduler(Scheduler):
             soc_maxima[d0] = stock_model.get("soc_maxima")
             soc_gain[d0] = stock_model.get("soc_gain")
             soc_usage[d0] = stock_model.get("soc_usage")
+            soc_value_at_end[d0] = stock_model.get("soc_value_at_end")
             prefer_charging_sooner[d0] = stock_model.get("prefer_charging_sooner")
             prefer_curtailing_later[d0] = stock_model.get("prefer_curtailing_later")
 
@@ -944,6 +946,34 @@ class MetaStorageScheduler(Scheduler):
 
                 # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
                 soc_maxima[d] = None
+
+            if soc_value_at_end[d] is not None and soc_at_start[d] is not None:
+                # Assign a marginal value to energy left in storage at the end of the
+                # planning window, to counter myopic depletion of the storage.
+                soc_value_at_end_d = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_value_at_end[d],
+                    unit=self.flex_context["shared_currency_unit"]
+                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                # Only the state of charge at the end of the planning window is valued
+                soc_value_at_end_d.iloc[:-1] = 0
+
+                commitment = StockCommitment(
+                    name="value of soc at end",
+                    # baseline is an (absolute) zero state of charge, so the upwards
+                    # deviation in the final time slot is the final state of charge
+                    quantity=-soc_at_start[d] * (timedelta(hours=1) / resolution),
+                    # negative prices reward a higher state of charge at the end
+                    upwards_deviation_price=-soc_value_at_end_d,
+                    downwards_deviation_price=-soc_value_at_end_d,
+                    index=index,
+                    device=d,
+                )
+                commitments.append(commitment)
 
             # only apply SOC constraints to the first device of a shared stock
             apply_soc_constraints = True
