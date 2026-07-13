@@ -807,6 +807,7 @@ def make_schedule(  # noqa: C901
 
     # Save any result that specifies a sensor to save it to
     scheduling_result_dict: dict = SchedulingJobResult().to_dict()
+    num_beliefs_created = 0
     for result in consumption_schedule:
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
@@ -847,10 +848,14 @@ def make_schedule(  # noqa: C901
 
         if not dry_run:
             save_to_db(bdf)
+            num_beliefs_created += len(bdf)
         else:
             print(
                 f"\nNot saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"
             )
+
+    # num_beliefs_created counts beliefs actually saved; in dry_run mode this is always 0
+    scheduling_result_dict["num-beliefs"] = num_beliefs_created
 
     if not dry_run:
         scheduler.persist_flex_model()

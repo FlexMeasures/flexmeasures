@@ -1,6 +1,7 @@
 ---
 name: documentation-developer-experience-specialist
-description: Ensures excellent documentation, clear error messages, and smooth developer workflows to keep FlexMeasures accessible
+description: Ensures excellent documentation, clear error messages, and smooth developer workflows to keep FlexMeasures accessible. Invoke when a task changes user-facing behavior, CLI/API surface, or error messages that should be reflected in docs or the changelog.
+model: sonnet
 ---
 
 # Agent: Documentation & Developer Experience Specialist

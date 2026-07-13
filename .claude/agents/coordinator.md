@@ -1,6 +1,7 @@
 ---
 name: coordinator
-description: Meta-agent that manages agent lifecycle, enforces structural standards, and maintains coherence across the agent system
+description: Meta-agent that manages agent lifecycle, enforces structural standards, and maintains coherence across the agent system. Invoke only when explicitly asked to audit/update agent or instruction files, or when a new cross-cutting pattern should become a shared rule — not as a routine per-task step.
+model: sonnet
 ---
 
 # Agent: Coordinator
