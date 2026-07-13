@@ -153,13 +153,31 @@ def test_dict_with_sensors_as_int():
         schema.deserialize(input_value)
 
 
-def test_include_zero_survives_deserialize():
+def test_include_zero_survives_deserialize_plots_shorthand():
     schema = SensorsToShowSchema()
     input_value = [
-        {"title": "Prices", "plots": [{"sensors": [3, 4], "include-zero": False}]}
+        {"title": "Prices", "include-zero": False, "plots": [{"sensors": [3, 4]}]}
     ]
     expected_output = [
-        {"title": "Prices", "plots": [{"sensors": [3, 4], "include-zero": False}]}
+        {"title": "Prices", "include-zero": False, "plots": [{"sensors": [3, 4]}]}
+    ]
+    assert schema.deserialize(input_value) == expected_output
+
+
+def test_include_zero_survives_deserialize_sensor_shorthand():
+    schema = SensorsToShowSchema()
+    input_value = [{"title": "Prices", "include-zero": False, "sensor": 42}]
+    expected_output = [
+        {"title": "Prices", "include-zero": False, "plots": [{"sensor": 42}]}
+    ]
+    assert schema.deserialize(input_value) == expected_output
+
+
+def test_include_zero_survives_deserialize_sensors_shorthand():
+    schema = SensorsToShowSchema()
+    input_value = [{"title": "Prices", "include-zero": False, "sensors": [3, 4]}]
+    expected_output = [
+        {"title": "Prices", "include-zero": False, "plots": [{"sensors": [3, 4]}]}
     ]
     assert schema.deserialize(input_value) == expected_output
 
@@ -167,7 +185,7 @@ def test_include_zero_survives_deserialize():
 def test_include_zero_not_boolean_raises():
     schema = SensorsToShowSchema()
     input_value = [
-        {"title": "Prices", "plots": [{"sensors": [3, 4], "include-zero": "yes"}]}
+        {"title": "Prices", "include-zero": "yes", "plots": [{"sensors": [3, 4]}]}
     ]
     with pytest.raises(
         ValidationError, match="'include-zero' value must be a boolean."
@@ -177,5 +195,5 @@ def test_include_zero_not_boolean_raises():
 
 def test_flatten_ignores_include_zero():
     schema = SensorsToShowSchema()
-    input_value = [{"plots": [{"sensors": [1, 2], "include-zero": False}]}]
+    input_value = [{"include-zero": False, "plots": [{"sensors": [1, 2]}]}]
     assert schema.flatten(input_value) == [1, 2]

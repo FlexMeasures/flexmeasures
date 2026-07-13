@@ -779,7 +779,7 @@ def _process_sensor_entry(
     sensor_type = determine_shared_sensor_type(row_sensors)
 
     event_value_field_definition = _setup_event_value_field(
-        sensor_type, unit, _include_zero_in_domain(entry)
+        sensor_type, unit, entry.get("include-zero", True)
     )
     shared_tooltip = _setup_shared_tooltip(
         event_value_field_definition, sensor_type, sensor_title
@@ -808,12 +808,6 @@ def _process_sensor_entry(
     # Pass all sensors (real + fixed-value) so the filter transform includes
     # both positive and negative IDs, and all data rows reach this chart row.
     return _build_sensor_spec(title, layers, real_sensors + fixed_value_sensors)
-
-
-def _include_zero_in_domain(entry: dict) -> bool:
-    """A sub-plot's shared y-axis includes zero unless every plot in it opts out."""
-    plots = entry.get("plots", [])
-    return any(plot.get("include-zero", True) for plot in plots) if plots else True
 
 
 def _extract_sensors_from_entry(entry: dict) -> list["Sensor"]:  # noqa F821

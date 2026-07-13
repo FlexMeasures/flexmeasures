@@ -725,7 +725,7 @@ def test_chart_data_json_skips_invalid_saved_asset_reference(
 
 
 # ---------------------------------------------------------------------------
-# Tests for the `include-zero` opt-out (per-plot y-axis zero inclusion)
+# Tests for the `include-zero` opt-out (per-sub-chart y-axis zero inclusion)
 # ---------------------------------------------------------------------------
 
 
@@ -777,30 +777,7 @@ def test_setup_event_value_field_percent_include_zero_false_drops_domain():
     assert field["scale"] == {"zero": False}
 
 
-def test_include_zero_in_domain_helper():
-    from flexmeasures.data.models.charts.belief_charts import _include_zero_in_domain
-
-    assert _include_zero_in_domain({"plots": []}) is True
-    assert _include_zero_in_domain({"plots": [{"sensor": 1}]}) is True
-    assert (
-        _include_zero_in_domain({"plots": [{"sensor": 1, "include-zero": False}]})
-        is False
-    )
-    # Any plot opting in keeps zero included for the shared axis.
-    assert (
-        _include_zero_in_domain(
-            {
-                "plots": [
-                    {"sensor": 1, "include-zero": False},
-                    {"sensor": 2},
-                ]
-            }
-        )
-        is True
-    )
-
-
-def test_chart_y_scale_zero_false_when_all_plots_opt_out(
+def test_chart_y_scale_zero_false_when_entry_opts_out(
     battery_with_soc_flex_model,
 ):
     battery, soc_sensor = battery_with_soc_flex_model
@@ -808,17 +785,16 @@ def test_chart_y_scale_zero_false_when_all_plots_opt_out(
     battery.sensors_to_show = [
         {
             "title": None,
+            "include-zero": False,
             "plots": [
-                {"sensor": soc_sensor.id, "include-zero": False},
+                {"sensor": soc_sensor.id},
                 {
                     "asset": battery.id,
                     "flex-model": "soc-min",
-                    "include-zero": False,
                 },
                 {
                     "asset": battery.id,
                     "flex-model": "soc-max",
-                    "include-zero": False,
                 },
             ],
         }
@@ -859,15 +835,16 @@ def test_validate_sensors_to_show_propagates_include_zero(
     battery.sensors_to_show = [
         {
             "title": None,
+            "include-zero": False,
             "plots": [
-                {"sensor": soc_sensor.id, "include-zero": False},
+                {"sensor": soc_sensor.id},
             ],
         }
     ]
 
     rows = battery.validate_sensors_to_show()
     assert len(rows) == 1
-    assert rows[0]["plots"][0]["include-zero"] is False
+    assert rows[0]["include-zero"] is False
 
 
 def test_validate_sensors_to_show_defaults_include_zero_true(
@@ -877,4 +854,4 @@ def test_validate_sensors_to_show_defaults_include_zero_true(
 
     rows = battery.validate_sensors_to_show()
     assert len(rows) == 1
-    assert rows[0]["plots"][0]["include-zero"] is True
+    assert rows[0]["include-zero"] is True
