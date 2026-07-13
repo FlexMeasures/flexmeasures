@@ -22,6 +22,7 @@ from flexmeasures.data.schemas.sensors import (
     SensorReference,
     OutputSensorReferenceSchema,
     VariableQuantityField,
+    PriceField,
 )
 from flexmeasures.utils.unit_utils import (
     ur,
@@ -246,7 +247,7 @@ class StorageFlexModelSchema(Schema):
         metadata=metadata.SOC_USAGE.to_dict(),
     )
 
-    soc_value_at_end = VariableQuantityField(
+    soc_value_at_end = PriceField(
         "/MWh",
         data_key="soc-value-at-end",
         required=False,
@@ -497,7 +498,7 @@ class DBStorageFlexModelSchema(Schema):
         metadata={"deprecated field": "soc-usage"},
     )
 
-    soc_value_at_end = VariableQuantityField(
+    soc_value_at_end = PriceField(
         "/MWh",
         data_key="soc-value-at-end",
         required=False,
