@@ -538,16 +538,18 @@ def _setup_event_start_field(
 
 
 def _setup_event_value_field(
-    sensor_type: str, unit: str, fit_to_data: bool = False
+    sensor_type: str, unit: str, y_axis: str | list | None = None
 ) -> dict:
     """Set up the event value field definition.
 
     Args:
         sensor_type: Type of sensor
         unit: Unit for display
-        fit_to_data: Whether the shared y-axis should be fitted to the data,
-            instead of being padded out to include zero (default behaviour).
-            Set to True to opt in.
+        y_axis: How the y-axis domain for this sub-chart should be chosen.
+            - None (or "zero"): the axis is padded out to include zero (default behaviour).
+            - "data": the axis is fitted to the data.
+            - [min, max]: a minimum domain; the axis covers at least this range,
+              and expands (via unionWith) if the data goes beyond it.
 
     Returns:
         Field definition dictionary
@@ -559,8 +561,12 @@ def _setup_event_value_field(
         stack=None,
         **FIELD_DEFINITIONS["event_value"],
     )
-    if fit_to_data:
+    if y_axis == "data":
         event_value_field_definition["scale"] = dict(zero=False)
+    elif isinstance(y_axis, list):
+        event_value_field_definition["scale"] = dict(
+            domain={"unionWith": y_axis}, nice=False
+        )
     elif unit == "%":
         event_value_field_definition["scale"] = dict(
             domain={"unionWith": [0, 105]}, nice=False
@@ -780,7 +786,7 @@ def _process_sensor_entry(
     sensor_type = determine_shared_sensor_type(row_sensors)
 
     event_value_field_definition = _setup_event_value_field(
-        sensor_type, unit, entry.get("fit-to-data", False)
+        sensor_type, unit, entry.get("y-axis")
     )
     shared_tooltip = _setup_shared_tooltip(
         event_value_field_definition, sensor_type, sensor_title

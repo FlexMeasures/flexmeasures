@@ -725,7 +725,7 @@ def test_chart_data_json_skips_invalid_saved_asset_reference(
 
 
 # ---------------------------------------------------------------------------
-# Tests for the `fit-to-data` opt-in (per-sub-chart y-axis fitted to data)
+# Tests for the `y-axis` option (per-sub-chart y-axis domain selection)
 # ---------------------------------------------------------------------------
 
 
@@ -741,16 +741,30 @@ def _find_y_scale(spec: dict) -> dict | None:
     return None
 
 
-def test_setup_event_value_field_fit_to_data_true_forces_zero_false():
+def test_setup_event_value_field_y_axis_data_forces_zero_false():
     from flexmeasures.data.models.charts.belief_charts import (
         _setup_event_value_field,
     )
 
-    field = _setup_event_value_field("power", "kW", fit_to_data=True)
+    field = _setup_event_value_field("power", "kW", y_axis="data")
     assert field["scale"] == {"zero": False}
 
 
-def test_setup_event_value_field_fit_to_data_absent_default_padded():
+def test_setup_event_value_field_y_axis_range_sets_domain_as_floor():
+    """A [min, max] y-axis is a floor (unionWith), not a hard clip: the spec
+    does not hard-bound the axis, it only guarantees it covers at least
+    the given range and expands to fit data beyond it."""
+    from flexmeasures.data.models.charts.belief_charts import (
+        _setup_event_value_field,
+    )
+
+    field = _setup_event_value_field("power", "kW", y_axis=[10, 20])
+    assert field["scale"] == {"domain": {"unionWith": [10, 20]}, "nice": False}
+    # Not a hard/bare domain list - that would clip the data.
+    assert field["scale"]["domain"] != [10, 20]
+
+
+def test_setup_event_value_field_y_axis_absent_default_padded():
     from flexmeasures.data.models.charts.belief_charts import (
         _setup_event_value_field,
     )
@@ -768,13 +782,22 @@ def test_setup_event_value_field_percent_default_gets_domain():
     assert field["scale"] == {"domain": {"unionWith": [0, 105]}, "nice": False}
 
 
-def test_setup_event_value_field_percent_fit_to_data_true_drops_domain():
+def test_setup_event_value_field_percent_y_axis_data_drops_domain():
     from flexmeasures.data.models.charts.belief_charts import (
         _setup_event_value_field,
     )
 
-    field = _setup_event_value_field("state of charge", "%", fit_to_data=True)
+    field = _setup_event_value_field("state of charge", "%", y_axis="data")
     assert field["scale"] == {"zero": False}
+
+
+def test_setup_event_value_field_percent_y_axis_range_overrides_domain():
+    from flexmeasures.data.models.charts.belief_charts import (
+        _setup_event_value_field,
+    )
+
+    field = _setup_event_value_field("state of charge", "%", y_axis=[0, 50])
+    assert field["scale"] == {"domain": {"unionWith": [0, 50]}, "nice": False}
 
 
 def test_chart_y_scale_zero_false_when_entry_opts_in(
@@ -785,7 +808,7 @@ def test_chart_y_scale_zero_false_when_entry_opts_in(
     battery.sensors_to_show = [
         {
             "title": None,
-            "fit-to-data": True,
+            "y-axis": "data",
             "plots": [
                 {"sensor": soc_sensor.id},
                 {
@@ -811,7 +834,33 @@ def test_chart_y_scale_zero_false_when_entry_opts_in(
     assert scale == {"zero": False}
 
 
-def test_chart_y_scale_default_when_fit_to_data_absent(
+def test_chart_y_scale_domain_when_entry_has_fixed_range(
+    battery_with_soc_flex_model,
+):
+    battery, soc_sensor = battery_with_soc_flex_model
+
+    battery.sensors_to_show = [
+        {
+            "title": None,
+            "y-axis": [10, 90],
+            "plots": [
+                {"sensor": soc_sensor.id},
+            ],
+        }
+    ]
+
+    start = datetime(2015, 1, 1, tzinfo=pytz.utc)
+    end = datetime(2015, 1, 2, tzinfo=pytz.utc)
+
+    spec = battery.chart(
+        include_data=False, event_starts_after=start, event_ends_before=end
+    )
+
+    scale = _find_y_scale(spec)
+    assert scale == {"domain": {"unionWith": [10, 90]}, "nice": False}
+
+
+def test_chart_y_scale_default_when_y_axis_absent(
     battery_with_soc_flex_model,
 ):
     battery, _ = battery_with_soc_flex_model
@@ -827,7 +876,7 @@ def test_chart_y_scale_default_when_fit_to_data_absent(
     assert scale is None or scale.get("zero") is not False
 
 
-def test_validate_sensors_to_show_propagates_fit_to_data(
+def test_validate_sensors_to_show_propagates_y_axis(
     battery_with_soc_flex_model,
 ):
     battery, soc_sensor = battery_with_soc_flex_model
@@ -835,7 +884,7 @@ def test_validate_sensors_to_show_propagates_fit_to_data(
     battery.sensors_to_show = [
         {
             "title": None,
-            "fit-to-data": True,
+            "y-axis": "data",
             "plots": [
                 {"sensor": soc_sensor.id},
             ],
@@ -844,14 +893,14 @@ def test_validate_sensors_to_show_propagates_fit_to_data(
 
     rows = battery.validate_sensors_to_show()
     assert len(rows) == 1
-    assert rows[0]["fit-to-data"] is True
+    assert rows[0]["y-axis"] == "data"
 
 
-def test_validate_sensors_to_show_defaults_fit_to_data_false(
+def test_validate_sensors_to_show_omits_y_axis_by_default(
     battery_with_soc_flex_model,
 ):
     battery, soc_sensor = battery_with_soc_flex_model
 
     rows = battery.validate_sensors_to_show()
     assert len(rows) == 1
-    assert rows[0]["fit-to-data"] is False
+    assert "y-axis" not in rows[0]

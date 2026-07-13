@@ -247,9 +247,9 @@
                                     child asset, as well as public assets.
                                 </p>
                                 <p class="mb-0">
-                                    Each graph has a "Fit the y-axis to the data" checkbox; check it to let that
+                                    Each graph has a "Y-axis" selector; choose "Fit to the data" to let that
                                     graph's shared y-axis zoom in on its data instead of being padded out to
-                                    include zero.
+                                    include zero, or "Fixed range…" to set an explicit min and max.
                                 </p>
                             </div>
                         </div>
@@ -757,33 +757,143 @@
         }
 
         /**
-        * Renders the "Fit the y-axis to the data" checkbox for a graph card.
+        * Renders the "Y-axis" selector for a graph card, letting the user choose whether
+        * the sub-chart's y-axis is padded out to zero, fitted to the data, or fixed to
+        * an explicit [min, max] range.
         * @param {Object} item - The graph/sub-chart entry.
         * @param {number} index - The index of the graph in the list.
         */
-        function renderFitToDataCheckbox(item, index) {
+        function renderYAxisSelector(item, index) {
             const wrapper = document.createElement("div");
-            wrapper.className = "form-check mb-2";
+            wrapper.className = "mb-2";
             // The enclosing card toggles the active graph on click, so keep clicks in here
             wrapper.onclick = (e) => {
                 e.stopPropagation();
             };
-            const checkbox = document.createElement("input");
-            checkbox.type = "checkbox";
-            checkbox.className = "form-check-input";
-            checkbox.id = `fitToData_${index}`;
-            checkbox.checked = item["fit-to-data"] === true;
-            checkbox.title = "By default the y-axis is padded out to include zero. Fitting to the data zooms in on the values shown (zero may still appear if the data spans it).";
-            checkbox.onchange = (e) => {
-                setGraphFitToData(index, e.target.checked);
-            };
+
+            const yAxis = item["y-axis"];
+            const isRange = Array.isArray(yAxis);
+            const currentMode = isRange ? "range" : (yAxis === "data" ? "data" : "zero");
+
             const label = document.createElement("label");
-            label.className = "form-check-label";
-            label.htmlFor = checkbox.id;
-            label.textContent = "Fit the y-axis to the data";
-            label.title = "By default the y-axis is padded out to include zero. Fitting to the data zooms in on the values shown (zero may still appear if the data spans it).";
-            wrapper.appendChild(checkbox);
+            label.className = "form-label me-2";
+            label.htmlFor = `yAxisSelect_${index}`;
+            label.textContent = "Y-axis";
+            label.title = "How the y-axis domain for this sub-chart is chosen.";
+
+            const select = document.createElement("select");
+            select.className = "form-select form-select-sm d-inline-block w-auto";
+            select.id = `yAxisSelect_${index}`;
+            select.title = "How the y-axis domain for this sub-chart is chosen.";
+
+            const options = [
+                {
+                    value: "zero",
+                    text: "Include zero (default)",
+                    title: "The axis is padded out so that zero is always visible. Good for power and other quantities where zero is meaningful.",
+                },
+                {
+                    value: "data",
+                    text: "Fit to the data",
+                    title: "The axis zooms in on the values shown. Zero may still appear if the data spans it.",
+                },
+                {
+                    value: "range",
+                    text: "Fixed range…",
+                    title: "The axis always covers at least this range, and expands if the data goes beyond it.",
+                },
+            ];
+            for (const opt of options) {
+                const optionEl = document.createElement("option");
+                optionEl.value = opt.value;
+                optionEl.textContent = opt.text;
+                optionEl.title = opt.title;
+                optionEl.selected = opt.value === currentMode;
+                select.appendChild(optionEl);
+            }
+
             wrapper.appendChild(label);
+            wrapper.appendChild(select);
+
+            // Range inputs (min/max), only shown when "Fixed range…" is selected
+            const rangeWrapper = document.createElement("div");
+            rangeWrapper.className = "mt-2";
+            rangeWrapper.style.display = currentMode === "range" ? "" : "none";
+
+            const makeNumberInput = (id, placeholder, initialValue) => {
+                const input = document.createElement("input");
+                input.type = "number";
+                input.className = "form-control form-control-sm d-inline-block w-auto me-2";
+                input.id = id;
+                input.placeholder = placeholder;
+                if (initialValue !== undefined && initialValue !== null) {
+                    input.value = initialValue;
+                }
+                return input;
+            };
+
+            const minInput = makeNumberInput(
+                `yAxisMin_${index}`,
+                "Min",
+                isRange ? yAxis[0] : undefined,
+            );
+            const maxInput = makeNumberInput(
+                `yAxisMax_${index}`,
+                "Max",
+                isRange ? yAxis[1] : undefined,
+            );
+
+            const feedback = document.createElement("div");
+            feedback.className = "invalid-feedback d-block d-none";
+            feedback.textContent = "Enter two numbers with Min lower than Max.";
+
+            const validateAndStoreRange = () => {
+                const minVal = parseFloat(minInput.value);
+                const maxVal = parseFloat(maxInput.value);
+                const valid =
+                    minInput.value !== "" &&
+                    maxInput.value !== "" &&
+                    !Number.isNaN(minVal) &&
+                    !Number.isNaN(maxVal) &&
+                    minVal < maxVal;
+                if (valid) {
+                    minInput.classList.remove("is-invalid");
+                    maxInput.classList.remove("is-invalid");
+                    feedback.classList.add("d-none");
+                    setGraphYAxis(index, [minVal, maxVal]);
+                } else {
+                    minInput.classList.add("is-invalid");
+                    maxInput.classList.add("is-invalid");
+                    feedback.classList.remove("d-none");
+                }
+            };
+
+            minInput.onchange = validateAndStoreRange;
+            maxInput.onchange = validateAndStoreRange;
+
+            rangeWrapper.appendChild(minInput);
+            rangeWrapper.appendChild(maxInput);
+            rangeWrapper.appendChild(feedback);
+            wrapper.appendChild(rangeWrapper);
+
+            select.onchange = (e) => {
+                const mode = e.target.value;
+                rangeWrapper.style.display = mode === "range" ? "" : "none";
+                if (mode === "zero") {
+                    setGraphYAxis(index, null);
+                } else if (mode === "data") {
+                    setGraphYAxis(index, "data");
+                } else if (mode === "range") {
+                    // Do not store anything until both inputs are valid.
+                    minInput.classList.remove("is-invalid");
+                    maxInput.classList.remove("is-invalid");
+                    feedback.classList.add("d-none");
+                    if (minInput.value !== "" && maxInput.value !== "") {
+                        validateAndStoreRange();
+                    }
+                }
+            };
+
             return wrapper;
         }
 
@@ -818,7 +928,6 @@
             );
 
             cardBody.appendChild(headerElement);
-            cardBody.appendChild(renderFitToDataCheckbox(item, index));
 
             // 5. Sensors Content
             const plotContainer = document.createElement("div");
@@ -910,6 +1019,7 @@
             // Assemble
             cardBody.appendChild(header);
             cardBody.appendChild(plotContainer);
+            cardBody.appendChild(renderYAxisSelector(item, index));
             cardBody.appendChild(footer);
             card.appendChild(cardBody);
             col.appendChild(card);
@@ -1120,13 +1230,20 @@
 
         }
 
-        function setGraphFitToData(graphIndex, checked) {
+        /**
+        * Update the `y-axis` field of a graph/sub-chart entry.
+        * @param {number} graphIndex - The index of the graph in the list.
+        * @param {("data"|[number, number]|null)} value - "data" to fit the axis to the
+        *   data, a [min, max] pair for a fixed range, or null/undefined to reset to the
+        *   default (padded out to include zero).
+        */
+        function setGraphYAxis(graphIndex, value) {
             const state = getSensorToShow();
             const next = state.map((item, i) => {
                 if (i !== graphIndex) return item;
-                // The y-axis is padded out to include zero by default, so only store the opt-in
-                const { "fit-to-data": _, ...rest } = item;
-                return checked ? { ...rest, "fit-to-data": true } : rest;
+                // The y-axis is padded out to include zero by default, so only store non-defaults
+                const { "y-axis": _, ...rest } = item;
+                return value == null ? rest : { ...rest, "y-axis": value };
             });
             setSensorToShow(next);
         }

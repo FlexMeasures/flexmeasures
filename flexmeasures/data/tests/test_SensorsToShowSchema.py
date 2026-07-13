@@ -153,45 +153,100 @@ def test_dict_with_sensors_as_int():
         schema.deserialize(input_value)
 
 
-def test_fit_to_data_survives_deserialize_plots_shorthand():
+@pytest.mark.parametrize(
+    "y_axis_input, y_axis_output",
+    [
+        ("data", "data"),
+        ([10, 20], [10, 20]),
+        ([10.5, 20.5], [10.5, 20.5]),
+    ],
+)
+def test_y_axis_survives_deserialize_plots_shorthand(y_axis_input, y_axis_output):
     schema = SensorsToShowSchema()
     input_value = [
-        {"title": "Prices", "fit-to-data": True, "plots": [{"sensors": [3, 4]}]}
+        {"title": "Prices", "y-axis": y_axis_input, "plots": [{"sensors": [3, 4]}]}
     ]
     expected_output = [
-        {"title": "Prices", "fit-to-data": True, "plots": [{"sensors": [3, 4]}]}
+        {"title": "Prices", "y-axis": y_axis_output, "plots": [{"sensors": [3, 4]}]}
     ]
     assert schema.deserialize(input_value) == expected_output
 
 
-def test_fit_to_data_survives_deserialize_sensor_shorthand():
+def test_y_axis_survives_deserialize_sensor_shorthand():
     schema = SensorsToShowSchema()
-    input_value = [{"title": "Prices", "fit-to-data": True, "sensor": 42}]
-    expected_output = [
-        {"title": "Prices", "fit-to-data": True, "plots": [{"sensor": 42}]}
-    ]
+    input_value = [{"title": "Prices", "y-axis": "data", "sensor": 42}]
+    expected_output = [{"title": "Prices", "y-axis": "data", "plots": [{"sensor": 42}]}]
     assert schema.deserialize(input_value) == expected_output
 
 
-def test_fit_to_data_survives_deserialize_sensors_shorthand():
+def test_y_axis_survives_deserialize_sensors_shorthand():
     schema = SensorsToShowSchema()
-    input_value = [{"title": "Prices", "fit-to-data": True, "sensors": [3, 4]}]
+    input_value = [{"title": "Prices", "y-axis": [10, 20], "sensors": [3, 4]}]
     expected_output = [
-        {"title": "Prices", "fit-to-data": True, "plots": [{"sensors": [3, 4]}]}
+        {"title": "Prices", "y-axis": [10, 20], "plots": [{"sensors": [3, 4]}]}
     ]
     assert schema.deserialize(input_value) == expected_output
 
 
-def test_fit_to_data_not_boolean_raises():
+def test_y_axis_zero_is_not_stored():
+    """The explicit string 'zero' is accepted but normalized away (it's the default)."""
     schema = SensorsToShowSchema()
     input_value = [
-        {"title": "Prices", "fit-to-data": "yes", "plots": [{"sensors": [3, 4]}]}
+        {"title": "Prices", "y-axis": "zero", "plots": [{"sensors": [3, 4]}]}
     ]
-    with pytest.raises(ValidationError, match="'fit-to-data' value must be a boolean."):
+    expected_output = [{"title": "Prices", "plots": [{"sensors": [3, 4]}]}]
+    assert schema.deserialize(input_value) == expected_output
+
+
+@pytest.mark.parametrize(
+    "invalid_y_axis",
+    [
+        "yes",
+        42,
+        [1],
+        [1, 2, 3],
+        [True, 2],
+        [1, True],
+        ["a", "b"],
+    ],
+)
+def test_y_axis_invalid_value_raises(invalid_y_axis):
+    schema = SensorsToShowSchema()
+    input_value = [
+        {"title": "Prices", "y-axis": invalid_y_axis, "plots": [{"sensors": [3, 4]}]}
+    ]
+    with pytest.raises(
+        ValidationError,
+        match="'y-axis' must be 'zero', 'data', or a \\[min, max\\] list of two numbers.",
+    ):
         schema.deserialize(input_value)
 
 
-def test_flatten_ignores_fit_to_data():
+def test_y_axis_min_greater_than_max_raises():
     schema = SensorsToShowSchema()
-    input_value = [{"fit-to-data": True, "plots": [{"sensors": [1, 2]}]}]
+    input_value = [
+        {"title": "Prices", "y-axis": [20, 10], "plots": [{"sensors": [3, 4]}]}
+    ]
+    with pytest.raises(
+        ValidationError,
+        match="'y-axis' domain minimum must be lower than its maximum.",
+    ):
+        schema.deserialize(input_value)
+
+
+def test_y_axis_min_equal_max_raises():
+    schema = SensorsToShowSchema()
+    input_value = [
+        {"title": "Prices", "y-axis": [10, 10], "plots": [{"sensors": [3, 4]}]}
+    ]
+    with pytest.raises(
+        ValidationError,
+        match="'y-axis' domain minimum must be lower than its maximum.",
+    ):
+        schema.deserialize(input_value)
+
+
+def test_flatten_ignores_y_axis():
+    schema = SensorsToShowSchema()
+    input_value = [{"y-axis": "data", "plots": [{"sensors": [1, 2]}]}]
     assert schema.flatten(input_value) == [1, 2]
