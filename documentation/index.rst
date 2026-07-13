@@ -53,13 +53,13 @@ The main purpose of FlexMeasures is to create optimized schedules. Let's have a 
             $ docker pull postgres; docker run --name pg-docker -e POSTGRES_PASSWORD=docker -e POSTGRES_DB=flexmeasures-db -d -p 5433:5432 postgres:latest 
             $ export SQLALCHEMY_DATABASE_URI="postgresql://postgres:docker@127.0.0.1:5433/flexmeasures-db" && export SECRET_KEY=notsecret && export SECURITY_TOTP_SECRETS={"1":"something-secret"}
             $ flexmeasures db upgrade  # create tables
-            $ flexmeasures add toy-account --kind battery  # setup account incl. a user, battery (ID 2) and market (ID 1)
-            $ flexmeasures add beliefs --sensor 2 --source toy-user prices-tomorrow.csv --timezone utc  # load prices, also possible per API
-            $ flexmeasures add schedule --sensor 2 \
+            $ eval "$(flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"  # setup account incl. a user, battery, solar and market
+            $ flexmeasures add beliefs --sensor ${FM_TOY_PRICE_SENSOR_ID} --source toy-user prices-tomorrow.csv --timezone utc  # load prices, also possible per API
+            $ flexmeasures add schedule --sensor ${FM_TOY_BATTERY_SENSOR_ID} \
                 --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-                --soc-at-start 50% --flex-context '{"consumption-price": {"sensor": 1}}' \
+                --soc-at-start 50% --flex-context '{"consumption-price": {"sensor": '"${FM_TOY_PRICE_SENSOR_ID}"'}}' \
                 --flex-model '{"roundtrip-efficiency": "90%"}' # this is also possible per API
-            $ flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
+            $ flexmeasures show beliefs --sensor ${FM_TOY_BATTERY_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H  # also visible per UI, of course
     
 
 A short explanation of the optimization shown above: This battery is optimized to buy power cheaply and sell it at expensive times - the red-dotted line is what FlexMeasures computed to be the best schedule, given all knowledge (in this case, the prices shown in blue). However, in the example in the middle tab, the battery has to store local solar power as well (orange line), which constrains how much it can do with its capacity (that's why the schedule is limited in capacity and thus cycling less energy overall than on the left).
@@ -185,6 +185,8 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     tut/toy-example-expanded
     tut/toy-example-multiasset-curtailment
     tut/flex-model-v2g
+    tut/multi-feed-storage
+    tut/multi-commodity
     tut/toy-example-process
     tut/toy-example-reporter
     tut/posting_data
@@ -240,6 +242,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     host/docker
     host/data
     host/deployment
+    host/multi-tenancy
     configuration
     host/white-labelling
     host/queues

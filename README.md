@@ -25,7 +25,7 @@ Here is why using FlexMeasures is a great idea:
 - Developing energy flexibility apps & services (e.g. to enable demand response) is crucial, but expensive.
 - FlexMeasures reduces development costs with real-time data intelligence & integrations, uncertainty models and developer support such as API/UI and plugins.
 
-![High-level overview of FlexMeasures as an EMS for energy flexibility apps, using plugins to fit a given use case](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/overview-flexEMS.png)
+![High-level overview of FlexMeasures as an EMS for energy flexibility apps, using plugins to fit a given use case](https://raw.githubusercontent.com/FlexMeasures/screenshots/main/architecture/overview-flexEMS.svg)
 
 
 So why optimise the schedules of flexible assets? Because planning ahead allows flexible assets to serve the whole system with their flexibility, e.g. by shifting energy consumption to other times.

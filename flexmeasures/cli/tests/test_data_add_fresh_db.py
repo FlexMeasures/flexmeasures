@@ -301,6 +301,10 @@ def test_add_process(
     # call command
     result = runner.invoke(add_schedule, cli_input)
     check_command_ran_without_error(result)
+    # ProcessScheduler's make_schedule() call returns a dict (not the boolean
+    # True), which used to be falsy enough to silently suppress this message;
+    # confirm the message still appears.
+    assert "New schedule is stored." in result.output
 
     process_power_sensor = db.session.get(Sensor, process_power_sensor_id)
     schedule = process_power_sensor.search_beliefs()
@@ -471,6 +475,31 @@ def test_add_process_toy_account_reuses_existing_root_assets(app, fresh_db):
         "Power (Breakable)",
         "Power (Shiftable)",
     }
+
+
+def test_add_toy_account_shell_vars_output(app, fresh_db):
+    from flexmeasures.cli.data_add import add_toy_account
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_toy_account, ["--shell-vars"])
+
+    check_command_ran_without_error(result)
+
+    shell_vars = dict(
+        line.split("=", 1)
+        for line in result.output.splitlines()
+        if line.startswith("FM_TOY_")
+    )
+
+    assert {
+        "FM_TOY_ACCOUNT_ID",
+        "FM_TOY_PRICE_SENSOR_ID",
+        "FM_TOY_BUILDING_ASSET_ID",
+        "FM_TOY_BATTERY_ASSET_ID",
+        "FM_TOY_BATTERY_SENSOR_ID",
+        "FM_TOY_SOLAR_ASSET_ID",
+        "FM_TOY_SOLAR_SENSOR_ID",
+    }.issubset(shell_vars.keys())
 
 
 @pytest.mark.parametrize("storage_power_capacity", ["sensor", "quantity", None])

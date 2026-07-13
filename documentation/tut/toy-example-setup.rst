@@ -17,10 +17,10 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
 
 .. code-block:: bash
 
-    # setup an account with a user, assets for battery & solar and an energy market (ID 1)
-    $ flexmeasures add toy-account
+    # setup an account with a user, assets for battery & solar and an energy market
+    $ eval "$(flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
     # load prices to optimize schedules against
-    $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam --unit EUR/MWh
+    $ flexmeasures add beliefs --sensor ${FM_TOY_PRICE_SENSOR_ID} --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam --unit EUR/MWh
 
 
 Okay, let's get started!
@@ -141,11 +141,11 @@ The data we need for our example is both structural (e.g. a company account, a u
 
 Let's create the structural data first.
 
-FlexMeasures offers a command to create a toy account with a battery:
+FlexMeasures offers a command to create a toy account with a battery and expose the relevant IDs as shell variables:
 
 .. code-block:: bash
 
-    $ flexmeasures add toy-account --kind battery
+    $ eval "$(flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
 
     Generic asset type `solar` created successfully.
     Generic asset type `wind` created successfully.
@@ -168,6 +168,8 @@ FlexMeasures offers a command to create a toy account with a battery:
     The sensor recording solar forecasts is production (ID: 3).
 
 
+
+This sets variables such as ``FM_TOY_PRICE_SENSOR_ID``, ``FM_TOY_BATTERY_SENSOR_ID``, ``FM_TOY_SOLAR_SENSOR_ID`` and ``FM_TOY_BUILDING_ASSET_ID`` in your current shell.
 
 And with that, we're done with the structural data for this tutorial!
 
@@ -348,7 +350,7 @@ This is time series data, in FlexMeasures we call *"beliefs"*. Beliefs can also 
 
 .. code-block:: bash
 
-    $ flexmeasures add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam --unit EUR/MWh
+    $ flexmeasures add beliefs --sensor ${FM_TOY_PRICE_SENSOR_ID} --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam --unit EUR/MWh
     Successfully created beliefs
 
 In FlexMeasures, all beliefs have a data source. Here, we use the username of the user we created earlier. We could also pass a user ID, or the name of a new data source we want to use for CLI scripts.
@@ -359,7 +361,7 @@ Let's look at the price data we just loaded:
 
 .. code-block:: bash
 
-    $ flexmeasures show beliefs --sensor 1 --start ${TOMORROW}T00:00:00+01:00 --duration PT24H
+    $ flexmeasures show beliefs --sensor ${FM_TOY_PRICE_SENSOR_ID} --start ${TOMORROW}T00:00:00+01:00 --duration PT24H
     
     Beliefs for Sensor 'day-ahead prices' (ID 1).
     Data spans a day and starts at 2025-11-11 00:00:00+01:00.
