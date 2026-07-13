@@ -602,9 +602,17 @@ class FlexContextSchema(SharedSchema):
         ):
             return data
 
+        # An explicit false value for either relaxation switch disables the related
+        # default SoC breach prices, even when the other switch remains enabled.
+        soc_relaxation_disabled = (
+            original_data.get("relax-soc-constraints") is False
+            or original_data.get("relax-constraints") is False
+        )
+
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
         if (
-            (data["relax_soc_constraints"] or data["relax_constraints"])
+            not soc_relaxation_disabled
+            and (data["relax_soc_constraints"] or data["relax_constraints"])
             and data.get("soc_minima_breach_price") is None
             and data.get("soc_maxima_breach_price") is None
         ):

@@ -553,6 +553,22 @@ def test_flex_context_schema_preserves_explicit_soc_breach_prices():
     ).magnitude == pytest.approx(7)
 
 
+@pytest.mark.parametrize(
+    "disabled_field",
+    ["relax-soc-constraints", "relax-constraints"],
+)
+def test_flex_context_schema_disables_default_soc_breach_prices(disabled_field):
+    loaded_flex_context = FlexContextSchema().load(
+        {
+            "consumption-price": "1 EUR/MWh",
+            disabled_field: False,
+        }
+    )
+
+    assert "soc_minima_breach_price" not in loaded_flex_context
+    assert "soc_maxima_breach_price" not in loaded_flex_context
+
+
 def test_db_flex_context_schema_does_not_relax_soc_constraints_by_default():
     loaded_flex_context = DBFlexContextSchema().load({})
 
