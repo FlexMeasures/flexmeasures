@@ -17,6 +17,35 @@ from flexmeasures import __version__ as fm_version
 from flexmeasures.app import create as create_app
 
 
+def provision_default_template_assets_on_startup(app: Flask) -> None:
+    """Provision starter template assets when startup settings and schema allow it."""
+    if (
+        not app.config.get("FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP", False)
+        or app.testing
+        or app.config.get("FLEXMEASURES_ENV") == "documentation"
+    ):
+        return
+
+    if not getattr(app, "database_schema_is_migrated_to_head", True):
+        app.logger.info(
+            "Skipping startup template provisioning because the database schema is not at the Alembic head revision yet."
+        )
+        return
+
+    from sqlalchemy.exc import OperationalError, ProgrammingError
+
+    from flexmeasures.data import db
+    from flexmeasures.data.scripts.data_gen import provision_default_template_assets
+
+    try:
+        with app.app_context():
+            provision_default_template_assets(db)
+    except (OperationalError, ProgrammingError) as exc:
+        app.logger.warning(
+            f"Skipping startup template provisioning due to an error: {exc}"
+        )
+
+
 @click.group(cls=FlaskGroup, create_app=create_app)
 @with_appcontext
 def flexmeasures_cli():

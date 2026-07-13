@@ -4,6 +4,9 @@ Utils around the data models and db sessions
 
 from __future__ import annotations
 
+from alembic.config import Config as AlembicConfig
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from flask import current_app
 from timely_beliefs import BeliefsDataFrame, BeliefsSeries
 from sqlalchemy import select
@@ -29,6 +32,32 @@ SAVE_TO_DB_SUCCESS_WITH_CHANGES_STATUSES = (
     SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
 )
 TEMPLATE_COPY_GUIDANCE_PREFIX = "Copy this"
+
+
+def database_schema_is_migrated_to_head(app) -> bool:
+    """Return whether the connected database is already at the Alembic head(s)."""
+    from sqlalchemy.exc import OperationalError, ProgrammingError
+
+    migrate_extension = app.extensions.get("migrate")
+    if migrate_extension is None:
+        return False
+
+    alembic_config = AlembicConfig()
+    alembic_config.set_main_option("script_location", migrate_extension.directory)
+    script = ScriptDirectory.from_config(alembic_config)
+    expected_heads = set(script.get_heads())
+    if not expected_heads:
+        return False
+
+    try:
+        with db.engine.connect() as connection:
+            current_heads = set(
+                MigrationContext.configure(connection).get_current_heads()
+            )
+    except (OperationalError, ProgrammingError):
+        return False
+
+    return bool(current_heads) and current_heads == expected_heads
 
 
 def save_to_session(objects: list[db.Model], overwrite: bool = False):

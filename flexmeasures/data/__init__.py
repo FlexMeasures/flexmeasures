@@ -20,6 +20,18 @@ def register_at(app: Flask):
     configure_db_for(app)
     Migrate(app, db, directory=os.path.join(app.root_path, "data", "migrations"))
 
+    app.database_schema_is_migrated_to_head = True
+    if not app.testing and app.config.get("FLEXMEASURES_ENV") != "documentation":
+        from flexmeasures.data.utils import database_schema_is_migrated_to_head
+
+        app.database_schema_is_migrated_to_head = database_schema_is_migrated_to_head(
+            app
+        )
+        if not app.database_schema_is_migrated_to_head:
+            app.logger.warning(
+                "Database schema is not at the Alembic head revision. Run `flexmeasures db upgrade` before starting the app."
+            )
+
     global ma
     ma.init_app(app)
 
