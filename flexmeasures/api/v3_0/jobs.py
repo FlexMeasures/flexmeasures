@@ -141,9 +141,9 @@ class JobAPI(FlaskView):
                           constraint analysis (empty arrays when the flex model
                           defines no ``soc-minima``/``soc-maxima``, or when a
                           scheduler other than ``StorageScheduler`` was used).
-                         The ``num-beliefs`` field holds the total number of
-                         beliefs (scheduled values) saved to the database.
-                       nullable: true
+                          The ``num-beliefs`` field holds the total number of
+                          beliefs (scheduled values) saved to the database.
+                        nullable: true
                       func_name:
                         type: string
                         description: Fully-qualified name of the function executed by this job.
