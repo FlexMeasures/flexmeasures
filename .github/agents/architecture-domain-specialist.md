@@ -129,13 +129,13 @@ differently-cleaned parameters instead of raising an error.
 - **Location**: `flexmeasures/data/models/generic_assets.py`
 - **Purpose**: Represents economic value (tangible/intangible)
 - **Key fields**: `id`, `name`, `account_id`, `parent_asset_id`, `attributes`, `flex_context`, `flex_model`, `sensors_to_show`
-- **Relationships**:
+- **Relationships**: 
   - `owner` → Account (via account_id)
   - `parent_asset` → GenericAsset (via parent_asset_id)
   - `child_assets` ← GenericAsset (reverse of parent)
   - `sensors` ← Sensor (one-to-many)
 - **Invariant**: `db.CheckConstraint("parent_asset_id != id", name="generic_asset_self_reference_ck")`
-- **Methods**:
+- **Methods**: 
   - `get_flex_context()` - Walks parent tree to reconstitute full context
   - `great_circle_distance()` - Geographic distance calculations
 - **Path representation**: Account > Asset > ... > Asset
@@ -159,7 +159,7 @@ differently-cleaned parameters instead of raising an error.
 #### Scheduler
 - **Location**: `flexmeasures/data/models/planning/__init__.py`
 - **Purpose**: Base class for other schedulers (incl. from plugins)
-- **Inputs**:
+- **Inputs**: 
   - Asset (more modern way) or Sensor (older approach)
   - Time window: start, end, resolution, belief_time
   - flex_model + flex_context
