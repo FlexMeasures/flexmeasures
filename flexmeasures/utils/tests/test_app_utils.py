@@ -6,6 +6,7 @@ from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.transport import Transport
 from werkzeug.exceptions import InternalServerError, NotFound, SecurityError
 
+from flexmeasures.data import _is_running_db_upgrade_command
 from flexmeasures.utils.app_utils import (
     _sentry_filter_notfound,
     provision_default_template_assets_on_startup,
@@ -157,3 +158,15 @@ def test_provision_default_template_assets_on_startup_skips_old_schema(
         provision_default_template_assets_on_startup(app)
 
     assert "Skipping startup template provisioning" in caplog.text
+
+
+def test_is_running_db_upgrade_command(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["/path/to/flexmeasures", "db", "upgrade", "--sql"])
+
+    assert _is_running_db_upgrade_command() is True
+
+
+def test_is_running_db_upgrade_command_false_for_other_db_commands(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["/path/to/flexmeasures", "db", "current"])
+
+    assert _is_running_db_upgrade_command() is False
