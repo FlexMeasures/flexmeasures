@@ -7,8 +7,8 @@ Two limits apply:
 - a stricter limit on the endpoints that trigger expensive computation (scheduling and forecasting).
 
 Both are configurable (see ``FLEXMEASURES_API_DEFAULT_RATE_LIMIT`` and ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT``),
-and both can be overridden per account, by setting e.g.
-``account.attributes["rate_limits"]["trigger"] = "50 per hour"``.
+and both can be overridden per account, by assigning the account a ``Plan`` with
+``default_rate_limit`` and/or ``trigger_rate_limit`` set (see ``flexmeasures.data.models.user.Plan``).
 The special value "unlimited" exempts an account from a limit.
 
 Note that the limiter runs before authentication, so unauthenticated callers are counted by IP address.
@@ -22,17 +22,31 @@ from flask_limiter.util import get_remote_address
 from flask_login import current_user
 
 from flexmeasures.api.common.responses import too_many_requests
+from flexmeasures.data.models.user import RateLimitKey
 
 # Endpoints under /api/ which the default limit should not apply to
 EXEMPT_PATH_PREFIXES = ("/api/v3_0/health",)
 
+_VALID_RATE_LIMIT_KEYS = {key.value for key in RateLimitKey}
 
-def _account_rate_limit(limit_name: str) -> str | None:
-    """Look up an account's override for the given limit, if any."""
+
+def _plan():
+    """The plan of the current user's account, if any."""
     if not current_user.is_authenticated or current_user.account is None:
         return None
-    rate_limits = (current_user.account.attributes or {}).get("rate_limits", {})
-    return rate_limits.get(limit_name)
+    return current_user.account.plan
+
+
+def _account_rate_limit(limit_name: str) -> str | None:
+    """Look up an account's plan-level override for the given limit, if any."""
+    plan = _plan()
+    if plan is None:
+        return None
+    if limit_name == "default":
+        return plan.default_rate_limit
+    if limit_name == "trigger":
+        return plan.trigger_rate_limit
+    return None
 
 
 def _is_unlimited(limit_name: str) -> bool:
@@ -47,24 +61,39 @@ def default_key_func() -> str:
     return get_remote_address()
 
 
+def _rate_limit_key_value() -> str:
+    """Determine what to count triggers against: the account's plan, or the server config.
+
+    Falls back to the server config (and ultimately to a hardcoded default) rather than raising,
+    so that a bad value never turns into a 500 on every request for an account.
+    """
+    plan = _plan()
+    if plan is not None and plan.rate_limit_key is not None:
+        return plan.rate_limit_key.value
+    key = current_app.config["FLEXMEASURES_API_RATE_LIMIT_KEY"]
+    if key not in _VALID_RATE_LIMIT_KEYS:
+        current_app.logger.error(
+            f"Unknown FLEXMEASURES_API_RATE_LIMIT_KEY '{key}'. "
+            f"Use one of {sorted(_VALID_RATE_LIMIT_KEYS)}. Falling back to '{RateLimitKey.ACCOUNT_PLUS_ASSET.value}'."
+        )
+        return RateLimitKey.ACCOUNT_PLUS_ASSET.value
+    return key
+
+
 def trigger_key_func() -> str:
-    """Count triggers against whatever the host configured.
+    """Count triggers against whatever the host (or the account's plan) configured.
 
     The request path contains both the resource type and its ID,
     so it distinguishes assets from sensors without us having to parse view args.
     """
     if not current_user.is_authenticated:
         return get_remote_address()
-    key = current_app.config["FLEXMEASURES_API_RATE_LIMIT_KEY"]
+    key = _rate_limit_key_value()
     if key == "user":
         return f"user:{current_user.id}"
     if key == "account":
         return f"account:{current_user.account_id}"
-    if key == "account+asset":
-        return f"account:{current_user.account_id}|{request.path}"
-    raise ValueError(
-        f"Unknown FLEXMEASURES_API_RATE_LIMIT_KEY '{key}'. Use 'account+asset', 'account' or 'user'."
-    )
+    return f"account:{current_user.account_id}|{request.path}"  # "account+asset"
 
 
 def default_limit() -> str:

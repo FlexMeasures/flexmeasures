@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import enum
 from typing import TYPE_CHECKING
 from datetime import datetime, timezone
 
@@ -7,7 +8,7 @@ from flask_security import UserMixin, RoleMixin, current_user
 import pandas as pd
 from sqlalchemy import select, func
 from sqlalchemy.orm import relationship, backref
-from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey
+from sqlalchemy import Boolean, DateTime, Column, Integer, String, ForeignKey, Enum
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.dialects.postgresql import JSONB
@@ -51,6 +52,48 @@ class AccountRole(db.Model):
         return "<AccountRole:%s (ID:%s)>" % (self.name, self.id)
 
 
+class RateLimitKey(enum.Enum):
+    """What a trigger rate limit is counted against.
+
+    See flexmeasures.api.common.rate_limiting for how this is used.
+    """
+
+    ACCOUNT_PLUS_ASSET = "account+asset"
+    ACCOUNT = "account"
+    USER = "user"
+
+
+class Plan(db.Model):
+    """
+    A plan bundles the rate limits and quotas that apply to the accounts assigned to it.
+
+    Rate limits (how often an account may call the API) and quotas (how many users or assets
+    an account may create) are enforced through separate code paths, but share this table because
+    they are both first-class properties of a commercial plan rather than ad hoc account attributes.
+
+    Quota fields are not enforced yet; enforcement is left to a follow-up.
+    """
+
+    __tablename__ = "plan"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(80), unique=True, nullable=False)
+
+    # Rate limits, as flask-limiter limit strings (e.g. "500 per minute"), or "unlimited".
+    # NULL falls back to the server-wide config setting.
+    default_rate_limit = Column(String(80), nullable=True)
+    trigger_rate_limit = Column(String(80), nullable=True)
+    rate_limit_key = Column(Enum(RateLimitKey), nullable=True)
+
+    # Quotas, not enforced yet. NULL means no quota (falls back to server-wide behaviour).
+    max_users = Column(Integer, nullable=True)
+    max_assets = Column(Integer, nullable=True)
+    # For consultancy accounts, capping the number of client accounts they may manage.
+    max_clients = Column(Integer, nullable=True)
+
+    def __repr__(self):
+        return "<Plan %s (ID:%s)>" % (self.name, self.id)
+
+
 class Account(db.Model, AuthModelMixin):
     """
     Account of a tenant on the server.
@@ -86,6 +129,9 @@ class Account(db.Model, AuthModelMixin):
     consultancy_account = db.relationship(
         "Account", back_populates="consultancy_client_accounts", remote_side=[id]
     )
+
+    plan_id = Column(Integer, db.ForeignKey("plan.id"), default=None, nullable=True)
+    plan = db.relationship("Plan", backref=backref("accounts", lazy="dynamic"))
 
     def __repr__(self):
         return "<Account %s (ID:%s)>" % (self.name, self.id)

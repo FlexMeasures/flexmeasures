@@ -8,7 +8,7 @@ API change log
 v3.0-32 | July XX, 2026
 """"""""""""""""""""""""
 
-- API endpoints are now rate-limited. A request which exceeds a limit is answered with a ``429 (Too Many Requests)`` status code and a ``Retry-After`` header stating how many seconds to wait. Responses also carry ``X-RateLimit-*`` headers, describing the limit that applied, how much of it is left, and when it resets. A stricter limit applies to ``POST /assets/<id>/schedules/trigger``, ``POST /sensors/<id>/schedules/trigger`` and ``POST /sensors/<id>/forecasts/trigger`` than to other endpoints; the health endpoints are exempt.
+- API endpoints are now rate-limited. A request which exceeds a limit is answered with a ``429 (Too Many Requests)`` status code and a ``Retry-After`` header stating how many seconds to wait. Responses also carry ``X-RateLimit-*`` headers, describing the limit that applied, how much of it is left, and when it resets. A stricter limit applies to ``POST /assets/<id>/schedules/trigger``, ``POST /sensors/<id>/schedules/trigger`` and ``POST /sensors/<id>/forecasts/trigger`` than to other endpoints; the health endpoints are exempt. Per-account overrides are set by assigning the account a plan (a ``Plan`` database row), rather than through an account attribute.
 - Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` arrays, each keyed by asset ID. For scheduling jobs, this surfaces soft state-of-charge constraint analysis: ``soc-minima`` and ``soc-maxima`` violations (with a ``violation`` magnitude) or satisfied constraints (with a ``margin`` headroom). Both arrays are empty when no SoC constraints were defined.
 
 v3.0-31 | 2026-06-01

@@ -3,6 +3,7 @@ import pytest
 
 from flexmeasures.api.common.rate_limiting import limiter
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
+from flexmeasures.data.models.user import Plan, RateLimitKey
 
 
 @pytest.fixture
@@ -166,7 +167,9 @@ def test_account_can_override_trigger_rate_limit(
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
     )
-    requesting_user.account.attributes["rate_limits"] = {"trigger": "2 per 5 minutes"}
+    requesting_user.account.plan = Plan(
+        name="test-plan-override", trigger_rate_limit="2 per 5 minutes"
+    )
     db.session.commit()
     sensor = add_battery_assets["Test battery"].sensors[0]
 
@@ -186,10 +189,57 @@ def test_account_can_be_exempt_from_trigger_rate_limit(
     rate_limiting.setitem(
         app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
     )
-    requesting_user.account.attributes["rate_limits"] = {"trigger": "unlimited"}
+    requesting_user.account.plan = Plan(
+        name="test-plan-unlimited", trigger_rate_limit="unlimited"
+    )
     db.session.commit()
     sensor = add_battery_assets["Test battery"].sensors[0]
 
     with app.test_client() as client:
         for _ in range(3):
             assert trigger(client, sensor.id).status_code == 422
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_plan_rate_limit_key_overrides_config(
+    db, app, add_battery_assets, rate_limiting, requesting_user
+):
+    """A plan's rate_limit_key takes precedence over the server-wide config setting."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_RATE_LIMIT_KEY", "account+asset"
+    )
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
+    )
+    requesting_user.account.plan = Plan(
+        name="test-plan-key", rate_limit_key=RateLimitKey.ACCOUNT
+    )
+    db.session.commit()
+    sensor = add_battery_assets["Test battery"].sensors[0]
+    other_sensor = add_battery_assets["Test small battery"].sensors[0]
+
+    with app.test_client() as client:
+        assert trigger(client, sensor.id).status_code == 422  # spends the budget
+        # The account-level key means the other sensor shares the same budget
+        assert trigger(client, other_sensor.id).status_code == 429
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_invalid_rate_limit_key_falls_back_instead_of_erroring(
+    app, add_battery_assets, rate_limiting, requesting_user
+):
+    """A bad FLEXMEASURES_API_RATE_LIMIT_KEY must not turn every request into a 500."""
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_RATE_LIMIT_KEY", "not-a-real-key"
+    )
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_TRIGGER_RATE_LIMIT", "1 per 5 minutes"
+    )
+    sensor = add_battery_assets["Test battery"].sensors[0]
+
+    with app.test_client() as client:
+        assert trigger(client, sensor.id).status_code == 422

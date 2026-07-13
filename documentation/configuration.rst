@@ -786,18 +786,12 @@ reached, FlexMeasures lets requests through rather than refusing them.
 
 .. note:: The limiter runs before authentication, so requests without valid credentials are counted per IP address.
 
-Individual accounts can be given their own limits, which take precedence over the settings below, by setting the
-``rate_limits`` account attribute (with ``flexmeasures edit attribute``). Use the value ``"unlimited"`` to exempt
-an account from a limit altogether:
-
-.. code-block:: json
-
-    {
-        "rate_limits": {
-            "default": "1000 per minute",
-            "trigger": "unlimited"
-        }
-    }
+Individual accounts can be given their own limits, which take precedence over the settings below, by assigning
+the account a ``Plan`` (``flexmeasures.data.models.user.Plan``) with ``default_rate_limit`` and/or
+``trigger_rate_limit`` set. Use the value ``"unlimited"`` to exempt an account from a limit altogether. A plan's
+``rate_limit_key`` (see ``FLEXMEASURES_API_RATE_LIMIT_KEY`` below) similarly overrides the server-wide setting for
+accounts on that plan. A plan with a field left unset (``None``) falls back to the server-wide config setting for
+that field.
 
 RATELIMIT_ENABLED
 ^^^^^^^^^^^^^^^^^
@@ -831,6 +825,9 @@ schedule is a business decision, so you decide what shares a budget:
 - ``"account+asset"``: each asset gets its own budget, so scheduling one asset never blocks another.
 - ``"account"``: the account has a single budget, shared by all of its assets and users.
 - ``"user"``: each user gets their own budget.
+
+An account's plan can override this per account (see above). An unrecognized value falls back to
+``"account+asset"`` rather than raising an error.
 
 Default: ``"account+asset"``
 
