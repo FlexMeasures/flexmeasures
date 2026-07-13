@@ -28,6 +28,8 @@ New features
 
 Infrastructure / Support
 ----------------------
+
+* Price fields in the flex-context (including nested commitment prices, which are now also held to the flex-context's shared currency) are selected for currency validation by field type (``PriceField``) instead of by name suffix [see `PR #2311 <https://www.github.com/FlexMeasures/flexmeasures/pull/2311>`_]
 * Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_, `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_ and `PR #2243 <https://www.github.com/FlexMeasures/flexmeasures/pull/2243>`_]
 * Prepare the ``device_scheduler`` to deal with commitments per device group [see `PR #1934 <https://www.github.com/FlexMeasures/flexmeasures/pull/1934>`_]
 * Support storing encrypted connection secrets on organisations and assets, including utility functions, encryption key configuration, CLI commands to set and delete secrets, and UI tables that show stored secret names and optional expiration times without exposing their values [see `PR #2236 <https://www.github.com/FlexMeasures/flexmeasures/pull/2236>`_]
