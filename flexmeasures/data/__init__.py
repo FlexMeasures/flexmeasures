@@ -18,7 +18,8 @@ ma: Marshmallow = Marshmallow()
 
 def _is_running_db_upgrade_command() -> bool:
     """Return whether this process is already running the Alembic upgrade command."""
-    return len(sys.argv) >= 3 and sys.argv[1:3] == ["db", "upgrade"]
+    args = sys.argv[1:]
+    return any(args[i : i + 2] == ["db", "upgrade"] for i in range(len(args) - 1))
 
 
 def register_at(app: Flask):
