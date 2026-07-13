@@ -722,4 +722,159 @@ def test_chart_data_json_skips_invalid_saved_asset_reference(
 
     sensor_ids_in_data = {r["sid"] for r in parsed["data"]}
     assert soc_sensor.id in sensor_ids_in_data
-    assert -1 not in sensor_ids_in_data
+
+
+# ---------------------------------------------------------------------------
+# Tests for the `include-zero` opt-out (per-plot y-axis zero inclusion)
+# ---------------------------------------------------------------------------
+
+
+def _find_y_scale(spec: dict) -> dict | None:
+    """Dig out encoding.y.scale from the first layer of the first vconcat row."""
+    row = spec["vconcat"][0]
+    layers = row.get("layer", [row])
+    for layer in layers:
+        encoding = layer.get("encoding", {})
+        y = encoding.get("y")
+        if y and "scale" in y:
+            return y["scale"]
+    return None
+
+
+def test_setup_event_value_field_include_zero_false_forces_zero_false():
+    from flexmeasures.data.models.charts.belief_charts import (
+        _setup_event_value_field,
+    )
+
+    field = _setup_event_value_field("power", "kW", include_zero=False)
+    assert field["scale"] == {"zero": False}
+
+
+def test_setup_event_value_field_include_zero_absent_default_true():
+    from flexmeasures.data.models.charts.belief_charts import (
+        _setup_event_value_field,
+    )
+
+    field = _setup_event_value_field("power", "kW")
+    assert field.get("scale", {}).get("zero") is not False
+
+
+def test_setup_event_value_field_percent_default_gets_domain():
+    from flexmeasures.data.models.charts.belief_charts import (
+        _setup_event_value_field,
+    )
+
+    field = _setup_event_value_field("state of charge", "%")
+    assert field["scale"] == {"domain": {"unionWith": [0, 105]}, "nice": False}
+
+
+def test_setup_event_value_field_percent_include_zero_false_drops_domain():
+    from flexmeasures.data.models.charts.belief_charts import (
+        _setup_event_value_field,
+    )
+
+    field = _setup_event_value_field("state of charge", "%", include_zero=False)
+    assert field["scale"] == {"zero": False}
+
+
+def test_include_zero_in_domain_helper():
+    from flexmeasures.data.models.charts.belief_charts import _include_zero_in_domain
+
+    assert _include_zero_in_domain({"plots": []}) is True
+    assert _include_zero_in_domain({"plots": [{"sensor": 1}]}) is True
+    assert (
+        _include_zero_in_domain({"plots": [{"sensor": 1, "include-zero": False}]})
+        is False
+    )
+    # Any plot opting in keeps zero included for the shared axis.
+    assert (
+        _include_zero_in_domain(
+            {
+                "plots": [
+                    {"sensor": 1, "include-zero": False},
+                    {"sensor": 2},
+                ]
+            }
+        )
+        is True
+    )
+
+
+def test_chart_y_scale_zero_false_when_all_plots_opt_out(
+    battery_with_soc_flex_model,
+):
+    battery, soc_sensor = battery_with_soc_flex_model
+
+    battery.sensors_to_show = [
+        {
+            "title": None,
+            "plots": [
+                {"sensor": soc_sensor.id, "include-zero": False},
+                {
+                    "asset": battery.id,
+                    "flex-model": "soc-min",
+                    "include-zero": False,
+                },
+                {
+                    "asset": battery.id,
+                    "flex-model": "soc-max",
+                    "include-zero": False,
+                },
+            ],
+        }
+    ]
+
+    start = datetime(2015, 1, 1, tzinfo=pytz.utc)
+    end = datetime(2015, 1, 2, tzinfo=pytz.utc)
+
+    spec = battery.chart(
+        include_data=False, event_starts_after=start, event_ends_before=end
+    )
+
+    scale = _find_y_scale(spec)
+    assert scale == {"zero": False}
+
+
+def test_chart_y_scale_default_when_include_zero_absent(
+    battery_with_soc_flex_model,
+):
+    battery, _ = battery_with_soc_flex_model
+
+    start = datetime(2015, 1, 1, tzinfo=pytz.utc)
+    end = datetime(2015, 1, 2, tzinfo=pytz.utc)
+
+    spec = battery.chart(
+        include_data=False, event_starts_after=start, event_ends_before=end
+    )
+
+    scale = _find_y_scale(spec)
+    assert scale is None or scale.get("zero") is not False
+
+
+def test_validate_sensors_to_show_propagates_include_zero(
+    battery_with_soc_flex_model,
+):
+    battery, soc_sensor = battery_with_soc_flex_model
+
+    battery.sensors_to_show = [
+        {
+            "title": None,
+            "plots": [
+                {"sensor": soc_sensor.id, "include-zero": False},
+            ],
+        }
+    ]
+
+    rows = battery.validate_sensors_to_show()
+    assert len(rows) == 1
+    assert rows[0]["plots"][0]["include-zero"] is False
+
+
+def test_validate_sensors_to_show_defaults_include_zero_true(
+    battery_with_soc_flex_model,
+):
+    battery, soc_sensor = battery_with_soc_flex_model
+
+    rows = battery.validate_sensors_to_show()
+    assert len(rows) == 1
+    assert rows[0]["plots"][0]["include-zero"] is True

@@ -246,6 +246,11 @@
                                     Sensors can be searched on the right. This will list sensors on the asset or its
                                     child asset, as well as public assets.
                                 </p>
+                                <p class="mb-0">
+                                    Each plot has an "Include zero in the y-axis" checkbox; uncheck it to let that
+                                    plot's y-axis zoom in on its data (a sub-plot's shared axis only drops zero when
+                                    all of its plots do).
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -408,9 +413,7 @@
         const unitsSelect = document.getElementById("unitsSelect");
         const searchInput = document.getElementById("searchInput");
 
-        let sensorsToShowRawJSON = "{{ asset.sensors_to_show | safe }}";
-        sensorsToShowRawJSON = sensorsToShowRawJSON.replace(/'/g, '"');
-        let sensorsToShow = JSON.parse(sensorsToShowRawJSON);
+        let sensorsToShow = {{ asset.sensors_to_show | tojson }};
         const newFormat = sensorsToShowFormatter(sensorsToShow);
 
         let cachedFilteredSensors = []; // keeps track of the filtered sensors
@@ -790,6 +793,32 @@
 
             const childComponents = [];
 
+            const renderIncludeZeroCheckbox = (plotIndex, plot) => {
+                const wrapper = document.createElement("div");
+                wrapper.className = "form-check";
+                // The enclosing card toggles the active graph on click, so keep clicks in here
+                wrapper.onclick = (e) => {
+                    e.stopPropagation();
+                };
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.className = "form-check-input";
+                checkbox.id = `includeZero_${index}_${plotIndex}`;
+                checkbox.checked = plot["include-zero"] !== false;
+                checkbox.title = "A sub-plot's shared y-axis only drops zero when all of its plots do.";
+                checkbox.onchange = (e) => {
+                    setPlotIncludeZero(index, plotIndex, e.target.checked);
+                };
+                const label = document.createElement("label");
+                label.className = "form-check-label";
+                label.htmlFor = checkbox.id;
+                label.textContent = "Include zero in the y-axis";
+                label.title = "A sub-plot's shared y-axis only drops zero when all of its plots do.";
+                wrapper.appendChild(checkbox);
+                wrapper.appendChild(label);
+                return wrapper;
+            };
+
             for (const [plotIndex, plot] of item.plots.entries()) {
                 if ("sensors" in plot) {
                     const plotHeader = document.createElement("h5");
@@ -798,6 +827,7 @@
                     const sensorsContent = await renderSensorsList(plot.sensors, index, removePlotOrSensor, plotIndex);
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(sensorsContent.element);
+                    plotContainer.appendChild(renderIncludeZeroCheckbox(plotIndex, plot));
                     const uniqueUnits = [...new Set(sensorsContent.uniqueUnits)];
                     if (uniqueUnits.length > 1) {
                         const warning = document.createElement("div");
@@ -816,6 +846,7 @@
                     const sensorContent = await renderSensorCard(plot.sensor, index, removePlotOrSensor, plotIndex);
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(sensorContent.element);
+                    plotContainer.appendChild(renderIncludeZeroCheckbox(plotIndex, plot));
                     childComponents.push({
                         element: plotContainer,
                         uniqueUnits: [sensorContent.unit],
@@ -839,6 +870,7 @@
                     const assetPlotContent = await renderAssetPlotCard(plot, removePlotOrSensor, index, plotIndex);
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(assetPlotContent);
+                    plotContainer.appendChild(renderIncludeZeroCheckbox(plotIndex, plot));
                     childComponents.push({ element: plotContainer, uniqueUnits: [] });
                 }
             }
@@ -1083,6 +1115,20 @@
             setEditingIndex(null);
             setSensorToShow(newSensorsToShow);
 
+        }
+
+        function setPlotIncludeZero(graphIndex, plotIndex, checked) {
+            const state = getSensorToShow();
+            const next = state.map((item, i) => i !== graphIndex ? item : {
+                ...item,
+                plots: item.plots.map((p, j) => {
+                    if (j !== plotIndex) return p;
+                    // Zero is included by default, so only store the opt-out
+                    const { "include-zero": _, ...rest } = p;
+                    return checked ? rest : { ...rest, "include-zero": false };
+                }),
+            });
+            setSensorToShow(next);
         }
 
         window.addNewGraph = addNewGraph;

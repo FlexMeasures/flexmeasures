@@ -537,12 +537,16 @@ def _setup_event_start_field(
     return event_start_field_definition
 
 
-def _setup_event_value_field(sensor_type: str, unit: str) -> dict:
+def _setup_event_value_field(
+    sensor_type: str, unit: str, include_zero: bool = True
+) -> dict:
     """Set up the event value field definition.
 
     Args:
         sensor_type: Type of sensor
         unit: Unit for display
+        include_zero: Whether the shared y-axis should be forced to include zero
+            (default behaviour). Set to False to opt out.
 
     Returns:
         Field definition dictionary
@@ -554,11 +558,11 @@ def _setup_event_value_field(sensor_type: str, unit: str) -> dict:
         stack=None,
         **FIELD_DEFINITIONS["event_value"],
     )
-    if unit == "%":
+    if include_zero and unit == "%":
         event_value_field_definition["scale"] = dict(
             domain={"unionWith": [0, 105]}, nice=False
         )
-    else:
+    elif not include_zero:
         event_value_field_definition["scale"] = dict(zero=False)
     return event_value_field_definition
 
@@ -774,7 +778,9 @@ def _process_sensor_entry(
     unit = determine_shared_unit(row_sensors)
     sensor_type = determine_shared_sensor_type(row_sensors)
 
-    event_value_field_definition = _setup_event_value_field(sensor_type, unit)
+    event_value_field_definition = _setup_event_value_field(
+        sensor_type, unit, _include_zero_in_domain(entry)
+    )
     shared_tooltip = _setup_shared_tooltip(
         event_value_field_definition, sensor_type, sensor_title
     )
@@ -802,6 +808,12 @@ def _process_sensor_entry(
     # Pass all sensors (real + fixed-value) so the filter transform includes
     # both positive and negative IDs, and all data rows reach this chart row.
     return _build_sensor_spec(title, layers, real_sensors + fixed_value_sensors)
+
+
+def _include_zero_in_domain(entry: dict) -> bool:
+    """A sub-plot's shared y-axis includes zero unless every plot in it opts out."""
+    plots = entry.get("plots", [])
+    return any(plot.get("include-zero", True) for plot in plots) if plots else True
 
 
 def _extract_sensors_from_entry(entry: dict) -> list["Sensor"]:  # noqa F821

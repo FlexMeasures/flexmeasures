@@ -35,7 +35,9 @@ class SensorsToShowSchema(fields.Field):
 
     The `sensors_to_show` attribute defines which sensors should be displayed for a particular asset.
     It supports various input formats, which are standardized into a list of dictionaries, each containing
-    a `title` (optional) and a `plots` list, this list then consist of dictionaries with keys such as `sensor`, `asset` or `sensors`.
+    a `title` (optional) and a `plots` list, this list then consist of dictionaries with keys such as `sensor`, `asset`, `sensors` or `include-zero`.
+    The `include-zero` key (optional boolean, default `True`) controls whether the shared y-axis for that plot
+    should be forced to include zero; set it to `False` on a plot to opt it out of that behaviour.
 
     - A single sensor ID (int): `42` -> `{"title": None, "plots": [{"sensor": 42}]}`
     - A list of sensor IDs (list of ints): `[42, 43]` -> `{"title": None, "plots": [{"sensors": [42, 43]}]}`
@@ -162,6 +164,9 @@ class SensorsToShowSchema(fields.Field):
                 isinstance(sensor_id, int) for sensor_id in sensors
             ):
                 raise ValidationError("'sensors' value must be a list of integers.")
+        if "include-zero" in plot:
+            if not isinstance(plot["include-zero"], bool):
+                raise ValidationError("'include-zero' value must be a boolean.")
 
     def _validate_asset_in_plot(self, plot):
         """
