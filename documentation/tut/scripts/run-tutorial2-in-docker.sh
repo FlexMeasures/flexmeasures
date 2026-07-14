@@ -44,7 +44,7 @@ echo "[TUTORIAL-RUNNER] adding source ..."
 docker exec -it $CONTAINER_NAME flexmeasures add source --name "toy-forecaster" --type forecaster
 
 echo "[TUTORIAL-RUNNER] adding beliefs ..."
-docker exec -it $CONTAINER_NAME flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 4 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
+docker exec -it $CONTAINER_NAME flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 2 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
 echo "[TUTORIAL-RUNNER] showing beliefs ..."
 docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
 

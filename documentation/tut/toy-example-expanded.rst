@@ -24,7 +24,7 @@ How does it work?
 Adding PV production forecasts
 ------------------------------
 
-First, we'll create a new CSV file with solar forecasts (kW, see the setup for sensor 3 in part I of this tutorial) for tomorrow.
+First, we'll create a new CSV file with solar forecasts (kW, see the setup for sensor 9 in part I of this tutorial) for tomorrow.
 
 .. code-block:: bash
 
@@ -65,8 +65,8 @@ Setting the data source type to "forecaster" helps FlexMeasures to visually dist
 .. code-block:: bash
 
     $ flexmeasures add source --name "toy-forecaster" --type forecaster
-    Added source <Data source 4 (toy-forecaster)>
-    $ flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
+    Added source <Data source 2 (toy-forecaster)>
+    $ flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 2 solar-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
 The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/9>`_:
@@ -96,7 +96,7 @@ This will have an effect on the available headroom for the battery, given the ``
                 --start ${TOMORROW}T07:00+01:00 \
                 --duration PT12H \
                 --soc-at-start 50% \
-                --flex-context '{"inflexible-device-sensors": [3]}'
+                --flex-context '{"inflexible-device-sensors": [9]}'
                 --flex-model '{"soc-min": "50 kWh"}' \
             New schedule is stored.
         
@@ -149,7 +149,7 @@ This will have an effect on the available headroom for the battery, given the ``
                         "soc-min": "50 kWh",
                     },
                     flex_context={
-                        "inflexible-device-sensors": [3],  # solar production (sensor ID)
+                        "inflexible-device-sensors": [9],  # solar production (sensor ID)
                     },
                 )
                 print(schedule)

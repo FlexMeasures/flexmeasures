@@ -36,7 +36,7 @@ docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor ${FM_TOY_SOLA
 echo "[TUTORIAL-RUNNER] Cleaning solar data for the next steps ..."
 # remove all previous beliefs on PV sensor so we don't have schedules mixed in the next run (issue 1807 can help with this, so selection by source works)
 docker exec -it $CONTAINER_NAME flexmeasures delete beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --force
-docker exec -it $CONTAINER_NAME flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 4 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
+docker exec -it $CONTAINER_NAME flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 2 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
 
 echo "[TUTORIAL-RUNNER] Now running both battery and PV together, still using block price profiles ..."
 docker exec -it $CONTAINER_NAME flexmeasures add schedule --asset ${FM_TOY_BUILDING_ASSET_ID} \
@@ -48,7 +48,7 @@ echo "[TUTORIAL-RUNNER] showing PV and battery schedule ..."
 docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --sensor ${FM_TOY_BATTERY_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
 
 docker exec -it $CONTAINER_NAME flexmeasures delete beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --force
-docker exec -it $CONTAINER_NAME flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 4 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
+docker exec -it $CONTAINER_NAME flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 2 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
 
 echo "[TUTORIAL-RUNNER] Now running both battery and PV together, with realistic DA prices and larger battery ..."
 docker exec -it $CONTAINER_NAME flexmeasures add schedule --asset ${FM_TOY_BUILDING_ASSET_ID} \

@@ -195,8 +195,8 @@ If you want, you can inspect what you created in the CLI (we'll also show the UI
     
     Flex-Context                      Flex-Model
     --------------------------------  ------------
-    site-power-capacity: 500 kVA
     consumption-price: {'sensor': 7}
+    site-power-capacity: 500 kVA
 
     =====================================
     Child assets of toy-building (ID: 5)
@@ -226,16 +226,16 @@ Now let's look at the battery asset, as well:
     Child of asset toy-building (ID: 5)
     ===================================
 
-    Type     Location           Sensors to show                                    Attributes    External ID
-    -------  -----------------  -------------------------------------------------  ------------  -------------
-    battery  (52.374, 4.88969)  Prices: asset=5 (flex-context=consumption-price)
+    Type     Location           Sensors to show      Attributes    External ID
+    -------  -----------------  -------------------  ------------  -------------
+    battery  (52.374, 4.88969)  Prices: 7
                                 Power flows: [9, 8]
     
     Flex-Context    Flex-Model
     --------------  -------------------------
+                    soc-max: 450 kWh
                     power-capacity: 500 kVA
                     roundtrip-efficiency: 90%
-                    soc-max: 450 kWh
 
     ====================================
     Child assets of toy-battery (ID: 6)

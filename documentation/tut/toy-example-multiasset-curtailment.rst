@@ -276,7 +276,7 @@ And here is the CLI version:
 
 .. code-block:: bash
     
-    Beliefs for Sensors production (ID 3) and discharging (ID 2).
+    Beliefs for Sensors production (ID 9) and discharging (ID 8).
     Data spans 12 hours and starts at 2025-11-29 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
     ┌────────────────────────────────────────────────────────────┐
@@ -317,7 +317,7 @@ We see the battery cycling twice, as before, but now it also soaks up solar prod
 
 .. code-block:: bash
 
-    Beliefs for Sensors production (ID 3) and discharging (ID 2).
+    Beliefs for Sensors production (ID 9) and discharging (ID 8).
     Data spans 12 hours and starts at 2025-11-19 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
 

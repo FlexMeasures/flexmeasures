@@ -35,15 +35,6 @@ Before moving forward, we'll add the `process` asset and three sensors to store 
 .. code-block:: bash
 
     $ eval "$(flexmeasures add toy-account --kind process --shell-vars | grep '^FM_TOY_')"
-    
-    User with email toy-user@flexmeasures.io already exists in account Docker Toy Account.
-    FM_TOY_ACCOUNT_ID=1
-    FM_TOY_PRICE_SENSOR_ID=7
-    FM_TOY_BUILDING_ASSET_ID=5
-    FM_TOY_PROCESS_ASSET_ID=8
-    FM_TOY_PROCESS_INFLEXIBLE_SENSOR_ID=10
-    FM_TOY_PROCESS_BREAKABLE_SENSOR_ID=11
-    FM_TOY_PROCESS_SHIFTABLE_SENSOR_ID=12
 
 
 Trigger an updated schedule
