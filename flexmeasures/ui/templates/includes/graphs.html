@@ -29,6 +29,12 @@
     import { decompressChartData, checkDSTTransitions, checkSourceMasking } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { renderFastChart, disposeFastChart, setFastChartReplayTime } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
 
+    // Only assets have a per-sub-chart "y-axis" config to check loaded data against.
+    // Reassigned on save (see reloadChartData) since a save doesn't reload the page.
+    {% if active_page == "assets" %}
+    let sensorsToShowForYAxisCheck = {{ asset.sensors_to_show | tojson }};
+    {% endif %}
+
     // Global variables (Module scoped)
     let picker;
     let vegaView;
@@ -359,8 +365,16 @@
     }, false);
 
     // Sensors To Show Updated / New Data Available Listener
-    async function reloadChartData() {
+    async function reloadChartData(event) {
         if (!storeStartDate || !storeEndDate) { return; }
+        {% if active_page == "assets" %}
+        // A save carries the just-saved config in its event detail, since the asset's
+        // own sensors_to_show (used to build sensorsToShowForYAxisCheck) reflects
+        // the page's initial load, not this in-browser edit.
+        if (event && event.detail && event.detail.sensorsToShow) {
+            sensorsToShowForYAxisCheck = event.detail.sensorsToShow;
+        }
+        {% endif %}
         $("#spinner").show();
         let newData = fetch(dataPath + '/chart_data?event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&compress_json=true', {
             method: "GET",
@@ -383,6 +397,9 @@
             data: newData
         };
         updateFastChart();
+        {% if active_page == "assets" %}
+        checkStrictYAxisRanges(newData, sensorsToShowForYAxisCheck);
+        {% endif %}
     }
     document.addEventListener('sensorsToShowUpdated', reloadChartData);
     {% if active_page == "sensors" %}
@@ -435,6 +452,9 @@
     };
     updateFastChart();
     checkSourceMasking(previousResult.data);
+    {% if active_page == "assets" %}
+    checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
+    {% endif %}
     var timerangeNotSetYet = false;
     {% else %}
     var timerangeNotSetYet = true;
@@ -633,6 +653,9 @@
         {% endif %}
         updateFastChart();
         checkSourceMasking(previousResult.data);
+        {% if active_page == "assets" %}
+        checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
+        {% endif %}
         playBackDataLoadedForKnownDateRange = false;
         if (!fastRenderActive() && vegaView && chartType === "bar_chart") {
             vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
