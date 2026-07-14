@@ -193,6 +193,55 @@ def test_get_assets_sort_by_owner_uses_account_name(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+@pytest.mark.parametrize("sort_by", ["id", "name", "owner"])
+def test_get_assets_sort_with_search_filter(
+    client, setup_api_test_data, setup_accounts, sort_by, requesting_user
+):
+    """Sorting must still apply when combined with a search filter.
+
+    Regression test: sorting is applied to a UNION ALL of a private-assets and
+    a public-assets query; ordering the individual union members doesn't
+    guarantee the combined result is ordered, and the "owner" sort clause
+    used to raise a 500 (auto-correlation error) when combined with a filter.
+
+    We compare the asc- and desc-sorted asset ID sequences (rather than
+    asserting a specific order) to sidestep Postgres/Python string collation
+    differences: what matters here is that both directions are actually
+    sorted (each other's reverse) and that the filter is respected.
+    """
+
+    def get_sort_key(asset):
+        # for ties (e.g. two assets under the same owner), only the sorted-on
+        # value's order is guaranteed to reverse between asc and desc, not
+        # the tie-breaking order of ids within a repeated value
+        if sort_by == "owner":
+            return asset["account_id"]
+        return asset[sort_by]
+
+    def get_ids_and_values(sort_dir):
+        query = {
+            "all_accessible": True,
+            "filter": "e",  # broad filter matching multiple assets/accounts
+            "sort_by": sort_by,
+            "sort_dir": sort_dir,
+        }
+        response = client.get(url_for("AssetAPI:index"), query_string=query)
+        print("Server responded with:\n%s" % response.json)
+        assert response.status_code == 200
+        ids = [asset["id"] for asset in response.json]
+        values = [get_sort_key(asset) for asset in response.json]
+        return ids, values
+
+    ids_asc, values_asc = get_ids_and_values("asc")
+    ids_desc, values_desc = get_ids_and_values("desc")
+
+    assert len(ids_asc) > 1  # otherwise sorting isn't actually tested
+    assert set(ids_asc) == set(ids_desc)  # filter is respected either way
+    assert values_asc == list(reversed(values_desc))
+    assert values_asc != values_desc  # sorting actually took effect
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_assets_filtered_by_asset_type(
     client, setup_api_test_data, setup_accounts, requesting_user
 ):
