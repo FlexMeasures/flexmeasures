@@ -28,7 +28,6 @@
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { decompressChartData, checkDSTTransitions, checkSourceMasking } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
     import { renderFastChart, disposeFastChart, setFastChartReplayTime } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
-    import { beginChartLoad, recordRender, finishChartLoad } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-perf.js') }}?v={{ flexmeasures_version }}";
 
     // Global variables (Module scoped)
     let picker;
@@ -363,7 +362,6 @@
     async function reloadChartData() {
         if (!storeStartDate || !storeEndDate) { return; }
         $("#spinner").show();
-        const reloadPerf = beginChartLoad('data refresh', currentChartMode());
         let newData = fetch(dataPath + '/chart_data?event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&compress_json=true', {
             method: "GET",
             headers: { "Content-Type": "application/json" },
@@ -376,7 +374,6 @@
             embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate),
         ]).then(function (result) { return result[0] }).catch(console.error);
         $("#spinner").hide();
-        const renderStart = performance.now();
         if (!fastRenderActive() && vegaView) {
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(newData)).resize().run();
         }
@@ -386,8 +383,6 @@
             data: newData
         };
         updateFastChart();
-        recordRender(reloadPerf, performance.now() - renderStart);
-        finishChartLoad(reloadPerf, { rows: newData ? newData.length : 0 });
     }
     document.addEventListener('sensorsToShowUpdated', reloadChartData);
     {% if active_page == "sensors" %}
@@ -416,7 +411,6 @@
     {% if active_subpage == "asset_graph" and has_kpis %}
     getAssetKPIs(storeStartDate, storeEndDate);
     {% endif %}
-    const initialPerf = beginChartLoad('initial page load', currentChartMode());
     const initialData = fetch(dataPath + '/chart_data?event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&compress_json=true', {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -429,7 +423,6 @@
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
     ]).then(function (result) { return result[0] }).catch(console.error);
     $("#spinner").hide();
-    var initialRenderStart = performance.now();
     if (!fastRenderActive() && vegaView) {
         vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
     }
@@ -441,8 +434,6 @@
         data: fetchedInitialData
     };
     updateFastChart();
-    recordRender(initialPerf, performance.now() - initialRenderStart);
-    finishChartLoad(initialPerf, { rows: fetchedInitialData ? fetchedInitialData.length : 0 });
     checkSourceMasking(previousResult.data);
     var timerangeNotSetYet = false;
     {% else %}
@@ -613,7 +604,6 @@
 
     $("#spinner").show();
     checkDSTTransitions(startDate, endDate)
-    const rangePerf = beginChartLoad('date range change', currentChartMode());
     Promise.all([
         fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate),
         {% if active_page == "sensors" %}
@@ -630,7 +620,6 @@
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
     ]).then(function (result) {
         $("#spinner").hide();
-        const renderStart = performance.now();
         if (!fastRenderActive() && vegaView) {
             vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
         }
@@ -648,8 +637,6 @@
         if (!fastRenderActive() && vegaView && chartType === "bar_chart") {
             vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
         }
-        recordRender(rangePerf, performance.now() - renderStart);
-        finishChartLoad(rangePerf, { rows: result[0] ? result[0].length : 0 });
     }).catch(console.error);
         });
     return picker
@@ -667,17 +654,11 @@
         return fastMode && chartTypeSupportedInFastMode();
     }
 
-    function currentChartMode() {
-        return fastRenderActive() ? 'fast (ECharts)' : 'standard (Vega-Lite)';
-    }
-
     // Show either the fast (canvas-based) chart or the Vega-Lite chart, and render it
     async function applyFastMode() {
         const vegaDiv = document.getElementById(elementId);
         const fastDiv = document.getElementById(fastChartElementId);
         if (!fastDiv) { return; }
-        const switchPerf = previousResult ? beginChartLoad('renderer switch', currentChartMode()) : null;
-        const switchRenderStart = performance.now();
         if (fastRenderActive()) {
             vegaDiv.style.display = 'none';
             fastDiv.style.display = 'block';
@@ -692,10 +673,6 @@
                 await embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate);
                 $("#spinner").hide();
             }
-        }
-        if (switchPerf) {
-            recordRender(switchPerf, performance.now() - switchRenderStart);
-            finishChartLoad(switchPerf, { rows: previousResult && previousResult.data ? previousResult.data.length : 0 });
         }
     }
 
