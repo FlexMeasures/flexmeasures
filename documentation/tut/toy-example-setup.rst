@@ -147,6 +147,25 @@ FlexMeasures offers a command to create a toy account with a battery and expose 
 
     $ eval "$(flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
 
+    Generic asset type `solar` created successfully.
+    Generic asset type `wind` created successfully.
+    Generic asset type `one-way_evse` created successfully.
+    Generic asset type `two-way_evse` created successfully.
+    Generic asset type `battery` created successfully.
+    Generic asset type `building` created successfully.
+    Generic asset type `process` created successfully.
+    Creating account Toy Account ...
+    Toy account Toy Account with user toy-user@flexmeasures.io created successfully. You might want to run `flexmeasures show account --id 1`
+    Adding transmission zone type ...
+    Adding NL transmission zone ...
+    Created day-ahead prices
+    The sensor recording day-ahead prices is day-ahead prices (ID: 7).
+    Created <GenericAsset None: 'toy-battery' (battery)>
+    Created discharging
+    Created <GenericAsset None: 'toy-solar' (solar)>
+    Created production
+    The sensor recording battery discharging is discharging (ID: 8).
+    The sensor recording solar forecasts is production (ID: 9).
 
 
 This sets variables such as ``FM_TOY_PRICE_SENSOR_ID``, ``FM_TOY_BATTERY_SENSOR_ID``, ``FM_TOY_SOLAR_SENSOR_ID`` and ``FM_TOY_BUILDING_ASSET_ID`` in your current shell.
