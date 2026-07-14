@@ -4,6 +4,20 @@ FlexMeasures Changelog
 **********************
 
 
+v0.34.0rc1 | July 14, 2026
+============================
+
+.. note:: This is a pre-release on the 0.33 maintenance line, cut so that downstream plugins can pick up the two features below ahead of v1.0.0. It is v0.33.1 plus the backports listed here — it does *not* contain the rest of the v1.0.0 development line, and its database schema is that of the 0.33 line.
+
+New features
+-------------
+* Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` soft state-of-charge constraint analysis (``soc-minima``/``soc-maxima`` violations or satisfied constraints, keyed by asset ID) for scheduling jobs; both arrays are empty when no SoC constraints were defined [see `PR #2072 <https://www.github.com/FlexMeasures/flexmeasures/pull/2072>`_]
+
+Infrastructure / Support
+----------------------
+* Warn hosts when the database schema is not at the latest migration [see `PR #2309 <https://www.github.com/FlexMeasures/flexmeasures/pull/2309>`_]
+* Stop manual runs of the Docker publishing workflow from overwriting the ``latest`` image tag, and let them opt in to it explicitly [see `PR #2316 <https://www.github.com/FlexMeasures/flexmeasures/pull/2316>`_]
+
 v0.33.1 | July 1, 2026
 ============================
 

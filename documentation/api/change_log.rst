@@ -5,7 +5,7 @@ API change log
 
 .. note:: The FlexMeasures API follows its own versioning scheme. This is also reflected in the URL (e.g. `/api/v3_0`), allowing developers to upgrade at their own pace.
 
-v3.0-32 | July XX, 2026
+v3.0-32 | July 14, 2026
 """"""""""""""""""""""""
 
 - Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` arrays, each keyed by asset ID. For scheduling jobs, this surfaces soft state-of-charge constraint analysis: ``soc-minima`` and ``soc-maxima`` violations (with a ``violation`` magnitude) or satisfied constraints (with a ``margin`` headroom). Both arrays are empty when no SoC constraints were defined.
