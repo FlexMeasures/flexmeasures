@@ -2,7 +2,9 @@
 Backoffice user interface & charting support.
 """
 
+import json
 import os
+from datetime import date, datetime
 
 from flask import current_app, Flask, Blueprint, send_from_directory, request
 from flask_security import login_required, roles_accepted
@@ -83,7 +85,36 @@ def register_at(app: Flask):
     add_jinja_variables(app)
 
 
+def _tolerate_non_json_job_data():
+    """Let rq-dashboard render jobs whose meta data is not JSON-serializable.
+
+    rq-dashboard serializes a job's meta data with a plain ``json.dumps(job.get_meta())``
+    (no ``default=``), so a job carrying e.g. a datetime or an exception in its meta data
+    makes its detail page fail with a 500. We patch the module's ``json`` reference with a
+    shim that falls back to a readable representation instead.
+
+    See https://github.com/Parallels/rq-dashboard/issues/510
+    """
+
+    def default(value):
+        if isinstance(value, (datetime, date)):
+            return value.isoformat()
+        return str(value)
+
+    class TolerantJson:
+        def __getattr__(self, name):
+            return getattr(json, name)
+
+        @staticmethod
+        def dumps(obj, **kwargs):
+            kwargs.setdefault("default", default)
+            return json.dumps(obj, **kwargs)
+
+    rq_dashboard.web.json = TolerantJson()
+
+
 def register_rq_dashboard(app):
+    _tolerate_non_json_job_data()
     app.config.update(
         RQ_DASHBOARD_REDIS_URL=[
             "redis://:%s@%s:%s/%s"

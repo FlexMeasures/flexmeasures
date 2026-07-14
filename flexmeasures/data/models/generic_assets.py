@@ -241,6 +241,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     # No relationship
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), default="")
+    description = db.Column(db.Text, nullable=True)
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})

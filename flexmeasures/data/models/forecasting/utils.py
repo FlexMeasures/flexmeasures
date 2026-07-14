@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import math
+import numbers
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import timely_beliefs as tb
@@ -9,10 +13,143 @@ from flexmeasures.data.models.time_series import Sensor
 from datetime import datetime, timedelta
 
 from flexmeasures.data import db
+from flexmeasures.utils.unit_utils import units_are_convertible, ur
 
 
 def negative_to_zero(x: np.ndarray) -> np.ndarray:
     return np.where(x < 0, 0, x)
+
+
+def _is_unitless(unit: str | None) -> bool:
+    """Check whether a parsed quantity carries no physical unit."""
+    return unit in (None, "", "dimensionless")
+
+
+def _quantity_to_sensor_value(value: Any, sensor_unit: str) -> float:
+    """Parse a configured quantity and return its magnitude in the sensor unit."""
+    if isinstance(value, numbers.Real):
+        return float(value)
+
+    if not isinstance(value, str):
+        raise ValueError(
+            f"Forecast post-processing values must be numbers or quantity strings, not {type(value).__name__}."
+        )
+
+    try:
+        quantity = ur.Quantity(value)
+    except Exception as exc:
+        raise ValueError(
+            f"Could not parse forecast post-processing value '{value}'."
+        ) from exc
+
+    from_unit = f"{quantity.units:~P}"
+    if _is_unitless(from_unit):
+        return float(quantity.magnitude)
+
+    to_unit = sensor_unit or "dimensionless"
+    if not units_are_convertible(from_unit, to_unit, duration_known=False):
+        raise ValueError(
+            f"Could not convert forecast post-processing value '{value}' to '{sensor_unit}'."
+        )
+    return float(quantity.to(to_unit).magnitude)
+
+
+def _parse_snap_intervals(
+    snap: dict, sensor_unit: str
+) -> list[tuple[float, float, float]]:
+    """Validate and parse a snap mapping into ``(target, first, second)`` triples.
+
+    Each value that falls inside an interval is replaced by a target that must lie
+    within that interval (on a bound or inside it), so values never snap to a value
+    outside their interval. The first boundary is treated as inclusive and the second
+    as exclusive, so listing the boundaries in reverse order flips which side is closed
+    (``["4 kW", "10 kW"]`` means ``[4, 10)`` while ``["10 kW", "4 kW"]`` means
+    ``(4, 10]``). This keeps adjacent intervals unambiguous: a shared boundary belongs
+    to whichever interval opens at it.
+    """
+    parsed = []
+    for target, interval in snap.items():
+        if not isinstance(interval, (list, tuple)) or len(interval) != 2:
+            raise ValueError(
+                "Forecast post-processing snap intervals must contain exactly two bounds."
+            )
+
+        target_value = _quantity_to_sensor_value(target, sensor_unit)
+        first = _quantity_to_sensor_value(interval[0], sensor_unit)
+        second = _quantity_to_sensor_value(interval[1], sensor_unit)
+        if math.isclose(first, second):
+            raise ValueError(
+                "Forecast post-processing snap interval bounds must differ."
+            )
+        if not min(first, second) <= target_value <= max(first, second):
+            raise ValueError(
+                "Forecast post-processing snap target must lie within its interval bounds."
+            )
+        parsed.append((target_value, first, second))
+    return parsed
+
+
+def apply_forecast_post_processing(
+    data: pd.DataFrame,
+    horizon: int,
+    config: dict,
+    sensor_unit: str,
+) -> pd.DataFrame:
+    """Apply configured clipping and snapping to forecast horizon columns.
+
+    Snapping runs first, on the unmodified predictions, so intervals cannot cascade.
+    Clipping to ``lower``/``upper`` runs afterwards and always takes precedence, so a
+    snap target outside the bounds is still clipped back into range.
+
+    :param data:        DataFrame containing one column per forecast horizon.
+    :param horizon:     Maximum forecast horizon in time-steps.
+    :param config:      Forecaster config with optional ``lower``, ``upper`` and ``snap`` fields.
+    :param sensor_unit: Unit of the sensor to which forecasts will be saved.
+    :returns:           A DataFrame with post-processed forecast values.
+    """
+    lower = config.get("lower")
+    upper = config.get("upper")
+    snap = config.get("snap") or {}
+
+    if lower is None and upper is None and not snap:
+        return data
+
+    processed = data.copy()
+    forecast_columns = [f"{h}h" for h in range(1, horizon + 1)]
+    lower_value = (
+        _quantity_to_sensor_value(lower, sensor_unit) if lower is not None else None
+    )
+    upper_value = (
+        _quantity_to_sensor_value(upper, sensor_unit) if upper is not None else None
+    )
+
+    if (
+        lower_value is not None
+        and upper_value is not None
+        and lower_value > upper_value
+    ):
+        raise ValueError(
+            "Forecast post-processing lower bound cannot be greater than upper bound."
+        )
+
+    snap_intervals = _parse_snap_intervals(snap, sensor_unit)
+
+    for column in forecast_columns:
+        # Snap against the pre-snap predictions so intervals cannot chain into each other.
+        original_values = processed[column]
+        for target_value, first, second in snap_intervals:
+            if first <= second:
+                # First bound inclusive, second exclusive: [first, second).
+                mask = (original_values >= first) & (original_values < second)
+            else:
+                # Reversed order flips the closed side: (second, first].
+                mask = (original_values > second) & (original_values <= first)
+            processed.loc[mask, column] = target_value
+
+    processed[forecast_columns] = processed[forecast_columns].clip(
+        lower=lower_value, upper=upper_value, axis=None
+    )
+    return processed
 
 
 def data_to_bdf(

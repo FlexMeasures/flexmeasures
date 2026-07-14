@@ -285,102 +285,17 @@ FlexMeasures provides built-in request profiling capabilities for performance an
 
 ## Self-Improvement Notes
 
-### When to Update Instructions
+Update this file when: a new performance anti-pattern is discovered, FlexMeasures scales to
+larger datasets, new database/pandas patterns emerge, or caching strategies evolve. Edit the
+relevant section in place — don't append a dated narrative.
 
-- New performance anti-patterns discovered
-- FlexMeasures scales to larger datasets
-- New database or pandas patterns emerge
-- Performance tools or profiling techniques improve
-- Caching strategies evolve
+**Performance claims must be backed by actual benchmarks, not estimates.** "This is faster",
+"more efficient", or "no more N+1" all require before/after measurements with realistic
+data volume:
 
-### Learning from PRs
-
-- Track which performance issues are caught vs missed
-- Document recurring anti-patterns
-- Note false positives (premature optimization)
-- Update checklist based on real bottlenecks
-- Refine guidance on when benchmarks are needed
-
-### Continuous Improvement
-
-- Monitor production performance metrics if available
-- Review profiling results from load testing
-- Keep database query patterns updated
-- Track pandas version updates and new features
-- Document new optimization techniques as discovered
-
-* * *
-
-## Commit Discipline and Self-Improvement
-
-### Must Make Atomic Commits
-
-See `.github/instructions/atomic-commits.instructions.md`. When making performance changes:
-
-- **Separate performance fix from tests** — one optimization per commit
-- **Separate benchmarks** — performance tests in separate commit
-- **Update agent instructions separately** — own file, own commit
-
-### Must Verify Performance Claims with Benchmarks
-
-When claiming performance improvements:
-
-- **Run actual benchmarks** - Don't guess or estimate
-- **Show before/after metrics** - Quantify the improvement
-- **Test with realistic data** - Use production-scale datasets
-- **Profile the code** - Use cProfile or similar to identify bottlenecks
-- **Document methodology** - Explain how benchmarks were run
-
-Avoid unfounded claims:
-
-- "This is 1000x faster" → Run benchmark and show actual speedup
-- "Much more efficient" → Quantify with measurements
-- "No more N+1" → Show query count before/after
-
-### Using FlexMeasures Dev Environment for Performance Testing
-
-Before claiming performance improvements:
-
-1. **Set up dev environment with realistic data**:
-   ```bash
-   uv sync --group dev --group test
-   # Seed database with production-like data volume
-   ```
-2. **Profile existing code**:
-   ```bash
-   # Use Flask request profiling
-   export FLEXMEASURES_PROFILE_REQUESTS=true
-   # Or use cProfile
-   python -m cProfile -o profile.stats <script.py>
-   ```
-3. **Run benchmarks**:
-   ```bash
-   # Time API endpoints
-   time curl http://localhost:5000/api/v3_0/...
-   
-   # Or use pytest-benchmark for Python code
-   pytest --benchmark-only
-   ```
-4. **Compare query counts**:
-   ```bash
-   # Enable SQL logging
-   export SQLALCHEMY_ECHO=true
-   # Run scenario and count queries
-   ```
-
-### Self-Improvement Loop
-
-After each assignment:
-
-1. **Review performance predictions vs reality** - Were estimates accurate?
-2. **Update this agent file** - Add new anti-patterns or optimization techniques
-3. **Commit separately** with format:
-   ```
-   agents/performance: learned <specific lesson>
-   
-   Context:
-   - Assignment revealed performance issue with <area>
-   
-   Change:
-   - Added guidance on <optimization technique>
-   ```
+```bash
+uv sync --group dev --group test
+export FLEXMEASURES_PROFILE_REQUESTS=true   # or: python -m cProfile -o profile.stats <script.py>
+export SQLALCHEMY_ECHO=true                 # compare query counts before/after
+pytest --benchmark-only
+```

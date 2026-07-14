@@ -32,7 +32,11 @@ def make_openapi_compatible(  # noqa: C901
             sensor_only_validators.append(validator[-1])
 
     new_fields = {}
-    tobeadded_fields = schema_cls._declared_fields
+    try:
+        # in case `schema_cls.__init__` reordered the fields, preserve their order
+        tobeadded_fields = schema_cls().fields
+    except TypeError:
+        tobeadded_fields = schema_cls._declared_fields
     if include:
         for item in include:
             tobeadded_fields.update(item)

@@ -6,6 +6,8 @@ CONTAINER_NAME="${1:-$(basename $(pwd))-server-1}"
 echo "[TUTORIAL-RUNNER] RUNNING TUTORIAL 2 (ADDING SOLAR FORECAST) ..."
 echo "------------------------------------------------------------"
 
+eval "$(docker exec -i $CONTAINER_NAME flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
+
 echo "[TUTORIAL-RUNNER] loading solar production data..."
 
 TOMORROW=$(date --date="next day" '+%Y-%m-%d')
@@ -42,18 +44,18 @@ echo "[TUTORIAL-RUNNER] adding source ..."
 docker exec -it $CONTAINER_NAME flexmeasures add source --name "toy-forecaster" --type forecaster
 
 echo "[TUTORIAL-RUNNER] adding beliefs ..."
-docker exec -it $CONTAINER_NAME flexmeasures add beliefs --sensor 3 --source 4 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
+docker exec -it $CONTAINER_NAME flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 4 /app/solar-tomorrow.csv --timezone Europe/Amsterdam
 echo "[TUTORIAL-RUNNER] showing beliefs ..."
-docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor 3 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
 
 echo "[TUTORIAL-RUNNER] update schedule taking solar into account ..."
-docker exec -it $CONTAINER_NAME flexmeasures add schedule --sensor 2 \
+docker exec -it $CONTAINER_NAME flexmeasures add schedule --sensor ${FM_TOY_BATTERY_SENSOR_ID} \
   --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
-  --flex-context '{"inflexible-device-sensors": [3]}' \
+  --flex-context '{"inflexible-device-sensors": ['"${FM_TOY_SOLAR_SENSOR_ID}"']}' \
   --flex-model '{"soc-min": "50 kWh"}'
 
 echo "[TUTORIAL-RUNNER] showing schedule ..."
-docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor ${FM_TOY_BATTERY_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
 
 #echo ""
 #echo "[TUTORIAL-RUNNER] DEMONSTRATING CUSTOM SCHEDULING RESOLUTION ..."
@@ -63,12 +65,12 @@ docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor 2 --start ${T
 #echo ""
 #
 #echo "[TUTORIAL-RUNNER] creating hourly-resolution schedule ..."
-#docker exec -it $CONTAINER_NAME flexmeasures add schedule --sensor 2 \
+#docker exec -it $CONTAINER_NAME flexmeasures add schedule --sensor ${FM_TOY_BATTERY_SENSOR_ID} \
 #  --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
 #  --resolution PT1H \
-#  --flex-context '{"inflexible-device-sensors": [3]}' \
+#  --flex-context '{"inflexible-device-sensors": ['"${FM_TOY_SOLAR_SENSOR_ID}"']}' \
 #  --flex-model '{"soc-min": "50 kWh"}'
 #
 #echo "[TUTORIAL-RUNNER] showing hourly-resolution schedule ..."
 #echo "[TUTORIAL-RUNNER] Notice the schedule still has 15-minute data points, but values only change each hour."
-#docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor 2 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+#docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor ${FM_TOY_BATTERY_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H

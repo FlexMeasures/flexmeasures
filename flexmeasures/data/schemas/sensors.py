@@ -678,6 +678,18 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         return unit
 
 
+class PriceField(VariableQuantityField):
+    """VariableQuantityField for monetary values.
+
+    Price fields participate in currency validation: all price fields in the
+    flex-context must share one currency (recorded as the flex-context's
+    ``shared_currency_unit``), and price fields in a flex-model must use a
+    currency that is convertible to the flex-context's shared currency.
+    """
+
+    pass
+
+
 class RepurposeValidatorToIgnoreSensorsAndLists(validate.Validator):
     """Validator that executes another validator (the one you initialize it with) only on non-Sensor and non-list values."""
 
@@ -979,11 +991,7 @@ class SensorReference:
         return self.sensor.event_resolution
 
 
-class SensorReferenceSchema(Schema):
-    """Sensor reference with optional source filters."""
-
-    class Meta:
-        description = "Sensor reference from which to look up a variable quantity."
+class SharedSensorReferenceSchema(Schema):
 
     sensor = SensorIdField(
         required=True,
@@ -991,6 +999,20 @@ class SensorReferenceSchema(Schema):
             description="ID of the sensor on which the data is recorded.",
         ),
     )
+
+
+class OutputSensorReferenceSchema(SharedSensorReferenceSchema):
+    """Sensor reference for recording generated data."""
+
+    ...
+
+
+class SensorReferenceSchema(SharedSensorReferenceSchema):
+    """Sensor reference with optional source filters."""
+
+    class Meta:
+        description = "Sensor reference from which to look up a variable quantity."
+
     source_types = fields.List(
         fields.String(),
         load_default=None,

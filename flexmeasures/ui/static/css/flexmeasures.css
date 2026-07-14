@@ -881,10 +881,6 @@ table.dataTable.no-footer {
 /* extra buffer for bootstrap rows */
 .top-buffer { margin-top:15px; }
 
-.dataTables_wrapper {
-    margin-bottom: 20px;
-}
-
 .dataTables_wrapper .paginate_button {
     outline: none;
 }
@@ -1977,6 +1973,7 @@ body.touched [title]:hover:after {
 
 .table-responsive{
     padding: 20px;
+    scrollbar-width: none;
 }
 
 .border-on-click {

@@ -30,6 +30,12 @@ def test_new_asset_page(client, setup_assets, as_admin):
     asset_page = client.get(url_for("AssetCrudUI:get", id="new"), follow_redirects=True)
     assert asset_page.status_code == 200
     assert b"Creating a new asset" in asset_page.data
+    assert b'id="copySearchInput"' in asset_page.data
+    assert b'value="Template"' in asset_page.data
+    assert (
+        b"You can search for any accessible asset here. We start by showing templates."
+        in asset_page.data
+    )
 
 
 @pytest.mark.parametrize(

@@ -17,7 +17,7 @@ def function_name(param1: str, param2: int) -> bool:
 
     :param param1:      Description of param1.
     :param param2:      Description of param2.
-    :return:            Description of return value.
+    :returns:           Description of return value.
     :raises ValueError: When param1 is empty.
 
     Example::
@@ -35,6 +35,7 @@ def function_name(param1: str, param2: int) -> bool:
 - Use `Example::` (double colon) to introduce a doctest block.
 - Complement type hints — don't duplicate them in the docstring text.
 - Use exactly one space after punctuation (no double spaces after periods).
+- Use line breaks only after punctuation (this facilitates review commenting and text searching).
 
 ## Click CLI commands
 

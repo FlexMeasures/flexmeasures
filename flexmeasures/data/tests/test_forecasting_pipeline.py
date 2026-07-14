@@ -7,10 +7,14 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 from marshmallow import ValidationError
+from sqlalchemy import inspect as sa_inspect
 
 from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+from flexmeasures.data.models.forecasting.utils import (
+    apply_forecast_post_processing,
+)
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.models.forecasting.pipelines.train import derive_daily_lag_steps
 from flexmeasures.data.models.generic_assets import (
@@ -18,10 +22,115 @@ from flexmeasures.data.models.generic_assets import (
     GenericAssetType,
 )
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+from flexmeasures.data.models.forecasting.pipelines.train_predict import (
+    _load_job_config_payload,
+    _load_job_parameters_payload,
+    _make_job_config_payload,
+    _make_job_parameters_payload,
+    run_train_predict_cycle_job,
+)
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
+
+
+def _contains_orm_instance(value) -> bool:
+    inspection = sa_inspect(value, raiseerr=False)
+    if inspection is not None and hasattr(inspection, "object"):
+        return True
+
+    if isinstance(value, dict):
+        return any(_contains_orm_instance(v) for v in value.values())
+    if isinstance(value, (list, tuple, set)):
+        return any(_contains_orm_instance(v) for v in value)
+    return False
+
+
+def test_train_predict_job_config_payload_preserves_plain_fields(
+    setup_fresh_test_forecast_data,
+):
+    future_regressor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    past_regressor = setup_fresh_test_forecast_data["solar-sensor-1"]
+
+    config = {
+        "model": "CustomLGBM",
+        "future_regressors": [future_regressor],
+        "past_regressors": [past_regressor],
+        "missing_threshold": 0.25,
+        "plain_future_option": {
+            "lower": "0 kW",
+            "upper": "20 kW",
+            "snap": {"0 kW": ["0 kW", "4 kW"]},
+        },
+    }
+
+    payload = _make_job_config_payload(config)
+
+    assert "future_regressors" not in payload
+    assert "past_regressors" not in payload
+    assert payload["future_regressor_ids"] == [future_regressor.id]
+    assert payload["past_regressor_ids"] == [past_regressor.id]
+    assert payload["plain_future_option"] == config["plain_future_option"]
+
+    restored_config = _load_job_config_payload(payload)
+
+    assert restored_config["future_regressors"] == [future_regressor]
+    assert restored_config["past_regressors"] == [past_regressor]
+    assert restored_config["plain_future_option"] == config["plain_future_option"]
+
+
+def test_train_predict_job_parameters_payload_preserves_plain_fields(
+    setup_fresh_test_forecast_data,
+):
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    sensor_to_save = setup_fresh_test_forecast_data["solar-sensor-1"]
+    parameters = {
+        "sensor": sensor,
+        "sensor_to_save": sensor_to_save,
+        "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
+        "plain_future_parameter": {"labels": ["expected", "preserved"]},
+    }
+
+    payload = _make_job_parameters_payload(parameters)
+
+    assert "sensor" not in payload
+    assert "sensor_to_save" not in payload
+    assert payload["sensor_id"] == sensor.id
+    assert payload["sensor_to_save_id"] == sensor_to_save.id
+    assert payload["plain_future_parameter"] == parameters["plain_future_parameter"]
+
+    restored_parameters = _load_job_parameters_payload(payload)
+
+    assert restored_parameters["sensor"] == sensor
+    assert restored_parameters["sensor_to_save"] == sensor_to_save
+    assert (
+        restored_parameters["plain_future_parameter"]
+        == parameters["plain_future_parameter"]
+    )
+
+
+def test_train_predict_job_payload_rejects_unexpected_orm_objects(
+    setup_fresh_test_forecast_data,
+):
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+
+    with pytest.raises(ValueError, match="payload.unexpected_sensor.*Sensor"):
+        _make_job_config_payload(
+            {
+                "future_regressors": [],
+                "past_regressors": [],
+                "unexpected_sensor": sensor,
+            }
+        )
+
+    with pytest.raises(ValueError, match="payload.unexpected_sensor.*Sensor"):
+        _make_job_parameters_payload(
+            {
+                "sensor": sensor,
+                "unexpected_sensor": sensor,
+            }
+        )
 
 
 def test_custom_lgbm_falls_back_when_daily_lag_is_under_sampled():
@@ -87,6 +196,223 @@ def test_derive_daily_lag_steps_requires_divisible_resolution(caplog):
     assert any(
         "does not evenly divide one day" in message for message in caplog.messages
     )
+
+
+def test_forecast_post_processing_clips_and_snaps_values():
+    df = pd.DataFrame(
+        {
+            "1h": [-2.0, 2.0, 8.5, 11.5, 21.0],
+            "2h": [0.5, 3.5, 10.5, 12.5, 25.0],
+        }
+    )
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=2,
+        config={
+            "lower": "0 kW",
+            "snap": {
+                "0 kW": ["0 kW", "4 kW"],
+                "8 kW": ["8 kW", "11 kW"],
+                "12 kW": ["11 kW", "12 kW"],
+            },
+            "upper": "20 kW",
+        },
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame(
+            {
+                "1h": [0.0, 0.0, 8.0, 12.0, 20.0],
+                "2h": [0.0, 0.0, 8.0, 12.5, 20.0],
+            }
+        ),
+    )
+
+
+def test_forecast_post_processing_interprets_unitless_values_in_sensor_unit():
+    df = pd.DataFrame({"1h": [0.5, 1.3, 2.5]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={
+            "lower": 1,
+            "snap": {"1500 W": ["1.2 kW", "1.8 kW"]},
+            "upper": "2 kW",
+        },
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [1.0, 1.5, 2.0]}),
+    )
+
+
+def test_forecast_post_processing_interprets_unitless_snap_in_sensor_unit():
+    df = pd.DataFrame({"1h": [0.5, 2.5, 5.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"0": [0, 4]}},
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0, 0.0, 5.0]}),
+    )
+
+
+def test_forecast_post_processing_converts_snap_units_to_sensor_unit():
+    df = pd.DataFrame({"1h": [1.1, 1.5, 1.9]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"1200 W": ["1200 W", "1800 W"]}},
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [1.1, 1.2, 1.9]}),
+    )
+
+
+def test_forecast_post_processing_snap_bounds_are_half_open():
+    """The first bound is inclusive, the second exclusive: [first, second)."""
+    df = pd.DataFrame({"1h": [0.0, 2.0, 4.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"0 kW": ["0 kW", "4 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # 0 is included and snaps to 0; 4 is excluded and is left untouched.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0, 0.0, 4.0]}),
+    )
+
+
+def test_forecast_post_processing_reversed_snap_bounds_close_the_upper_side():
+    """Listing bounds in reverse order snaps the closed side: (second, first]."""
+    df = pd.DataFrame({"1h": [4.0, 7.0, 10.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"10 kW": ["10 kW", "4 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # 4 is excluded, 10 is included; both 7 and 10 snap up to 10.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [4.0, 10.0, 10.0]}),
+    )
+
+
+def test_forecast_post_processing_adjacent_intervals_share_a_boundary_unambiguously():
+    """A value on a shared boundary belongs to the interval that opens at it."""
+    df = pd.DataFrame({"1h": [3.0, 4.0, 9.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={
+            "snap": {
+                "0 kW": ["0 kW", "4 kW"],
+                "10 kW": ["4 kW", "10 kW"],
+            }
+        },
+        sensor_unit="kW",
+    )
+
+    # 3 -> 0 ([0, 4)), 4 -> 10 ([4, 10)), 9 -> 10 ([4, 10)).
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0, 10.0, 10.0]}),
+    )
+
+
+def test_forecast_post_processing_clip_takes_precedence_over_snap():
+    """A snap target outside the clip bounds is still clipped back into range."""
+    df = pd.DataFrame({"1h": [-3.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"lower": "0 kW", "snap": {"-5 kW": ["-5 kW", "-1 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # -3 snaps to -5, which is then clipped up to the lower bound of 0.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0]}),
+    )
+
+
+def test_forecast_post_processing_rejects_inconsistent_bounds():
+    df = pd.DataFrame({"1h": [1.0]})
+
+    with pytest.raises(ValueError, match="lower bound cannot be greater"):
+        apply_forecast_post_processing(
+            data=df,
+            horizon=1,
+            config={"lower": "2 kW", "upper": "1 kW"},
+            sensor_unit="kW",
+        )
+
+
+def test_forecast_post_processing_allows_snap_target_inside_the_interval():
+    """The snap target may lie inside the interval, not only on a bound."""
+    df = pd.DataFrame({"1h": [0.5, 3.9, 4.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"2 kW": ["0 kW", "4 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # Everything in [0, 4) collapses to the interior target 2; 4 is excluded.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [2.0, 2.0, 4.0]}),
+    )
+
+
+def test_forecast_post_processing_rejects_snap_target_outside_the_interval():
+    df = pd.DataFrame({"1h": [1.0]})
+
+    with pytest.raises(ValueError, match="snap target must lie within its interval"):
+        apply_forecast_post_processing(
+            data=df,
+            horizon=1,
+            config={"snap": {"11 kW": ["13 kW", "15 kW"]}},
+            sensor_unit="kW",
+        )
+
+
+def test_forecast_post_processing_rejects_incompatible_units():
+    df = pd.DataFrame({"1h": [1.0]})
+
+    with pytest.raises(ValueError, match="Could not convert"):
+        apply_forecast_post_processing(
+            data=df,
+            horizon=1,
+            config={"lower": "5 m"},
+            sensor_unit="kW",
+        )
 
 
 @pytest.mark.parametrize(
@@ -335,6 +661,50 @@ def test_train_predict_pipeline(  # noqa: C901
                 assert hasattr(pipeline, attr)
 
         if as_job:
+            queued_job = app.queues["forecasting"].fetch_job(pipeline_returns["job_id"])
+            assert queued_job is not None
+            if not queued_job.dependency_ids:
+                queued_cycle_job_ids = [queued_job.id]
+            else:
+                queued_cycle_job_ids = queued_job.kwargs.get("cycle_job_ids", [])
+
+            for job_id in queued_cycle_job_ids:
+                queued_cycle_job = app.queues["forecasting"].fetch_job(job_id)
+                assert queued_cycle_job is not None
+                assert queued_cycle_job.func == run_train_predict_cycle_job
+                assert not _contains_orm_instance(queued_cycle_job.kwargs)
+                assert isinstance(
+                    queued_cycle_job.kwargs["parameters"]["sensor_id"], int
+                )
+                assert isinstance(
+                    queued_cycle_job.kwargs["parameters"]["sensor_to_save_id"], int
+                )
+                assert all(
+                    isinstance(sensor_id, int)
+                    for sensor_id in queued_cycle_job.kwargs["config"][
+                        "future_regressor_ids"
+                    ]
+                )
+                assert all(
+                    isinstance(sensor_id, int)
+                    for sensor_id in queued_cycle_job.kwargs["config"][
+                        "past_regressor_ids"
+                    ]
+                )
+                for timing_field in (
+                    "predict_start",
+                    "end_date",
+                    "predict_period_in_hours",
+                    "max_forecast_horizon",
+                    "forecast_frequency",
+                    "save_belief_time",
+                    "m_viewpoints",
+                ):
+                    assert (
+                        queued_cycle_job.kwargs["parameters"][timing_field]
+                        == pipeline._parameters[timing_field]
+                    )
+
             work_on_rq(
                 app.queues["forecasting"], exc_handler=handle_forecasting_exception
             )

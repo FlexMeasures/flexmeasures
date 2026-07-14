@@ -2,6 +2,7 @@ r"""Various coding utils (e.g. around function decoration)"""
 
 from __future__ import annotations
 
+from typing import Any
 import functools
 import time
 import inspect
@@ -9,6 +10,34 @@ import importlib
 import pkgutil
 
 from flask import current_app
+
+
+def merge_or_append(
+    item: dict[str, Any],
+    items: list[dict[str, Any]],
+    match_key: str,
+    match_value: str | None = None,
+) -> None:
+    """Merge `item` into the first dictionary in `items` with the same value for `key`, preserving its position in the sequence.
+
+    Values from `item` take precedence when keys overlap. If no matching
+    dictionary is found, `item` is appended to the end of `items`.
+
+    :param item:        The dictionary to merge or append.
+    :param items:       A mutable sequence of dictionaries to update.
+    :param match_key:   The dictionary key used to determine whether two items match.
+    :param match_value: The value used to determine whether two items match.
+
+    :returns:       None. The `items` sequence is modified in place.
+    """
+    match_value = item.get(match_key) or match_value
+
+    for i, existing in enumerate(items):
+        if existing.get(match_key) == match_value:
+            items[i] = existing | item
+            return
+
+    items.append(item)
 
 
 def delete_key_recursive(value, key):

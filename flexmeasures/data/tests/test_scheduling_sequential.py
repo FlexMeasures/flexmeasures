@@ -92,9 +92,12 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     work_on_rq(queue, handle_scheduling_exception)
 
     # Check that the jobs completed successfully
-    assert queued_jobs[0].get_status() == "finished"
-    assert deferred_jobs[0].get_status() == "finished"
-    assert deferred_jobs[1].get_status() == "finished"
+    ev_job = queued_jobs[0]
+    battery_job = deferred_jobs[0]
+    wrapup_job = deferred_jobs[1]
+    assert ev_job.get_status() == "finished"
+    assert battery_job.get_status() == "finished"
+    assert wrapup_job.get_status() == "finished"
 
     # check results
     ev_power = sensors["Test EV"].search_beliefs()
@@ -131,14 +134,26 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     resolution = sensors["Test EV"].event_resolution.total_seconds() / 3600
     ev_costs = (-ev_power * prices * resolution).sum().item()
     battery_costs = (-battery_power * prices * resolution).sum().item()
-    total_cost = ev_costs + battery_costs
 
     # Assert costs
-    assert ev_costs == 2.2375, f"EV cost should be 2.2375 €, got {ev_costs} €"
+    expected_ev_costs = 2.2375
+    expected_battery_costs = -4.415
     assert (
-        battery_costs == -4.415
-    ), f"Battery cost should be -4.415 €, got {battery_costs} €"
-    assert total_cost == -2.1775, f"Total cost should be -2.1775 €, got {total_cost} €"
+        ev_costs == expected_ev_costs
+    ), f"EV cost should be {expected_ev_costs} €, got {ev_costs} €"
+    assert (
+        battery_costs == expected_battery_costs
+    ), f"Battery cost should be {expected_battery_costs} €, got {battery_costs} €"
+
+    # todo: the ev job has scheduler_info and commitment costs, but the battery job has not
+    #       Here, we want to check the electricity costs of the battery job, which takes into account the EV
+    # expected_total_cost = expected_ev_costs + expected_battery_costs
+    # np.testing.assert_approx_equal(
+    #     battery_job.meta["scheduler_info"]["commitment_costs"]["electricity net energy"],
+    #     expected_total_cost,
+    #     4,
+    #     f"Reported costs should match our expectation",
+    # )
 
 
 def test_create_sequential_jobs_fallback(

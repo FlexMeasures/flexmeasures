@@ -229,7 +229,7 @@ def smart_building_types(app, fresh_db, setup_generic_asset_types_fresh_db):
 @pytest.fixture(scope="function")
 def smart_building(app, fresh_db, smart_building_types):
     """
-    Topology of the sytstem:
+    Topology of the system:
 
                            +---------+
                            |         |
@@ -414,6 +414,7 @@ def flex_description_sequential(
         "site-production-capacity": "2kW",
         "site-consumption-capacity": "5kW",
         # Cheap commitments that are not expected to affect the resulting schedule
+        # todo: CommitmentSchema should have a commodity field that defaults to electricity
         "commitments": [
             {
                 "name": "a sample commitment rewarding supply",
