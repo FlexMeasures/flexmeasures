@@ -47,8 +47,14 @@
 
       var scrollDom = document.getElementById('view-scroll');
       var chartDom = document.getElementById('view');
-      // SVG renderer so the tree stays crisp when zoomed in via CSS transform.
+      // SVG renderer so the tree stays crisp when zoomed in.
       var myChart = echarts.init(chartDom, null, { renderer: 'svg' });
+
+      // Current zoom level. Zoom is applied by RE-RENDERING the tree at a new
+      // scale (node sizes + layout margins) while the canvas stays a fixed size,
+      // so the tree shrinks/grows within the gray area like a map - the area
+      // itself never changes size.
+      var zoomFactor = 1;
 
       // Count the leaf nodes. In a horizontal tree, every leaf occupies its own
       // vertical slot, so the leaf count is what determines how tightly nodes
@@ -73,18 +79,28 @@
         // few assets get large boxes and many assets get small (but readable) ones.
         var GAP_RATIO = 0.28;                 // vertical gap as a fraction of box
         var fitBox    = (viewportH * 0.92 / leaves) / (1 + GAP_RATIO);
-        var BOX_SIZE  = Math.round(Math.max(50, Math.min(104, fitBox)));
-        var ICON_SIZE = Math.floor(BOX_SIZE * 0.26);
-        var FONT_SIZE = Math.max(8, Math.min(13, Math.round(BOX_SIZE * 0.13)));
+        // Base (zoom = 1) auto-fit box size, then apply the current zoom factor so
+        // the whole tree - node sizes AND spacing - scales together.
+        var BOX_SIZE  = Math.round(Math.max(50, Math.min(104, fitBox)) * zoomFactor);
+        var ICON_SIZE = Math.max(4, Math.floor(BOX_SIZE * 0.26));
+        var FONT_SIZE = Math.max(6, Math.round(BOX_SIZE * 0.13));
         var LINE_H    = FONT_SIZE + 2;
 
-        // Each node needs a vertical slot of box + gap. Boxes only stop shrinking
-        // at the 50px floor; past that the column is taller than the viewport, so
-        // we grow the canvas and let the container scroll instead of overlapping.
-        var SLOT    = Math.round(BOX_SIZE * (1 + GAP_RATIO));
-        var canvasH = Math.max(viewportH, leaves * SLOT);
-        chartDom.style.height = canvasH + 'px';
+        // Keep the drawing canvas the SAME size as the gray container at every
+        // zoom level. Zoom is applied via node sizes (above) and layout margins
+        // (below), never by resizing the canvas - so zooming out shrinks the tree
+        // within a fixed area and zooming in overflows it (pan with drag).
+        chartDom.style.height = viewportH + 'px';
         myChart.resize();
+
+        // Scale the tree's layout box about the canvas centre by the zoom factor.
+        // At zoom = 1 these reproduce the base framing (top 6% / left 12% /
+        // bottom 6% / right 14%); zooming out grows the margins (tree shrinks
+        // toward the centre) and zooming in drives them negative (tree overflows).
+        var mTop    = 50 - 44 * zoomFactor;
+        var mBottom = 50 - 44 * zoomFactor;
+        var mLeft   = 49 - 37 * zoomFactor;
+        var mRight  = 51 - 37 * zoomFactor;
 
         // How many text lines fit under the icon, inside the box?
         var textBudget = BOX_SIZE - ICON_SIZE - 10;
@@ -211,16 +227,16 @@
             {
               type: 'tree',
               data: rootNodes,
-              top: '6%',
-              left: '12%',
-              bottom: '6%',
-              right: '14%',
+              top: mTop + '%',
+              left: mLeft + '%',
+              bottom: mBottom + '%',
+              right: mRight + '%',
               symbol: 'roundRect',
               expandAndCollapse: true,
               animationDuration: 550,
-              animationDurationUpdate: 750,
-              // Pan only (drag). Vertical density is handled by container scroll,
-              // so wheel scrolls the list rather than fighting a zoom gesture.
+              animationDurationUpdate: 400,
+              // Drag to pan. Zoom is driven by the +/- buttons (re-render), which
+              // keeps the canvas fixed while the tree scales inside it.
               roam: 'move',
               initialTreeDepth: -1,
               lineStyle: {
@@ -261,19 +277,16 @@
       });
 
       // ===== Zoom controls =====
-      // Zoom scales the WHOLE tree (nodes + spacing) with a CSS transform, kept
-      // crisp by the SVG renderer. The gray container stays a fixed size; zooming
-      // out shrinks the whole tree centered within it, zooming in overflows it so
-      // the scroll container can pan around.
-      var zoomLayer = document.getElementById('view-zoom');
-      var zoomLevel = 1;
+      // Zoom re-renders the tree at a new scale (node sizes + layout margins)
+      // while the canvas stays a fixed size - so the tree shrinks/grows WITHIN
+      // the gray area (like a map), rather than the area itself changing size.
       var ZOOM_MIN = 0.3, ZOOM_MAX = 2.5, ZOOM_STEP = 0.2;
       function setZoom(z) {
-        zoomLevel = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
-        zoomLayer.style.transform = 'scale(' + zoomLevel + ')';
+        zoomFactor = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+        updateChart();
       }
-      document.getElementById('treeZoomIn').addEventListener('click', function() { setZoom(zoomLevel + ZOOM_STEP); });
-      document.getElementById('treeZoomOut').addEventListener('click', function() { setZoom(zoomLevel - ZOOM_STEP); });
+      document.getElementById('treeZoomIn').addEventListener('click', function() { setZoom(zoomFactor + ZOOM_STEP); });
+      document.getElementById('treeZoomOut').addEventListener('click', function() { setZoom(zoomFactor - ZOOM_STEP); });
       document.getElementById('treeZoomReset').addEventListener('click', function() { setZoom(1); });
     };
   </script>
