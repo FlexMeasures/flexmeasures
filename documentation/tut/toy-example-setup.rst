@@ -147,26 +147,6 @@ FlexMeasures offers a command to create a toy account with a battery and expose 
 
     $ eval "$(flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
 
-    Generic asset type `solar` created successfully.
-    Generic asset type `wind` created successfully.
-    Generic asset type `one-way_evse` created successfully.
-    Generic asset type `two-way_evse` created successfully.
-    Generic asset type `battery` created successfully.
-    Generic asset type `building` created successfully.
-    Generic asset type `process` created successfully.
-    Creating account Toy Account ...
-    Toy account Toy Account with user toy-user@flexmeasures.io created successfully. You might want to run `flexmeasures show account --id 1`
-    Adding transmission zone type ...
-    Adding NL transmission zone ...
-    Created day-ahead prices
-    The sensor recording day-ahead prices is day-ahead prices (ID: 1).
-    Created <GenericAsset None: 'toy-battery' (battery)>
-    Created discharging
-    Created <GenericAsset None: 'toy-solar' (solar)>
-    Created production
-    The sensor recording battery discharging is discharging (ID: 2).
-    The sensor recording solar forecasts is production (ID: 3).
-
 
 
 This sets variables such as ``FM_TOY_PRICE_SENSOR_ID``, ``FM_TOY_BATTERY_SENSOR_ID``, ``FM_TOY_SOLAR_SENSOR_ID`` and ``FM_TOY_BUILDING_ASSET_ID`` in your current shell.
@@ -195,43 +175,43 @@ If you want, you can inspect what you created in the CLI (we'll also show the UI
     
       ID  Name          Type        Parent ID  Location
     ----  ------------  --------  -----------  -----------------
-       2  toy-building  building            2  (52.374, 4.88969)
-       3  toy-battery   battery             2  (52.374, 4.88969)
-       4  toy-solar     solar               2  (52.374, 4.88969)
+       6  toy-battery   battery             5  (52.374, 4.88969)
+       5  toy-building  building               (52.374, 4.88969)
+       7  toy-solar     solar               5  (52.374, 4.88969)
 
 .. code-block:: bash
     :emphasize-lines: 9-10
 
-    $ flexmeasures show asset --id 2
+    $ flexmeasures show asset --id 5
 
-    =========================
-    Asset toy-building (ID: 2)
-    =========================
+    ==========================
+    Asset toy-building (ID: 5)
+    ==========================
 
-    Type      Location           Sensors to show      Attributes
-    --------  -----------------  -------------------  ------------
-    building  (52.374, 4.88969)  Prices: [1]
-                                 Power flows: [3, 2]
+    Type      Location           Sensors to show                                    Attributes    External ID
+    --------  -----------------  -------------------------------------------------  ------------  -------------
+    building  (52.374, 4.88969)  Prices: asset=5 (flex-context=consumption-price)
+                                 Power flows: [9, 8]
     
     Flex-Context                      Flex-Model
     --------------------------------  ------------
     site-power-capacity: 500 kVA
-    consumption-price: {'sensor': 1}
+    consumption-price: {'sensor': 7}
 
-    ====================================
-    Child assets of toy-building (ID: 2)
-    ====================================
+    =====================================
+    Child assets of toy-building (ID: 5)
+    =====================================
 
-    ID       Name               Type
-    -------  -----------------  ----------------------------
-    3        toy-battery        battery
-    4        toy-solar          solar
+      ID  Name         Type
+    ----  -----------  -------
+       7  toy-solar    solar
+       6  toy-battery  battery
 
     No sensors in asset ...
 
 You can see that this building asset has some meta information about how FlexMeasures needs to schedule:
 
-- Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 1, which stores day-ahead prices). 
+- Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 7, which stores day-ahead prices).
 - Also, the building has a grid connection capacity of 500 kVA, meaning that the total power flowing into or out of the building cannot exceed this physical limit.
 
 Now let's look at the battery asset, as well:
@@ -239,17 +219,17 @@ Now let's look at the battery asset, as well:
 .. code-block:: bash
     :emphasize-lines: 10-12
 
-    $ flexmeasures show asset --id 3
+    $ flexmeasures show asset --id 6
 
     ===================================
-    Asset toy-battery (ID: 3)
-    Child of asset toy-building (ID: 2)
+    Asset toy-battery (ID: 6)
+    Child of asset toy-building (ID: 5)
     ===================================
 
-    Type     Location           Sensors to show      Attributes
-    -------  -----------------  -------------------  ------------
-    battery  (52.374, 4.88969)  Prices: [1]
-                                Power flows: [3, 2]
+    Type     Location           Sensors to show                                    Attributes    External ID
+    -------  -----------------  -------------------------------------------------  ------------  -------------
+    battery  (52.374, 4.88969)  Prices: asset=5 (flex-context=consumption-price)
+                                Power flows: [9, 8]
     
     Flex-Context    Flex-Model
     --------------  -------------------------
@@ -258,7 +238,7 @@ Now let's look at the battery asset, as well:
                     soc-max: 450 kWh
 
     ====================================
-    Child assets of toy-battery (ID: 3)
+    Child assets of toy-battery (ID: 6)
     ====================================
 
     No child assets ...
@@ -267,7 +247,7 @@ Now let's look at the battery asset, as well:
     
       ID  Name         Unit    Resolution    Timezone          Attributes
     ----  -----------  ------  ------------  ----------------  ------------
-       2  discharging  kW      15 minutes    Europe/Amsterdam
+       8  discharging  kW      15 minutes    Europe/Amsterdam
     
 
     
