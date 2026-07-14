@@ -1601,8 +1601,8 @@ def test_get_asset_chart_with_annotation_layers(
             for layer in subchart["layer"]
             if layer.get("data", {}).get("name") == annotations_dataset_name
         ]
-        # band + rule + marker layers
-        assert len(annotation_layers) == 3
+        # band + rule + marker + text layers
+        assert len(annotation_layers) == 4
     # hover params are unique per subchart, so that hovering one subchart
     # does not darken the annotation bands in the other subcharts
     all_param_names = [
