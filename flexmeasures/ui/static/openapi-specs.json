@@ -1394,7 +1394,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "job_id": {
+                    "job": {
                       "type": "string",
                       "description": "UUID of the queued forecasting job (canonical field; use this)."
                     },
@@ -1407,21 +1407,21 @@
                     "message": {
                       "type": "string"
                     },
-                    "job_monitor_url": {
+                    "job-url": {
                       "type": "string",
                       "format": "uri",
                       "description": "URL to query the generic job status API."
                     },
-                    "job_results_url": {
+                    "results-url": {
                       "type": "string",
                       "format": "uri",
                       "description": "URL to fetch the forecast results for this job once it is complete."
                     },
                     "forecast": {
                       "type": "string",
-                      "description": "(DEPRECATED) UUID of the queued forecasting job. Use `job_id` instead."
+                      "description": "(DEPRECATED) UUID of the queued forecasting job. Use `job` instead."
                     },
-                    "_deprecated_fields": {
+                    "deprecated-fields": {
                       "type": "object",
                       "description": "Machine-readable mapping of deprecated fields with migration guidance."
                     }
@@ -1429,16 +1429,16 @@
                 },
                 "example": {
                   "status": "ACCEPTED",
-                  "job_id": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "job": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
                   "message": "Forecasting job has been queued.",
-                  "job_monitor_url": "/api/v3_0/jobs/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
-                  "job_results_url": "/api/v3_0/sensors/3/forecasts/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "job-url": "/api/v3_0/jobs/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "results-url": "/api/v3_0/sensors/3/forecasts/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
                   "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
-                  "_deprecated_fields": {
+                  "deprecated-fields": {
                     "forecast": {
-                      "use": "job_id",
-                      "deprecated_since": "1.0.0",
-                      "note": "The 'forecast' response field is deprecated; use 'job_id' instead"
+                      "use": "job",
+                      "deprecated-since": "1.0.0",
+                      "note": "The 'forecast' response field is deprecated; use 'job' instead"
                     }
                   }
                 }
@@ -1572,7 +1572,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "job_id": {
+                    "job": {
                       "type": "string",
                       "description": "UUID of the queued scheduling job (canonical field; use this)."
                     },
@@ -1585,21 +1585,21 @@
                     "message": {
                       "type": "string"
                     },
-                    "job_monitor_url": {
+                    "job-url": {
                       "type": "string",
                       "format": "uri",
                       "description": "URL to query the generic job status API."
                     },
-                    "job_results_url": {
+                    "results-url": {
                       "type": "string",
                       "format": "uri",
                       "description": "URL to fetch the schedule results for this job once it is complete."
                     },
                     "schedule": {
                       "type": "string",
-                      "description": "(DEPRECATED) UUID of the queued scheduling job. Use `job_id` instead."
+                      "description": "(DEPRECATED) UUID of the queued scheduling job. Use `job` instead."
                     },
-                    "_deprecated_fields": {
+                    "deprecated-fields": {
                       "type": "object",
                       "description": "Machine-readable mapping of deprecated fields with migration guidance."
                     }
@@ -1608,19 +1608,19 @@
                 "examples": {
                   "schedule_created": {
                     "summary": "Schedule response",
-                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job_id` field.\nFor backward-compatibility, the legacy `schedule` field is also included but is deprecated;\nuse `job_id` instead. The `_deprecated_fields` object provides migration guidance.\nThe given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.\n",
+                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job` field.\nFor backward-compatibility, the legacy `schedule` field is also included but is deprecated;\nuse `job` instead. The `deprecated-fields` object provides migration guidance.\nThe given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.\n",
                     "value": {
                       "status": "ACCEPTED",
-                      "job_id": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                      "job_monitor_url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                      "job_results_url": "/api/v3_0/sensors/3/schedules/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "results-url": "/api/v3_0/sensors/3/schedules/364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "message": "Request has been accepted for processing.",
-                      "_deprecated_fields": {
+                      "deprecated-fields": {
                         "schedule": {
-                          "use": "job_id",
-                          "deprecated_since": "1.0.0",
-                          "note": "The 'schedule' response field is deprecated; use 'job_id'"
+                          "use": "job",
+                          "deprecated-since": "1.0.0",
+                          "note": "The 'schedule' response field is deprecated; use 'job'"
                         }
                       }
                     }
@@ -4155,18 +4155,18 @@
                 },
                 "examples": {
                   "successful_response": {
-                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job_id` field.\nFor backward-compatibility, the legacy `schedule` field is also included but is deprecated;\nuse `job_id` instead. The `_deprecated_fields` object provides migration guidance.\nThe given UUID may be used to obtain the resulting schedule for each flexible device via [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
+                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job` field.\nFor backward-compatibility, the legacy `schedule` field is also included but is deprecated;\nuse `job` instead. The `deprecated-fields` object provides migration guidance.\nThe given UUID may be used to obtain the resulting schedule for each flexible device via [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
                     "value": {
                       "status": "ACCEPTED",
-                      "job_id": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                      "job_monitor_url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "message": "Request has been accepted for processing.",
-                      "_deprecated_fields": {
+                      "deprecated-fields": {
                         "schedule": {
-                          "use": "job_id",
-                          "deprecated_since": "1.0.0",
-                          "note": "The 'schedule' response field is deprecated; use 'job_id'"
+                          "use": "job",
+                          "deprecated-since": "1.0.0",
+                          "note": "The 'schedule' response field is deprecated; use 'job'"
                         }
                       }
                     }
@@ -4404,7 +4404,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Job status retrieved successfully.",
+            "description": "Finished job status retrieved successfully.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4432,7 +4432,7 @@
                       "description": "Return value of the job function, or null when not yet available. For a finished scheduling job, this is an object; a <code>StorageScheduler</code> job populates it with <code>unresolved</code>/<code>resolved</code> soft state-of-charge constraint analysis (empty arrays when the flex model defines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other than <code>StorageScheduler</code> was used). The <code>num-beliefs</code> field holds the total number of beliefs (scheduled values) saved to the database.\n",
                       "nullable": true
                     },
-                    "func_name": {
+                    "func-name": {
                       "type": "string",
                       "description": "Fully-qualified name of the function executed by this job."
                     },
@@ -4440,28 +4440,64 @@
                       "type": "string",
                       "description": "Name of the queue the job was placed on."
                     },
-                    "enqueued_at": {
+                    "enqueued-at": {
                       "type": "string",
                       "format": "date-time",
                       "nullable": true,
                       "description": "ISO-8601 timestamp of when the job was enqueued."
                     },
-                    "started_at": {
+                    "started-at": {
                       "type": "string",
                       "format": "date-time",
                       "nullable": true,
                       "description": "ISO-8601 timestamp of when the job started executing."
                     },
-                    "ended_at": {
+                    "ended-at": {
                       "type": "string",
                       "format": "date-time",
                       "nullable": true,
                       "description": "ISO-8601 timestamp of when the job finished executing."
                     },
-                    "exc_info": {
+                    "exc-info": {
                       "type": "string",
                       "nullable": true,
                       "description": "Traceback information for failed jobs, or null otherwise."
+                    },
+                    "func_name": {
+                      "type": "string",
+                      "deprecated": true,
+                      "description": "(DEPRECATED) Fully-qualified name of the function executed by this job. Use `func-name` instead."
+                    },
+                    "enqueued_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "deprecated": true,
+                      "description": "(DEPRECATED) ISO-8601 timestamp of when the job was enqueued. Use `enqueued-at` instead."
+                    },
+                    "started_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "deprecated": true,
+                      "description": "(DEPRECATED) ISO-8601 timestamp of when the job started executing. Use `started-at` instead."
+                    },
+                    "ended_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "deprecated": true,
+                      "description": "(DEPRECATED) ISO-8601 timestamp of when the job finished executing. Use `ended-at` instead."
+                    },
+                    "exc_info": {
+                      "type": "string",
+                      "nullable": true,
+                      "deprecated": true,
+                      "description": "(DEPRECATED) Traceback information for failed jobs, or null otherwise. Use `exc-info` instead."
+                    },
+                    "deprecated-fields": {
+                      "type": "object",
+                      "description": "Machine-readable mapping of deprecated fields with migration guidance."
                     }
                   }
                 },
@@ -4472,12 +4508,39 @@
                       "status": "QUEUED",
                       "message": "Scheduling job waiting to be processed.",
                       "result": null,
-                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "func-name": "flexmeasures.data.services.scheduling.create_schedule",
                       "origin": "scheduling",
+                      "enqueued-at": "2026-04-28T10:00:00+00:00",
+                      "started-at": null,
+                      "ended-at": null,
+                      "exc-info": null,
+                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
                       "enqueued_at": "2026-04-28T10:00:00+00:00",
                       "started_at": null,
                       "ended_at": null,
-                      "exc_info": null
+                      "exc_info": null,
+                      "deprecated-fields": {
+                        "func_name": {
+                          "use": "func-name",
+                          "deprecated-since": "1.0.0"
+                        },
+                        "enqueued_at": {
+                          "use": "enqueued-at",
+                          "deprecated-since": "1.0.0"
+                        },
+                        "started_at": {
+                          "use": "started-at",
+                          "deprecated-since": "1.0.0"
+                        },
+                        "ended_at": {
+                          "use": "ended-at",
+                          "deprecated-since": "1.0.0"
+                        },
+                        "exc_info": {
+                          "use": "exc-info",
+                          "deprecated-since": "1.0.0"
+                        }
+                      }
                     }
                   },
                   "finished": {
@@ -4504,12 +4567,12 @@
                         "resolved": [],
                         "num-beliefs": 96
                       },
-                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "func-name": "flexmeasures.data.services.scheduling.create_schedule",
                       "origin": "scheduling",
-                      "enqueued_at": "2026-04-28T10:00:00+00:00",
-                      "started_at": "2026-04-28T10:00:01+00:00",
-                      "ended_at": "2026-04-28T10:00:05+00:00",
-                      "exc_info": null
+                      "enqueued-at": "2026-04-28T10:00:00+00:00",
+                      "started-at": "2026-04-28T10:00:01+00:00",
+                      "ended-at": "2026-04-28T10:00:05+00:00",
+                      "exc-info": null
                     }
                   },
                   "failed": {
@@ -4518,17 +4581,23 @@
                       "status": "FAILED",
                       "message": "Scheduling job failed with ValueError: ...",
                       "result": null,
-                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "func-name": "flexmeasures.data.services.scheduling.create_schedule",
                       "origin": "scheduling",
-                      "enqueued_at": "2026-04-28T10:00:00+00:00",
-                      "started_at": "2026-04-28T10:00:01+00:00",
-                      "ended_at": "2026-04-28T10:00:02+00:00",
-                      "exc_info": "Traceback (most recent call last): ..."
+                      "enqueued-at": "2026-04-28T10:00:00+00:00",
+                      "started-at": "2026-04-28T10:00:01+00:00",
+                      "ended-at": "2026-04-28T10:00:02+00:00",
+                      "exc-info": "Traceback (most recent call last): ..."
                     }
                   }
                 }
               }
             }
+          },
+          "202": {
+            "description": "Job is still queued, scheduled, deferred, or running."
+          },
+          "422": {
+            "description": "Job has failed."
           },
           "404": {
             "description": "NOT_FOUND"

@@ -74,7 +74,7 @@ def test_trigger_and_get_schedule(
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
         assert trigger_schedule_response.status_code == 202
-        assert trigger_schedule_response.json["job_results_url"] == url_for(
+        assert trigger_schedule_response.json["results-url"] == url_for(
             "SensorAPI:get_schedule",
             id=sensor.id,
             uuid=trigger_schedule_response.json["schedule"],

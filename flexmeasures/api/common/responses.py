@@ -393,8 +393,8 @@ def request_accepted_for_processing(
 
     Optional backwards-compatibility: if `legacy_key` is provided the response
     will include the job id under that legacy key (e.g. `schedule` or
-    `forecast`). The response will also include a `_deprecated_fields` object
-    with guidance for migrating to `job_id`.
+    `forecast`). The response will also include a `deprecated-fields` object
+    with guidance for migrating to `job`.
 
     Optional `job_results_url` may be supplied to provide a direct link to the
     sensor-specific job results endpoint, e.g. `/api/v3_0/sensors/<id>/schedules/<uuid>`.
@@ -402,22 +402,22 @@ def request_accepted_for_processing(
     resp: dict[str, object] = dict(
         status="ACCEPTED",
         message=message,
-        job_monitor_url=url_for("JobAPI:get_job_status", uuid=job_id),
-        job_id=job_id,
+        job=job_id,
     )
+    resp["job-url"] = url_for("JobAPI:get_job_status", uuid=job_id)
     if job_results_url:
-        resp["job_results_url"] = job_results_url
+        resp["results-url"] = job_results_url
 
     if legacy_key:
         # keep legacy key for backwards compatibility
         resp[legacy_key] = job_id
         # include machine-readable deprecation info so clients can detect it
-        resp["_deprecated_fields"] = {
-            legacy_key: dict(
-                use="job_id",
-                deprecated_since=deprecated_since or server_now().date().isoformat(),
-                note=(f"The '{legacy_key}' response field is deprecated; use 'job_id'"),
-            )
+        resp["deprecated-fields"] = {
+            legacy_key: {
+                "use": "job",
+                "deprecated-since": deprecated_since or server_now().date().isoformat(),
+                "note": f"The '{legacy_key}' response field is deprecated; use 'job'",
+            }
         }
 
     return resp, 202

@@ -21,6 +21,23 @@ from flexmeasures.data.tests.test_scheduling_repeated_jobs_fresh_db import (
 from flexmeasures.utils.job_utils import work_on_rq
 
 
+JOB_STATUS_DEPRECATED_FIELDS = {
+    "func_name": "func-name",
+    "enqueued_at": "enqueued-at",
+    "started_at": "started-at",
+    "ended_at": "ended-at",
+    "exc_info": "exc-info",
+}
+
+
+def assert_legacy_job_status_fields(data: dict):
+    assert data["deprecated-fields"].keys() >= JOB_STATUS_DEPRECATED_FIELDS.keys()
+    for legacy_key, canonical_key in JOB_STATUS_DEPRECATED_FIELDS.items():
+        assert data[legacy_key] == data[canonical_key]
+        assert data["deprecated-fields"][legacy_key]["use"] == canonical_key
+        assert data["deprecated-fields"][legacy_key]["deprecated-since"] == "1.0.0"
+
+
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
@@ -43,7 +60,7 @@ def test_get_job_status_unknown_uuid(
 @pytest.mark.parametrize(
     "requesting_user, expected_status_code",
     [
-        ("test_prosumer_user@seita.nl", 200),
+        ("test_prosumer_user@seita.nl", 202),
         ("test_dummy_user_3@seita.nl", 403),
     ],
     indirect=["requesting_user"],
@@ -84,7 +101,7 @@ def test_get_job_status_requires_read_access(
         )
 
     assert response.status_code == expected_status_code
-    if expected_status_code == 200:
+    if expected_status_code == 202:
         assert response.json["status"] == "QUEUED"
     else:
         assert response.json["status"] == "INVALID_SENDER"
@@ -120,21 +137,22 @@ def test_get_job_status_queued(
         )
 
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 200
+    assert response.status_code == 202
     data = response.json
     assert data["status"] == "QUEUED"
     assert "waiting" in data["message"].lower()
     # metadata fields present
-    assert "func_name" in data
+    assert "func-name" in data
     assert "origin" in data
     assert data["origin"] == "scheduling"
-    # enqueued_at is set when a job is queued; started_at and ended_at are not yet
-    assert data["enqueued_at"] is not None
-    assert data["started_at"] is None
-    assert data["ended_at"] is None
+    # enqueued-at is set when a job is queued; started-at and ended-at are not yet
+    assert data["enqueued-at"] is not None
+    assert data["started-at"] is None
+    assert data["ended-at"] is None
     # result is not yet available
     assert data["result"] is None
-    assert data["exc_info"] is None
+    assert data["exc-info"] is None
+    assert_legacy_job_status_fields(data)
 
 
 @pytest.mark.parametrize(
@@ -169,19 +187,20 @@ def test_get_job_status_started(
         )
 
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 200
+    assert response.status_code == 202
     data = response.json
     assert data["status"] == "STARTED"
     assert "in progress" in data["message"].lower()
     # metadata fields present
-    assert "func_name" in data
+    assert "func-name" in data
     assert data["origin"] == "scheduling"
-    # enqueued_at is set; ended_at is not yet available
-    assert data["enqueued_at"] is not None
-    assert data["ended_at"] is None
+    # enqueued-at is set; ended-at is not yet available
+    assert data["enqueued-at"] is not None
+    assert data["ended-at"] is None
     # result is not yet available
     assert data["result"] is None
-    assert data["exc_info"] is None
+    assert data["exc-info"] is None
+    assert_legacy_job_status_fields(data)
 
 
 @pytest.mark.parametrize(
@@ -225,12 +244,12 @@ def test_get_job_status_finished(
     assert data["status"] == "FINISHED"
     assert "finished" in data["message"].lower()
     # metadata fields present
-    assert "func_name" in data
+    assert "func-name" in data
     assert data["origin"] == "scheduling"
     # timing fields
-    assert data["enqueued_at"] is not None
-    assert data["started_at"] is not None
-    assert data["ended_at"] is not None
+    assert data["enqueued-at"] is not None
+    assert data["started-at"] is not None
+    assert data["ended-at"] is not None
     # every finished scheduling job now returns an object (not the boolean
     # True it used to return unconditionally); this is a StorageScheduler
     # job, so `result` is the soft SoC constraint analysis dict, and since
@@ -241,7 +260,8 @@ def test_get_job_status_finished(
     assert result["unresolved"] == []
     assert result["resolved"] == []
     assert result["num-beliefs"] == 96
-    assert data["exc_info"] is None
+    assert data["exc-info"] is None
+    assert_legacy_job_status_fields(data)
 
 
 @pytest.mark.parametrize(
@@ -361,11 +381,12 @@ def test_get_job_status_failed_custom_scheduler_includes_exc_info(
 
         response = client.get(url_for("JobAPI:get_job_status", uuid=job_id))
 
-    assert response.status_code == 200
+    assert response.status_code == 422
     data = response.json
     assert data["status"] == "FAILED"
     assert "assert 1 == 2" in data["message"]
-    assert "AssertionError: assert 1 == 2" in data["exc_info"]
+    assert "AssertionError: assert 1 == 2" in data["exc-info"]
+    assert_legacy_job_status_fields(data)
 
 
 @pytest.mark.parametrize(
@@ -397,13 +418,14 @@ def test_get_job_status_failed_infeasible_schedule_includes_exc_info(
 
         response = client.get(url_for("JobAPI:get_job_status", uuid=job_id))
 
-    assert response.status_code == 200
+    assert response.status_code == 422
     data = response.json
     assert data["status"] == "FAILED"
     assert "infeasible problem" in data["message"].lower()
     assert (
-        "ValueError: The input data yields an infeasible problem." in data["exc_info"]
+        "ValueError: The input data yields an infeasible problem." in data["exc-info"]
     )
+    assert_legacy_job_status_fields(data)
 
 
 def test_get_job_status_unauthenticated(

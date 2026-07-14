@@ -49,7 +49,7 @@ def test_trigger_and_fetch_forecasts(
         trigger_url, json=payload, headers={"Authorization": token}
     )
     assert trigger_res.status_code == 202, trigger_res.json
-    assert trigger_res.json["job_results_url"] == url_for(
+    assert trigger_res.json["results-url"] == url_for(
         "SensorAPI:get_forecast", id=sensor_0.id, uuid=trigger_res.json["forecast"]
     )
 
