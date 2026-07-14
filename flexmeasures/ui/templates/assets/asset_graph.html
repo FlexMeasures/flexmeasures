@@ -480,7 +480,10 @@
                 if (!select || (select.value !== "range" && select.value !== "strict")) continue;
                 const minVal = parseFloat(document.getElementById(`yAxisMin_${index}`).value);
                 const maxVal = parseFloat(document.getElementById(`yAxisMax_${index}`).value);
-                if (Number.isNaN(minVal) || Number.isNaN(maxVal) || minVal > maxVal) {
+                // A strict range hard-bounds the axis, so an equal Min and Max would
+                // clamp all data to a single pixel; the floor range has no such issue.
+                const boundsOk = select.value === "strict" ? minVal < maxVal : minVal <= maxVal;
+                if (Number.isNaN(minVal) || Number.isNaN(maxVal) || !boundsOk) {
                     return item.title || `Graph ${index + 1}`;
                 }
             }
@@ -845,7 +848,7 @@
                 {
                     value: "strict",
                     text: "Strict range…",
-                    title: "The axis never covers more than this range. Data outside it is drawn clamped to the nearest edge, so out-of-range values can look misleadingly close to Min or Max.",
+                    title: "The axis never covers more than this range. Data outside it is drawn clamped to the nearest edge, so out-of-range values can look misleadingly close to Min or Max. Min must be strictly lower than Max.",
                 },
             ];
             for (const opt of options) {
@@ -902,22 +905,24 @@
 
             const feedback = document.createElement("div");
             feedback.className = "invalid-feedback d-block d-none";
-            feedback.textContent = "Enter two numbers, with Min no higher than Max.";
 
             const validateAndStoreRange = () => {
+                const mode = select.value;
                 const minVal = parseFloat(minInput.value);
                 const maxVal = parseFloat(maxInput.value);
+                // A strict range hard-bounds the axis, so an equal Min and Max would
+                // clamp all data to a single pixel; the floor range has no such issue.
+                const boundsOk = mode === "strict" ? minVal < maxVal : minVal <= maxVal;
                 const valid =
                     minInput.value !== "" &&
                     maxInput.value !== "" &&
                     !Number.isNaN(minVal) &&
                     !Number.isNaN(maxVal) &&
-                    minVal <= maxVal;
+                    boundsOk;
                 if (valid) {
                     minInput.classList.remove("is-invalid");
                     maxInput.classList.remove("is-invalid");
                     feedback.classList.add("d-none");
-                    const mode = select.value;
                     setGraphYAxis(
                         index,
                         mode === "strict" ? { min: minVal, max: maxVal } : [minVal, maxVal],
@@ -926,6 +931,9 @@
                     minInput.classList.add("is-invalid");
                     maxInput.classList.add("is-invalid");
                     feedback.classList.remove("d-none");
+                    feedback.textContent = mode === "strict"
+                        ? "Enter two numbers, with Min strictly lower than Max."
+                        : "Enter two numbers, with Min no higher than Max.";
                 }
             };
 
@@ -1411,7 +1419,9 @@
                 const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
                 showToast(`Failed to update the asset: ${errorMessage}`, "error");
             } else {
-                document.dispatchEvent(new Event('sensorsToShowUpdated'));
+                document.dispatchEvent(new CustomEvent('sensorsToShowUpdated', {
+                    detail: { sensorsToShow: getSensorToShow() },
+                }));
                 showToast("Changes saved successfully", "success");
                 refreshSpinner.style.display = 'none';
                 sensorChartDiv.style.display = 'block';

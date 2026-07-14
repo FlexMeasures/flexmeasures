@@ -246,23 +246,34 @@ def test_y_axis_min_greater_than_max_raises(y_axis_input):
         schema.deserialize(input_value)
 
 
-@pytest.mark.parametrize(
-    "y_axis_input",
-    [
-        [10, 10],
-        {"min": 10, "max": 10},
-    ],
-)
-def test_y_axis_min_equal_max_is_allowed(y_axis_input):
-    """A degenerate domain is a valid way to always keep one specific value in view."""
+def test_y_axis_floor_min_equal_max_is_allowed():
+    """A degenerate floor domain is a valid way to always keep one specific value in view."""
     schema = SensorsToShowSchema()
     input_value = [
-        {"title": "Prices", "y-axis": y_axis_input, "plots": [{"sensors": [3, 4]}]}
+        {"title": "Prices", "y-axis": [10, 10], "plots": [{"sensors": [3, 4]}]}
     ]
     expected_output = [
-        {"title": "Prices", "y-axis": y_axis_input, "plots": [{"sensors": [3, 4]}]}
+        {"title": "Prices", "y-axis": [10, 10], "plots": [{"sensors": [3, 4]}]}
     ]
     assert schema.deserialize(input_value) == expected_output
+
+
+def test_y_axis_strict_min_equal_max_raises():
+    """Unlike the floor domain, a strict domain hard-bounds the axis, so a degenerate
+    range would clamp all data to a single pixel - not useful."""
+    schema = SensorsToShowSchema()
+    input_value = [
+        {
+            "title": "Prices",
+            "y-axis": {"min": 10, "max": 10},
+            "plots": [{"sensors": [3, 4]}],
+        }
+    ]
+    with pytest.raises(
+        ValidationError,
+        match="'y-axis' strict domain minimum and maximum cannot be equal.",
+    ):
+        schema.deserialize(input_value)
 
 
 def test_flatten_ignores_y_axis():
