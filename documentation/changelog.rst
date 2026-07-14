@@ -13,7 +13,7 @@ v1.0.0 | July XX, 2026
 New features
 -------------
 
-* Show asset annotations in asset charts: a lightly shaded time band across all subcharts, darkening with a tooltip (showing the annotation text and source) when hovered in a subchart; alerts get a warning hue, and instant annotations render as a vertical rule with a top marker; also adds a ``GET /api/v3_0/assets/<id>/chart_annotations`` endpoint [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* Show asset annotations in asset charts: a lightly shaded time band across all subcharts, darkening with a tooltip (showing the annotation text and source) when hovered in a subchart; alerts get a warning hue, and instant annotations render as a vertical rule with a top marker; also adds a ``GET /api/v3_0/assets/<id>/chart_annotations`` endpoint [see `PR #2312 <https://www.github.com/FlexMeasures/flexmeasures/pull/2312>`_]
 * Breaking behaviour change: the top-level flex-context's ``relax-constraints`` field now defaults to ``True`` (matching the default already used within each ``commodities`` entry), so constraint violations are softly penalized by default instead of being hard constraints, unless explicitly set to ``False`` [see `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_]
 * Support for creating new assets by using another asset as a template from the UI. [see `PR #2195 <https://www.github.com/FlexMeasures/flexmeasures/pull/2195>`_ and `PR #2268 <https://www.github.com/FlexMeasures/flexmeasures/pull/2268>`_
 * In the UI, asset and sensor lists can be filtered by ID prefix through API-backed search fields [see `PR #2231 <https://www.github.com/FlexMeasures/flexmeasures/pull/2231>`_]
