@@ -812,7 +812,7 @@ def make_schedule(  # noqa: C901
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
             continue
-        if rq_job and result["name"] == "commitment_costs":
+        if rq_job and result.get("name") == "commitment_costs":
             rq_job.meta["scheduler_info"]["commitment_costs"] = result["data"]
             continue
         if "sensor" not in result:
