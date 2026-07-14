@@ -45,6 +45,12 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/test-reminder.sh\"",
             "if": "Bash(git push:*)",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/worktree-guard.sh\"",
+            "if": "Bash(git:*)",
+            "timeout": 10
           }
         ]
       }
