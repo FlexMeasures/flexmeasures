@@ -242,6 +242,18 @@
         updateChart();
       });
 
+      // The tree can start out inside a hidden Bootstrap tab pane (e.g. when
+      // Location is the default tab), so it initializes against a 0x0
+      // container and lays out collapsed in the top-left corner. Re-layout
+      // once the Structure tab is actually shown and has real dimensions.
+      var structureTabEl = document.getElementById('structure-tab');
+      if (structureTabEl) {
+        structureTabEl.addEventListener('shown.bs.tab', function() {
+          myChart.resize();
+          updateChart();
+        });
+      }
+
       myChart.on('click', function(params) {
         if (params.data.link) {
           window.location.href = params.data.link;
