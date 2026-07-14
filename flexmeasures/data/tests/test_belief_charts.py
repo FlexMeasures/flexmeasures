@@ -764,6 +764,18 @@ def test_setup_event_value_field_y_axis_range_sets_domain_as_floor():
     assert field["scale"]["domain"] != [10, 20]
 
 
+def test_setup_event_value_field_y_axis_strict_clamps_domain():
+    """A {"min", "max"} y-axis is a strict/hard domain: the scale is bounded and
+    clamped, so out-of-range data is drawn at the nearest edge instead of
+    expanding the axis."""
+    from flexmeasures.data.models.charts.belief_charts import (
+        _setup_event_value_field,
+    )
+
+    field = _setup_event_value_field("power", "kW", y_axis={"min": 10, "max": 20})
+    assert field["scale"] == {"domain": [10, 20], "clamp": True, "nice": False}
+
+
 def test_setup_event_value_field_y_axis_absent_default_padded():
     from flexmeasures.data.models.charts.belief_charts import (
         _setup_event_value_field,
@@ -858,6 +870,32 @@ def test_chart_y_scale_domain_when_entry_has_fixed_range(
 
     scale = _find_y_scale(spec)
     assert scale == {"domain": {"unionWith": [10, 90]}, "nice": False}
+
+
+def test_chart_y_scale_domain_when_entry_has_strict_range(
+    battery_with_soc_flex_model,
+):
+    battery, soc_sensor = battery_with_soc_flex_model
+
+    battery.sensors_to_show = [
+        {
+            "title": None,
+            "y-axis": {"min": 10, "max": 90},
+            "plots": [
+                {"sensor": soc_sensor.id},
+            ],
+        }
+    ]
+
+    start = datetime(2015, 1, 1, tzinfo=pytz.utc)
+    end = datetime(2015, 1, 2, tzinfo=pytz.utc)
+
+    spec = battery.chart(
+        include_data=False, event_starts_after=start, event_ends_before=end
+    )
+
+    scale = _find_y_scale(spec)
+    assert scale == {"domain": [10, 90], "clamp": True, "nice": False}
 
 
 def test_chart_y_scale_default_when_y_axis_absent(

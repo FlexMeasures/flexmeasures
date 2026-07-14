@@ -538,7 +538,7 @@ def _setup_event_start_field(
 
 
 def _setup_event_value_field(
-    sensor_type: str, unit: str, y_axis: str | list | None = None
+    sensor_type: str, unit: str, y_axis: str | list | dict | None = None
 ) -> dict:
     """Set up the event value field definition.
 
@@ -548,8 +548,10 @@ def _setup_event_value_field(
         y_axis: How the y-axis domain for this sub-chart should be chosen.
             - None (or "zero"): the axis is padded out to include zero (default behaviour).
             - "data": the axis is fitted to the data.
-            - [min, max]: a minimum domain; the axis covers at least this range,
-              and expands (via unionWith) if the data goes beyond it.
+            - [min, max]: a minimum (floor) domain; the axis covers at least this range,
+              and expands (via unionWith) if the data goes beyond it (nothing is clipped).
+            - {"min": min, "max": max}: a strict domain; the axis never expands beyond
+              this range, and data outside it is clamped to the nearest edge.
 
     Returns:
         Field definition dictionary
@@ -563,6 +565,10 @@ def _setup_event_value_field(
     )
     if y_axis == "data":
         event_value_field_definition["scale"] = dict(zero=False)
+    elif isinstance(y_axis, dict):
+        event_value_field_definition["scale"] = dict(
+            domain=[y_axis["min"], y_axis["max"]], clamp=True, nice=False
+        )
     elif isinstance(y_axis, list):
         event_value_field_definition["scale"] = dict(
             domain={"unionWith": y_axis}, nice=False

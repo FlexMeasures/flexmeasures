@@ -26,7 +26,12 @@
     import { apiBasePath, pollJobStatus } from "{{ url_for('flexmeasures_ui.static', filename='js/ui-utils.js') }}?v={{ flexmeasures_version }}";
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
-    import { decompressChartData, checkDSTTransitions, checkSourceMasking } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
+    import { decompressChartData, checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
+
+    // Only assets have a per-sub-chart "y-axis" config to check loaded data against.
+    {% if active_page == "assets" %}
+    const sensorsToShowForYAxisCheck = {{ asset.sensors_to_show | tojson }};
+    {% endif %}
 
     // Global variables (Module scoped)
     let picker;
@@ -353,6 +358,9 @@
         data: fetchedInitialData
     };
     checkSourceMasking(previousResult.data);
+    {% if active_page == "assets" %}
+    checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
+    {% endif %}
     var timerangeNotSetYet = false;
     {% else %}
     var timerangeNotSetYet = true;
@@ -548,6 +556,9 @@
             previousResult["annotations"] = result[1]
         {% endif %}
         checkSourceMasking(previousResult.data);
+        {% if active_page == "assets" %}
+        checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
+        {% endif %}
         playBackDataLoadedForKnownDateRange = false;
         if (chartType === "bar_chart") {
             vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();

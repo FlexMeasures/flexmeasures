@@ -159,6 +159,7 @@ def test_dict_with_sensors_as_int():
         ("data", "data"),
         ([10, 20], [10, 20]),
         ([10.5, 20.5], [10.5, 20.5]),
+        ({"min": 10, "max": 20}, {"min": 10, "max": 20}),
     ],
 )
 def test_y_axis_survives_deserialize_plots_shorthand(y_axis_input, y_axis_output):
@@ -208,6 +209,10 @@ def test_y_axis_zero_is_not_stored():
         [True, 2],
         [1, True],
         ["a", "b"],
+        {"min": 1},
+        {"min": 1, "max": 2, "extra": 3},
+        {"min": True, "max": 2},
+        {"min": "a", "max": "b"},
     ],
 )
 def test_y_axis_invalid_value_raises(invalid_y_axis):
@@ -217,15 +222,22 @@ def test_y_axis_invalid_value_raises(invalid_y_axis):
     ]
     with pytest.raises(
         ValidationError,
-        match="'y-axis' must be 'zero', 'data', or a \\[min, max\\] list of two numbers.",
+        match="'y-axis' must be 'zero', 'data', a \\[min, max\\] list of two numbers, or a \\{'min': min, 'max': max\\} dict.",
     ):
         schema.deserialize(input_value)
 
 
-def test_y_axis_min_greater_than_max_raises():
+@pytest.mark.parametrize(
+    "y_axis_input",
+    [
+        [20, 10],
+        {"min": 20, "max": 10},
+    ],
+)
+def test_y_axis_min_greater_than_max_raises(y_axis_input):
     schema = SensorsToShowSchema()
     input_value = [
-        {"title": "Prices", "y-axis": [20, 10], "plots": [{"sensors": [3, 4]}]}
+        {"title": "Prices", "y-axis": y_axis_input, "plots": [{"sensors": [3, 4]}]}
     ]
     with pytest.raises(
         ValidationError,
@@ -234,14 +246,21 @@ def test_y_axis_min_greater_than_max_raises():
         schema.deserialize(input_value)
 
 
-def test_y_axis_min_equal_max_is_allowed():
+@pytest.mark.parametrize(
+    "y_axis_input",
+    [
+        [10, 10],
+        {"min": 10, "max": 10},
+    ],
+)
+def test_y_axis_min_equal_max_is_allowed(y_axis_input):
     """A degenerate domain is a valid way to always keep one specific value in view."""
     schema = SensorsToShowSchema()
     input_value = [
-        {"title": "Prices", "y-axis": [10, 10], "plots": [{"sensors": [3, 4]}]}
+        {"title": "Prices", "y-axis": y_axis_input, "plots": [{"sensors": [3, 4]}]}
     ]
     expected_output = [
-        {"title": "Prices", "y-axis": [10, 10], "plots": [{"sensors": [3, 4]}]}
+        {"title": "Prices", "y-axis": y_axis_input, "plots": [{"sensors": [3, 4]}]}
     ]
     assert schema.deserialize(input_value) == expected_output
 
