@@ -549,7 +549,8 @@ def _setup_event_value_field(
             - None (or "zero"): the axis is padded out to include zero (default behaviour).
             - "data": the axis is fitted to the data.
             - [min, max]: a minimum (floor) domain; the axis covers at least this range,
-              and expands (via unionWith) if the data goes beyond it (nothing is clipped).
+              and expands (via unionWith) with the same margin as "data" mode if the
+              data goes beyond it (nothing is clipped).
             - {"min": min, "max": max}: a strict domain; the axis never expands beyond
               this range, and data outside it is clamped to the nearest edge.
 
@@ -570,9 +571,9 @@ def _setup_event_value_field(
             domain=[y_axis["min"], y_axis["max"]], clamp=True, nice=False
         )
     elif isinstance(y_axis, list):
-        event_value_field_definition["scale"] = dict(
-            domain={"unionWith": y_axis}, nice=False
-        )
+        # Match "data" mode's margin around out-of-range values: nice=True (the
+        # Vega-Lite default) pads the domain instead of stopping exactly at the data.
+        event_value_field_definition["scale"] = dict(domain={"unionWith": y_axis})
     elif unit == "%":
         event_value_field_definition["scale"] = dict(
             domain={"unionWith": [0, 105]}, nice=False

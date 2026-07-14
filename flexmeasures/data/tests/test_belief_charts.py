@@ -759,7 +759,7 @@ def test_setup_event_value_field_y_axis_range_sets_domain_as_floor():
     )
 
     field = _setup_event_value_field("power", "kW", y_axis=[10, 20])
-    assert field["scale"] == {"domain": {"unionWith": [10, 20]}, "nice": False}
+    assert field["scale"] == {"domain": {"unionWith": [10, 20]}}
     # Not a hard/bare domain list - that would clip the data.
     assert field["scale"]["domain"] != [10, 20]
 
@@ -809,7 +809,7 @@ def test_setup_event_value_field_percent_y_axis_range_overrides_domain():
     )
 
     field = _setup_event_value_field("state of charge", "%", y_axis=[0, 50])
-    assert field["scale"] == {"domain": {"unionWith": [0, 50]}, "nice": False}
+    assert field["scale"] == {"domain": {"unionWith": [0, 50]}}
 
 
 def test_chart_y_scale_zero_false_when_entry_opts_in(
@@ -869,7 +869,7 @@ def test_chart_y_scale_domain_when_entry_has_fixed_range(
     )
 
     scale = _find_y_scale(spec)
-    assert scale == {"domain": {"unionWith": [10, 90]}, "nice": False}
+    assert scale == {"domain": {"unionWith": [10, 90]}}
 
 
 def test_chart_y_scale_domain_when_entry_has_strict_range(
