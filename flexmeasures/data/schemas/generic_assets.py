@@ -35,7 +35,15 @@ class SensorsToShowSchema(fields.Field):
 
     The `sensors_to_show` attribute defines which sensors should be displayed for a particular asset.
     It supports various input formats, which are standardized into a list of dictionaries, each containing
-    a `title` (optional) and a `plots` list, this list then consist of dictionaries with keys such as `sensor`, `asset` or `sensors`.
+    a `title` (optional), a `y-axis` (optional) and a `plots` list, this list
+    then consist of dictionaries with keys such as `sensor`, `asset` or `sensors`.
+    The `y-axis` key controls how the shared y-axis domain for that sub-chart is chosen:
+    - absent, or `"zero"`: the axis is padded out to include zero (the default).
+    - `"data"`: the axis is fitted to the data instead of being padded out to include zero.
+    - `[min, max]`: a minimum domain; the axis always covers at least this range,
+      and expands to fit the data if it goes beyond it (nothing is ever clipped).
+    - `{"min": min, "max": max}`: a strict domain; the axis never expands beyond this
+      range, and data outside it is visually clipped to the nearest edge.
 
     - A single sensor ID (int): `42` -> `{"title": None, "plots": [{"sensor": 42}]}`
     - A list of sensor IDs (list of ints): `[42, 43]` -> `{"title": None, "plots": [{"sensors": [42, 43]}]}`
@@ -112,18 +120,33 @@ class SensorsToShowSchema(fields.Field):
 
         item["title"] = title or "No Title"
 
+        y_axis_kwargs = {}
+        if "y-axis" in item:
+            validated_y_axis = self._validate_y_axis(item["y-axis"])
+            # Only store non-default values; "zero" is the implicit default.
+            if validated_y_axis != "zero":
+                y_axis_kwargs["y-axis"] = validated_y_axis
+
         if "sensor" in item:
             sensor = item["sensor"]
             if not isinstance(sensor, int):
                 raise ValidationError("'sensor' value must be an integer.")
-            return {"title": title, "plots": [{"sensor": sensor}]}
+            return {
+                "title": title,
+                **y_axis_kwargs,
+                "plots": [{"sensor": sensor}],
+            }
         elif "sensors" in item:
             sensors = item["sensors"]
             if not isinstance(sensors, list) or not all(
                 isinstance(sensor_id, int) for sensor_id in sensors
             ):
                 raise ValidationError("'sensors' value must be a list of integers.")
-            return {"title": title, "plots": [{"sensors": sensors}]}
+            return {
+                "title": title,
+                **y_axis_kwargs,
+                "plots": [{"sensors": sensors}],
+            }
         elif "plots" in item:
             plots = item["plots"]
             if not isinstance(plots, list):
@@ -131,11 +154,57 @@ class SensorsToShowSchema(fields.Field):
             for plot in plots:
                 self._validate_single_plot(plot)
 
-            return {"title": title, "plots": plots}
+            return {"title": title, **y_axis_kwargs, "plots": plots}
         else:
             raise ValidationError(
                 "Dictionary must contain either 'sensor', 'sensors' or 'plots' key."
             )
+
+    def _validate_y_axis(self, y_axis) -> str | list | dict:
+        """
+        Validate the 'y-axis' key: 'zero', 'data', a [min, max] list of two numbers
+        (a floor domain), or a {"min": min, "max": max} dict (a strict domain).
+        """
+        error_message = (
+            "'y-axis' must be 'zero', 'data', a [min, max] list of two numbers, "
+            "or a {'min': min, 'max': max} dict."
+        )
+        if isinstance(y_axis, str):
+            if y_axis not in ("zero", "data"):
+                raise ValidationError(error_message)
+            return y_axis
+        elif isinstance(y_axis, list):
+            if len(y_axis) != 2 or not all(
+                isinstance(v, (int, float)) and not isinstance(v, bool) for v in y_axis
+            ):
+                raise ValidationError(error_message)
+            minimum, maximum = y_axis
+            # An equal minimum and maximum is allowed: it keeps that single value in view.
+            if minimum > maximum:
+                raise ValidationError(
+                    "'y-axis' domain minimum cannot exceed its maximum."
+                )
+            return [minimum, maximum]
+        elif isinstance(y_axis, dict):
+            if set(y_axis.keys()) != {"min", "max"} or not all(
+                isinstance(v, (int, float)) and not isinstance(v, bool)
+                for v in y_axis.values()
+            ):
+                raise ValidationError(error_message)
+            minimum, maximum = y_axis["min"], y_axis["max"]
+            if minimum > maximum:
+                raise ValidationError(
+                    "'y-axis' domain minimum cannot exceed its maximum."
+                )
+            # Unlike the floor domain, a strict domain hard-bounds the axis, so an
+            # equal minimum and maximum would clamp all data to a single pixel.
+            if minimum == maximum:
+                raise ValidationError(
+                    "'y-axis' strict domain minimum and maximum cannot be equal."
+                )
+            return {"min": minimum, "max": maximum}
+        else:
+            raise ValidationError(error_message)
 
     def _validate_single_plot(self, plot):
         """

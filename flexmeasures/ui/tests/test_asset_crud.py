@@ -116,6 +116,30 @@ def test_asset_page_dates_validation(
     assert "UNPROCESSABLE_ENTITY".encode() in asset_page.data
 
 
+def test_graphs_page_preserves_saved_y_axis_setting_in_editor(
+    db, client, setup_assets, as_admin
+):
+    """The graph editor keeps a saved per-graph y-axis setting when normalizing UI state."""
+    asset = setup_assets["wind-asset-1"]
+    asset.sensors_to_show = [
+        {
+            "title": "Power",
+            "y-axis": "data",
+            "plots": [{"sensor": asset.sensors[0].id}],
+        }
+    ]
+    db.session.commit()
+
+    page = client.get(
+        url_for("AssetCrudUI:graphs", id=asset.id),
+        follow_redirects=True,
+    )
+
+    assert page.status_code == 200
+    assert b'"y-axis": "data"' in page.data
+    assert b'item["y-axis"] = graph["y-axis"];' in page.data
+
+
 def test_add_asset(db, client, setup_assets, as_admin):
     """Add a new asset"""
     user = find_user_by_email("test_prosumer_user@seita.nl")
