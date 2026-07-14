@@ -335,7 +335,7 @@ This is time series data, in FlexMeasures we call *"beliefs"*. Beliefs can also 
 
 In FlexMeasures, all beliefs have a data source. Here, we use the username of the user we created earlier. We could also pass a user ID, or the name of a new data source we want to use for CLI scripts.
 
-.. note:: Attention: We created and imported prices where the times have no time zone component! That happens a lot. FlexMeasures can localize them for you to a given timezone. Here, we localized the data to the timezone of the price sensor - ``Europe/Amsterdam`` - so the start time for the first price is `2022-03-03 00:00:00+01:00` (midnight in Amsterdam).
+.. note:: Attention: We created and imported prices where the times have no time zone component! That happens a lot. FlexMeasures can localize them for you to a given timezone. Here, we localized the data to the timezone of the price sensor - ``Europe/Amsterdam`` - so the start time for the first price is `2025-11-11 00:00:00+01:00` (midnight in Amsterdam).
 
 Let's look at the price data we just loaded:
 
@@ -347,26 +347,26 @@ Let's look at the price data we just loaded:
     Data spans a day and starts at 2025-11-11 00:00:00+01:00.
     The time resolution (x-axis) is an hour.
     ┌────────────────────────────────────────────────────────────┐
-    │       ▗▀▚▖                                                 │
-    │      ▗▘  ▝▖                                                │
-    │      ▞    ▌                                                │
-    │     ▟     ▐                                                │ 0.015EUR/kWh
-    │    ▗▘     ▝▖                                      ▗        │
-    │   ▗▘       ▚                                    ▄▞▘▚▖      │
-    │   ▞        ▐                                  ▄▀▘   ▝▄     │
-    │ ▄▞          ▌                                ▛        ▖    │
-    │▀            ▚                               ▐         ▝▖   │
-    │             ▝▚            ▖                ▗▘          ▝▖  │ 0.010EUR/kWh
-    │               ▀▄▄▞▀▄▄   ▗▀▝▖               ▞            ▐  │
-    │                      ▀▀▜▘  ▝▚             ▗▘             ▚ │
-    │                              ▌            ▞               ▌│
-    │                              ▝▖          ▞                ▝│
-    │                               ▐         ▞                  │
-    │                                ▚      ▗▞                   │ 0.005EUR/kWh
-    │                                 ▀▚▄▄▄▄▘                    │
+    │          ▞▄                                                │
+    │         ▐  ▀▌                                              │
+    │        ▗▘   ▚                                              │
+    │        ▌    ▐                                              │ 0.015EUR/kWh
+    │       ▞      ▌                                    ▗        │
+    │      ▐       ▐                                  ▗▄▀▚▖      │
+    │     ▗▘       ▝▖                               ▗▞▘   ▝▄     │
+    │    ▄▀         ▌                              ▐▘      ▝▖    │
+    │  ▄▀           ▐                             ▗▘        ▝▖   │
+    │▞▀             ▝▚           ▄                ▞          ▝▖  │ 0.010EUR/kWh
+    │                 ▀▄▄▀▀▄▄   ▞ ▚              ▗▘           ▐  │
+    │                        ▀▀▀   ▚▖            ▞             ▚ │
+    │                               ▚           ▗▘             ▝▖│
+    │                                ▚         ▗▘               ▝│
+    │                                ▝▖       ▗▘                 │
+    │                                 ▐▄     ▄▘                  │ 0.005EUR/kWh
+    │                                   ▀▄▄▄▞                    │
     └────────────────────────────────────────────────────────────┘
-               5            10            15           20
-                         ██ day-ahead prices
+                     06:00          12:00           18:00
+              ██ day-ahead prices (NL transmission zone)
 
 
 
