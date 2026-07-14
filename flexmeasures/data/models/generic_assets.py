@@ -519,9 +519,13 @@ class GenericAsset(db.Model, AuthModelMixin):
             missed_sensor_ids.extend(inaccessible)
 
             if accessible_sensors:
-                sensors_to_show.append(
-                    {"title": title, "plots": [{"sensors": accessible_sensors}]}
-                )
+                new_entry = {
+                    "title": title,
+                    "plots": [{"sensors": accessible_sensors}],
+                }
+                if "y-axis" in entry:
+                    new_entry["y-axis"] = entry["y-axis"]
+                sensors_to_show.append(new_entry)
 
         if missed_sensor_ids:
             current_app.logger.warning(
