@@ -12,7 +12,7 @@ v1.0.0 | July XX, 2026
 
 New features
 -------------
-* In the UI, an opt-in "Fast chart" mode renders asset and sensor charts with Apache ECharts (canvas) for much faster drawing and interaction on dense time series, while staying visually and functionally equivalent to the existing Vega-Lite charts [see `PR #2234 <https://www.github.com/FlexMeasures/flexmeasures/pull/2234>`_]
+* In the UI, asset and sensor charts now render with Apache ECharts (canvas) by default, for much faster drawing and interaction on dense time series, while staying visually and functionally equivalent to the previous Vega-Lite charts, which remain available as a fallback via a toggle [see `PR #2234 <https://www.github.com/FlexMeasures/flexmeasures/pull/2234>`_]
 * Breaking behaviour change: the top-level flex-context's ``relax-constraints`` field now defaults to ``True`` (matching the default already used within each ``commodities`` entry), so constraint violations are softly penalized by default instead of being hard constraints, unless explicitly set to ``False`` [see `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_]
 * Support for creating new assets by using another asset as a template from the UI. [see `PR #2195 <https://www.github.com/FlexMeasures/flexmeasures/pull/2195>`_ and `PR #2268 <https://www.github.com/FlexMeasures/flexmeasures/pull/2268>`_
 * In the UI, asset and sensor lists can be filtered by ID prefix through API-backed search fields [see `PR #2231 <https://www.github.com/FlexMeasures/flexmeasures/pull/2231>`_]

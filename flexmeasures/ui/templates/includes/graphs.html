@@ -60,7 +60,7 @@
     let minRes;
     let toggle;
     let stepTriggered = false;
-    let fastMode = localStorage.getItem('fm-fast-charts') === '1';  // render with the canvas-based fast chart instead of Vega-Lite
+    let fastMode = localStorage.getItem('fm-fast-charts') !== '0';  // canvas-based fast chart is the default; users can opt out to Vega-Lite
     const fastChartElementId = 'fast-chart-container';
     let fastChartGroupSpec = null;  // subplot structure (titles + sensor groupings), mirroring the Vega-Lite chart
 
