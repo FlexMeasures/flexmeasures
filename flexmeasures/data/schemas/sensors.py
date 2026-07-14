@@ -979,11 +979,7 @@ class SensorReference:
         return self.sensor.event_resolution
 
 
-class SensorReferenceSchema(Schema):
-    """Sensor reference with optional source filters."""
-
-    class Meta:
-        description = "Sensor reference from which to look up a variable quantity."
+class SharedSensorReferenceSchema(Schema):
 
     sensor = SensorIdField(
         required=True,
@@ -991,6 +987,20 @@ class SensorReferenceSchema(Schema):
             description="ID of the sensor on which the data is recorded.",
         ),
     )
+
+
+class OutputSensorReferenceSchema(SharedSensorReferenceSchema):
+    """Sensor reference for recording generated data."""
+
+    ...
+
+
+class SensorReferenceSchema(SharedSensorReferenceSchema):
+    """Sensor reference with optional source filters."""
+
+    class Meta:
+        description = "Sensor reference from which to look up a variable quantity."
+
     source_types = fields.List(
         fields.String(),
         load_default=None,

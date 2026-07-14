@@ -4,10 +4,6 @@ Utils for serving the FlexMeasures app
 
 from __future__ import annotations
 
-import os
-import sys
-import json
-
 import click
 from flask import Flask, current_app, redirect
 from flask.cli import FlaskGroup, with_appcontext
@@ -21,6 +17,35 @@ from flexmeasures import __version__ as fm_version
 from flexmeasures.app import create as create_app
 
 
+def provision_default_template_assets_on_startup(app: Flask) -> None:
+    """Provision starter template assets when startup settings and schema allow it."""
+    if (
+        not app.config.get("FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP", False)
+        or app.testing
+        or app.config.get("FLEXMEASURES_ENV") == "documentation"
+    ):
+        return
+
+    if not getattr(app, "database_schema_is_migrated_to_head", True):
+        app.logger.info(
+            "Skipping startup template provisioning because the database schema is not at the Alembic head revision yet."
+        )
+        return
+
+    from sqlalchemy.exc import OperationalError, ProgrammingError
+
+    from flexmeasures.data import db
+    from flexmeasures.data.scripts.data_gen import provision_default_template_assets
+
+    try:
+        with app.app_context():
+            provision_default_template_assets(db)
+    except (OperationalError, ProgrammingError) as exc:
+        app.logger.warning(
+            f"Skipping startup template provisioning due to an error: {exc}"
+        )
+
+
 @click.group(cls=FlaskGroup, create_app=create_app)
 @with_appcontext
 def flexmeasures_cli():
@@ -32,20 +57,36 @@ def flexmeasures_cli():
     pass
 
 
+# For the Sentry integration, a crucial task is to filter out noise before it reaches Sentry.
+# Limiting what gets sent to Sentry (by 95%) keeps your costs to what you are interested in.
+# We want to filter out 404s (also those who in addition use untrusted-host request headers),
+# which are common probes in the wild.
+# Note: errors may reach Sentry twice - as raised Exception plus if FlexMeasures logs the error (e.g. during handling it)
+#       With verbose=False, Sentry might only see the  logging event, not an Exception, as it is only visible in the LogRecord message rather than in hint["exc_info"].
+
+
 def _sentry_filter_notfound(event, hint):
-    """Filter out 404 Not Found errors to avoid inflating Sentry error budgets."""
+    """Filter out noisy handled web errors to avoid inflating Sentry error budgets."""
     if "exc_info" in hint:
-        exc_type, exc_value, _tb = hint["exc_info"]
+        _exc_type, exc_value, _tb = hint["exc_info"]
         if isinstance(exc_value, NotFound):
             return None
     # FlexMeasures logs handled 404s with verbose=False to keep automated
     # scans for hackable URLs from overwhelming log files. Sentry receives
     # those as logging events, so the NotFound exception is only visible in
     # the LogRecord message rather than in hint["exc_info"].
+    # We also filter out handled SecurityErrors that are logged when untrusted-host
+    # request headers are used.
     log_record = hint.get("log_record")
     if log_record is not None:
         message = log_record.getMessage()
         if message.startswith("NotFound - URL was: "):
+            return None
+        if (
+            message.startswith("SecurityError - URL was: ")
+            and " - \"Host '" in message
+            and message.endswith("' is not trusted.\"")
+        ):
             return None
     return event
 
@@ -82,141 +123,6 @@ def init_sentry(app: Flask):
     )
     sentry_sdk.set_tag("mode", app.config.get("FLEXMEASURES_MODE"))
     sentry_sdk.set_tag("platform-name", app.config.get("FLEXMEASURES_PLATFORM_NAME"))
-
-
-def set_secret_key(app, filename="secret_key"):
-    """Set the SECRET_KEY or exit.
-
-    We first check if it is already in the config.
-
-    Then we look for it in environment var SECRET_KEY.
-
-    Finally, we look for `filename` in the app's instance directory.
-
-    If nothing is found, we print instructions
-    to create the secret and then exit.
-    """
-    secret_key = app.config.get("SECRET_KEY", None)
-    if secret_key is not None:
-        return
-    secret_key = os.environ.get("SECRET_KEY", None)
-    if secret_key is not None:
-        app.config["SECRET_KEY"] = secret_key
-        return
-    filename = os.path.join(app.instance_path, filename)
-    try:
-        app.config["SECRET_KEY"] = open(filename, "rb").read()
-    except IOError:
-        app.logger.error(
-            """
-        Error:  No secret key set.
-
-        You can add the SECRET_KEY setting to your conf file (this example works only on Unix):
-
-        echo "SECRET_KEY=\\"`python3 -c 'import secrets; print(secrets.token_hex(24))'`\\"" >> ~/.flexmeasures.cfg
-
-        OR you can add an env var:
-
-        export SECRET_KEY=xxxxxxxxxxxxxxx
-        (on windows, use "set" instead of "export")
-
-        OR you can create a secret key file (this example works only on Unix):
-
-        mkdir -p %s
-        head -c 24 /dev/urandom > %s
-
-        You can also use Python to create a good secret:
-
-        python -c "import secrets; print(secrets.token_urlsafe())"
-
-        """
-            % (os.path.dirname(filename), filename)
-        )
-
-        sys.exit(2)
-
-
-def log_totp_secrets_error_and_exit(app, filename):
-    app.logger.error(
-        """
-        ERROR: The file %s exists but does not contain a valid dictionary.
-
-        The correct format is:
-
-        {"1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
-
-        """
-        % (filename)
-    )
-    sys.exit(2)
-
-
-def set_totp_secrets(app, filename="totp_secrets"):
-    """Set the SECURITY_TOTP_SECRETS or exit.
-
-    We first check if it is already in the config.
-
-    Then we look for it in environment var SECURITY_TOTP_SECRETS.
-
-    Finally, we look for `filename` in the app's instance directory.
-
-    If nothing is found, we print instructions
-    to create the secret and then exit.
-    """
-    totp_secrets = app.config.get("SECURITY_TOTP_SECRETS", None)
-    if totp_secrets is not None:
-        return
-    totp_secrets = os.environ.get("SECURITY_TOTP_SECRETS", None)
-    if totp_secrets is not None:
-        try:
-            # Try to parse the string from the environment variable into a dictionary
-            app.config["SECURITY_TOTP_SECRETS"] = json.loads(totp_secrets)
-            return
-        except json.JSONDecodeError:
-            app.logger.error(
-                "Error: The environment variable SECURITY_TOTP_SECRETS is not valid JSON."
-            )
-            sys.exit(2)
-
-    filename = os.path.join(app.instance_path, filename)
-    try:
-        security_totp_secrets = open(filename, "r").read()
-        security_totp_secrets = json.loads(security_totp_secrets)
-
-        # Now check if it's a dictionary
-        if isinstance(security_totp_secrets, dict):
-            app.config["SECURITY_TOTP_SECRETS"] = security_totp_secrets
-        else:
-            log_totp_secrets_error_and_exit(app, filename)
-    except json.JSONDecodeError:
-        log_totp_secrets_error_and_exit(app, filename)
-    except (IOError, UnicodeDecodeError):
-        app.logger.error(
-            """
-        Error:  No SECURITY_TOTP_SECRETS set (required for two-factor authentication).
-
-        You can add the SECURITY_TOTP_SECRETS setting to your conf file (this example works only on Unix):
-
-        echo "SECURITY_TOTP_SECRETS={\\"1\\": \\"`python3 -c 'from passlib import totp; print(totp.generate_secret())'`\\"}" >> ~/.flexmeasures.cfg
-
-        OR you can add an env var:
-
-        export SECURITY_TOTP_SECRETS={"1": "xxxxxxxxxxxxxxx"}
-        (on windows, use "set" instead of "export")
-
-        OR you can create a secret key file (this example works only on Unix):
-
-        mkdir -p %s
-        echo "{\\"1\\": \\"$(head -c 24 /dev/urandom | base64)\\"}" > %s
-
-        You can also use Python to create a good secret:
-
-        python -c 'from passlib import totp; print(f"{{\\"1\\": \\"{totp.generate_secret()}\\"}}")'
-
-        """
-            % (os.path.dirname(filename), filename)
-        )
-        sys.exit(2)
 
 
 def root_dispatcher():

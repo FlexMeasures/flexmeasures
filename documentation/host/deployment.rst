@@ -3,10 +3,32 @@
 How to deploy FlexMeasures
 ===========================
 
-Here you can learn how to get FlexMeasures onto a server.
+Here you can learn how to deploy FlexMeasures in the cloud, on one web server, or a scalable infrastructure.
 
-.. note:: FlexMeasures can be deployed via Docker, where the solver is already installed and there are cloud infrastructures like Kubernetes you'd use. Read more at :ref:`docker-image`. You need other components (e.g. postgres and redis) which are not handled here. See :ref:`docker-compose` for inspiration.
+First off, FlexMeasures can be deployed via Docker (read more at :ref:`docker-image`).
+In that docker image, the solver is already installed.  You need other components (e.g. postgres and redis) which are not handled within the image.
 
+
+Cloud setup using containers
+------------------------------
+
+The recommended way to run FlexMeasures is indeed via docker containers.
+There are cloud infrastructures offered by the big providers, but there are many others, too. 
+You could use a container orchestration platform like Kubernetes, but also simpler options like Ansible/Terraform are great. 
+
+We recommend that several FlexMeasures containers are run, with different main tasks. 
+The obvious tasks would be to serve web & API requests and to perform heavier background tasks (like computing schedules and forecasting).
+
+The image below shows an example architecture, and you can see that this allows you to scale each task on its own (by adding more containers to its stack).
+
+
+.. image:: https://raw.githubusercontent.com/FlexMeasures/screenshots/refs/heads/main/architecture/cloud-hosting-FlexMeasures-scalable.drawio.png
+    :align: center
+..    :scale: 40%
+
+|
+
+See also :ref:`docker-compose` for inspiration, though docker compose is more commonly used for development or for hobbyist production systems.
 
 
 WSGI configuration

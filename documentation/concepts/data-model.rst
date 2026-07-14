@@ -152,6 +152,13 @@ A common modeling choice is whether measurements, forecasts and schedules for an
 Using a single sensor is advisable when these data represent different beliefs about the same physical quantity at the same connection point.
 In that case, keeping them on one sensor makes it explicit that measurements, forecasts and schedules all refer to the same events, and therefore should share the same unit, event resolution and sign convention.
 Different origins of the data can still be distinguished through their data source.
+Sensor references in flex-model/flex-context fields can filter by source, e.g. to point a field at forecast data only, even after a schedule has been written to the same sensor:
+
+.. code-block:: json
+
+   {"sensor": 3, "exclude-source-types": ["scheduler"]}
+
+See :ref:`variable_quantities` for the full set of source filter options.
 
 Using separate sensors is advisable when scheduled power should be modeled separately from measured or forecast power.
 This can be useful when you want to avoid filtering by source in queries, when schedules should use a different sign convention, when they should be stored at a different resolution, or when the scheduled quantity has a different operational meaning from the measured quantity.

@@ -9,7 +9,7 @@ What if the solar production is curtailable? We could turn it off when prices ar
 
 This is useful, but also an exciting next step for our modeling: Curtailing its output makes the PV inverter a flexible control, so with the battery, there are now two flexible assets.
 
-We are now moving to multi-asset scheduling. We'll officially be scheduling the building (asset 2).
+We are now moving to multi-asset scheduling. We'll officially be scheduling the building referenced by ``FM_TOY_BUILDING_ASSET_ID``.
 
 We will do this step by step. First, we demonstrate PV curtailment by itself.
 
@@ -22,8 +22,13 @@ PV curtailment
 ---------------------------------------
 We start by curtailing the PV asset only.
 
-To make the PV asset curtailable, we tell FlexMeasures that the PV (represented by sensor 3) can only pick production values between 0 and the production forecast recorded on sensor 3.
-We store the resulting schedule on sensor 3, as well (the FlexMeasures UI will still be able to distinguish forecasts from schedules).
+To make the PV asset curtailable, we tell FlexMeasures that the PV (represented by ``FM_TOY_SOLAR_SENSOR_ID``) can only pick production values between 0 and the production forecast recorded on that same sensor.
+We store the resulting schedule on that solar sensor as well (the FlexMeasures UI will still be able to distinguish forecasts from schedules).
+
+Since the solar sensor will end up holding both the forecast and the schedule, ``production-capacity`` needs to reference only the forecast, not the schedule this very run is about to write.
+We do this with a source filter: ``{"sensor": ${FM_TOY_SOLAR_SENSOR_ID}, "source-types": ["forecaster"]}`` scopes the reference to data recorded by a "forecaster"-type source, so it keeps pointing at the forecast even after the schedule lands on the same sensor.
+We filter by source *type* rather than a specific source ID because forecasters and schedulers are versioned — a version bump gives new data a new source ID, but the source-type stays the same, so this reference doesn't need updating when that happens.
+See :ref:`variable_quantities` for the full set of source filter options.
 
 Also, we want to create a situation with negative prices, so curtailment makes sense. We can pass into the ``flex-context`` a price profile with negative prices during some hours of the day.
 
@@ -48,9 +53,9 @@ Also, we want to create a situation with negative prices, so curtailment makes s
             $ docker cp tutorial3-priceprofile-flex-context.json flexmeasures-server-1:/app/ 
 
             $ # Scheduling only the PV sensor
-            $ docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor 3 \
+            $ docker exec -it flexmeasures-server-1 flexmeasures add schedule --sensor ${FM_TOY_SOLAR_SENSOR_ID} \
             --start ${TOMORROW}T07:00+01:00 --duration PT12H \
-            --flex-model '{"consumption-capacity": "0 kW", "production-capacity": {"sensor": 3, "source": 4}}'\
+            --flex-model '{"consumption-capacity": "0 kW", "production-capacity": {"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"', "source-types": ["forecaster"]}}'\
             --flex-context tutorial3-priceprofile-flex-context.json 
 
     .. tab:: API
@@ -66,7 +71,7 @@ Also, we want to create a situation with negative prices, so curtailment makes s
                 "flex-model": [
                     {
                         "consumption-capacity": "0 kW",
-                        "production-capacity": {"sensor": 3, "source": 4},
+                        "production-capacity": {"sensor": 3, "source-types": ["forecaster"]},
                     }
                 ],
                 "flex-context": {
@@ -104,7 +109,7 @@ Also, we want to create a situation with negative prices, so curtailment makes s
                     flex_model=[
                         {
                             "consumption-capacity": "0 kW",
-                            "production-capacity": {"sensor": 3, "source": 4},
+                            "production-capacity": {"sensor": 3, "source-types": ["forecaster"]},
                         }
                     ],
                     flex_context={
@@ -126,7 +131,7 @@ Great. Let's see what we made:
 .. code-block:: bash
     
     echo "[TUTORIAL-RUNNER] showing PV schedule ..."
-    docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor 3 --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
+    docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
 
     Beliefs for Sensor 'production' (ID 3).
     Data spans 12 hours and starts at 2025-11-29 07:00:00+01:00.
@@ -163,7 +168,7 @@ Multi-asset (building-level) Scheduling
 
 Now - we want to schedule the complete building, including two flexible assets: the battery and the PV inverter.
 
-This means we schedule on the building level (asset 2) and include both the target sensors for both flexible assets in the flex-model.
+This means we schedule on the building level and include both the target sensors for both flexible assets in the flex-model.
 
 Note that we are still passing in the flex-context with block price profiles here, as we did in the previous example - with one block of negative prices.
 
@@ -175,10 +180,10 @@ Note that we are still passing in the flex-context with block price profiles her
             :emphasize-lines: 2,6
             
             $ flexmeasures add schedule \
-                --asset 2 \
+                --asset ${FM_TOY_BUILDING_ASSET_ID} \
                 --start ${TOMORROW}T07:00+01:00 \
                 --duration PT12H \
-                --flex-model '[{"sensor": 3, "consumption-capacity": "0 kW", "production-capacity": {"sensor": 3, "source": 4}}, {"sensor": 2, "soc-at-start": "225 kWh", "soc-min": "50 kWh"}]'\
+                --flex-model '[{"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"', "consumption-capacity": "0 kW", "production-capacity": {"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"', "source-types": ["forecaster"]}}, {"sensor": '"${FM_TOY_BATTERY_SENSOR_ID}"', "soc-at-start": "225 kWh", "soc-min": "50 kWh"}]'\
                 --flex-context tutorial3-priceprofile-flex-context.json 
             New schedule is stored.
 
@@ -195,7 +200,7 @@ Note that we are still passing in the flex-context with block price profiles her
                     {
                         "sensor": 3,
                         "consumption-capacity": "0 kW",
-                        "production-capacity": {"sensor": 3, "source": 4},
+                        "production-capacity": {"sensor": 3, "source-types": ["forecaster"]},
                     }
                     {
                         "sensor": 2,
@@ -234,7 +239,7 @@ Note that we are still passing in the flex-context with block price profiles her
                     {
                         "sensor": 3,  # solar production (sensor ID)
                         "consumption-capacity": "0 kW",
-                        "production-capacity": {"sensor": 3, "source": 4},
+                        "production-capacity": {"sensor": 3, "source-types": ["forecaster"]},
                     },
                     {
                         "sensor": 2,  # battery power (sensor ID)

@@ -349,6 +349,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     id = ma.auto_field(dump_only=True)
     name = fields.Str(required=True)
+    description = fields.Str(required=False, allow_none=True)
     account_id = ma.auto_field()
     owner = ma.Nested("AccountSchema", dump_only=True, only=("id", "name"))
     latitude = LatitudeField(allow_none=True)
@@ -384,30 +385,69 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     @validates_schema(skip_on_field_errors=False)
     def validate_name_is_unique_under_parent(self, data, **kwargs):
         """
-        Validate that name is unique among siblings.
-        This is also checked by a db constraint.
+        Validate that name is unique in its asset context.
+        For child assets, names are unique among siblings.
+        For account-owned root assets, names are unique within the account.
+        For public root assets, names are unique globally.
+        This is also checked by db indexes.
         Here, we can only check if we have all information (a full form),
-        which usually is at creation time.
+        which usually is at creation time or when the existing asset is in context.
         """
 
-        if "name" in data:
-            parent_id = data.get("parent_asset_id", None)
+        context = getattr(self, "context", {})
+        current_asset = context.get("asset")
+        name = data.get("name", getattr(current_asset, "name", None))
+        if name is None:
+            return
 
+        parent_id = data.get(
+            "parent_asset_id", getattr(current_asset, "parent_asset_id", None)
+        )
+        current_editing_id = context.get("asset_id") or getattr(
+            current_asset, "id", None
+        )
+
+        if parent_id is not None:
             query = select(GenericAsset).filter_by(
-                name=data["name"],
+                name=name,
                 parent_asset_id=parent_id,
             )
+            err_msg = (
+                f"An asset with the name '{name}' already exists under parent asset "
+                f"{parent_id}"
+            )
+        else:
+            account_id = data.get(
+                "account_id", getattr(current_asset, "account_id", None)
+            )
+            if account_id is None:
+                query = select(GenericAsset).filter_by(
+                    name=name,
+                    account_id=None,
+                    parent_asset_id=None,
+                )
+                err_msg = (
+                    f"An asset with the name '{name}' already exists as a public "
+                    "top-level asset"
+                )
+            else:
+                query = select(GenericAsset).filter_by(
+                    name=name,
+                    account_id=account_id,
+                    parent_asset_id=None,
+                )
+                err_msg = (
+                    f"An asset with the name '{name}' already exists as a top-level "
+                    f"asset in account {account_id}"
+                )
 
-            current_editing_id = getattr(self, "context", {}).get("asset_id")
+        if current_editing_id is not None:
+            query = query.filter(GenericAsset.id != current_editing_id)
 
-            if current_editing_id is not None:
-                query = query.filter(GenericAsset.id != current_editing_id)
+        existing_asset = db.session.scalars(query).first()
 
-            existing_asset = db.session.scalars(query).first()
-
-            if existing_asset:
-                err_msg = f"An asset with the name '{data['name']}' already exists under parent asset {data.get('parent_asset_id')}"
-                raise ValidationError(err_msg, "name")
+        if existing_asset:
+            raise ValidationError(err_msg, "name")
 
     @validates("generic_asset_type_id")
     def validate_generic_asset_type(self, generic_asset_type_id: int, **kwargs):
@@ -508,6 +548,24 @@ class GenericAssetTypeSchema(ma.SQLAlchemySchema):
 
     class Meta:
         model = GenericAssetType
+
+
+class AssetTypeIdField(MarshmallowClickMixin, fields.Int):
+    """Field that deserializes to a GenericAssetType and serializes back to an integer."""
+
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> GenericAssetType:
+        """Turn a generic asset type id into a GenericAssetType."""
+        asset_type_id: int = super()._deserialize(value, attr, data, **kwargs)
+        asset_type = db.session.get(GenericAssetType, asset_type_id)
+        if asset_type is None:
+            raise FMValidationError(
+                f"No generic asset type found with id {asset_type_id}."
+            )
+        return asset_type
+
+    def _serialize(self, value: GenericAssetType, attr, obj, **kwargs):
+        """Turn a GenericAssetType into a generic asset type id."""
+        return value.id
 
 
 class GenericAssetIdField(MarshmallowClickMixin, fields.Int):

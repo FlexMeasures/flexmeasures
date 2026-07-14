@@ -170,6 +170,37 @@ def test_get_assets(
         assert turbine["account_id"] == setup_accounts["Supplier"].id
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_filtered_by_asset_type(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
+    supplier_account = setup_accounts["Supplier"]
+    supplier_account_id = supplier_account.id
+    supplier_assets = supplier_account.generic_assets
+
+    requested_type_id = supplier_assets[0].generic_asset_type_id
+    expected_assets = [
+        asset
+        for asset in supplier_assets
+        if asset.generic_asset_type_id == requested_type_id
+    ]
+
+    response = client.get(
+        url_for("AssetAPI:index"),
+        query_string={
+            "account_id": supplier_account_id,
+            "asset_type": requested_type_id,
+        },
+    )
+
+    assert response.status_code == 200
+    assert len(response.json) == len(expected_assets)
+    assert all(
+        asset["generic_asset_type"]["id"] == requested_type_id
+        for asset in response.json
+    )
+
+
 @pytest.mark.parametrize(
     "requesting_user, sort_by, sort_dir, expected_name_of_first_sensor",
     [
@@ -219,6 +250,39 @@ def test_fetch_asset_sensors(
 
     if sort_by:
         assert response.json["data"][0]["name"] == expected_name_of_first_sensor
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user_2@seita.nl"], indirect=True
+)
+def test_fetch_asset_sensors_forbidden_without_asset_read_access(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    supplier_asset_id = setup_api_test_data["some gas sensor"].generic_asset_id
+
+    response = client.get(url_for("AssetAPI:asset_sensors", id=supplier_asset_id))
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_fetch_asset_sensors_uses_all_parsed_filter_terms(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    sensor = setup_api_test_data["some gas sensor"]
+
+    response = client.get(
+        url_for("AssetAPI:asset_sensors", id=sensor.generic_asset_id),
+        query_string={"filter": f"does-not-match {sensor.id}"},
+    )
+
+    assert response.status_code == 200
+    assert [s["id"] for s in response.json["data"]] == [sensor.id]
+    assert response.json["filtered-records"] == 1
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -614,24 +678,31 @@ def test_consultancy_user_without_consultant_role(
 
 
 @pytest.mark.parametrize(
-    "parent_name, child_name, fails",
+    "parent_name, child_name, pre_existing_root, fails",
     [
-        ("parent", "child_4", False),
-        (None, "child_1", False),
-        (None, "child_1", True),
-        ("parent", "child_1", True),
+        ("parent", "child_4", False, False),
+        (None, "child_1", False, False),
+        (None, "duplicate_root_name", True, True),
+        ("parent", "child_1", False, True),
     ],
 )
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_post_an_asset_with_existing_name(
-    client, add_asset_with_children, parent_name, child_name, fails, requesting_user, db
+    client,
+    add_asset_with_children,
+    parent_name,
+    child_name,
+    pre_existing_root,
+    fails,
+    requesting_user,
+    db,
 ):
     """Catch DB error (Unique key violated) correctly.
 
     Cases:
         1) Create a child asset
         2) Create an orphan asset with a name that already exists under a parent asset
-        3) Create an orphan asset with an existing name.
+        3) Create an orphan asset with an existing root asset name in the same account.
         4) Create a child asset with a name that already exists among its siblings.
     """
 
@@ -650,9 +721,21 @@ def test_post_an_asset_with_existing_name(
     post_data["account_id"] = requesting_user.account_id
 
     if parent:
-        post_data["parent_asset_id"] = parent.parent_asset_id
+        post_data["parent_asset_id"] = parent.id
     else:
         post_data["parent_asset_id"] = None
+
+    if pre_existing_root:
+        db.session.add(
+            GenericAsset(
+                name=child_name,
+                generic_asset_type=add_asset_with_children[
+                    "child_1"
+                ].generic_asset_type,
+                account_id=requesting_user.account_id,
+            )
+        )
+        db.session.flush()
 
     asset_creation_response = client.post(
         url_for("AssetAPI:post"),
@@ -822,6 +905,65 @@ def test_copy_asset_increments_name_under_same_parent(
     third_copy = copy_asset(battery, parent_asset=parent)
     assert third_copy.parent_asset_id == parent.id
     assert third_copy.name == f"{battery.name} (Copy 3)"
+
+
+def test_copy_template_asset_drops_template_metadata(
+    setup_api_test_data, setup_accounts, db
+):
+    """Copying a template should yield a regular asset in the target account."""
+    prosumer_account = setup_accounts["Prosumer"]
+    battery = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    assert battery is not None
+
+    template_asset = GenericAsset(
+        name="Battery Template",
+        generic_asset_type_id=battery.generic_asset_type_id,
+        account_id=None,
+        description=(
+            "Single battery asset with example power and state-of-charge sensors, "
+            "plus a basic storage flex-model. Copy this to start modeling a battery."
+        ),
+        attributes={"template": {"key": "battery-template", "has_scenarios": False}},
+    )
+    db.session.add(template_asset)
+    db.session.flush()
+    template_sensor = Sensor(
+        name="electricity-power",
+        generic_asset_id=template_asset.id,
+        unit="kW",
+        timezone="UTC",
+        event_resolution=timedelta(minutes=15),
+        attributes={"template_role": "power", "consumption_is_positive": True},
+    )
+    db.session.add(template_sensor)
+    db.session.flush()
+
+    assert template_asset.attributes["template"]["key"] == "battery-template"
+    assert "Copy this" in template_asset.description
+
+    copied_asset = copy_asset(template_asset, account=prosumer_account)
+    copied_sensor = db.session.scalars(
+        select(Sensor).filter_by(generic_asset_id=copied_asset.id)
+    ).one()
+
+    assert copied_asset.account_id == prosumer_account.id
+    assert copied_asset.parent_asset_id is None
+    assert copied_asset.attributes == {}
+    assert copied_asset.description == (
+        "Single battery asset with example power and state-of-charge sensors, "
+        "plus a basic storage flex-model."
+    )
+    assert copied_sensor.attributes == {"consumption_is_positive": True}
+
+    # The source template stays available as a template for future copies.
+    assert template_asset.attributes["template"]["key"] == "battery-template"
+    assert "Copy this" in template_asset.description
+    assert template_sensor.attributes["template_role"] == "power"
 
 
 def test_copy_asset_to_another_account_preserves_config(

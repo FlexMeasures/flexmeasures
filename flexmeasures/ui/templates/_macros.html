@@ -288,6 +288,36 @@
 </table>
 {% endmacro %}
 
+{% macro render_stored_secrets(stored_secrets) %}
+{% if stored_secrets %}
+{% set show_expiry = stored_secrets | selectattr("expires_at", "defined") | list %}
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th scope="col">Stored secret</th>
+      {% if show_expiry %}
+      <th scope="col">Expires</th>
+      {% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for secret in stored_secrets %}
+    <tr>
+      <td scope="row"><span class="font-monospace">{{ secret.path }}</span></td>
+      {% if show_expiry %}
+      <td>
+        {% if secret.expires_at is defined %}
+        <span title="{{ secret.expires_at.isoformat() }}">{{ secret.expires_at | naturalized_datetime }}</span>
+        {% endif %}
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endmacro %}
+
 {#
   Render a button that opens the JSON attributes editor modal.
   Call json_attributes_editor_modal() once on the same page to include the modal + JS.
@@ -599,4 +629,3 @@
 }());
 </script>
 {% endmacro %}
-

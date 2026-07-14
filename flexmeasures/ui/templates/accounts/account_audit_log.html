@@ -17,7 +17,7 @@
                         <th style="display:none;">Event Timestamp</th><!-- Hidden UTC Timestamp column for sorting, Keep at position zero -->
                         <th>Event Datetime</th>
                         <th>Event Name</th>
-                        <th>Active user id</th>
+                        <th>Acting User</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -33,7 +33,7 @@
                             {{ audit_log.event }}
                         </td>
                         <td>
-                            {{ audit_log.active_user_id }}
+                            {{ audit_log.active_user_name }} (Id: {{ audit_log.active_user_id }})
                         </td>
                     </tr>
                     {% endfor %}

@@ -39,6 +39,16 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
+                                    {{ asset_form.description.label(class="control-label") }}
+                                    <div class="col-md-6">
+                                        <small>{{ asset_form.description.description }}</small>
+                                        {{ asset_form.description(class_="form-control", rows="3") }}
+                                        {% for error in asset_form.errors.description %}
+                                        <span style="color: red;">[{{error}}]</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="form-group">
                                     {{ asset_form.latitude.label(class="control-label") }}
                                     <div class="col-md-6">
                                         {{ asset_form.latitude(class_="form-control") }}
@@ -204,8 +214,9 @@
                         </table>
                     </div>
                     <div class="col-md-5">
-                        {% from "_macros.html" import render_attributes %}
+                        {% from "_macros.html" import render_attributes, render_stored_secrets %}
                         {{ render_attributes(asset.attributes) }}
+                        {{ render_stored_secrets(stored_secrets) }}
                     </div>
                 </div>
             </div>

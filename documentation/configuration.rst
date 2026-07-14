@@ -508,6 +508,25 @@ Extra password salt (a.k.a. pepper)
 
 Default: ``None`` (falls back to ``SECRET_KEY``\ )
 
+.. _flexmeasures_secrets_encryption_keys:
+
+FLEXMEASURES_SECRETS_ENCRYPTION_KEYS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Keyring (dictionary with key IDs mapped to key material), used to encrypt and decrypt
+connection secrets stored for accounts and assets. This follows the same shape
+as ``SECURITY_TOTP_SECRETS``, for example
+``{"1": "old-secret", "2": "current-secret"}``.
+
+Newly encrypted values use the highest numeric key ID in this dictionary, or
+the last key ID in lexical order if the IDs are not numeric. Keep previous keys
+in this dictionary until all stored secrets have been re-encrypted with the
+current key.
+
+This setting must be configured before connection secrets can be stored or decrypted.
+
+Default: ``None``
+
 SECURITY_TOKEN_AUTHENTICATION_HEADER
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -572,6 +591,14 @@ FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY
 When ``FLEXMEASURES_ENFORCE_SECURE_CONTENT_POLICY`` is set to ``True``, the ``<meta>`` tag with the ``Content-Security-Policy`` directive, specifically ``upgrade-insecure-requests``, is included in the HTML head. This directive instructs the browser to upgrade insecure requests from ``http`` to ``https``. One example of a use case for this is if you have a load balancer in front of FlexMeasures, which is secured with a certificate and only accepts https.
 
 Default: ``False``
+
+
+TRUSTED_HOSTS
+^^^^^^^^^^^^^^
+
+A Flask setting you should use to prevent host header poisoning. Read more at :ref:`security-best-practices-for-hosts`.
+
+Default: ``None``
 
 
 .. _mail-config:
@@ -753,6 +780,25 @@ FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS
 When ``FLEXMEASURES_MODE=demo``\ , this can hold login credentials (demo user email and password, e.g. ``("demo at seita.nl", "flexdemo")``\ ), so anyone can log in and try out the platform.
 
 Default: ``None``
+
+FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether FlexMeasures should create its built-in starter template assets when the
+application starts.
+
+If ``True``, FlexMeasures provisions a small set of public starter templates,
+such as ``Battery Template``, ``EV Charger Template`` and ``Heat Pump Template``,
+if they do not exist yet. Together with the asset copy workflow, new users will
+find FlexMeasures to be more useful out of the box.
+
+If one of these built-in templates is deleted while this setting remains
+``True``, FlexMeasures will recreate the missing template on the next
+application startup.
+
+If ``False``, no template assets are created automatically at startup.
+
+Default: ``True``
 
 .. _sunset-config:
 
