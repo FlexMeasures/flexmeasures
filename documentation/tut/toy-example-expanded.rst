@@ -102,7 +102,7 @@ This will have an effect on the available headroom for the battery, given the ``
         
     .. tab:: API
 
-        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ (update the start date to tomorrow):
+        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/8/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
             :emphasize-lines: 8-10
@@ -141,7 +141,7 @@ This will have an effect on the available headroom for the battery, given the ``
                     host="localhost:5000",
                 )
                 schedule = await client.trigger_and_get_schedule(
-                    sensor_id=2,  # Battery power (sensor ID)
+                    sensor_id=8,  # Battery power (sensor ID)
                     start=f"{(date.today() + timedelta(days=1)).isoformat()}T07:00+01:00",
                     duration="PT12H",
                     flex_model={

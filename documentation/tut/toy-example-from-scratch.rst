@@ -75,7 +75,7 @@ There is more information being used by the scheduler, such as the battery's cap
 
     .. tab:: API
 
-        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/3/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ (update the start date to tomorrow):
+        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/8/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
 
@@ -83,7 +83,7 @@ There is more information being used by the scheduler, such as the battery's cap
                 "start": "2025-11-11T07:00+01:00",
                 "duration": "PT12H",
                 "flex-model": [
-                    "sensor": 2,
+                    "sensor": 8,
                     "soc-at-start": "225kWh",
                     "soc-min": "50 kWh"
                 ]
@@ -113,7 +113,7 @@ There is more information being used by the scheduler, such as the battery's cap
                     host="localhost:5000",
                 )
                 schedule = await client.trigger_and_get_schedule(
-                    sensor_id=2,  # battery discharging power sensor
+                    sensor_id=8,  # battery discharging power sensor
                     start=f"{(date.today() + timedelta(days=1)).isoformat()}T07:00+01:00",
                     duration="PT12H",
                     flex_model={

@@ -60,7 +60,7 @@ Also, we want to create a situation with negative prices, so curtailment makes s
 
     .. tab:: API
 
-        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/3/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ (update the start date to tomorrow):
+        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/9/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
             :emphasize-lines: 14-18
@@ -71,7 +71,7 @@ Also, we want to create a situation with negative prices, so curtailment makes s
                 "flex-model": [
                     {
                         "consumption-capacity": "0 kW",
-                        "production-capacity": {"sensor": 3, "source-types": ["forecaster"]},
+                        "production-capacity": {"sensor": 9, "source-types": ["forecaster"]},
                     }
                 ],
                 "flex-context": {
@@ -103,13 +103,13 @@ Also, we want to create a situation with negative prices, so curtailment makes s
             
             async def client_script():
                 schedule = await client.trigger_and_get_schedule(
-                    sensor_id=3,  # PV production sensor
+                    sensor_id=9,  # PV production sensor
                     start=f"{date.today().isoformat()}T07:00+01:00",
                     duration="PT12H",
                     flex_model=[
                         {
                             "consumption-capacity": "0 kW",
-                            "production-capacity": {"sensor": 3, "source-types": ["forecaster"]},
+                            "production-capacity": {"sensor": 9, "source-types": ["forecaster"]},
                         }
                     ],
                     flex_context={
@@ -189,7 +189,7 @@ Note that we are still passing in the flex-context with block price profiles her
 
     .. tab:: API
 
-        Example call: `[POST] http://localhost:5000/api/v3_0/assets/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ (update the start date to tomorrow):
+        Example call: `[POST] http://localhost:5000/api/v3_0/assets/5/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
 
@@ -198,12 +198,12 @@ Note that we are still passing in the flex-context with block price profiles her
                 "duration": "PT12H",
                 "flex-model": [
                     {
-                        "sensor": 3,
+                        "sensor": 9,
                         "consumption-capacity": "0 kW",
-                        "production-capacity": {"sensor": 3, "source-types": ["forecaster"]},
+                        "production-capacity": {"sensor": 9, "source-types": ["forecaster"]},
                     }
                     {
-                        "sensor": 2,
+                        "sensor": 8,
                         "soc-at-start": "225 kWh",
                         "soc-min": "50 kWh"
                     },
@@ -237,12 +237,12 @@ Note that we are still passing in the flex-context with block price profiles her
                 duration="PT12H",
                 flex_model=[
                     {
-                        "sensor": 3,  # solar production (sensor ID)
+                        "sensor": 9,  # solar production (sensor ID)
                         "consumption-capacity": "0 kW",
-                        "production-capacity": {"sensor": 3, "source-types": ["forecaster"]},
+                        "production-capacity": {"sensor": 9, "source-types": ["forecaster"]},
                     },
                     {
-                        "sensor": 2,  # battery power (sensor ID)
+                        "sensor": 8,  # battery power (sensor ID)
                         "soc-at-start": "225 kWh",
                         "soc-min": "50 kWh",
                     },
