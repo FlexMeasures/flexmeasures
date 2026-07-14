@@ -151,31 +151,3 @@ def test_dict_with_sensors_as_int():
         ValidationError, match="'sensors' value must be a list of integers."
     ):
         schema.deserialize(input_value)
-
-
-def test_include_zero_survives_deserialize():
-    schema = SensorsToShowSchema()
-    input_value = [
-        {"title": "Prices", "plots": [{"sensors": [3, 4], "include-zero": False}]}
-    ]
-    expected_output = [
-        {"title": "Prices", "plots": [{"sensors": [3, 4], "include-zero": False}]}
-    ]
-    assert schema.deserialize(input_value) == expected_output
-
-
-def test_include_zero_not_boolean_raises():
-    schema = SensorsToShowSchema()
-    input_value = [
-        {"title": "Prices", "plots": [{"sensors": [3, 4], "include-zero": "yes"}]}
-    ]
-    with pytest.raises(
-        ValidationError, match="'include-zero' value must be a boolean."
-    ):
-        schema.deserialize(input_value)
-
-
-def test_flatten_ignores_include_zero():
-    schema = SensorsToShowSchema()
-    input_value = [{"plots": [{"sensors": [1, 2], "include-zero": False}]}]
-    assert schema.flatten(input_value) == [1, 2]

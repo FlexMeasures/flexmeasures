@@ -519,21 +519,8 @@ class GenericAsset(db.Model, AuthModelMixin):
             missed_sensor_ids.extend(inaccessible)
 
             if accessible_sensors:
-                include_zero = (
-                    any(plot.get("include-zero", True) for plot in plots)
-                    if plots
-                    else True
-                )
                 sensors_to_show.append(
-                    {
-                        "title": title,
-                        "plots": [
-                            {
-                                "sensors": accessible_sensors,
-                                "include-zero": include_zero,
-                            }
-                        ],
-                    }
+                    {"title": title, "plots": [{"sensors": accessible_sensors}]}
                 )
 
         if missed_sensor_ids:
