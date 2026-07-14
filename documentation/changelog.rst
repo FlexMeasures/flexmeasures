@@ -41,6 +41,7 @@ Infrastructure / Support
 * Make toy tutorials robust against pre-existing IDs [see `PR #2269 <https://www.github.com/FlexMeasures/flexmeasures/pull/2269>`_]
 * Document multi-tenancy and consultancy tenant structures for hosts [see `PR #2176 <https://www.github.com/FlexMeasures/flexmeasures/pull/2176>`_]
 * Warn hosts when the database schema is not at the latest migration, and skip startup template provisioning until migrations are applied [see `PR #2309 <https://www.github.com/FlexMeasures/flexmeasures/pull/2309>`_]
+* Add a pre-commit hook that blocks image files (png, jpg, gif, bmp, tiff, webp, ico, psd) from being committed outside of ``flexmeasures/ui/static/`` and ``documentation/``, to protect the git history from binary bloat; screenshots belong in the ``FlexMeasures/screenshots`` repo instead [see `PR #TODO <https://www.github.com/FlexMeasures/flexmeasures/pull/TODO>`_]
 
 Bugfixes
 -----------
