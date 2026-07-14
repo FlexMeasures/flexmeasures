@@ -352,6 +352,58 @@ def device_scheduler(  # noqa C901
 
     model.cjg = Set(dimen=3, initialize=commitment_time_device_groups_init)
 
+    # Precompute constraint columns as plain numpy arrays keyed by device/commitment
+    # index. Pyomo calls each ``initialize`` callback once per index tuple, so doing a
+    # pandas ``.iloc`` / scalar lookup inside a callback is O(devices x timesteps)
+    # individual (slow) pandas accesses. Indexing into precomputed numpy arrays gives
+    # identical values (NaN preserved via float dtype) at a fraction of the cost.
+    def _column_array(df, column):
+        """Return a float numpy array for ``column``, or None if the column is absent."""
+        if column not in df.columns:
+            return None
+        return df[column].to_numpy(dtype=float)
+
+    device_min_arr = [_column_array(d, "min") for d in device_constraints]
+    device_max_arr = [_column_array(d, "max") for d in device_constraints]
+    device_equals_arr = [_column_array(d, "equals") for d in device_constraints]
+    device_derivative_max_arr = [
+        _column_array(d, "derivative max") for d in device_constraints
+    ]
+    device_derivative_min_arr = [
+        _column_array(d, "derivative min") for d in device_constraints
+    ]
+    device_derivative_equals_arr = [
+        _column_array(d, "derivative equals") for d in device_constraints
+    ]
+    device_stock_delta_arr = [
+        _column_array(d, "stock delta") for d in device_constraints
+    ]
+    # Efficiency columns may be absent; a None entry signals "assume perfect efficiency".
+    device_efficiency_arr = [_column_array(d, "efficiency") for d in device_constraints]
+    device_derivative_down_efficiency_arr = [
+        _column_array(d, "derivative down efficiency") for d in device_constraints
+    ]
+    device_derivative_up_efficiency_arr = [
+        _column_array(d, "derivative up efficiency") for d in device_constraints
+    ]
+    ems_derivative_max_arr = [
+        _column_array(e, "derivative max") for e in ems_constraints_list
+    ]
+    ems_derivative_min_arr = [
+        _column_array(e, "derivative min") for e in ems_constraints_list
+    ]
+    # Commitment quantities are indexed by their (non-contiguous) "j" values, so map
+    # j -> quantity per commitment instead of doing a boolean mask lookup per (c, j).
+    commitment_quantity_arr = [
+        dict(
+            zip(
+                commitments[c]["j"].to_numpy(),
+                commitments[c]["quantity"].to_numpy(dtype=float),
+            )
+        )
+        for c in range(len(commitments))
+    ]
+
     # Add parameters
     def price_down_select(m, c):
         if "downwards deviation price" not in commitments[c].columns:
@@ -370,15 +422,15 @@ def device_scheduler(  # noqa C901
         return price
 
     def commitment_quantity_select(m, c, j):
-        quantity = commitments[c][commitments[c]["j"] == j]["quantity"].values[0]
+        quantity = commitment_quantity_arr[c][j]
         if np.isnan(quantity):
             return -infinity
         return quantity
 
     def device_max_select(m, d, j):
-        min_v = device_constraints[d]["min"].iloc[j]
-        max_v = device_constraints[d]["max"].iloc[j]
-        equal_v = device_constraints[d]["equals"].iloc[j]
+        min_v = device_min_arr[d][j]
+        max_v = device_max_arr[d][j]
+        equal_v = device_equals_arr[d][j]
         if np.isnan(max_v) and np.isnan(equal_v):
             return infinity
         else:
@@ -389,9 +441,9 @@ def device_scheduler(  # noqa C901
             return np.nanmin([max_v, equal_v])
 
     def device_min_select(m, d, j):
-        min_v = device_constraints[d]["min"].iloc[j]
-        max_v = device_constraints[d]["max"].iloc[j]
-        equal_v = device_constraints[d]["equals"].iloc[j]
+        min_v = device_min_arr[d][j]
+        max_v = device_max_arr[d][j]
+        equal_v = device_equals_arr[d][j]
         if np.isnan(min_v) and np.isnan(equal_v):
             return -infinity
         else:
@@ -402,30 +454,30 @@ def device_scheduler(  # noqa C901
             return np.nanmax([min_v, equal_v])
 
     def device_derivative_max_select(m, d, j):
-        max_v = device_constraints[d]["derivative max"].iloc[j]
-        equal_v = device_constraints[d]["derivative equals"].iloc[j]
+        max_v = device_derivative_max_arr[d][j]
+        equal_v = device_derivative_equals_arr[d][j]
         if np.isnan(max_v) and np.isnan(equal_v):
             return infinity
         else:
             return np.nanmin([max_v, equal_v])
 
     def device_derivative_min_select(m, d, j):
-        min_v = device_constraints[d]["derivative min"].iloc[j]
-        equal_v = device_constraints[d]["derivative equals"].iloc[j]
+        min_v = device_derivative_min_arr[d][j]
+        equal_v = device_derivative_equals_arr[d][j]
         if np.isnan(min_v) and np.isnan(equal_v):
             return -infinity
         else:
             return np.nanmax([min_v, equal_v])
 
     def ems_derivative_max_select(m, g, j):
-        v = ems_constraints_list[g]["derivative max"].iloc[j]
+        v = ems_derivative_max_arr[g][j]
         if np.isnan(v):
             return infinity
         else:
             return v
 
     def ems_derivative_min_select(m, g, j):
-        v = ems_constraints_list[g]["derivative min"].iloc[j]
+        v = ems_derivative_min_arr[g][j]
         if np.isnan(v):
             return -infinity
         else:
@@ -433,36 +485,36 @@ def device_scheduler(  # noqa C901
 
     def device_efficiency(m, d, j):
         """Assume perfect efficiency if no efficiency information is available."""
-        try:
-            eff = device_constraints[d]["efficiency"].iloc[j]
-        except KeyError:
+        eff_arr = device_efficiency_arr[d]
+        if eff_arr is None:
             return 1
+        eff = eff_arr[j]
         if np.isnan(eff):
             return 1
         return eff
 
     def device_derivative_down_efficiency(m, d, j):
         """Assume perfect efficiency if no efficiency information is available."""
-        try:
-            eff = device_constraints[d]["derivative down efficiency"].iloc[j]
-        except KeyError:
+        eff_arr = device_derivative_down_efficiency_arr[d]
+        if eff_arr is None:
             return 1
+        eff = eff_arr[j]
         if np.isnan(eff):
             return 1
         return eff
 
     def device_derivative_up_efficiency(m, d, j):
         """Assume perfect efficiency if no efficiency information is available."""
-        try:
-            eff = device_constraints[d]["derivative up efficiency"].iloc[j]
-        except KeyError:
+        eff_arr = device_derivative_up_efficiency_arr[d]
+        if eff_arr is None:
             return 1
+        eff = eff_arr[j]
         if np.isnan(eff):
             return 1
         return eff
 
     def device_stock_delta(m, d, j):
-        return device_constraints[d]["stock delta"].iloc[j]
+        return device_stock_delta_arr[d][j]
 
     def grouped_commitment_equalities(m, c, j, g):
         """
