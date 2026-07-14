@@ -171,6 +171,28 @@ def test_get_assets(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_sort_by_owner_uses_account_name(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
+    """Sorting by 'owner' should order by the account's name, not its (arbitrary) id."""
+    account_name_by_id = {
+        account.id: account.name for account in setup_accounts.values()
+    }
+
+    query = {"all_accessible": True, "sort_by": "owner", "sort_dir": "asc"}
+    response = client.get(url_for("AssetAPI:index"), query_string=query)
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+
+    account_names_seen = [
+        account_name_by_id.get(asset["account_id"])
+        for asset in response.json
+        if asset["account_id"] is not None
+    ]
+    assert account_names_seen == sorted(account_names_seen)
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_assets_filtered_by_asset_type(
     client, setup_api_test_data, setup_accounts, requesting_user
 ):

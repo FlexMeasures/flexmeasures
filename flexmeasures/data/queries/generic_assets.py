@@ -183,10 +183,18 @@ def query_assets_by_search_terms(
 ) -> Select:
     select_statement = select(GenericAsset)
 
+    # Sorting by "owner" uses a correlated scalar subquery (rather than a join)
+    # so it doesn't change the query's FROM clause, which filter_assets_under_root
+    # relies on being just the (aliased) GenericAsset table.
+    account_name_subquery = (
+        select(Account.name)
+        .where(Account.id == GenericAsset.account_id)
+        .scalar_subquery()
+    )
     valid_sort_columns = {
         "id": GenericAsset.id,
         "name": GenericAsset.name,
-        "owner": GenericAsset.account_id,
+        "owner": account_name_subquery,
     }
 
     # Initialize base query
