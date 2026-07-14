@@ -192,6 +192,175 @@ TEXT_LAYER = {
         },
     },
 }
+# Warm warning hue for 'alert' annotations, legible in both light and dark themes
+ANNOTATION_ALERT_COLOR = "#d9822b"
+ANNOTATION_DEFAULT_COLOR = "var(--gray)"
+ANNOTATION_RESTING_OPACITY = 0.2
+ANNOTATION_HOVER_OPACITY = 0.55
+ANNOTATION_SELECT_OPACITY = 0.65
+
+ANNOTATION_COLOR_ENCODING = {
+    "condition": [
+        {
+            "test": "datum.type == 'alert'",
+            "value": ANNOTATION_ALERT_COLOR,
+        },
+    ],
+    "value": ANNOTATION_DEFAULT_COLOR,
+}
+ANNOTATION_SHARED_TRANSFORMS = [
+    # Alias the event_start field, so that x-encoded selections defined in
+    # sibling layers can compute their tuples from annotation datums, too
+    {"calculate": "datum.start", "as": "event_start"},
+    # Join the (wrapped) content lines into a single text for the tooltip
+    {"calculate": "join(datum.content, ' ')", "as": "content_text"},
+]
+ANNOTATION_TOOLTIP = [
+    {"field": "content_text", "type": "nominal", "title": "Annotation"},
+    {"field": "type", "type": "nominal", "title": "Type"},
+    {"field": "source", "type": "nominal", "title": "Source"},
+    {"field": "start", "type": "temporal", "title": "From", "format": TIME_FORMAT},
+    {"field": "end", "type": "temporal", "title": "Until", "format": TIME_FORMAT},
+]
+
+
+def create_annotation_layers(
+    annotations_dataset_name: str, row_index: int
+) -> list[dict]:
+    """Create annotation layers for one subchart (row) of a vconcat chart.
+
+    All rows bind to the same named annotations dataset, but each row gets its
+    own hover/select params, so that hovering an annotation band darkens it only
+    in the hovered subchart, while the other subcharts keep the light shading.
+
+    Returns three layers:
+    - a full-height rect band for annotations with a non-zero duration
+    - a rule for instant (zero-duration) annotations
+    - a triangle marker at the top of each instant-annotation rule
+    """
+    highlight_param = f"annotation_highlight_{row_index}"
+    select_param = f"annotation_select_{row_index}"
+    rule_highlight_param = f"annotation_rule_highlight_{row_index}"
+    rule_select_param = f"annotation_rule_select_{row_index}"
+    start_field_definition = dict(
+        field="start",
+        type="temporal",
+        title=None,
+    )
+    band_layer = {
+        "name": f"annotation_band_{row_index}",
+        "data": {"name": annotations_dataset_name},
+        "transform": [
+            {"filter": "datum.start != datum.end"},
+            *ANNOTATION_SHARED_TRANSFORMS,
+        ],
+        "mark": {"type": "rect", "clip": True},
+        "encoding": {
+            "x": start_field_definition,
+            "x2": dict(field="end", title=None),
+            "color": ANNOTATION_COLOR_ENCODING,
+            "opacity": {
+                "condition": [
+                    {
+                        "param": select_param,
+                        "empty": False,
+                        "value": ANNOTATION_SELECT_OPACITY,
+                    },
+                    {
+                        "param": highlight_param,
+                        "empty": False,
+                        "value": ANNOTATION_HOVER_OPACITY,
+                    },
+                ],
+                "value": ANNOTATION_RESTING_OPACITY,
+            },
+            "tooltip": ANNOTATION_TOOLTIP,
+        },
+        "params": [
+            {
+                "name": highlight_param,
+                "select": {"type": "point", "on": "mouseover", "clear": "mouseout"},
+            },
+            {"name": select_param, "select": "point"},
+        ],
+    }
+    rule_layer = {
+        "name": f"annotation_rule_{row_index}",
+        "data": {"name": annotations_dataset_name},
+        "transform": [
+            {"filter": "datum.start == datum.end"},
+            *ANNOTATION_SHARED_TRANSFORMS,
+        ],
+        "mark": {"type": "rule", "clip": True, "strokeWidth": 2},
+        "encoding": {
+            "x": start_field_definition,
+            "color": ANNOTATION_COLOR_ENCODING,
+            "opacity": {
+                "condition": [
+                    {
+                        "param": rule_select_param,
+                        "empty": False,
+                        "value": 1,
+                    },
+                    {
+                        "param": rule_highlight_param,
+                        "empty": False,
+                        "value": 0.9,
+                    },
+                ],
+                "value": 0.5,
+            },
+            "tooltip": ANNOTATION_TOOLTIP,
+        },
+        "params": [
+            {
+                "name": rule_highlight_param,
+                "select": {"type": "point", "on": "mouseover", "clear": "mouseout"},
+            },
+            {"name": rule_select_param, "select": "point"},
+        ],
+    }
+    marker_layer = {
+        "name": f"annotation_marker_{row_index}",
+        "data": {"name": annotations_dataset_name},
+        "transform": [
+            {"filter": "datum.start == datum.end"},
+            *ANNOTATION_SHARED_TRANSFORMS,
+        ],
+        "mark": {
+            "type": "point",
+            "shape": "triangle-down",
+            "filled": True,
+            "size": 60,
+            "clip": True,
+        },
+        "encoding": {
+            "x": start_field_definition,
+            "y": {"value": 4},
+            "color": ANNOTATION_COLOR_ENCODING,
+            "opacity": {"value": 0.9},
+        },
+    }
+    return [band_layer, rule_layer, marker_layer]
+
+
+def add_annotation_layers_to_vconcat(
+    chart_specs: dict, annotations_dataset_name: str
+) -> None:
+    """Add annotation layers to each subchart of a vertically concatenated chart.
+
+    The layers are appended on top of the data layers, so that the annotation
+    bands can receive hover events and show their own tooltip.
+    """
+    for row_index, row_specs in enumerate(chart_specs.get("vconcat", [])):
+        if "layer" not in row_specs:
+            continue
+        row_specs["layer"] = [
+            *row_specs["layer"],
+            *create_annotation_layers(annotations_dataset_name, row_index),
+        ]
+
+
 LEGIBILITY_DEFAULTS = dict(
     config=dict(
         axis=dict(
@@ -251,7 +420,12 @@ def apply_chart_defaults(fn):
 
         if dataset_name:
             chart_specs["data"] = {"name": dataset_name}
-            if include_annotations:
+            if include_annotations and "vconcat" in chart_specs:
+                # Add annotation bands to each subchart of a vconcat chart
+                add_annotation_layers_to_vconcat(
+                    chart_specs, dataset_name + "_annotations"
+                )
+            elif include_annotations:
                 annotation_shades_layer = SHADE_LAYER
                 annotation_text_layer = TEXT_LAYER
                 annotation_shades_layer["data"] = {
