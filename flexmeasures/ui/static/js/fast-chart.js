@@ -554,7 +554,50 @@ function singlePointTooltip(meta, value) {
   ]);
 }
 
-function seriesTooltipFormatter(seriesMeta) {
+// Choose, among the axis-trigger params (one point per series at the ruler), the
+// one whose data point is closest to the cursor. Since every series shares the
+// ruler's x, the distance is dominated by the vertical gap to each line, so the
+// tooltip reflects the line actually being hovered and switches from sensor to
+// sensor as the cursor moves between traces (like the Vega-Lite charts).
+function pickNearestParam(params, instance) {
+  const pointer = instance && instance._pointerPixel;
+  const chart = instance && instance.chart;
+  if (pointer && chart) {
+    let best = null;
+    let bestDist = Infinity;
+    for (const p of params) {
+      if (!p.value) continue;
+      let px;
+      try {
+        px = chart.convertToPixel({ seriesIndex: p.seriesIndex }, [p.value[0], p.value[1]]);
+      } catch (e) {
+        px = null;
+      }
+      if (!px) continue;
+      const dist = (px[0] - pointer[0]) ** 2 + (px[1] - pointer[1]) ** 2;
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = p;
+      }
+    }
+    if (best) return best;
+  }
+  // Fallback (no pointer yet): the point closest to the ruler's x position.
+  const ref = params[0].axisValue;
+  let best = params[0];
+  let bestDist = Infinity;
+  for (const p of params) {
+    const x = p.value && p.value[0];
+    const dist = typeof x === "number" && typeof ref === "number" ? Math.abs(x - ref) : 0;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = p;
+    }
+  }
+  return best;
+}
+
+function seriesTooltipFormatter(seriesMeta, instance) {
   return function (params) {
     // Axis trigger passes an array of the series' points near the ruler; item
     // trigger passes a single point. In both cases we show just the nearest one,
@@ -563,18 +606,7 @@ function seriesTooltipFormatter(seriesMeta) {
       if (params.length === 0) {
         return "";
       }
-      // Pick the point closest to the ruler position (params[i].axisValue).
-      const ref = params[0].axisValue;
-      let best = params[0];
-      let bestDist = Infinity;
-      for (const p of params) {
-        const x = p.value && p.value[0];
-        const dist = typeof x === "number" && typeof ref === "number" ? Math.abs(x - ref) : 0;
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = p;
-        }
-      }
+      const best = pickNearestParam(params, instance);
       return singlePointTooltip(seriesMeta[best.seriesIndex], best.value);
     }
     if (params.componentType === "legend") {
@@ -940,7 +972,7 @@ function buildLineBarOption(elementId, groups, opts) {
       trigger: "axis",
       confine: true,
       axisPointer: { type: "line" },
-      formatter: seriesTooltipFormatter(seriesMeta),
+      formatter: seriesTooltipFormatter(seriesMeta, instance),
     },
     toolbox: toolbox,
     dataZoom: [
@@ -1582,6 +1614,21 @@ export function renderFastChart(elementId, data, options) {
 
   wireAnnotationHover(instance, opts);
   wireSessionTooltipRedirect(instance, opts);
+  wirePointerTracking(instance);
+}
+
+// Track the cursor's canvas pixel position so the axis-trigger tooltip formatter
+// can pick the series whose point is nearest to it (see pickNearestParam), making
+// the tooltip reflect the line actually being hovered.
+function wirePointerTracking(instance) {
+  const zr = instance.chart.getZr();
+  if (instance.onPointerMove) {
+    zr.off("mousemove", instance.onPointerMove);
+  }
+  instance.onPointerMove = (e) => {
+    instance._pointerPixel = [e.offsetX, e.offsetY];
+  };
+  zr.on("mousemove", instance.onPointerMove);
 }
 
 // The wide invisible hit-area series added per session segment (see
