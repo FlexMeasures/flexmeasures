@@ -82,6 +82,11 @@
     {% endif %}
     chartSpecsPath = dataPath + '/chart?';
 
+    // Chart types whose specs include annotation layers bound to the <datasetName>_annotations dataset
+    function chartSupportsAnnotations() {
+        return chartType === 'bar_chart' || chartType === 'chart_for_multiple_sensors';
+    }
+
     {% if event_starts_after and event_ends_before %}
     sessionStart = new Date('{{ event_starts_after }}');
     sessionEnd = new Date('{{ event_ends_before }}');
@@ -154,7 +159,7 @@
                     return;
                 }
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(previousResult.data)).resize().run();
-                if (chartType === "bar_chart") {
+                if (chartSupportsAnnotations() && previousResult.annotations) {
                     vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(previousResult.annotations)).resize().run();
                 }
             });
@@ -524,7 +529,6 @@
     checkDSTTransitions(startDate, endDate)
     Promise.all([
         fetchGraphDataAndKPIs(previousResult, startDate, endDate, queryStartDate, queryEndDate),
-        {% if active_page == "sensors" %}
         // Fetch annotations
         fetch(dataPath + '/chart_annotations?event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate, {
             method: "GET",
@@ -532,7 +536,6 @@
             signal: signal,
         })
         .then(function(response) { return response.json(); }),
-        {% endif %}
 
         // Embed chart
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
@@ -544,12 +547,10 @@
             end: endDate,
             data: result[0]
         };
-        {% if active_page == "sensors" %}
-            previousResult["annotations"] = result[1]
-        {% endif %}
+        previousResult["annotations"] = result[1]
         checkSourceMasking(previousResult.data);
         playBackDataLoadedForKnownDateRange = false;
-        if (chartType === "bar_chart") {
+        if (chartSupportsAnnotations()) {
             vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
         }
     }).catch(console.error);
@@ -592,7 +593,7 @@
                     return item.event_start >= startDate.getTime() && item.event_start < endDate.getTime();
                 })
                 vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(slicedPreviousData)).resize().run();
-                if (chartType === "bar_chart") {
+                if (chartSupportsAnnotations() && previousResult.annotations) {
                     vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(previousResult.annotations)).resize().run();
                 }
             }
