@@ -343,7 +343,7 @@ Let's look at the price data we just loaded:
 
     $ flexmeasures show beliefs --sensor ${FM_TOY_PRICE_SENSOR_ID} --start ${TOMORROW}T00:00:00+01:00 --duration PT24H
     
-    Beliefs for Sensor 'day-ahead prices' (ID 1).
+    Beliefs for Sensor 'day-ahead prices' (ID 7).
     Data spans a day and starts at 2025-11-11 00:00:00+01:00.
     The time resolution (x-axis) is an hour.
     ┌────────────────────────────────────────────────────────────┐
@@ -370,7 +370,7 @@ Let's look at the price data we just loaded:
 
 
 
-Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5000/sensors/1>`_:
+Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5000/sensors/7>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-prices.png
     :align: center
