@@ -223,7 +223,7 @@ class MetaStorageScheduler(Scheduler):
             sensors: list[Sensor | None] = [fm.get("sensor") for fm in device_models]
             assets: list[Asset | None] = [  # noqa: F841
                 s.asset if s is not None else flex_model_d.get("asset")
-                for s, flex_model_d in zip(sensors, self.flex_model)
+                for s, flex_model_d in zip(sensors, device_models)
             ]
             if resolution is None:
                 # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
@@ -1471,6 +1471,24 @@ class MetaStorageScheduler(Scheduler):
                 ).load(sensor_flex_model["sensor_flex_model"])
                 self.flex_model[d]["sensor"] = sensor_flex_model.get("sensor")
                 self.flex_model[d]["asset"] = sensor_flex_model.get("asset")
+
+                # Devices that reference their power sensor only via a nested output
+                # reference (e.g. {"consumption": {"sensor": N}}) have no top-level
+                # "sensor". Without one they would be misclassified as stock-only in
+                # _prepare() and silently dropped from the schedule. Resolve the power
+                # sensor from the output reference so the device is scheduled and its
+                # schedule is saved to its declared output sensor.
+                if self.flex_model[d]["sensor"] is None:
+                    for output_field in ("consumption", "production"):
+                        output_ref = self.flex_model[d].get(output_field)
+                        if isinstance(output_ref, dict):
+                            output_sensor = output_ref.get("sensor")
+                            if isinstance(output_sensor, Sensor):
+                                self.flex_model[d]["sensor"] = output_sensor
+                                break
+                            elif isinstance(output_sensor, SensorReference):
+                                self.flex_model[d]["sensor"] = output_sensor.sensor
+                                break
 
                 # Extend schedule period in case a target exceeds its end
                 self.possibly_extend_end(

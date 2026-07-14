@@ -11,6 +11,7 @@ from pandas.tseries.frequencies import to_offset
 from sqlalchemy import select
 
 from flexmeasures.data.models.data_sources import DataSource
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import TimedBelief
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning import Scheduler
@@ -26,10 +27,12 @@ from flexmeasures.data.models.planning.tests.utils import (
     check_constraints,
     get_sensors_from_db,
 )
+from flexmeasures.data.models.planning.tests.utils import series_to_ts_specs
 from flexmeasures.data.models.planning.utils import (
     initialize_device_commitment,
     initialize_df,
     initialize_energy_commitment,
+    initialize_index,
     initialize_series,
 )
 from flexmeasures.data.schemas.sensors import TimedEventSchema
@@ -3242,6 +3245,152 @@ def test_prefer_full_storage_skips_non_storage_devices(db, building):
         result.get("name") == "storage_schedule" and result.get("sensor") == battery
         for result in schedule
     )
+
+
+def test_multi_device_flex_model_alignment(db, building, setup_generic_asset_types):
+    """Regression test for two bugs in multi-device storage scheduling.
+
+    The flex-model lists two devices under a common parent asset:
+
+    - Device A: a normal storage device with a top-level ``sensor`` and no explicit
+      ``power-capacity`` (so its capacity is looked up from its own asset's flex-model,
+      a small 1 kW).
+    - Device B: a storage device whose power sensor is referenced only via a nested
+      ``consumption`` output reference (no top-level ``sensor``), with its own
+      state-of-charge sensor and a much larger 9 kW ``power-capacity``.
+
+    Device B is listed first so that, on unfixed code, filtering it out shifts the
+    device/asset alignment for device A.
+
+    Two bugs manifest without the fixes:
+
+    1. Device B is silently dropped (misclassified as a stock-only entry because it has
+       no top-level ``sensor``), so its consumption output sensor never receives a
+       schedule.
+    2. Because B is dropped, the remaining device A picks up B's (larger) power capacity
+       through the misaligned zip in ``_prepare`` / ``_get_device_power_capacity``,
+       letting A charge above its own 1 kW capacity.
+    """
+    parent = building
+    battery_type = setup_generic_asset_types["battery"]
+    owner = parent.owner
+
+    resolution = timedelta(hours=1)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2020, 1, 1))
+    end = start + 4 * resolution
+    end_iso = end.isoformat()
+
+    def make_device(name: str, power_capacity: str) -> tuple[Sensor, Sensor]:
+        asset = GenericAsset(
+            name=name,
+            generic_asset_type=battery_type,
+            owner=owner,
+            parent_asset_id=parent.id,
+            flex_model={"power-capacity": power_capacity},
+        )
+        db.session.add(asset)
+        db.session.flush()
+        power_sensor = Sensor(
+            name=f"{name} power",
+            generic_asset=asset,
+            event_resolution=resolution,
+            unit="kW",
+        )
+        soc_sensor = Sensor(
+            name=f"{name} soc",
+            generic_asset=asset,
+            event_resolution=timedelta(0),
+            unit="kWh",
+        )
+        db.session.add_all([power_sensor, soc_sensor])
+        db.session.flush()
+        return power_sensor, soc_sensor
+
+    # Device A: small (1 kW) capacity, provided only via its asset's flex-model.
+    a_power, a_soc = make_device("device A", "1 kW")
+    # Device B: larger (9 kW) capacity, power sensor referenced only via "consumption".
+    b_power, b_soc = make_device("device B", "9 kW")
+    b_output = Sensor(
+        name="device B consumption output",
+        generic_asset=b_power.generic_asset,
+        event_resolution=resolution,
+        unit="kW",
+    )
+    db.session.add(b_output)
+    db.session.commit()
+
+    # Make the first slot the cheapest so that a device allowed to exceed 1 kW would
+    # front-load its charging into slot 0 (revealing the wrong, larger capacity).
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    consumption_prices = pd.Series([1, 100, 100, 100], index=index)
+
+    # Device B is listed first, so dropping it (bug 2) shifts the alignment for device A.
+    flex_model = [
+        {
+            "state-of-charge": {"sensor": b_soc.id},
+            "consumption": {"sensor": b_output.id},
+            "power-capacity": "9 kW",
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-minima": [{"datetime": end_iso, "value": "2 kWh"}],
+        },
+        {
+            "sensor": a_power.id,
+            "state-of-charge": {"sensor": a_soc.id},
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-minima": [{"datetime": end_iso, "value": "4 kWh"}],
+        },
+    ]
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=parent,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "100 kW",
+            "soc-minima-breach-price": "6000 EUR/kWh",
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+
+    # Bug 1: device A must respect its own 1 kW capacity, not device B's 9 kW.
+    a_schedule = next(
+        r["data"]
+        for r in results
+        if r.get("name") == "storage_schedule" and r.get("sensor") is a_power
+    )
+    # Charge is in kW (sensor unit); allow a small numerical tolerance.
+    assert (a_schedule <= 1 + 1e-3).all(), (
+        "Device A charged above its own 1 kW power capacity, "
+        "indicating it inherited device B's larger capacity through a misaligned zip."
+    )
+    # Sanity: device A still meets its 4 kWh soc-minimum (1 kW across all four hours).
+    np.testing.assert_allclose(a_schedule.values, 1.0, atol=1e-3)
+
+    # Bug 2: device B must be scheduled and its consumption output sensor must receive data.
+    consumption_result = next(
+        (
+            r
+            for r in results
+            if r.get("name") == "consumption_schedule" and r.get("sensor") is b_output
+        ),
+        None,
+    )
+    assert (
+        consumption_result is not None
+    ), "Device B was dropped: its consumption output sensor received no schedule."
+    # Device B charges 2 kWh in total (consumption is positive).
+    b_consumption = consumption_result["data"]
+    np.testing.assert_allclose(b_consumption.sum(), 2.0, atol=1e-3)
 
 
 def test_multiple_devices_sequential_scheduler():

@@ -53,6 +53,7 @@ Bugfixes
 * Let storage scheduling treat missing constant SoC bounds as unconstrained lower or upper bounds [see `PR #2221 <https://www.github.com/FlexMeasures/flexmeasures/pull/2221>`_]
 * Allow root assets belonging to different accounts to share the same name, while keeping asset names unique among root assets within the same account and among children of the same parent [see `PR #2226 <https://www.github.com/FlexMeasures/flexmeasures/pull/2226>`_]
 * Fix queued train-predict forecasting jobs losing their resolved forecast window or failing on detached database objects in workers [see `PR #2035 <https://www.github.com/FlexMeasures/flexmeasures/pull/2035>`_]
+* Fix multi-device storage scheduling misaligning devices with their assets when any flex-model entry is filtered out, which let a device inherit another device's power capacity and could silently drop a device (referencing its power sensor only through a nested ``consumption``/``production`` output reference) from the schedule [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 
 
 v0.33.1 | July 1, 2026
