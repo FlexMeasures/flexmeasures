@@ -37,14 +37,13 @@ Before moving forward, we'll add the `process` asset and three sensors to store 
     $ eval "$(flexmeasures add toy-account --kind process --shell-vars | grep '^FM_TOY_')"
     
     User with email toy-user@flexmeasures.io already exists in account Docker Toy Account.
-    The sensor recording day-ahead prices is day-ahead prices (ID: 1).
-    Created <GenericAsset 5: 'toy-process' (process)>
-    Created <Sensor 4: Power (Inflexible), unit: kW res.: 0:15:00>
-    Created <Sensor 5: Power (Breakable), unit: kW res.: 0:15:00>
-    Created <Sensor 6: Power (Shiftable), unit: kW res.: 0:15:00>
-    The sensor recording the power of the inflexible load is Power (Inflexible) (ID: 4).
-    The sensor recording the power of the breakable load is Power (Breakable) (ID: 5).
-    The sensor recording the power of the shiftable load is Power (Shiftable) (ID: 6).
+    FM_TOY_ACCOUNT_ID=1
+    FM_TOY_PRICE_SENSOR_ID=7
+    FM_TOY_BUILDING_ASSET_ID=5
+    FM_TOY_PROCESS_ASSET_ID=8
+    FM_TOY_PROCESS_INFLEXIBLE_SENSOR_ID=10
+    FM_TOY_PROCESS_BREAKABLE_SENSOR_ID=11
+    FM_TOY_PROCESS_SHIFTABLE_SENSOR_ID=12
 
 
 Trigger an updated schedule
@@ -91,7 +90,7 @@ Results
 ---------
 
 The image below shows the resulting schedules following each of the three policies.
-You will see similar results in your `FlexMeasures UI <http://localhost:5000/assets/6/graphs>`_. 
+You will see similar results in your `FlexMeasures UI <http://localhost:5000/assets/8/graphs>`_.
 
  
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-process.png

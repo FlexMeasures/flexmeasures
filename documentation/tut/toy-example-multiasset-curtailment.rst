@@ -133,7 +133,7 @@ Great. Let's see what we made:
     echo "[TUTORIAL-RUNNER] showing PV schedule ..."
     docker exec -it flexmeasures-server-1 flexmeasures show beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --start ${TOMORROW}T07:00:00+01:00 --duration PT12H
 
-    Beliefs for Sensor 'production' (ID 3).
+    Beliefs for Sensor 'production' (ID 9).
     Data spans 12 hours and starts at 2025-11-29 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
     ┌────────────────────────────────────────────────────────────┐
@@ -264,7 +264,7 @@ The PV inverter should then not need to curtail any production, as the battery c
 
 And the battery should get rid of this energy again when prices go up later in the day.
 
-We can confirm this is the case on the updated scheduling in the `FlexMeasures UI <http://localhost:5000/assets/2/graphs>`_:
+We can confirm this is the case on the updated scheduling in the `FlexMeasures UI <http://localhost:5000/assets/5/graphs>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-multiasset-negativeprices.png
     :align: center

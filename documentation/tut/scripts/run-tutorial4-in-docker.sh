@@ -27,4 +27,4 @@ docker exec -it $CONTAINER_NAME flexmeasures add schedule --sensor ${FM_TOY_PROC
   --flex-context '{"consumption-price": {"sensor": '"${FM_TOY_PRICE_SENSOR_ID}"'}}' \
   --flex-model '{"duration": "PT4H", "process-type": "SHIFTABLE", "power": 200, "time-restrictions": [{"start": "'"${TOMORROW}"'T15:00:00+02:00", "duration": "PT1H"}]}'
 
-echo "Now visit http://localhost:5000/assets/6/graphs to see all three schedules."
+echo "Now visit http://localhost:5000/assets/8/graphs to see all three schedules."

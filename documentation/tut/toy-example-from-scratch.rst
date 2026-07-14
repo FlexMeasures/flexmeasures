@@ -135,7 +135,7 @@ Great. Let's see what we made:
 
 .. code-block:: bash
 
-    Beliefs for Sensor 'discharging' (ID 2).
+    Beliefs for Sensor 'discharging' (ID 8).
     Data spans 12 hours and starts at 2025-11-29 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
     ┌────────────────────────────────────────────────────────────┐
@@ -163,7 +163,7 @@ Great. Let's see what we made:
 
 Here, negative values denote output from the grid, so that's when the battery gets charged.
 
-We can also look at the charging schedule in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_ (reachable via the asset page for the battery):
+We can also look at the charging schedule in the `FlexMeasures UI <http://localhost:5000/sensors/8>`_ (reachable via the asset page for the battery):
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
@@ -173,7 +173,7 @@ Recall that we only asked for a 12 hour schedule here. We started our schedule *
 
 Our scheduler didn't have many opportunities to optimize, but it found some. This battery can fully charge in around an hour, and therefore, it runs two cycles. For instance, in the second cycle it buys at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
 
-The `battery's graph dashboard <http://localhost:5000/assets/3/graphs>`_ shows both prices and the schedule.
+The `battery's graph dashboard <http://localhost:5000/assets/6/graphs>`_ shows both prices and the schedule.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-without-solar.png
     :align: center
