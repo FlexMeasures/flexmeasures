@@ -90,6 +90,10 @@ class Plan(db.Model):
     # For consultancy accounts, capping the number of client accounts they may manage.
     max_clients = Column(Integer, nullable=True)
 
+    # A plan usually reflects a contractual agreement, so rather than editing one that accounts are on,
+    # retire it: a legacy plan keeps applying to the accounts already on it, but is no longer handed out.
+    legacy = Column(Boolean, nullable=False, default=False, server_default="false")
+
     def __repr__(self):
         return "<Plan %s (ID:%s)>" % (self.name, self.id)
 

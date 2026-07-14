@@ -9,9 +9,9 @@ import pandas as pd
 from flask import current_app as app
 from flask.cli import with_appcontext
 import json
-from flexmeasures.data.models.user import Account
+from flexmeasures.data.models.user import Account, Plan, RateLimitKey
 from flexmeasures.data.schemas.account import AccountIdField
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from flexmeasures import Sensor, Asset
 from flexmeasures.data import db
@@ -27,6 +27,7 @@ from flexmeasures.cli.utils import (
     DeprecatedOption,
     DeprecatedOptionsCommand,
     abort,
+    validate_rate_limit_cli,
 )
 from flexmeasures.utils.flexmeasures_inflection import pluralize
 from flexmeasures.utils.secrets_utils import store_account_secret, store_asset_secret
@@ -51,6 +52,86 @@ def _resolve_secret_path(
 @click.group("edit")
 def fm_edit_data():
     """FlexMeasures: Edit data."""
+
+
+@fm_edit_data.command("plan")
+@with_appcontext
+@click.option("--name", required=True, help="Name of the plan to edit.")
+@click.option(
+    "--default-rate-limit",
+    callback=validate_rate_limit_cli,
+    help="How often accounts on this plan may call any API endpoint, e.g. '1000 per minute'."
+    " Pass 'unlimited' to exempt them.",
+)
+@click.option(
+    "--trigger-rate-limit",
+    callback=validate_rate_limit_cli,
+    help="How often accounts on this plan may trigger a schedule or forecast, e.g. '60 per 5 minutes'."
+    " Pass 'unlimited' to exempt them.",
+)
+@click.option(
+    "--rate-limit-key",
+    type=click.Choice([key.value for key in RateLimitKey]),
+    help="What the trigger rate limit is counted against.",
+)
+@click.option(
+    "--max-users", type=int, help="How many users an account on this plan may have."
+)
+@click.option(
+    "--max-assets", type=int, help="How many assets an account on this plan may have."
+)
+@click.option(
+    "--max-clients",
+    type=int,
+    help="How many client accounts a consultancy account on this plan may have.",
+)
+@click.option(
+    "--legacy/--no-legacy",
+    default=None,
+    help="Retire this plan (or bring it back). A legacy plan keeps applying to the accounts already on it,"
+    " but is no longer offered when assigning a plan.",
+)
+def edit_plan(
+    name: str,
+    default_rate_limit: str | None,
+    trigger_rate_limit: str | None,
+    rate_limit_key: str | None,
+    max_users: int | None,
+    max_assets: int | None,
+    max_clients: int | None,
+    legacy: bool | None,
+):
+    """
+    Edit a plan's rate limits and quotas, or retire it.
+
+    Only the fields you pass are changed. A plan usually reflects a contractual agreement,
+    so consider retiring a plan (--legacy) and creating a new one, rather than editing one
+    which accounts are on.
+    """
+    plan = db.session.execute(select(Plan).filter_by(name=name)).scalar_one_or_none()
+    if plan is None:
+        abort(f"Plan '{name}' does not exist.")
+
+    updates = {
+        "default_rate_limit": default_rate_limit,
+        "trigger_rate_limit": trigger_rate_limit,
+        "rate_limit_key": RateLimitKey(rate_limit_key) if rate_limit_key else None,
+        "max_users": max_users,
+        "max_assets": max_assets,
+        "max_clients": max_clients,
+        "legacy": legacy,
+    }
+    updates = {field: value for field, value in updates.items() if value is not None}
+    if not updates:
+        abort("Nothing to edit. Pass at least one field to change.")
+    for field, value in updates.items():
+        setattr(plan, field, value)
+    db.session.commit()
+
+    click.secho(
+        f"Plan '{name}' (ID: {plan.id}) successfully edited: {', '.join(updates)}.",
+        **MsgStyle.SUCCESS,
+    )
 
 
 @fm_edit_data.command("attribute")

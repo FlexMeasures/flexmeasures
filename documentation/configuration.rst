@@ -784,14 +784,46 @@ and a ``Retry-After`` header telling the client how long to wait.
 Counts are kept in Redis (see :ref:`redis-config`), so that all your workers share them. If Redis cannot be
 reached, FlexMeasures lets requests through rather than refusing them.
 
-.. note:: The limiter runs before authentication, so requests without valid credentials are counted per IP address.
+The two limits count differently:
 
-Individual accounts can be given their own limits, which take precedence over the settings below, by assigning
-the account a ``Plan`` (``flexmeasures.data.models.user.Plan``) with ``default_rate_limit`` and/or
-``trigger_rate_limit`` set. Use the value ``"unlimited"`` to exempt an account from a limit altogether. A plan's
-``rate_limit_key`` (see ``FLEXMEASURES_API_RATE_LIMIT_KEY`` below) similarly overrides the server-wide setting for
-accounts on that plan. A plan with a field left unset (``None``) falls back to the server-wide config setting for
-that field.
+- The **default limit** counts *every* request, including the ones we refuse. The limiter runs before
+  authentication, so requests without valid credentials are counted, too (per IP address, as there is no user
+  to count them against). This is what bounds a client who keeps sending requests we refuse.
+- The **trigger limit** only counts triggers we *accepted*. It exists to protect the expensive computation which
+  a trigger sets in motion, and a request we rejected ― because its payload did not validate, or because the
+  asset belongs to someone else ― cost us no computation. In other words, a client who made a mistake in their
+  flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
+
+.. _rate-limiting-plans:
+
+Plans
+^^^^^
+
+Individual accounts can be given their own limits, which take precedence over the settings below, by putting the
+account on a plan. A plan (``flexmeasures.data.models.user.Plan``) bundles the rate limits and quotas which apply
+to the accounts assigned to it, so that it can be shared as a tier (say, "Free" and "Pro"):
+
+.. code-block:: bash
+
+    $ flexmeasures add plan --name Pro --trigger-rate-limit "60 per 5 minutes" --rate-limit-key account
+
+Admins assign an account to a plan from the account page in the UI, or through
+``PATCH /api/v3_0/accounts/<id>`` (``plan_id``).
+
+A plan's ``default_rate_limit``, ``trigger_rate_limit`` and ``rate_limit_key`` override the settings below for the
+accounts on that plan. A field left unset (``None``) falls back to the server-wide setting, so an account on a plan
+which only sets ``trigger_rate_limit`` is treated like everybody else for all other requests. Use the value
+``"unlimited"`` to exempt an account from a limit altogether.
+
+A plan usually reflects a contractual agreement, so rather than editing a plan which accounts are on, retire it
+(``flexmeasures edit plan --name Pro --legacy``) and create the plan you want to offer instead. A legacy plan keeps
+applying to the accounts already on it, but is no longer offered when assigning a plan.
+
+Plans also carry quotas (``max_users``, ``max_assets`` and ``max_clients``). These are not enforced yet.
+
+.. note:: Changing an account's ``rate_limit_key`` orphans the counters it has in Redis (the old keys simply expire),
+          so the account may get a fresh budget for the remainder of the current window. Harmless, but worth knowing
+          when you wonder why a plan change handed someone a clean slate.
 
 RATELIMIT_ENABLED
 ^^^^^^^^^^^^^^^^^
@@ -803,8 +835,8 @@ Default: ``True``
 FLEXMEASURES_API_DEFAULT_RATE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-How often a client may call any API endpoint. Counted per user (or per IP address, if unauthenticated).
-The health endpoints are exempt, so that monitoring cannot lock itself out.
+How often a client may call the API. This is one budget for the whole API, counted per user (or per IP address,
+if unauthenticated). The health endpoints are exempt, so that monitoring cannot lock itself out.
 
 Default: ``"500 per minute"``
 
@@ -812,7 +844,8 @@ FLEXMEASURES_API_TRIGGER_RATE_LIMIT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 How often a client may trigger a schedule or a forecast. This is the expensive work, so this limit is stricter
-than the default one.
+than the default one. The trigger endpoints share this budget, so triggering a forecast and triggering a schedule
+draw on the same one.
 
 Default: ``"10 per 5 minutes"``
 
@@ -822,14 +855,16 @@ FLEXMEASURES_API_RATE_LIMIT_KEY
 What ``FLEXMEASURES_API_TRIGGER_RATE_LIMIT`` is counted against. How often it is reasonable to re-compute a
 schedule is a business decision, so you decide what shares a budget:
 
-- ``"account+asset"``: each asset gets its own budget, so scheduling one asset never blocks another.
-- ``"account"``: the account has a single budget, shared by all of its assets and users.
+- ``"account"``: the account has a single budget, shared by all of its assets and users. This is how billing
+  usually works, so it is the default.
+- ``"account+asset"``: each asset gets its own budget, so triggering for one asset never blocks another. Note
+  that this multiplies the limit by the number of assets an account has.
 - ``"user"``: each user gets their own budget.
 
-An account's plan can override this per account (see above). An unrecognized value falls back to
-``"account+asset"`` rather than raising an error.
+An account's plan can override this per account (see :ref:`rate-limiting-plans`). An unrecognized value falls back
+to ``"account"`` rather than raising an error.
 
-Default: ``"account+asset"``
+Default: ``"account"``
 
 
 Demonstrations

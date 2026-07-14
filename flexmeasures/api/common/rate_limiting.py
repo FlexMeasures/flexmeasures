@@ -11,18 +11,26 @@ and both can be overridden per account, by assigning the account a ``Plan`` with
 ``default_rate_limit`` and/or ``trigger_rate_limit`` set (see ``flexmeasures.data.models.user.Plan``).
 The special value "unlimited" exempts an account from a limit.
 
+The two limits count differently. The default limit counts every request, including those we refuse
+(so that a client hammering us with bad credentials is bounded, too). The trigger limit only counts
+triggers we accepted, because it exists to protect the expensive computation which those set in motion:
+a client whose payload we rejected did not cost us a schedule, and should not pay for one.
+
 Note that the limiter runs before authentication, so unauthenticated callers are counted by IP address.
 """
 
 from __future__ import annotations
 
-from flask import Flask, current_app, jsonify, request
+from flask import Flask, Response, current_app, jsonify, request
 from flask_limiter import Limiter, RequestLimit
 from flask_limiter.util import get_remote_address
 from flask_login import current_user
 
 from flexmeasures.api.common.responses import too_many_requests
+from flexmeasures.data import db
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.user import RateLimitKey
+from flexmeasures.utils.validation_utils import UNLIMITED_RATE_LIMIT
 
 # Endpoints under /api/ which the default limit should not apply to
 EXEMPT_PATH_PREFIXES = ("/api/v3_0/health",)
@@ -51,7 +59,7 @@ def _account_rate_limit(limit_name: str) -> str | None:
 
 def _is_unlimited(limit_name: str) -> bool:
     """Whether the account is exempt from the given limit."""
-    return _account_rate_limit(limit_name) == "unlimited"
+    return _account_rate_limit(limit_name) == UNLIMITED_RATE_LIMIT
 
 
 def default_key_func() -> str:
@@ -74,26 +82,44 @@ def _rate_limit_key_value() -> str:
     if key not in _VALID_RATE_LIMIT_KEYS:
         current_app.logger.error(
             f"Unknown FLEXMEASURES_API_RATE_LIMIT_KEY '{key}'. "
-            f"Use one of {sorted(_VALID_RATE_LIMIT_KEYS)}. Falling back to '{RateLimitKey.ACCOUNT_PLUS_ASSET.value}'."
+            f"Use one of {sorted(_VALID_RATE_LIMIT_KEYS)}. Falling back to '{RateLimitKey.ACCOUNT.value}'."
         )
-        return RateLimitKey.ACCOUNT_PLUS_ASSET.value
+        return RateLimitKey.ACCOUNT.value
     return key
 
 
-def trigger_key_func() -> str:
-    """Count triggers against whatever the host (or the account's plan) configured.
+def _asset_id_of_trigger() -> int | None:
+    """Which asset a trigger request is about.
 
-    The request path contains both the resource type and its ID,
-    so it distinguishes assets from sensors without us having to parse view args.
+    The asset endpoint names the asset in its path, while the (deprecated) sensor endpoints name a sensor,
+    so we resolve that sensor's asset. That way, both ways of triggering the same asset share one budget.
+    Returns None if we cannot tell, which the caller reads as "count this against the account as a whole".
     """
+    resource_id = (request.view_args or {}).get("id")
+    try:
+        resource_id = int(resource_id)
+    except (TypeError, ValueError):
+        return None  # the view is about to reject this request anyway
+    if "/assets/" in request.path:
+        return resource_id
+    sensor = db.session.get(Sensor, resource_id)
+    return sensor.generic_asset_id if sensor is not None else None
+
+
+def trigger_key_func() -> str:
+    """Count triggers against whatever the host (or the account's plan) configured."""
     if not current_user.is_authenticated:
         return get_remote_address()
     key = _rate_limit_key_value()
-    if key == "user":
+    if key == RateLimitKey.USER.value:
         return f"user:{current_user.id}"
-    if key == "account":
-        return f"account:{current_user.account_id}"
-    return f"account:{current_user.account_id}|{request.path}"  # "account+asset"
+    account_key = f"account:{current_user.account_id}"
+    if key == RateLimitKey.ACCOUNT.value:
+        return account_key
+    asset_id = _asset_id_of_trigger()  # "account+asset"
+    if asset_id is None:
+        return account_key
+    return f"{account_key}|asset:{asset_id}"
 
 
 def default_limit() -> str:
@@ -121,18 +147,35 @@ def _exempt_from_default_limit() -> bool:
 
 limiter = Limiter(
     key_func=default_key_func,
-    default_limits=[default_limit],
-    default_limits_exempt_when=_exempt_from_default_limit,
+    # An application limit is one budget for the whole API, rather than one budget per endpoint,
+    # which is what "how often a client may call the API" should mean.
+    application_limits=[default_limit],
+    application_limits_exempt_when=_exempt_from_default_limit,
     headers_enabled=True,  # sets Retry-After and X-RateLimit-* headers
 )
 
 
+def _trigger_set_work_in_motion(response: Response) -> bool:
+    """Whether a trigger request got to the expensive part, and should therefore be counted.
+
+    A request we refused (bad credentials, no permission, invalid payload) cost us no computation,
+    so it does not spend the account's trigger budget. Such requests are still counted by the default
+    limit, which applies to every API endpoint.
+    """
+    return response.status_code < 400
+
+
 def limit_triggers():
     """Decorator for endpoints which trigger expensive computation, like scheduling."""
-    return limiter.limit(
+    return limiter.shared_limit(
         trigger_limit,
+        # All trigger endpoints share one budget. Without this, each of them would get its own,
+        # so a client could ask for twice as many schedules by alternating between the asset
+        # endpoint and the (deprecated) sensor endpoint.
+        scope="triggers",
         key_func=trigger_key_func,
         exempt_when=lambda: _is_unlimited("trigger"),
+        deduct_when=_trigger_set_work_in_motion,
     )
 
 

@@ -13,7 +13,7 @@ v1.0.0 | July XX, 2026
 New features
 -------------
 
-* The API is now rate-limited, with a generous default limit on all endpoints and a stricter limit on triggering schedules and forecasts. Limits are configurable, and can be set per account by assigning the account a plan [see `PR #2306 <https://www.github.com/FlexMeasures/flexmeasures/pull/2306>`_]
+* The API is now rate-limited, with a generous default limit on all endpoints and a stricter limit on triggering schedules and forecasts (which only counts triggers we accepted). Limits are configurable, and can be set per account by putting the account on a plan, which hosts create with ``flexmeasures add plan`` and admins assign from the account page [see `PR #2306 <https://www.github.com/FlexMeasures/flexmeasures/pull/2306>`_]
 * Breaking behaviour change: the top-level flex-context's ``relax-constraints`` field now defaults to ``True`` (matching the default already used within each ``commodities`` entry), so constraint violations are softly penalized by default instead of being hard constraints, unless explicitly set to ``False`` [see `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_]
 * Support for creating new assets by using another asset as a template from the UI. [see `PR #2195 <https://www.github.com/FlexMeasures/flexmeasures/pull/2195>`_ and `PR #2268 <https://www.github.com/FlexMeasures/flexmeasures/pull/2268>`_
 * In the UI, asset and sensor lists can be filtered by ID prefix through API-backed search fields [see `PR #2231 <https://www.github.com/FlexMeasures/flexmeasures/pull/2231>`_]

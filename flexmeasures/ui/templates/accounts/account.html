@@ -143,6 +143,25 @@
                       </select>
                     </div>
                   </div>
+
+                  <div class="form-group">
+                    <div class="col-md-3">
+                      <label for="plan_id" class="control-label">Plan</label>
+                      <select class="form-select" id="plan_id" name="plan_id">
+                        <option value="" {% if not account.plan_id %}selected{% endif %}>
+                          No plan (server defaults apply)
+                        </option>
+                        {% for plan in plans %}
+                        <option
+                          value="{{ plan.id }}"
+                          {% if plan.id == account.plan_id %}selected{% endif %}
+                        >
+                          {{ plan.name }}{% if plan.legacy %} (legacy){% endif %}
+                        </option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  </div>
                   {% endif %}
                 </div>
 
@@ -189,10 +208,18 @@
                       }}
                     </td>
                   </tr>
-                  {% if account.consultancy_account_name %}
+                  <tr>
+                    <td>Plan</td>
+                    <td>
+                      {% if account.plan %} {{ account.plan.name }}{% if
+                      account.plan.legacy %} (legacy){% endif %} {% else %} No
+                      plan (server defaults apply) {% endif %}
+                    </td>
+                  </tr>
+                  {% if account.consultancy_account %}
                   <tr>
                     <td>Consultancy</td>
-                    <td>{{ account.consultancy_account_name }}</td>
+                    <td>{{ account.consultancy_account.name }}</td>
                   </tr>
                   {% endif %} {% if account.primary_color %}
                   <tr>

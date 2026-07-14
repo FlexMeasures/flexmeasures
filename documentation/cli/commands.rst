@@ -28,6 +28,7 @@ of which some are referred to in this documentation.
 ``flexmeasures add initial-structure``            Initialize structural data like users, roles and asset types. 
 ``flexmeasures add account-role``                 Create a FlexMeasures tenant account role.
 ``flexmeasures add account``                      Create a FlexMeasures tenant account.
+``flexmeasures add plan``                         Create a plan, which sets rate limits and quotas for the accounts on it.
 ``flexmeasures add user``                         Create a FlexMeasures user.
 ``flexmeasures add asset-type``                   Create a new asset type.
 ``flexmeasures add asset``                        Create a new asset.
@@ -68,6 +69,7 @@ of which some are referred to in this documentation.
 
 ================================================= =======================================
 ``flexmeasures edit attribute``                   Edit (or add) an asset attribute or sensor attribute.
+``flexmeasures edit plan``                        Edit a plan's rate limits and quotas, or retire it.
 ``flexmeasures edit secret``                      Edit (or add) an encrypted secret on an account or asset.
 ``flexmeasures edit resample-data``               Assign a new event resolution to an existing sensor and resample its data accordingly.
 ``flexmeasures edit transfer-parenthood``         (Re)assign parent assets.

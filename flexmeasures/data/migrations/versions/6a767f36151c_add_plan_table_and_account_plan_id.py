@@ -31,6 +31,9 @@ def upgrade():
         sa.Column("max_users", sa.Integer(), nullable=True),
         sa.Column("max_assets", sa.Integer(), nullable=True),
         sa.Column("max_clients", sa.Integer(), nullable=True),
+        sa.Column(
+            "legacy", sa.Boolean(), nullable=False, server_default=sa.text("false")
+        ),
         sa.PrimaryKeyConstraint("id", name=op.f("plan_pkey")),
         sa.UniqueConstraint("name", name=op.f("plan_name_key")),
     )

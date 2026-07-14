@@ -39,6 +39,7 @@ class AccountSchema(ma.SQLAlchemySchema):
     attributes = JSON(required=False, load_default={})
     account_roles = fields.Nested("AccountRoleSchema", exclude=("accounts",), many=True)
     consultancy_account_id = ma.auto_field()
+    plan_id = ma.auto_field(allow_none=True)
 
     @validates("primary_color")
     def validate_primary_color(self, value, **kwargs):

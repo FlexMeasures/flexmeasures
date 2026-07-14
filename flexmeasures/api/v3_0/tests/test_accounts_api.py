@@ -5,6 +5,7 @@ import json
 from flask import url_for
 import pytest
 
+from flexmeasures.data.models.user import Plan
 from flexmeasures.data.services.users import find_user_by_email
 
 
@@ -283,3 +284,69 @@ def test_patch_account_attributes_with_consultancy(
         response.json["consultancy_account_id"]
         == consultancy_client_account.consultancy_account_id
     )
+
+
+@pytest.mark.parametrize(
+    "requesting_user, expected_status_code",
+    [
+        ("test_admin_user@seita.nl", 200),
+        ("test_prosumer_user@seita.nl", 401),  # only admins hand out plans
+    ],
+    indirect=["requesting_user"],
+)
+def test_patch_account_plan(
+    db, client, setup_api_test_data, requesting_user, expected_status_code
+):
+    """Only an admin may put an account on a plan."""
+    account = find_user_by_email("test_prosumer_user@seita.nl").account
+    plan = Plan(
+        name=f"test-plan-patch-{expected_status_code}",
+        trigger_rate_limit="60 per 5 minutes",
+    )
+    db.session.add(plan)
+    db.session.commit()
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=account.id),
+        json={"plan_id": plan.id},
+    )
+    print(f"Response: {response.json}")
+    assert response.status_code == expected_status_code
+    if expected_status_code == 200:
+        assert response.json["plan_id"] == plan.id
+        assert account.plan == plan
+    else:
+        assert account.plan != plan
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_account_unknown_plan(db, client, setup_api_test_data, requesting_user):
+    """A plan which does not exist cannot be assigned."""
+    account = find_user_by_email("test_prosumer_user@seita.nl").account
+    plan_before = account.plan
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=account.id),
+        json={"plan_id": 999999},
+    )
+    print(f"Response: {response.json}")
+    assert response.status_code == 422
+    assert account.plan == plan_before
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_account_legacy_plan(db, client, setup_api_test_data, requesting_user):
+    """A legacy plan is no longer handed out, not even by an admin."""
+    account = find_user_by_email("test_prosumer_user@seita.nl").account
+    plan_before = account.plan
+    legacy_plan = Plan(name="test-plan-retired", legacy=True)
+    db.session.add(legacy_plan)
+    db.session.commit()
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=account.id),
+        json={"plan_id": legacy_plan.id},
+    )
+    print(f"Response: {response.json}")
+    assert response.status_code == 422
+    assert account.plan == plan_before

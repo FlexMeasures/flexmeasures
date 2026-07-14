@@ -12,7 +12,7 @@ from flexmeasures.auth.policy import user_has_admin_access
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import Account, User
+from flexmeasures.data.models.user import Account, Plan, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -33,6 +33,63 @@ account_schema = AccountSchema()
 accounts_schema = AccountSchema(many=True)
 partial_account_schema = AccountSchema(partial=True)
 annotation_schema = AnnotationSchema()
+
+
+def _validate_consultancy_account_id(
+    new_consultancy_account_id: int | None, account: Account
+) -> tuple[dict, int] | None:
+    if new_consultancy_account_id is None:
+        return None  # Allow clearing the consultancy relationship
+    existing_consultancy_account_id = (
+        account.consultancy_account.id if account.consultancy_account else None
+    )
+    if new_consultancy_account_id == existing_consultancy_account_id:
+        return None
+    new_consultant_account = db.session.get(Account, new_consultancy_account_id)
+    if not new_consultant_account or new_consultant_account.id == account.id:
+        return {"errors": ["Invalid consultancy_account_id"]}, 422
+    return None
+
+
+def _validate_plan_id(
+    new_plan_id: int | None, account: Account
+) -> tuple[dict, int] | None:
+    if new_plan_id is None:
+        return None  # Allow clearing the plan, which falls the account back on the server config
+    if new_plan_id == account.plan_id:
+        return None
+    new_plan = db.session.get(Plan, new_plan_id)
+    if new_plan is None:
+        return {"errors": ["Invalid plan_id"]}, 422
+    if new_plan.legacy:
+        # A legacy plan keeps applying to the accounts already on it, but is not handed out anymore
+        return {"errors": ["Plan is a legacy plan"]}, 422
+    return None
+
+
+# Fields only an admin may set, each with a check on the value they want to set it to
+ADMIN_ONLY_ACCOUNT_FIELDS = {
+    "consultancy_account_id": _validate_consultancy_account_id,
+    "plan_id": _validate_plan_id,
+}
+
+
+def check_admin_only_fields(
+    account_data: dict, account: Account
+) -> tuple[dict, int] | None:
+    """Check the fields which only an admin may set, like which plan an account is on.
+
+    Returns an error response if the update should not go through, and None if it should.
+    """
+    for field, validate_field in ADMIN_ONLY_ACCOUNT_FIELDS.items():
+        if field not in account_data:
+            continue
+        if not user_has_admin_access(current_user, "update"):
+            return {"errors": [f"You are not allowed to update {field}"]}, 401
+        error_response = validate_field(account_data[field], account)
+        if error_response is not None:
+            return error_response
+    return None
 
 
 class AccountAPI(FlaskView):
@@ -244,6 +301,7 @@ class AccountAPI(FlaskView):
             **Restrictions on Fields:**
             - The **id** field is read-only and cannot be updated.
             - The **consultancy_account_id** field can only be edited if the current user has an **admin** role.
+            - The **plan_id** field can only be edited if the current user has an **admin** role, and cannot be set to a legacy plan.
 
           security:
             - ApiKeyAuth: []
@@ -291,32 +349,9 @@ class AccountAPI(FlaskView):
             - Accounts
         """
 
-        # Get existing consultancy_account_id
-        existing_consultancy_account_id = (
-            account.consultancy_account.id if account.consultancy_account else None
-        )
-
-        if not user_has_admin_access(current_user, "update"):
-            if "consultancy_account_id" in account_data:
-                return {
-                    "errors": ["You are not allowed to update consultancy_account_id"]
-                }, 401
-        else:
-            # Check if consultancy_account_id has changed
-            if "consultancy_account_id" in account_data:
-                new_consultancy_account_id = account_data.get("consultancy_account_id")
-                if new_consultancy_account_id is None:
-                    pass  # Allow clearing the consultancy relationship
-                elif existing_consultancy_account_id != new_consultancy_account_id:
-                    new_consultant_account = db.session.query(Account).get(
-                        new_consultancy_account_id
-                    )
-                    # Validate new consultant account
-                    if (
-                        not new_consultant_account
-                        or new_consultant_account.id == account.id
-                    ):
-                        return {"errors": ["Invalid consultancy_account_id"]}, 422
+        error_response = check_admin_only_fields(account_data, account)
+        if error_response is not None:
+            return error_response
 
         # Track modified fields
         fields_to_check = [
@@ -325,6 +360,7 @@ class AccountAPI(FlaskView):
             "secondary_color",
             "logo_url",
             "consultancy_account_id",
+            "plan_id",
             "attributes",
         ]
         modified_fields = {

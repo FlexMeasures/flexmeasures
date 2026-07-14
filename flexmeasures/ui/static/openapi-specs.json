@@ -1805,7 +1805,7 @@
       },
       "patch": {
         "summary": "Update an existing account.",
-        "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n<strong>Restrictions on Fields:</strong>\n- The <strong>id</strong> field is read-only and cannot be updated.\n- The <strong>consultancy_account_id</strong> field can only be edited if the current user has an <strong>admin</strong> role.\n",
+        "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n<strong>Restrictions on Fields:</strong>\n- The <strong>id</strong> field is read-only and cannot be updated.\n- The <strong>consultancy_account_id</strong> field can only be edited if the current user has an <strong>admin</strong> role.\n- The <strong>plan_id</strong> field can only be edited if the current user has an <strong>admin</strong> role, and cannot be set to a legacy plan.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -5334,6 +5334,12 @@
               "integer",
               "null"
             ]
+          },
+          "plan_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "additionalProperties": false
@@ -6084,6 +6090,12 @@
             }
           },
           "consultancy_account_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "plan_id": {
             "type": [
               "integer",
               "null"
