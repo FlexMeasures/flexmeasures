@@ -3247,6 +3247,25 @@ def test_prefer_full_storage_skips_non_storage_devices(db, building):
     )
 
 
+def _add_parent_site(db, building, name: str) -> GenericAsset:
+    """Add a fresh parent site for an alignment test.
+
+    Note that we deliberately do not schedule on the shared (module-scoped) ``building``
+    fixture asset directly: earlier tests move legacy sensor attributes into its
+    flex-model, which ``collect_flex_config`` would then inject into our flex-model
+    as an extra asset-only device entry.
+    """
+    site = GenericAsset(
+        name=name,
+        generic_asset_type=building.generic_asset_type,
+        owner=building.owner,
+        flex_context={},
+    )
+    db.session.add(site)
+    db.session.flush()
+    return site
+
+
 def _add_battery_device(
     db, parent, battery_type, name: str, with_soc_sensor: bool = True
 ) -> tuple[Sensor, Sensor | None]:
@@ -3301,9 +3320,10 @@ def test_stock_only_entry_first_keeps_device_alignment(
     previous entry's properties (A gets the decoys, B gets A's), flipping the optimum.
     """
     battery_type = setup_generic_asset_types["battery"]
-    a_power, a_soc = _add_battery_device(db, building, battery_type, "alignment test A")
+    site = _add_parent_site(db, building, "alignment test site")
+    a_power, a_soc = _add_battery_device(db, site, battery_type, "alignment test A")
     b_power, _ = _add_battery_device(
-        db, building, battery_type, "alignment test B", with_soc_sensor=False
+        db, site, battery_type, "alignment test B", with_soc_sensor=False
     )
     db.session.commit()
 
@@ -3337,7 +3357,7 @@ def test_stock_only_entry_first_keeps_device_alignment(
     ]
 
     scheduler: Scheduler = StorageScheduler(
-        asset_or_sensor=building,
+        asset_or_sensor=site,
         start=start,
         end=end,
         resolution=resolution,
@@ -3390,11 +3410,10 @@ def test_device_without_soc_sensor_keeps_soc_params_when_stock_only_entry_presen
     target is never met.
     """
     battery_type = setup_generic_asset_types["battery"]
-    a_power, a_soc = _add_battery_device(
-        db, building, battery_type, "soc params test A"
-    )
+    site = _add_parent_site(db, building, "soc params test site")
+    a_power, a_soc = _add_battery_device(db, site, battery_type, "soc params test A")
     c_power, _ = _add_battery_device(
-        db, building, battery_type, "soc params test C", with_soc_sensor=False
+        db, site, battery_type, "soc params test C", with_soc_sensor=False
     )
     db.session.commit()
 
@@ -3427,7 +3446,7 @@ def test_device_without_soc_sensor_keeps_soc_params_when_stock_only_entry_presen
     ]
 
     scheduler: Scheduler = StorageScheduler(
-        asset_or_sensor=building,
+        asset_or_sensor=site,
         start=start,
         end=end,
         resolution=resolution,
@@ -3467,11 +3486,10 @@ def test_flex_context_commitments_target_devices_not_stock_only_entries(
     flexible device).
     """
     battery_type = setup_generic_asset_types["battery"]
-    a_power, a_soc = _add_battery_device(
-        db, building, battery_type, "commitment test A"
-    )
+    site = _add_parent_site(db, building, "commitment test site")
+    a_power, a_soc = _add_battery_device(db, site, battery_type, "commitment test A")
     b_power, _ = _add_battery_device(
-        db, building, battery_type, "commitment test B", with_soc_sensor=False
+        db, site, battery_type, "commitment test B", with_soc_sensor=False
     )
     db.session.commit()
 
@@ -3498,7 +3516,7 @@ def test_flex_context_commitments_target_devices_not_stock_only_entries(
     ]
 
     scheduler: Scheduler = StorageScheduler(
-        asset_or_sensor=building,
+        asset_or_sensor=site,
         start=start,
         end=end,
         resolution=resolution,
@@ -3563,7 +3581,7 @@ def test_multi_device_flex_model_alignment(db, building, setup_generic_asset_typ
        through the misaligned device/asset zip, letting A charge above its own 1 kW
        capacity.
     """
-    parent = building
+    parent = _add_parent_site(db, building, "multi device test site")
     battery_type = setup_generic_asset_types["battery"]
     owner = parent.owner
 
