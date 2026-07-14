@@ -5,8 +5,8 @@ Scheduling
 
 Scheduling is the main value-drive of FlexMeasures. We have two major types of schedulers built-in, for storage devices (usually batteries or hot water storage) and processes (usually in industry).
 
-FlexMeasures computes schedules for energy systems that consist of multiple devices that consume and/or produce electricity.
-We model a device as an asset with a power sensor, and compute schedules only for flexible devices, while taking into account inflexible devices.
+FlexMeasures computes schedules for energy systems that consist of multiple devices that consume and/or produce a commodity (e.g. electricity or gas).
+We model a device as an asset with a consumption/production sensor recording power values, and compute schedules only for flexible devices, while taking into account inflexible devices.
 
 .. contents::
     :local:
@@ -39,6 +39,7 @@ The flex-context
 
 The ``flex-context`` is independent of the type of flexible device that is optimized, or which scheduler is used.
 With the flexibility context, we aim to describe the system in which the flexible assets operate, such as its physical and contractual limitations.
+For multi-commodity scheduling problems, the flex-context can be defined separately per commodity (e.g. electricity and gas). See :ref:`tut_multi_commodity` for a hands-on example.
 
 Fields can have fixed values, but some fields can also point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
 The full list of flex-context fields follows below.
@@ -46,7 +47,7 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 Where should you set these fields?
 Within requests to the API or by editing the relevant asset in the UI.
-If they are not sent in via the API (one of the endpoints triggering schedule computation), the scheduler will look them up on the `flex-context` field of the asset.
+If they are not sent in via the API (one of the endpoints triggering schedule computation), the scheduler will look them up on the flex-context field of the asset.
 And if the asset belongs to a larger system (a hierarchy of assets), the scheduler will also search if parent assets have them set.
 
 
@@ -58,9 +59,18 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - Field
      - Example value
      - Description
+   * - ``commodity``
+     - |COMMODITY_FLEX_CONTEXT.example|
+     - .. include:: ../_autodoc/COMMODITY_FLEX_CONTEXT.rst
    * - ``inflexible-device-sensors``
      - |INFLEXIBLE_DEVICE_SENSORS.example|
      - .. include:: ../_autodoc/INFLEXIBLE_DEVICE_SENSORS.rst
+   * - ``aggregate-consumption``
+     - |AGGREGATE_CONSUMPTION.example|
+     - .. include:: ../_autodoc/AGGREGATE_CONSUMPTION.rst
+   * - ``aggregate-production``
+     - |AGGREGATE_PRODUCTION.example|
+     - .. include:: ../_autodoc/AGGREGATE_PRODUCTION.rst
    * - ``aggregate-power``
      - |AGGREGATE_POWER.example|
      - .. include:: ../_autodoc/AGGREGATE_POWER.rst
@@ -183,6 +193,9 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - Field
      - Example value
      - Description
+   * - ``commodity``
+     - |COMMODITY_FLEX_MODEL.example|
+     - .. include:: ../_autodoc/COMMODITY_FLEX_MODEL.rst
    * - ``consumption``
      - |CONSUMPTION.example|
      - .. include:: ../_autodoc/CONSUMPTION.rst
@@ -268,6 +281,8 @@ However, here are some tips to model a buffer correctly:
    - Set ``charging-efficiency`` to the sensor describing the :abbr:`COP (coefficient of performance)` values.
    - Set ``storage-efficiency`` to a value below 100% to model (heat) loss.
 
+   For a hands-on example of a heat buffer fed by multiple devices, see :ref:`tut_multi_feed_storage`.
+
 What happens if the flex model describes an infeasible problem for the storage scheduler? Excellent question!
 It is highly important for a robust operation that these situations still lead to a somewhat good outcome.
 From our practical experience, we derived a ``StorageFallbackScheduler``.
@@ -277,6 +292,7 @@ depending on the first target state of charge and the capabilities of the asset.
 Of course, we also log a failure in the scheduling job, so it's important to take note of these failures. Often, mis-configured flex models are the reason.
 
 For a hands-on tutorial on using some of the storage flex-model fields, head over to :ref:`tut_v2g` use case and `the API documentation for triggering schedules <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_.
+For further hands-on examples, see :ref:`tut_multi_feed_storage` (multiple devices feeding one shared storage) and :ref:`tut_multi_commodity` (devices on different commodities scheduled together).
 
 Finally, are you interested in the linear programming details behind the storage scheduler?
 Then head over to :ref:`storage_device_scheduler`!

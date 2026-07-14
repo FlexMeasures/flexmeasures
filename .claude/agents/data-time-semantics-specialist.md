@@ -1,6 +1,7 @@
 ---
 name: data-time-semantics-specialist
-description: Prevents subtle bugs in time handling, units, and data semantics with focus on timezone-aware operations and unit conversions
+description: Prevents subtle bugs in time handling, units, and data semantics with focus on timezone-aware operations and unit conversions. Invoke when a task adds/edits code touching datetimes, resolutions, timezones, or sensor unit conversions.
+model: sonnet
 ---
 
 # Agent: Data & Time Semantics Specialist

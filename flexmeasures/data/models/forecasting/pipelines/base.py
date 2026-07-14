@@ -8,9 +8,9 @@ import numpy as np
 import pandas as pd
 from darts import TimeSeries
 from darts.dataprocessing.transformers import MissingValuesFiller
-from flexmeasures.data.models.time_series import Sensor
 from timely_beliefs import utils as tb_utils
 
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 
 
@@ -90,11 +90,11 @@ class BasePipeline:
         self.target = f"{target_sensor.name} (ID: {target_sensor.id})_target"
         self.future_regressors = [
             f"{sensor.name} (ID: {sensor.id})_FR-{idx}"
-            for idx, sensor in enumerate(future_regressors)
+            for idx, sensor in enumerate(self.future)
         ]
         self.past_regressors = [
             f"{sensor.name} (ID: {sensor.id})_PR-{idx}"
-            for idx, sensor in enumerate(past_regressors)
+            for idx, sensor in enumerate(self.past)
         ]
         self.predict_start = predict_start if predict_start else None
         self.predict_end = predict_end if predict_end else None
@@ -375,18 +375,23 @@ class BasePipeline:
                 if df_ is None or df_.empty:
                     return df_.iloc[0:0].copy() if df_ is not None else None
 
-                # Ensure datetime dtype; then work in int64 ns for searchsorted
+                # Ensure datetime dtype, then search the datetime64 values directly.
+                # (Series.view is deprecated in pandas 2.2, and the int64 detour is unneeded.)
                 es = pd.to_datetime(df_["event_start"], errors="coerce")
-                a = es.view("int64").to_numpy()
+                a = es.to_numpy(dtype="datetime64[ns]")
 
-                lo = np.searchsorted(a, start_ts.value, side="left")
-                hi = np.searchsorted(a, end_ts.value, side="right")  # inclusive end
+                lo = np.searchsorted(a, np.datetime64(start_ts, "ns"), side="left")
+                hi = np.searchsorted(
+                    a, np.datetime64(end_ts, "ns"), side="right"
+                )  # inclusive end
 
                 # Slice original rows by positional indices
                 out = df_.iloc[lo:hi].copy()
                 # (Optional) keep the coerced datetime back on the slice to avoid re-parsing later
                 if not out.empty:
-                    out.loc[:, "event_start"] = es.iloc[lo:hi].to_numpy()
+                    # NB assign the column as a whole, rather than with .loc[:, col],
+                    # which would try to set values into the existing column's dtype.
+                    out["event_start"] = es.iloc[lo:hi].to_numpy()
                 return out
 
             def _latest_known_per_regressor(
