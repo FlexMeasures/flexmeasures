@@ -55,6 +55,9 @@ class Scheduler:
     flex_model: list[dict] | dict | None = None
     flex_context: dict | None = None
     stock_groups: dict | None = None
+    #: Typed classification of the flex config (see planning.devices.DeviceInventory);
+    #: derived state, (re)built when the flex config is deserialized.
+    device_inventory = None
 
     fallback_scheduler_class: "Type[Scheduler] | None" = None
     info: dict | None = None

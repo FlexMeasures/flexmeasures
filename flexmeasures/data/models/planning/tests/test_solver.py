@@ -3299,11 +3299,6 @@ def _add_battery_device(
     return power_sensor, soc_sensor
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Device properties are read from the unfiltered flex-model list, "
-    "so a stock-only entry listed first shifts every device's properties by one.",
-)
 def test_stock_only_entry_first_keeps_device_alignment(
     db, building, setup_generic_asset_types
 ):
@@ -3392,12 +3387,6 @@ def test_stock_only_entry_first_keeps_device_alignment(
     np.testing.assert_allclose(b_schedule.abs().sum(), 0, atol=1e-3)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Synthetic stock keys diverge between _prepare and _build_stock_groups "
-    "when a stock-only entry is present, losing the SoC parameters of devices "
-    "without a state-of-charge sensor.",
-)
 def test_device_without_soc_sensor_keeps_soc_params_when_stock_only_entry_present(
     db, building, setup_generic_asset_types
 ):
@@ -3469,12 +3458,6 @@ def test_device_without_soc_sensor_keeps_soc_params_when_stock_only_entry_presen
     np.testing.assert_allclose(c_schedule.sum(), 1, atol=1e-3)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Flex-context commitments are assigned device indices by enumerating the "
-    "unfiltered flex-model list, so stock-only entries receive commitments "
-    "meant for devices.",
-)
 def test_flex_context_commitments_target_devices_not_stock_only_entries(
     db, building, setup_generic_asset_types
 ):
@@ -3551,12 +3534,6 @@ def test_flex_context_commitments_target_devices_not_stock_only_entries(
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Devices referencing their power sensor only via a nested output reference "
-    "are misclassified as stock-only and dropped, shifting the device/asset "
-    "alignment for the remaining devices.",
-)
 def test_multi_device_flex_model_alignment(db, building, setup_generic_asset_types):
     """Regression test for two bugs in multi-device storage scheduling.
 

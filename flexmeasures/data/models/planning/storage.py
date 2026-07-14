@@ -18,6 +18,7 @@ from flexmeasures.data.models.planning import (
     SchedulerOutputType,
     StockCommitment,
 )
+from flexmeasures.data.models.planning.devices import DeviceInventory
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
     add_tiny_price_slope,
@@ -127,123 +128,43 @@ class MetaStorageScheduler(Scheduler):
         resolution = self.resolution
         belief_time = self.belief_time
 
-        # For backwards compatibility with the single asset scheduler
-        # Track whether we started with a single dict (single-sensor mode) or a list
-        is_single_sensor_mode = not isinstance(self.flex_model, list)
-        flex_model = self.flex_model.copy()
-        if not isinstance(flex_model, list):
-            flex_model = [flex_model]
+        # Look up the device inventory: every flex-model entry (and the flex-context's
+        # inflexible devices) classified once, as the single source of truth for
+        # device roles and canonical device indices. Tests may bypass deserialization
+        # (setting config_deserialized) with an already deserialized flex config,
+        # in which case we classify it here.
+        inventory = self.device_inventory
+        if inventory is None:
+            inventory = DeviceInventory.from_flex_config(
+                self.flex_model, self.flex_context, sensor=self.sensor
+            )
+            self.device_inventory = inventory
 
-        # Identify stock models: entries not defining a power sensor, but only a (state-of-charge) sensor
-        self.stock_models = {}
-
-        device_models = []  # everything except stock models
-        stock_models = {}  # stock models only
-
-        missing_soc_sensor_i = -len(flex_model)
-        for fm in flex_model:
-
-            # stock model: entry in the flex-model list where the sensor key is the state-of-charge sensor of the device (e.g. a stock)
-            # Only apply this detection in multi-device mode; in single-sensor mode the power sensor is self.sensor (not in the fm dict)
-            if (
-                not is_single_sensor_mode
-                and fm.get("sensor") is None
-                and (soc_sensor := fm.get("state_of_charge"))
-            ):
-                stock_models[
-                    soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
-                ] = fm
-                continue
-
-            """
-            [
-              {
-                "sensor": 1,
-                "charging-efficiency": 0.9,
-                "state-of-charge": {"sensor": 2},
-              },
-              {
-                "sensor": 3,
-                "charging-efficiency": 0.9,
-                "state-of-charge": {"sensor": 2},
-              },
-              {
-                "state-of-charge": {"sensor": 2},
-                "storage-efficiency": 0.99,
-              },
-            ]
-            """
-
-            # Check if this is a stock-only model (no power sensor)
-            # Stock-only entries have SOC parameters but no power sensor
-            # Only apply in multi-device mode; single-sensor mode devices have no "sensor" key by design
-            soc_sensor = fm.get("state_of_charge")
-            if (
-                not is_single_sensor_mode
-                and fm.get("sensor") is None
-                and soc_sensor is not None
-            ):
-                # This is a stock-only entry, add to stock_models only
-                soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
-                stock_models[soc_id] = fm
-                continue
-
-            # device model: entry in the flex-model list where the sensor key is the power sensor of the device (e.g. a feeder)
-            device_models.append(fm)
-
-            # If this device has state-of-charge parameters (soc-at-start, soc-min, etc.),
-            # also create a stock model entry so those parameters are properly captured
-            if soc_sensor is not None:
-                soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
-                # Check if there are SOC parameters in this device entry
-                has_soc_params = any(
-                    param in fm
-                    for param in ["soc_at_start", "soc_min", "soc_max", "soc_targets"]
-                )
-                if has_soc_params:
-                    stock_models[soc_id] = fm
-            elif fm.get("state_of_charge") is None:
-                stock_models[missing_soc_sensor_i] = fm
-                missing_soc_sensor_i += 1
-
-        flex_model = device_models
-        self.stock_models = stock_models
+        device_models = inventory.device_flex_models
         self._device_models = (
             device_models  # Store filtered model for later use in _build_soc_schedule
         )
-
-        # Rebuild stock_groups using only device_models (which have sensors)
-        # This ensures the mapping aligns with the device indices
-        self.stock_groups = self._build_stock_groups(device_models)
+        self.stock_models = inventory.stock_entries
+        # The stock groups' device indices align with the device models
+        self.stock_groups = inventory.stock_groups
 
         # List the asset(s) and sensor(s) being scheduled
+        sensors: list[Sensor | None] = inventory.power_sensors
+        assets: list[Asset | None] = inventory.assets
         if self.asset is not None:
             if not isinstance(self.flex_model, list):
                 self.flex_model = [self.flex_model]
-            sensors: list[Sensor | None] = [fm.get("sensor") for fm in device_models]
-            assets: list[Asset | None] = [  # noqa: F841
-                s.asset if s is not None else flex_model_d.get("asset")
-                for s, flex_model_d in zip(sensors, self.flex_model)
-            ]
             if resolution is None:
                 # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
                 resolution = determine_minimum_resampling_resolution(
                     [s.event_resolution for s in sensors if s is not None],
                     fallback_resolution=self.default_resolution,
                 )
-            asset = self.asset
-        else:
-            # For backwards compatibility with the single asset scheduler
-            sensors = [self.sensor]
-            asset = self.sensor.generic_asset
-            assets = [asset]  # noqa: F841
 
-        # For backwards compatibility with the single asset scheduler
-        flex_model = self.flex_model.copy()
-        if not isinstance(flex_model, list):
-            flex_model = [flex_model]
-        else:
-            flex_model = [flex_model_d.copy() for flex_model_d in flex_model]
+        # Work on copies of the device flex-models (aligned with the device indices,
+        # unlike the unfiltered self.flex_model), so the defaults applied here don't
+        # leak back into the inventory's raw entries.
+        flex_model = [flex_model_d.copy() for flex_model_d in device_models]
         for flex_model_d in flex_model:
             self._default_missing_directional_capacity_to_zero(flex_model_d)
         num_flexible_devices = len(device_models)
@@ -1397,6 +1318,13 @@ class MetaStorageScheduler(Scheduler):
         self._deserialize_flex_context()
         self._deserialize_flex_model()
 
+        # Classify all flex-model entries (and the flex-context's inflexible devices)
+        # once; scheduling and result mapping rely on this inventory for device
+        # identity and canonical device indices.
+        self.device_inventory = DeviceInventory.from_flex_config(
+            self.flex_model, self.flex_context, sensor=self.sensor
+        )
+
     def _deserialize_flex_context(self):
         if isinstance(self.flex_context, dict):
             # Load the one flex-context for electricity
@@ -1477,8 +1405,6 @@ class MetaStorageScheduler(Scheduler):
                     soc_targets=self.flex_model[d].get("soc_targets"),
                     sensor=self.flex_model[d]["sensor"],
                 )
-            self.stock_groups = self._build_stock_groups(self.flex_model)
-
         else:
             raise TypeError(
                 f"Unsupported type of flex-model: '{type(self.flex_model)}'"
