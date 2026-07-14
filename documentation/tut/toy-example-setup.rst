@@ -141,11 +141,11 @@ The data we need for our example is both structural (e.g. a company account, a u
 
 Let's create the structural data first.
 
-FlexMeasures offers a command to create a toy account with a battery and expose the relevant IDs as shell variables:
+FlexMeasures offers a command to create a toy account with a battery:
 
 .. code-block:: bash
 
-    $ eval "$(flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
+    $ flexmeasures add toy-account --kind battery
 
     Generic asset type `solar` created successfully.
     Generic asset type `wind` created successfully.
@@ -154,19 +154,27 @@ FlexMeasures offers a command to create a toy account with a battery and expose 
     Generic asset type `battery` created successfully.
     Generic asset type `building` created successfully.
     Generic asset type `process` created successfully.
+    Generic asset type `heat-storage` created successfully.
     Creating account Toy Account ...
     Toy account Toy Account with user toy-user@flexmeasures.io created successfully. You might want to run `flexmeasures show account --id 1`
     Adding transmission zone type ...
     Adding NL transmission zone ...
-    Created day-ahead prices
+    Created <Sensor 7: day-ahead prices, unit: EUR/kWh res.: 1:00:00>
     The sensor recording day-ahead prices is day-ahead prices (ID: 7).
-    Created <GenericAsset None: 'toy-battery' (battery)>
-    Created discharging
-    Created <GenericAsset None: 'toy-solar' (solar)>
-    Created production
+    Created <GenericAsset 5: 'toy-building' (building)>
+    Created <GenericAsset 6: 'toy-battery' (battery)>
+    Created <Sensor 8: discharging, unit: kW res.: 0:15:00>
+    Created <GenericAsset 7: 'toy-solar' (solar)>
+    Created <Sensor 9: production, unit: kW res.: 0:15:00>
     The sensor recording battery discharging is discharging (ID: 8).
     The sensor recording solar forecasts is production (ID: 9).
 
+
+Now expose the relevant IDs as shell variables for the commands below:
+
+.. code-block:: bash
+
+    $ eval "$(flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
 
 This sets variables such as ``FM_TOY_PRICE_SENSOR_ID``, ``FM_TOY_BATTERY_SENSOR_ID``, ``FM_TOY_SOLAR_SENSOR_ID`` and ``FM_TOY_BUILDING_ASSET_ID`` in your current shell.
 
