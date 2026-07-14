@@ -1033,13 +1033,15 @@ def create_circle_layer(
     )  # deepcopy so the next line doesn't update the dicts
     scaled_shared_tooltip[1]["field"] = "scaled_event_value"
 
+    # Ignore events on annotation marks, whose datums lack the event_start field
+    mouseover_ignoring_annotations = "mouseover[!event.item || !event.item.mark || indexof(event.item.mark.name, 'annotation_') < 0]"
     params = [
         {
             "name": "hover_x_brush",
             "select": {
                 "type": "point",
                 "encodings": ["x"],
-                "on": "mouseover",
+                "on": mouseover_ignoring_annotations,
                 "nearest": False,
                 "clear": "mouseout",
             },
@@ -1052,7 +1054,7 @@ def create_circle_layer(
                 "name": "hover_nearest_brush",
                 "select": {
                     "type": "point",
-                    "on": "mouseover",
+                    "on": mouseover_ignoring_annotations,
                     "nearest": True,
                     "clear": "mouseout",
                 },

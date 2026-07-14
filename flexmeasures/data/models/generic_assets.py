@@ -941,6 +941,8 @@ class GenericAsset(db.Model, AuthModelMixin):
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
         include_data: bool = False,
+        include_asset_annotations: bool = False,
+        include_account_annotations: bool = False,
         dataset_name: str | None = None,
         resolution: str | timedelta | None = None,
         **kwargs,
@@ -955,6 +957,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param combine_legend: show a combined legend of all plots below the chart
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param include_data: if True, include data in the chart, or if False, exclude data
+        :param include_asset_annotations: if True, add annotation layers (showing annotations on this asset) to each subchart
+        :param include_account_annotations: if True, the annotation layers also show annotations on the asset's account
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
         :param resolution: optionally set the resolution of data being displayed
         :returns: JSON string defining vega-lite chart specs
@@ -979,6 +983,8 @@ class GenericAsset(db.Model, AuthModelMixin):
             sensors_to_show=processed_sensors_to_show,
             dataset_name=dataset_name,
             combine_legend=combine_legend,
+            include_annotations=include_asset_annotations
+            or include_account_annotations,
             **kwargs,
         )
 
