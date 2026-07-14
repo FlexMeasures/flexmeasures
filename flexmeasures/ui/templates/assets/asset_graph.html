@@ -623,18 +623,27 @@
                     if ("sensors" in graph) {
                         const item = {};
                         item['title'] = graph['title'] || "No Title";
+                        if ("y-axis" in graph) {
+                            item["y-axis"] = graph["y-axis"];
+                        }
                         item['plots'] = [];
                         item['plots'].push({ "sensors": graph['sensors'] });
                         newShape.push(item);
                     } else if ("sensor" in graph) {
                         const item = {};
                         item['title'] = graph['title'] || "No Title";
+                        if ("y-axis" in graph) {
+                            item["y-axis"] = graph["y-axis"];
+                        }
                         item['plots'] = [];
                         item['plots'].push({ "sensor": graph['sensor'] });
                         newShape.push(item);
                     } else if ("plots" in graph) {
                         const item = {};
                         item['title'] = graph['title'] || "No Title";
+                        if ("y-axis" in graph) {
+                            item["y-axis"] = graph["y-axis"];
+                        }
                         item['plots'] = graph['plots'];
                         newShape.push(item);
                     } else {
