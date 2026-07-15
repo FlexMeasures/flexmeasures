@@ -52,11 +52,19 @@ def test_train_predict_job_config_payload_preserves_plain_fields(
 ):
     future_regressor = setup_fresh_test_forecast_data["irradiance-sensor"]
     past_regressor = setup_fresh_test_forecast_data["solar-sensor-1"]
+    annotation_asset = future_regressor.generic_asset
 
     config = {
         "model": "CustomLGBM",
         "future_regressors": [future_regressor],
         "past_regressors": [past_regressor],
+        "annotation_regressors": [
+            {
+                "asset": annotation_asset,
+                "annotation_type": "label",
+                "name": "shutdown",
+            }
+        ],
         "missing_threshold": 0.25,
         "plain_future_option": {
             "lower": "0 kW",
@@ -71,12 +79,21 @@ def test_train_predict_job_config_payload_preserves_plain_fields(
     assert "past_regressors" not in payload
     assert payload["future_regressor_ids"] == [future_regressor.id]
     assert payload["past_regressor_ids"] == [past_regressor.id]
+    assert payload["annotation_regressors"] == [
+        {
+            "asset": annotation_asset.id,
+            "annotation_type": "label",
+            "name": "shutdown",
+        }
+    ]
     assert payload["plain_future_option"] == config["plain_future_option"]
+    assert not _contains_orm_instance(payload)
 
     restored_config = _load_job_config_payload(payload)
 
     assert restored_config["future_regressors"] == [future_regressor]
     assert restored_config["past_regressors"] == [past_regressor]
+    assert restored_config["annotation_regressors"] == payload["annotation_regressors"]
     assert restored_config["plain_future_option"] == config["plain_future_option"]
 
 
@@ -1406,6 +1423,72 @@ def test_future_regressor_splits_use_only_beliefs_known_at_forecast_belief_time(
     assert 88.0 not in set(values_by_event)
     assert 99.0 not in set(values_by_event)
     assert 77.0 not in set(values_by_event)
+
+
+def test_annotation_regressor_split_preserves_annotation_columns(monkeypatch):
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 7, 23),
+        event_ends_before=datetime(2025, 1, 8, 1),
+        predict_start=datetime(2025, 1, 8),
+        predict_end=datetime(2025, 1, 8, 1),
+        annotation_regressors=[
+            {"asset": 1, "annotation_type": "label", "name": "shutdown"}
+        ],
+    )
+    annotation_col = pipeline.annotation_regressor_names[0]
+    forecast_belief_time = pd.Timestamp("2025-01-08T00:00:00")
+
+    df = pd.DataFrame(
+        [
+            {
+                "event_start": pd.Timestamp("2025-01-07T23:00:00"),
+                "belief_time": forecast_belief_time,
+                pipeline.target: 1.0,
+                annotation_col: 0.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T00:00:00"),
+                "belief_time": forecast_belief_time,
+                pipeline.target: None,
+                annotation_col: 1.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T01:00:00"),
+                "belief_time": forecast_belief_time,
+                pipeline.target: None,
+                annotation_col: 1.0,
+            },
+        ]
+    )
+
+    captured_future_frames = []
+
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.annotation_regressor_names:
+            captured_future_frames.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+
+    pipeline.split_data_all_beliefs(df, is_predict_pipeline=True)
+
+    assert len(captured_future_frames) == 1
+    values_by_event = captured_future_frames[0].set_index("event_start")[annotation_col]
+    assert values_by_event.loc[pd.Timestamp("2025-01-07T23:00:00")] == 0.0
+    assert values_by_event.loc[pd.Timestamp("2025-01-08T00:00:00")] == 1.0
+    assert values_by_event.loc[pd.Timestamp("2025-01-08T01:00:00")] == 1.0
 
 
 def test_realized_future_regressors_use_latest_known_per_regressor_per_step(

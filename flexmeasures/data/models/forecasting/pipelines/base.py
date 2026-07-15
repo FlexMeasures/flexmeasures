@@ -26,6 +26,11 @@ class _AnnotationRegressorProxy:
         self.event_resolution = event_resolution
 
 
+def _entity_id(entity_or_id):
+    """Return an entity ID from a deserialized model object or a plain ID."""
+    return getattr(entity_or_id, "id", entity_or_id)
+
+
 class BasePipeline:
     """
     Base class for Train and Predict pipelines.
@@ -132,6 +137,11 @@ class BasePipeline:
             f"{proxy.name} (annotation)_AR-{i}"
             for i, proxy in enumerate(self.annotation_regressor_proxies)
         ]
+
+    def _annotation_regressor_belief_time(self) -> pd.Timestamp:
+        """Use the forecast vantage point as the annotation regressor belief time."""
+        vantage_point = self.predict_start or self.event_ends_before
+        return pd.to_datetime(vantage_point, utc=True).tz_localize(None)
 
     def load_data_all_beliefs(self) -> pd.DataFrame:
         """
@@ -266,9 +276,9 @@ class BasePipeline:
         time step at the target sensor's resolution as 1 (if an annotation
         covers it) or 0 (otherwise).
 
-        Annotations are treated as "always known" (belief_time = epoch start),
-        making them suitable as future covariates for known future events like
-        public holidays.
+        Annotations are treated as known at the forecast vantage point, making
+        them suitable as future covariates for known future events like public
+        holidays.
 
         :param spec:      Dict with 'account', 'asset', or 'sensor' (ID), and optionally
                           'annotation_type' (default: 'holiday') and 'name'.
@@ -285,9 +295,9 @@ class BasePipeline:
         )
 
         annotation_type = spec.get("annotation_type", "holiday")
-        account_id = spec.get("account")
-        asset_id = spec.get("asset")
-        sensor_id = spec.get("sensor")
+        account_id = _entity_id(spec.get("account"))
+        asset_id = _entity_id(spec.get("asset"))
+        sensor_id = _entity_id(spec.get("sensor"))
 
         if account_id is not None:
             query = query_account_annotations(
@@ -352,8 +362,7 @@ class BasePipeline:
             mask = (binary.index >= ann_start) & (binary.index < ann_end)
             binary.loc[mask] = 1.0
 
-        # Use epoch as belief_time so annotations are always considered "known"
-        belief_time = pd.Timestamp("1970-01-01")
+        belief_time = self._annotation_regressor_belief_time()
         df = pd.DataFrame(
             {
                 "event_start": time_index,
@@ -643,9 +652,12 @@ class BasePipeline:
 
                 # Future covariates (realized up to target_end + forecasts up to forecast_end) split
                 if X_future_regressors_df is not None:
+                    future_regressor_columns = (
+                        self.future_regressors + self.annotation_regressor_names
+                    )
                     future_known = _latest_known_per_regressor(
                         X_future_regressors_df,
-                        self.future_regressors,
+                        future_regressor_columns,
                         belief_time,
                         realized_only=True,
                     )
@@ -670,7 +682,7 @@ class BasePipeline:
                     # at the simulated forecast belief time.
                     forecast_slice = _latest_known_per_regressor(
                         fc_window,
-                        self.future_regressors,
+                        future_regressor_columns,
                         belief_time,
                         realized_only=False,
                     )
@@ -742,17 +754,19 @@ class BasePipeline:
             else None
         )
 
-        # Annotation regressors are "always known" (holiday/shutdown calendars),
-        # but they inherit the target sensor's belief_time via the merge in
-        # load_data_all_beliefs.  The split logic needs two separate sets of rows
+        # Annotation regressors are known at the forecast vantage point
+        # (holiday/shutdown calendars), but they inherit the target sensor's
+        # belief_time via the merge in load_data_all_beliefs.  The split logic
+        # needs two separate sets of rows
         # for each annotation event so that:
         #   - realized_slice (training window):  belief_time = event_start + resolution
         #     satisfies the  `belief_time > event_start` ("realized_only") filter.
-        #   - fc_window (forecast window):       belief_time = epoch (1970-01-01)
-        #     satisfies  `belief_time <= event_start` and is always <= any current time.
+        #   - fc_window (forecast window):       belief_time = the actual vantage point
+        #     satisfies  `belief_time <= event_start` for the forecast horizon.
         # Without these extra rows annotation data is invisible to the model.
         if self.annotation_regressors and X_future_regressors_df is not None:
             resolution = self.target_sensor.event_resolution
+            annotation_belief_time = self._annotation_regressor_belief_time()
             ann_base = (
                 X_future_regressors_df[
                     ["event_start"] + self.annotation_regressor_names
@@ -764,13 +778,13 @@ class BasePipeline:
             for col in self.future_regressors:
                 ann_base[col] = float("nan")
 
-            epoch_rows = ann_base.copy()
-            epoch_rows["belief_time"] = pd.Timestamp("1970-01-01")
+            forecast_rows = ann_base.copy()
+            forecast_rows["belief_time"] = annotation_belief_time
 
             post_rows = ann_base.copy()
             post_rows["belief_time"] = ann_base["event_start"] + resolution
 
-            extra = pd.concat([epoch_rows, post_rows], ignore_index=True)
+            extra = pd.concat([forecast_rows, post_rows], ignore_index=True)
             extra = extra[X_future_regressors_df.columns]
             X_future_regressors_df = (
                 pd.concat([X_future_regressors_df, extra], ignore_index=True)
