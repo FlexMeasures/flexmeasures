@@ -474,6 +474,9 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             sensors_metadata[self.id] = {
                 "name": sensor_dict.get("name", ""),
                 "unit": sensor_dict.get("sensor_unit", self.unit),
+                "event_resolution": sensor_dict.get(
+                    "event_resolution", self.event_resolution.total_seconds()
+                ),
                 "description": sensor_dict.get("description", ""),
                 "asset_id": sensor_dict.get(
                     "asset_id", getattr(self, "generic_asset_id", None)
@@ -703,6 +706,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             id=self.id,
             name=self.name,
             sensor_unit=self.unit,
+            event_resolution=self.event_resolution.total_seconds(),
             description=f"{self.name} ({self.generic_asset.name})",
             asset_description=f"{self.generic_asset.name}"
             + (f" ({parent_asset.name})" if parent_asset is not None else ""),
