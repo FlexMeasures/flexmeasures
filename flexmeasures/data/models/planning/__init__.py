@@ -74,6 +74,12 @@ class Scheduler:
     def _build_stock_groups(flex_model: list[dict]) -> dict:
         """
         Build stock groups where devices sharing the same state-of-charge sensor are grouped together.
+
+        Deprecated: use ``DeviceInventory.stock_groups`` (see ``planning.devices``),
+        which classifies flex-model entries once and keeps stock-group keys in sync
+        with the stock parameters. Note that this function's synthetic keys (for
+        devices without a state-of-charge sensor) depend on the length of the passed
+        list, so they only match ``stock_models`` keys built from the same list.
         """
         groups = defaultdict(list)
         soc_usage = defaultdict(list)

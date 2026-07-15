@@ -41,9 +41,11 @@ Infrastructure / Support
 * Make toy tutorials robust against pre-existing IDs [see `PR #2269 <https://www.github.com/FlexMeasures/flexmeasures/pull/2269>`_]
 * Document multi-tenancy and consultancy tenant structures for hosts [see `PR #2176 <https://www.github.com/FlexMeasures/flexmeasures/pull/2176>`_]
 * Warn hosts when the database schema is not at the latest migration, and skip startup template provisioning until migrations are applied [see `PR #2309 <https://www.github.com/FlexMeasures/flexmeasures/pull/2309>`_]
+* Schedulers track devices via a typed device inventory, which classifies every flex-model entry once and serves as the single source of truth for device roles and canonical device indices [see `PR #2321 <https://www.github.com/FlexMeasures/flexmeasures/pull/2321>`_]
 
 Bugfixes
 -----------
+* Fix device misalignment in multi-device storage scheduling: devices no longer inherit a neighboring entry's properties (such as another device's power capacity) when a stock-only entry precedes them in the flex-model list, flex-context commitments bind the scheduled devices rather than stock-only entries, devices without a state-of-charge sensor keep their own SoC parameters, and devices referencing their power sensor only via a nested ``consumption``/``production`` output reference are scheduled instead of being silently dropped [see `PR #2321 <https://www.github.com/FlexMeasures/flexmeasures/pull/2321>`_]
 * Fix column sorting on the assets page, including when combined with the search filter [see `PR #2314 <https://www.github.com/FlexMeasures/flexmeasures/pull/2314>`_]
 * Fix forecasting with past or future regressors, which raised a ``TypeError`` on pandas 2.2 and higher [see `PR #2303 <https://www.github.com/FlexMeasures/flexmeasures/pull/2303>`_]
 * Show why a CLI option was rejected (e.g. "No account found with id 9999") instead of only echoing the offending value [see `PR #2303 <https://www.github.com/FlexMeasures/flexmeasures/pull/2303>`_]
