@@ -1872,26 +1872,20 @@ div.heading-group {
    in the narrow replay column, let it wrap and stay inside the column instead of
    overflowing onto the chart card. */
 .fast-chart-toggle {
-  /* Stack the switch above its centered "Fast chart (beta)" label. This keeps the
-     toggle narrow and centered inside the replay column at every width, instead of
-     a horizontal layout that left-aligns and spills onto the chart card. */
-  margin: 0.5rem auto;
-  flex-direction: column;
-  align-items: center;
-  max-width: 100%;
-  min-width: 0;
+  /* Switch + "Fast chart (beta)" on a single line, centered. In the narrow replay
+     column this can overflow the column a little — that's accepted, in exchange for
+     the cleaner single-line look. */
+  margin: 0.5rem 0;
+  flex-wrap: nowrap;
+  white-space: nowrap;
   padding-left: 0; /* override Bootstrap .form-check's 2.5em */
 }
 .fast-chart-toggle .form-check-input {
-  margin-left: 0; /* override the -2.5em float offset so the switch stays centered */
+  margin-left: 0; /* override the -2.5em float offset so the switch stays in flow */
   float: none;
 }
 .fast-chart-toggle .form-check-label {
-  min-width: 0;
-  white-space: normal;
-  text-align: center;
-  font-size: 0.85rem;
-  line-height: 1.3;
+  white-space: nowrap;
 }
 
 /* Mobile: let a one-finger vertical swipe scroll the page over the fast chart,

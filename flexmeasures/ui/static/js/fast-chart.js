@@ -587,11 +587,15 @@ function minorSplitFor(majorMs) {
   return bestN;
 }
 
+// Target plotting width per major gridline (px). Smaller → denser gridlines. Tunable:
+// this sets whether a 1-day view shows 3h or 6h majors on a given screen width.
+const TICK_TARGET_PX = 130;
+
 // Keep the x-axis grid lines equidistant AND adaptive: pick one uniform time step for
-// the currently-visible span and pin every time axis to it via minInterval==maxInterval
-// (a plain `interval` isn't reliably honored on a time axis — ECharts snaps to its own
-// mixed calendar levels, e.g. 4h). Finer (unlabelled) minor lines subdivide it. Both
-// recomputed on each dataZoom so zooming in reveals finer, evenly-spaced gridlines.
+// the currently-visible span (sized to the chart width, so a day shows ~3h majors and
+// steps to 6h/12h as the chart narrows) and set it as the value axis `interval` — which,
+// unlike a time axis, ECharts honors exactly. Nice (unlabelled) minor lines subdivide it
+// at uniform absolute positions (correct at the domain edges too). Recomputed on zoom.
 function refreshTimeTicks(instance) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed() || !(instance._xDomainSpan > 0)) return;
@@ -599,15 +603,14 @@ function refreshTimeTicks(instance) {
   const start = dz && typeof dz.start === "number" ? dz.start : 0;
   const end = dz && typeof dz.end === "number" ? dz.end : 100;
   const span = (instance._xDomainSpan * (end - start)) / 100;
-  const major = niceTimeStep(span, 8);
+  const target = Math.max(2, Math.round((chart.getWidth() || 800) / TICK_TARGET_PX));
+  const major = niceTimeStep(span, target);
   const minorN = minorSplitFor(major);
   const xAxis = chart.getOption().xAxis || [];
   const patch = xAxis.map((ax) =>
-    ax && ax.type === "time"
+    ax && ax.type === "value"
       ? {
           interval: major,
-          minInterval: major,
-          maxInterval: major,
           minorTick: { show: minorN > 0, splitNumber: minorN || 1 },
           minorSplitLine: { show: minorN > 0, lineStyle: { color: "#e0e0e0", width: 1 } },
         }
@@ -652,25 +655,15 @@ function xAxisTimeFormatter(value) {
   return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
 }
 
-// Icons for the custom pan/zoom mode-toggle button (issue: the zoom tool should
-// switch between zoom and pan, with Ctrl as a temporary inverse override).
-const ZOOM_ICON =
-  "path://M551.7,526.3l-155-155c26.1-34.6,41.6-77.7,41.6-124.4C438.3,132.5,349.8,44,244.1,44S49.9,132.5,49.9,246.9s88.5,202.9,194.2,202.9c46.7,0,89.8-15.5,124.4-41.6l155,155c3.5,3.5,8,5.2,12.6,5.2s9.1-1.7,12.6-5.2C558.7,544.5,558.7,533.3,551.7,526.3z M91.9,246.9c0-83.9,68.3-152.2,152.2-152.2s152.2,68.3,152.2,152.2s-68.3,152.2-152.2,152.2S91.9,330.8,91.9,246.9z";
+// Icon for the custom "Pan" toolbox button (a 4-directional move arrow). Sits next
+// to the built-in Zoom / Zoom-reset buttons on desktop; clicking it switches to pan.
 const PAN_ICON =
   "path://M512,150 L432,230 L482,230 L482,482 L230,482 L230,432 L150,512 L230,592 L230,542 L482,542 L482,794 L432,794 L512,874 L592,794 L542,794 L542,542 L794,542 L794,592 L874,512 L794,432 L794,482 L542,482 L542,230 L592,230 Z";
-const ZOOM_TITLE = "Drag to zoom · click to switch to pan · Ctrl inverts";
-const PAN_TITLE = "Drag to pan · click to switch to zoom · Ctrl inverts";
 
 function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
   const dataZoom = { yAxisIndex: false };
-  if (zoomable) {
-    // Visually hide the built-in zoom/back icons (opacity 0 — safe, unlike a
-    // zero-size icon path which divides by zero in ECharts' scaling). The custom
-    // myPanZoom button is the visible mode toggle and reset is on double-click; the
-    // feature must stay present so takeGlobalCursor's marquee brush keeps working.
-    dataZoom.iconStyle = { opacity: 0 };
-    dataZoom.emphasis = { iconStyle: { opacity: 0 } };
-  }
+  // Zoom/Pan/Reset are for desktop only — on touch, pinch/swipe/double-tap are better.
+  const showZoomTools = zoomable && !IS_TOUCH;
   const savePNG = {
     show: true,
     title: "Save as PNG",
@@ -689,20 +682,22 @@ function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
     icon: "path://M5 2 L13 2 L17 6 L17 20 L5 20 Z M7 12 L11 17 L15 9",
     onclick: () => exportSVG(elementId, datasetName),
   };
-  // Toolbox icons render in key order. The custom pan/zoom toggle goes first (leftmost),
-  // then the (hidden) dataZoom feature, then the save icons.
+  // Icon order (left→right): the built-in Zoom + Zoom-reset, then the custom Pan, then
+  // the save icons. On touch, the zoom tools are dropped entirely.
   const feature = {};
-  if (zoomable) {
-    const instance = instances[elementId];
-    const zoomMode = !(instance && instance._zoomMode === false); // default: zoom mode
-    feature.myPanZoom = {
+  if (showZoomTools || !zoomable) {
+    // Zoomable desktop charts and the (category-axis) histogram/heatmap both keep the
+    // built-in dataZoom zoom + reset icons.
+    feature.dataZoom = dataZoom;
+  }
+  if (showZoomTools) {
+    feature.myPan = {
       show: true,
-      title: zoomMode ? ZOOM_TITLE : PAN_TITLE,
-      icon: zoomMode ? ZOOM_ICON : PAN_ICON,
-      onclick: () => togglePanZoom(elementId),
+      title: "Pan",
+      icon: PAN_ICON,
+      onclick: () => setPanMode(elementId),
     };
   }
-  feature.dataZoom = dataZoom;
   if (isSensorPage) {
     feature.mySaveSVG = saveSVG;
     feature.mySavePNG = savePNG;
@@ -715,32 +710,12 @@ function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
   return { right: 16, feature: feature };
 }
 
-// Apply the current pan/zoom mode to the marquee tool. The marquee (drag-to-zoom) is
-// active when the mode is "zoom" XOR Ctrl is held — so Ctrl temporarily inverts the
-// mode. Whenever the marquee is off, the inside dataZoom pans on drag instead.
-function applyPanZoomMode(instance) {
-  const chart = instance.chart;
-  if (!chart || chart.isDisposed()) return;
-  const zoomMode = instance._zoomMode !== false;
-  const marquee = zoomMode !== !!instance._ctrlHeld;
-  chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: marquee });
-}
-
-// Toggle between zoom mode and pan mode from the custom toolbox button, and swap its
-// icon/title to match.
-function togglePanZoom(elementId) {
+// The custom "Pan" button turns the marquee zoom off, so a drag pans (the inside
+// dataZoom has moveOnMouseMove:true). The built-in "Zoom" button turns it back on.
+function setPanMode(elementId) {
   const instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) return;
-  instance._zoomMode = instance._zoomMode === false; // flip (default is zoom → becomes pan)
-  applyPanZoomMode(instance);
-  const zoomMode = instance._zoomMode !== false;
-  instance.chart.setOption({
-    toolbox: {
-      feature: {
-        myPanZoom: { icon: zoomMode ? ZOOM_ICON : PAN_ICON, title: zoomMode ? ZOOM_TITLE : PAN_TITLE },
-      },
-    },
-  });
+  instance.chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: false });
 }
 
 function downloadBlob(content, mimeType, filename) {
@@ -1172,20 +1147,21 @@ function buildLineBarOption(elementId, groups, opts) {
       });
     }
     xAxes.push({
-      type: "time",
+      // A "value" axis (x = epoch ms), NOT "time": ECharts' time axis ignores a
+      // forced `interval` and picks its own unevenly-spaced ticks. On a value axis
+      // the `interval` (set by refreshTimeTicks) is honored exactly, so both the
+      // major and the minor gridlines are perfectly equidistant (edges included).
+      type: "value",
       gridIndex: i,
-      ...sharedXDomain, // keep every subplot on the same time domain
+      ...sharedXDomain, // keep every subplot on the same time domain (epoch ms)
       axisLine: { onZero: false },
-      axisPointer: { show: true }, // vertical ruler, as in the Vega-Lite charts
+      axisPointer: { show: true, label: { formatter: (p) => xAxisTimeFormatter(p.value) } },
       splitLine: { show: true, lineStyle: { opacity: 0.5 } },
-      // No minor gridlines on the time axis: they render unevenly at the edges. The
-      // uniform major gridlines (from the adaptive `interval` in refreshTimeTicks) stay
-      // equidistant and get finer as you zoom in, which covers the same need.
-      // No fixed minInterval: refreshTimeTicks sets an explicit, visible-span-based one.
+      minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
       axisLabel: {
         fontSize: FONT_SIZE,
         color: "#222",
-        formatter: xAxisTimeFormatter,
+        formatter: (value) => xAxisTimeFormatter(value), // value is epoch ms
         hideOverlap: true, // drop colliding tick labels on narrow (small-screen) charts
       },
     });
@@ -1345,7 +1321,7 @@ function buildLineBarOption(elementId, groups, opts) {
 
   const allAxisIndices = xAxes.map((_, i) => i);
   const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage, true);
-  toolbox.feature.dataZoom.xAxisIndex = allAxisIndices;
+  if (toolbox.feature.dataZoom) toolbox.feature.dataZoom.xAxisIndex = allAxisIndices; // absent on touch
   toolbox.top = TOOLBOX_TOP; // drop the buttons below the (now higher) subplot title
 
   // Record the rounded series for pixel-space corner recompute. Skip when this call
@@ -1872,13 +1848,13 @@ function buildChargePointSessionsOption(elementId, data, opts) {
 
   const grids = [{ top: sessionsTop, height: sessionsGridHeight, left: GRID_LEFT, right: LEGEND_WIDTH + 40, containLabel: false }];
   const xAxes = [Object.assign({
-    type: "time",
+    type: "value", // epoch ms on a value axis so refreshTimeTicks' interval is honored (see line chart)
     gridIndex: 0,
     axisLine: { onZero: false },
-    axisPointer: { show: true },
+    axisPointer: { show: true, label: { formatter: (p) => xAxisTimeFormatter(p.value) } },
     splitLine: { show: true, lineStyle: { opacity: 0.5 } },
-    // No minor gridlines (they render unevenly at the edges); see the line chart.
-    axisLabel: { fontSize: FONT_SIZE, color: "#222", formatter: xAxisTimeFormatter, hideOverlap: true },
+    minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
+    axisLabel: { fontSize: FONT_SIZE, color: "#222", formatter: (value) => xAxisTimeFormatter(value), hideOverlap: true },
   }, sharedTimeDomain)];
   const yAxes = [{
     type: "category",
@@ -1966,7 +1942,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
 
   const allAxisIndices = xAxes.map((_, i) => i);
   const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage, true);
-  toolbox.feature.dataZoom.xAxisIndex = allAxisIndices;
+  if (toolbox.feature.dataZoom) toolbox.feature.dataZoom.xAxisIndex = allAxisIndices; // absent on touch
   toolbox.top = TOOLBOX_TOP; // drop the buttons below the subplot title
 
   return {
@@ -2042,8 +2018,6 @@ export function renderFastChart(elementId, data, options) {
     instances[elementId] = instance;
   }
   instance.lastArgs = { data: data, options: options };
-  // Pan/zoom mode persists across re-renders; default to zoom on desktop, pan on touch.
-  if (instance._zoomMode === undefined) instance._zoomMode = !IS_TOUCH;
 
   instance._roundedSeries = []; // rebuilt by buildLineBarOption for line charts with rounded steps
   instance._xDomainSpan = 0; // set by buildLineBarOption for time-axis charts (equidistant ticks)
@@ -2081,9 +2055,10 @@ function isZoomableChartType(chartType) {
   return !["histogram", "daily_heatmap", "weekly_heatmap"].includes(chartType);
 }
 
-// Zoom conveniences on the time-axis charts. Desktop: pre-select the toolbox
-// "zoom" (marquee) tool so a plain drag zooms, and double-click resets. Touch: do
-// NOT grab one-finger drags (they scroll the page); pinch zooms, double-tap resets.
+// Zoom conveniences on the time-axis charts. Desktop: pre-select the toolbox "Zoom"
+// (marquee) tool so a plain drag zooms — the "Pan" button turns it off (drag pans),
+// the "Zoom" button turns it back on — and double-click resets. Touch: pinch zooms,
+// one/one-finger drag pans, double-tap resets (no toolbox zoom tools).
 // Re-asserted on every render because setOption({notMerge:true}) resets toolbox state.
 function wireZoomInteractions(instance, opts) {
   const chart = instance.chart;
@@ -2098,12 +2073,6 @@ function wireZoomInteractions(instance, opts) {
     zr.off("click", instance.onTapReset);
     instance.onTapReset = null;
   }
-  if (instance.onCtrlDown) {
-    document.removeEventListener("keydown", instance.onCtrlDown);
-    document.removeEventListener("keyup", instance.onCtrlUp);
-    instance.onCtrlDown = null;
-    instance.onCtrlUp = null;
-  }
   // Skip category-axis charts and the no-data placeholder (neither has a dataZoom).
   const option = instance.lastOption || {};
   const hasDataZoom = Array.isArray(option.dataZoom) && option.dataZoom.length > 0;
@@ -2114,13 +2083,6 @@ function wireZoomInteractions(instance, opts) {
     const dataZoomIndices = (option.dataZoom || []).map((_, i) => i);
     chart.dispatchAction({ type: "dataZoom", dataZoomIndex: dataZoomIndices, start: 0, end: 100 });
   };
-
-  // Mode is remembered on the instance: zoom mode (default) or pan mode, toggled by
-  // the custom toolbox button (togglePanZoom). applyPanZoomMode turns the marquee on
-  // when mode==zoom XOR Ctrl held, so the button chooses the default and Ctrl inverts.
-  if (instance._zoomMode === undefined) instance._zoomMode = !IS_TOUCH; // touch defaults to pan (drag pans, pinch zooms)
-  instance._ctrlHeld = false;
-  applyPanZoomMode(instance);
 
   if (IS_TOUCH) {
     // Reset on a genuine double-tap (two quick taps in place), ignoring swipes.
@@ -2152,28 +2114,10 @@ function wireZoomInteractions(instance, opts) {
     return;
   }
 
-  // Desktop: double-click resets to the full range (keeping the current mode).
-  instance.onDblClickReset = () => {
-    resetZoom();
-    applyPanZoomMode(instance);
-  };
+  // Desktop: start in zoom mode (marquee on); double-click resets to the full range.
+  chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: true });
+  instance.onDblClickReset = () => resetZoom();
   zr.on("dblclick", instance.onDblClickReset);
-
-  // Ctrl temporarily inverts the mode (zoom<->pan): applyPanZoomMode flips the marquee.
-  instance.onCtrlDown = (e) => {
-    if (e.key === "Control" && !instance._ctrlHeld) {
-      instance._ctrlHeld = true;
-      applyPanZoomMode(instance);
-    }
-  };
-  instance.onCtrlUp = (e) => {
-    if (e.key === "Control" && instance._ctrlHeld) {
-      instance._ctrlHeld = false;
-      applyPanZoomMode(instance);
-    }
-  };
-  document.addEventListener("keydown", instance.onCtrlDown);
-  document.addEventListener("keyup", instance.onCtrlUp);
 }
 
 // On touch, close the tooltip when the user taps the tooltip itself, or taps outside
@@ -2338,11 +2282,7 @@ export function disposeFastChart(elementId) {
   const instance = instances[elementId];
   if (instance) {
     window.removeEventListener("resize", instance.onResize);
-    // These are document-/container-level listeners, so chart.dispose() won't remove them.
-    if (instance.onCtrlDown) {
-      document.removeEventListener("keydown", instance.onCtrlDown);
-      document.removeEventListener("keyup", instance.onCtrlUp);
-    }
+    // These are document-level listeners, so chart.dispose() won't remove them.
     if (instance.onDocTapDismiss) {
       document.removeEventListener("touchend", instance.onDocTapDismiss);
       document.removeEventListener("click", instance.onDocTapDismiss);
