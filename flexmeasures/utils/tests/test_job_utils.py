@@ -134,7 +134,7 @@ def test_queue_default_timeout_is_used_when_enqueueing_created_jobs():
 
 
 def test_app_queues_use_default_job_timeout(app):
-    assert app.queues["forecasting"]._default_timeout == 3600
+    assert app.queues["forecasting"]._default_timeout == 180
     assert app.queues["scheduling"]._default_timeout == 180
     assert app.queues["ingestion"]._default_timeout == 180
 
