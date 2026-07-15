@@ -519,9 +519,13 @@ class GenericAsset(db.Model, AuthModelMixin):
             missed_sensor_ids.extend(inaccessible)
 
             if accessible_sensors:
-                sensors_to_show.append(
-                    {"title": title, "plots": [{"sensors": accessible_sensors}]}
-                )
+                new_entry = {
+                    "title": title,
+                    "plots": [{"sensors": accessible_sensors}],
+                }
+                if "y-axis" in entry:
+                    new_entry["y-axis"] = entry["y-axis"]
+                sensors_to_show.append(new_entry)
 
         if missed_sensor_ids:
             current_app.logger.warning(
@@ -641,6 +645,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 id=fixed_value_sensor.id,
                 name=sensor_name,
                 sensor_unit=ref["unit"],
+                event_resolution=fixed_value_sensor.event_resolution.total_seconds(),
                 description=sensor_name,
                 asset_id=parent_asset.id,
                 asset_description=parent_asset.name,
@@ -751,7 +756,9 @@ class GenericAsset(db.Model, AuthModelMixin):
             flex_context = {}
         parent_asset = self.parent_asset
         while set(flex_context.keys()) != flex_context_field_names and parent_asset:
-            flex_context = {**parent_asset.flex_context, **flex_context}
+            # An ancestor's flex_context may still be None (e.g. a pending asset
+            # created without one, before its column default is applied on flush).
+            flex_context = {**(parent_asset.flex_context or {}), **flex_context}
             parent_asset = parent_asset.parent_asset
         return flex_context
 
@@ -1084,6 +1091,12 @@ class GenericAsset(db.Model, AuthModelMixin):
                     sensors_meta[str(sensor.id)] = {
                         "name": as_dict.get("name", sensor.name),
                         "unit": as_dict.get("sensor_unit", sensor.unit),
+                        # Fixed-value sensors are instantaneous (0), so the chart
+                        # renders their row with linear interpolation like Vega-Lite.
+                        "event_resolution": as_dict.get(
+                            "event_resolution",
+                            sensor.event_resolution.total_seconds(),
+                        ),
                         "description": as_dict.get("description", sensor.name),
                         "asset_id": as_dict.get("asset_id"),
                         "asset_description": as_dict.get("asset_description", ""),
@@ -1291,6 +1304,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                     sensors_metadata[sensor.id] = {
                         "name": sensor_dict.get("name", ""),
                         "unit": sensor_dict.get("unit", sensor.unit),
+                        "event_resolution": sensor_dict.get(
+                            "event_resolution", sensor.event_resolution.total_seconds()
+                        ),
                         "description": sensor_dict.get("description", ""),
                         "asset_id": sensor_dict.get(
                             "asset_id", getattr(sensor, "generic_asset_id", None)
