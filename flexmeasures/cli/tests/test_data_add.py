@@ -247,12 +247,17 @@ def test_annotation_regressors_loaded_in_pipeline(
         0.0 outside it.
 
     Part 2 - CLI end-to-end
-        Invoke ``flexmeasures add forecasts`` via the Click test runner using both
-        the JSON double-quoted form and the Python-literal single-quoted form of
-        ``--annotation-regressors``.  Verify no exception is raised.
+        Invoke ``flexmeasures add forecasts`` via the Click test runner using the
+        JSON double-quoted form of ``--annotation-regressors``.  Verify no exception
+        is raised.
 
     Part 3 - DB persistence
         Verify that forecast beliefs were persisted for the full 4-day window.
+
+    Part 4 - CLI parsing
+        Verify the Python-literal single-quoted form is accepted by the same Click
+        parameter type and schema used by the command, without writing a duplicate
+        forecast to the same DB key.
     """
     import json
     from datetime import timedelta
@@ -266,7 +271,11 @@ def test_annotation_regressors_loaded_in_pipeline(
     from flexmeasures.data.models.time_series import Sensor, TimedBelief
     from flexmeasures.data.models.data_sources import DataSource
     from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
+    from flexmeasures.data.schemas.forecasting.pipeline import (
+        TrainPredictPipelineConfigSchema,
+    )
     from flexmeasures.cli.data_add import add_forecast
+    from flexmeasures.cli.utils import NestedDictParamType
 
     db = fresh_db
 
@@ -474,16 +483,11 @@ def test_annotation_regressors_loaded_in_pipeline(
         f"got {len(forecast_beliefs)}"
     )
 
-    # --- Part 2b: Python-literal single-quoted form – parsing only, no DB check ---
-    # The second invocation writes to the same window; we only care that argument
-    # parsing succeeds (no marshmallow ValidationError), not about DB uniqueness.
+    # --- Part 4: Python-literal single-quoted form – parsing only, no DB write ---
     literal_arg = str({"asset": asset_id, "annotation-type": "label"})
-    result_literal = runner.invoke(
-        add_forecast, common_args + ["--annotation-regressors", literal_arg]
+    parsed_literal = NestedDictParamType().convert(literal_arg, None, None)
+    literal_config = TrainPredictPipelineConfigSchema().load(
+        {"annotation-regressors": [parsed_literal]}
     )
-    assert (
-        "Invalid input type" not in result_literal.output
-    ), f"CLI failed to parse Python-literal form:\n{result_literal.output}"
-    assert result_literal.exception is None or "ValidationError" not in str(
-        result_literal.exception
-    ), f"CLI raised ValidationError (Python-literal form): {result_literal.exception}"
+    assert literal_config["annotation_regressors"][0]["asset"] == factory_asset
+    assert literal_config["annotation_regressors"][0]["annotation_type"] == "label"
