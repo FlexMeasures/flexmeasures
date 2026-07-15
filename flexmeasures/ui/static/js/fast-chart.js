@@ -31,7 +31,7 @@ const GRID_HEIGHT = 150; // height of each subplot in px (matches the Vega-Lite 
 const SIDE_GRID_GAP = 92; // vertical space between subplots (two-line x-axis labels + next title)
 const TOP_OFFSET = 66; // room for the toolbox, the first subplot title and its y-axis title below it
 const TITLE_RAISE = 60; // how far the centered subplot title sits above its grid (clears the y-axis title)
-const TOOLBOX_TOP = TOP_OFFSET - 20; // toolbox (zoom/reset/save) row, level with the first y-axis title
+const TOOLBOX_TOP = TOP_OFFSET - 34; // toolbox (zoom/reset/save) row, above the first y-axis title (clear of the grid)
 
 // Rounded stepped lines (issue: soften the 90° corners of interval sensors).
 // Only applied when a series is sparse enough that its steps are actually visible;
@@ -40,11 +40,15 @@ const STEP_ROUND_MAX_POINTS = 600; // round only up to this many points per seri
 const STEP_ROUND_FRACTION = 0.4; // fallback cut (fraction of segment) before pixel geometry is known
 const STEP_ROUND_RADIUS_PX = 6; // corner radius in *pixels*, so the arc stays circular at every zoom level
 
-// Touch devices get different pan/zoom gestures than desktop (see wireZoomInteractions):
-// one-finger swipe scrolls the page, pinch zooms, double-tap resets.
+// Touch-primary devices get different pan/zoom gestures than desktop (see
+// wireZoomInteractions): one-finger swipe scrolls the page, pinch zooms, double-tap
+// resets. Use `(pointer: coarse)` — the PRIMARY pointer — not maxTouchPoints, so a
+// desktop with a touchscreen or precision touchpad still counts as desktop (keeps
+// the pre-selected marquee zoom and Ctrl+drag pan).
 const IS_TOUCH =
   typeof window !== "undefined" &&
-  (("ontouchstart" in window) || (typeof navigator !== "undefined" && (navigator.maxTouchPoints || 0) > 0));
+  typeof window.matchMedia === "function" &&
+  window.matchMedia("(pointer: coarse)").matches;
 const BOTTOM_OFFSET = 92; // room for the slider and the last two-line x-axis labels
 const GRID_LEFT = 70; // room for the y-axis labels
 const LEGEND_WIDTH = 220; // width of the legend column beside each subplot
@@ -1233,6 +1237,9 @@ function buildLineBarOption(elementId, groups, opts) {
       // the thin line. The formatter then shows just that nearest point.
       trigger: "axis",
       confine: true,
+      // On touch, show the tooltip on TAP only (not on the swipe/move), so a
+      // one-finger drag scrolls the page instead of being swallowed by the tooltip.
+      triggerOn: IS_TOUCH ? "click" : "mousemove|click",
       axisPointer: { type: "line" },
       formatter: seriesTooltipFormatter(seriesMeta, instance),
     },
@@ -1824,6 +1831,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
     tooltip: {
       trigger: "item",
       confine: true,
+      triggerOn: IS_TOUCH ? "click" : "mousemove|click", // tap-only on touch (see line chart)
       formatter: seriesTooltipFormatter(seriesMeta),
     },
     toolbox: toolbox,
@@ -1960,8 +1968,15 @@ function wireZoomInteractions(instance, opts) {
     instance._lastTapAt = 0;
     instance._lastTapXY = null;
     instance.onTapReset = (e) => {
-      const now = Date.now();
       const x = e && e.offsetX, y = e && e.offsetY;
+      // Ignore swipes (page scroll): a real tap barely moves between down and up.
+      const down = instance._downPixel;
+      if (down && (Math.abs(x - down[0]) > 12 || Math.abs(y - down[1]) > 12)) {
+        instance._lastTapAt = 0;
+        instance._lastTapXY = null;
+        return;
+      }
+      const now = Date.now();
       const near =
         instance._lastTapXY &&
         Math.abs(x - instance._lastTapXY[0]) < 24 &&
@@ -2016,6 +2031,17 @@ function wirePointerTracking(instance) {
     instance._pointerPixel = [e.offsetX, e.offsetY];
   };
   zr.on("mousemove", instance.onPointerMove);
+  // Record the press position, so a touch tap's tooltip has a pointer to snap to
+  // (there's no mousemove before a tap) and the double-tap reset can tell a tap
+  // from a swipe (see wireZoomInteractions).
+  if (instance.onPointerDown) {
+    zr.off("mousedown", instance.onPointerDown);
+  }
+  instance.onPointerDown = (e) => {
+    instance._pointerPixel = [e.offsetX, e.offsetY];
+    instance._downPixel = [e.offsetX, e.offsetY];
+  };
+  zr.on("mousedown", instance.onPointerDown);
   // Clear the synced tooltip highlight (see syncEmphasis) when the cursor leaves.
   if (instance.onPointerOut) {
     zr.off("globalout", instance.onPointerOut);
