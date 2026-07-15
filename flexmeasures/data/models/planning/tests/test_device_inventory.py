@@ -209,6 +209,24 @@ def test_by_sensor_id():
     assert inventory.by_sensor_id(3) == []
 
 
+def test_state_of_charge_as_time_series_forms_own_stock():
+    """A state of charge given as a value or time series (rather than a sensor
+    reference) cannot link devices into a shared stock: the device keeps its own
+    (synthetic) stock, with its own SoC parameters."""
+    power = make_sensor(1)
+    flex_model = {
+        "state_of_charge": [{"start": "2015-01-01T00:00+01", "value": "3.1 MWh"}],
+        "soc_at_start": 3.1,
+    }
+
+    inventory = DeviceInventory.from_flex_config(flex_model, sensor=power)
+
+    device = inventory.devices[0]
+    assert device.role == DeviceRole.DEVICE
+    assert device.stock_key < 0  # synthetic
+    assert inventory.stock_params(device.stock_key) is flex_model
+
+
 def test_last_device_entry_wins_stock_params():
     """When multiple entries carry SoC parameters for the same stock, the last one wins
     (preserving historical behavior)."""

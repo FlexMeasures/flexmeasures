@@ -125,15 +125,25 @@ def _resolve_power_sensor(flex_model: dict) -> Sensor | None:
 
 
 def _resolve_stock_key(state_of_charge: Any) -> int | None:
-    """Resolve a state-of-charge reference to a stock key (the SoC sensor id)."""
+    """Resolve a state-of-charge reference to a stock key (the SoC sensor id).
+
+    Only a sensor reference can link devices into a shared stock. A
+    state-of-charge given as a value or time series (e.g. a list of timed values)
+    resolves to None: the device keeps a stock of its own.
+    """
     if state_of_charge is None:
         return None
     if hasattr(state_of_charge, "id"):
         return state_of_charge.id
+    key = state_of_charge
     if isinstance(state_of_charge, dict) and "sensor" in state_of_charge:
         sensor = state_of_charge["sensor"]
-        return sensor.id if hasattr(sensor, "id") else sensor
-    return state_of_charge
+        key = sensor.id if hasattr(sensor, "id") else sensor
+    try:
+        hash(key)
+    except TypeError:
+        return None
+    return key
 
 
 #: Flex-model fields that make a device entry (with a state-of-charge sensor)
@@ -208,6 +218,9 @@ class DeviceInventory:
                 and power_sensor is None
                 and state_of_charge is not None
             ):
+                if stock_key is None:
+                    stock_key = synthetic_stock_key
+                    synthetic_stock_key += 1
                 entry = FlexDevice(
                     role=DeviceRole.STOCK_ONLY,
                     index=None,
@@ -221,10 +234,11 @@ class DeviceInventory:
                 continue
 
             # Device entry.
-            if state_of_charge is None:
+            if stock_key is None:
                 stock_key = synthetic_stock_key
                 synthetic_stock_key += 1
-                # A device without a state-of-charge sensor keeps its own SoC
+                # A device without a state-of-charge *sensor* (it may still define a
+                # state of charge as a value or time series) keeps its own SoC
                 # parameters, under its synthetic stock key.
                 inventory.stock_entries[stock_key] = fm
             elif any(param in fm for param in SOC_PARAM_FIELDS):
