@@ -2,7 +2,7 @@
 
 Multi-device flex-models describe several kinds of entries (schedulable devices,
 stock-only entries carrying SoC parameters for a shared stock, and — in the future —
-group entries and converter ports). Historically, each scheduler code site re-derived
+group entries and converter ports). Historically, each scheduling feature re-derived
 an entry's kind from the raw dicts and kept parallel lists aligned by integer position,
 which is where several alignment bugs crept in.
 
@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from functools import cached_property
 from typing import Any
+
+from marshmallow import ValidationError
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
@@ -58,16 +60,14 @@ class FlexDevice:
     index: int | None
     #: The deserialized flex-model entry (with underscore keys); None for inflexible devices.
     flex_model: dict | None
-    #: The device's power sensor. Resolved from the entry's top-level "sensor" key,
-    #: else from a nested consumption/production output reference. None for entries
-    #: that reference no power sensor at all (e.g. asset-only entries).
+    #: The device's power sensor, resolved from the entry's top-level "sensor" key, else from a nested consumption/production output reference.
+    #: None for entries that reference no power sensor at all (e.g. asset-only entries).
     power_sensor: Sensor | None
     #: The device's asset, resolved from the power sensor or the entry's "asset" key.
     asset: Asset | None
     commodity: str = "electricity"
-    #: Key of the stock this device draws from: the id of its state-of-charge sensor,
-    #: or a unique negative synthetic key for devices without one. None for inflexible
-    #: devices.
+    #: Key of the stock this device draws from: the id of its state-of-charge sensor, or a unique negative synthetic key for devices without one.
+    #: None for inflexible devices.
     stock_key: int | None = None
 
     @property
@@ -78,6 +78,7 @@ class FlexDevice:
 
     @property
     def state_of_charge(self) -> Any:
+        # A flex-model entry always has a dict; this None check is a precaution for inflexible devices, which have no flex-model entry.
         if self.flex_model is None:
             return None
         return self.flex_model.get("state_of_charge")
@@ -202,6 +203,16 @@ class DeviceInventory:
         # state-of-charge sensor, so stock_entries and stock_groups always share keys.
         synthetic_stock_key = -len(flex_model_list)
 
+        def register_stock_params(stock_key: int, fm: dict) -> None:
+            """Register the flex-model entry holding a stock's SoC parameters, failing fast on conflicts."""
+            existing = inventory.stock_entries.get(stock_key)
+            if existing is not None and existing is not fm:
+                raise ValidationError(
+                    f"Multiple flex-model entries define state-of-charge parameters for the same stock"
+                    f" (state-of-charge sensor {stock_key}). Please define them on a single entry."
+                )
+            inventory.stock_entries[stock_key] = fm
+
         for fm in flex_model_list:
             if is_single_sensor_mode:
                 power_sensor = sensor
@@ -230,7 +241,7 @@ class DeviceInventory:
                     stock_key=stock_key,
                 )
                 inventory.entries.append(entry)
-                inventory.stock_entries[stock_key] = fm
+                register_stock_params(stock_key, fm)
                 continue
 
             # Device entry.
@@ -240,11 +251,11 @@ class DeviceInventory:
                 # A device without a state-of-charge *sensor* (it may still define a
                 # state of charge as a value or time series) keeps its own SoC
                 # parameters, under its synthetic stock key.
-                inventory.stock_entries[stock_key] = fm
+                register_stock_params(stock_key, fm)
             elif any(param in fm for param in SOC_PARAM_FIELDS):
-                # A device entry may carry the SoC parameters of its stock itself
-                # (last one wins, in flex-model order).
-                inventory.stock_entries[stock_key] = fm
+                # A device entry may also carry the SoC parameters of its stock itself,
+                # as long as only one entry per stock does.
+                register_stock_params(stock_key, fm)
 
             device = FlexDevice(
                 role=DeviceRole.DEVICE,
@@ -348,7 +359,10 @@ class DeviceInventory:
 
     @property
     def inflexible_sensors(self) -> list[Sensor]:
-        """The inflexible devices' power sensors, in canonical solver order."""
+        """The inflexible devices' power sensors, in canonical solver order.
+
+        Inflexible devices are constructed from the flex-context's sensors, so their power sensor is always set.
+        """
         return [device.power_sensor for device in self.inflexible_devices]
 
     @property

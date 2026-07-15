@@ -6,6 +6,7 @@ unpersisted model instances with manually assigned ids.
 from datetime import timedelta
 
 import pytest
+from marshmallow import ValidationError
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.devices import (
@@ -16,7 +17,7 @@ from flexmeasures.data.models.planning.devices import (
 
 def make_sensor(sensor_id: int, unit: str = "kW") -> Sensor:
     sensor = Sensor(
-        f"sensor {sensor_id}",
+        name=f"sensor {sensor_id}",
         generic_asset_id=1,
         unit=unit,
         event_resolution=timedelta(hours=1) if unit == "kW" else timedelta(0),
@@ -227,17 +228,23 @@ def test_state_of_charge_as_time_series_forms_own_stock():
     assert inventory.stock_params(device.stock_key) is flex_model
 
 
-def test_last_device_entry_wins_stock_params():
-    """When multiple entries carry SoC parameters for the same stock, the last one wins
-    (preserving historical behavior)."""
+def test_conflicting_stock_params_raise():
+    """When multiple entries carry SoC parameters for the same stock, we fail fast
+    rather than letting one entry silently win."""
     soc = make_sensor(100, unit="kWh")
-    first = {"state_of_charge": soc, "soc_at_start": 0.0}
-    second = {"sensor": make_sensor(1), "state_of_charge": soc, "soc_at_start": 1.0}
+    stock_only_entry = {"state_of_charge": soc, "soc_at_start": 0.0}
+    device_with_params = {
+        "sensor": make_sensor(1),
+        "state_of_charge": soc,
+        "soc_at_start": 1.0,
+    }
 
-    inventory = DeviceInventory.from_flex_config([first, second])
-    assert inventory.stock_params(soc.id) is second
+    with pytest.raises(ValidationError, match="single entry"):
+        DeviceInventory.from_flex_config([stock_only_entry, device_with_params])
 
-    # A device entry without SoC parameters does not steal the registration.
-    third = {"sensor": make_sensor(2), "state_of_charge": soc}
-    inventory = DeviceInventory.from_flex_config([first, third])
-    assert inventory.stock_params(soc.id) is first
+    # A device entry without SoC parameters does not conflict.
+    device_without_params = {"sensor": make_sensor(2), "state_of_charge": soc}
+    inventory = DeviceInventory.from_flex_config(
+        [stock_only_entry, device_without_params]
+    )
+    assert inventory.stock_params(soc.id) is stock_only_entry
