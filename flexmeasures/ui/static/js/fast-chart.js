@@ -27,9 +27,16 @@ import { convertToCSV } from "./data-utils.js";
 const CHART_FONT = "Poppins, sans-serif";
 const FONT_SIZE = 16;
 
-const GRID_HEIGHT = 300; // height of each subplot in px (matches the Vega-Lite charts' 300px)
-const SIDE_GRID_GAP = 82; // vertical space between subplots (two-line x-axis labels + next title)
-const TOP_OFFSET = 60; // room for the toolbox, the first subplot title and its y-axis title below it
+const GRID_HEIGHT = 150; // height of each subplot in px (matches the Vega-Lite subplot height)
+const SIDE_GRID_GAP = 92; // vertical space between subplots (two-line x-axis labels + next title)
+const TOP_OFFSET = 66; // room for the toolbox, the first subplot title and its y-axis title below it
+const TITLE_RAISE = 52; // how far the centered subplot title sits above its grid (clears the y-axis title)
+
+// Rounded stepped lines (issue: soften the 90° corners of interval sensors).
+// Only applied when a series is sparse enough that its steps are actually visible;
+// dense series keep sharp steps + LTTB (their corners are sub-pixel anyway).
+const STEP_ROUND_MAX_POINTS = 600; // round only up to this many points per series
+const STEP_ROUND_FRACTION = 0.4; // how far into each segment the corner is cut (0..0.5); larger = rounder
 const BOTTOM_OFFSET = 92; // room for the slider and the last two-line x-axis labels
 const GRID_LEFT = 70; // room for the y-axis labels
 const LEGEND_WIDTH = 220; // width of the legend column beside each subplot
@@ -409,10 +416,37 @@ function yAxisDomainOptions(group) {
   if (y && typeof y === "object" && typeof y.min === "number" && typeof y.max === "number") {
     return { scale: true, min: y.min, max: y.max };
   }
-  if (!y && (group.units || []).includes("%")) {
+  if ((!y || y === "zero") && (group.units || []).includes("%")) {
     return { min: (v) => Math.min(v.min, 0), max: (v) => Math.max(v.max, 105) };
   }
   return {}; // default ("zero"): ECharts value axes include zero (scale:false)
+}
+
+// Turn a series' points into a step-after polyline with its right-angle corners
+// cut, so a subsequent `smooth` arcs them into rounded corners. For each interior
+// vertex V we drop V and insert two points a `frac` of the way along each adjacent
+// segment; the straight runs between corners stay collinear (hence straight after
+// smoothing), only the corners round. Values keep their [x, y] pair (the belief
+// horizon in the 3rd slot is dropped — these points are visual only and the tooltip
+// snaps back to the real data points).
+function roundedStepData(points, frac) {
+  // Build the step-after vertex list: hold each y until the next x, then jump.
+  const v = [];
+  for (let i = 0; i < points.length; i++) {
+    if (i > 0) v.push([points[i][0], points[i - 1][1]]); // corner at the next x, old y
+    v.push([points[i][0], points[i][1]]);
+  }
+  if (v.length <= 2) return v;
+  const out = [v[0]];
+  for (let k = 1; k < v.length - 1; k++) {
+    const [px, py] = v[k - 1];
+    const [cx, cy] = v[k];
+    const [nx, ny] = v[k + 1];
+    out.push([cx + frac * (px - cx), cy + frac * (py - cy)]); // cut toward previous vertex
+    out.push([cx + frac * (nx - cx), cy + frac * (ny - cy)]); // cut toward next vertex
+  }
+  out.push(v[v.length - 1]);
+  return out;
 }
 
 // Mixed date/time x-axis labels shared by every time-axis chart: "HH:MM" normally,
@@ -628,6 +662,41 @@ function pickNearestParam(params, instance) {
   return best;
 }
 
+// Nearest real data point (in a series' original `points`) to a given x value.
+// Used so the tooltip reports true data even when the drawn line carries extra,
+// purely-visual vertices (the rounded step corners from roundedStepData).
+function nearestRealPoint(meta, value) {
+  const pts = meta && meta.points;
+  if (!Array.isArray(pts) || pts.length === 0 || !value) return value;
+  const x = value[0];
+  // points are kept sorted by x (groupData sorts them), so binary-search the nearest.
+  let lo = 0;
+  let hi = pts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (pts[mid][0] < x) lo = mid + 1;
+    else hi = mid;
+  }
+  if (lo > 0 && Math.abs(pts[lo - 1][0] - x) <= Math.abs(pts[lo][0] - x)) return pts[lo - 1];
+  return pts[lo];
+}
+
+// Highlight exactly the given series/point (and downplay the rest), so the emphasis
+// pop-out marker always matches the series the tooltip is showing. Deferred to the
+// next frame to avoid re-entrancy while the tooltip is being rendered, and skipped
+// when the target is unchanged so we don't dispatch on every mouse move.
+function syncEmphasis(instance, seriesIndex, dataIndex) {
+  const key = seriesIndex + ":" + dataIndex;
+  if (instance._emphKey === key) return;
+  instance._emphKey = key;
+  const chart = instance.chart;
+  requestAnimationFrame(() => {
+    if (!chart || chart.isDisposed()) return;
+    chart.dispatchAction({ type: "downplay" });
+    chart.dispatchAction({ type: "highlight", seriesIndex: seriesIndex, dataIndex: dataIndex });
+  });
+}
+
 function seriesTooltipFormatter(seriesMeta, instance) {
   return function (params) {
     // Axis trigger passes an array of the series' points near the ruler; item
@@ -638,12 +707,15 @@ function seriesTooltipFormatter(seriesMeta, instance) {
         return "";
       }
       const best = pickNearestParam(params, instance);
-      return singlePointTooltip(seriesMeta[best.seriesIndex], best.value);
+      const meta = seriesMeta[best.seriesIndex];
+      if (instance) syncEmphasis(instance, best.seriesIndex, best.dataIndex);
+      return singlePointTooltip(meta, nearestRealPoint(meta, best.value));
     }
     if (params.componentType === "legend") {
       return escapeHtml(params.name); // legend hover: just reveal the full series name
     }
-    return singlePointTooltip(seriesMeta[params.seriesIndex], params.value);
+    const meta = seriesMeta[params.seriesIndex];
+    return singlePointTooltip(meta, nearestRealPoint(meta, params.value));
   };
 }
 
@@ -815,7 +887,7 @@ function buildLineBarOption(elementId, groups, opts) {
       text: group.title,
       left: plotCenter,
       textAlign: "center",
-      top: top - 42,
+      top: top - TITLE_RAISE, // raised so it sits clearly above the y-axis title
       textStyle: { fontSize: Math.round(FONT_SIZE * 1.25), color: "#222" }, // matches Vega-Lite title size (20 px)
     });
     if (!legendsBelow) {
@@ -904,13 +976,12 @@ function buildLineBarOption(elementId, groups, opts) {
         xAxisIndex: i,
         yAxisIndex: i,
         data: s.points,
-        // Don't let ECharts' axis-triggered hover pop out a highlight symbol on a
-        // series other than the one the tooltip is showing: our tooltip picks the
-        // nearest line by cursor distance (pickNearestParam), but the built-in
-        // emphasis would independently enlarge a point on a different sensor,
-        // producing the reported "tooltip on sensor A, circle marker on sensor B"
-        // mismatch. Disabling emphasis keeps just the shared ruler + tooltip.
-        emphasis: { disabled: true },
+        // Keep the highlight pop-out, but make sure it lands on the SAME series the
+        // tooltip is showing. ECharts' axis hover would otherwise emphasize whichever
+        // series it deems nearest, which can differ from our cursor-distance pick
+        // (pickNearestParam) — the reported "tooltip on sensor A, marker on sensor B".
+        // syncEmphasis() (driven from the tooltip formatter) re-highlights our pick.
+        emphasis: { focus: "series" },
         animation: false,
       };
       // One color per sensor: series of the same sensor share their legend
@@ -928,21 +999,29 @@ function buildLineBarOption(elementId, groups, opts) {
           itemStyle: { opacity: 0.7 },
         });
       } else {
-        Object.assign(entry, {
-          ...(groupIsInstantaneous ? {} : { step: "end" }), // step-after for interval data
-          showSymbol: false,
-          sampling: "lttb", // downsample to the available pixels, preserving peaks
-          large: true, // batched canvas path: faster redraws while panning/zooming
-          largeThreshold: 1000,
-          lineStyle: {
-            width: 2.2,
-            type: lineTypeForSource(s.source),
-            // Softly round the right-angle corners of the stepped (interval) lines,
-            // as requested — a round line-join gives a subtle radius (~width/2)
-            // without inserting points, so LTTB downsampling and step still apply.
-            ...(groupIsInstantaneous ? {} : { join: "round" }),
-          },
-        });
+        const lineStyle = { width: 2.2, type: lineTypeForSource(s.source) };
+        // Round the stepped corners when the series is sparse enough to see them:
+        // expand to explicit step vertices with the corners cut, then let `smooth`
+        // arc between the cuts (see roundedStepData). The tooltip still snaps to the
+        // real data points (see seriesTooltipFormatter), so the extra points are
+        // purely visual. Dense series keep sharp steps + LTTB.
+        if (!groupIsInstantaneous && s.points.length <= STEP_ROUND_MAX_POINTS && s.points.length >= 2) {
+          Object.assign(entry, {
+            data: roundedStepData(s.points, STEP_ROUND_FRACTION),
+            smooth: 0.6, // arc the cut corners; straight runs stay straight (collinear)
+            showSymbol: false,
+            lineStyle: lineStyle,
+          });
+        } else {
+          Object.assign(entry, {
+            ...(groupIsInstantaneous ? {} : { step: "end" }), // step-after for interval data
+            showSymbol: false,
+            sampling: "lttb", // downsample to the available pixels, preserving peaks
+            large: true, // batched canvas path: faster redraws while panning/zooming
+            largeThreshold: 1000,
+            lineStyle: lineStyle,
+          });
+        }
       }
       // Replay ruler: a vertical line at the current belief time
       if (instance.replayTime != null && j === 0) {
@@ -1032,9 +1111,18 @@ function buildLineBarOption(elementId, groups, opts) {
     },
     toolbox: toolbox,
     dataZoom: [
-      // Mouse-wheel zoom and drag-to-pan. throttle coalesces rapid wheel/drag
-      // ticks so we redraw at most every ~80 ms instead of on every event.
-      { type: "inside", xAxisIndex: allAxisIndices, throttle: 80 },
+      // Mouse-wheel zoom, and Ctrl+drag to pan. Plain drag is left to the toolbox
+      // marquee zoom (pre-selected in wireZoomInteractions), so pan uses the Ctrl
+      // modifier — matching the on-page "Hold Ctrl + drag to pan" hint. throttle
+      // coalesces rapid wheel/drag ticks so we redraw at most every ~80 ms.
+      {
+        type: "inside",
+        xAxisIndex: allAxisIndices,
+        throttle: 80,
+        zoomOnMouseWheel: true,
+        moveOnMouseWheel: false,
+        moveOnMouseMove: "ctrl",
+      },
     ],
   };
 }
@@ -1608,7 +1696,15 @@ function buildChargePointSessionsOption(elementId, data, opts) {
     },
     toolbox: toolbox,
     dataZoom: [
-      { type: "inside", xAxisIndex: allAxisIndices, throttle: 80 },
+      // Wheel zoom + Ctrl+drag pan; plain drag is the pre-selected marquee zoom.
+      {
+        type: "inside",
+        xAxisIndex: allAxisIndices,
+        throttle: 80,
+        zoomOnMouseWheel: true,
+        moveOnMouseWheel: false,
+        moveOnMouseMove: "ctrl",
+      },
     ],
   };
 }
@@ -1688,8 +1784,12 @@ function isZoomableChartType(chartType) {
 // Re-asserted on every render because setOption({notMerge:true}) resets toolbox state.
 function wireZoomInteractions(instance, opts) {
   const chart = instance.chart;
+  const zr = chart.getZr();
+  // Listen on the zrender canvas, not the ECharts instance: chart.on("dblclick")
+  // only fires when a graphic element is under the cursor, so double-clicking empty
+  // plot area (the common case) never triggered it.
   if (instance.onDblClickReset) {
-    chart.off("dblclick", instance.onDblClickReset);
+    zr.off("dblclick", instance.onDblClickReset);
     instance.onDblClickReset = null;
   }
   // Skip category-axis charts and the no-data placeholder (neither has a dataZoom).
@@ -1698,23 +1798,21 @@ function wireZoomInteractions(instance, opts) {
   if (!isZoomableChartType((opts || {}).chartType) || !hasDataZoom) {
     return;
   }
-  // Pre-activate the marquee zoom tool (same as clicking the toolbox zoom icon).
-  chart.dispatchAction({
-    type: "takeGlobalCursor",
-    key: "dataZoomSelect",
-    dataZoomSelectActive: true,
-  });
-  // Double-click resets the zoom to the full range (like the toolbox reset icon).
-  instance.onDblClickReset = () => {
-    chart.dispatchAction({ type: "dataZoom", start: 0, end: 100 });
-    // Keep the marquee zoom tool selected after the reset.
+  const activateZoomTool = () =>
     chart.dispatchAction({
       type: "takeGlobalCursor",
       key: "dataZoomSelect",
       dataZoomSelectActive: true,
     });
+  // Pre-activate the marquee zoom tool (same as clicking the toolbox zoom icon).
+  activateZoomTool();
+  // Double-click resets the zoom to the full range (like the toolbox reset icon).
+  instance.onDblClickReset = () => {
+    const dataZoomIndices = (option.dataZoom || []).map((_, i) => i);
+    chart.dispatchAction({ type: "dataZoom", dataZoomIndex: dataZoomIndices, start: 0, end: 100 });
+    activateZoomTool(); // keep the marquee zoom tool selected after the reset
   };
-  chart.on("dblclick", instance.onDblClickReset);
+  zr.on("dblclick", instance.onDblClickReset);
 }
 
 // Track the cursor's canvas pixel position so the axis-trigger tooltip formatter
@@ -1729,6 +1827,15 @@ function wirePointerTracking(instance) {
     instance._pointerPixel = [e.offsetX, e.offsetY];
   };
   zr.on("mousemove", instance.onPointerMove);
+  // Clear the synced tooltip highlight (see syncEmphasis) when the cursor leaves.
+  if (instance.onPointerOut) {
+    zr.off("globalout", instance.onPointerOut);
+  }
+  instance.onPointerOut = () => {
+    instance._emphKey = null;
+    if (!instance.chart.isDisposed()) instance.chart.dispatchAction({ type: "downplay" });
+  };
+  zr.on("globalout", instance.onPointerOut);
 }
 
 // The wide invisible hit-area series added per session segment (see

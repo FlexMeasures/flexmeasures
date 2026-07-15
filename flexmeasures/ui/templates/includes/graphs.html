@@ -63,6 +63,10 @@
     let fastMode = localStorage.getItem('fm-fast-charts') !== '0';  // canvas-based fast chart is the default; users can opt out to Vega-Lite
     const fastChartElementId = 'fast-chart-container';
     let fastChartGroupSpec = null;  // subplot structure (titles + sensor groupings), mirroring the Vega-Lite chart
+    // sensor id -> sensor type, seeded from the server-computed groupSpec, so we can
+    // rebuild the groupSpec client-side (with y-axis titles) after an in-browser
+    // sensors_to_show save without a page reload.
+    let sensorTypeById = new Map();
     // The current query window as plain epoch-ms {start, end}, captured before any
     // later mutation of the shared Date objects (getAssetKPIs bumps storeEndDate by
     // +1 day). Used as the fast chart's fixed x-axis domain (matches Vega-Lite).
@@ -141,6 +145,52 @@
         }
     ];
     {% endif %}
+    // Seed the sensor-type lookup from the server-computed groupSpec.
+    if (fastChartGroupSpec) {
+        fastChartGroupSpec.forEach(function (g) {
+            (g.sensorIds || []).forEach(function (id) { sensorTypeById.set(id, g.sensorType); });
+        });
+    }
+
+    // Extract a sensor id from a sensors_to_show reference (a bare id or a {id: ...} object).
+    function fastChartSensorId(ref) {
+        return (ref && typeof ref === "object") ? ref.id : ref;
+    }
+
+    // Rebuild the fast chart's groupSpec from a raw sensors_to_show config, so a save
+    // in the graph editor (which changes titles, groupings and per-sub-chart y-axis)
+    // takes effect immediately. Sensor types come from sensorTypeById (a fresh sensor
+    // gets no type until the next page load, then falls back to its name in groupData).
+    function rebuildFastChartGroupSpec(sensorsToShow) {
+        return (sensorsToShow || []).map(function (item) {
+            var sensorIds = [];
+            if (Array.isArray(item.plots) && item.plots.length) {
+                item.plots.forEach(function (plot) {
+                    if (Array.isArray(plot.sensors) && plot.sensors.length) {
+                        plot.sensors.forEach(function (s) { sensorIds.push(fastChartSensorId(s)); });
+                    } else if (plot.sensor != null) {
+                        sensorIds.push(fastChartSensorId(plot.sensor));
+                    }
+                });
+            } else if (Array.isArray(item.sensors) && item.sensors.length) {
+                item.sensors.forEach(function (s) { sensorIds.push(fastChartSensorId(s)); });
+            } else if (item.sensor != null) {
+                sensorIds.push(fastChartSensorId(item.sensor));
+            }
+            sensorIds = sensorIds.filter(function (id) { return id != null; });
+            var sensorType = "";
+            for (var i = 0; i < sensorIds.length; i++) {
+                if (sensorTypeById.has(sensorIds[i])) { sensorType = sensorTypeById.get(sensorIds[i]); break; }
+            }
+            return {
+                title: item.title || "",
+                sensorIds: sensorIds,
+                sensorType: sensorType,
+                yAxis: (item["y-axis"] !== undefined ? item["y-axis"] : null),
+            };
+        });
+    }
+
     chartSpecsPath = dataPath + '/chart?';
 
     {% if event_starts_after and event_ends_before %}
@@ -380,6 +430,9 @@
         // the page's initial load, not this in-browser edit.
         if (event && event.detail && event.detail.sensorsToShow) {
             sensorsToShowForYAxisCheck = event.detail.sensorsToShow;
+            // Rebuild the fast chart's groupSpec so the just-saved titles, groupings
+            // and per-sub-chart y-axis modes take effect without a page reload.
+            fastChartGroupSpec = rebuildFastChartGroupSpec(event.detail.sensorsToShow);
         }
         {% endif %}
         $("#spinner").show();
