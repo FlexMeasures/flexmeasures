@@ -12,6 +12,7 @@ from rq import Queue
 from rq.job import Job
 
 RQ_DEFAULT_JOB_TIMEOUT = 180
+KNOWN_JOB_QUEUES = frozenset(("forecasting", "scheduling", "ingestion"))
 
 
 def _timeout_to_seconds(timeout: timedelta | str) -> int:
@@ -82,6 +83,18 @@ def get_job_timeout(
             queue_timeouts,
         )
         return _configured_default_job_timeout(config, logger)
+
+    unknown_queue_names = sorted(
+        str(configured_queue_name)
+        for configured_queue_name in queue_timeouts
+        if configured_queue_name not in KNOWN_JOB_QUEUES
+    )
+    if unknown_queue_names:
+        logger.error(
+            "Invalid FLEXMEASURES_JOB_TIMEOUT queue names %s. Expected queue names are %s.",
+            unknown_queue_names,
+            sorted(KNOWN_JOB_QUEUES),
+        )
 
     if queue_name not in queue_timeouts:
         return _configured_default_job_timeout(config, logger)
