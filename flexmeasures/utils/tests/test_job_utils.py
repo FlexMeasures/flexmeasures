@@ -85,6 +85,20 @@ def test_get_job_timeout_falls_back_on_non_mapping_queue_timeouts(caplog):
     assert "Invalid FLEXMEASURES_JOB_TIMEOUT" in caplog.text
 
 
+def test_get_job_timeout_logs_unknown_queue_names(caplog):
+    with caplog.at_level(logging.ERROR):
+        timeout = get_job_timeout(
+            "forecasting",
+            {
+                "FLEXMEASURES_DEFAULT_JOB_TIMEOUT": "PT5M",
+                "FLEXMEASURES_JOB_TIMEOUT": {"forecast": "PT1H"},
+            },
+        )
+
+    assert timeout == 300
+    assert "Invalid FLEXMEASURES_JOB_TIMEOUT queue names ['forecast']" in caplog.text
+
+
 def test_queue_default_timeout_is_used_for_enqueued_jobs():
     queue = Queue(
         name="scheduling",
@@ -120,12 +134,12 @@ def test_queue_default_timeout_is_used_when_enqueueing_created_jobs():
 
 
 def test_app_queues_use_default_job_timeout(app):
-    assert app.queues["forecasting"]._default_timeout == 180
+    assert app.queues["forecasting"]._default_timeout == 3600
     assert app.queues["scheduling"]._default_timeout == 180
     assert app.queues["ingestion"]._default_timeout == 180
 
 
-def test_app_queues_use_custom_queue_job_timeout(tmp_path, monkeypatch):
+def test_app_queues_use_custom_global_and_queue_job_timeout(tmp_path, monkeypatch):
     import flexmeasures.ui
 
     monkeypatch.setattr(flexmeasures.ui, "register_at", lambda app: None)
@@ -136,6 +150,7 @@ def test_app_queues_use_custom_queue_job_timeout(tmp_path, monkeypatch):
                 'SECRET_KEY = "dummy-key-for-job-timeout-test"',
                 'SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"',
                 "SQLALCHEMY_ENGINE_OPTIONS = {}",
+                'FLEXMEASURES_DEFAULT_JOB_TIMEOUT = "PT5M"',
                 'FLEXMEASURES_JOB_TIMEOUT = {"forecasting": "PT1H"}',
                 "FLEXMEASURES_PROFILE_REQUESTS = False",
                 "FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP = False",
@@ -147,5 +162,5 @@ def test_app_queues_use_custom_queue_job_timeout(tmp_path, monkeypatch):
     custom_app = create_app(env="development", path_to_config=str(config_file))
 
     assert custom_app.queues["forecasting"]._default_timeout == 3600
-    assert custom_app.queues["scheduling"]._default_timeout == 180
-    assert custom_app.queues["ingestion"]._default_timeout == 180
+    assert custom_app.queues["scheduling"]._default_timeout == 300
+    assert custom_app.queues["ingestion"]._default_timeout == 300
