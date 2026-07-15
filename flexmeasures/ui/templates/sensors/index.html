@@ -267,11 +267,6 @@ For the data, note the following:
 
               </div>
               <div class="col-sm-8">
-                  <div class="form-check form-switch d-flex justify-content-end align-items-center gap-2 mt-2"
-                      title="Render the data with a faster, canvas-based chart. Zoom with the mouse wheel, drag to pan.">
-                      <input class="form-check-input" type="checkbox" role="switch" id="fastChartToggle">
-                      <label class="form-check-label" for="fastChartToggle">Fast chart <span class="badge bg-secondary">beta</span></label>
-                  </div>
                   <div id="fast-chart-container" class="card" style="width: 100%; display: none;"></div>
                   <div id="sensorchart" class="card" style="width: 100%;"></div>
                   <div id="spinner" class="spinner">
@@ -357,6 +352,11 @@ For the data, note the following:
                   </div>
               </div>
               <div class="col-sm-2 replay-column">
+                  <div class="form-check form-switch d-flex justify-content-center align-items-center gap-2 fast-chart-toggle"
+                      title="Render the data with a faster, canvas-based chart. Zoom with the mouse wheel, drag to pan.">
+                      <input class="form-check-input" type="checkbox" role="switch" id="fastChartToggle">
+                      <label class="form-check-label" for="fastChartToggle">Fast chart <span class="badge bg-secondary">beta</span></label>
+                  </div>
                   <div class="replay-container">
                       <div
                          id="replay"

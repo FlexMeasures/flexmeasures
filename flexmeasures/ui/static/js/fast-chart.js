@@ -27,9 +27,9 @@ import { convertToCSV } from "./data-utils.js";
 const CHART_FONT = "Poppins, sans-serif";
 const FONT_SIZE = 16;
 
-const GRID_HEIGHT = 220; // height of each subplot in px
+const GRID_HEIGHT = 300; // height of each subplot in px (matches the Vega-Lite charts' 300px)
 const SIDE_GRID_GAP = 82; // vertical space between subplots (two-line x-axis labels + next title)
-const TOP_OFFSET = 48; // room for the toolbox and the first subplot title
+const TOP_OFFSET = 60; // room for the toolbox, the first subplot title and its y-axis title below it
 const BOTTOM_OFFSET = 92; // room for the slider and the last two-line x-axis labels
 const GRID_LEFT = 70; // room for the y-axis labels
 const LEGEND_WIDTH = 220; // width of the legend column beside each subplot
@@ -216,10 +216,11 @@ function groupData(data, groupSpec) {
   const groupBySensorId = new Map();
   const groupByUnit = new Map(); // fallback for rows not covered by the spec
 
-  function newGroup(title, sensorType) {
+  function newGroup(title, sensorType, yAxis) {
     const group = {
       title: title,
       sensorType: sensorType || "",
+      yAxis: yAxis != null ? yAxis : null, // per-sub-chart y-axis mode (PR #2244)
       units: new Set(),
       sensorNames: new Set(),
       series: new Map(),
@@ -230,7 +231,7 @@ function groupData(data, groupSpec) {
 
   if (Array.isArray(groupSpec)) {
     for (const entry of groupSpec) {
-      const group = newGroup(entry.title || "", entry.sensorType || "");
+      const group = newGroup(entry.title || "", entry.sensorType || "", entry.yAxis);
       for (const sensorId of entry.sensorIds || []) {
         groupBySensorId.set(sensorId, group);
       }
@@ -307,6 +308,7 @@ function groupData(data, groupSpec) {
       title: group.title || sensorNames.join(", "),
       units: Array.from(group.units),
       sensorType: group.sensorType,
+      yAxis: group.yAxis, // per-sub-chart y-axis mode (PR #2244)
       multiSensor: group.sensorNames.size > 1,
       nameBySensor: nameBySensor,
       series: series,
@@ -382,6 +384,35 @@ function yAxisTitle(sensorType, units) {
   return sensorType
     ? capFirst(sensorType) + (unitLabel ? " (" + unitLabel + ")" : "")
     : unitLabel;
+}
+
+// Port of _setup_event_value_field's y-axis handling (PR #2244) to ECharts.
+// A sub-chart's `y-axis` config (from sensors_to_show) chooses how the shared
+// value axis domain is picked; ECharts' `scale` flag mirrors Vega-Lite's
+// scale.zero (scale:false forces zero into the domain, scale:true fits the data):
+//   - undefined / "zero" (default): include zero (scale:false).
+//   - "data": fit the axis to the data (scale:true).
+//   - [min, max] (list): a floor domain — cover at least this range and expand
+//     to fit data beyond it (min/max callbacks, like Vega-Lite's unionWith).
+//   - {min, max} (object): a strict domain — hard-bound the axis to this range
+//     (data outside is clipped, approximating Vega-Lite's clamp-to-edge).
+//   - unit "%" with no explicit config: floor domain of [0, 105], as in Vega-Lite.
+function yAxisDomainOptions(group) {
+  const y = group.yAxis;
+  if (y === "data") {
+    return { scale: true };
+  }
+  if (Array.isArray(y) && y.length === 2) {
+    const [lo, hi] = y;
+    return { scale: true, min: (v) => Math.min(v.min, lo), max: (v) => Math.max(v.max, hi) };
+  }
+  if (y && typeof y === "object" && typeof y.min === "number" && typeof y.max === "number") {
+    return { scale: true, min: y.min, max: y.max };
+  }
+  if (!y && (group.units || []).includes("%")) {
+    return { min: (v) => Math.min(v.min, 0), max: (v) => Math.max(v.max, 105) };
+  }
+  return {}; // default ("zero"): ECharts value axes include zero (scale:false)
 }
 
 // Mixed date/time x-axis labels shared by every time-axis chart: "HH:MM" normally,
@@ -759,8 +790,15 @@ function buildLineBarOption(elementId, groups, opts) {
       })
     )
   );
+  // Prefer the requested time window (the chart's query range) over the data
+  // extent, so a day with data only between, say, 18:00 and 22:00 still shows the
+  // whole day on the x-axis — exactly as the Vega-Lite charts do (their x scale is
+  // fixed to event_starts_after/event_ends_before, not to the returned rows).
+  const win = opts.timeWindow;
   const sharedXDomain =
-    isFinite(sharedMinTime) && isFinite(sharedMaxTime)
+    win && isFinite(win.start) && isFinite(win.end)
+      ? { min: win.start, max: win.end }
+      : isFinite(sharedMinTime) && isFinite(sharedMaxTime)
       ? { min: sharedMinTime, max: sharedMaxTime }
       : {};
 
@@ -824,6 +862,7 @@ function buildLineBarOption(elementId, groups, opts) {
         fontSize: FONT_SIZE,
         color: "#222",
         formatter: xAxisTimeFormatter,
+        hideOverlap: true, // drop colliding tick labels on narrow (small-screen) charts
       },
     });
     yAxes.push({
@@ -831,6 +870,9 @@ function buildLineBarOption(elementId, groups, opts) {
       gridIndex: i,
       name: yAxisTitle(group.sensorType, group.units), // e.g. "Power (kW)"
       nameLocation: "end",
+      // Hug the grid top so the y-axis title sits just below the centered subplot
+      // title (as in the Vega-Lite charts), rather than floating up next to it.
+      nameGap: 10,
       nameTextStyle: {
         fontSize: FONT_SIZE,
         fontWeight: "bold",
@@ -839,6 +881,7 @@ function buildLineBarOption(elementId, groups, opts) {
         padding: [0, 0, 4, -GRID_LEFT + 16],
       },
       axisLabel: { fontSize: FONT_SIZE, color: "#222" },
+      ...yAxisDomainOptions(group), // issue #2244 y-axis modes (zero / data / floor / strict)
       splitLine: { show: true, lineStyle: { opacity: 0.7 } },
       // Finer gridlines between the major value lines, as in Vega-Lite.
       minorTick: { show: true, splitNumber: 2 },
@@ -861,7 +904,13 @@ function buildLineBarOption(elementId, groups, opts) {
         xAxisIndex: i,
         yAxisIndex: i,
         data: s.points,
-        emphasis: { focus: "series" },
+        // Don't let ECharts' axis-triggered hover pop out a highlight symbol on a
+        // series other than the one the tooltip is showing: our tooltip picks the
+        // nearest line by cursor distance (pickNearestParam), but the built-in
+        // emphasis would independently enlarge a point on a different sensor,
+        // producing the reported "tooltip on sensor A, circle marker on sensor B"
+        // mismatch. Disabling emphasis keeps just the shared ruler + tooltip.
+        emphasis: { disabled: true },
         animation: false,
       };
       // One color per sensor: series of the same sensor share their legend
@@ -885,7 +934,14 @@ function buildLineBarOption(elementId, groups, opts) {
           sampling: "lttb", // downsample to the available pixels, preserving peaks
           large: true, // batched canvas path: faster redraws while panning/zooming
           largeThreshold: 1000,
-          lineStyle: { width: 2.2, type: lineTypeForSource(s.source) },
+          lineStyle: {
+            width: 2.2,
+            type: lineTypeForSource(s.source),
+            // Softly round the right-angle corners of the stepped (interval) lines,
+            // as requested — a round line-join gives a subtle radius (~width/2)
+            // without inserting points, so LTTB downsampling and step still apply.
+            ...(groupIsInstantaneous ? {} : { join: "round" }),
+          },
         });
       }
       // Replay ruler: a vertical line at the current belief time
@@ -1446,7 +1502,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
     minorTick: { show: true, splitNumber: 6 },
     minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
     minInterval: 6 * 3600 * 1000,
-    axisLabel: { fontSize: FONT_SIZE, color: "#222", formatter: xAxisTimeFormatter },
+    axisLabel: { fontSize: FONT_SIZE, color: "#222", formatter: xAxisTimeFormatter, hideOverlap: true },
   }, sharedTimeDomain)];
   const yAxes = [{
     type: "category",
@@ -1615,6 +1671,50 @@ export function renderFastChart(elementId, data, options) {
   wireAnnotationHover(instance, opts);
   wireSessionTooltipRedirect(instance, opts);
   wirePointerTracking(instance);
+  wireZoomInteractions(instance, opts);
+}
+
+// Charts with a time x-axis carry the toolbox dataZoom (zoom/reset) feature and a
+// shared, resettable zoom; the category-axis charts (histogram, heatmaps) do not.
+function isZoomableChartType(chartType) {
+  return !["histogram", "daily_heatmap", "weekly_heatmap"].includes(chartType);
+}
+
+// Zoom conveniences on the time-axis charts:
+//  - pre-select the toolbox "zoom" (marquee) tool so a drag zooms straight away
+//    (issue: users expect Zoom active by default), and
+//  - double-click anywhere to reset the zoom back to the full range, mirroring the
+//    toolbox reset button.
+// Re-asserted on every render because setOption({notMerge:true}) resets toolbox state.
+function wireZoomInteractions(instance, opts) {
+  const chart = instance.chart;
+  if (instance.onDblClickReset) {
+    chart.off("dblclick", instance.onDblClickReset);
+    instance.onDblClickReset = null;
+  }
+  // Skip category-axis charts and the no-data placeholder (neither has a dataZoom).
+  const option = instance.lastOption || {};
+  const hasDataZoom = Array.isArray(option.dataZoom) && option.dataZoom.length > 0;
+  if (!isZoomableChartType((opts || {}).chartType) || !hasDataZoom) {
+    return;
+  }
+  // Pre-activate the marquee zoom tool (same as clicking the toolbox zoom icon).
+  chart.dispatchAction({
+    type: "takeGlobalCursor",
+    key: "dataZoomSelect",
+    dataZoomSelectActive: true,
+  });
+  // Double-click resets the zoom to the full range (like the toolbox reset icon).
+  instance.onDblClickReset = () => {
+    chart.dispatchAction({ type: "dataZoom", start: 0, end: 100 });
+    // Keep the marquee zoom tool selected after the reset.
+    chart.dispatchAction({
+      type: "takeGlobalCursor",
+      key: "dataZoomSelect",
+      dataZoomSelectActive: true,
+    });
+  };
+  chart.on("dblclick", instance.onDblClickReset);
 }
 
 // Track the cursor's canvas pixel position so the axis-trigger tooltip formatter

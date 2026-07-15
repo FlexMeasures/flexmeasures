@@ -63,6 +63,10 @@
     let fastMode = localStorage.getItem('fm-fast-charts') !== '0';  // canvas-based fast chart is the default; users can opt out to Vega-Lite
     const fastChartElementId = 'fast-chart-container';
     let fastChartGroupSpec = null;  // subplot structure (titles + sensor groupings), mirroring the Vega-Lite chart
+    // The current query window as plain epoch-ms {start, end}, captured before any
+    // later mutation of the shared Date objects (getAssetKPIs bumps storeEndDate by
+    // +1 day). Used as the fast chart's fixed x-axis domain (matches Vega-Lite).
+    let fastChartWindow = null;
 
     if ('{{ active_page }}' == 'assets') {
         chartType = 'chart_for_multiple_sensors';
@@ -107,7 +111,9 @@
         {
             title: {{ (item.title or "") | tojson }},
             sensorIds: {{ entry.sensors | map(attribute="id") | list | tojson }},
-            sensorType: {{ entry_sensor_type | tojson }}
+            sensorType: {{ entry_sensor_type | tojson }},
+            {# Per-sub-chart y-axis mode (PR #2244): "zero"/"data"/[min,max]/{min,max} #}
+            yAxis: {{ item.get("y-axis") | tojson }}
         }{% if not loop.last %},{% endif %}
         {% endfor %}
     ];
@@ -186,6 +192,7 @@
         {% if event_starts_after and event_ends_before %}
         storeStartDate = new Date('{{ event_starts_after }}');
         storeEndDate = new Date('{{ event_ends_before }}');
+        fastChartWindow = { start: storeStartDate.getTime(), end: storeEndDate.getTime() };
         checkDSTTransitions(storeStartDate, storeEndDate);
         {% endif %}
 
@@ -601,6 +608,8 @@
 
             storeStartDate = startDate;
             storeEndDate = endDate;
+            // Capture the window as primitives now, before getAssetKPIs mutates endDate (+1 day).
+            fastChartWindow = { start: startDate.getTime(), end: endDate.getTime() };
             var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
             var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
 
@@ -714,6 +723,9 @@
             isSensorPage: ('{{ active_page }}' === 'sensors'),
             datasetName: datasetName,
             annotations: (previousResult && previousResult.annotations) ? previousResult.annotations : [],
+            // The requested query window, so the x-axis spans the whole selected
+            // range even when data only covers part of it (matches Vega-Lite).
+            timeWindow: fastChartWindow,
         };
     }
 

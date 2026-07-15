@@ -100,11 +100,6 @@
                 </div>
             </div>
             {% endif %}
-            <div class="form-check form-switch d-flex justify-content-end align-items-center gap-2 mt-2"
-                title="Render the data with a faster, canvas-based chart. Zoom with the mouse wheel, drag to pan.">
-                <input class="form-check-input" type="checkbox" role="switch" id="fastChartToggle">
-                <label class="form-check-label" for="fastChartToggle">Fast chart <span class="badge bg-secondary">beta</span></label>
-            </div>
             <div id="fast-chart-container" class="card" style="width: 100%; display: none;"></div>
             <div id="sensorchart" class="card" style="width: 100%;"></div>
             <div class="row">
@@ -172,6 +167,11 @@
 
         </div>
         <div class="col-md-2 replay-column">
+            <div class="form-check form-switch d-flex justify-content-center align-items-center gap-2 fast-chart-toggle"
+                title="Render the data with a faster, canvas-based chart. Zoom with the mouse wheel, drag to pan.">
+                <input class="form-check-input" type="checkbox" role="switch" id="fastChartToggle">
+                <label class="form-check-label" for="fastChartToggle">Fast chart <span class="badge bg-secondary">beta</span></label>
+            </div>
             <div class="replay-container">
                 <div id="replay" data-bs-toggle="tooltip" data-bs-html="true" data-bs-custom-class="replay-tooltip"
                     data-bs-title="Press 'p' to play/pause.<br>Press 's' to stop.<br>Press 'n' for next step."

@@ -1867,6 +1867,13 @@ div.heading-group {
   justify-content: flex-start;
 }
 
+/* "Fast chart" toggle, relocated to the top of the replay column so it shares a
+   column with the replay button (its top). Keep it clear of the play button. */
+.fast-chart-toggle {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
 #replay-time {
   margin-top: 15px;
 }
