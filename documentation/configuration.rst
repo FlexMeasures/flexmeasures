@@ -336,10 +336,11 @@ FLEXMEASURES_JOB_TIMEOUT
 
 Timeouts per queue, expressed as fixed ISO 8601 durations.
 Queue-specific values override ``FLEXMEASURES_DEFAULT_JOB_TIMEOUT``.
+Supported queue names are ``forecasting``, ``scheduling`` and ``ingestion``.
 
 Example: ``{"forecasting": "PT2M", "scheduling": "PT5M", "ingestion": "PT30S"}``
 
-Default: ``{}``
+Default: ``{"forecasting": timedelta(hours=1)}``
 
 FLEXMEASURES_PLANNING_TTL
 ^^^^^^^^^^^^^^^^^^^^^^^^^
