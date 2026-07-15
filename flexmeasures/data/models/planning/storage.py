@@ -225,6 +225,9 @@ class MetaStorageScheduler(Scheduler):
         production_capacity = [
             flex_model_d.get("production_capacity") for flex_model_d in flex_model
         ]
+        operation_modes = [
+            flex_model_d.get("operation_modes") for flex_model_d in flex_model
+        ]
         charging_efficiency = [
             flex_model_d.get("charging_efficiency") for flex_model_d in flex_model
         ]
@@ -869,6 +872,18 @@ class MetaStorageScheduler(Scheduler):
             )
             device_constraints[d]["derivative max"] = power_capacity_in_mw[d]
             device_constraints[d]["derivative min"] = -power_capacity_in_mw[d]
+
+            # Power bands (S2 operation modes): carried on the constraints frame,
+            # in signed MW (positive is consumption), for the device scheduler.
+            # (Re-wired after the device-inventory merge dropped this pass-through.)
+            if operation_modes[d]:
+                device_constraints[d].attrs["operation_modes"] = [
+                    (
+                        float(mode["power_range"][0].to("MW").magnitude),
+                        float(mode["power_range"][1].to("MW").magnitude),
+                    )
+                    for mode in operation_modes[d]
+                ]
 
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_positive"
@@ -2537,6 +2552,9 @@ class StorageScheduler(MetaStorageScheduler):
 
         ems_schedule, expected_costs, scheduler_results, model = device_scheduler(
             device_constraints=device_constraints,
+            device_power_bands=[
+                dc.attrs.get("operation_modes") for dc in device_constraints
+            ],
             ems_constraints=ems_constraints,
             ems_constraint_groups=self.ems_constraint_groups,
             commitments=commitments,
@@ -2598,6 +2616,9 @@ class StorageScheduler(MetaStorageScheduler):
             ems_schedule=ems_schedule,
             soc_at_start=soc_at_start,
             device_constraints=device_constraints,
+            device_power_bands=[
+                dc.attrs.get("operation_modes") for dc in device_constraints
+            ],
             stock_groups=self.stock_groups,
             resolution=resolution,
         )
