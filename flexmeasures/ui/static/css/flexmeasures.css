@@ -1872,28 +1872,26 @@ div.heading-group {
    in the narrow replay column, let it wrap and stay inside the column instead of
    overflowing onto the chart card. */
 .fast-chart-toggle {
-  margin: 0.5rem 0;
-  /* One line when there's room; as the column narrows the label shrinks and its
-     text wraps ("beta" drops under "Fast chart"), and only when even that no longer
-     fits does flex-wrap drop the whole label below the switch — so it never spills
-     onto the chart card. */
-  flex-wrap: wrap;
+  /* Stack the switch above its centered "Fast chart (beta)" label. This keeps the
+     toggle narrow and centered inside the replay column at every width, instead of
+     a horizontal layout that left-aligns and spills onto the chart card. */
+  margin: 0.5rem auto;
+  flex-direction: column;
+  align-items: center;
   max-width: 100%;
   min-width: 0;
-  padding-left: 0; /* override Bootstrap .form-check's 2.5em, which overflows here */
+  padding-left: 0; /* override Bootstrap .form-check's 2.5em */
 }
 .fast-chart-toggle .form-check-input {
-  margin-left: 0; /* override the -2.5em float offset so the switch stays in flow */
+  margin-left: 0; /* override the -2.5em float offset so the switch stays centered */
   float: none;
-  flex: 0 0 auto; /* the switch keeps its size; the label is what shrinks */
 }
 .fast-chart-toggle .form-check-label {
-  flex: 1 1 auto; /* allow the label to shrink so its text wraps before it overflows */
   min-width: 0;
   white-space: normal;
   text-align: center;
   font-size: 0.85rem;
-  line-height: 1.2;
+  line-height: 1.3;
 }
 
 /* Mobile: let a one-finger vertical swipe scroll the page over the fast chart,

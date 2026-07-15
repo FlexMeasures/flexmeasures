@@ -566,11 +566,32 @@ function niceTimeStep(span, target) {
   return TIME_STEPS_MS[TIME_STEPS_MS.length - 1];
 }
 
-// Keep the x-axis grid lines equidistant AND adaptive: pick one uniform time step
-// for the currently-visible span and apply it to every time axis. ECharts' automatic
-// time ticks can be unevenly spaced (it snaps to mixed calendar levels); a fixed
-// `interval` keeps them even, and recomputing on zoom reveals finer gridlines as you
-// zoom in (like Vega-Lite). Recomputed on each dataZoom.
+// How many equal sub-divisions to draw between the major gridlines: pick a nice time
+// sub-step (dividing the major evenly into 2..8 parts) closest to ~1/3 of the major,
+// so we get e.g. hourly lines under a 3h major — not a blind half, which lands on ugly
+// times for a datetime axis. Returns 0 when no nice sub-step fits.
+function minorSplitFor(majorMs) {
+  const target = majorMs / 3;
+  let bestN = 0;
+  let bestDelta = Infinity;
+  for (const s of TIME_STEPS_MS) {
+    if (s >= majorMs) break;
+    const n = majorMs / s;
+    if (!Number.isInteger(n) || n < 2 || n > 8) continue;
+    const delta = Math.abs(s - target);
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      bestN = n;
+    }
+  }
+  return bestN;
+}
+
+// Keep the x-axis grid lines equidistant AND adaptive: pick one uniform time step for
+// the currently-visible span and pin every time axis to it via minInterval==maxInterval
+// (a plain `interval` isn't reliably honored on a time axis — ECharts snaps to its own
+// mixed calendar levels, e.g. 4h). Finer (unlabelled) minor lines subdivide it. Both
+// recomputed on each dataZoom so zooming in reveals finer, evenly-spaced gridlines.
 function refreshTimeTicks(instance) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed() || !(instance._xDomainSpan > 0)) return;
@@ -578,9 +599,20 @@ function refreshTimeTicks(instance) {
   const start = dz && typeof dz.start === "number" ? dz.start : 0;
   const end = dz && typeof dz.end === "number" ? dz.end : 100;
   const span = (instance._xDomainSpan * (end - start)) / 100;
-  const interval = niceTimeStep(span, 8);
+  const major = niceTimeStep(span, 8);
+  const minorN = minorSplitFor(major);
   const xAxis = chart.getOption().xAxis || [];
-  const patch = xAxis.map((ax) => (ax && ax.type === "time" ? { interval: interval } : {}));
+  const patch = xAxis.map((ax) =>
+    ax && ax.type === "time"
+      ? {
+          interval: major,
+          minInterval: major,
+          maxInterval: major,
+          minorTick: { show: minorN > 0, splitNumber: minorN || 1 },
+          minorSplitLine: { show: minorN > 0, lineStyle: { color: "#e0e0e0", width: 1 } },
+        }
+      : {}
+  );
   chart.setOption({ xAxis: patch });
 }
 
@@ -620,8 +652,25 @@ function xAxisTimeFormatter(value) {
   return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
 }
 
-function toolboxFeatures(elementId, datasetName, isSensorPage) {
+// Icons for the custom pan/zoom mode-toggle button (issue: the zoom tool should
+// switch between zoom and pan, with Ctrl as a temporary inverse override).
+const ZOOM_ICON =
+  "path://M551.7,526.3l-155-155c26.1-34.6,41.6-77.7,41.6-124.4C438.3,132.5,349.8,44,244.1,44S49.9,132.5,49.9,246.9s88.5,202.9,194.2,202.9c46.7,0,89.8-15.5,124.4-41.6l155,155c3.5,3.5,8,5.2,12.6,5.2s9.1-1.7,12.6-5.2C558.7,544.5,558.7,533.3,551.7,526.3z M91.9,246.9c0-83.9,68.3-152.2,152.2-152.2s152.2,68.3,152.2,152.2s-68.3,152.2-152.2,152.2S91.9,330.8,91.9,246.9z";
+const PAN_ICON =
+  "path://M512,150 L432,230 L482,230 L482,482 L230,482 L230,432 L150,512 L230,592 L230,542 L482,542 L482,794 L432,794 L512,874 L592,794 L542,794 L542,542 L794,542 L794,592 L874,512 L794,432 L794,482 L542,482 L542,230 L592,230 Z";
+const ZOOM_TITLE = "Drag to zoom · click to switch to pan · Ctrl inverts";
+const PAN_TITLE = "Drag to pan · click to switch to zoom · Ctrl inverts";
+
+function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
   const dataZoom = { yAxisIndex: false };
+  if (zoomable) {
+    // Visually hide the built-in zoom/back icons (opacity 0 — safe, unlike a
+    // zero-size icon path which divides by zero in ECharts' scaling). The custom
+    // myPanZoom button is the visible mode toggle and reset is on double-click; the
+    // feature must stay present so takeGlobalCursor's marquee brush keeps working.
+    dataZoom.iconStyle = { opacity: 0 };
+    dataZoom.emphasis = { iconStyle: { opacity: 0 } };
+  }
   const savePNG = {
     show: true,
     title: "Save as PNG",
@@ -640,12 +689,58 @@ function toolboxFeatures(elementId, datasetName, isSensorPage) {
     icon: "path://M5 2 L13 2 L17 6 L17 20 L5 20 Z M7 12 L11 17 L15 9",
     onclick: () => exportSVG(elementId, datasetName),
   };
-  // Toolbox icons render in key order. On the sensor page, place SVG between the
-  // dataZoom (zoom/reset) icons and PNG; elsewhere keep PNG, CSV, SVG.
-  const feature = isSensorPage
-    ? { dataZoom: dataZoom, mySaveSVG: saveSVG, mySavePNG: savePNG, mySaveCSV: saveCSV }
-    : { dataZoom: dataZoom, mySavePNG: savePNG, mySaveCSV: saveCSV, mySaveSVG: saveSVG };
+  // Toolbox icons render in key order. The custom pan/zoom toggle goes first (leftmost),
+  // then the (hidden) dataZoom feature, then the save icons.
+  const feature = {};
+  if (zoomable) {
+    const instance = instances[elementId];
+    const zoomMode = !(instance && instance._zoomMode === false); // default: zoom mode
+    feature.myPanZoom = {
+      show: true,
+      title: zoomMode ? ZOOM_TITLE : PAN_TITLE,
+      icon: zoomMode ? ZOOM_ICON : PAN_ICON,
+      onclick: () => togglePanZoom(elementId),
+    };
+  }
+  feature.dataZoom = dataZoom;
+  if (isSensorPage) {
+    feature.mySaveSVG = saveSVG;
+    feature.mySavePNG = savePNG;
+    feature.mySaveCSV = saveCSV;
+  } else {
+    feature.mySavePNG = savePNG;
+    feature.mySaveCSV = saveCSV;
+    feature.mySaveSVG = saveSVG;
+  }
   return { right: 16, feature: feature };
+}
+
+// Apply the current pan/zoom mode to the marquee tool. The marquee (drag-to-zoom) is
+// active when the mode is "zoom" XOR Ctrl is held — so Ctrl temporarily inverts the
+// mode. Whenever the marquee is off, the inside dataZoom pans on drag instead.
+function applyPanZoomMode(instance) {
+  const chart = instance.chart;
+  if (!chart || chart.isDisposed()) return;
+  const zoomMode = instance._zoomMode !== false;
+  const marquee = zoomMode !== !!instance._ctrlHeld;
+  chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: marquee });
+}
+
+// Toggle between zoom mode and pan mode from the custom toolbox button, and swap its
+// icon/title to match.
+function togglePanZoom(elementId) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return;
+  instance._zoomMode = instance._zoomMode === false; // flip (default is zoom → becomes pan)
+  applyPanZoomMode(instance);
+  const zoomMode = instance._zoomMode !== false;
+  instance.chart.setOption({
+    toolbox: {
+      feature: {
+        myPanZoom: { icon: zoomMode ? ZOOM_ICON : PAN_ICON, title: zoomMode ? ZOOM_TITLE : PAN_TITLE },
+      },
+    },
+  });
 }
 
 function downloadBlob(content, mimeType, filename) {
@@ -1249,7 +1344,7 @@ function buildLineBarOption(elementId, groups, opts) {
   const sourceKey = showSourceKey ? buildSourceKey(sourceKeyLeft, sourceKeyTop) : null;
 
   const allAxisIndices = xAxes.map((_, i) => i);
-  const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage);
+  const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage, true);
   toolbox.feature.dataZoom.xAxisIndex = allAxisIndices;
   toolbox.top = TOOLBOX_TOP; // drop the buttons below the (now higher) subplot title
 
@@ -1305,11 +1400,11 @@ function buildLineBarOption(elementId, groups, opts) {
         throttle: 80,
         zoomOnMouseWheel: true, // desktop wheel zoom; touch pinch zoom is always on
         moveOnMouseWheel: false,
-        // Desktop: Ctrl+drag pans (plain drag is the marquee zoom). Touch: a one-finger
-        // HORIZONTAL drag pans the chart (touch-action: pan-y sends only horizontal
-        // drags here; vertical drags scroll the page). preventDefaultMouseMove:false so
-        // the vertical scroll isn't blocked; a two-finger pinch still zooms.
-        moveOnMouseMove: IS_TOUCH ? true : "ctrl",
+        // Drag pans whenever the marquee zoom tool is OFF (desktop pan mode, or a
+        // touch horizontal drag). When the marquee is ON it captures the drag (zoom)
+        // and this is shadowed. See wireZoomInteractions for the mode/Ctrl handling.
+        // On touch, preventDefaultMouseMove:false lets a vertical swipe scroll the page.
+        moveOnMouseMove: true,
         preventDefaultMouseMove: !IS_TOUCH,
       },
     ],
@@ -1870,7 +1965,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
   container.style.height = bottomOffset + verticalPadding + "px";
 
   const allAxisIndices = xAxes.map((_, i) => i);
-  const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage);
+  const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage, true);
   toolbox.feature.dataZoom.xAxisIndex = allAxisIndices;
   toolbox.top = TOOLBOX_TOP; // drop the buttons below the subplot title
 
@@ -1901,11 +1996,11 @@ function buildChargePointSessionsOption(elementId, data, opts) {
         throttle: 80,
         zoomOnMouseWheel: true, // desktop wheel zoom; touch pinch zoom is always on
         moveOnMouseWheel: false,
-        // Desktop: Ctrl+drag pans (plain drag is the marquee zoom). Touch: a one-finger
-        // HORIZONTAL drag pans the chart (touch-action: pan-y sends only horizontal
-        // drags here; vertical drags scroll the page). preventDefaultMouseMove:false so
-        // the vertical scroll isn't blocked; a two-finger pinch still zooms.
-        moveOnMouseMove: IS_TOUCH ? true : "ctrl",
+        // Drag pans whenever the marquee zoom tool is OFF (desktop pan mode, or a
+        // touch horizontal drag). When the marquee is ON it captures the drag (zoom)
+        // and this is shadowed. See wireZoomInteractions for the mode/Ctrl handling.
+        // On touch, preventDefaultMouseMove:false lets a vertical swipe scroll the page.
+        moveOnMouseMove: true,
         preventDefaultMouseMove: !IS_TOUCH,
       },
     ],
@@ -1947,6 +2042,8 @@ export function renderFastChart(elementId, data, options) {
     instances[elementId] = instance;
   }
   instance.lastArgs = { data: data, options: options };
+  // Pan/zoom mode persists across re-renders; default to zoom on desktop, pan on touch.
+  if (instance._zoomMode === undefined) instance._zoomMode = !IS_TOUCH;
 
   instance._roundedSeries = []; // rebuilt by buildLineBarOption for line charts with rounded steps
   instance._xDomainSpan = 0; // set by buildLineBarOption for time-axis charts (equidistant ticks)
@@ -2013,25 +2110,24 @@ function wireZoomInteractions(instance, opts) {
   if (!isZoomableChartType((opts || {}).chartType) || !hasDataZoom) {
     return;
   }
-  const activateZoomTool = () =>
-    chart.dispatchAction({
-      type: "takeGlobalCursor",
-      key: "dataZoomSelect",
-      dataZoomSelectActive: true,
-    });
   const resetZoom = () => {
     const dataZoomIndices = (option.dataZoom || []).map((_, i) => i);
     chart.dispatchAction({ type: "dataZoom", dataZoomIndex: dataZoomIndices, start: 0, end: 100 });
   };
 
+  // Mode is remembered on the instance: zoom mode (default) or pan mode, toggled by
+  // the custom toolbox button (togglePanZoom). applyPanZoomMode turns the marquee on
+  // when mode==zoom XOR Ctrl held, so the button chooses the default and Ctrl inverts.
+  if (instance._zoomMode === undefined) instance._zoomMode = !IS_TOUCH; // touch defaults to pan (drag pans, pinch zooms)
+  instance._ctrlHeld = false;
+  applyPanZoomMode(instance);
+
   if (IS_TOUCH) {
-    // Don't pre-activate the marquee: a one-finger swipe must scroll the page, and
-    // pinch handles zoom. Reset on a genuine double-tap (two quick taps in place).
+    // Reset on a genuine double-tap (two quick taps in place), ignoring swipes.
     instance._lastTapAt = 0;
     instance._lastTapXY = null;
     instance.onTapReset = (e) => {
       const x = e && e.offsetX, y = e && e.offsetY;
-      // Ignore swipes (page scroll): a real tap barely moves between down and up.
       const down = instance._downPixel;
       if (down && (Math.abs(x - down[0]) > 12 || Math.abs(y - down[1]) > 12)) {
         instance._lastTapAt = 0;
@@ -2056,25 +2152,24 @@ function wireZoomInteractions(instance, opts) {
     return;
   }
 
-  // Desktop: pre-activate the marquee zoom tool, double-click resets to full range.
-  activateZoomTool();
+  // Desktop: double-click resets to the full range (keeping the current mode).
   instance.onDblClickReset = () => {
     resetZoom();
-    activateZoomTool(); // keep the marquee zoom tool selected after the reset
+    applyPanZoomMode(instance);
   };
   zr.on("dblclick", instance.onDblClickReset);
 
-  // Ctrl+drag should pan, but the pre-selected marquee brush grabs every drag
-  // regardless of modifier. So while Ctrl is held, turn the marquee off — then the
-  // inside dataZoom (moveOnMouseMove:"ctrl") pans — and turn it back on when released.
+  // Ctrl temporarily inverts the mode (zoom<->pan): applyPanZoomMode flips the marquee.
   instance.onCtrlDown = (e) => {
-    if (e.key === "Control" && !chart.isDisposed()) {
-      chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: false });
+    if (e.key === "Control" && !instance._ctrlHeld) {
+      instance._ctrlHeld = true;
+      applyPanZoomMode(instance);
     }
   };
   instance.onCtrlUp = (e) => {
-    if (e.key === "Control" && !chart.isDisposed()) {
-      activateZoomTool();
+    if (e.key === "Control" && instance._ctrlHeld) {
+      instance._ctrlHeld = false;
+      applyPanZoomMode(instance);
     }
   };
   document.addEventListener("keydown", instance.onCtrlDown);
@@ -2087,29 +2182,25 @@ function wireZoomInteractions(instance, opts) {
 // the canvas is a tap on the tooltip; a tap outside the container closes it too.
 function wireTouchTooltipDismiss(instance, elementId) {
   const chart = instance.chart;
-  if (instance.onTooltipTap) {
-    if (instance._tooltipContainer) {
-      instance._tooltipContainer.removeEventListener("click", instance.onTooltipTap);
-    }
+  if (instance.onDocTapDismiss) {
+    document.removeEventListener("touchend", instance.onDocTapDismiss);
     document.removeEventListener("click", instance.onDocTapDismiss);
-    instance.onTooltipTap = null;
     instance.onDocTapDismiss = null;
-    instance._tooltipContainer = null;
   }
   const container = document.getElementById(elementId);
   if (!IS_TOUCH || !container) return;
-  instance._tooltipContainer = container;
-  instance.onTooltipTap = (e) => {
-    if (e.target && e.target.tagName !== "CANVAS" && !chart.isDisposed()) {
-      chart.dispatchAction({ type: "hideTip" });
-    }
-  };
-  container.addEventListener("click", instance.onTooltipTap);
+  // Any tap whose target is NOT the chart canvas closes the tooltip: that covers the
+  // tooltip itself (a DOM element over the canvas, pointer-events:auto) and taps
+  // outside the chart. A tap on the canvas is a data point → let ECharts show/move it.
+  // Listen on "touchend" (not just "click"): ECharts' touch handling can swallow the
+  // synthetic click, so the click listener alone never fired on mobile.
   instance.onDocTapDismiss = (e) => {
-    if (!container.contains(e.target) && !chart.isDisposed()) {
-      chart.dispatchAction({ type: "hideTip" });
-    }
+    if (chart.isDisposed()) return;
+    const t = e.target;
+    if (t && t.tagName === "CANVAS" && container.contains(t)) return; // data-point tap
+    chart.dispatchAction({ type: "hideTip" });
   };
+  document.addEventListener("touchend", instance.onDocTapDismiss);
   document.addEventListener("click", instance.onDocTapDismiss);
 }
 
@@ -2252,10 +2343,8 @@ export function disposeFastChart(elementId) {
       document.removeEventListener("keydown", instance.onCtrlDown);
       document.removeEventListener("keyup", instance.onCtrlUp);
     }
-    if (instance.onTooltipTap) {
-      if (instance._tooltipContainer) {
-        instance._tooltipContainer.removeEventListener("click", instance.onTooltipTap);
-      }
+    if (instance.onDocTapDismiss) {
+      document.removeEventListener("touchend", instance.onDocTapDismiss);
       document.removeEventListener("click", instance.onDocTapDismiss);
     }
     clearTimeout(instance.resizeTimer);
