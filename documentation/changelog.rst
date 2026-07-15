@@ -40,7 +40,7 @@ Infrastructure / Support
 * Make toy tutorials robust against pre-existing IDs [see `PR #2269 <https://www.github.com/FlexMeasures/flexmeasures/pull/2269>`_]
 * Document multi-tenancy and consultancy tenant structures for hosts [see `PR #2176 <https://www.github.com/FlexMeasures/flexmeasures/pull/2176>`_]
 * Warn hosts when the database schema is not at the latest migration, and skip startup template provisioning until migrations are applied [see `PR #2309 <https://www.github.com/FlexMeasures/flexmeasures/pull/2309>`_]
-* Add ``FLEXMEASURES_DEFAULT_JOB_TIMEOUT`` and ``FLEXMEASURES_JOB_TIMEOUT`` settings for configuring RQ job timeouts globally and per queue, while preserving the existing one-hour default for forecasting jobs [see `PR #2318 <https://github.com/FlexMeasures/flexmeasures/pull/2318>`_]
+* Add ``FLEXMEASURES_DEFAULT_JOB_TIMEOUT`` and ``FLEXMEASURES_JOB_TIMEOUT`` settings for configuring RQ job timeouts globally and per queue, and log actionable guidance when a forecasting job times out [see `PR #2318 <https://github.com/FlexMeasures/flexmeasures/pull/2318>`_]
 
 Bugfixes
 -----------

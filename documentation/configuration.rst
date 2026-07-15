@@ -340,7 +340,7 @@ Supported queue names are ``forecasting``, ``scheduling`` and ``ingestion``.
 
 Example: ``{"forecasting": "PT2M", "scheduling": "PT5M", "ingestion": "PT30S"}``
 
-Default: ``{"forecasting": timedelta(hours=1)}``
+Default: ``{}``
 
 FLEXMEASURES_PLANNING_TTL
 ^^^^^^^^^^^^^^^^^^^^^^^^^
