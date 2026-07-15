@@ -1873,10 +1873,11 @@ div.heading-group {
    overflowing onto the chart card. */
 .fast-chart-toggle {
   margin: 0.5rem 0;
-  /* Stack the switch above its "Fast chart (beta)" label. In the narrow replay
-     column a side-by-side layout overflowed onto the chart card just before it
-     wrapped; stacking keeps it inside the column at every width. */
-  flex-direction: column;
+  /* One line when there's room; as the column narrows the label shrinks and its
+     text wraps ("beta" drops under "Fast chart"), and only when even that no longer
+     fits does flex-wrap drop the whole label below the switch — so it never spills
+     onto the chart card. */
+  flex-wrap: wrap;
   max-width: 100%;
   min-width: 0;
   padding-left: 0; /* override Bootstrap .form-check's 2.5em, which overflows here */
@@ -1884,8 +1885,11 @@ div.heading-group {
 .fast-chart-toggle .form-check-input {
   margin-left: 0; /* override the -2.5em float offset so the switch stays in flow */
   float: none;
+  flex: 0 0 auto; /* the switch keeps its size; the label is what shrinks */
 }
 .fast-chart-toggle .form-check-label {
+  flex: 1 1 auto; /* allow the label to shrink so its text wraps before it overflows */
+  min-width: 0;
   white-space: normal;
   text-align: center;
   font-size: 0.85rem;

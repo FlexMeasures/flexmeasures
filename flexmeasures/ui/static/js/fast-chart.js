@@ -1083,11 +1083,10 @@ function buildLineBarOption(elementId, groups, opts) {
       axisLine: { onZero: false },
       axisPointer: { show: true }, // vertical ruler, as in the Vega-Lite charts
       splitLine: { show: true, lineStyle: { opacity: 0.5 } },
-      // Finer (hourly) gridlines between the 6-hour major lines, as in Vega-Lite.
-      minorTick: { show: true, splitNumber: 6 },
-      minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
-      // No fixed minInterval: let ECharts choose the tick granularity from the
-      // visible range, so zooming in reveals finer datetime ticks (as Vega-Lite does).
+      // No minor gridlines on the time axis: they render unevenly at the edges. The
+      // uniform major gridlines (from the adaptive `interval` in refreshTimeTicks) stay
+      // equidistant and get finer as you zoom in, which covers the same need.
+      // No fixed minInterval: refreshTimeTicks sets an explicit, visible-span-based one.
       axisLabel: {
         fontSize: FONT_SIZE,
         color: "#222",
@@ -1287,7 +1286,10 @@ function buildLineBarOption(elementId, groups, opts) {
       // On touch, show the tooltip on TAP only (not on the swipe/move), so a
       // one-finger drag scrolls the page instead of being swallowed by the tooltip.
       triggerOn: IS_TOUCH ? "click" : "mousemove|click",
-      enterable: IS_TOUCH, // let a tap land on the tooltip so it can be tapped closed
+      enterable: IS_TOUCH,
+      // Force pointer-events on the tooltip so a tap lands on IT (target != canvas)
+      // and wireTouchTooltipDismiss can close it; enterable alone left it click-through.
+      extraCssText: IS_TOUCH ? "pointer-events: auto;" : undefined,
       axisPointer: { type: "line" },
       formatter: seriesTooltipFormatter(seriesMeta, instance),
     },
@@ -1303,10 +1305,11 @@ function buildLineBarOption(elementId, groups, opts) {
         throttle: 80,
         zoomOnMouseWheel: true, // desktop wheel zoom; touch pinch zoom is always on
         moveOnMouseWheel: false,
-        // Desktop: Ctrl+drag pans (plain drag is the marquee zoom). Touch: never
-        // pan on a one-finger drag, and don't preventDefault it either, so the swipe
-        // scrolls the page (with touch-action: pan-y); a two-finger pinch still zooms.
-        moveOnMouseMove: IS_TOUCH ? false : "ctrl",
+        // Desktop: Ctrl+drag pans (plain drag is the marquee zoom). Touch: a one-finger
+        // HORIZONTAL drag pans the chart (touch-action: pan-y sends only horizontal
+        // drags here; vertical drags scroll the page). preventDefaultMouseMove:false so
+        // the vertical scroll isn't blocked; a two-finger pinch still zooms.
+        moveOnMouseMove: IS_TOUCH ? true : "ctrl",
         preventDefaultMouseMove: !IS_TOUCH,
       },
     ],
@@ -1749,6 +1752,12 @@ function buildChargePointSessionsOption(elementId, data, opts) {
     }
   }
   const sharedTimeDomain = isFinite(minTime) && isFinite(maxTime) ? { min: minTime, max: maxTime } : {};
+  // Give the sessions chart (and its companion subplots) the same equidistant,
+  // adaptive x-axis ticks as the line charts (see refreshTimeTicks).
+  const sessionsInstance = instances[elementId];
+  if (sessionsInstance) {
+    sessionsInstance._xDomainSpan = isFinite(minTime) && isFinite(maxTime) ? maxTime - minTime : 0;
+  }
 
   const container = document.getElementById(elementId);
   const gridGap = SIDE_GRID_GAP;
@@ -1773,9 +1782,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
     axisLine: { onZero: false },
     axisPointer: { show: true },
     splitLine: { show: true, lineStyle: { opacity: 0.5 } },
-    minorTick: { show: true, splitNumber: 6 },
-    minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
-    // No fixed minInterval, so zooming in reveals finer datetime ticks (see line chart).
+    // No minor gridlines (they render unevenly at the edges); see the line chart.
     axisLabel: { fontSize: FONT_SIZE, color: "#222", formatter: xAxisTimeFormatter, hideOverlap: true },
   }, sharedTimeDomain)];
   const yAxes = [{
@@ -1882,6 +1889,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
       confine: true,
       triggerOn: IS_TOUCH ? "click" : "mousemove|click", // tap-only on touch (see line chart)
       enterable: IS_TOUCH,
+      extraCssText: IS_TOUCH ? "pointer-events: auto;" : undefined,
       formatter: seriesTooltipFormatter(seriesMeta),
     },
     toolbox: toolbox,
@@ -1893,10 +1901,11 @@ function buildChargePointSessionsOption(elementId, data, opts) {
         throttle: 80,
         zoomOnMouseWheel: true, // desktop wheel zoom; touch pinch zoom is always on
         moveOnMouseWheel: false,
-        // Desktop: Ctrl+drag pans (plain drag is the marquee zoom). Touch: never
-        // pan on a one-finger drag, and don't preventDefault it either, so the swipe
-        // scrolls the page (with touch-action: pan-y); a two-finger pinch still zooms.
-        moveOnMouseMove: IS_TOUCH ? false : "ctrl",
+        // Desktop: Ctrl+drag pans (plain drag is the marquee zoom). Touch: a one-finger
+        // HORIZONTAL drag pans the chart (touch-action: pan-y sends only horizontal
+        // drags here; vertical drags scroll the page). preventDefaultMouseMove:false so
+        // the vertical scroll isn't blocked; a two-finger pinch still zooms.
+        moveOnMouseMove: IS_TOUCH ? true : "ctrl",
         preventDefaultMouseMove: !IS_TOUCH,
       },
     ],
