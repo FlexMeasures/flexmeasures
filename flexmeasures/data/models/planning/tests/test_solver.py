@@ -3959,3 +3959,255 @@ def test_resolve_soc_at_start_from_time_series_prefers_newest_boundary_value(
         )
         == 2
     )
+
+
+def test_multi_device_battery_couples_stock_from_soc_sensor(
+    db, building, setup_generic_asset_types
+):
+    """Field-shape regression: a battery in a multi-device flex-model,
+    whose only SoC input is a state-of-charge *sensor* (no explicit ``soc-at-start``),
+    must be scheduled with stock constraints - it cannot discharge more energy than its store holds.
+
+    This mirrors the production shape of a battery under an apartment:
+    the child asset's DB flex-model references the battery's power sensor via a nested output reference and its SoC via a state-of-charge sensor,
+    and provides soc-min/soc-max but not soc-at-start.
+    The starting SoC is a small 0.05 kWh,
+    so a correctly coupled scheduler can only discharge ~0.05 kWh over the whole window,
+    not power-capacity every step.
+    """
+    battery_type = setup_generic_asset_types["battery"]
+    site = _add_parent_site(db, building, "stock coupling test site")
+    power_sensor, soc_sensor = _add_battery_device(
+        db, site, battery_type, "stock coupling battery"
+    )
+    # A second device keeps the flex-model a multi-device list (as in the field, where
+    # several batteries live in the scheduled subtree), instead of collapsing to a
+    # single-sensor dict.
+    power_sensor_2, soc_sensor_2 = _add_battery_device(
+        db, site, battery_type, "stock coupling battery 2"
+    )
+    db.session.commit()
+
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    # The store starts nearly empty (0.05 kWh), recorded on the state-of-charge sensor.
+    source = DataSource("soc-coupling-test-source")
+    db.session.add(source)
+    db.session.add_all(
+        [
+            TimedBelief(
+                sensor=soc_sensor,
+                event_start=as_server_time(start.to_pydatetime()),
+                event_value=0.05,  # kWh
+                belief_horizon=timedelta(0),
+                source=source,
+            ),
+            TimedBelief(
+                sensor=soc_sensor_2,
+                event_start=as_server_time(start.to_pydatetime()),
+                event_value=0.05,  # kWh
+                belief_horizon=timedelta(0),
+                source=source,
+            ),
+        ]
+    )
+    db.session.commit()
+
+    flex_model = [
+        {
+            # Power sensor referenced via a nested output reference (no top-level sensor).
+            "consumption": {"sensor": power_sensor.id},
+            "state-of-charge": {"sensor": soc_sensor.id},
+            "soc-min": "0 kWh",
+            "soc-max": "10 kWh",
+            "power-capacity": "2.5 kW",
+            # Forbid charging, so the only dischargeable energy is the initial store.
+            "consumption-capacity": "0 kW",
+        },
+        {
+            "consumption": {"sensor": power_sensor_2.id},
+            "state-of-charge": {"sensor": soc_sensor_2.id},
+            "soc-min": "0 kWh",
+            "soc-max": "10 kWh",
+            "power-capacity": "2.5 kW",
+            "consumption-capacity": "0 kW",
+        },
+    ]
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context={
+            # Reward discharging (production) so the scheduler wants to empty the store.
+            "consumption-price": "1000 EUR/MWh",
+            "production-price": "1000 EUR/MWh",
+            "site-power-capacity": "100 kW",
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+
+    schedule = next(
+        r["data"]
+        for r in results
+        if r.get("name") == "storage_schedule" and r.get("sensor") is power_sensor
+    )
+    # Net discharged energy (kW * 1h = kWh) cannot exceed the ~0.05 kWh in the store.
+    discharged_kwh = -schedule.clip(upper=0).sum()
+    assert discharged_kwh <= 0.05 + 1e-3, (
+        f"Battery discharged {discharged_kwh:.3f} kWh from a 0.05 kWh store: "
+        "the stock constraint is not coupled to the device."
+    )
+
+
+def test_multi_device_battery_couples_stock_from_percent_soc_sensor(
+    db, building, setup_generic_asset_types
+):
+    """Same as test_multi_device_battery_couples_stock_from_soc_sensor,
+    but the state-of-charge sensor records percentages,
+    so resolving the starting stock needs the entry's own soc-max for the unit conversion (0.5% of 10 kWh = 0.05 kWh).
+    """
+    battery_type = setup_generic_asset_types["battery"]
+    site = _add_parent_site(db, building, "percent stock coupling test site")
+    power_sensor, _ = _add_battery_device(
+        db, site, battery_type, "percent stock coupling battery", with_soc_sensor=False
+    )
+    power_sensor_2, _ = _add_battery_device(
+        db,
+        site,
+        battery_type,
+        "percent stock coupling battery 2",
+        with_soc_sensor=False,
+    )
+    soc_sensor = Sensor(
+        name="percent stock coupling soc",
+        generic_asset=power_sensor.generic_asset,
+        event_resolution=timedelta(0),
+        unit="%",
+    )
+    db.session.add(soc_sensor)
+    db.session.flush()
+
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    source = DataSource("percent-soc-coupling-test-source")
+    db.session.add(source)
+    db.session.add(
+        TimedBelief(
+            sensor=soc_sensor,
+            event_start=as_server_time(start.to_pydatetime()),
+            event_value=0.5,  # % of soc-max (10 kWh) = 0.05 kWh
+            belief_horizon=timedelta(0),
+            source=source,
+        )
+    )
+    db.session.commit()
+
+    flex_model = [
+        {
+            "sensor": power_sensor.id,
+            "state-of-charge": {"sensor": soc_sensor.id},
+            "soc-min": "0 kWh",
+            "soc-max": "10 kWh",
+            "power-capacity": "2.5 kW",
+            "consumption-capacity": "0 kW",  # forbid charging
+        },
+        {
+            # A second device keeps the flex-model in multi-device mode.
+            "sensor": power_sensor_2.id,
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "10 kWh",
+            "power-capacity": "2.5 kW",
+            "consumption-capacity": "0 kW",
+        },
+    ]
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": "1000 EUR/MWh",
+            "production-price": "1000 EUR/MWh",
+            "site-power-capacity": "100 kW",
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+
+    schedule = next(
+        r["data"]
+        for r in results
+        if r.get("name") == "storage_schedule" and r.get("sensor") is power_sensor
+    )
+    discharged_kwh = -schedule.clip(upper=0).sum()
+    assert discharged_kwh <= 0.05 + 1e-3, (
+        f"Battery discharged {discharged_kwh:.3f} kWh from a 0.05 kWh store: "
+        "the percent-based state of charge was not converted using the entry's soc-max."
+    )
+
+
+def test_multi_device_battery_fails_on_unresolvable_soc_sensor(
+    db, building, setup_generic_asset_types
+):
+    """A state of charge that is given but cannot be resolved fails the schedule,
+    in line with single-sensor mode:
+    a device must not silently be scheduled without stock constraints."""
+    battery_type = setup_generic_asset_types["battery"]
+    site = _add_parent_site(db, building, "unresolvable soc test site")
+    power_sensor, soc_sensor = _add_battery_device(
+        db, site, battery_type, "unresolvable soc battery"
+    )
+    power_sensor_2, _ = _add_battery_device(
+        db, site, battery_type, "unresolvable soc battery 2", with_soc_sensor=False
+    )
+    db.session.commit()
+
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    flex_model = [
+        {
+            # The state-of-charge sensor holds no recent value.
+            "sensor": power_sensor.id,
+            "state-of-charge": {"sensor": soc_sensor.id},
+            "soc-min": "0 kWh",
+            "soc-max": "10 kWh",
+            "power-capacity": "2.5 kW",
+        },
+        {
+            # A second device keeps the flex-model in multi-device mode.
+            "sensor": power_sensor_2.id,
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "10 kWh",
+            "power-capacity": "2.5 kW",
+        },
+    ]
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": "1000 EUR/MWh",
+            "production-price": "1000 EUR/MWh",
+            "site-power-capacity": "100 kW",
+        },
+        return_multiple=True,
+    )
+    with pytest.raises(ValueError, match="No recent state-of-charge value"):
+        scheduler.compute()

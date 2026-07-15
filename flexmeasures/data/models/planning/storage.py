@@ -191,6 +191,18 @@ class MetaStorageScheduler(Scheduler):
             d0 = devices[0]
 
             soc_at_start[d0] = stock_model.get("soc_at_start")
+            # In multi-device mode, the soc-at-start of a stock is not resolved during deserialization
+            # (unlike single-sensor mode's ensure_soc_at_start()).
+            # If the stock's owning entry carries a state-of-charge sensor (or time series) but no explicit soc-at-start,
+            # resolve the starting stock from it here.
+            # Without this, soc_at_start stays None and the scheduler applies no stock constraints,
+            # so the device could discharge more energy than its store holds.
+            if soc_at_start[d0] is None:
+                resolved_soc_at_start = self._resolve_stock_soc_at_start(
+                    stock_model, sensor=sensors[d0]
+                )
+                if resolved_soc_at_start is not None:
+                    soc_at_start[d0] = resolved_soc_at_start
             soc_targets[d0] = stock_model.get("soc_targets")
             soc_min[d0] = stock_model.get("soc_min")
             soc_max[d0] = stock_model.get("soc_max")
@@ -1606,6 +1618,38 @@ class MetaStorageScheduler(Scheduler):
             return self._resolve_soc_at_start_from_sensor(
                 state_of_charge_sensor, flex_model, sensor
             )
+        return None
+
+    def _resolve_stock_soc_at_start(
+        self, stock_model: dict, sensor: Sensor | None = None
+    ) -> float | None:
+        """Resolve a stock's soc-at-start (in MWh) from its (deserialized) state-of-charge.
+
+        Used in multi-device mode, where soc-at-start is not resolved during deserialization.
+        Operates on the deserialized stock-owning entry,
+        whose ``state_of_charge`` is a :class:`Sensor`, :class:`SensorReference` or time series.
+
+        In line with single-sensor mode's ``ensure_soc_at_start()``,
+        a state of charge that is given but cannot be resolved fails the schedule:
+        a ``ValueError`` is raised, e.g. for a state-of-charge sensor without a recent value.
+
+        :param stock_model: The deserialized flex-model entry owning the stock's SoC parameters.
+        :param sensor:      The stock's (first) device power sensor, used for the SoC lookup radius.
+        :returns:           Starting stock in MWh, or None if the entry defines no state of charge.
+        """
+        state_of_charge = stock_model.get("state_of_charge")
+        if isinstance(state_of_charge, (Sensor, SensorReference)):
+            # The percent-conversion helpers expect a pre-deserialization (hyphenated) flex model,
+            # while the stock-owning entry is already deserialized (underscored keys, values in MWh).
+            percent_conversion_model = {
+                "soc-max": stock_model.get("soc_max"),
+                "soc-unit": "MWh",
+            }
+            return self._resolve_soc_at_start_from_sensor(
+                state_of_charge, percent_conversion_model, sensor
+            )
+        if isinstance(state_of_charge, list):
+            return self._resolve_soc_at_start_from_time_series(state_of_charge, sensor)
         return None
 
     def possibly_extend_end(self, soc_targets, sensor: Sensor = None):
