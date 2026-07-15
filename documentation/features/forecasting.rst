@@ -208,6 +208,6 @@ Usage:
 
 .. note::
 
-   Holiday annotations must be added to the account or asset before running the forecast.
-   Use ``flexmeasures add holidays`` to populate them (supports both workalendar and the ``holidays``
-   package). See :ref:`annotations` for details.
+   Create the annotations you want to use as regressors before running the forecast.
+   For holidays, use ``flexmeasures add holidays``, which supports both ``workalendar``
+   and ``holidays``. See :ref:`annotations` for details.

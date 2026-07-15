@@ -100,9 +100,8 @@ New features
 * Add support for filtering sensor data GET requests by ``source-type`` on ``/api/v3_0/sensors/<id>/data`` [see `PR #2127 <https://www.github.com/FlexMeasures/flexmeasures/pull/2127>`_]
 * Making monitoring alerts more flexible: allow ``flexmeasures monitor`` alerts to target one or more user IDs or email addresses with ``--recipient``; ``flexmeasures monitor last-seen`` can now narrow monitored users to one or more accounts with ``--account`` or to client accounts with ``--consultancy`` [see `PR #2158 <https://www.github.com/FlexMeasures/flexmeasures/pull/2158>`_]
 * Improve LightGBM daily seasonal lag handling for sub-hourly forecasting sensors [see `PR #2157 <https://www.github.com/FlexMeasures/flexmeasures/pull/2157>`_]
-* Add ``--timezone`` option to ``flexmeasures add holidays`` to store holiday annotations at local midnight; defaults to the ``FLEXMEASURES_TIMEZONE`` config setting (note: ``--year`` is now required) [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
-* Merge ``flexmeasures add holidays-by-package`` into ``flexmeasures add holidays``; use ``--subdiv`` or ``--category`` to automatically switch to the ``holidays`` Python package, or ``--calendar-class``/``--calendar-kwargs`` for specific workalendar classes such as ``NetherlandsWithSchoolHolidays`` [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
-* Add ``annotation-regressors`` field to the forecasting pipeline config schema (renamed from ``future-annotation-regressors``), with structured ``account``/``asset``/``sensor`` and ``annotation-type`` keys, and support for sensor annotations [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
+* Extend ``flexmeasures add holidays`` with timezone-aware local-midnight storage, ``holidays`` package subdivisions and categories, and specific ``workalendar`` calendar classes [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
+* Add ``annotation-regressors`` to the forecasting pipeline config schema for using stored annotations as binary regressors [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
 
 Infrastructure / Support
 ----------------------
