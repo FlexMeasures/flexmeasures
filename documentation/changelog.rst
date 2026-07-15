@@ -48,6 +48,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Apply stock constraints to a multi-device battery whose starting state of charge is only given by a ``state-of-charge`` sensor (or time series), without an explicit ``soc-at-start``; previously such a device was scheduled without stock limits and could discharge more energy than its store held [see `PR #2322 <https://www.github.com/FlexMeasures/flexmeasures/pull/2322>`_]
 * Fix column sorting on the assets page, including when combined with the search filter [see `PR #2314 <https://www.github.com/FlexMeasures/flexmeasures/pull/2314>`_]
 * Fix forecasting with past or future regressors, which raised a ``TypeError`` on pandas 2.2 and higher [see `PR #2303 <https://www.github.com/FlexMeasures/flexmeasures/pull/2303>`_]
 * Show why a CLI option was rejected (e.g. "No account found with id 9999") instead of only echoing the offending value [see `PR #2303 <https://www.github.com/FlexMeasures/flexmeasures/pull/2303>`_]
