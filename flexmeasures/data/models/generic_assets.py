@@ -755,7 +755,9 @@ class GenericAsset(db.Model, AuthModelMixin):
             flex_context = {}
         parent_asset = self.parent_asset
         while set(flex_context.keys()) != flex_context_field_names and parent_asset:
-            flex_context = {**parent_asset.flex_context, **flex_context}
+            # An ancestor's flex_context may still be None (e.g. a pending asset
+            # created without one, before its column default is applied on flush).
+            flex_context = {**(parent_asset.flex_context or {}), **flex_context}
             parent_asset = parent_asset.parent_asset
         return flex_context
 

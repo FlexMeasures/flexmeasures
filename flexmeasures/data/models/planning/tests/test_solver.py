@@ -26,6 +26,7 @@ from flexmeasures.data.models.planning.linear_optimization import device_schedul
 from flexmeasures.data.models.planning.tests.utils import (
     check_constraints,
     get_sensors_from_db,
+    series_to_ts_specs,
 )
 from flexmeasures.data.models.planning.tests.utils import series_to_ts_specs
 from flexmeasures.data.models.planning.utils import (
@@ -3333,6 +3334,293 @@ def test_prefer_full_storage_skips_non_storage_devices(db, building):
     )
 
 
+def _add_parent_site(db, building, name: str) -> GenericAsset:
+    """Add a fresh parent site for an alignment test.
+
+    Note that we deliberately do not schedule on the shared (module-scoped) ``building``
+    fixture asset directly: earlier tests move legacy sensor attributes into its
+    flex-model, which ``collect_flex_config`` would then inject into our flex-model
+    as an extra asset-only device entry.
+    """
+    site = GenericAsset(
+        name=name,
+        generic_asset_type=building.generic_asset_type,
+        owner=building.owner,
+        flex_context={},
+    )
+    db.session.add(site)
+    db.session.flush()
+    return site
+
+
+def _add_battery_device(
+    db, parent, battery_type, name: str, with_soc_sensor: bool = True
+) -> tuple[Sensor, Sensor | None]:
+    """Add a child battery asset with a power sensor and (optionally) a SoC sensor."""
+    asset = GenericAsset(
+        name=name,
+        generic_asset_type=battery_type,
+        owner=parent.owner,
+        parent_asset_id=parent.id,
+    )
+    db.session.add(asset)
+    db.session.flush()
+    power_sensor = Sensor(
+        name=f"{name} power",
+        generic_asset=asset,
+        event_resolution=timedelta(hours=1),
+        unit="kW",
+    )
+    sensors = [power_sensor]
+    soc_sensor = None
+    if with_soc_sensor:
+        soc_sensor = Sensor(
+            name=f"{name} soc",
+            generic_asset=asset,
+            event_resolution=timedelta(0),
+            unit="kWh",
+        )
+        sensors.append(soc_sensor)
+    db.session.add_all(sensors)
+    db.session.flush()
+    return power_sensor, soc_sensor
+
+
+def test_stock_only_entry_first_keeps_device_alignment(
+    db, building, setup_generic_asset_types
+):
+    """A stock-only entry listed before the device entries must not shift device properties.
+
+    The flex-model lists a stock-only entry first (carrying decoy power-capacity and
+    charging-efficiency values), followed by two devices feeding the shared stock:
+
+    - Device A: 1 kW power capacity, perfect charging efficiency (by default).
+    - Device B: 9 kW power capacity, poor (10%) charging efficiency.
+
+    Reaching the 2 kWh soc-minimum through device A is 10x cheaper, so a correctly
+    aligned scheduler uses device A only. On misaligned code, each device inherits the
+    previous entry's properties (A gets the decoys, B gets A's), flipping the optimum.
+    """
+    battery_type = setup_generic_asset_types["battery"]
+    site = _add_parent_site(db, building, "alignment test site")
+    a_power, a_soc = _add_battery_device(db, site, battery_type, "alignment test A")
+    b_power, _ = _add_battery_device(
+        db, site, battery_type, "alignment test B", with_soc_sensor=False
+    )
+    db.session.commit()
+
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    flex_model = [
+        {
+            # Stock-only entry (no power sensor): SoC parameters for the shared stock,
+            # plus decoy device properties that no device should inherit.
+            "state-of-charge": {"sensor": a_soc.id},
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-minima": [{"datetime": end.isoformat(), "value": "2 kWh"}],
+            "power-capacity": "9 kW",  # decoy
+            "charging-efficiency": "50%",  # decoy
+        },
+        {
+            "sensor": a_power.id,
+            "state-of-charge": {"sensor": a_soc.id},
+            "power-capacity": "1 kW",
+        },
+        {
+            "sensor": b_power.id,
+            "state-of-charge": {"sensor": a_soc.id},
+            "power-capacity": "9 kW",
+            "charging-efficiency": "10%",
+        },
+    ]
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "100 kW",
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+
+    a_schedule = next(
+        r["data"]
+        for r in results
+        if r.get("name") == "storage_schedule" and r.get("sensor") is a_power
+    )
+    b_schedule = next(
+        r["data"]
+        for r in results
+        if r.get("name") == "storage_schedule" and r.get("sensor") is b_power
+    )
+
+    # Device A does all the charging (2 kWh), respecting its own 1 kW capacity.
+    np.testing.assert_allclose(a_schedule.sum(), 2, atol=1e-3)
+    assert (a_schedule <= 1 + 1e-3).all(), (
+        "Device A charged above its own 1 kW power capacity, "
+        "indicating it inherited the stock-only entry's decoy capacity."
+    )
+    # Device B (10% charging efficiency) is 10x more expensive per stored kWh, so it stays idle.
+    np.testing.assert_allclose(b_schedule.abs().sum(), 0, atol=1e-3)
+
+
+def test_device_without_soc_sensor_keeps_soc_params_when_stock_only_entry_present(
+    db, building, setup_generic_asset_types
+):
+    """A device without a state-of-charge sensor must keep its own SoC parameters,
+    also when a stock-only entry is present in the flex-model.
+
+    Device C has no state-of-charge sensor, but carries its own soc-at-start and a
+    1 kWh soc-target. On buggy code, the presence of the stock-only entry offsets the
+    synthetic stock keys, so device C's SoC parameters are silently dropped and its
+    target is never met.
+    """
+    battery_type = setup_generic_asset_types["battery"]
+    site = _add_parent_site(db, building, "soc params test site")
+    a_power, a_soc = _add_battery_device(db, site, battery_type, "soc params test A")
+    c_power, _ = _add_battery_device(
+        db, site, battery_type, "soc params test C", with_soc_sensor=False
+    )
+    db.session.commit()
+
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    flex_model = [
+        {
+            # Stock-only entry for device A's stock.
+            "state-of-charge": {"sensor": a_soc.id},
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+        },
+        {
+            "sensor": a_power.id,
+            "state-of-charge": {"sensor": a_soc.id},
+            "power-capacity": "1 kW",
+        },
+        {
+            # Device C: no state-of-charge sensor, but its own SoC parameters.
+            "sensor": c_power.id,
+            "power-capacity": "2 kW",
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-targets": [{"datetime": end.isoformat(), "value": "1 kWh"}],
+        },
+    ]
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "100 kW",
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+
+    c_schedule = next(
+        r["data"]
+        for r in results
+        if r.get("name") == "storage_schedule" and r.get("sensor") is c_power
+    )
+    # Device C charges 1 kWh in total to meet its own soc-target.
+    np.testing.assert_allclose(c_schedule.sum(), 1, atol=1e-3)
+
+
+def test_flex_context_commitments_target_devices_not_stock_only_entries(
+    db, building, setup_generic_asset_types
+):
+    """Flex-context commitments must bind the scheduled devices, not stock-only entries.
+
+    With a stock-only entry listed first, a flex-context commitment should still yield
+    one commitment per scheduled device (indices 0 and 1), rather than one per
+    flex-model entry (indices 0, 1 and 2, of which index 2 does not exist as a
+    flexible device).
+    """
+    battery_type = setup_generic_asset_types["battery"]
+    site = _add_parent_site(db, building, "commitment test site")
+    a_power, a_soc = _add_battery_device(db, site, battery_type, "commitment test A")
+    b_power, _ = _add_battery_device(
+        db, site, battery_type, "commitment test B", with_soc_sensor=False
+    )
+    db.session.commit()
+
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    flex_model = [
+        {
+            "state-of-charge": {"sensor": a_soc.id},
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+        },
+        {
+            "sensor": a_power.id,
+            "state-of-charge": {"sensor": a_soc.id},
+            "power-capacity": "1 kW",
+        },
+        {
+            "sensor": b_power.id,
+            "power-capacity": "2 kW",
+        },
+    ]
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "100 kW",
+            "commitments": [
+                {
+                    "name": "test commitment",
+                    "up-price": "1 EUR/MWh",
+                    "down-price": "-1 EUR/MWh",
+                }
+            ],
+        },
+        return_multiple=True,
+    )
+    *_, commitments = scheduler._prepare(skip_validation=True)
+
+    test_commitments = [c for c in commitments if c.name == "test commitment"]
+    num_devices = 2
+    assert len(test_commitments) == num_devices, (
+        f"Expected one commitment per scheduled device ({num_devices}), "
+        f"got {len(test_commitments)} (one per flex-model entry, including the "
+        "stock-only entry)."
+    )
+    commitment_devices = {int(d) for c in test_commitments for d in c.device.unique()}
+    assert commitment_devices == set(range(num_devices)), (
+        f"Commitments target device indices {sorted(commitment_devices)}, "
+        f"expected {sorted(range(num_devices))}."
+    )
+
+
 def test_multi_device_flex_model_alignment(db, building, setup_generic_asset_types):
     """Regression test for two bugs in multi-device storage scheduling.
 
@@ -3354,10 +3642,10 @@ def test_multi_device_flex_model_alignment(db, building, setup_generic_asset_typ
        no top-level ``sensor``), so its consumption output sensor never receives a
        schedule.
     2. Because B is dropped, the remaining device A picks up B's (larger) power capacity
-       through the misaligned zip in ``_prepare`` / ``_get_device_power_capacity``,
-       letting A charge above its own 1 kW capacity.
+       through the misaligned device/asset zip, letting A charge above its own 1 kW
+       capacity.
     """
-    parent = building
+    parent = _add_parent_site(db, building, "multi device test site")
     battery_type = setup_generic_asset_types["battery"]
     owner = parent.owner
 
