@@ -40,6 +40,15 @@ const STEP_ROUND_MAX_POINTS = 600; // round only up to this many points per seri
 const STEP_ROUND_FRACTION = 0.4; // fallback cut (fraction of segment) before pixel geometry is known
 const STEP_ROUND_RADIUS_PX = 6; // corner radius in *pixels*, so the arc stays circular at every zoom level
 
+// Human-friendly time steps (ms) used to keep the x-axis grid lines equidistant
+// while still getting finer as you zoom in (see refreshTimeTicks).
+const TIME_STEPS_MS = [
+  1e3, 2e3, 5e3, 10e3, 15e3, 30e3, // seconds
+  60e3, 2 * 60e3, 5 * 60e3, 10 * 60e3, 15 * 60e3, 30 * 60e3, // minutes
+  3600e3, 2 * 3600e3, 3 * 3600e3, 6 * 3600e3, 12 * 3600e3, // hours
+  86400e3, 2 * 86400e3, 7 * 86400e3, 14 * 86400e3, 28 * 86400e3, // days/weeks
+];
+
 // Touch-primary devices get different pan/zoom gestures than desktop (see
 // wireZoomInteractions): one-finger swipe scrolls the page, pinch zooms, double-tap
 // resets. Use `(pointer: coarse)` — the PRIMARY pointer — not maxTouchPoints, so a
@@ -550,17 +559,50 @@ function refreshRoundedSteps(instance) {
   chart.setOption({ series: patch });
 }
 
-// Keep the rounded corners pixel-accurate across zoom/pan (see refreshRoundedSteps).
-function wireRoundedSteps(instance) {
+// Nearest human-friendly time step (ms) giving about `target` gridlines for `span`.
+function niceTimeStep(span, target) {
+  const raw = span / Math.max(target, 1);
+  for (const s of TIME_STEPS_MS) if (s >= raw) return s;
+  return TIME_STEPS_MS[TIME_STEPS_MS.length - 1];
+}
+
+// Keep the x-axis grid lines equidistant AND adaptive: pick one uniform time step
+// for the currently-visible span and apply it to every time axis. ECharts' automatic
+// time ticks can be unevenly spaced (it snaps to mixed calendar levels); a fixed
+// `interval` keeps them even, and recomputing on zoom reveals finer gridlines as you
+// zoom in (like Vega-Lite). Recomputed on each dataZoom.
+function refreshTimeTicks(instance) {
   const chart = instance.chart;
-  if (instance.onRoundZoom) {
-    chart.off("dataZoom", instance.onRoundZoom);
-    instance.onRoundZoom = null;
+  if (!chart || chart.isDisposed() || !(instance._xDomainSpan > 0)) return;
+  const dz = (chart.getOption().dataZoom || [])[0];
+  const start = dz && typeof dz.start === "number" ? dz.start : 0;
+  const end = dz && typeof dz.end === "number" ? dz.end : 100;
+  const span = (instance._xDomainSpan * (end - start)) / 100;
+  const interval = niceTimeStep(span, 8);
+  const xAxis = chart.getOption().xAxis || [];
+  const patch = xAxis.map((ax) => (ax && ax.type === "time" ? { interval: interval } : {}));
+  chart.setOption({ xAxis: patch });
+}
+
+// Wire the zoom-driven refreshes for line/bar charts: keep the rounded step corners
+// pixel-accurate (refreshRoundedSteps) and the x-axis gridlines equidistant
+// (refreshTimeTicks), both initially and on every dataZoom.
+function wireZoomRefresh(instance) {
+  const chart = instance.chart;
+  if (instance.onZoomRefresh) {
+    chart.off("dataZoom", instance.onZoomRefresh);
+    instance.onZoomRefresh = null;
   }
-  if (!Array.isArray(instance._roundedSeries) || instance._roundedSeries.length === 0) return;
-  refreshRoundedSteps(instance); // initial pixel-accurate pass, replacing the data-space fallback
-  instance.onRoundZoom = () => refreshRoundedSteps(instance);
-  chart.on("dataZoom", instance.onRoundZoom);
+  const hasRounded = Array.isArray(instance._roundedSeries) && instance._roundedSeries.length > 0;
+  const hasTimeTicks = instance._xDomainSpan > 0;
+  if (!hasRounded && !hasTimeTicks) return;
+  const refresh = () => {
+    if (hasRounded) refreshRoundedSteps(instance);
+    if (hasTimeTicks) refreshTimeTicks(instance);
+  };
+  refresh(); // initial pass
+  instance.onZoomRefresh = refresh;
+  chart.on("dataZoom", instance.onZoomRefresh);
 }
 
 // Mixed date/time x-axis labels shared by every time-axis chart: "HH:MM" normally,
@@ -1217,6 +1259,11 @@ function buildLineBarOption(elementId, groups, opts) {
   // so the recorded indices wouldn't line up); those keep their data-space rounding.
   if (!opts._companion) {
     instance._roundedSeries = roundedList;
+    // Full visible time span, for the equidistant/adaptive x-axis ticks (see refreshTimeTicks).
+    instance._xDomainSpan =
+      typeof sharedXDomain.min === "number" && typeof sharedXDomain.max === "number"
+        ? sharedXDomain.max - sharedXDomain.min
+        : 0;
   }
 
   return {
@@ -1240,6 +1287,7 @@ function buildLineBarOption(elementId, groups, opts) {
       // On touch, show the tooltip on TAP only (not on the swipe/move), so a
       // one-finger drag scrolls the page instead of being swallowed by the tooltip.
       triggerOn: IS_TOUCH ? "click" : "mousemove|click",
+      enterable: IS_TOUCH, // let a tap land on the tooltip so it can be tapped closed
       axisPointer: { type: "line" },
       formatter: seriesTooltipFormatter(seriesMeta, instance),
     },
@@ -1256,9 +1304,10 @@ function buildLineBarOption(elementId, groups, opts) {
         zoomOnMouseWheel: true, // desktop wheel zoom; touch pinch zoom is always on
         moveOnMouseWheel: false,
         // Desktop: Ctrl+drag pans (plain drag is the marquee zoom). Touch: never
-        // pan on a one-finger drag — the CSS `touch-action: pan-y` on the container
-        // lets that swipe scroll the page, while a two-finger pinch still zooms.
+        // pan on a one-finger drag, and don't preventDefault it either, so the swipe
+        // scrolls the page (with touch-action: pan-y); a two-finger pinch still zooms.
         moveOnMouseMove: IS_TOUCH ? false : "ctrl",
+        preventDefaultMouseMove: !IS_TOUCH,
       },
     ],
   };
@@ -1832,6 +1881,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
       trigger: "item",
       confine: true,
       triggerOn: IS_TOUCH ? "click" : "mousemove|click", // tap-only on touch (see line chart)
+      enterable: IS_TOUCH,
       formatter: seriesTooltipFormatter(seriesMeta),
     },
     toolbox: toolbox,
@@ -1844,9 +1894,10 @@ function buildChargePointSessionsOption(elementId, data, opts) {
         zoomOnMouseWheel: true, // desktop wheel zoom; touch pinch zoom is always on
         moveOnMouseWheel: false,
         // Desktop: Ctrl+drag pans (plain drag is the marquee zoom). Touch: never
-        // pan on a one-finger drag — the CSS `touch-action: pan-y` on the container
-        // lets that swipe scroll the page, while a two-finger pinch still zooms.
+        // pan on a one-finger drag, and don't preventDefault it either, so the swipe
+        // scrolls the page (with touch-action: pan-y); a two-finger pinch still zooms.
         moveOnMouseMove: IS_TOUCH ? false : "ctrl",
+        preventDefaultMouseMove: !IS_TOUCH,
       },
     ],
   };
@@ -1889,6 +1940,7 @@ export function renderFastChart(elementId, data, options) {
   instance.lastArgs = { data: data, options: options };
 
   instance._roundedSeries = []; // rebuilt by buildLineBarOption for line charts with rounded steps
+  instance._xDomainSpan = 0; // set by buildLineBarOption for time-axis charts (equidistant ticks)
 
   let option;
   if (opts.chartType === "histogram") {
@@ -1913,7 +1965,8 @@ export function renderFastChart(elementId, data, options) {
   wireSessionTooltipRedirect(instance, opts);
   wirePointerTracking(instance);
   wireZoomInteractions(instance, opts);
-  wireRoundedSteps(instance);
+  wireZoomRefresh(instance);
+  wireTouchTooltipDismiss(instance, elementId);
 }
 
 // Charts with a time x-axis carry the toolbox dataZoom (zoom/reset) feature and a
@@ -2017,6 +2070,38 @@ function wireZoomInteractions(instance, opts) {
   };
   document.addEventListener("keydown", instance.onCtrlDown);
   document.addEventListener("keyup", instance.onCtrlUp);
+}
+
+// On touch, close the tooltip when the user taps the tooltip itself, or taps outside
+// the chart. Tapping a data point still shows/moves it (tooltip.triggerOn:"click").
+// The tooltip renders as a DOM element over the canvas, so a tap whose target is not
+// the canvas is a tap on the tooltip; a tap outside the container closes it too.
+function wireTouchTooltipDismiss(instance, elementId) {
+  const chart = instance.chart;
+  if (instance.onTooltipTap) {
+    if (instance._tooltipContainer) {
+      instance._tooltipContainer.removeEventListener("click", instance.onTooltipTap);
+    }
+    document.removeEventListener("click", instance.onDocTapDismiss);
+    instance.onTooltipTap = null;
+    instance.onDocTapDismiss = null;
+    instance._tooltipContainer = null;
+  }
+  const container = document.getElementById(elementId);
+  if (!IS_TOUCH || !container) return;
+  instance._tooltipContainer = container;
+  instance.onTooltipTap = (e) => {
+    if (e.target && e.target.tagName !== "CANVAS" && !chart.isDisposed()) {
+      chart.dispatchAction({ type: "hideTip" });
+    }
+  };
+  container.addEventListener("click", instance.onTooltipTap);
+  instance.onDocTapDismiss = (e) => {
+    if (!container.contains(e.target) && !chart.isDisposed()) {
+      chart.dispatchAction({ type: "hideTip" });
+    }
+  };
+  document.addEventListener("click", instance.onDocTapDismiss);
 }
 
 // Track the cursor's canvas pixel position so the axis-trigger tooltip formatter
@@ -2153,10 +2238,16 @@ export function disposeFastChart(elementId) {
   const instance = instances[elementId];
   if (instance) {
     window.removeEventListener("resize", instance.onResize);
-    // These are document-level listeners, so chart.dispose() won't remove them.
+    // These are document-/container-level listeners, so chart.dispose() won't remove them.
     if (instance.onCtrlDown) {
       document.removeEventListener("keydown", instance.onCtrlDown);
       document.removeEventListener("keyup", instance.onCtrlUp);
+    }
+    if (instance.onTooltipTap) {
+      if (instance._tooltipContainer) {
+        instance._tooltipContainer.removeEventListener("click", instance.onTooltipTap);
+      }
+      document.removeEventListener("click", instance.onDocTapDismiss);
     }
     clearTimeout(instance.resizeTimer);
     if (!instance.chart.isDisposed()) {

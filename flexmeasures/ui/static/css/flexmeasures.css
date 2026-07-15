@@ -1873,7 +1873,10 @@ div.heading-group {
    overflowing onto the chart card. */
 .fast-chart-toggle {
   margin: 0.5rem 0;
-  flex-wrap: wrap;
+  /* Stack the switch above its "Fast chart (beta)" label. In the narrow replay
+     column a side-by-side layout overflowed onto the chart card just before it
+     wrapped; stacking keeps it inside the column at every width. */
+  flex-direction: column;
   max-width: 100%;
   min-width: 0;
   padding-left: 0; /* override Bootstrap .form-check's 2.5em, which overflows here */
