@@ -566,36 +566,15 @@ function niceTimeStep(span, target) {
   return TIME_STEPS_MS[TIME_STEPS_MS.length - 1];
 }
 
-// How many equal sub-divisions to draw between the major gridlines: pick a nice time
-// sub-step (dividing the major evenly into 2..8 parts) closest to ~1/3 of the major,
-// so we get e.g. hourly lines under a 3h major — not a blind half, which lands on ugly
-// times for a datetime axis. Returns 0 when no nice sub-step fits.
-function minorSplitFor(majorMs) {
-  const target = majorMs / 3;
-  let bestN = 0;
-  let bestDelta = Infinity;
-  for (const s of TIME_STEPS_MS) {
-    if (s >= majorMs) break;
-    const n = majorMs / s;
-    if (!Number.isInteger(n) || n < 2 || n > 8) continue;
-    const delta = Math.abs(s - target);
-    if (delta < bestDelta) {
-      bestDelta = delta;
-      bestN = n;
-    }
-  }
-  return bestN;
-}
-
 // Target plotting width per major gridline (px). Smaller → denser gridlines. Tunable:
 // this sets whether a 1-day view shows 3h or 6h majors on a given screen width.
 const TICK_TARGET_PX = 130;
 
-// Keep the x-axis grid lines equidistant AND adaptive: pick one uniform time step for
-// the currently-visible span (sized to the chart width, so a day shows ~3h majors and
-// steps to 6h/12h as the chart narrows) and set it as the value axis `interval` — which,
-// unlike a time axis, ECharts honors exactly. Nice (unlabelled) minor lines subdivide it
-// at uniform absolute positions (correct at the domain edges too). Recomputed on zoom.
+// Bias the time axis toward 3h/6h/12h ticks (rather than ECharts' default 2h/4h): set
+// minInterval to a width- and zoom-adaptive nice step (a day → ~3h on a wide chart,
+// stepping to 6h/12h as it narrows / stays equidistant and nice-aligned). Recomputed on
+// zoom so zooming in reveals finer ticks. (No forced `interval`: the time axis ignores
+// it. No minor gridlines: on a time axis they mis-space at the domain edges.)
 function refreshTimeTicks(instance) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed() || !(instance._xDomainSpan > 0)) return;
@@ -604,18 +583,9 @@ function refreshTimeTicks(instance) {
   const end = dz && typeof dz.end === "number" ? dz.end : 100;
   const span = (instance._xDomainSpan * (end - start)) / 100;
   const target = Math.max(2, Math.round((chart.getWidth() || 800) / TICK_TARGET_PX));
-  const major = niceTimeStep(span, target);
-  const minorN = minorSplitFor(major);
+  const minInterval = niceTimeStep(span, target);
   const xAxis = chart.getOption().xAxis || [];
-  const patch = xAxis.map((ax) =>
-    ax && ax.type === "value"
-      ? {
-          interval: major,
-          minorTick: { show: minorN > 0, splitNumber: minorN || 1 },
-          minorSplitLine: { show: minorN > 0, lineStyle: { color: "#e0e0e0", width: 1 } },
-        }
-      : {}
-  );
+  const patch = xAxis.map((ax) => (ax && ax.type === "time" ? { minInterval: minInterval } : {}));
   chart.setOption({ xAxis: patch });
 }
 
@@ -655,15 +625,27 @@ function xAxisTimeFormatter(value) {
   return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
 }
 
-// Icon for the custom "Pan" toolbox button (a 4-directional move arrow). Sits next
-// to the built-in Zoom / Zoom-reset buttons on desktop; clicking it switches to pan.
+// Custom toolbox icons: magnifier (Zoom), 4-way move (Pan), circular arrow (Reset).
+const ZOOM_ICON =
+  "path://M551.7,526.3l-155-155c26.1-34.6,41.6-77.7,41.6-124.4C438.3,132.5,349.8,44,244.1,44S49.9,132.5,49.9,246.9s88.5,202.9,194.2,202.9c46.7,0,89.8-15.5,124.4-41.6l155,155c3.5,3.5,8,5.2,12.6,5.2s9.1-1.7,12.6-5.2C558.7,544.5,558.7,533.3,551.7,526.3z M91.9,246.9c0-83.9,68.3-152.2,152.2-152.2s152.2,68.3,152.2,152.2s-68.3,152.2-152.2,152.2S91.9,330.8,91.9,246.9z";
 const PAN_ICON =
   "path://M512,150 L432,230 L482,230 L482,482 L230,482 L230,432 L150,512 L230,592 L230,542 L482,542 L482,794 L432,794 L512,874 L592,794 L542,794 L542,542 L794,542 L794,592 L874,512 L794,432 L794,482 L542,482 L542,230 L592,230 Z";
+const RESET_ICON =
+  "path://M868 545C868 736 713 891 522 891C331 891 176 736 176 545C176 354 331 199 522 199L522 95L722 255L522 415L522 311C393 311 289 415 289 544C289 672 393 776 522 776C650 776 754 672 754 544L868 545Z";
+// Selected (active) vs idle toolbox icon colours — blue mimics ECharts' own active zoom.
+const TOOL_BLUE = "#4e91fc";
+const TOOL_GRAY = "#666";
+
+// Whether the marquee zoom (vs pan) is *effectively* active right now: the chosen mode,
+// inverted while Ctrl is held. Drives both the marquee and the blue button highlight.
+function effectiveZoom(instance) {
+  return (instance._zoomMode !== false) !== !!instance._ctrlHeld;
+}
 
 function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
-  const dataZoom = { yAxisIndex: false };
-  // Zoom/Pan/Reset are for desktop only — on touch, pinch/swipe/double-tap are better.
+  // Zoom/Pan are desktop-only (on touch, pinch/swipe do the same); Reset shows on both.
   const showZoomTools = zoomable && !IS_TOUCH;
+  const instance = instances[elementId];
   const savePNG = {
     show: true,
     title: "Save as PNG",
@@ -682,20 +664,43 @@ function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
     icon: "path://M5 2 L13 2 L17 6 L17 20 L5 20 Z M7 12 L11 17 L15 9",
     onclick: () => exportSVG(elementId, datasetName),
   };
-  // Icon order (left→right): the built-in Zoom + Zoom-reset, then the custom Pan, then
-  // the save icons. On touch, the zoom tools are dropped entirely.
   const feature = {};
-  if (showZoomTools || !zoomable) {
-    // Zoomable desktop charts and the (category-axis) histogram/heatmap both keep the
-    // built-in dataZoom zoom + reset icons.
-    feature.dataZoom = dataZoom;
-  }
   if (showZoomTools) {
+    // Keep the built-in dataZoom feature present (its marquee brush is what
+    // takeGlobalCursor drives) but invisible and tooltip-less — our own Zoom/Pan/Reset
+    // buttons are the visible controls, so we can colour the active one blue.
+    feature.dataZoom = {
+      yAxisIndex: false,
+      iconStyle: { opacity: 0 },
+      emphasis: { iconStyle: { opacity: 0 } },
+      title: { zoom: "", back: "" },
+    };
+    const zoomActive = effectiveZoom(instance);
+    feature.myZoom = {
+      show: true,
+      title: "Zoom",
+      icon: ZOOM_ICON,
+      iconStyle: { borderColor: zoomActive ? TOOL_BLUE : TOOL_GRAY },
+      onclick: () => setChartMode(elementId, true),
+    };
     feature.myPan = {
       show: true,
       title: "Pan",
       icon: PAN_ICON,
-      onclick: () => setPanMode(elementId),
+      iconStyle: { borderColor: zoomActive ? TOOL_GRAY : TOOL_BLUE },
+      onclick: () => setChartMode(elementId, false),
+    };
+  } else if (!zoomable) {
+    // histogram/heatmap keep the plain built-in dataZoom (zoom + reset), as before.
+    feature.dataZoom = { yAxisIndex: false };
+  }
+  if (zoomable) {
+    // Reset the zoom — a custom button so it shows on mobile too (double-tap also works).
+    feature.myReset = {
+      show: true,
+      title: "Zoom reset",
+      icon: RESET_ICON,
+      onclick: () => resetChartZoom(elementId),
     };
   }
   if (isSensorPage) {
@@ -710,12 +715,37 @@ function toolboxFeatures(elementId, datasetName, isSensorPage, zoomable) {
   return { right: 16, feature: feature };
 }
 
-// The custom "Pan" button turns the marquee zoom off, so a drag pans (the inside
-// dataZoom has moveOnMouseMove:true). The built-in "Zoom" button turns it back on.
-function setPanMode(elementId) {
+// Apply the current mode: turn the marquee on when zoom is effectively active (mode XOR
+// Ctrl), and recolour the Zoom/Pan buttons so the active one is blue.
+function applyChartMode(instance) {
+  const chart = instance.chart;
+  if (!chart || chart.isDisposed()) return;
+  const zoomActive = effectiveZoom(instance);
+  // Recolour the buttons first, then set the marquee (so the merge can't clear it).
+  chart.setOption({
+    toolbox: {
+      feature: {
+        myZoom: { iconStyle: { borderColor: zoomActive ? TOOL_BLUE : TOOL_GRAY } },
+        myPan: { iconStyle: { borderColor: zoomActive ? TOOL_GRAY : TOOL_BLUE } },
+      },
+    },
+  });
+  chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: zoomActive });
+}
+
+// The Zoom / Pan buttons pick the mode (persists across re-renders); Ctrl inverts it.
+function setChartMode(elementId, zoom) {
   const instance = instances[elementId];
   if (!instance || instance.chart.isDisposed()) return;
-  instance.chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: false });
+  instance._zoomMode = zoom;
+  applyChartMode(instance);
+}
+
+function resetChartZoom(elementId) {
+  const instance = instances[elementId];
+  if (!instance || instance.chart.isDisposed()) return;
+  const dz = (instance.lastOption && instance.lastOption.dataZoom) || [];
+  instance.chart.dispatchAction({ type: "dataZoom", dataZoomIndex: dz.map((_, i) => i), start: 0, end: 100 });
 }
 
 function downloadBlob(content, mimeType, filename) {
@@ -1147,21 +1177,20 @@ function buildLineBarOption(elementId, groups, opts) {
       });
     }
     xAxes.push({
-      // A "value" axis (x = epoch ms), NOT "time": ECharts' time axis ignores a
-      // forced `interval` and picks its own unevenly-spaced ticks. On a value axis
-      // the `interval` (set by refreshTimeTicks) is honored exactly, so both the
-      // major and the minor gridlines are perfectly equidistant (edges included).
-      type: "value",
+      // A "time" axis so ticks land on nice clock times (03:00, 06:00…) even when
+      // zoomed/panned. refreshTimeTicks then biases the granularity toward 3h/6h/12h
+      // via minInterval. (A value axis honored a forced interval but placed the ticks
+      // at the raw domain edges, e.g. 08:21 — which reads badly.)
+      type: "time",
       gridIndex: i,
-      ...sharedXDomain, // keep every subplot on the same time domain (epoch ms)
+      ...sharedXDomain, // keep every subplot on the same time domain
       axisLine: { onZero: false },
-      axisPointer: { show: true, label: { formatter: (p) => xAxisTimeFormatter(p.value) } },
+      axisPointer: { show: true }, // vertical ruler, as in the Vega-Lite charts
       splitLine: { show: true, lineStyle: { opacity: 0.5 } },
-      minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
       axisLabel: {
         fontSize: FONT_SIZE,
         color: "#222",
-        formatter: (value) => xAxisTimeFormatter(value), // value is epoch ms
+        formatter: xAxisTimeFormatter,
         hideOverlap: true, // drop colliding tick labels on narrow (small-screen) charts
       },
     });
@@ -1848,13 +1877,12 @@ function buildChargePointSessionsOption(elementId, data, opts) {
 
   const grids = [{ top: sessionsTop, height: sessionsGridHeight, left: GRID_LEFT, right: LEGEND_WIDTH + 40, containLabel: false }];
   const xAxes = [Object.assign({
-    type: "value", // epoch ms on a value axis so refreshTimeTicks' interval is honored (see line chart)
+    type: "time", // nice-aligned clock-time ticks (see line chart); minInterval biases granularity
     gridIndex: 0,
     axisLine: { onZero: false },
-    axisPointer: { show: true, label: { formatter: (p) => xAxisTimeFormatter(p.value) } },
+    axisPointer: { show: true },
     splitLine: { show: true, lineStyle: { opacity: 0.5 } },
-    minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
-    axisLabel: { fontSize: FONT_SIZE, color: "#222", formatter: (value) => xAxisTimeFormatter(value), hideOverlap: true },
+    axisLabel: { fontSize: FONT_SIZE, color: "#222", formatter: xAxisTimeFormatter, hideOverlap: true },
   }, sharedTimeDomain)];
   const yAxes = [{
     type: "category",
@@ -2018,6 +2046,9 @@ export function renderFastChart(elementId, data, options) {
     instances[elementId] = instance;
   }
   instance.lastArgs = { data: data, options: options };
+  // Zoom/Pan mode persists across re-renders; default to zoom. (Read by toolboxFeatures
+  // to colour the initial buttons, and by applyChartMode.)
+  if (instance._zoomMode === undefined) instance._zoomMode = true;
 
   instance._roundedSeries = []; // rebuilt by buildLineBarOption for line charts with rounded steps
   instance._xDomainSpan = 0; // set by buildLineBarOption for time-axis charts (equidistant ticks)
@@ -2073,6 +2104,12 @@ function wireZoomInteractions(instance, opts) {
     zr.off("click", instance.onTapReset);
     instance.onTapReset = null;
   }
+  if (instance.onCtrlDown) {
+    document.removeEventListener("keydown", instance.onCtrlDown);
+    document.removeEventListener("keyup", instance.onCtrlUp);
+    instance.onCtrlDown = null;
+    instance.onCtrlUp = null;
+  }
   // Skip category-axis charts and the no-data placeholder (neither has a dataZoom).
   const option = instance.lastOption || {};
   const hasDataZoom = Array.isArray(option.dataZoom) && option.dataZoom.length > 0;
@@ -2114,10 +2151,28 @@ function wireZoomInteractions(instance, opts) {
     return;
   }
 
-  // Desktop: start in zoom mode (marquee on); double-click resets to the full range.
-  chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: true });
+  // Desktop: apply the current Zoom/Pan mode (marquee + button colours); double-click
+  // resets. Ctrl temporarily inverts the mode — the blue highlight jumps to the other
+  // button and the marquee flips — restored on release.
+  if (instance._zoomMode === undefined) instance._zoomMode = true;
+  instance._ctrlHeld = false;
+  applyChartMode(instance);
   instance.onDblClickReset = () => resetZoom();
   zr.on("dblclick", instance.onDblClickReset);
+  instance.onCtrlDown = (e) => {
+    if (e.key === "Control" && !instance._ctrlHeld) {
+      instance._ctrlHeld = true;
+      applyChartMode(instance);
+    }
+  };
+  instance.onCtrlUp = (e) => {
+    if (e.key === "Control" && instance._ctrlHeld) {
+      instance._ctrlHeld = false;
+      applyChartMode(instance);
+    }
+  };
+  document.addEventListener("keydown", instance.onCtrlDown);
+  document.addEventListener("keyup", instance.onCtrlUp);
 }
 
 // On touch, close the tooltip when the user taps the tooltip itself, or taps outside
@@ -2283,6 +2338,10 @@ export function disposeFastChart(elementId) {
   if (instance) {
     window.removeEventListener("resize", instance.onResize);
     // These are document-level listeners, so chart.dispose() won't remove them.
+    if (instance.onCtrlDown) {
+      document.removeEventListener("keydown", instance.onCtrlDown);
+      document.removeEventListener("keyup", instance.onCtrlUp);
+    }
     if (instance.onDocTapDismiss) {
       document.removeEventListener("touchend", instance.onDocTapDismiss);
       document.removeEventListener("click", instance.onDocTapDismiss);
