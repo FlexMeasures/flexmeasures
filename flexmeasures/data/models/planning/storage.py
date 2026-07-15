@@ -2616,9 +2616,6 @@ class StorageScheduler(MetaStorageScheduler):
             ems_schedule=ems_schedule,
             soc_at_start=soc_at_start,
             device_constraints=device_constraints,
-            device_power_bands=[
-                dc.attrs.get("operation_modes") for dc in device_constraints
-            ],
             stock_groups=self.stock_groups,
             resolution=resolution,
         )
