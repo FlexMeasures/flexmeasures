@@ -2,7 +2,18 @@
 
 from __future__ import annotations
 
+import logging
+
 import click
+from rq.timeouts import JobTimeoutException
+
+
+FORECASTING_JOB_TIMEOUT_HINT = (
+    "Forecasting job timed out. Try splitting the forecast request into smaller "
+    "periods, reducing the prediction window by lowering `max-forecast-horizon`, "
+    "using fewer forecast cycles via `forecast-frequency`, or increasing "
+    "FLEXMEASURES_JOB_TIMEOUT for the `forecasting` queue."
+)
 
 
 # TODO: we could also monitor the failed queue and re-enqueue jobs who had missing data
@@ -25,8 +36,16 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
         job.meta["failures"] = job.meta["failures"] + 1
     job.save_meta()
 
-    job.meta["exception"] = {
+    exception = {
         "type": exc_type.__name__ if exc_type is not None else None,
         "message": str(exc_value),
     }
+
+    if isinstance(exc_type, type) and issubclass(exc_type, JobTimeoutException):
+        logger = logging.getLogger(__name__)
+        logger.warning(FORECASTING_JOB_TIMEOUT_HINT)
+        click.echo(FORECASTING_JOB_TIMEOUT_HINT)
+        exception["hint"] = FORECASTING_JOB_TIMEOUT_HINT
+
+    job.meta["exception"] = exception
     job.save_meta()
