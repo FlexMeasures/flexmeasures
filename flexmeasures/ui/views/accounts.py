@@ -1,17 +1,23 @@
 from __future__ import annotations
 
+from flask import request
 from sqlalchemy import or_, select
-from werkzeug.exceptions import Forbidden, NotFound, Unauthorized
-from flask_classful import FlaskView
+from werkzeug.exceptions import Forbidden, Unauthorized, NotFound
+from flask_classful import FlaskView, route
 from flask_security import login_required
 from flask_security.core import current_user
 
-from flexmeasures.auth.policy import user_has_admin_access, check_access
+from flexmeasures.auth.policy import (
+    user_can_add_accounts,
+    user_has_admin_access,
+    check_access,
+    FlexMeasuresPlatform,
+)
 
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, ICON_MAPPING
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import Account, Plan
+from flexmeasures.data.models.user import Account, AccountRole, Plan
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.data import db
 from flexmeasures.ui.views import (
@@ -29,8 +35,38 @@ class AccountCrudUI(FlaskView):
     def index(self):
         """/accounts"""
 
+        user_can_create_account = user_can_add_accounts()
+
         return render_flexmeasures_template(
             "accounts/accounts.html",
+            user_can_create_account=user_can_create_account,
+        )
+
+    @route("/new", methods=["GET"])
+    @login_required
+    def new(self):
+        """/accounts/new"""
+        check_access(FlexMeasuresPlatform.init(), "create-children")
+        user_is_admin = user_has_admin_access(current_user, "read")
+        potential_consultant_accounts = get_accounts() if user_is_admin else []
+        selected_consultancy_account_id = request.args.get(
+            "consultancy_account_id", default=None, type=int
+        )
+        selected_consultancy_account_name = None
+        if user_is_admin and selected_consultancy_account_id is not None:
+            selected_consultancy_account = db.session.get(
+                Account, selected_consultancy_account_id
+            )
+            if selected_consultancy_account is not None:
+                selected_consultancy_account_name = selected_consultancy_account.name
+        elif not user_is_admin:
+            selected_consultancy_account_name = current_user.account.name
+        return render_flexmeasures_template(
+            "accounts/account_create.html",
+            user_is_admin=user_is_admin,
+            accounts=potential_consultant_accounts,
+            selected_consultancy_account_id=selected_consultancy_account_id,
+            selected_consultancy_account_name=selected_consultancy_account_name,
         )
 
     @login_required
@@ -80,11 +116,25 @@ class AccountCrudUI(FlaskView):
         except (Forbidden, Unauthorized):
             user_can_create_children = False
 
+        user_is_admin = user_has_admin_access(current_user, "read")
+        can_add_client_account = user_can_add_accounts() and (
+            user_is_admin or account.id == current_user.account.id
+        )
+
+        account_role_options = {
+            role.name: role.id for role in db.session.scalars(select(AccountRole)).all()
+        }
+        selected_account_roles = [role.name for role in account.account_roles]
+
         return render_flexmeasures_template(
             "accounts/account.html",
             account=account,
             accounts=potential_consultant_accounts,
             plans=assignable_plans,
+            user_is_admin=user_is_admin,
+            can_add_client_account=can_add_client_account,
+            account_role_options=account_role_options,
+            selected_account_roles=selected_account_roles,
             user_can_update_account=user_can_update_account,
             user_can_create_children=user_can_create_children,
             can_view_account_auditlog=user_can_view_account_auditlog,
