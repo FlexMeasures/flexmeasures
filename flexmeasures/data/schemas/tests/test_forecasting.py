@@ -667,6 +667,78 @@ def test_forecaster_config_schema_defaults_forecast_post_processing_to_disabled(
     assert data["snap"] == {}
 
 
+def test_forecaster_config_schema_loads_annotation_regressor_source_fields(
+    setup_dummy_sensors, dummy_asset
+):
+    sensor, *_ = setup_dummy_sensors
+    schema = TrainPredictPipelineConfigSchema()
+
+    data = schema.load(
+        {
+            "annotation-regressors": [
+                {
+                    "asset": dummy_asset.id,
+                    "annotation-type": "label",
+                    "name": "maintenance",
+                },
+                {
+                    "sensor": sensor.id,
+                    "annotation-type": "holiday",
+                    "name": "sensor_holidays",
+                },
+            ]
+        }
+    )
+
+    first_regressor, second_regressor = data["annotation_regressors"]
+    assert first_regressor["asset"] == dummy_asset
+    assert second_regressor["sensor"] == sensor
+
+    dumped = schema.dump(data)
+    assert dumped["annotation-regressors"] == [
+        {
+            "asset": dummy_asset.id,
+            "annotation-type": "label",
+            "name": "maintenance",
+        },
+        {
+            "sensor": sensor.id,
+            "annotation-type": "holiday",
+            "name": "sensor_holidays",
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    "annotation_regressor",
+    [
+        {"annotation-type": "label"},
+        {"asset": 1, "sensor": 1, "annotation-type": "label"},
+    ],
+)
+def test_forecaster_config_schema_rejects_missing_or_ambiguous_annotation_source(
+    annotation_regressor, setup_dummy_sensors, dummy_asset
+):
+    sensor, *_ = setup_dummy_sensors
+    annotation_regressor = {
+        key: (
+            dummy_asset.id
+            if key == "asset"
+            else sensor.id if key == "sensor" else value
+        )
+        for key, value in annotation_regressor.items()
+    }
+
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(
+            {"annotation-regressors": [annotation_regressor]}
+        )
+
+    assert "Specify exactly one of account, asset, or sensor." in str(
+        exc.value.messages
+    )
+
+
 def test_forecaster_config_schema_rejects_invalid_snap_interval_shape():
     with pytest.raises(ValidationError) as exc:
         TrainPredictPipelineConfigSchema().load(

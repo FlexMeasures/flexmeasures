@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.0.0"
+    "version": "0.33.2"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -4807,7 +4807,6 @@
               "integer",
               "null"
             ],
-            "default": null,
             "description": "Account ID whose annotations to use."
           },
           "asset": {
@@ -4815,7 +4814,6 @@
               "integer",
               "null"
             ],
-            "default": null,
             "description": "Asset ID whose annotations to use."
           },
           "sensor": {
@@ -4823,7 +4821,6 @@
               "integer",
               "null"
             ],
-            "default": null,
             "description": "Sensor ID whose annotations to use."
           },
           "annotation-type": {

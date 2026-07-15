@@ -13,6 +13,7 @@ from marshmallow import (
     validate,
     validates_schema,
     pre_load,
+    pre_dump,
     post_load,
     post_dump,
     ValidationError,
@@ -26,6 +27,8 @@ from flexmeasures.data.schemas.times import (
     PlanningDurationField,
 )
 from flexmeasures.data.models.forecasting.utils import floor_to_resolution
+from flexmeasures.data.schemas.account import AccountIdField
+from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.utils.unit_utils import ur
 
@@ -46,16 +49,16 @@ def _is_parseable_quantity(value) -> bool:
 class AnnotationRegressorSchema(Schema):
     """Schema for a single annotation regressor in the forecasting pipeline config."""
 
-    account = fields.Int(
-        load_default=None,
+    account = AccountIdField(
+        allow_none=True,
         metadata={"description": "Account ID whose annotations to use."},
     )
-    asset = fields.Int(
-        load_default=None,
+    asset = GenericAssetIdField(
+        allow_none=True,
         metadata={"description": "Asset ID whose annotations to use."},
     )
-    sensor = fields.Int(
-        load_default=None,
+    sensor = SensorIdField(
+        allow_none=True,
         metadata={"description": "Sensor ID whose annotations to use."},
     )
     annotation_type = fields.Str(
@@ -76,6 +79,21 @@ class AnnotationRegressorSchema(Schema):
     def remove_none_values(self, data, **kwargs):
         """Omit null fields from the serialised config to keep it clean."""
         return {k: v for k, v in data.items() if v is not None}
+
+    @pre_dump
+    def skip_empty_sources(self, data, **kwargs):
+        """Omit empty sources before custom ID fields serialise objects."""
+        return {k: v for k, v in data.items() if v is not None}
+
+    @validates_schema
+    def validate_single_source(self, data: dict, **kwargs):
+        sources = [
+            source_key
+            for source_key in ("account", "asset", "sensor")
+            if data.get(source_key) is not None
+        ]
+        if len(sources) != 1:
+            raise ValidationError("Specify exactly one of account, asset, or sensor.")
 
 
 class TrainPredictPipelineConfigSchema(Schema):
@@ -213,14 +231,14 @@ class TrainPredictPipelineConfigSchema(Schema):
     )
     train_period = DurationField(
         data_key="train-period",
-        load_default=None,
+        load_default=timedelta(days=30),
         allow_none=True,
         metadata={
             "description": (
                 "Duration of the initial training period (ISO 8601 format, min 2 days). "
                 "If not set and --train-start is provided, the period is the difference "
                 "between --start and --train-start, capped to --max-training-period. "
-                "If neither is set, --max-training-period is used as the training window."
+                "If neither is set, defaults to P30D (30 days)."
             ),
             "example": "P7D",
             "cli": {
