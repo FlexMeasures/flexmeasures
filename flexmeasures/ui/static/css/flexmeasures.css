@@ -1889,6 +1889,14 @@ div.heading-group {
   line-height: 1.2;
 }
 
+/* Mobile: let a one-finger vertical swipe scroll the page over the fast chart,
+   while a two-finger pinch still zooms it (handled by ECharts). Without this the
+   canvas would swallow the swipe. Desktop (mouse) is unaffected by touch-action. */
+#fast-chart-container,
+#fast-chart-container canvas {
+  touch-action: pan-y !important;
+}
+
 #replay-time {
   margin-top: 15px;
 }

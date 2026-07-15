@@ -792,6 +792,11 @@
         if (vegaDiv) { vegaDiv.style.display = 'none'; }
         if (fastDiv) { fastDiv.style.display = 'block'; }
         renderFastChart(fastChartElementId, previousResult.data, fastChartOptions());
+        {% if active_page == "assets" %}
+        // Warn about data clamped by a strict y-axis range, as the Vega-Lite path does.
+        // (checkStrictYAxisRanges de-duplicates, so calling it here too is harmless.)
+        checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
+        {% endif %}
     }
 
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {

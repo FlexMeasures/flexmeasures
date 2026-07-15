@@ -30,13 +30,21 @@ const FONT_SIZE = 16;
 const GRID_HEIGHT = 150; // height of each subplot in px (matches the Vega-Lite subplot height)
 const SIDE_GRID_GAP = 92; // vertical space between subplots (two-line x-axis labels + next title)
 const TOP_OFFSET = 66; // room for the toolbox, the first subplot title and its y-axis title below it
-const TITLE_RAISE = 52; // how far the centered subplot title sits above its grid (clears the y-axis title)
+const TITLE_RAISE = 60; // how far the centered subplot title sits above its grid (clears the y-axis title)
+const TOOLBOX_TOP = TOP_OFFSET - 20; // toolbox (zoom/reset/save) row, level with the first y-axis title
 
 // Rounded stepped lines (issue: soften the 90° corners of interval sensors).
 // Only applied when a series is sparse enough that its steps are actually visible;
 // dense series keep sharp steps + LTTB (their corners are sub-pixel anyway).
 const STEP_ROUND_MAX_POINTS = 600; // round only up to this many points per series
-const STEP_ROUND_FRACTION = 0.4; // how far into each segment the corner is cut (0..0.5); larger = rounder
+const STEP_ROUND_FRACTION = 0.4; // fallback cut (fraction of segment) before pixel geometry is known
+const STEP_ROUND_RADIUS_PX = 6; // corner radius in *pixels*, so the arc stays circular at every zoom level
+
+// Touch devices get different pan/zoom gestures than desktop (see wireZoomInteractions):
+// one-finger swipe scrolls the page, pinch zooms, double-tap resets.
+const IS_TOUCH =
+  typeof window !== "undefined" &&
+  (("ontouchstart" in window) || (typeof navigator !== "undefined" && (navigator.maxTouchPoints || 0) > 0));
 const BOTTOM_OFFSET = 92; // room for the slider and the last two-line x-axis labels
 const GRID_LEFT = 70; // room for the y-axis labels
 const LEGEND_WIDTH = 220; // width of the legend column beside each subplot
@@ -411,7 +419,14 @@ function yAxisDomainOptions(group) {
   }
   if (Array.isArray(y) && y.length === 2) {
     const [lo, hi] = y;
-    return { scale: true, min: (v) => Math.min(v.min, lo), max: (v) => Math.max(v.max, hi) };
+    // Floor domain: cover at least [lo, hi], expand to the data, then round the
+    // bounds to nice numbers — otherwise the axis stops exactly at the raw data
+    // extent (e.g. [-2.67827, 2.79385]) instead of a tidy [-3, 3] as the "zero"
+    // and "data" modes do (Vega-Lite nices its unionWith domain the same way).
+    return {
+      min: (v) => niceAxisBound(Math.min(v.min, lo), Math.max(v.max, hi), false),
+      max: (v) => niceAxisBound(Math.min(v.min, lo), Math.max(v.max, hi), true),
+    };
   }
   if (y && typeof y === "object" && typeof y.min === "number" && typeof y.max === "number") {
     return { scale: true, min: y.min, max: y.max };
@@ -420,6 +435,14 @@ function yAxisDomainOptions(group) {
     return { min: (v) => Math.min(v.min, 0), max: (v) => Math.max(v.max, 105) };
   }
   return {}; // default ("zero"): ECharts value axes include zero (scale:false)
+}
+
+// Round one end of an axis domain [lo, hi] to a nice number (down for the min, up
+// for the max), aiming for ~10 intervals as Vega-Lite's default `nice` does.
+function niceAxisBound(lo, hi, isMax) {
+  if (!(hi > lo)) return isMax ? hi : lo; // degenerate range: leave it be
+  const step = niceBinWidth(hi - lo, 10);
+  return isMax ? Math.ceil(hi / step) * step : Math.floor(lo / step) * step;
 }
 
 // Turn a series' points into a step-after polyline with its right-angle corners
@@ -447,6 +470,93 @@ function roundedStepData(points, frac) {
   }
   out.push(v[v.length - 1]);
   return out;
+}
+
+// One cut point next to a step corner `cur`, moved `rx`/`ry` data-units toward the
+// neighbour `other` (a step segment is axis-aligned, so only its x or its y moves),
+// clamped to half the segment so adjacent cuts never cross.
+function stepCutPoint(cur, other, rx, ry) {
+  const dx = other[0] - cur[0];
+  const dy = other[1] - cur[1];
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    const off = Math.sign(dx) * Math.min(rx, Math.abs(dx) / 2);
+    return [cur[0] + off, cur[1]];
+  }
+  const off = Math.sign(dy) * Math.min(ry, Math.abs(dy) / 2);
+  return [cur[0], cur[1] + off];
+}
+
+// Like roundedStepData, but cuts each corner a fixed number of *pixels* deep (rx/ry
+// are the data-units that equal `radiusPx` along x and y at the current zoom), so
+// the smoothed arcs read as circular and don't stretch horizontally when zoomed in.
+function roundedStepDataPx(points, rx, ry) {
+  const v = [];
+  for (let i = 0; i < points.length; i++) {
+    if (i > 0) v.push([points[i][0], points[i - 1][1]]);
+    v.push([points[i][0], points[i][1]]);
+  }
+  if (v.length <= 2) return v;
+  const out = [v[0]];
+  for (let k = 1; k < v.length - 1; k++) {
+    out.push(stepCutPoint(v[k], v[k - 1], rx, ry));
+    out.push(stepCutPoint(v[k], v[k + 1], rx, ry));
+  }
+  out.push(v[v.length - 1]);
+  return out;
+}
+
+// Recompute every rounded series' data so its corners are cut STEP_ROUND_RADIUS_PX
+// pixels deep at the current zoom, then merge it back in. Called after each render
+// and on every dataZoom, so the arcs stay circular as the user zooms/pans.
+function refreshRoundedSteps(instance) {
+  const chart = instance.chart;
+  const list = instance._roundedSeries;
+  if (!chart || chart.isDisposed() || !Array.isArray(list) || list.length === 0) return;
+  const perPixelByGrid = new Map();
+  const dataPerPixel = (gridIndex) => {
+    if (perPixelByGrid.has(gridIndex)) return perPixelByGrid.get(gridIndex);
+    let result = null;
+    try {
+      const xa = (px) => chart.convertFromPixel({ xAxisIndex: gridIndex }, px);
+      const ya = (px) => chart.convertFromPixel({ yAxisIndex: gridIndex }, px);
+      const rx = Math.abs(xa(200) - xa(100)) / 100;
+      const ry = Math.abs(ya(200) - ya(100)) / 100;
+      if (isFinite(rx) && isFinite(ry) && rx > 0 && ry > 0) result = { rx: rx, ry: ry };
+    } catch (e) {
+      result = null;
+    }
+    perPixelByGrid.set(gridIndex, result);
+    return result;
+  };
+
+  const dataByIndex = new Map();
+  let maxIdx = -1;
+  for (const r of list) {
+    const pp = dataPerPixel(r.gridIndex);
+    if (!pp) continue;
+    dataByIndex.set(
+      r.seriesIndex,
+      roundedStepDataPx(r.points, STEP_ROUND_RADIUS_PX * pp.rx, STEP_ROUND_RADIUS_PX * pp.ry)
+    );
+    if (r.seriesIndex > maxIdx) maxIdx = r.seriesIndex;
+  }
+  if (maxIdx < 0) return;
+  const patch = [];
+  for (let i = 0; i <= maxIdx; i++) patch.push(dataByIndex.has(i) ? { data: dataByIndex.get(i) } : {});
+  chart.setOption({ series: patch });
+}
+
+// Keep the rounded corners pixel-accurate across zoom/pan (see refreshRoundedSteps).
+function wireRoundedSteps(instance) {
+  const chart = instance.chart;
+  if (instance.onRoundZoom) {
+    chart.off("dataZoom", instance.onRoundZoom);
+    instance.onRoundZoom = null;
+  }
+  if (!Array.isArray(instance._roundedSeries) || instance._roundedSeries.length === 0) return;
+  refreshRoundedSteps(instance); // initial pixel-accurate pass, replacing the data-space fallback
+  instance.onRoundZoom = () => refreshRoundedSteps(instance);
+  chart.on("dataZoom", instance.onRoundZoom);
 }
 
 // Mixed date/time x-axis labels shared by every time-axis chart: "HH:MM" normally,
@@ -842,6 +952,7 @@ function buildLineBarOption(elementId, groups, opts) {
   const yAxes = [];
   const titles = [];
   const legends = [];
+  const roundedList = []; // stepped series to re-round in pixel space (see refreshRoundedSteps)
   const series = [];
   const seriesMeta = [];
   const sensorColor = new Map();
@@ -929,7 +1040,8 @@ function buildLineBarOption(elementId, groups, opts) {
       // Finer (hourly) gridlines between the 6-hour major lines, as in Vega-Lite.
       minorTick: { show: true, splitNumber: 6 },
       minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
-      minInterval: 6 * 3600 * 1000, // at most one tick per 6h so 12:00 labels appear
+      // No fixed minInterval: let ECharts choose the tick granularity from the
+      // visible range, so zooming in reveals finer datetime ticks (as Vega-Lite does).
       axisLabel: {
         fontSize: FONT_SIZE,
         color: "#222",
@@ -992,6 +1104,7 @@ function buildLineBarOption(elementId, groups, opts) {
         }
         entry.color = sensorColor.get(s.name);
       }
+      let rounded = false;
       if (isBar) {
         Object.assign(entry, {
           barGap: "-100%", // overlay sources, as in the Vega-Lite bar chart
@@ -1000,12 +1113,14 @@ function buildLineBarOption(elementId, groups, opts) {
         });
       } else {
         const lineStyle = { width: 2.2, type: lineTypeForSource(s.source) };
-        // Round the stepped corners when the series is sparse enough to see them:
-        // expand to explicit step vertices with the corners cut, then let `smooth`
-        // arc between the cuts (see roundedStepData). The tooltip still snaps to the
-        // real data points (see seriesTooltipFormatter), so the extra points are
-        // purely visual. Dense series keep sharp steps + LTTB.
+        // Round the stepped corners when the series is sparse enough to see them.
+        // The initial data uses a data-space cut (roundedStepData) as a fallback;
+        // refreshRoundedSteps then recomputes it with corners cut a fixed number of
+        // *pixels* deep (recorded in roundedList), so the arcs stay circular at any
+        // zoom level. The tooltip snaps back to the real points (seriesTooltipFormatter),
+        // so the extra vertices are purely visual. Dense series keep sharp steps + LTTB.
         if (!groupIsInstantaneous && s.points.length <= STEP_ROUND_MAX_POINTS && s.points.length >= 2) {
+          rounded = true;
           Object.assign(entry, {
             data: roundedStepData(s.points, STEP_ROUND_FRACTION),
             smooth: 0.6, // arc the cut corners; straight runs stay straight (collinear)
@@ -1042,6 +1157,10 @@ function buildLineBarOption(elementId, groups, opts) {
       }
       series.push(entry);
       seriesMeta.push(s);
+      if (rounded) {
+        // Record for the pixel-accurate corner recompute (see refreshRoundedSteps).
+        roundedList.push({ seriesIndex: series.length - 1, points: s.points, gridIndex: i });
+      }
     });
   });
 
@@ -1087,6 +1206,14 @@ function buildLineBarOption(elementId, groups, opts) {
   const allAxisIndices = xAxes.map((_, i) => i);
   const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage);
   toolbox.feature.dataZoom.xAxisIndex = allAxisIndices;
+  toolbox.top = TOOLBOX_TOP; // drop the buttons below the (now higher) subplot title
+
+  // Record the rounded series for pixel-space corner recompute. Skip when this call
+  // builds a Charge Point companion subplot (its series get re-indexed by the caller,
+  // so the recorded indices wouldn't line up); those keep their data-space rounding.
+  if (!opts._companion) {
+    instance._roundedSeries = roundedList;
+  }
 
   return {
     textStyle: { fontFamily: CHART_FONT, fontSize: FONT_SIZE },
@@ -1119,9 +1246,12 @@ function buildLineBarOption(elementId, groups, opts) {
         type: "inside",
         xAxisIndex: allAxisIndices,
         throttle: 80,
-        zoomOnMouseWheel: true,
+        zoomOnMouseWheel: true, // desktop wheel zoom; touch pinch zoom is always on
         moveOnMouseWheel: false,
-        moveOnMouseMove: "ctrl",
+        // Desktop: Ctrl+drag pans (plain drag is the marquee zoom). Touch: never
+        // pan on a one-finger drag — the CSS `touch-action: pan-y` on the container
+        // lets that swipe scroll the page, while a two-finger pinch still zooms.
+        moveOnMouseMove: IS_TOUCH ? false : "ctrl",
       },
     ],
   };
@@ -1589,7 +1719,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
     splitLine: { show: true, lineStyle: { opacity: 0.5 } },
     minorTick: { show: true, splitNumber: 6 },
     minorSplitLine: { show: true, lineStyle: { color: "#e0e0e0", width: 1 } },
-    minInterval: 6 * 3600 * 1000,
+    // No fixed minInterval, so zooming in reveals finer datetime ticks (see line chart).
     axisLabel: { fontSize: FONT_SIZE, color: "#222", formatter: xAxisTimeFormatter, hideOverlap: true },
   }, sharedTimeDomain)];
   const yAxes = [{
@@ -1607,7 +1737,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
     text: "Charge Point sessions",
     left: plotCenter,
     textAlign: "center",
-    top: sessionsTop - 42,
+    top: sessionsTop - TITLE_RAISE,
     textStyle: { fontSize: Math.round(FONT_SIZE * 1.25), color: "#222" },
   }];
   const legends = [{
@@ -1645,6 +1775,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
       legendsBelow: false,
       isSensorPage: false,
       annotations: [],
+      _companion: true, // don't let it record rounded series (they get re-indexed below)
     }));
     const deltaTop = runningTop - companionOption.grid[0].top;
     const shiftedTop = runningTop; // capture before the mutations below shift grid[0].top in place
@@ -1678,6 +1809,7 @@ function buildChargePointSessionsOption(elementId, data, opts) {
   const allAxisIndices = xAxes.map((_, i) => i);
   const toolbox = toolboxFeatures(elementId, opts.datasetName, opts.isSensorPage);
   toolbox.feature.dataZoom.xAxisIndex = allAxisIndices;
+  toolbox.top = TOOLBOX_TOP; // drop the buttons below the subplot title
 
   return {
     textStyle: { fontFamily: CHART_FONT, fontSize: FONT_SIZE },
@@ -1701,9 +1833,12 @@ function buildChargePointSessionsOption(elementId, data, opts) {
         type: "inside",
         xAxisIndex: allAxisIndices,
         throttle: 80,
-        zoomOnMouseWheel: true,
+        zoomOnMouseWheel: true, // desktop wheel zoom; touch pinch zoom is always on
         moveOnMouseWheel: false,
-        moveOnMouseMove: "ctrl",
+        // Desktop: Ctrl+drag pans (plain drag is the marquee zoom). Touch: never
+        // pan on a one-finger drag — the CSS `touch-action: pan-y` on the container
+        // lets that swipe scroll the page, while a two-finger pinch still zooms.
+        moveOnMouseMove: IS_TOUCH ? false : "ctrl",
       },
     ],
   };
@@ -1745,6 +1880,8 @@ export function renderFastChart(elementId, data, options) {
   }
   instance.lastArgs = { data: data, options: options };
 
+  instance._roundedSeries = []; // rebuilt by buildLineBarOption for line charts with rounded steps
+
   let option;
   if (opts.chartType === "histogram") {
     option = buildHistogramOption(elementId, data, opts);
@@ -1768,6 +1905,7 @@ export function renderFastChart(elementId, data, options) {
   wireSessionTooltipRedirect(instance, opts);
   wirePointerTracking(instance);
   wireZoomInteractions(instance, opts);
+  wireRoundedSteps(instance);
 }
 
 // Charts with a time x-axis carry the toolbox dataZoom (zoom/reset) feature and a
@@ -1776,21 +1914,28 @@ function isZoomableChartType(chartType) {
   return !["histogram", "daily_heatmap", "weekly_heatmap"].includes(chartType);
 }
 
-// Zoom conveniences on the time-axis charts:
-//  - pre-select the toolbox "zoom" (marquee) tool so a drag zooms straight away
-//    (issue: users expect Zoom active by default), and
-//  - double-click anywhere to reset the zoom back to the full range, mirroring the
-//    toolbox reset button.
+// Zoom conveniences on the time-axis charts. Desktop: pre-select the toolbox
+// "zoom" (marquee) tool so a plain drag zooms, and double-click resets. Touch: do
+// NOT grab one-finger drags (they scroll the page); pinch zooms, double-tap resets.
 // Re-asserted on every render because setOption({notMerge:true}) resets toolbox state.
 function wireZoomInteractions(instance, opts) {
   const chart = instance.chart;
   const zr = chart.getZr();
-  // Listen on the zrender canvas, not the ECharts instance: chart.on("dblclick")
-  // only fires when a graphic element is under the cursor, so double-clicking empty
-  // plot area (the common case) never triggered it.
+  // Drop any previous reset handlers (listen on the zrender canvas, not the ECharts
+  // instance, so a double-click/tap on empty plot area still fires).
   if (instance.onDblClickReset) {
     zr.off("dblclick", instance.onDblClickReset);
     instance.onDblClickReset = null;
+  }
+  if (instance.onTapReset) {
+    zr.off("click", instance.onTapReset);
+    instance.onTapReset = null;
+  }
+  if (instance.onCtrlDown) {
+    document.removeEventListener("keydown", instance.onCtrlDown);
+    document.removeEventListener("keyup", instance.onCtrlUp);
+    instance.onCtrlDown = null;
+    instance.onCtrlUp = null;
   }
   // Skip category-axis charts and the no-data placeholder (neither has a dataZoom).
   const option = instance.lastOption || {};
@@ -1804,15 +1949,59 @@ function wireZoomInteractions(instance, opts) {
       key: "dataZoomSelect",
       dataZoomSelectActive: true,
     });
-  // Pre-activate the marquee zoom tool (same as clicking the toolbox zoom icon).
-  activateZoomTool();
-  // Double-click resets the zoom to the full range (like the toolbox reset icon).
-  instance.onDblClickReset = () => {
+  const resetZoom = () => {
     const dataZoomIndices = (option.dataZoom || []).map((_, i) => i);
     chart.dispatchAction({ type: "dataZoom", dataZoomIndex: dataZoomIndices, start: 0, end: 100 });
+  };
+
+  if (IS_TOUCH) {
+    // Don't pre-activate the marquee: a one-finger swipe must scroll the page, and
+    // pinch handles zoom. Reset on a genuine double-tap (two quick taps in place).
+    instance._lastTapAt = 0;
+    instance._lastTapXY = null;
+    instance.onTapReset = (e) => {
+      const now = Date.now();
+      const x = e && e.offsetX, y = e && e.offsetY;
+      const near =
+        instance._lastTapXY &&
+        Math.abs(x - instance._lastTapXY[0]) < 24 &&
+        Math.abs(y - instance._lastTapXY[1]) < 24;
+      if (now - instance._lastTapAt < 300 && near) {
+        resetZoom();
+        instance._lastTapAt = 0;
+        instance._lastTapXY = null;
+      } else {
+        instance._lastTapAt = now;
+        instance._lastTapXY = [x, y];
+      }
+    };
+    zr.on("click", instance.onTapReset);
+    return;
+  }
+
+  // Desktop: pre-activate the marquee zoom tool, double-click resets to full range.
+  activateZoomTool();
+  instance.onDblClickReset = () => {
+    resetZoom();
     activateZoomTool(); // keep the marquee zoom tool selected after the reset
   };
   zr.on("dblclick", instance.onDblClickReset);
+
+  // Ctrl+drag should pan, but the pre-selected marquee brush grabs every drag
+  // regardless of modifier. So while Ctrl is held, turn the marquee off — then the
+  // inside dataZoom (moveOnMouseMove:"ctrl") pans — and turn it back on when released.
+  instance.onCtrlDown = (e) => {
+    if (e.key === "Control" && !chart.isDisposed()) {
+      chart.dispatchAction({ type: "takeGlobalCursor", key: "dataZoomSelect", dataZoomSelectActive: false });
+    }
+  };
+  instance.onCtrlUp = (e) => {
+    if (e.key === "Control" && !chart.isDisposed()) {
+      activateZoomTool();
+    }
+  };
+  document.addEventListener("keydown", instance.onCtrlDown);
+  document.addEventListener("keyup", instance.onCtrlUp);
 }
 
 // Track the cursor's canvas pixel position so the axis-trigger tooltip formatter
@@ -1938,6 +2127,11 @@ export function disposeFastChart(elementId) {
   const instance = instances[elementId];
   if (instance) {
     window.removeEventListener("resize", instance.onResize);
+    // These are document-level listeners, so chart.dispose() won't remove them.
+    if (instance.onCtrlDown) {
+      document.removeEventListener("keydown", instance.onCtrlDown);
+      document.removeEventListener("keyup", instance.onCtrlUp);
+    }
     clearTimeout(instance.resizeTimer);
     if (!instance.chart.isDisposed()) {
       instance.chart.dispose();
