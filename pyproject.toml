@@ -49,13 +49,12 @@ dependencies = [
     "bcrypt==4.3.0",  # see https://github.com/SeitaBV/flexmeasures-cloudinfra/issues/283
     "pytz>=2025.2",
     "isodate>=0.7.2",
-    # see https://github.com/FlexMeasures/flexmeasures/issues/1485
-    "click<8.2.0",
+    "click>=8.2.0",
     "click-default-group>=1.2.4",
     "email-validator>=2.3.0",
     "rq>=2.6.1",
     # sort order
-    "rq-dashboard>=0.8.0.2",
+    "rq-dashboard>=0.8.7",
     # the following uses environment markers (see PEP 496)
     "rq-win; os_name == 'nt' or os_name == 'win'",
     # Note: we sometimes limit redis due to our use of fakeredis (check their pyproject.toml)
@@ -101,13 +100,13 @@ dependencies = [
     "vl-convert-python>=1.9.0.post1",
     # Forecaster: TrainPredictPipeline
     "lightgbm>=4.6.0",
-    "u8darts>=0.29.0",
+    "darts>=0.41.0",
     # LP solver. Required to test the function device_scheduler which is used by the StorageScheduler
     "highspy>=1.12",
     "rq-win>=0.4.2",
     # Below: minimum requirements solely here for security reasons
     "urllib3>=2.7.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/602 (and 603)
-    "cryptography>=46.0.7",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/598
+    "cryptography>=48.0.1",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/606
     "pyopenssl>=26.0.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/590
     "werkzeug>=3.1.6",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/587
     "pillow>=12.2.0",  # https://github.com/FlexMeasures/flexmeasures/security/dependabot/599
@@ -173,7 +172,7 @@ shell = """
 help = "Update the documentation and OpenAPI specifications"
 shell = """
     printf "Installing docs dependencies ...\n"
-    uv sync --group docs
+    uv sync --group docs --inexact
     printf "Generating OpenAPI specifications ...\n"
 	uv run poe generate-open-api-specs
 	printf "Creating documentation ...\n"
@@ -194,6 +193,13 @@ args = [
 help = "Generate OpenAPI specifications"
 script = "flexmeasures.api.scripts.generate_open_api_specs"
 env = {FLEXMEASURES_ENV = "documentation", FLEXMEASURES_PLUGINS = ""}
+
+[tool.poe.tasks.changelog-check]
+help = "List merged PRs since the last tag, to help assemble changelog.rst entries (does not write any files)."
+shell = "ci/list-merged-prs-since-tag.sh"
+args = [
+    {name = "since", help = "Git tag to diff from (default: latest tag reachable from HEAD)", default = ""},
+]
 
 [dependency-groups]
 dev = [

@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.33.0"
+    "version": "1.0.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -177,6 +177,9 @@
                       "timezone": "Europe/Amsterdam",
                       "event_resolution": "PT15M",
                       "entity_address": "ea1.2021-01.io.flexmeasures:fm1.14",
+                      "attributes": {
+                        "floor_datetimes_to_resolution": true
+                      },
                       "generic_asset_id": 1
                     }
                   },
@@ -484,7 +487,7 @@
       },
       "post": {
         "summary": "Post sensor data",
-        "description": "Send data values via JSON, where the duration and number of values determine the resolution.\n\nThe example request posts four values for a duration of one hour, where the first\nevent start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.\n\nThe sensor is the one with ID=1.\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to upsample lower resolutions.\nThe list of values may include null values.\n",
+        "description": "Send data values via JSON, where the duration and number of values determine the resolution.\n\nThe example request posts four values for a duration of one hour, where the first\nevent start is at the given start time, and subsequent events start in 15 minute intervals throughout the one hour duration.\n\nThe sensor is the one with ID=1.\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to resample compatible resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
         "security": [
           {
             "ApiAuthKey": []
@@ -526,6 +529,9 @@
           }
         },
         "responses": {
+          "202": {
+            "description": "ACCEPTED"
+          },
           "200": {
             "description": "PROCESSED"
           },
@@ -537,6 +543,9 @@
           },
           "403": {
             "description": "INVALID_SENDER"
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE"
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
@@ -684,7 +693,7 @@
     "/api/v3_0/sensors/{id}/schedules/{uuid}": {
       "get": {
         "summary": "Get schedule for one device",
-        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n- \"unit\" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)\n",
+        "description": "Get a schedule from FlexMeasures.\n\nOptional fields:\n\n- \"duration\" (6 hours by default; can be increased to plan further into the future)\n- \"unit\" (by default, the unit of the schedule is the sensor's unit; a compatible unit can be requested)\n- \"sign-convention\" (controls how power values are signed in the response; see below)\n\n<strong>Sign convention</strong>\n\nBy default (<code>sign-convention: consumption-positive</code>), the endpoint always returns schedules where\nconsumption is positive and production is negative, regardless of how the values are stored in the database.\nThis is the most common convention and matches the perspective of a consumer.\n\nSet <code>sign-convention: production-positive</code> to flip the sign so that production is returned as\npositive and consumption as negative. This matches the perspective of a producer.\n\nSet <code>sign-convention: wysiwyg</code> (<em>what-you-see-is-what-you-get</em>) to return the values with the same sign\nas database values and what is seen in UI charts. The values will indicate exactly what is stored,\nwhich is itself determined by the sensor's <code>consumption_is_positive</code> attribute (if set)\nor by the scheduler's default storage convention (production positive in the database).\n\n<strong>Constraint analysis</strong>\n\nFor detailed constraint analysis (unmet and resolved constraints), use the\n[GET /api/v3_0/jobs/<uuid>](#/Jobs/get_api_v3_0_jobs__uuid_) endpoint.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -729,6 +738,21 @@
             "example": "kW",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sign-convention",
+            "required": false,
+            "description": "Sign convention applied to power values in the response.\n- <code>consumption-positive</code> (default): consumption is positive, production is negative.\n- <code>production-positive</code>: production is positive, consumption is negative.\n- <code>wysiwyg</code> (<em>what-you-see-is-what-you-get</em>): sign of database values and as seen in UI charts.\n",
+            "example": "consumption-positive",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "consumption-positive",
+                "production-positive",
+                "wysiwyg"
+              ]
             }
           }
         ],
@@ -986,7 +1010,7 @@
     "/api/v3_0/sensors": {
       "get": {
         "summary": "Get list of sensors",
-        "description": "This endpoint returns all accessible sensors.\nBy default, \"accessible sensors\" means all sensors in the same account as the current user (if they have read permission to the account).\n\nYou can also specify an `account` (an ID parameter), if the user has read access to that account. In this case, all assets under the\nspecified account will be retrieved, and the sensors associated with these assets will be returned.\n\nAlternatively, you can filter by asset hierarchy by providing the `asset` parameter (ID). When this is set, all sensors on the specified\nasset and its sub-assets are retrieved, provided the user has read access to the asset.\n\n> <strong>Note:</strong> You can't set both account and asset at the same time, you can only have one set. The only exception is if the asset being specified is\n> part of the account that was set, then we allow to see sensors under that asset but then ignore the account (account = None).\n\nFinally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.\nThis is only possible if the user has the role of a consultant.\n\nOnly admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).\n\nThe `filter` parameter allows you to search for sensors by name or account name.\nThe `unit` parameter allows you to filter by unit.\n\nFor the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger\npagination, and the `per_page` parameter is used to specify the number of records per page. The default value for `page` is 1 and for `per_page` is 10.\n",
+        "description": "This endpoint returns all accessible sensors.\nBy default, \"accessible sensors\" means all sensors in the same account as the current user (if they have read permission to the account).\n\nYou can also specify an `account` (an ID parameter), if the user has read access to that account. In this case, all assets under the\nspecified account will be retrieved, and the sensors associated with these assets will be returned.\n\nAlternatively, you can filter by asset hierarchy by providing the `asset` parameter (ID). When this is set, all sensors on the specified\nasset and its sub-assets are retrieved, provided the user has read access to the asset.\n\n> <strong>Note:</strong> You can't set both account and asset at the same time, you can only have one set. The only exception is if the asset being specified is\n> part of the account that was set, then we allow to see sensors under that asset but then ignore the account (account = None).\n\nFinally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.\nThis is only possible if the user has the role of a consultant.\n\nOnly admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).\n\nThe `filter` parameter allows you to search for sensors by name, account name, asset name, or sensor ID prefix.\nThe `unit` parameter allows you to filter by unit.\n\nFor the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger\npagination, and the `per_page` parameter is used to specify the number of records per page. The default value for `page` is 1 and for `per_page` is 10.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1049,6 +1073,7 @@
           {
             "in": "query",
             "name": "filter",
+            "description": "Return only sensors where a search term is present in the sensor name, account name, asset name, or is a prefix of the sensor ID.",
             "schema": {
               "type": "string"
             },
@@ -1184,7 +1209,8 @@
                     "name": "power",
                     "event_resolution": "PT1H",
                     "unit": "kWh",
-                    "generic_asset_id": 1
+                    "generic_asset_id": 1,
+                    "attributes": "{\"floor_datetimes_to_resolution\": false}"
                   }
                 }
               }
@@ -1209,6 +1235,7 @@
                       "entity_address": "ea1.2023-08.localhost:fm1.1",
                       "event_resolution": "PT1H",
                       "generic_asset_id": 1,
+                      "attributes": "{\"floor_datetimes_to_resolution\": false}",
                       "timezone": "UTC",
                       "id": 2
                     }
@@ -1373,8 +1400,8 @@
     },
     "/api/v3_0/sensors/{id}/schedules/trigger": {
       "post": {
-        "summary": "Trigger scheduling job for one device",
-        "description": "Trigger FlexMeasures to create a schedule for this sensor.\nThe assumption is that this sensor is the power sensor on a flexible asset.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, see the [documentation on describing flexibility](https://flexmeasures.readthedocs.io/latest/features/scheduling.html#describing-flexibility).\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors).\nThe examples below illustrate how to describe a flexibility model and context.\n\n> <strong>Note:</strong> To schedule an EMS with multiple flexible sensors at once,\n> use the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger) instead.\n\nAbout the duration of the schedule and targets within the schedule:\n\n- The length of the schedule can be set explicitly through the 'duration' field.\n- Otherwise, it is set by the config setting `FLEXMEASURES_PLANNING_HORIZON`, which defaults to 48 hours.\n- If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\n- Finally, the schedule length is limited by the config setting `FLEXMEASURES_MAX_PLANNING_HORIZON`, which defaults to 2520 steps of the sensor's resolution. Targets that exceed the max planning horizon are not accepted.\n\nThe 'resolution' field governs how often setpoints are allowed to change.\nNote that the resulting schedule is still saved in the sensor resolution.\n\nAbout the scheduling algorithm being used:\n\n- The appropriate algorithm is chosen by FlexMeasures (based on asset type).\n- It's also possible to use custom schedulers and custom flexibility models.\n- If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
+        "summary": "Trigger scheduling job for one device. Deprecated.",
+        "description": "Trigger FlexMeasures to create a schedule for this sensor. Deprecated - please use the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger) instead.\n\nThe assumption is that this sensor is the power sensor on a flexible asset.\n\nIn this request, you can describe:\n\n- the schedule's main features (when does it start, what unit should it report, prior to what time can we assume knowledge)\n- the flexibility model for the sensor (state and constraint variables, e.g. current state of charge of a battery, or connection capacity)\n- the flexibility context which the sensor operates in (other sensors under the same EMS which are relevant, e.g. prices)\n\nFor details on flexibility model and context, see the [documentation on describing flexibility](https://flexmeasures.readthedocs.io/latest/features/scheduling.html#describing-flexibility).\nThe schemas we use in this endpoint documentation do not describe the full flexibility model and context (as the docs do), as these are very flexible (e.g. fixed values or sensors).\nThe examples below illustrate how to describe a flexibility model and context.\n\n> <strong>Note:</strong> To schedule an EMS with multiple flexible sensors at once,\n> use the [Assets scheduling endpoint](#/Assets/post_api_v3_0_assets__id__schedules_trigger) instead.\n\nAbout the duration of the schedule and targets within the schedule:\n\n- The length of the schedule can be set explicitly through the 'duration' field.\n- Otherwise, it is set by the config setting `FLEXMEASURES_PLANNING_HORIZON`, which defaults to 48 hours.\n- If the flex-model contains targets that lie beyond the planning horizon, the length of the schedule is extended to accommodate them.\n- Finally, the schedule length is limited by the config setting `FLEXMEASURES_MAX_PLANNING_HORIZON`, which defaults to 2520 steps of the sensor's resolution. Targets that exceed the max planning horizon are not accepted.\n\nThe 'resolution' field governs how often setpoints are allowed to change.\nNote that the resulting schedule is still saved in the sensor resolution.\n\nAbout the scheduling algorithm being used:\n\n- The appropriate algorithm is chosen by FlexMeasures (based on asset type).\n- It's also possible to use custom schedulers and custom flexibility models.\n- If you have ideas for algorithms that should be part of FlexMeasures, let us know: [https://flexmeasures.io/get-in-touch/](https://flexmeasures.io/get-in-touch/)\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1521,7 +1548,7 @@
     "/api/v3_0/sensors/{id}/data/upload": {
       "post": {
         "summary": "Upload sensor data by file",
-        "description": "The file should have columns for a timestamp (event_start) and a value (event_value).\nThe timestamp should be in ISO 8601 format.\nThe value should be a numeric value.\n\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to upsample lower resolutions.\nThe list of values may include null values.\n",
+        "description": "The file should have columns for a timestamp (event_start) and a value (event_value).\nThe timestamp should be in ISO 8601 format.\nThe value should be a numeric value.\n\nThe unit has to be convertible to the sensor's unit.\nThe resolution of the data has to match the sensor's required resolution, but\nFlexMeasures will attempt to resample compatible resolutions.\nThe list of values may include null values.\nThe request body is limited by FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES\n(3 MiB by default).\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1552,6 +1579,9 @@
           }
         },
         "responses": {
+          "202": {
+            "description": "ACCEPTED"
+          },
           "200": {
             "description": "PROCESSED",
             "content": {
@@ -1622,6 +1652,9 @@
           },
           "403": {
             "description": "INVALID_SENDER"
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE"
           },
           "422": {
             "description": "UNPROCESSABLE_ENTITY"
@@ -1772,7 +1805,7 @@
       },
       "patch": {
         "summary": "Update an existing account.",
-        "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n<strong>Restrictions on Fields:</strong>\n- The <strong>id</strong> field is read-only and cannot be updated.\n- The <strong>consultancy_account_id</strong> field can only be edited if the current user has an <strong>admin</strong> role.\n",
+        "description": "This endpoint updates the details for an existing account.\n\nIn the JSON body, sent in only the fields you want to update.\n\n<strong>Restrictions on Fields:</strong>\n- The <strong>id</strong> field is read-only and cannot be updated.\n- The <strong>consultancy_account_id</strong> field can be edited by admins. Non-admin users can only set it to their\n  own account, and only if their account has the Consultancy account role and they have\n  the consultant or account-admin user role.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -1795,10 +1828,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Account1"
+                "$ref": "#/components/schemas/AccountPatchSchema"
               },
               "example": {
                 "name": "Test Account Updated",
+                "account_roles": [
+                  1,
+                  3
+                ],
                 "primary_color": "#1a3443",
                 "secondary_color": "#f1a122",
                 "logo_url": "https://example.com/logo.png",
@@ -1837,7 +1874,7 @@
             "description": "INVALID_SENDER"
           },
           "422": {
-            "description": "UNPROCESSABLE_ENTITY (e.g., trying to update 'consultancy_account_id' without admin rights)"
+            "description": "UNPROCESSABLE_ENTITY (e.g., trying to update 'consultancy_account_id' to a non-existing account)"
           }
         },
         "tags": [
@@ -1961,6 +1998,47 @@
           },
           "400": {
             "description": "INVALID_REQUEST"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Accounts"
+        ]
+      },
+      "post": {
+        "summary": "Create a new account.",
+        "description": "Create a new account with a required name.\n\n- Admin users can create accounts.\n- Consultant users can create accounts only if their account has the\n  Consultancy account role.\n- For consultant users, the newly created account is automatically\n  linked to their own account as consultancy account.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "Account fields for creation.",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountCreateSchema"
+              },
+              "example": {
+                "name": "New Customer Account",
+                "consultancy_account_id": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "PROCESSED"
           },
           "401": {
             "description": "UNAUTHORIZED"
@@ -2218,7 +2296,7 @@
       },
       "patch": {
         "summary": "Update a user.",
-        "description": "This endpoint sets data for an existing user.\nIt has to be used by the user themselves, admins, consultant or account-admins (of the same account).\nAny subset of user fields can be sent.\nIf the user is not an (account-)admin, they can only edit a few of their own fields.\nUser roles cannot be updated by everyone - it requires certain access levels (roles, account), with the general rule that you need a higher access level than the role being updated.\n\nThe following fields are not allowed to be updated at all:\n- id\n- account_id\n",
+        "description": "This endpoint sets data for an existing user.\nIt has to be used by the user themselves, admins, consultant or account-admins (of the same account).\nAny subset of user fields can be sent.\nIf the user is not an (account-)admin, they can only edit a few of their own fields.\nUser role updates require explicit permission for every role being added or removed, generally by a user with a higher access level than the role being updated. Unsupported, unknown, or otherwise unresolved roles are denied.\n\nThe following fields are not allowed to be updated at all:\n- id\n- account_id\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2562,7 +2640,7 @@
     "/api/v3_0/assets/{id}/sensors": {
       "get": {
         "summary": "Return all sensors under an asset.",
-        "description": "This endpoint returns all sensors under an asset.\n\nThe endpoint supports pagination of the sensor list using the `page` and `per_page` query parameters.\n\n- If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.\n- If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).\nThe response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data\n",
+        "description": "This endpoint returns all sensors under an asset.\n\nThe endpoint supports pagination of the sensor list using the `page` and `per_page` query parameters.\n\n- If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.\n- If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).\n- If a search 'filter' is provided, the response will return only sensors where a search term is either present in their name or is a prefix of their ID.\nThe response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2814,7 +2892,7 @@
     "/api/v3_0/assets/{id}/copy": {
       "post": {
         "summary": "Copy an asset to a target account and/or parent.",
-        "description": "This endpoint creates a copy of an existing asset and optionally places it\nunder a `target` account and/or `parent` asset.\n\nResolution rules:\n\n- If both are omitted, the copy remains in the same account and keeps the same parent.\n- If `account` is provided and `parent` is omitted, parent defaults to `null`.\n- If `parent` is provided and `account` is omitted, account is derived from that parent.\n- If both are provided, it is possible to assign the copied asset to a different account than the parent.\n",
+        "description": "This endpoint creates a copy of an existing asset.\n\nThe asset copy will also have copies of child assets, including sensors and flex-configuration.\nNo beliefs will be copied.\n\nThe new asset can optionally be placed under a `target` account and/or `parent` asset.\n\nResolution rules:\n\n- If both `target` and `account` are omitted, the copy remains in the same account and keeps the same parent as the original.\n- If `account` is provided and `parent` is omitted, parent defaults to `null`.\n- If `parent` is provided and `account` is omitted, account is derived from that parent.\n- If both are provided, it is possible to assign the copied asset to a different account than the parent.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3444,7 +3522,7 @@
     "/api/v3_0/assets": {
       "get": {
         "summary": "List assets accessible by the user.",
-        "description": "This endpoint returns all assets that are accessible by the user after applying optional filters.\n\n  - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n  - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).\n  - The `depth` query parameter can be used to search only a max number of descendant generations from the root.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will filter out assets where each search term is either present in their name or account name.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n\nPer default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).\nYou can use the `fields` query parameter to specify a custom set of fields to include in the response.\n",
+        "description": "This endpoint returns all assets that are accessible by the user after applying optional filters.\n\n  - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.\n  - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.\n  - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.\n  - The `asset_type` query parameter can be used to filter by generic asset type ID.\n  - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).\n  - The `depth` query parameter can be used to search only a max number of descendant generations from the root.\n\nThe endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.\n  - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.\n  - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).\n  - If a search 'filter' such as 'solar \"ACME corp\"' is provided, the response will return only assets where each search term is either present in their name or account name, or is a prefix of their ID.\n  The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)\n\nPer default, the response only includes a limited set of asset fields (id, name, account_id, generic_asset_type).\nYou can use the `fields` query parameter to specify a custom set of fields to include in the response.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3567,6 +3645,16 @@
               "type": "boolean",
               "default": false,
               "example": false
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "asset_type",
+            "description": "Filter assets by generic asset type ID.",
+            "schema": {
+              "type": "integer",
+              "example": 2
             },
             "required": false
           }
@@ -3861,7 +3949,14 @@
                         "consumption-capacity": {
                           "sensor": 42
                         },
-                        "production-capacity": "30 kW"
+                        "production-capacity": "30 kW",
+                        "soc-minima": [
+                          {
+                            "start": "2015-06-02T12:00:00+00:00",
+                            "end": "2015-06-02T13:00:00+00:00",
+                            "value": "10 kWh"
+                          }
+                        ]
                       },
                       {
                         "sensor": 932,
@@ -4175,7 +4270,7 @@
     "/api/v3_0/jobs/{uuid}": {
       "get": {
         "summary": "Get the status of a background job",
-        "description": "Look up a background job by its UUID and see whether it is\nqueued, running, finished, or failed.\n\nThe response includes a status message plus job metadata such\nas the queue name, function name, timestamps, and the job\nresult when available.\n\nFailed jobs also include traceback information when the worker\nstored it with the job result.\n",
+        "description": "Look up a background job by its UUID and see whether it is\nqueued, running, finished, or failed.\n\nThe response includes a status message plus job metadata such\nas the queue name, function name, timestamps, and the job\nresult when available.\n\nFailed jobs also include traceback information when the worker\nstored it with the job result.\n\nFor a finished scheduling job, <code>result</code> is an object. For a\n<code>StorageScheduler</code> job it holds soft state-of-charge constraint\nanalysis: <code>unresolved</code> lists constraints the scheduler could not\nsatisfy, and <code>resolved</code> lists constraints that were satisfied\nwith some margin. Each device entry's <code>soc-minima</code>/<code>soc-maxima</code>\nvalue is a list, holding one entry per violated slot (for\n<code>unresolved</code>) or per met slot with its margin (for <code>resolved</code>),\nordered chronologically. Both arrays are empty when the flex model\ndefines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other\nthan <code>StorageScheduler</code> was used. The <code>num-beliefs</code> field holds\nthe total number of beliefs (scheduled values) saved to the database.\nThis is the only place constraint analysis is available \u2014 the sensor\nschedule endpoint (<code>GET /api/v3_0/sensors/<id>/schedules/<uuid></code>)\nreturns power values only.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4220,7 +4315,7 @@
                       "description": "Human-readable description of the job status."
                     },
                     "result": {
-                      "description": "Return value of the job function, or null when not yet available.",
+                      "description": "Return value of the job function, or null when not yet available. For a finished scheduling job, this is an object; a <code>StorageScheduler</code> job populates it with <code>unresolved</code>/<code>resolved</code> soft state-of-charge constraint analysis (empty arrays when the flex model defines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other than <code>StorageScheduler</code> was used). The <code>num-beliefs</code> field holds the total number of beliefs (scheduled values) saved to the database.\n",
                       "nullable": true
                     },
                     "func_name": {
@@ -4276,7 +4371,25 @@
                     "value": {
                       "status": "FINISHED",
                       "message": "Scheduling job has finished.",
-                      "result": null,
+                      "result": {
+                        "unresolved": [
+                          {
+                            "asset": 42,
+                            "soc-minima": [
+                              {
+                                "datetime": "2024-01-01T10:00:00+00:00",
+                                "violation": "260.0 kWh"
+                              },
+                              {
+                                "datetime": "2024-01-01T10:15:00+00:00",
+                                "violation": "180.0 kWh"
+                              }
+                            ]
+                          }
+                        ],
+                        "resolved": [],
+                        "num-beliefs": 96
+                      },
                       "func_name": "flexmeasures.data.services.scheduling.create_schedule",
                       "origin": "scheduling",
                       "enqueued_at": "2026-04-28T10:00:00+00:00",
@@ -4415,6 +4528,50 @@
           "sensor": {
             "type": "integer",
             "description": "ID of the sensor on which the data is recorded."
+          },
+          "source-types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from sources with these source types (e.g. 'user', 'script', 'forecaster', 'scheduler').",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exclude-source-types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Exclude beliefs from sources with these source types.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sources": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from these data source IDs.",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "source-account": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from data sources linked to these account IDs.",
+            "items": {
+              "type": "integer"
+            }
           }
         },
         "required": [
@@ -4473,84 +4630,59 @@
         ],
         "additionalProperties": false
       },
+      "OutputSensorReference": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer",
+            "description": "ID of the sensor on which the data is recorded."
+          }
+        },
+        "required": [
+          "sensor"
+        ],
+        "additionalProperties": false
+      },
       "FlexContextOpenAPISchema": {
         "type": "object",
         "properties": {
-          "consumption-breach-price": {
-            "description": "This <strong>penalty value</strong> is used to discourage the violation of the <code>consumption-capacity</code> constraint in the flex-model.\nIt effectively treats the capacity as a <strong>soft constraint</strong>, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
-            "example": "10 EUR/kW",
+          "commodity": {
+            "type": "string",
+            "default": "electricity",
+            "description": "Commodity to which this part of the flex-context applies.\nDefaults to <code>\"electricity\"</code>.\n",
+            "examples": [
+              "electricity",
+              "gas"
+            ]
+          },
+          "consumption-price": {
+            "description": "The commodity price (e.g. electricity price) applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem.",
+            "examples": [
+              {
+                "sensor": 5
+              },
+              "0.29 EUR/kWh"
+            ],
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "production-breach-price": {
-            "description": "This <strong>penalty value</strong> is used to discourage the violation of the <code>production-capacity</code> constraint in the flex-model.\nIt effectively treats the capacity as a <strong>soft constraint</strong>, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
-            "example": "10 EUR/kW",
+          "production-price": {
+            "description": "The commodity price (e.g. electricity price) applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem, as long as the unit matches the <code>consumption-price</code> unit.",
+            "example": "0.12 EUR/kWh",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
-          },
-          "soc-minima-breach-price": {
-            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-minima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an internal nudge to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.\n",
-            "example": "120 EUR/kWh",
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
-          },
-          "soc-maxima-breach-price": {
-            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-maxima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an <strong>internal nudge</strong> to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\n",
-            "example": "120 EUR/kWh",
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
-          },
-          "relax-constraints": {
-            "type": "boolean",
-            "default": false,
-            "description": "If True (default is <code>False</code>), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to <code>True</code> to enable the default prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
-            "example": true
-          },
-          "relax-soc-constraints": {
-            "type": "boolean",
-            "default": false,
-            "description": "If True, avoids not meeting SoC minima/maxima as a relaxed constraint.",
-            "example": true
-          },
-          "relax-capacity-constraints": {
-            "type": "boolean",
-            "default": false,
-            "description": "If True, avoids breaching the desired device consumption/production capacity as a relaxed constraint.",
-            "example": true
-          },
-          "relax-site-capacity-constraints": {
-            "type": "boolean",
-            "default": false,
-            "description": "If True, avoids breaching the site consumption/production capacity as a relaxed constraint.",
-            "example": true
           },
           "site-power-capacity": {
             "description": "Maximum achievable power at the site's grid connection point, in either direction.\nBecomes a hard constraint in the optimization problem, which is especially suitable for physical limitations.\n",
             "example": "45kVA",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
-          "consumption-price-sensor": {
-            "type": "integer"
-          },
-          "production-price-sensor": {
-            "type": "integer"
-          },
-          "consumption-price": {
-            "description": "The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem.",
-            "example": {
-              "sensor": 5
-            },
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
-          },
-          "production-price": {
-            "description": "The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO\u2082 intensity\u2014whatever fits your optimization problem, as long as the unit matches the <code>consumption-price</code> unit.",
-            "example": "0.12 EUR/kWh",
+          "site-consumption-capacity": {
+            "description": "Maximum consumption power at the site's grid connection point.\nIf <code>site-power-capacity</code> is defined, the minimum between the <code>site-power-capacity</code> and <code>site-consumption-capacity</code> will be used.\nIf a <code>site-consumption-breach-price</code> is defined, the <code>site-consumption-capacity</code> becomes a soft constraint in the optimization problem.\nOtherwise, it becomes a hard constraint.\n",
+            "example": "45kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "site-production-capacity": {
             "description": "Maximum production power at the site's grid connection point.\nIf <code>site-power-capacity</code> is defined, the minimum between the <code>site-power-capacity</code> and <code>site-production-capacity</code> will be used.\nIf a <code>site-production-breach-price</code> is defined, the <code>site-production-capacity</code> becomes a soft constraint in the optimization problem.\nOtherwise, it becomes a hard constraint.\n",
             "example": "0kW",
-            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
-          },
-          "site-consumption-capacity": {
-            "description": "Maximum consumption power at the site's grid connection point.\nIf <code>site-power-capacity</code> is defined, the minimum between the <code>site-power-capacity</code> and <code>site-consumption-capacity</code> will be used.\nIf a <code>site-consumption-breach-price</code> is defined, the <code>site-consumption-capacity</code> becomes a soft constraint in the optimization problem.\nOtherwise, it becomes a hard constraint.\n",
-            "example": "45kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "site-consumption-breach-price": {
@@ -4587,6 +4719,50 @@
             "example": "260 EUR/MW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
+          "consumption-breach-price": {
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of the <code>consumption-capacity</code> constraint in the flex-model.\nIt effectively treats the capacity as a <strong>soft constraint</strong>, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
+            "example": "10 EUR/kW",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+          },
+          "production-breach-price": {
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of the <code>production-capacity</code> constraint in the flex-model.\nIt effectively treats the capacity as a <strong>soft constraint</strong>, allowing the scheduler to exceed it when necessary but with a high cost.\nThe scheduler will attempt to minimize this cost.\nIt must use the same currency as the other price settings and cannot be negative.\n",
+            "example": "10 EUR/kW",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+          },
+          "soc-minima-breach-price": {
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-minima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an internal nudge to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed.\n",
+            "example": "120 EUR/kWh",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+          },
+          "soc-maxima-breach-price": {
+            "description": "This <strong>penalty value</strong> is used to discourage the violation of <code>soc-maxima</code> constraints in the flex-model, which the scheduler will attempt to minimize.\nIt must use the same currency as the other price settings and cannot be negative.\nWhile it's an <strong>internal nudge</strong> to steer the scheduler\u2014and doesn't represent a real-life cost\u2014it should still be chosen in proportion to the actual energy prices at your site.\nIf it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.\nWithout this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed.\n",
+            "example": "120 EUR/kWh",
+            "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+          },
+          "relax-constraints": {
+            "type": "boolean",
+            "default": true,
+            "description": "If True (default is <code>False</code>), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:\n\n1. Avoid breaching the site consumption/production capacity.\n2. Avoid not meeting SoC minima/maxima.\n3. Avoid breaching the desired device consumption/production capacity.\n\nWe recommend to set this field to <code>True</code> to enable the default prices and associated priorities as defined by FlexMeasures.\nFor tighter control over prices and priorities, the breach prices can also be set explicitly (the relevant fields have <code>breach-price</code> in their name).\n",
+            "example": true
+          },
+          "relax-soc-constraints": {
+            "type": "boolean",
+            "default": false,
+            "description": "If True, avoids not meeting SoC minima/maxima as a relaxed constraint.",
+            "example": true
+          },
+          "relax-capacity-constraints": {
+            "type": "boolean",
+            "default": false,
+            "description": "If True, avoids breaching the desired device consumption/production capacity as a relaxed constraint.",
+            "example": true
+          },
+          "relax-site-capacity-constraints": {
+            "type": "boolean",
+            "default": false,
+            "description": "If True, avoids breaching the site consumption/production capacity as a relaxed constraint.",
+            "example": true
+          },
           "commitments": {
             "description": "Prior commitments. Support for this field in the UI is still under further development, but you can find more information in <a href=\"/ui/static/documentation/html/search.html?q=commitments\" target=\"_blank\">the docs</a>.",
             "example": [],
@@ -4606,12 +4782,19 @@
               "type": "integer"
             }
           },
-          "aggregate-power": {
-            "description": "Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.",
+          "aggregate-consumption": {
+            "description": "Sensor used to record the aggregate consumption schedule of all flexible and inflexible devices involved when scheduling this asset.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nDepending on which output sensors are defined:\n\n- <strong>Only</strong> <code>aggregate-consumption</code> <strong>defined</strong>: the full aggregate power schedule is stored on this sensor using the\n  consumption-positive sign convention (consumption positive, production negative).\n- <strong>Only</strong> <code>aggregate-production</code> <strong>defined</strong>: the full aggregate power schedule is stored on the aggregate-production sensor\n  with the production-positive convention (production positive, consumption negative).\n- <strong>Both defined</strong>: only the non-negative part of the aggregate schedule is stored on this sensor (zero for\n  time steps with net production), and only the non-positive part (sign-flipped) is stored on the\n  aggregate-production sensor.\n",
             "example": {
-              "sensor": 9
+              "sensor": 10
             },
-            "$ref": "#/components/schemas/SensorReference"
+            "$ref": "#/components/schemas/OutputSensorReference"
+          },
+          "aggregate-production": {
+            "description": "Sensor used to record the aggregate production schedule of all flexible and inflexible devices involved when scheduling this asset.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nSee the <code>aggregate-consumption</code> field for the full description of the split logic when both sensors are defined.\n",
+            "example": {
+              "sensor": 11
+            },
+            "$ref": "#/components/schemas/OutputSensorReference"
           }
         },
         "additionalProperties": false
@@ -4731,6 +4914,33 @@
             "default": false,
             "description": "Whether to clip negative values in forecasts. Defaults to None (disabled).",
             "example": true
+          },
+          "lower": {
+            "default": null,
+            "description": "Optional lower bound for forecast values after prediction. Unitless values are interpreted in the output sensor unit.",
+            "example": "0 kW"
+          },
+          "upper": {
+            "default": null,
+            "description": "Optional upper bound for forecast values after prediction. Unitless values are interpreted in the output sensor unit.",
+            "example": "20 kW"
+          },
+          "snap": {
+            "type": "object",
+            "default": {},
+            "description": "Optional mapping from snap targets to [first, second] intervals. Values inside an interval are replaced by the snap target before storage. The target must lie within the interval (on a bound or inside it). The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead.",
+            "example": {
+              "0 kW": [
+                "0 kW",
+                "4 kW"
+              ]
+            },
+            "additionalProperties": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {}
+            }
           }
         },
         "additionalProperties": false
@@ -4884,6 +5094,11 @@
             "default": false,
             "description": "Whether to include public assets. Ignored if an `account_id` is set. To fetch only public assets, use [/assets/public/](#/Assets/get_api_v3_0_assets_public) instead.",
             "example": false
+          },
+          "asset_type": {
+            "type": "integer",
+            "description": "Filter assets by generic asset type ID.",
+            "example": 2
           }
         },
         "additionalProperties": false
@@ -4976,6 +5191,12 @@
           },
           "name": {
             "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "account_id": {
             "type": [
@@ -5217,6 +5438,64 @@
               "integer",
               "null"
             ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountCreateSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "consultancy_account_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "AccountPatchSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "primary_color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "secondary_color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "logo_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "consultancy_account_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "attributes": {},
+          "account_roles": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
           }
         },
         "additionalProperties": false
@@ -5768,8 +6047,8 @@
             "description": "Obsolete identifier from [<abbr title='Universal Smart Energy Framework'>USEF</abbr>](https://www.usef.energy/)."
           },
           "attributes": {
-            "description": "JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values.",
-            "example": "{consumption_is_positive: True}"
+            "description": "JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values, `floor_datetimes_to_resolution`, which controls whether off-clock datetimes are floored to a non-instantaneous sensor's resolution, and `frequency`, which rounds incoming instantaneous measurements to a configured Pandas frequency.",
+            "example": "{\"consumption_is_positive\": true, \"floor_datetimes_to_resolution\": true}"
           },
           "generic_asset_id": {
             "type": "integer",
@@ -5890,7 +6169,7 @@
             "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
             "additionalProperties": {}
           },
-          "force_new_job_creation": {
+          "force-new-job-creation": {
             "type": "boolean",
             "description": "If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered."
           }
@@ -5920,62 +6199,6 @@
             "type": "string"
           }
         },
-        "additionalProperties": false
-      },
-      "Account1": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "readOnly": true
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 100
-          },
-          "primary_color": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 7
-          },
-          "secondary_color": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 7
-          },
-          "logo_url": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 255
-          },
-          "attributes": {
-            "default": "{}"
-          },
-          "account_roles": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AccountRole"
-            }
-          },
-          "consultancy_account_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "name"
-        ],
         "additionalProperties": false
       },
       "User": {
@@ -6038,6 +6261,29 @@
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",
         "properties": {
+          "commodity": {
+            "type": "string",
+            "default": "electricity",
+            "description": "Commodity on which this device acts.\nDefaults to <code>\"electricity\"</code>.\n",
+            "examples": [
+              "electricity",
+              "gas"
+            ]
+          },
+          "consumption": {
+            "description": "Sensor used to record the scheduled power as seen from a consumption perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nDepending on which output sensors are defined:\n\n- <strong>Only</strong> <code>consumption</code> <strong>defined</strong>: the full power schedule is stored on this sensor using the\n  consumption-positive sign convention (consumption positive, production negative).\n- <strong>Only</strong> <code>production</code> <strong>defined</strong>: the full power schedule is stored on the production sensor\n  with the production-positive convention (production positive, consumption negative).\n- <strong>Both defined</strong>: only the non-negative part of the schedule is stored on this sensor (zero for\n  time steps with net production), and only the non-positive part (sign-flipped) is stored on the\n  production sensor.\n",
+            "example": {
+              "sensor": 14
+            },
+            "$ref": "#/components/schemas/OutputSensorReference"
+          },
+          "production": {
+            "description": "Sensor used to record the scheduled power as seen from a production perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nSee the <code>consumption</code> field for the full description of the split logic when both sensors are defined.\n",
+            "example": {
+              "sensor": 15
+            },
+            "$ref": "#/components/schemas/OutputSensorReference"
+          },
           "soc-at-start": {
             "type": "string",
             "description": "The (estimated) state of charge at the beginning of the schedule (for storage devices, this defaults to 0).\nUsually added to each scheduling request.\n",
@@ -6046,16 +6292,16 @@
           "soc-min": {
             "type": "string",
             "x-minimum": "0 MWh",
-            "description": "A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-minima</code> flex-model field instead together with the <code>soc-minima-breach-price</code> field in the flex-context.\n",
+            "description": "A constant and non-negotiable lower boundary for all SoC values in the schedule.\nIf omitted, no lower boundary is applied.\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-minima</code> flex-model field instead together with the <code>soc-minima-breach-price</code> field in the flex-context.\n",
             "example": "2.5 kWh"
           },
           "soc-max": {
             "type": "string",
-            "description": "A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-maxima</code> flex-model field instead together with the <code>soc-maxima-breach-price</code> field in the flex-context.\n",
+            "description": "A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf omitted, no upper boundary is applied.\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-maxima</code> flex-model field instead together with the <code>soc-maxima-breach-price</code> field in the flex-context.\n",
             "example": "7 kWh"
           },
           "power-capacity": {
-            "description": "Device-level power constraint. How much power can be applied to this asset.",
+            "description": "Symmetric device-level power constraint. How much power can be applied to this asset in either direction.\nIf omitted, the scheduler infers this limit from the greatest of <code>consumption-capacity</code> and <code>production-capacity</code> when either is configured, before falling back to <code>site-power-capacity</code>.\nWhen exactly one of <code>consumption-capacity</code> or <code>production-capacity</code> is configured to non-zero capacity, the missing opposite capacity defaults to zero.",
             "example": "50 kVA",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
@@ -6085,19 +6331,26 @@
           },
           "soc-maxima": {
             "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nIf a <code>soc-maxima-breach-price</code> is defined, the <code>soc-maxima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
-            "example": {
-              "value": "51 kWh",
-              "start": "2024-02-05T12:00:00+01:00",
-              "end": "2024-02-05T13:30:00+01:00"
-            },
+            "example": [
+              {
+                "value": "51 kWh",
+                "start": "2024-02-05T12:00:00+01:00",
+                "end": "2024-02-05T13:30:00+01:00"
+              }
+            ],
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima": {
-            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nIf a <code>soc-minima-breach-price</code> is defined, the <code>soc-minima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
+            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nIf a <code>soc-minima-breach-price</code> is defined, the <code>soc-minima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.. Both single points in time and ranges are possible, see example.",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",
                 "value": "8.2 kWh"
+              },
+              {
+                "value": "51 kWh",
+                "start": "2024-02-05T12:00:00+01:00",
+                "end": "2024-02-05T13:30:00+01:00"
               }
             ],
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
@@ -6122,19 +6375,19 @@
             "example": "kWh"
           },
           "state-of-charge": {
-            "description": "Sensor used to record the scheduled state of charge. If <code>soc-at-start</code> is omitted, FlexMeasures will also use this field to infer the starting state of charge. For this use case, the field may also contain a time series specification instead. When a sensor is used, its unit may be an energy unit (e.g. MWh or kWh) or a percentage (%). For sensors with a % unit, the <code>soc-max</code> flex-model field must be set to a non-zero value to allow converting between the energy-based schedule and a percentage.",
+            "description": "Sensor used to record the scheduled state of charge. If <code>soc-at-start</code> is omitted, FlexMeasures will also use this field to infer the starting state of charge. For this use case, the field may also contain a time series specification instead. When a sensor is used, its unit may be an energy unit (e.g. MWh or kWh) or a percentage (%). For sensors with a % unit, the <code>soc-max</code> flex-model field must be set to a non-zero value to allow converting between the energy-based schedule and a percentage. Also, the state-of-charge sensor's resolution should be instantaneous (i.e. `PT0M`).",
             "example": {
               "sensor": 12
             },
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "charging-efficiency": {
-            "description": "One-way conversion efficiency from electricity to the storage's state of charge.\nCan be a percentage, a ratio in the range [0,1], or a coefficient of performance (>1).\nDefaults to 100% (no conversion loss).\n",
+            "description": "One-way conversion efficiency from the commodity (e.g. electricity) to the storage's state of charge.\nCan be a percentage, a ratio in the range [0,1], or a coefficient of performance (>1).\nDefaults to 100% (no conversion loss).\n",
             "example": ".9",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "discharging-efficiency": {
-            "description": "One-way conversion efficiency from the storage's state of charge to electricity.\nDefaults to 100% (no conversion loss).",
+            "description": "One-way conversion efficiency from the storage's state of charge to the commodity (e.g. electricity).\nDefaults to 100% (no conversion loss).",
             "example": "90%",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
@@ -6146,7 +6399,7 @@
             "example": "90%"
           },
           "storage-efficiency": {
-            "description": "The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time.\nAs a result, each time step the energy is held longer leads to higher losses.\nThis setting is crucial to some sorts of energy storage, e.g. thermal buffers.\nTo give an example, when this setting is at 95% (or 0.95), this means a loss of 5% per time step. Defaults to 100% (no storage loss over time).\nNote that the storage efficiency used by the scheduler is applied over each time step equal to the sensor resolution.\nFor example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865.\n",
+            "description": "The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time.\nAs a result, each time step the energy is held longer leads to higher losses.\nThis setting is crucial to some sorts of energy storage, e.g. thermal buffers.\nTo give an example, when this setting is at 95% (or 0.95), this means a loss of 5% per time step. Defaults to 100% (no storage loss over time).\nNote that the storage efficiency used by the scheduler is applied over each time step equal to the scheduling resolution.\nFor example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865.\nAlternatively, to let FlexMeasures handle the conversion for you, record the storage-efficiency on a dedicated sensor (in this example, with a 24-hour event resolution).\nThen reference that sensor in the storage-efficiency field.\n",
             "example": "99.9%",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
@@ -6173,6 +6426,10 @@
               }
             ],
             "items": {}
+          },
+          "sensor": {
+            "type": "integer",
+            "description": "ID of the device's power sensor."
           }
         },
         "additionalProperties": false
@@ -6205,22 +6462,32 @@
             "format": "duration"
           },
           "flex-model": {
-            "description": "The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
-            "$ref": "#/components/schemas/StorageFlexModelSchemaOpenAPI"
+            "type": "array",
+            "default": [],
+            "description": "Flex-model per device (identified by `sensor`). The flex-model may (partly) also be defined on the asset, and sending it here overrides those settings for the schedule at hand. The flex-model validation is handled by the scheduler. What follows is the schema used by the `StorageScheduler`.",
+            "items": {
+              "$ref": "#/components/schemas/StorageFlexModelSchemaOpenAPI"
+            }
           },
           "flex-context": {
-            "description": "The flex-context is validated according to the scheduler's `FlexContextSchema`.",
-            "$ref": "#/components/schemas/FlexContextOpenAPISchema"
+            "type": "array",
+            "default": [],
+            "description": "Flex-context per commodity. The flex-context is validated according to the scheduler's `FlexContextSchema`.",
+            "items": {
+              "$ref": "#/components/schemas/FlexContextOpenAPISchema"
+            }
           },
           "sequential": {
             "type": "boolean",
             "default": false,
             "description": "If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previously scheduled assets as inflexible device."
+          },
+          "force-new-job-creation": {
+            "type": "boolean",
+            "description": "If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered."
           }
         },
         "required": [
-          "flex-context",
-          "flex-model",
           "start"
         ],
         "additionalProperties": false

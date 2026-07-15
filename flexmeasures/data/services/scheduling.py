@@ -27,9 +27,13 @@ from sqlalchemy import select
 
 from flexmeasures.data import db
 from flexmeasures.data.models.planning import Scheduler, SchedulerOutputType
-from flexmeasures.data.models.planning.storage import StorageScheduler
+from flexmeasures.data.models.planning.storage import (
+    StorageScheduler,
+    SCHEDULING_RESULT_KEY,
+)
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
 from flexmeasures.data.models.planning.process import ProcessScheduler
+from flexmeasures.data.services.scheduling_result import SchedulingJobResult
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.data.models.data_sources import DataSource
@@ -253,6 +257,10 @@ def create_scheduling_job(
     scheduler_kwargs["flex_context"] = scheduler.flex_context
     scheduler_kwargs["flex_model"] = scheduler.flex_model
     scheduler.deserialize_config()
+
+    # Set consumption_is_positive on output sensors now (at trigger time) so that any
+    # attribute conflict raises an error immediately, before the job is enqueued.
+    _set_flex_model_output_sensors_consumption_is_positive(scheduler.flex_model)
 
     asset_or_sensor = get_asset_or_sensor_ref(asset_or_sensor)
     job = Job.create(
@@ -522,6 +530,168 @@ def create_simultaneous_scheduling_job(
     return job
 
 
+def _is_consumption_production_output(
+    result: dict, asset_or_sensor: Asset | Sensor
+) -> bool:
+    """Return True when *result* is a dedicated consumption or production output schedule.
+
+    A dedicated output schedule is one whose sensor is different from the main asset_or_sensor being scheduled,
+    and whose name is ``"consumption_schedule"`` or ``"production_schedule"``.
+    The main power schedule (including the backwards-compat wrapper for custom schedulers that return a plain Series)
+    uses the same sensor as *asset_or_sensor* and is therefore not considered an output schedule.
+
+    :param result:          Schedule output result dict with keys 'name', 'sensor', 'data'.
+    :param asset_or_sensor: The Asset or Sensor being scheduled (main power sensor).
+    :return:                True when the result targets a dedicated output sensor.
+    """
+    result_name = result.get("name", "")
+    if result_name not in ("consumption_schedule", "production_schedule"):
+        return False
+
+    result_sensor = result["sensor"]
+    # The main power schedule uses the same object as asset_or_sensor,
+    # or – when asset_or_sensor is an Asset – one of its sensors.
+    is_main = result_sensor == asset_or_sensor or (
+        hasattr(asset_or_sensor, "generic_asset")
+        and result_sensor.generic_asset == asset_or_sensor
+    )
+    return not is_main
+
+
+def _set_flex_model_output_sensors_consumption_is_positive(
+    flex_model: dict | list,
+) -> None:
+    """Set the ``consumption_is_positive`` attribute on consumption and production output sensors.
+
+    Iterates over every device in *flex_model* and assigns::
+
+        consumption sensor → consumption_is_positive = True
+        production sensor  → consumption_is_positive = False
+
+    A ``ValueError`` is raised immediately when the attribute is already present on a sensor
+    but has the wrong value for the flex-model field that references it. Calling this function
+    at job-creation time lets the API surface conflicts before any work is queued.
+
+    :param flex_model: Deserialized flex model — either a single-device ``dict`` or a
+                       ``list`` of per-device dicts. Consumption/production fields are
+                       expected to be dicts with a ``"sensor"`` key.
+    :raises ValueError: When ``consumption_is_positive`` is already set to the wrong value
+                        for the given flex-model field.
+    """
+    models = flex_model if isinstance(flex_model, list) else [flex_model]
+    for flex_model_d in models:
+        consumption_field = flex_model_d.get("consumption")
+        production_field = flex_model_d.get("production")
+        consumption_sensor = (
+            consumption_field.get("sensor")
+            if isinstance(consumption_field, dict)
+            else None
+        )
+        production_sensor = (
+            production_field.get("sensor")
+            if isinstance(production_field, dict)
+            else None
+        )
+        for sensor, intended in [
+            (consumption_sensor, True),
+            (production_sensor, False),
+        ]:
+            if sensor is None:
+                continue
+            field_name = "consumption_schedule" if intended else "production_schedule"
+            existing = sensor.attributes.get("consumption_is_positive")
+            if existing is not None and existing != intended:
+                raise ValueError(
+                    f"Sensor {sensor} already has `consumption_is_positive={existing}`, "
+                    f"which conflicts with the '{field_name}' output schedule "
+                    f"(expected `consumption_is_positive={intended}`). "
+                    f"Remove or correct the attribute before running the scheduler."
+                )
+            sensor.attributes["consumption_is_positive"] = intended
+
+
+def _set_output_sensor_consumption_is_positive(
+    result: dict, asset_or_sensor: Asset | Sensor
+) -> None:
+    """Set the ``consumption_is_positive`` attribute on a dedicated output sensor.
+
+    For consumption output sensors the attribute is set to ``True`` (consumption is stored as
+    positive values). For production output sensors it is set to ``False`` (production is stored
+    as positive values, consumption as negative).
+
+    The function is a no-op when *result* is not a dedicated consumption/production output
+    schedule (as determined by :func:`_is_consumption_production_output`).
+
+    A ``ValueError`` is raised when the attribute is already present on the sensor but points
+    in the wrong direction for the flex-model field being used. This check runs *before* any
+    data are written so that the error surfaces as early as possible.
+
+    :param result:          Schedule output result dict with keys ``'name'``, ``'sensor'``,
+                            ``'data'``.
+    :param asset_or_sensor: The Asset or Sensor being scheduled (main power sensor).
+    :raises ValueError:     When ``consumption_is_positive`` is already set to the wrong value
+                            for the given flex-model field.
+    """
+    if not _is_consumption_production_output(result, asset_or_sensor):
+        return
+
+    result_sensor = result["sensor"]
+    result_name = result.get("name", "")
+    # consumption_schedule → True (consumption positive)
+    # production_schedule  → False (production positive, i.e. consumption negative)
+    intended = result_name == "consumption_schedule"
+    existing = result_sensor.attributes.get("consumption_is_positive")
+    if existing is not None and existing != intended:
+        raise ValueError(
+            f"Sensor {result_sensor} already has `consumption_is_positive={existing}`, "
+            f"which conflicts with the '{result_name}' output schedule "
+            f"(expected `consumption_is_positive={intended}`). "
+            f"Remove or correct the attribute before re-running the scheduler."
+        )
+    # Direct attribute assignment works for both new and existing attributes.
+    # set_attribute() is intentionally not used here because it silently
+    # no-ops when the attribute does not yet exist.
+    result_sensor.attributes["consumption_is_positive"] = intended
+
+
+def _resolve_schedule_output_sign(
+    result: dict,
+    asset_or_sensor: Asset | Sensor,
+) -> int:
+    """Determine the sign multiplier for a schedule output result.
+
+    Returns 1 (no sign change) or -1 (invert sign) depending on whether the result
+    is a power schedule that needs sign conversion so that production is stored as positive
+    values in the database.
+
+    The scheduler always produces consumption-positive values. For sensors that carry
+    ``consumption_is_positive=True`` (including consumption output sensors) no conversion
+    is needed. For sensors with ``consumption_is_positive=False`` (production output sensors
+    and the default convention for main power sensors) the sign is inverted.
+
+    .. note::
+        For consumption/production output sensors the ``consumption_is_positive`` attribute
+        must be set before this function is called. It is set eagerly at job-creation time
+        by :func:`_set_flex_model_output_sensors_consumption_is_positive`, and again (as a
+        safety-net for direct :func:`make_schedule` calls) by
+        :func:`_set_output_sensor_consumption_is_positive` earlier in the same loop iteration.
+
+    :param result:          Schedule output result dict with keys 'name', 'sensor', 'data'.
+    :param asset_or_sensor: The Asset or Sensor being scheduled (main power sensor).
+    :return:                Sign multiplier: 1 (keep sign) or -1 (invert sign).
+    """
+    result_sensor = result["sensor"]
+
+    # Apply sign inversion for power sensors that record production as positive values
+    # (i.e. those that do not carry consumption_is_positive=True).
+    if result_sensor.measures_power and not result_sensor.get_attribute(
+        "consumption_is_positive", False
+    ):
+        return -1
+
+    return 1
+
+
 def make_schedule(  # noqa: C901
     sensor_id: int | None = None,
     start: datetime | None = None,
@@ -535,9 +705,12 @@ def make_schedule(  # noqa: C901
     scheduler_specs: dict | None = None,
     dry_run: bool = False,
     **scheduler_kwargs: dict,
-) -> bool:
+) -> dict:
     """
-    This function computes a schedule. It returns True if it ran successfully.
+    This function computes a schedule. It returns a dict, empty on schedulers
+    that don't (yet) produce further analysis. If the scheduler produced soft
+    state-of-charge constraint analysis (see ``SchedulingJobResult``), the dict
+    instead holds that analysis under ``unresolved`` and ``resolved`` keys.
 
     It can be queued as a job (see create_scheduling_job).
     In that case, it will probably run on a different FlexMeasures node than where the job is created.
@@ -633,16 +806,25 @@ def make_schedule(  # noqa: C901
         rq_job.save_meta()
 
     # Save any result that specifies a sensor to save it to
+    scheduling_result_dict: dict = SchedulingJobResult().to_dict()
+    num_beliefs_created = 0
     for result in consumption_schedule:
+        if result.get("name") == SCHEDULING_RESULT_KEY:
+            scheduling_result_dict = result["data"].to_dict()
+            continue
+        if rq_job and result.get("name") == "commitment_costs":
+            rq_job.meta["scheduler_info"]["commitment_costs"] = result["data"]
+            continue
         if "sensor" not in result:
             continue
 
-        sign = 1
+        # Ensure consumption_is_positive is set before resolving the sign.
+        # At job-creation time this is already done eagerly; calling it here again
+        # acts as a safety net for direct make_schedule invocations and raises a
+        # ValueError on attribute conflicts before any data are written.
+        _set_output_sensor_consumption_is_positive(result, asset_or_sensor)
 
-        if result["sensor"].measures_power and not result["sensor"].get_attribute(
-            "consumption_is_positive", False
-        ):
-            sign = -1
+        sign = _resolve_schedule_output_sign(result, asset_or_sensor)
 
         ts_value_schedule = [
             TimedBelief(
@@ -666,16 +848,20 @@ def make_schedule(  # noqa: C901
 
         if not dry_run:
             save_to_db(bdf)
+            num_beliefs_created += len(bdf)
         else:
             print(
                 f"\nNot saving schedule for sensor `{bdf.sensor}` to the database (because of dry-run), but this is what I computed:\n{bdf}"
             )
 
+    # num_beliefs_created counts beliefs actually saved; in dry_run mode this is always 0
+    scheduling_result_dict["num-beliefs"] = num_beliefs_created
+
     if not dry_run:
         scheduler.persist_flex_model()
         db.session.commit()
 
-    return True
+    return scheduling_result_dict
 
 
 def find_scheduler_class(asset_or_sensor: Asset | Sensor) -> type:

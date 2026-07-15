@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from collections import OrderedDict
 from datetime import timedelta
 from typing import Any, Callable, Dict
 
@@ -20,6 +22,8 @@ from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
+    SensorReference,
+    OutputSensorReferenceSchema,
 )
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.units import UnitField
@@ -37,6 +41,7 @@ from flexmeasures.utils.unit_utils import (
     is_capacity_price_unit,
     is_energy_price_unit,
     is_power_unit,
+    is_currency_unit,
     is_energy_unit,
 )
 from flexmeasures.utils.validation_utils import validate_variable_quantity
@@ -139,10 +144,100 @@ class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
     pass
 
 
-class FlexContextSchema(Schema):
-    """This schema defines fields that provide context to the portfolio to be optimized."""
+class SharedSchema(Schema):
+    """Shared schema for fields common across commodities in flex-context and commodity-context."""
 
-    # Device commitments
+    consumption_price = VariableQuantityField(
+        "/MWh",
+        required=False,
+        data_key="consumption-price",
+        return_magnitude=False,
+        metadata=metadata.CONSUMPTION_PRICE.to_dict(),
+    )
+
+    production_price = VariableQuantityField(
+        "/MWh",
+        required=False,
+        data_key="production-price",
+        return_magnitude=False,
+        metadata=metadata.PRODUCTION_PRICE.to_dict(),
+    )
+
+    ems_power_capacity_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-power-capacity",
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_POWER_CAPACITY.to_dict(),
+    )
+
+    ems_consumption_capacity_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-consumption-capacity",
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_CONSUMPTION_CAPACITY.to_dict(),
+    )
+
+    ems_production_capacity_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-production-capacity",
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PRODUCTION_CAPACITY.to_dict(),
+    )
+
+    ems_consumption_breach_price = VariableQuantityField(
+        "/MW",
+        data_key="site-consumption-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_CONSUMPTION_BREACH_PRICE.to_dict(),
+    )
+
+    ems_production_breach_price = VariableQuantityField(
+        "/MW",
+        data_key="site-production-breach-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PRODUCTION_BREACH_PRICE.to_dict(),
+    )
+
+    ems_peak_consumption_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-peak-consumption",
+        value_validator=validate.Range(min=0),
+        load_default=ur.Quantity("0 kW"),
+        metadata=metadata.SITE_PEAK_CONSUMPTION.to_dict(),
+    )
+
+    ems_peak_consumption_price = VariableQuantityField(
+        "/MW",
+        data_key="site-peak-consumption-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PEAK_CONSUMPTION_PRICE.to_dict(),
+    )
+
+    ems_peak_production_in_mw = VariableQuantityField(
+        "MW",
+        required=False,
+        data_key="site-peak-production",
+        value_validator=validate.Range(min=0),
+        load_default=ur.Quantity("0 kW"),
+        metadata=metadata.SITE_PEAK_PRODUCTION.to_dict(),
+    )
+
+    ems_peak_production_price = VariableQuantityField(
+        "/MW",
+        data_key="site-peak-production-price",
+        required=False,
+        value_validator=validate.Range(min=0),
+        metadata=metadata.SITE_PEAK_PRODUCTION_PRICE.to_dict(),
+    )
+
+    # Breach prices for device capacity constraints
     consumption_breach_price = VariableQuantityField(
         "/MW",
         data_key="consumption-breach-price",
@@ -171,12 +266,13 @@ class FlexContextSchema(Schema):
         value_validator=validate.Range(min=0),
         metadata=metadata.SOC_MAXIMA_BREACH_PRICE.to_dict(),
     )
+
+    # Relaxation fields
     relax_constraints = fields.Bool(
         data_key="relax-constraints",
-        load_default=False,
+        load_default=True,
         metadata=metadata.RELAX_CONSTRAINTS.to_dict(),
     )
-    # Dev fields
     relax_soc_constraints = fields.Bool(
         data_key="relax-soc-constraints",
         load_default=False,
@@ -193,97 +289,6 @@ class FlexContextSchema(Schema):
         metadata=metadata.RELAX_SITE_CAPACITY_CONSTRAINTS.to_dict(),
     )
 
-    # Energy commitments
-    ems_power_capacity_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-power-capacity",
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_POWER_CAPACITY.to_dict(),
-    )
-    # todo: deprecated since flexmeasures==0.23
-    consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
-    production_price_sensor = SensorIdField(data_key="production-price-sensor")
-    consumption_price = VariableQuantityField(
-        "/MWh",
-        required=False,
-        data_key="consumption-price",
-        return_magnitude=False,
-        metadata=metadata.CONSUMPTION_PRICE.to_dict(),
-    )
-    production_price = VariableQuantityField(
-        "/MWh",
-        required=False,
-        data_key="production-price",
-        return_magnitude=False,
-        metadata=metadata.PRODUCTION_PRICE.to_dict(),
-    )
-
-    # Capacity breach commitments
-    ems_production_capacity_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-production-capacity",
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_PRODUCTION_CAPACITY.to_dict(),
-    )
-    ems_consumption_capacity_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-consumption-capacity",
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_CONSUMPTION_CAPACITY.to_dict(),
-    )
-    ems_consumption_breach_price = VariableQuantityField(
-        "/MW",
-        data_key="site-consumption-breach-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_CONSUMPTION_BREACH_PRICE.to_dict(),
-    )
-    ems_production_breach_price = VariableQuantityField(
-        "/MW",
-        data_key="site-production-breach-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_PRODUCTION_BREACH_PRICE.to_dict(),
-    )
-
-    # Peak consumption commitment
-    ems_peak_consumption_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-peak-consumption",
-        value_validator=validate.Range(min=0),
-        load_default=ur.Quantity("0 kW"),
-        metadata=metadata.SITE_PEAK_CONSUMPTION.to_dict(),
-    )
-    ems_peak_consumption_price = VariableQuantityField(
-        "/MW",
-        data_key="site-peak-consumption-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_PEAK_CONSUMPTION_PRICE.to_dict(),
-    )
-
-    # Peak production commitment
-    ems_peak_production_in_mw = VariableQuantityField(
-        "MW",
-        required=False,
-        data_key="site-peak-production",
-        value_validator=validate.Range(min=0),
-        load_default=ur.Quantity("0 kW"),
-        metadata=metadata.SITE_PEAK_PRODUCTION.to_dict(),
-    )
-    ems_peak_production_price = VariableQuantityField(
-        "/MW",
-        data_key="site-peak-production-price",
-        required=False,
-        value_validator=validate.Range(min=0),
-        metadata=metadata.SITE_PEAK_PRODUCTION_PRICE.to_dict(),
-    )
-    # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
-
     commitments = fields.Nested(
         CommitmentSchema,
         data_key="commitments",
@@ -297,11 +302,19 @@ class FlexContextSchema(Schema):
         data_key="inflexible-device-sensors",
         metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
     )
-    aggregate_power = VariableQuantityField(
-        to_unit="MW",
-        data_key="aggregate-power",
+
+    # Aggregate output sensors
+    aggregate_consumption = fields.Nested(
+        OutputSensorReferenceSchema,
         required=False,
-        metadata=metadata.AGGREGATE_POWER.to_dict(),
+        data_key="aggregate-consumption",
+        metadata=metadata.AGGREGATE_CONSUMPTION.to_dict(),
+    )
+    aggregate_production = fields.Nested(
+        OutputSensorReferenceSchema,
+        required=False,
+        data_key="aggregate-production",
+        metadata=metadata.AGGREGATE_PRODUCTION.to_dict(),
     )
 
     def set_default_breach_prices(
@@ -320,110 +333,8 @@ class FlexContextSchema(Schema):
             )
         return data
 
-    @validates("aggregate_power")
-    def validate_aggregate_power_is_sensor(
-        self, aggregate_power: Sensor | list[dict] | ur.Quantity, **kwargs
-    ):
-        if not isinstance(aggregate_power, Sensor):
-            raise ValidationError("The `aggregate-power` field can only be a Sensor.")
-
     @validates_schema(pass_original=True)
-    def check_prices(self, data: dict, original_data: dict, **kwargs):
-        """Check assumptions about prices.
-
-        1. The flex-context must contain at most 1 consumption price and at most 1 production price field.
-        2. All prices must share the same currency.
-        """
-
-        # The flex-context must contain at most 1 consumption price and at most 1 production price field
-        if "consumption_price_sensor" in data and "consumption_price" in data:
-            raise ValidationError(
-                "Must pass either consumption-price or consumption-price-sensor."
-            )
-        if "production_price_sensor" in data and "production_price" in data:
-            raise ValidationError(
-                "Must pass either production-price or production-price-sensor."
-            )
-
-        # New price fields can only be used after updating to the new consumption-price and production-price fields
-        field_map = {
-            field.data_key: field_var
-            for field_var, field in self.declared_fields.items()
-        }
-        if any(
-            field_map[field] in data and data[field_map[field]]
-            for field in (
-                "soc-minima-breach-price",
-                "soc-maxima-breach-price",
-                "site-consumption-breach-price",
-                "site-production-breach-price",
-                "site-peak-consumption-price",
-                "site-peak-production-price",
-                "relax-constraints",
-                "relax-soc-constraints",
-                "relax-capacity-constraints",
-                "relax-site-capacity-constraints",
-                "consumption-breach-price",
-                "production-breach-price",
-            )
-        ):
-            if field_map["consumption-price-sensor"] in data:
-                raise ValidationError(
-                    f"""Please switch to using `consumption-price: {{"sensor": {data[field_map["consumption-price-sensor"]].id}}}`."""
-                )
-            if field_map["production-price-sensor"] in data:
-                raise ValidationError(
-                    f"""Please switch to using `production-price: {{"sensor": {data[field_map["production-price-sensor"]].id}}}`."""
-                )
-
-        # make sure that the prices fields are valid price units
-
-        # All prices must share the same unit
-        data = self._try_to_convert_price_units(data, original_data)
-        shared_currency = ur.Quantity(data["shared_currency_unit"])
-
-        # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
-        if (
-            data["relax_soc_constraints"]
-            or data["relax_constraints"]
-            and not data.get("soc_minima_breach_price")
-            and not data.get("soc_maxima_breach_price")
-        ):
-            self.set_default_breach_prices(
-                data,
-                fields=["soc_minima_breach_price", "soc_maxima_breach_price"],
-                price=1000 * shared_currency / ur.Quantity("kWh"),
-            )
-
-        # Fill in default capacity breach prices when asked to relax capacity constraints, unless already set explicitly.
-        if (
-            data["relax_capacity_constraints"]
-            or data["relax_constraints"]
-            and not data.get("consumption_breach_price")
-            and not data.get("production_breach_price")
-        ):
-            self.set_default_breach_prices(
-                data,
-                fields=["consumption_breach_price", "production_breach_price"],
-                price=100 * shared_currency / ur.Quantity("kW"),
-            )
-
-        # Fill in default site capacity breach prices when asked to relax site capacity constraints, unless already set explicitly.
-        if (
-            data["relax_site_capacity_constraints"]
-            or data["relax_constraints"]
-            and not data.get("ems_consumption_breach_price")
-            and not data.get("ems_production_breach_price")
-        ):
-            self.set_default_breach_prices(
-                data,
-                fields=["ems_consumption_breach_price", "ems_production_breach_price"],
-                price=10000 * shared_currency / ur.Quantity("kW"),
-            )
-
-        return data
-
-    def _try_to_convert_price_units(self, data: dict, original_data: dict):
+    def _try_to_convert_price_units(self, data: dict, original_data: dict, **kwargs):
         """Convert price units to the same unit and scale if they can (incl. same currency)."""
 
         shared_currency_unit = None
@@ -475,7 +386,266 @@ class FlexContextSchema(Schema):
         return currency
 
 
+class CommodityFlexContextSchema(SharedSchema):
+    commodity = fields.Str(
+        required=False,
+        load_default="electricity",
+        data_key="commodity",
+        metadata=metadata.COMMODITY_FLEX_CONTEXT.to_dict(),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        commodity_field = self.fields.pop("commodity")
+        self.fields = OrderedDict(
+            [("commodity", commodity_field), *self.fields.items()]
+        )
+
+
+class FlexContextSchema(SharedSchema):
+    """This schema defines fields that provide context to the portfolio to be optimized."""
+
+    # The single-dict flex-context form only supports the electricity commodity.
+    # Other commodities must be defined via the `commodities` list.
+    # Not part of the documented UI/OpenAPI fields.
+    commodity = fields.Str(
+        required=False,
+        load_default="electricity",
+        data_key="commodity",
+        validate=validate.OneOf(
+            ["electricity"],
+            error="The top-level flex-context dict only supports the 'electricity' "
+            "commodity. Use the `commodities` list to define other commodities.",
+        ),
+        metadata=dict(
+            description="Commodity of the single-dict flex-context form; only 'electricity' is supported here. Use the `commodities` list to define other commodities.",
+        ),
+    )
+
+    commodity_contexts = fields.Nested(
+        CommodityFlexContextSchema,
+        data_key="commodities",
+        required=False,
+        many=True,
+        metadata=dict(
+            description="For multi-commodity scheduling problems, the above fields can be set here per commodity.",
+        ),
+    )
+
+    # Energy commitments
+    # todo: deprecated since flexmeasures==0.23
+    consumption_price_sensor = SensorIdField(data_key="consumption-price-sensor")
+    production_price_sensor = SensorIdField(data_key="production-price-sensor")
+
+    # todo: group by month start (MS), something like a commitment resolution, or a list of datetimes representing splits of the commitments
+    aggregate_power = VariableQuantityField(
+        to_unit="MW",
+        data_key="aggregate-power",
+        required=False,
+        metadata=metadata.AGGREGATE_POWER.to_dict(),
+    )
+
+    @validates("aggregate_power")
+    def validate_aggregate_power_is_sensor(
+        self,
+        aggregate_power: Sensor | SensorReference | list[dict] | ur.Quantity,
+        **kwargs,
+    ):
+        if isinstance(aggregate_power, SensorReference):
+            raise ValidationError(
+                "The `aggregate-power` field cannot use source filters."
+            )
+        if not isinstance(aggregate_power, Sensor):
+            raise ValidationError("The `aggregate-power` field can only be a Sensor.")
+
+    @validates("commodity_contexts")
+    def validate_commodity_contexts_unique(
+        self, commodity_contexts: list[dict], **kwargs
+    ):
+        """Validate that each commodity is listed at most once.
+
+        `_get_commodity_contexts` (storage.py) builds a dict keyed by commodity, so
+        duplicate entries would otherwise silently overwrite each other.
+        """
+        commodities = [context["commodity"] for context in commodity_contexts]
+        seen = set()
+        duplicates = set()
+        for commodity in commodities:
+            if commodity in seen:
+                duplicates.add(commodity)
+            seen.add(commodity)
+        if duplicates:
+            raise ValidationError(
+                f"Each commodity may only be listed once in `commodities`. Duplicate(s): {sorted(duplicates)}."
+            )
+
+    @validates("commodity_contexts")
+    def validate_commodity_contexts_shared_currency(
+        self, commodity_contexts: list[dict], **kwargs
+    ):
+        """Validate that all prices across commodity contexts share the same currency.
+
+        Each commodity context already computed its own normalized ``shared_currency_unit``
+        (a base-unit currency string, e.g. "EUR") via the inherited
+        ``_try_to_convert_price_units`` schema-level validator. We simply compare those.
+        """
+        if not commodity_contexts:
+            return
+
+        shared_currency_unit = None
+
+        for context in commodity_contexts:
+            context_currency_unit = context.get("shared_currency_unit")
+            if context_currency_unit is None:
+                continue
+            if shared_currency_unit is None:
+                shared_currency_unit = context_currency_unit
+            elif not units_are_convertible(context_currency_unit, shared_currency_unit):
+                raise ValidationError(
+                    "all prices in the flex-context must share the same currency unit"
+                    f" (found both '{shared_currency_unit}' and '{context_currency_unit}')"
+                )
+
+    # Note: we deliberately tolerate a `commodities` list combined with top-level
+    # commodity-specific (SharedSchema) fields. In the API path, a multi-commodity
+    # list is normalized to {"commodities": [...]} and collect_flex_config then
+    # dict-merges the asset's db-stored flex-context (e.g. "site-power-capacity",
+    # "consumption-price") at the top level, so rejecting this mix would 422 any
+    # asset with stored electricity flex-context fields. Semantics: top-level fields
+    # serve as the electricity context only when the commodities list has no
+    # electricity entry (see _get_commodity_contexts in storage.py).
+
+    @validates_schema(pass_original=True)
+    def check_prices(self, data: dict, original_data: dict, **kwargs):
+        """Check assumptions about prices.
+
+        1. The flex-context must contain at most 1 consumption price and at most 1 production price field.
+        2. All prices must share the same currency.
+        """
+
+        # The flex-context must contain at most 1 consumption price and at most 1 production price field
+        if "consumption_price_sensor" in data and "consumption_price" in data:
+            raise ValidationError(
+                "Must pass either consumption-price or consumption-price-sensor."
+            )
+        if "production_price_sensor" in data and "production_price" in data:
+            raise ValidationError(
+                "Must pass either production-price or production-price-sensor."
+            )
+
+        # New price fields can only be used after updating to the new consumption-price and production-price fields
+        field_map = {
+            field.data_key: field_var
+            for field_var, field in self.declared_fields.items()
+        }
+        # Only count fields that were explicitly passed (not filled in by a load_default,
+        # such as relax-constraints, which defaults to True).
+        if any(
+            field in original_data and data.get(field_map[field])
+            for field in (
+                "soc-minima-breach-price",
+                "soc-maxima-breach-price",
+                "site-consumption-breach-price",
+                "site-production-breach-price",
+                "site-peak-consumption-price",
+                "site-peak-production-price",
+                "relax-constraints",
+                "relax-soc-constraints",
+                "relax-capacity-constraints",
+                "relax-site-capacity-constraints",
+                "consumption-breach-price",
+                "production-breach-price",
+            )
+        ):
+            if field_map["consumption-price-sensor"] in data:
+                raise ValidationError(
+                    f"""Please switch to using `consumption-price: {{"sensor": {data[field_map["consumption-price-sensor"]].id}}}`."""
+                )
+            if field_map["production-price-sensor"] in data:
+                raise ValidationError(
+                    f"""Please switch to using `production-price: {{"sensor": {data[field_map["production-price-sensor"]].id}}}`."""
+                )
+
+        # make sure that the prices fields are valid price units
+
+        # All prices must share the same unit
+        data = self._try_to_convert_price_units(data, original_data)
+        shared_currency = ur.Quantity(data["shared_currency_unit"])
+
+        # Also check that top-level prices share their currency with any per-commodity contexts
+        for context in data.get("commodity_contexts", []) or []:
+            context_currency_unit = context.get("shared_currency_unit")
+            if context_currency_unit is None:
+                continue
+            if not units_are_convertible(
+                context_currency_unit, data["shared_currency_unit"]
+            ):
+                raise ValidationError(
+                    "all prices in the flex-context must share the same currency unit"
+                    f" (found both '{data['shared_currency_unit']}' at the top level and"
+                    f" '{context_currency_unit}' in a commodity context)",
+                    field_name="commodities",
+                )
+
+        # Skip filling default breach prices when:
+        # - the deprecated price sensor fields are used (those predate relaxation
+        #   support; filling defaults would silently change legacy behaviour), or
+        # - the shared currency is not an actual currency (e.g. a mis-united price
+        #   field slipped through _try_to_convert_price_units); filling defaults in a
+        #   nonsense currency would misattribute unit errors to the breach price
+        #   fields in downstream validation (e.g. DBFlexContextSchema).
+        if (
+            "consumption_price_sensor" in data
+            or "production_price_sensor" in data
+            or not is_currency_unit(data["shared_currency_unit"])
+        ):
+            return data
+
+        # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
+        if (
+            data["relax_soc_constraints"]
+            or data["relax_constraints"]
+            and not data.get("soc_minima_breach_price")
+            and not data.get("soc_maxima_breach_price")
+        ):
+            self.set_default_breach_prices(
+                data,
+                fields=["soc_minima_breach_price", "soc_maxima_breach_price"],
+                price=1000 * shared_currency / ur.Quantity("kWh"),
+            )
+
+        # Fill in default capacity breach prices when asked to relax capacity constraints, unless already set explicitly.
+        if (
+            data["relax_capacity_constraints"]
+            or data["relax_constraints"]
+            and not data.get("consumption_breach_price")
+            and not data.get("production_breach_price")
+        ):
+            self.set_default_breach_prices(
+                data,
+                fields=["consumption_breach_price", "production_breach_price"],
+                price=100 * shared_currency / ur.Quantity("kW"),
+            )
+
+        # Fill in default site capacity breach prices when asked to relax site capacity constraints, unless already set explicitly.
+        if (
+            data["relax_site_capacity_constraints"]
+            or data["relax_constraints"]
+            and not data.get("ems_consumption_breach_price")
+            and not data.get("ems_production_breach_price")
+        ):
+            self.set_default_breach_prices(
+                data,
+                fields=["ems_consumption_breach_price", "ems_production_breach_price"],
+                price=10000 * shared_currency / ur.Quantity("kW"),
+            )
+
+        return data
+
+
 EXAMPLE_UNIT_TYPES: Dict[str, list[str]] = {
+    "commodity": ["electricity", "gas"],
     "energy-price": ["EUR/MWh", "JPY/kWh", "USD/MWh", "and other currencies."],
     "power-price": ["EUR/kW", "JPY/kW", "USD/kW", "and other currencies."],
     "power": ["MW", "kW"],
@@ -485,6 +655,26 @@ EXAMPLE_UNIT_TYPES: Dict[str, list[str]] = {
 }
 
 UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
+    "aggregate-consumption": {
+        "default": None,
+        "description": rst_to_openapi(metadata.AGGREGATE_CONSUMPTION.description),
+        # todo: the field type is defined in asset_context.html in 3 places?
+        # "types": {
+        #     "backend": "typeTwo",
+        #     "ui": "A sensor which records the scheduled aggregate consumption.",
+        # },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "aggregate-production": {
+        "default": None,
+        "description": rst_to_openapi(metadata.AGGREGATE_PRODUCTION.description),
+        # todo: the field type is defined in asset_context.html in 3 places?
+        # "types": {
+        #     "backend": "typeTwo",
+        #     "ui": "A sensor which records the scheduled aggregate production.",
+        # },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
     "consumption-price": {
         "default": None,  # Refers to default value of the field
         "description": rst_to_openapi(metadata.CONSUMPTION_PRICE.description),
@@ -582,6 +772,24 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
 }
 
 UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
+    "consumption": {
+        "default": None,
+        "description": rst_to_openapi(metadata.CONSUMPTION.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor which records the scheduled consumption.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "production": {
+        "default": None,
+        "description": rst_to_openapi(metadata.PRODUCTION.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A sensor which records the scheduled production.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
     "soc-min": {
         "default": None,
         "description": rst_to_openapi(metadata.SOC_MIN.description),
@@ -667,8 +875,8 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "default": None,
         "description": rst_to_openapi(metadata.CHARGING_EFFICIENCY.description),
         "types": {
-            "backend": "typeFive",
-            "ui": "Fixed value only.",
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
         },
         "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
     },
@@ -676,8 +884,8 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "default": None,
         "description": rst_to_openapi(metadata.DISCHARGING_EFFICIENCY.description),
         "types": {
-            "backend": "typeFive",
-            "ui": "Fixed value only.",
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
         },
         "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
     },
@@ -685,8 +893,8 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "default": None,
         "description": rst_to_openapi(metadata.STORAGE_EFFICIENCY.description),
         "types": {
-            "backend": "typeFive",
-            "ui": "Fixed value only.",
+            "backend": "typeThree",
+            "ui": "One fixed value or a dynamic signal (via a sensor).",
         },
         "example-units": EXAMPLE_UNIT_TYPES["efficiency"],
     },
@@ -734,6 +942,15 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
             "ui": "One fixed value or a dynamic signal (via a sensor).",
         },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "commodity": {
+        "default": "electricity",
+        "description": rst_to_openapi(metadata.COMMODITY_FLEX_MODEL.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "One fixed value only.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["commodity"],
     },
 }
 
@@ -808,7 +1025,7 @@ class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
                     f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
                     field_name=self.mapped_schema_keys[field],
                 )
-        elif isinstance(data[field], Sensor):
+        elif isinstance(data[field], (Sensor, SensorReference)):
             if not unit_validator(data[field].unit):
                 raise ValidationError(
                     f"{field_type.capitalize()} field '{self.mapped_schema_keys[field]}' must have {p.a(field_type)} unit.",
@@ -883,7 +1100,17 @@ class MultiSensorFlexModelSchema(Schema):
             and data["sensor"].asset != data["asset"]
         ):
             raise ValidationError("Sensor does not belong to asset.")
-        if "sensor" not in data and "asset" not in data:
+        # if (
+        #     "state-of-charge" in data["sensor_flex_model"]
+        #     and "asset" in data
+        #     and data["sensor_flex_model"]["state-of-charge"].asset != data["asset"]
+        # ):
+        #     raise ValidationError("Sensor does not belong to asset.")
+        if (
+            "sensor" not in data
+            and "state-of-charge" not in data["sensor_flex_model"]
+            and "asset" not in data
+        ):
             raise ValidationError("Specify either a sensor or an asset.")
 
     @pre_load
@@ -964,7 +1191,7 @@ class AssetTriggerSchema(Schema):
         data_key="flex-model",
         load_default=[],
     )
-    flex_context = fields.Dict(
+    flex_context = fields.Raw(
         required=False,
         data_key="flex-context",
         load_default={},
@@ -975,6 +1202,53 @@ class AssetTriggerSchema(Schema):
             description="If true, each asset within the asset tree is scheduled one after the other, where the next schedule takes into account the previously scheduled assets as inflexible device.",
         ),
     )
+    force_new_job_creation = fields.Boolean(
+        data_key="force-new-job-creation",
+        required=False,
+        metadata=dict(
+            description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
+        ),
+    )
+
+    @pre_load
+    def normalize_flex_context_format(self, data, **kwargs):
+        """Normalize flex_context to always be a dict.
+
+        Accepts both:
+        - Single commodity dict: {"commodity": "electricity", ...}
+        - List of commodity dicts: [{"commodity": "electricity", ...}, {"commodity": "heat", ...}]
+        - MultiDict with multiple 'flex-context' entries (when JSON list is parsed by webargs)
+
+        If a list is provided, it is wrapped under the 'commodities' field.
+        If a dict is provided, it is kept as-is.
+        This ensures downstream code always sees a dict structure.
+        """
+        if "flex-context" in data:
+            raw_flex_context = data.get("flex-context")
+
+            # Check if data is a MultiDict with multiple 'flex-context' entries
+            # This happens when JSON contains a list which webargs converts to multiple entries
+            if hasattr(data, "getlist"):
+                # MultiDict case - get all values for 'flex-context'
+                flex_contexts = data.getlist("flex-context")
+                if len(flex_contexts) > 1:
+                    # Multiple commodities: wrap in a dict with commodity_contexts field
+                    data["flex-context"] = {"commodities": flex_contexts}
+                # If only 1 entry, leave as-is (it's already a dict)
+            elif isinstance(raw_flex_context, list):
+                # Regular list case
+                data["flex-context"] = {"commodities": raw_flex_context}
+            # else: already a dict, leave as-is
+
+            # By now, flex-context should always be normalized to a dict. If it isn't
+            # (e.g. a bare string or number was passed), raise a 422 here instead of
+            # letting downstream code fail with a TypeError.
+            if not isinstance(data["flex-context"], dict):
+                raise ValidationError(
+                    "`flex-context` must be an object, or a list of objects.",
+                    field_name="flex-context",
+                )
+        return data
 
     @validates_schema
     def check_flex_model_sensors(self, data, **kwargs):
@@ -995,11 +1269,49 @@ class AssetTriggerSchema(Schema):
         return data
 
 
+class ScheduleSignConvention:
+    """Named constants for the three sign-convention modes of the get_schedule endpoint.
+
+    :cvar CONSUMPTION_POSITIVE: Always return schedules with consumption as positive values
+                                and production as negative values.  This is the default and
+                                matches the view a *consumer* has of their device.
+    :cvar PRODUCTION_POSITIVE: Always return schedules with production as positive values
+                               and consumption as negative values.  This matches the view a
+                               *producer* (or generator) has of their device.
+    :cvar WYSIWYG: Return the raw values from the database without any sign inversion,
+                   regardless of the sensor's ``consumption_is_positive`` attribute.
+                   Useful when you want to see exactly what was stored.
+    """
+
+    CONSUMPTION_POSITIVE = "consumption-positive"
+    PRODUCTION_POSITIVE = "production-positive"
+    WYSIWYG = "wysiwyg"
+
+    ALL = (CONSUMPTION_POSITIVE, PRODUCTION_POSITIVE, WYSIWYG)
+
+
 class GetScheduleSchema(Schema):
     sensor = SensorIdField(required=True, data_key="id")
     job_id = fields.Str(required=True, data_key="uuid")
     duration = DurationField(load_default=timedelta(hours=6))
     unit = UnitField(load_default=None)
+    sign_convention = fields.Str(
+        data_key="sign-convention",
+        load_default=ScheduleSignConvention.CONSUMPTION_POSITIVE,
+        validate=validate.OneOf(ScheduleSignConvention.ALL),
+        metadata=dict(
+            description=(
+                "Controls the sign convention applied to schedule values in the response. "
+                f"``{ScheduleSignConvention.CONSUMPTION_POSITIVE}`` (default): consumption is always returned as positive values "
+                f"and production as negative values. "
+                f"``{ScheduleSignConvention.PRODUCTION_POSITIVE}``: production is always returned as positive values "
+                f"and consumption as negative values. "
+                f"``{ScheduleSignConvention.WYSIWYG}``: returns values with the same sign as database values and as seen in the UI charts, "
+                "without adjusting their sign for the sensor's ``consumption_is_positive`` attribute."
+            ),
+            example=ScheduleSignConvention.CONSUMPTION_POSITIVE,
+        ),
+    )
 
     @post_load
     def finalize_unit_and_duration(self, data, **kwargs):

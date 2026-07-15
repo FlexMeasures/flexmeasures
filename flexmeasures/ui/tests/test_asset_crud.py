@@ -30,6 +30,12 @@ def test_new_asset_page(client, setup_assets, as_admin):
     asset_page = client.get(url_for("AssetCrudUI:get", id="new"), follow_redirects=True)
     assert asset_page.status_code == 200
     assert b"Creating a new asset" in asset_page.data
+    assert b'id="copySearchInput"' in asset_page.data
+    assert b'value="Template"' in asset_page.data
+    assert (
+        b"You can search for any accessible asset here. We start by showing templates."
+        in asset_page.data
+    )
 
 
 @pytest.mark.parametrize(
@@ -108,6 +114,30 @@ def test_asset_page_dates_validation(
     )
     assert error.encode() in asset_page.data
     assert "UNPROCESSABLE_ENTITY".encode() in asset_page.data
+
+
+def test_graphs_page_preserves_saved_y_axis_setting_in_editor(
+    db, client, setup_assets, as_admin
+):
+    """The graph editor keeps a saved per-graph y-axis setting when normalizing UI state."""
+    asset = setup_assets["wind-asset-1"]
+    asset.sensors_to_show = [
+        {
+            "title": "Power",
+            "y-axis": "data",
+            "plots": [{"sensor": asset.sensors[0].id}],
+        }
+    ]
+    db.session.commit()
+
+    page = client.get(
+        url_for("AssetCrudUI:graphs", id=asset.id),
+        follow_redirects=True,
+    )
+
+    assert page.status_code == 200
+    assert b'"y-axis": "data"' in page.data
+    assert b'item["y-axis"] = graph["y-axis"];' in page.data
 
 
 def test_add_asset(db, client, setup_assets, as_admin):

@@ -46,11 +46,11 @@ def create(  # noqa C901
         get_flexmeasures_env,
     )
     from flexmeasures.utils.app_utils import (
-        set_secret_key,
-        set_totp_secrets,
         init_sentry,
+        provision_default_template_assets_on_startup,
     )
     from flexmeasures.utils.error_utils import add_basic_error_handlers
+    from flexmeasures.utils.secrets_utils import set_secret_key, set_totp_secrets
 
     configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
     cfg_location = find_flexmeasures_cfg()  # Find flexmeasures.cfg location
@@ -89,9 +89,9 @@ def create(  # noqa C901
 
     # configure Redis (for redis queue)
     if app.testing:
-        from fakeredis import FakeStrictRedis
+        from flexmeasures.tests.utils import RQCompatibleFakeStrictRedis
 
-        redis_conn = FakeStrictRedis(
+        redis_conn = RQCompatibleFakeStrictRedis(
             host="redis", port="1234"
         )  # dummy connection details
     else:
@@ -110,6 +110,7 @@ def create(  # noqa C901
     app.queues = dict(
         forecasting=Queue(connection=redis_conn, name="forecasting"),
         scheduling=Queue(connection=redis_conn, name="scheduling"),
+        ingestion=Queue(connection=redis_conn, name="ingestion"),
         # reporting=Queue(connection=redis_conn, name="reporting"),
         # labelling=Queue(connection=redis_conn, name="labelling"),
         # alerting=Queue(connection=redis_conn, name="alerting"),
@@ -208,6 +209,8 @@ def create(  # noqa C901
     from flexmeasures.ui import register_at as register_ui_at
 
     register_ui_at(app)
+
+    provision_default_template_assets_on_startup(app)
 
     # Global template variables for both our own templates and external templates
     @app.context_processor

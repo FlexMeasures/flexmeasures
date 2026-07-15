@@ -1,9 +1,216 @@
+import pytest
 from sqlalchemy import select, func
 
 from flexmeasures.cli.tests.utils import check_command_ran_without_error, to_flags
 from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.services.users import find_user_by_email
+from flexmeasures.utils.secrets_utils import (
+    store_account_secret,
+    store_asset_secret,
+)
+
+
+def test_delete_account_secret(app, fresh_db, setup_accounts_fresh_db):
+    from flexmeasures.cli.data_delete import delete_stored_secret
+
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
+    account = setup_accounts_fresh_db["Prosumer"]
+    store_account_secret(account, "platform.access_token", "access-token")
+    store_account_secret(account, "platform.refresh_token", "refresh-token")
+    fresh_db.session.commit()
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = None
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        delete_stored_secret,
+        to_flags(
+            {
+                "account": account.id,
+                "secret": "platform.access_token",
+            }
+        )
+        + ["--force"],
+    )
+
+    check_command_ran_without_error(result)
+    assert "access-token" not in result.output
+    fresh_db.session.refresh(account)
+    assert "access_token" not in account.secrets["platform"]
+    assert "refresh_token" in account.secrets["platform"]
+
+
+def test_delete_asset_secret_prunes_empty_parents(
+    app, fresh_db, setup_generic_assets_fresh_db
+):
+    from flexmeasures.cli.data_delete import delete_stored_secret
+
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
+    asset = setup_generic_assets_fresh_db["test_battery"]
+    store_asset_secret(asset, "platform.password", "password-value")
+    fresh_db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        delete_stored_secret,
+        to_flags(
+            {
+                "asset": asset.id,
+                "secret": "platform.password",
+            }
+        )
+        + ["--force"],
+    )
+
+    check_command_ran_without_error(result)
+    assert "password-value" not in result.output
+    fresh_db.session.refresh(asset)
+    assert asset.secrets == {}
+
+
+def test_delete_secret_confirmation_mentions_multiple_affected_secrets(
+    app, fresh_db, setup_accounts_fresh_db
+):
+    from flexmeasures.cli.data_delete import delete_stored_secret
+
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
+    account = setup_accounts_fresh_db["Prosumer"]
+    store_account_secret(account, "platform.access_token", "access-token")
+    store_account_secret(account, "platform.refresh_token", "refresh-token")
+    fresh_db.session.commit()
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = None
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        delete_stored_secret,
+        [
+            "--account",
+            str(account.id),
+            "--secret",
+            "platform",
+        ],
+        input="n\n",
+    )
+
+    assert result.exit_code == 1
+    assert "Delete secret 'platform' from account" in result.output
+    assert "This affects 2 stored secrets." in result.output
+    fresh_db.session.refresh(account)
+    assert "platform" in account.secrets
+
+
+def test_delete_secret_accepts_secret_path_with_dot_in_leaf(
+    app, fresh_db, setup_generic_assets_fresh_db
+):
+    from flexmeasures.cli.data_delete import delete_stored_secret
+
+    app.config["FLEXMEASURES_SECRETS_ENCRYPTION_KEYS"] = {"1": "test-master-key"}
+    asset = setup_generic_assets_fresh_db["test_battery"]
+    store_asset_secret(asset, ("platform", "token.v2"), "password-value")
+    fresh_db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        delete_stored_secret,
+        [
+            "--asset",
+            str(asset.id),
+            "--secret-path",
+            "platform",
+            "--secret-path",
+            "token.v2",
+            "--force",
+        ],
+    )
+
+    check_command_ran_without_error(result)
+    fresh_db.session.refresh(asset)
+    assert asset.secrets == {}
+
+
+def test_delete_secret_rejects_account_and_asset(
+    app, fresh_db, setup_accounts_fresh_db, setup_generic_assets_fresh_db
+):
+    from flexmeasures.cli.data_delete import delete_stored_secret
+
+    fresh_db.session.flush()
+    account = setup_accounts_fresh_db["Prosumer"]
+    asset = setup_generic_assets_fresh_db["test_battery"]
+    runner = app.test_cli_runner()
+
+    with pytest.raises(ValueError, match="Pass exactly one of --account or --asset."):
+        runner.invoke(
+            delete_stored_secret,
+            to_flags(
+                {
+                    "account": account.id,
+                    "asset": asset.id,
+                    "secret": "platform.password",
+                }
+            )
+            + ["--force"],
+        )
+
+
+def test_delete_secret_rejects_secret_and_secret_path_together(
+    app, fresh_db, setup_accounts_fresh_db
+):
+    from flexmeasures.cli.data_delete import delete_stored_secret
+
+    account = setup_accounts_fresh_db["Prosumer"]
+    runner = app.test_cli_runner()
+
+    with pytest.raises(
+        ValueError, match="Pass either --secret or --secret-path, not both."
+    ):
+        runner.invoke(
+            delete_stored_secret,
+            [
+                "--account",
+                str(account.id),
+                "--secret",
+                "platform.password",
+                "--secret-path",
+                "platform",
+                "--force",
+            ],
+        )
+
+
+def test_delete_secret_rejects_more_than_two_secret_path_parts(
+    app, fresh_db, setup_accounts_fresh_db
+):
+    from flexmeasures.cli.data_delete import delete_stored_secret
+
+    account = setup_accounts_fresh_db["Prosumer"]
+    runner = app.test_cli_runner()
+
+    with pytest.raises(ValueError, match="Pass --secret-path at most twice."):
+        runner.invoke(
+            delete_stored_secret,
+            [
+                "--account",
+                str(account.id),
+                "--secret-path",
+                "platform",
+                "--secret-path",
+                "nested",
+                "--secret-path",
+                "token",
+                "--force",
+            ],
+        )
+
+
+def test_delete_secret_help_includes_examples(app):
+    from flexmeasures.cli.data_delete import delete_stored_secret
+
+    result = app.test_cli_runner().invoke(delete_stored_secret, ["--help"])
+
+    check_command_ran_without_error(result)
+    assert "Examples:" in result.output
+    assert "flexmeasures delete secret --account" in result.output
+    assert "--secret-path platform --secret-path token.v2 --force" in result.output
 
 
 def test_delete_account(

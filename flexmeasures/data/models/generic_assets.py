@@ -59,7 +59,10 @@ def _fixed_value_source_dict(
         id=_FLEX_SOURCE_IDS[flex_source],
         name=flex_source,
         model="",
+        version="",
         type="other",
+        raw_type=flex_source,
+        display_type=flex_source,
         description=f"Configured in the asset's {flex_source}",
     )
 
@@ -203,10 +206,30 @@ class GenericAsset(db.Model, AuthModelMixin):
         db.CheckConstraint(
             "parent_asset_id != id", name="generic_asset_self_reference_ck"
         ),
-        db.UniqueConstraint(
+        db.Index(
+            "generic_asset_name_parent_asset_id_key",
             "name",
             "parent_asset_id",
-            name="generic_asset_name_parent_asset_id_key",
+            unique=True,
+            postgresql_where=db.text("parent_asset_id IS NOT NULL"),
+            sqlite_where=db.text("parent_asset_id IS NOT NULL"),
+        ),
+        db.Index(
+            "generic_asset_root_account_id_name_key",
+            "account_id",
+            "name",
+            unique=True,
+            postgresql_where=db.text(
+                "parent_asset_id IS NULL AND account_id IS NOT NULL"
+            ),
+            sqlite_where=db.text("parent_asset_id IS NULL AND account_id IS NOT NULL"),
+        ),
+        db.Index(
+            "generic_asset_public_root_name_key",
+            "name",
+            unique=True,
+            postgresql_where=db.text("parent_asset_id IS NULL AND account_id IS NULL"),
+            sqlite_where=db.text("parent_asset_id IS NULL AND account_id IS NULL"),
         ),
         db.UniqueConstraint(
             "account_id",
@@ -218,9 +241,11 @@ class GenericAsset(db.Model, AuthModelMixin):
     # No relationship
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), default="")
+    description = db.Column(db.Text, nullable=True)
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
+    secrets = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
     sensors_to_show = db.Column(
         MutableList.as_mutable(JSONB), nullable=False, default=[]
     )
@@ -280,6 +305,8 @@ class GenericAsset(db.Model, AuthModelMixin):
             self.flex_model = {}
         if self.attributes is None:
             self.attributes = {}
+        if self.secrets is None:
+            self.secrets = {}
 
         # For backwards compatibility, when setting attributes that served as flex-model fields,
         # move them to the flex_context (and don't store them as attributes)
@@ -492,9 +519,13 @@ class GenericAsset(db.Model, AuthModelMixin):
             missed_sensor_ids.extend(inaccessible)
 
             if accessible_sensors:
-                sensors_to_show.append(
-                    {"title": title, "plots": [{"sensors": accessible_sensors}]}
-                )
+                new_entry = {
+                    "title": title,
+                    "plots": [{"sensors": accessible_sensors}],
+                }
+                if "y-axis" in entry:
+                    new_entry["y-axis"] = entry["y-axis"]
+                sensors_to_show.append(new_entry)
 
         if missed_sensor_ids:
             current_app.logger.warning(
@@ -1244,7 +1275,12 @@ class GenericAsset(db.Model, AuthModelMixin):
                         sources_metadata[source_obj.id] = {
                             "name": source_dict.get("name", ""),
                             "model": source_dict.get("model", ""),
+                            "version": source_dict.get("version", ""),
                             "type": source_dict.get("type", "other"),
+                            "raw_type": source_dict.get("raw_type", ""),
+                            "display_type": source_dict.get(
+                                "display_type", source_dict.get("type", "other")
+                            ),
                             "description": source_dict.get("description", ""),
                         }
 

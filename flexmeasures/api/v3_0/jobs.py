@@ -11,7 +11,7 @@ from rq.job import Job, JobStatus, NoSuchJobError
 from webargs.flaskparser import use_kwargs
 from marshmallow import fields
 
-from flexmeasures.api.common.utils.api_utils import job_status_description
+from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
 from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
@@ -21,18 +21,6 @@ from flexmeasures.data.services.utils import get_asset_or_sensor_from_ref
 def _isoformat_or_none(dt: datetime | None) -> str | None:
     """Return an ISO-8601 string for *dt*, or ``None`` when *dt* is absent."""
     return dt.isoformat() if dt is not None else None
-
-
-def _failed_job_exc_info(job: Job) -> str | None:
-    """Return traceback text for failed jobs when RQ stored it."""
-    if not job.is_failed:
-        return None
-
-    latest_result = job.latest_result()
-    if latest_result is None:
-        return None
-
-    return latest_result.exc_string
 
 
 def _job_read_context(job: Job):
@@ -96,6 +84,21 @@ class JobAPI(FlaskView):
 
             Failed jobs also include traceback information when the worker
             stored it with the job result.
+
+            For a finished scheduling job, ``result`` is an object. For a
+            ``StorageScheduler`` job it holds soft state-of-charge constraint
+            analysis: ``unresolved`` lists constraints the scheduler could not
+            satisfy, and ``resolved`` lists constraints that were satisfied
+            with some margin. Each device entry's ``soc-minima``/``soc-maxima``
+            value is a list, holding one entry per violated slot (for
+            ``unresolved``) or per met slot with its margin (for ``resolved``),
+            ordered chronologically. Both arrays are empty when the flex model
+            defines no ``soc-minima``/``soc-maxima``, or when a scheduler other
+            than ``StorageScheduler`` was used. The ``num-beliefs`` field holds
+            the total number of beliefs (scheduled values) saved to the database.
+            This is the only place constraint analysis is available — the sensor
+            schedule endpoint (``GET /api/v3_0/sensors/<id>/schedules/<uuid>``)
+            returns power values only.
           security:
             - ApiKeyAuth: []
           parameters:
@@ -130,7 +133,16 @@ class JobAPI(FlaskView):
                         type: string
                         description: Human-readable description of the job status.
                       result:
-                        description: Return value of the job function, or null when not yet available.
+                        description: >
+                          Return value of the job function, or null when not yet
+                          available. For a finished scheduling job, this is an
+                          object; a ``StorageScheduler`` job populates it with
+                          ``unresolved``/``resolved`` soft state-of-charge
+                          constraint analysis (empty arrays when the flex model
+                          defines no ``soc-minima``/``soc-maxima``, or when a
+                          scheduler other than ``StorageScheduler`` was used).
+                          The ``num-beliefs`` field holds the total number of
+                          beliefs (scheduled values) saved to the database.
                         nullable: true
                       func_name:
                         type: string
@@ -175,7 +187,16 @@ class JobAPI(FlaskView):
                       value:
                         status: FINISHED
                         message: "Scheduling job has finished."
-                        result: null
+                        result:
+                          unresolved:
+                            - asset: 42
+                              soc-minima:
+                                - datetime: "2024-01-01T10:00:00+00:00"
+                                  violation: "260.0 kWh"
+                                - datetime: "2024-01-01T10:15:00+00:00"
+                                  violation: "180.0 kWh"
+                          resolved: []
+                          num-beliefs: 96
                         func_name: "flexmeasures.data.services.scheduling.create_schedule"
                         origin: scheduling
                         enqueued_at: "2026-04-28T10:00:00+00:00"
@@ -239,17 +260,16 @@ class JobAPI(FlaskView):
         except Exception:  # noqa: BLE001
             result = None
 
-        return (
-            dict(
-                status=status_name,
-                message=job_status_description(job),
-                result=result,
-                func_name=job.func_name,
-                origin=job.origin,
-                enqueued_at=_isoformat_or_none(job.enqueued_at),
-                started_at=_isoformat_or_none(job.started_at),
-                ended_at=_isoformat_or_none(job.ended_at),
-                exc_info=_failed_job_exc_info(job),
-            ),
-            200,
+        response = dict(
+            status=status_name,
+            message=job_status_description(job),
+            result=result,
+            func_name=job.func_name,
+            origin=job.origin,
+            enqueued_at=_isoformat_or_none(job.enqueued_at),
+            started_at=_isoformat_or_none(job.started_at),
+            ended_at=_isoformat_or_none(job.ended_at),
+            exc_info=failed_job_exc_info(job),
         )
+
+        return response, 200

@@ -9,6 +9,8 @@ description: Reviews GitHub Actions workflows, pre-commit hooks, and CI/CD pipel
 
 Keep FlexMeasures automation reliable and maintainable by reviewing GitHub Actions workflows, pre-commit hooks, linters, build scripts, and CI/CD pipelines. Ensure tests run efficiently, caching works correctly, and agents are used properly in workflows. This agent owns the reliability of the development and deployment infrastructure.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review
@@ -114,62 +116,7 @@ git diff flexmeasures/ui/static/openapi-specs.json | grep -c '"Asia/'
 
 ### Pre-commit Hook Execution (CRITICAL)
 
-**Every commit MUST pass pre-commit hooks BEFORE being committed.**
-
-This is mandatory. Committing code that fails pre-commit hooks is a process failure.
-
-#### Why This Matters
-
-Pre-commit hooks enforce code quality standards:
-- **Flake8**: Catches linting errors (unused imports, complexity, style violations)
-- **Black**: Ensures consistent code formatting
-- **Mypy**: Validates type annotations
-
-Code that bypasses pre-commit:
-- Fails in CI (wastes resources)
-- Forces maintainers to fix formatting
-- Creates noisy review feedback
-- Delays PR merge
-
-#### Execution Requirements
-
-**Before ANY commit:**
-
-1. **Install pre-commit**:
-   ```bash
-   pip install pre-commit
-   pre-commit install  # Install git hooks (optional but recommended)
-   ```
-
-2. **Run all hooks**:
-   ```bash
-   pre-commit run --all-files
-   ```
-
-3. **Verify zero failures**:
-   - ✅ All hooks pass
-   - ✅ No files modified by hooks (or modifications committed)
-   - ✅ No errors from flake8, black, or mypy
-
-4. **Document execution**:
-   ```
-   Pre-commit verification:
-   - Command: pre-commit run --all-files
-   - Result: All hooks passed
-   - Modified files: None (or included in commit)
-   ```
-
-#### Responsibility Assignment
-
-**Who runs pre-commit:**
-- **During code changes**: Agent making changes runs pre-commit before committing
-- **Before PR close**: Lead verifies pre-commit execution
-- **In PR review**: Tooling & CI Specialist validates config matches CI
-
-**Enforcement:**
-- Lead's session close checklist includes pre-commit verification
-- Lead cannot close session without pre-commit evidence
-- If pre-commit fails, agent must fix all issues before proceeding
+**Every commit MUST pass `pre-commit run --all-files` BEFORE being committed.** See `.github/instructions/pre-commit-hooks.instructions.md` for setup and hook details. Committing code that fails pre-commit hooks is a process failure. Whoever is making the change runs pre-commit before committing; this agent validates that the pre-commit config matches what CI actually enforces.
 
 #### Common Failures and Fixes
 
@@ -205,21 +152,6 @@ black .
 # Run mypy:
 ci/run_mypy.sh
 ```
-
-#### Integration with Lead
-
-**Lead checklist items:**
-- [ ] Pre-commit hooks installed
-- [ ] All hooks pass: `pre-commit run --all-files`
-- [ ] Zero failures from flake8, black, mypy
-- [ ] If hooks modified files, changes committed
-
-**Evidence required:**
-- Show pre-commit output confirming all hooks passed
-- Or confirm: "Pre-commit verified: all hooks passed"
-
-**Enforcement:**
-Lead MUST verify pre-commit execution before closing session.
 
 ### Agent Environment Setup
 
@@ -271,7 +203,7 @@ This file defines standardized environment setup for GitHub Copilot agents. When
    - Coverage: Python 3.11 only
    - Caching: pip dependencies
 
-2. **build.yml**
+2. **docker-build.yml**
    - Docker image build validation
    - PostgreSQL service
    - Basic functionality tests
@@ -280,7 +212,7 @@ This file defines standardized environment setup for GitHub Copilot agents. When
    - Security analysis
    - Weekly schedule
 
-4. **release.yml**
+4. **pypi-publish.yml**
    - Package and release automation
    - Trigger: Push to main
 
@@ -405,108 +337,16 @@ pytest -k test_auth_token  # Ensure auth setup runs
 
 ## Self-Improvement Notes
 
-### When to Update Instructions
+Update this file when: a new GitHub Actions feature is adopted, CI/CD tooling changes, a new
+linter/formatter is added, or Python version support changes. Edit the relevant section in
+place — don't append a dated narrative.
 
-- New GitHub Actions features adopted
-- CI/CD tooling changes
-- New linters or formatters added
-- Python version support changes
-- New agent integration patterns
+**`uv sync --locked` failing right after `uv lock --upgrade`**: usually means a new package (e.g.
+`numba`/`llvmlite`) introduced fork markers with impossible platform combos (e.g.
+`os_name == 'nt' AND sys_platform == 'darwin'`), breaking the coverage check. Fix by adding
+`[tool.uv] environments` to `pyproject.toml` limiting resolution to actual target platforms, then
+regenerating `uv.lock`. After any significant `uv lock --upgrade`, run `uv sync --locked` locally
+and confirm exit code 0 before committing.
 
-### Learning from PRs
-
-- Track CI/CD issues causing confusion
-- Note recurring workflow problems
-- Document new CI patterns
-- Update checklist based on real issues
-- Refine guidance on caching and optimization
-
-### Lessons Learned
-
-#### `uv sync --locked` fails after `uv lock --upgrade` (PR #2148)
-
-- **Symptom**: `uv sync --locked` fails with "needs to be updated, but `--locked` was provided" even after running `uv lock`
-- **Root cause**: New packages (e.g. `numba`/`llvmlite`) introduce fork markers with impossible platform combos (e.g. `os_name == 'nt' AND sys_platform == 'darwin'`), causing coverage check to fail
-- **Fix**: Add `[tool.uv] environments` to `pyproject.toml` limiting resolution to actual target platforms, then regenerate `uv.lock`
-- **Verification**: After any significant `uv lock --upgrade`, run `uv sync --locked` locally and confirm exit code 0
-
-### Continuous Improvement
-
-- Monitor CI run times and optimize
-- Review GitHub Actions marketplace
-- Keep linter configurations current
-- Track Python ecosystem tooling evolution
-- Improve caching strategies
-- Ensure agent workflows remain efficient
-
-* * *
-
-## Commit Discipline and Self-Improvement
-
-### Must Make Atomic Commits
-
-When making CI/tooling changes:
-
-- **Separate workflow changes** - One workflow per commit
-- **Separate pre-commit hook changes** - Individual hooks get own commits
-- **Separate configuration changes** - Linter config separate from code
-- **Never commit analysis files** - No `CI_ANALYSIS.md` or similar
-- **Update agent instructions separately** - Own file, own commit
-
-### Must Verify CI Changes Actually Work
-
-When modifying CI infrastructure:
-
-- **Run pre-commit hooks locally** - Don't assume they work
-  ```bash
-  pre-commit run --all-files
-  ```
-- **Test workflow changes** - Push to branch and verify CI passes
-  
-- **Check caching works** - Verify cache keys match and restore properly
-- **Test across matrix** - Ensure all Python versions work
-
-### Using FlexMeasures Dev Environment for CI Testing
-
-Before committing CI changes:
-
-1. **Test pre-commit hooks locally**:
-   ```bash
-   uv tool install pre-commit
-   pre-commit install
-   pre-commit run --all-files
-   ```
-2. **Test make targets**:
-   ```bash
-   uv sync --group test
-   uv run poe test
-   uv run poe update-docs
-   ```
-3. **Verify pytest configuration**:
-   ```bash
-   pytest --collect-only  # Check test discovery
-   pytest -v              # Run with verbose output
-   ```
-4. **Check linter configs**:
-   ```bash
-   flake8 flexmeasures/
-   black --check flexmeasures/
-   mypy flexmeasures/
-   ```
-
-### Self-Improvement Loop
-
-After each assignment:
-
-1. **Review CI failures** - What went wrong? What could be improved?
-2. **Update this agent file** - Add new patterns or tooling guidance
-3. **Commit separately** with format:
-   ```
-   agents/tooling-ci: learned <specific lesson>
-   
-   Context:
-   - Assignment revealed issue with <CI component>
-   
-   Change:
-   - Added guidance on <tooling topic>
-   ```
+Before claiming a CI/tooling change works: run `pre-commit run --all-files` locally, and if it's
+a workflow change, verify it actually passes in CI on a branch — don't assume.

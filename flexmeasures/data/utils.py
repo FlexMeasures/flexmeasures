@@ -4,6 +4,10 @@ Utils around the data models and db sessions
 
 from __future__ import annotations
 
+from alembic.config import Config as AlembicConfig
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from dataclasses import dataclass
 from flask import current_app
 from timely_beliefs import BeliefsDataFrame, BeliefsSeries
 from sqlalchemy import select
@@ -12,6 +16,89 @@ from flexmeasures.data import db
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import TimedBelief, Sensor
 from flexmeasures.data.services.time_series import drop_unchanged_beliefs
+
+
+SAVE_TO_DB_SUCCESS = "success"
+SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED = (
+    "success_with_unchanged_beliefs_skipped"
+)
+SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW = "success_but_nothing_new"
+SAVE_TO_DB_SUCCESS_STATUSES = (
+    SAVE_TO_DB_SUCCESS,
+    SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+    SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
+)
+SAVE_TO_DB_SUCCESS_WITH_CHANGES_STATUSES = (
+    SAVE_TO_DB_SUCCESS,
+    SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+)
+TEMPLATE_COPY_GUIDANCE_PREFIX = "Copy this"
+
+
+@dataclass(frozen=True)
+class DatabaseSchemaRevisionStatus:
+    """Alembic revision status for the connected database."""
+
+    current_heads: tuple[str, ...]
+    expected_heads: tuple[str, ...]
+    inspection_error: str | None = None
+
+    @property
+    def is_migrated_to_head(self) -> bool:
+        return (
+            self.inspection_error is None
+            and bool(self.current_heads)
+            and self.current_heads == self.expected_heads
+        )
+
+
+def get_database_schema_revision_status(app) -> DatabaseSchemaRevisionStatus:
+    """Return current and expected Alembic head revisions for the connected database."""
+    from sqlalchemy.exc import OperationalError, ProgrammingError
+
+    migrate_extension = app.extensions.get("migrate")
+    if migrate_extension is None:
+        return DatabaseSchemaRevisionStatus(current_heads=(), expected_heads=())
+
+    alembic_config = AlembicConfig()
+    alembic_config.set_main_option("script_location", migrate_extension.directory)
+    script = ScriptDirectory.from_config(alembic_config)
+    expected_heads = tuple(sorted(script.get_heads()))
+    if not expected_heads:
+        return DatabaseSchemaRevisionStatus(current_heads=(), expected_heads=())
+
+    try:
+        with app.app_context(), db.engine.connect() as connection:
+            current_heads = tuple(
+                sorted(MigrationContext.configure(connection).get_current_heads())
+            )
+    except OperationalError as exc:
+        return DatabaseSchemaRevisionStatus(
+            current_heads=(),
+            expected_heads=expected_heads,
+            inspection_error=str(exc),
+        )
+    except ProgrammingError:
+        current_heads = ()
+
+    return DatabaseSchemaRevisionStatus(
+        current_heads=current_heads,
+        expected_heads=expected_heads,
+    )
+
+
+def format_database_schema_revision_status(
+    status: DatabaseSchemaRevisionStatus,
+) -> str:
+    """Format Alembic revisions for host-facing log messages."""
+
+    def format_heads(heads: tuple[str, ...]) -> str:
+        return ", ".join(heads) if heads else "unknown"
+
+    return (
+        f"current revision(s): {format_heads(status.current_heads)}; "
+        f"head revision(s): {format_heads(status.expected_heads)}"
+    )
 
 
 def save_to_session(objects: list[db.Model], overwrite: bool = False):
@@ -91,9 +178,9 @@ def save_to_db(
     :param save_changed_beliefs_only: if True, unchanged beliefs are skipped (updated beliefs are only stored if they represent changed beliefs)
                                       if False, all updated beliefs are stored
     :returns: status string, one of the following:
-              - 'success': all beliefs were saved
-              - 'success_with_unchanged_beliefs_skipped': not all beliefs represented a state change
-              - 'success_but_nothing_new': no beliefs represented a state change
+              - SAVE_TO_DB_SUCCESS: all beliefs were saved
+              - SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED: not all beliefs represented a state change
+              - SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW: no beliefs represented a state change
     """
 
     # Convert to list
@@ -102,7 +189,7 @@ def save_to_db(
     else:
         timed_values_list = data
 
-    status = "success"
+    status = SAVE_TO_DB_SUCCESS
     values_saved = 0
     for timed_values in timed_values_list:
 
@@ -124,7 +211,7 @@ def save_to_db(
             timed_values = drop_unchanged_beliefs(timed_values)
             len_after = len(timed_values)
             if len_after < len_before:
-                status = "success_with_unchanged_beliefs_skipped"
+                status = SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED
 
             # Work around bug in which groupby still introduces an index level, even though we asked it not to
             if None in timed_values.index.names:
@@ -132,9 +219,10 @@ def save_to_db(
 
             if timed_values.empty:
                 # No state changes among the beliefs
+                current_app.logger.info("No changes needing to be saved to DB.")
                 continue
 
-        current_app.logger.info("SAVING TO DB...")
+        current_app.logger.info("SAVING DATA  ...")
         TimedBelief.add_to_session(
             session=db.session,
             beliefs_data_frame=timed_values,
@@ -144,11 +232,12 @@ def save_to_db(
             ),
         )
         values_saved += len(timed_values)
+        current_app.logger.info(f"SAVED {len(timed_values)} values TO DB.")
     # Flush to bring up potential unique violations (due to attempting to replace beliefs)
     db.session.flush()
 
     if values_saved == 0:
-        status = "success_but_nothing_new"
+        status = SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW
     return status
 
 

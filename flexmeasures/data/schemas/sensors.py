@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import timedelta
 from difflib import get_close_matches
 import numbers
 import pytz
 from pytz.exceptions import UnknownTimeZoneError
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from flexmeasures.data.models.data_sources import DataSource
 
 from flask import current_app
 from flask_security import current_user
@@ -32,12 +36,14 @@ import pandas as pd
 from flexmeasures.data import ma, db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
     MarshmallowClickMixin,
     with_appcontext_if_needed,
     convert_to_quantity,
 )
+from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures.utils.time_utils import get_timezone
 from flexmeasures.utils.unit_utils import (
     is_valid_unit,
@@ -50,6 +56,8 @@ from flexmeasures.utils.unit_utils import (
 from flexmeasures.data.schemas.attributes import JSON
 from flexmeasures.data.schemas.times import DurationField, AwareDateTimeField
 from flexmeasures.data.schemas.units import QuantityField
+from flexmeasures.data.schemas.account import AccountIdField
+from flexmeasures.data.schemas.sources import DataSourceIdField
 
 
 class TimedEventSchema(Schema):
@@ -67,6 +75,7 @@ class TimedEventSchema(Schema):
     def __init__(
         self,
         timezone: str | None = None,
+        event_resolution: timedelta | None = None,
         value_validator: Validator | None = None,
         to_unit: str | None = None,
         default_src_unit: str | None = None,
@@ -79,6 +88,7 @@ class TimedEventSchema(Schema):
         :param timezone:  Optionally, set a timezone to be able to interpret nominal durations.
         """
         self.timezone = timezone
+        self.event_resolution = event_resolution
         self.value_validator = value_validator
         super().__init__(*args, **kwargs)
         if to_unit is not None:
@@ -97,12 +107,23 @@ class TimedEventSchema(Schema):
         if self.value_validator is not None:
             self.value_validator(_value)
 
+    def floor_timing_fields(self, data: dict) -> None:
+        if self.event_resolution in (None, timedelta(0)):
+            return
+
+        for key in ("datetime", "start", "end"):
+            if data.get(key) is not None:
+                data[key] = (
+                    pd.Timestamp(data[key]).floor(self.event_resolution).to_pydatetime()
+                )
+
     @validates_schema
     def check_time_window(self, data, **kwargs):
         """Checks whether a complete time interval can be derived from the timing fields.
 
         The data is updated in-place, guaranteeing that the 'start' and 'end' fields are filled out.
         """
+        self.floor_timing_fields(data)
         dt = data.get("datetime")
         start = data.get("start")
         end = data.get("end")
@@ -222,8 +243,18 @@ class SensorSchemaMixin(Schema):
     attributes = JSON(
         required=False,
         metadata=dict(
-            description="JSON serializable attributes to store arbitrary information on the sensor. A few attributes lead to special behaviour, such as `consumption_is_positive`, which informs the platform whether consumption values should be saved (and shown in charts) as positive or negative values.",
-            example="{consumption_is_positive: True}",
+            description=(
+                "JSON serializable attributes to store arbitrary information on "
+                "the sensor. A few attributes lead to special behaviour, such as "
+                "`consumption_is_positive`, which informs the platform whether "
+                "consumption values should be saved (and shown in charts) as "
+                "positive or negative values, `floor_datetimes_to_resolution`, "
+                "which controls whether off-clock datetimes are floored to a "
+                "non-instantaneous sensor's resolution, and `frequency`, which "
+                "rounds incoming instantaneous measurements to a configured "
+                "Pandas frequency."
+            ),
+            example='{"consumption_is_positive": true, "floor_datetimes_to_resolution": true}',
         ),
     )
 
@@ -336,6 +367,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         default_src_unit: str | None = None,
         return_magnitude: bool = False,
         timezone: str | None = None,
+        event_resolution: timedelta | None = None,
         value_validator: Validator | None = None,
         additional_sensor_units: list[str] | None = None,
         **kwargs,
@@ -380,6 +412,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             value_validator = RepurposeValidatorToIgnoreSensorsAndLists(value_validator)
             self.validators.insert(0, value_validator)
         self.timezone = timezone
+        self.event_resolution = event_resolution
         self.value_validator = value_validator
         if to_unit.startswith("/") and len(to_unit) < 2:
             raise ValueError(
@@ -412,8 +445,70 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                 f"Unsupported value type. `{type(value)}` was provided but only dict, list and str are supported."
             )
 
-    def _deserialize_dict(self, value: dict[str, int]) -> Sensor:
-        """Deserialize a sensor reference to a Sensor."""
+    _SOURCE_FILTER_KEYS = frozenset(
+        {"source-types", "exclude-source-types", "sources", "source-account"}
+    )
+
+    def _deserialize_source_filters(self, value: dict[str, Any]) -> tuple[
+        list[str] | None,
+        list[str] | None,
+        list[DataSource] | None,
+        list[Account] | None,
+    ]:
+        """Deserialize and validate source filter fields from a sensor-reference dict.
+
+        Returns ``(source_types, exclude_source_types, sources, source_account)``.
+        """
+        source_types = value.get("source-types")
+        if source_types is not None:
+            if not isinstance(source_types, list) or not all(
+                isinstance(s, str) for s in source_types
+            ):
+                raise FMValidationError("`source-types` must be a list of strings.")
+
+        exclude_source_types = value.get("exclude-source-types")
+        if exclude_source_types is not None:
+            if not isinstance(exclude_source_types, list) or not all(
+                isinstance(s, str) for s in exclude_source_types
+            ):
+                raise FMValidationError(
+                    "`exclude-source-types` must be a list of strings."
+                )
+
+        sources = None
+        raw_sources = value.get("sources")
+        if raw_sources is not None:
+            if not isinstance(raw_sources, list):
+                raise FMValidationError("`sources` must be a list of data source IDs.")
+            source_id_field = DataSourceIdField()
+            sources = [
+                source_id_field.deserialize(src_id, None, None)
+                for src_id in raw_sources
+            ]
+
+        source_account = None
+        raw_source_account = value.get("source-account")
+        if raw_source_account is not None:
+            if not isinstance(raw_source_account, list):
+                raise FMValidationError(
+                    "`source-account` must be a list of account IDs."
+                )
+            account_id_field = AccountIdField()
+            source_account = [
+                account_id_field.deserialize(acc_id, None, None)
+                for acc_id in raw_source_account
+            ]
+
+        return source_types, exclude_source_types, sources, source_account
+
+    def _deserialize_dict(self, value: dict[str, Any]) -> Sensor | SensorReference:
+        """Deserialize a sensor reference to a Sensor or SensorReference.
+
+        Returns a plain :class:`Sensor` when no source filter keys are present
+        (backward compatible), and a :class:`SensorReference` when any of
+        ``source-types``, ``exclude-source-types``, ``sources``, or
+        ``source-account`` are provided.
+        """
         if "sensor" not in value:
             raise FMValidationError("Dictionary provided but `sensor` key not found.")
         if self.additional_sensor_units:
@@ -431,7 +526,21 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             sensor = SensorIdField(
                 unit=self.to_unit if not self.to_unit.startswith("/") else None
             ).deserialize(value["sensor"], None, None)
-        return sensor
+
+        # If source filter keys are present, return a SensorReference instead of a plain Sensor.
+        if self._SOURCE_FILTER_KEYS.isdisjoint(value.keys()):
+            return sensor  # backward compat: no filters → plain Sensor
+
+        source_types, exclude_source_types, sources, source_account = (
+            self._deserialize_source_filters(value)
+        )
+        return SensorReference(
+            sensor=sensor,
+            source_types=source_types,
+            exclude_source_types=exclude_source_types,
+            sources=sources,
+            source_account=source_account,
+        )
 
     def _deserialize_list(self, value: list[dict]) -> list[dict]:
         """Deserialize a time series to a list of timed events."""
@@ -443,6 +552,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             fields.Nested(
                 TimedEventSchema(
                     timezone=self.timezone,
+                    event_resolution=self.event_resolution,
                     value_validator=self.value_validator,
                     to_unit=self.to_unit,
                     default_src_unit=self.default_src_unit,
@@ -465,9 +575,26 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
         )
 
     def _serialize(
-        self, value: Sensor | pd.Series | ur.Quantity, attr, obj, **kwargs
-    ) -> str | dict[str, int]:
-        if isinstance(value, Sensor):
+        self,
+        value: Sensor | SensorReference | pd.Series | ur.Quantity,
+        attr,
+        obj,
+        **kwargs,
+    ) -> str | dict[str, Any]:
+        if isinstance(value, SensorReference):
+            sensor_reference: dict[str, Any] = dict(sensor=value.id)
+            if value.source_types is not None:
+                sensor_reference["source-types"] = value.source_types
+            if value.exclude_source_types is not None:
+                sensor_reference["exclude-source-types"] = value.exclude_source_types
+            if value.sources is not None:
+                sensor_reference["sources"] = [source.id for source in value.sources]
+            if value.source_account is not None:
+                sensor_reference["source-account"] = [
+                    account.id for account in value.source_account
+                ]
+            return sensor_reference
+        elif isinstance(value, Sensor):
             return dict(sensor=value.id)
         elif isinstance(value, pd.Series):
             raise NotImplementedError(
@@ -497,7 +624,9 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
     def _get_original_unit(
         self,
         serialized_variable_quantity: str | list[dict] | dict,
-        deserialized_variable_quantity: ur.Quantity | list[dict] | Sensor,
+        deserialized_variable_quantity: (
+            ur.Quantity | list[dict] | Sensor | SensorReference
+        ),
     ) -> str:
         """Obtain the original unit from the still serialized variable quantity."""
         if isinstance(serialized_variable_quantity, str):
@@ -506,7 +635,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             unit = str(ur.Quantity(serialized_variable_quantity[0]["value"]).units)
         elif isinstance(serialized_variable_quantity, dict):
             # use deserialized quantity to avoid another Sensor query; the serialized quantity only has the sensor ID
-            assert isinstance(deserialized_variable_quantity, Sensor)
+            assert isinstance(deserialized_variable_quantity, (Sensor, SensorReference))
             unit = deserialized_variable_quantity.unit
         else:
             raise NotImplementedError(
@@ -514,7 +643,9 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
             )
         return unit
 
-    def _get_unit(self, variable_quantity: ur.Quantity | list[dict] | Sensor) -> str:
+    def _get_unit(
+        self, variable_quantity: ur.Quantity | list[dict] | Sensor | SensorReference
+    ) -> str:
         """Obtain the unit from the (deserialized) variable quantity.
 
         >>> VariableQuantityField("MW")._get_unit(ur.Quantity("3 kWh"))
@@ -538,7 +669,7 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                     "Segments of a time series must share the same unit.",
                     field_name=self.data_key,
                 )
-        elif isinstance(variable_quantity, Sensor):
+        elif isinstance(variable_quantity, (Sensor, SensorReference)):
             unit = variable_quantity.unit
         else:
             raise NotImplementedError(
@@ -555,7 +686,7 @@ class RepurposeValidatorToIgnoreSensorsAndLists(validate.Validator):
         self.original_validator = original_validator
 
     def __call__(self, value):
-        if not isinstance(value, (Sensor, list)):
+        if not isinstance(value, (Sensor, SensorReference, list)):
             self.original_validator(value)
         return value
 
@@ -605,6 +736,10 @@ class SensorDataFileDescriptionSchema(Schema):
 
 class SensorDataFileSchema(SensorDataFileDescriptionSchema):
     sensor = SensorIdField(data_key="id")
+
+    def __init__(self, *args, source_user: User | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.source_user = source_user
 
     _valid_content_types = {
         "text/csv",
@@ -677,7 +812,7 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                 bdf = tb.read_csv(
                     file,
                     sensor,
-                    source=current_user.data_source[0],
+                    source=get_or_create_source(self.source_user or current_user),
                     belief_time=(
                         pd.Timestamp.utcnow()
                         if not belief_time_measured_instantly
@@ -709,6 +844,11 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                     # Reraise the error if an event frequency could not be inferred
                     pd.infer_freq(bdf.index.unique("event_start"))
 
+                if sensor.event_resolution != timedelta(0) and sensor.get_attribute(
+                    "floor_datetimes_to_resolution", True
+                ):
+                    bdf = floor_bdf_event_starts(bdf, bdf.event_resolution)
+
                 bdf["event_value"] = convert_units(
                     bdf["event_value"],
                     from_unit,
@@ -728,9 +868,16 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
                         is_stock_unit(from_unit)
                         for is_stock_unit in known_stock_unit_validators
                     ):
-                        bdf = bdf.resample_events(sensor.event_resolution, method="sum")
+                        bdf = bdf.resample_events(
+                            sensor.event_resolution,
+                            method="sum",
+                            keep_only_most_recent_belief=True,
+                        )
                     else:
-                        bdf = bdf.resample_events(sensor.event_resolution)
+                        bdf = bdf.resample_events(
+                            sensor.event_resolution,
+                            keep_only_most_recent_belief=True,
+                        )
                 dfs.append(bdf)
             except Exception as e:
                 error_message = (
@@ -747,6 +894,46 @@ class SensorDataFileSchema(SensorDataFileDescriptionSchema):
         return fields
 
 
+def floor_bdf_event_starts(
+    bdf: tb.BeliefsDataFrame, event_resolution: timedelta
+) -> tb.BeliefsDataFrame:
+    floored_event_starts = bdf.index.get_level_values("event_start").floor(
+        event_resolution
+    )
+
+    new_index = pd.MultiIndex.from_arrays(
+        [
+            (
+                floored_event_starts
+                if name == "event_start"
+                else bdf.index.get_level_values(name)
+            )
+            for name in bdf.index.names
+        ],
+        names=bdf.index.names,
+    )
+    if new_index.duplicated().any():
+        raise ValidationError(
+            "Flooring event_start would merge multiple beliefs with the same "
+            "source, belief_time and event_start. Please provide data already "
+            "aligned to the event resolution or use distinct belief/source metadata."
+        )
+
+    floored_bdf = bdf.copy()
+    floored_bdf.index = new_index
+    return floored_bdf
+
+
+class SensorDataFileRequestSchema(SensorDataFileSchema):
+    """Validate a sensor data upload without parsing or resampling its files."""
+
+    @post_load
+    def post_load(self, fields, **kwargs):
+        files: list[FileStorage] = fields["uploaded_files"]
+        fields["filenames"] = [file.filename for file in files]
+        return fields
+
+
 class QuantitySchema(Schema):
     """Represents a quantity string like '1 EUR/MWh'."""
 
@@ -759,16 +946,90 @@ class QuantitySchema(Schema):
     )
 
 
-class SensorReferenceSchema(Schema):
-    """Sensor reference."""
+@dataclass
+class SensorReference:
+    """A sensor reference that wraps a Sensor with optional source filters for belief queries.
 
-    class Meta:
-        description = "Sensor reference from which to look up a variable quantity."
+    Exposes the same ``unit``, ``id``, and ``event_resolution`` properties as a plain
+    :class:`~flexmeasures.data.models.time_series.Sensor`, so code that reads those
+    properties works without modification. The source filters are passed through to
+    :meth:`TimedBelief.search <flexmeasures.data.models.time_series.TimedBelief.search>`
+    in :func:`~flexmeasures.data.models.planning.utils.get_series_from_quantity_or_sensor`.
+    """
+
+    sensor: Sensor
+    source_types: list[str] | None = field(default=None)
+    exclude_source_types: list[str] | None = field(default=None)
+    sources: list[DataSource] | None = field(default=None)
+    source_account: list[Account] | None = field(default=None)
+
+    @property
+    def unit(self) -> str:
+        """Unit of the underlying sensor."""
+        return self.sensor.unit
+
+    @property
+    def id(self) -> int:
+        """ID of the underlying sensor."""
+        return self.sensor.id
+
+    @property
+    def event_resolution(self) -> timedelta:
+        """Event resolution of the underlying sensor."""
+        return self.sensor.event_resolution
+
+
+class SharedSensorReferenceSchema(Schema):
 
     sensor = SensorIdField(
         required=True,
         metadata=dict(
             description="ID of the sensor on which the data is recorded.",
+        ),
+    )
+
+
+class OutputSensorReferenceSchema(SharedSensorReferenceSchema):
+    """Sensor reference for recording generated data."""
+
+    ...
+
+
+class SensorReferenceSchema(SharedSensorReferenceSchema):
+    """Sensor reference with optional source filters."""
+
+    class Meta:
+        description = "Sensor reference from which to look up a variable quantity."
+
+    source_types = fields.List(
+        fields.String(),
+        load_default=None,
+        data_key="source-types",
+        metadata=dict(
+            description="Only use beliefs from sources with these source types (e.g. 'user', 'script', 'forecaster', 'scheduler').",
+        ),
+    )
+    exclude_source_types = fields.List(
+        fields.String(),
+        load_default=None,
+        data_key="exclude-source-types",
+        metadata=dict(
+            description="Exclude beliefs from sources with these source types.",
+        ),
+    )
+    sources = fields.List(
+        DataSourceIdField(),
+        load_default=None,
+        metadata=dict(
+            description="Only use beliefs from these data source IDs.",
+        ),
+    )
+    source_account = fields.List(
+        AccountIdField(),
+        load_default=None,
+        data_key="source-account",
+        metadata=dict(
+            description="Only use beliefs from data sources linked to these account IDs.",
         ),
     )
 

@@ -13,7 +13,10 @@ from timely_beliefs import BeliefsDataFrame
 
 from flexmeasures import Sensor, Source
 from flexmeasures.data import db
-from flexmeasures.data.models.forecasting.utils import data_to_bdf
+from flexmeasures.data.models.forecasting.utils import (
+    apply_forecast_post_processing,
+    data_to_bdf,
+)
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.utils import save_to_db
 
@@ -41,6 +44,7 @@ class PredictPipeline(BasePipeline):
         data_source: Source = None,
         missing_threshold: float = 1.0,
         annotation_regressors: list[dict] | None = None,
+        post_processing_config: dict | None = None,
     ) -> None:
         """
         Initialize the PredictPipeline.
@@ -64,6 +68,7 @@ class PredictPipeline(BasePipeline):
         :param probabilistic: Whether to use a probabilistic model.
         :param sensor_to_save: Sensor to which the predictions will be attributed.
         :param missing_threshold: Max fraction of missing data allowed before failure. Missing data under the threshold will be filled with our interpolation methods.
+        :param post_processing_config: Optional clipping and snapping configuration for forecast values.
         """
         super().__init__(
             future_regressors=future_regressors,
@@ -90,6 +95,7 @@ class PredictPipeline(BasePipeline):
         self.sensor_to_save = sensor_to_save
         self.predict_start = predict_start
         self.predict_end = predict_end
+        self.post_processing_config = post_processing_config or {}
 
         self.sensor_resolution = self.target_sensor.event_resolution
         self.readable_resolution = duration_isoformat(self.sensor_resolution)
@@ -267,6 +273,12 @@ class PredictPipeline(BasePipeline):
             past_covariates_list=past_covariates_list,
             y_list=y_list,
             belief_timestamps_list=belief_timestamps_list,
+        )
+        df_pred = apply_forecast_post_processing(
+            data=df_pred,
+            horizon=self.max_forecast_horizon,
+            config=self.post_processing_config,
+            sensor_unit=self.sensor_to_save.unit,
         )
         logging.debug("Predictions ready to be saved")
 

@@ -4,6 +4,17 @@
 FlexMeasures CLI Changelog
 **********************
 
+since v1.0.0 | July XX, 2026
+=================================
+
+* Add ``flexmeasures edit secret`` to store an encrypted secret on an account or asset.
+* Add ``flexmeasures delete secret`` to remove an encrypted secret from an account or asset.
+
+since v0.33.0 | June 01, 2026
+=================================
+
+* Add ``flexmeasures jobs inspect-job`` to show the job status and metadata information.
+
 since v0.31.1 | March 6, 2026
 =================================
 
@@ -14,7 +25,7 @@ since v0.31.0 | February 28, 2026
 
 * Fix ``delete-beliefs`` CLI command ignoring the ``--source`` filter during deletion, preventing unintended removal of beliefs from other sources.
 * Allow ``flexmeasures add schedule`` to create schedules with only information known prior to some time using the ``prior`` option.
-* New ``-dry-run`` flag for ``flexmeasures add schedule`` to avoid saving anything (printing out the results instead).
+* New ``--dry-run`` flag for ``flexmeasures add schedule`` to avoid saving anything (printing out the results instead).
 * Streamlines option names for ``flexmeasures add forecasts`` with API usage (preserving backwards compatibility).
 * Return validation errors instead of database errors for fields that map to database objects.
 * Mutate job state when running ``flexmeasures jobs run-job <job ID>``, including updating metadata and moving between registries

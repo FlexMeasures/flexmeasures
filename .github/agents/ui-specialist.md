@@ -7,7 +7,9 @@ description: Guards UI consistency, permission patterns, JavaScript interaction 
 
 ## Role
 
-Owns the quality, consistency, and correctness of all FlexMeasures UI work: Flask/Jinja2 templates, Python view logic, JavaScript interaction patterns (fetch → poll → Toast → reload), CSS, and UI-focused tests. Ensures new UI features follow established side-panel patterns, permission-gate correctly, and do not introduce security regressions. Accumulated from the "Create Forecast" button PR (#1985) session.
+Owns the quality, consistency, and correctness of all FlexMeasures UI work: Flask/Jinja2 templates, Python view logic, JavaScript interaction patterns (fetch → poll → Toast → reload), CSS, and UI-focused tests. Ensures new UI features follow established side-panel patterns, permission-gate correctly, and do not introduce security regressions.
+
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
 
 ## Scope
 
@@ -182,31 +184,20 @@ window.showToast(message, type, { highlightDuplicates = true, showDuplicateCount
 
 ## Self-Improvement Notes
 
-### Update This Agent When
-
-- A new panel type is added to the sensor or asset page (encode its pattern)
-- The Toast API changes (e.g., new type added, signature changes)
-- A new fetch→poll pattern variation is used
-- A CSRF mitigation is added to the UI (currently absent — document if added)
-- New permission types are used in view code
-- New JS utilities are added to `ui-utils.js` or `flexmeasures.js`
+Update this file when: a new panel type is added to the sensor/asset page (encode its pattern), the
+Toast API changes, a new fetch→poll pattern variation is used, a CSRF mitigation is added to the
+UI (currently absent), new permission types are used in view code, or new JS utilities are added
+to `ui-utils.js`/`flexmeasures.js`. Edit the relevant section in place — don't append a dated
+narrative.
 
 ### Known Gaps / Technical Debt to Watch
 
-1. **CSRF protection is absent** on all browser-initiated `fetch()` POST/PATCH/DELETE calls in templates. This is an existing architectural gap (not introduced by PR #1985). If Flask-WTF CSRF tokens are added in future, the UI agent checklist should require their inclusion in all state-mutating fetch calls.
+1. **CSRF protection is absent** on all browser-initiated `fetch()` POST/PATCH/DELETE calls in templates. If Flask-WTF CSRF tokens are added in future, the UI agent checklist should require their inclusion in all state-mutating fetch calls.
 2. **Session expiry during poll loop**: A 401 response during polling is treated the same as an error, showing "Forecast job failed" rather than "Session expired — please log in". Consider adding specific handling.
-3. **Hardcoded `PT24H`**: The forecast duration is not configurable via the UI. The info tooltip mentions this. If a duration picker is added later, the fetch payload and schema validation docs must be updated.
+3. **Hardcoded `PT24H`**: The forecast duration is not configurable via the UI. If a duration picker is added later, the fetch payload and schema validation docs must be updated.
 4. **Type annotation gap**: `user_can_create_children(asset: GenericAsset)` is called with `Sensor` objects. Works at runtime (both use `AuthModelMixin`), but mypy may flag it. Consider widening the type hint to `AuthModelMixin` in a future cleanup PR.
 
-### Session 2026-02-24 — PR #1985 Lessons
-
-- **Side panel pattern**: Mirror the "Upload data" panel structure exactly (outer container → label → inner div → fieldset). Consistency is important for CSS hover interactions.
-- **Short-circuit the DB call**: Always gate `get_timerange` (or any DB-touching call) behind the permission check. A dedicated test (`test_get_timerange_not_called_without_permission`) should verify this.
-- **Boundary test value**: Use `timedelta(days=2) - timedelta(seconds=1)` to test the boundary, not `timedelta(days=1)` — the test should be tight around the actual threshold.
-- **JS guarded by Jinja2**: Wrap the event listener registration in `{% if permission_var and data_var %}` to prevent `getElementById` returning null for the disabled-button path.
-- **Test fixture for cross-account user**: Create a `scope="function"` fixture that logs in a user from a different account; this makes negative-permission tests readable and reusable.
-
-### Toast vs. alert-info — When to Use Which (PR #2119 / #2120)
+### Toast vs. alert-info — when to use which
 
 **Rule**: Use toast notifications for transient action results (success, failure, progress). Use inline `alert-info` divs only for persistent contextual information that the user needs to read while interacting with the page.
 

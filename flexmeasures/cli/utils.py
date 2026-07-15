@@ -45,7 +45,15 @@ class DeprecatedOption(click.Option):
     """
 
     def __init__(self, *args, **kwargs):
-        self.deprecated = kwargs.pop("deprecated", ())
+        deprecated = kwargs.pop("deprecated", ())
+        # Keep our aliases in a separate attribute to avoid colliding with Click's
+        # own `deprecated` option argument (introduced in Click 8.2+).
+        if isinstance(deprecated, (list, tuple, set)):
+            self.deprecated_options = tuple(deprecated)
+        elif isinstance(deprecated, str):
+            self.deprecated_options = (deprecated,)
+        else:
+            self.deprecated_options = ()
         self.preferred = kwargs.pop("preferred", args[0][-1])
         super(DeprecatedOption, self).__init__(*args, **kwargs)
 
@@ -77,7 +85,7 @@ class DeprecatedOptionsCommand(click.Command):
                 """Construct a closure to the parser option processor"""
 
                 orig_process = an_option.process
-                deprecated = getattr(an_option.obj, "deprecated", None)
+                deprecated = getattr(an_option.obj, "deprecated_options", None)
                 preferred = getattr(an_option.obj, "preferred", None)
                 msg = "Expected `deprecated` value for `{}`"
                 assert deprecated is not None, msg.format(an_option.obj.name)

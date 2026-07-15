@@ -245,7 +245,11 @@ function ready() {
 
     // Table behaviour
 
-    $('table').floatThead({
+    // Skip DataTables-managed tables: floatThead's cloned header intercepts
+    // pointer events over the real (DataTables-bound) header cells, making
+    // sort clicks fail silently. DataTables tables get the "dataTable" class
+    // synchronously on init, and their own scripts run before this one.
+    $('table').not('.dataTable').floatThead({
         position: 'absolute',
         top: $('#topnavbar').height(),
         scrollContainer: true
@@ -783,15 +787,19 @@ function loadSensorStats(sensor_id, event_start_time="", event_end_time="", fres
                 });
             }
 
-            // Notify the "Delete data" panel of the overall first/last event times
-            // across all sources so the "Select all data" link can populate the inputs.
+            // Notify the "Delete data" panel only when the stats cover all sensor data.
+            // The selected-duration stats should not redefine "all sensor data".
             const firstEventDates = Object.values(data)
                 .map(d => new Date(d["First event start"]))
                 .filter(d => !isNaN(d.getTime()));
             const lastEventDates = Object.values(data)
                 .map(d => new Date(d["Last event end"]))
                 .filter(d => !isNaN(d.getTime()));
-            if (firstEventDates.length > 0 && lastEventDates.length > 0) {
+            if (
+                !toggleStatsCheckbox.checked
+                && firstEventDates.length > 0
+                && lastEventDates.length > 0
+            ) {
                 document.dispatchEvent(new CustomEvent('sensorDataRangeAvailable', {
                     detail: {
                         firstEventStart: new Date(Math.min(...firstEventDates)),

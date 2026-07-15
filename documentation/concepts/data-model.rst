@@ -79,6 +79,7 @@ A data source can be a FlexMeasures user, but also simply a named source from ou
 In FlexMeasures, data sources have a type. It is just a string which you can freely choose (we do not model them explicitly im the data model like Asset types).
 We do support some types out of the box: "scheduler", "forecaster" "reporter", "demo script" and "user".
 
+.. _beliefs:
 
 Beliefs
 ---------
@@ -93,9 +94,80 @@ when they said so and how certain they were.
 
 Each belief links to a sensor and a data source. Here are two examples:
 
-
 - The power sensor of a battery, where we store the schedules, can have two sources: (1) the schedule itself (a data source of type "scheduler", representing how FlexMeasures created this data) and (2) the realized schedule, i.e. the measurements of how the battery responded (or not) to the schedule. The latter might have a data source of type "user" (who sent the measurements to FlexMeasures).
 - A thermal demand sensor containing forecasts (data source of type "forecast", e.g. heating usage forecast sent to FlexMeasures or made by FlexMeasures) and measurements (sent into FlexMeasures, data source type "user").
+
+See also :ref:`one_or_multiple_sensors` for guidance on when such beliefs are best recorded on one shared sensor and when separate sensors are preferable.
+
+
+.. _signs_of_power_beliefs:
+
+About signs of power & energy values
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+In short: You can use any sign you want for power data.
+What is recorded in the database is exactly as seen in UI charts.
+But the scheduler in FlexMeasures needs to know how to apply the signs.
+Let us explain.
+
+When beliefs are about power or energy, the sign of the value is important. It indicates whether the asset is consuming or producing.
+However, there is no universal standard for this. Some systems use positive values for production and negative values for consumption, while others do the opposite.
+
+FlexMeasures doesn't enforce any perspective (we have a design philosophy of letting users model the system in their own way).
+
+For example, users can create PV power data with positive values indicating production, and they can also create building power data with positive values indicating consumption.
+We allow this because we want the UI to match what is in the database, and users often desire both of these datasets to be shown as positive values.
+We assume that this is what users send in.
+
+Note that, if forecasts are created, they will have the same sign as the original data.
+
+For schedules, the sign of the power schedule (as :ref:`beliefs <beliefs>`) recorded in the database, and as seen in UI charts, is determined as follows:
+
+- If the flex-model contains the ``sensor`` field, and that sensor has power units (e.g. kW), the ``"consumption_is_positive"`` attribute of the sensor is used to decide the sign of the recorded data.
+  If `True`, consumption will be saved as positive, otherwise not. To clarify:
+  - If the attribute is not defined, **by default, scheduled power is recorded with production as positive values** (and consumption as negative values).
+  - To record scheduled power data with consumption as positive values, set ``sensor.attributes["consumption_is_positive"] = True``.
+  - To record scheduled power data with production as positive values (already the default, but this makes it explicit), set ``sensor.attributes["consumption_is_positive"] = False``.
+- If the flex-model contains the ``consumption`` field, scheduled power is recorded with consumption as positive values.
+  The ``"consumption_is_positive"`` attribute of the referenced sensor is set automatically to ``True``.
+- If the flex-model contains the ``production`` field, scheduled power is recorded with production as positive values.
+  The ``"consumption_is_positive"`` attribute of the referenced sensor is set automatically to ``False``.
+
+For guidance on when schedules should share a power sensor with measurements and forecasts, and when dedicated output sensors are preferable, see :ref:`one_or_multiple_sensors`.
+
+The ``GET /api/v3_0/sensors/<id>/schedules/<uuid>`` endpoint supports three sign conventions via the ``sign-convention`` query parameter:
+
+- ``consumption-positive`` (default): schedules are always returned with consumption as positive values and production as negative values.
+- ``production-positive``: schedules are returned with production as positive values and consumption as negative values.
+- ``wysiwyg`` (*what-you-see-is-what-you-get*): schedules are returned with the same sign as database values and as seen in the UI charts, indicating exactly what the scheduler stored.
+
+
+.. _one_or_multiple_sensors:
+
+
+Modeling measurements, forecasts and schedules on one or multiple sensors
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A common modeling choice is whether measurements, forecasts and schedules for an asset should all be recorded on a single power sensor, or on separate sensors.
+
+Using a single sensor is advisable when these data represent different beliefs about the same physical quantity at the same connection point.
+In that case, keeping them on one sensor makes it explicit that measurements, forecasts and schedules all refer to the same events, and therefore should share the same unit, event resolution and sign convention.
+Different origins of the data can still be distinguished through their data source.
+Sensor references in flex-model/flex-context fields can filter by source, e.g. to point a field at forecast data only, even after a schedule has been written to the same sensor:
+
+.. code-block:: json
+
+   {"sensor": 3, "exclude-source-types": ["scheduler"]}
+
+See :ref:`variable_quantities` for the full set of source filter options.
+
+Using separate sensors is advisable when scheduled power should be modeled separately from measured or forecast power.
+This can be useful when you want to avoid filtering by source in queries, when schedules should use a different sign convention, when they should be stored at a different resolution, or when the scheduled quantity has a different operational meaning from the measured quantity.
+
+For storage scheduling, the ``consumption`` and ``production`` flex-model fields support this second approach by letting FlexMeasures write schedules to dedicated output sensors.
+If both are defined, the scheduled power is split into its consumption and production parts.
+If only one is defined, the full schedule is written to that sensor using the sign convention implied by that field.
+
+In short: use one sensor when you want multiple sources to express beliefs about the same underlying events; use separate sensors when you want cleaner operational separation between measured, forecast and scheduled data.
 
 
 Annotations
@@ -149,31 +221,6 @@ Annotations appear in:
 - API responses when querying chart data with annotation flags
 
 More information, including code examples, is available in :ref:`annotations`.
-
-
-.. _signs_of_power_beliefs:
-
-About signs of power & energy values
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-In short: You can use any sign you want for power data.
-But the scheduler in FlexMeasures needs to know how to apply the signs. Positive (+) means consumption, negative (-) means production.
-Let us explain.
-
-When beliefs are about power or energy, the sign of the value is important. It indicates whether the asset is consuming or producing.
-However, there is no universal standard for this. Some systems use positive values for production and negative values for consumption, while others do the opposite.
-
-FlexMeasures doesn't enforce any perspective (we have a design philosophy of letting users model the system in their own way). 
-
-For example, users can create PV power data with positive values indicating production, and they can also create building power data with positive values indicating consumption.
-We allow this because we want the UI to match what is in the database, and users often desire both of these datasets to be shown as positive values.
-We assume that this is what users send in.
-
-Note that, if forecasts are created, they will have the same sign as original data.
-
-For schedules, the sign of resulting power data (beliefs) is being switched when data is stored (assuming consumption , and you can prevent that by setting ``sensor.attributes["consumption_is_positive"] = True``.
-
-
-.. note:: We will soon document better what the scheduler does in detail, and how the attribute works.
 
 
 Accounts & Users

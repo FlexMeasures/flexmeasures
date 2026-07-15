@@ -8,6 +8,9 @@ from flexmeasures.data.models.charts.defaults import (
     REPLAY_RULER,
     STROKE_WIDTH,
 )
+from flexmeasures.data.models.charts.utils import (
+    source_legend_label_transformation,
+)
 from flexmeasures.utils.flexmeasures_inflection import (
     capitalize,
 )
@@ -103,7 +106,7 @@ def create_bar_chart_or_histogram_specs(
                     "stroke": {
                         "condition": {
                             "test": "datum.event_value === 0",
-                            "field": FIELD_DEFINITIONS["source_name"]["field"],
+                            "field": FIELD_DEFINITIONS["source_legend_label"]["field"],
                         },
                         "value": None,
                     },
@@ -114,8 +117,7 @@ def create_bar_chart_or_histogram_specs(
                         },
                         "value": 0,
                     },
-                    "color": FIELD_DEFINITIONS["source_name"],
-                    "detail": FIELD_DEFINITIONS["source"],
+                    "color": FIELD_DEFINITIONS["source_legend_label"],
                     "opacity": {"value": 0.7},
                     "tooltip": [
                         (
@@ -128,14 +130,17 @@ def create_bar_chart_or_histogram_specs(
                             **dict(title=f"{capitalize(sensor.sensor_type)}"),
                         },
                         FIELD_DEFINITIONS["source_name_and_id"],
+                        FIELD_DEFINITIONS["source_display_type"],
                         FIELD_DEFINITIONS["source_model"],
+                        FIELD_DEFINITIONS["source_version"],
                     ],
                 },
                 "transform": [
                     {
-                        "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
+                        "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                         "as": "source_name_and_id",
                     },
+                    *source_legend_label_transformation,
                 ],
                 "selection": {
                     "scroll": {"type": "interval", "bind": "scales", "encodings": ["x"]}
@@ -329,6 +334,7 @@ def heatmap(
         },
         FIELD_DEFINITIONS["source_name_and_id"],
         FIELD_DEFINITIONS["source_model"],
+        FIELD_DEFINITIONS["source_version"],
     ]
     chart_specs = {
         "description": f"A {split} heatmap showing sensor data.",
@@ -350,7 +356,7 @@ def heatmap(
                         "filter": "timezoneoffset(datum.event_start) >= timezoneoffset(datum.event_start + 60 * 60 * 1000) && timezoneoffset(datum.event_start) <= timezoneoffset(datum.event_start - 60 * 60 * 1000)"
                     },
                     {
-                        "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
+                        "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                         "as": "source_name_and_id",
                     },
                     # In case of multiple sources, show the one with the most visible data
@@ -485,7 +491,7 @@ def create_fall_dst_transition_layer(
                 "as": "dst_transition_event_start_next",
             },
             {
-                "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
+                "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                 "as": "source_name_and_id",
             },
         ],
@@ -531,12 +537,22 @@ def _setup_event_start_field(
     return event_start_field_definition
 
 
-def _setup_event_value_field(sensor_type: str, unit: str) -> dict:
+def _setup_event_value_field(
+    sensor_type: str, unit: str, y_axis: str | list | dict | None = None
+) -> dict:
     """Set up the event value field definition.
 
     Args:
         sensor_type: Type of sensor
         unit: Unit for display
+        y_axis: How the y-axis domain for this sub-chart should be chosen.
+            - None (or "zero"): the axis is padded out to include zero (default behaviour).
+            - "data": the axis is fitted to the data.
+            - [min, max]: a minimum (floor) domain; the axis covers at least this range,
+              and expands (via unionWith) with the same margin as "data" mode if the
+              data goes beyond it (nothing is clipped).
+            - {"min": min, "max": max}: a strict domain; the axis never expands beyond
+              this range, and data outside it is clamped to the nearest edge.
 
     Returns:
         Field definition dictionary
@@ -548,7 +564,17 @@ def _setup_event_value_field(sensor_type: str, unit: str) -> dict:
         stack=None,
         **FIELD_DEFINITIONS["event_value"],
     )
-    if unit == "%":
+    if y_axis == "data":
+        event_value_field_definition["scale"] = dict(zero=False)
+    elif isinstance(y_axis, dict):
+        event_value_field_definition["scale"] = dict(
+            domain=[y_axis["min"], y_axis["max"]], clamp=True, nice=False
+        )
+    elif isinstance(y_axis, list):
+        # Match "data" mode's margin around out-of-range values: nice=True (the
+        # Vega-Lite default) pads the domain instead of stopping exactly at the data.
+        event_value_field_definition["scale"] = dict(domain={"unionWith": y_axis})
+    elif unit == "%":
         event_value_field_definition["scale"] = dict(
             domain={"unionWith": [0, 105]}, nice=False
         )
@@ -581,8 +607,9 @@ def _setup_shared_tooltip(
         ),
         {**event_value_field_definition, **dict(title=f"{capitalize(sensor_type)}")},
         FIELD_DEFINITIONS["source_name_and_id"],
-        FIELD_DEFINITIONS["source_type"],
+        FIELD_DEFINITIONS["source_display_type"],
         FIELD_DEFINITIONS["source_model"],
+        FIELD_DEFINITIONS["source_version"],
     ]
 
 
@@ -640,7 +667,7 @@ def _build_chart_specs(
         vconcat=[*sensors_specs],
         transform=[
             {
-                "calculate": "datum.source.id >= 0 ? datum.source.name + ' (ID: ' + datum.source.id + ')' : datum.source.name",
+                "calculate": "datum.source.name + ' (ID: ' + datum.source.id + ')'",
                 "as": "source_name_and_id",
             },
         ],
@@ -649,10 +676,12 @@ def _build_chart_specs(
         "view": {"continuousWidth": 800, "continuousHeight": 150},
         "autosize": {"type": "fit-x", "contains": "padding"},
     }
-    if combine_legend is True:
-        chart_specs["resolve"] = {"scale": {"x": "shared"}}
-    else:
-        chart_specs["resolve"] = {"scale": {"color": "independent"}}
+    # Always share the x-axis so panning/zooming stays synchronized across the
+    # vertically concatenated subcharts. When legends are not combined, keep the
+    # color scale independent per subchart.
+    chart_specs["resolve"] = {"scale": {"x": "shared"}}
+    if combine_legend is not True:
+        chart_specs["resolve"]["scale"]["color"] = "independent"
     for k, v in override_chart_specs.items():
         chart_specs[k] = v
     return chart_specs
@@ -763,7 +792,9 @@ def _process_sensor_entry(
     unit = determine_shared_unit(row_sensors)
     sensor_type = determine_shared_sensor_type(row_sensors)
 
-    event_value_field_definition = _setup_event_value_field(sensor_type, unit)
+    event_value_field_definition = _setup_event_value_field(
+        sensor_type, unit, entry.get("y-axis")
+    )
     shared_tooltip = _setup_shared_tooltip(
         event_value_field_definition, sensor_type, sensor_title
     )
@@ -1125,7 +1156,7 @@ def chart_for_chargepoint_sessions(
     all_sensors = []
     sensors_to_show_copy = sensors_to_show.copy()
     for entry in sensors_to_show_copy:
-        sensors = entry.get("sensors")
+        sensors = _extract_sensors_from_entry(entry)
         all_sensors.extend(
             [
                 s
@@ -1174,6 +1205,7 @@ def chart_for_chargepoint_sessions(
                         "value": "event_value",
                         "groupby": ["session_id", "asset", "asset_id"],
                     },
+                    {"filter": "datum['arrival'] > 0 && datum['departure'] > 0"},
                     {"filter": {"selection": "arr_dep"}},
                 ],
                 "selection": {
@@ -1199,23 +1231,11 @@ def chart_for_chargepoint_sessions(
                     "x": {
                         "field": "arrival",
                         "type": "temporal",
-                        "scale": {
-                            "domain": [
-                                event_starts_after.timestamp() * 1000,
-                                event_ends_before.timestamp() * 1000,
-                            ]
-                        },
                     },
                     "x2": {
                         "field": "departure",
                         "type": "temporal",
                         "title": None,
-                        "scale": {
-                            "domain": [
-                                event_starts_after.timestamp() * 1000,
-                                event_ends_before.timestamp() * 1000,
-                            ]
-                        },
                     },
                     "y": {
                         "field": "asset_id",
@@ -1225,14 +1245,6 @@ def chart_for_chargepoint_sessions(
                         },
                         "title": "Sessions",
                         "axis": {"labels": False, "ticks": False, "domain": False},
-                    },
-                    "yOffset": {
-                        "field": "session_id",
-                        "type": "nominal",
-                        "bandPosition": 0.5,
-                        "scale": {
-                            "domain": {"selection": "arr_dep", "field": "session_id"}
-                        },
                     },
                     "color": {
                         "field": "asset",
@@ -1284,6 +1296,7 @@ def chart_for_chargepoint_sessions(
                             "asset_id",
                         ],
                     },
+                    {"filter": "datum['plug in'] > 0 && datum['plug out'] > 0"},
                     {"filter": {"selection": "plugin_plugout"}},
                 ],
                 "selection": {
@@ -1303,22 +1316,10 @@ def chart_for_chargepoint_sessions(
                     "x": {
                         "field": "plug in",
                         "type": "temporal",
-                        "scale": {
-                            "domain": [
-                                event_starts_after.timestamp() * 1000,
-                                event_ends_before.timestamp() * 1000,
-                            ]
-                        },
                     },
                     "x2": {
                         "field": "plug out",
                         "type": "temporal",
-                        "scale": {
-                            "domain": [
-                                event_starts_after.timestamp() * 1000,
-                                event_ends_before.timestamp() * 1000,
-                            ]
-                        },
                     },
                     "y": {
                         "field": "asset_id",
@@ -1331,17 +1332,6 @@ def chart_for_chargepoint_sessions(
                         },
                         "title": "Sessions",
                         "axis": {"labels": False, "ticks": False, "domain": False},
-                    },
-                    "yOffset": {
-                        "field": "session_id",
-                        "type": "nominal",
-                        "bandPosition": 0.5,
-                        "scale": {
-                            "domain": {
-                                "selection": "plugin_plugout",
-                                "field": "session_id",
-                            }
-                        },
                     },
                     "color": {
                         "field": "asset",
@@ -1390,6 +1380,9 @@ def chart_for_chargepoint_sessions(
                         "value": "event_value",
                         "groupby": ["session_id", "asset", "asset_id"],
                     },
+                    {
+                        "filter": "datum['start charging'] > 0 && datum['stop charging'] > 0"
+                    },
                     {"filter": {"selection": "start_stop_charging"}},
                 ],
                 "selection": {
@@ -1406,22 +1399,10 @@ def chart_for_chargepoint_sessions(
                     "x": {
                         "field": "start charging",
                         "type": "temporal",
-                        "scale": {
-                            "domain": [
-                                event_starts_after.timestamp() * 1000,
-                                event_ends_before.timestamp() * 1000,
-                            ]
-                        },
                     },
                     "x2": {
                         "field": "stop charging",
                         "type": "temporal",
-                        "scale": {
-                            "domain": [
-                                event_starts_after.timestamp() * 1000,
-                                event_ends_before.timestamp() * 1000,
-                            ]
-                        },
                     },
                     "y": {
                         "field": "asset_id",
@@ -1434,17 +1415,6 @@ def chart_for_chargepoint_sessions(
                         },
                         "title": "Sessions",
                         "axis": {"labels": False, "ticks": False, "domain": False},
-                    },
-                    "yOffset": {
-                        "field": "session_id",
-                        "type": "nominal",
-                        "bandPosition": 0.5,
-                        "scale": {
-                            "domain": {
-                                "selection": "start_stop_charging",
-                                "field": "session_id",
-                            }
-                        },
                     },
                     "color": {
                         "field": "asset",
@@ -1482,11 +1452,13 @@ def chart_for_chargepoint_sessions(
     for idx, entry in enumerate(sensors_to_show_copy):
         title = entry.get("title")
         if title == "Power flow by type":
-            sensors_to_show_copy[idx]["sensors"] = [
-                sensor
-                for sensor in entry["sensors"]
-                if sensor.name == "charge points power"
-            ]
+            for plot in entry.get("plots", []):
+                if "sensors" in plot:
+                    plot["sensors"] = [
+                        sensor
+                        for sensor in plot["sensors"]
+                        if sensor.name == "charge points power"
+                    ]
     chart_specs = chart_for_multiple_sensors(
         sensors_to_show_copy,
         event_starts_after,
@@ -1499,5 +1471,84 @@ def chart_for_chargepoint_sessions(
         for chart in chart_specs["vconcat"]
         if chart["title"] in ["Prices", "Power flow by type"]
     ]
+
+    # Synchronize x-axis panning/zooming across all stacked subcharts.
+    #
+    # The other subcharts bind their `scroll` interval selection to the shared x
+    # scale via the `event_start` field, so they all drive the same scale-domain
+    # signal. The Charge Point sessions chart, however, plots `arrival`/`departure`
+    # (etc.), so its own scale-bound selection writes a *different* signal that the
+    # shared scale never reads. As a result, dragging the other charts moved the
+    # sessions chart, but dragging the sessions chart moved nothing.
+    #
+    # Fix: drop the sessions chart's own scale-bound selections and add an invisible
+    # layer that binds the zoom to the *same* `event_start` field definition the
+    # other charts use, so dragging it drives the same shared-scale signal.
+    event_start_x = _find_event_start_x_encoding(chart_specs["vconcat"])
+    if event_start_x is not None:
+        _remove_scroll_selections(cp_chart)
+        zoom_x = deepcopy(event_start_x)
+        zoom_x.pop("scale", None)  # let the shared scale govern the domain
+        cp_chart["layer"].append(
+            {
+                "mark": {"type": "rule", "opacity": 0},
+                "encoding": {"x": zoom_x},
+                "selection": {
+                    "scroll": {
+                        "type": "interval",
+                        "bind": "scales",
+                        "encodings": ["x"],
+                    }
+                },
+            }
+        )
+
     chart_specs["vconcat"].insert(0, cp_chart)
     return chart_specs
+
+
+def _find_event_start_x_encoding(spec) -> dict | None:
+    """Return a copy of the first ``x`` encoding bound to the ``event_start`` field.
+
+    Used to reuse the exact same field definition (notably its ``timeUnit``) so that
+    a scale-bound interval selection writes the same shared-scale signal as the other
+    subcharts.
+    """
+    if isinstance(spec, dict):
+        encoding = spec.get("encoding")
+        if isinstance(encoding, dict):
+            x = encoding.get("x")
+            if isinstance(x, dict) and x.get("field") == "event_start":
+                return deepcopy(x)
+        for key in ("layer", "vconcat", "hconcat", "concat"):
+            for child in spec.get(key, []) or []:
+                found = _find_event_start_x_encoding(child)
+                if found is not None:
+                    return found
+    elif isinstance(spec, list):
+        for child in spec:
+            found = _find_event_start_x_encoding(child)
+            if found is not None:
+                return found
+    return None
+
+
+def _remove_scroll_selections(spec: dict) -> None:
+    """Recursively remove any ``scroll`` (scale-bound interval) selections/params."""
+    if not isinstance(spec, dict):
+        return
+    selection = spec.get("selection")
+    if isinstance(selection, dict):
+        selection.pop("scroll", None)
+        if not selection:
+            spec.pop("selection", None)
+    params = spec.get("params")
+    if isinstance(params, list):
+        spec["params"] = [
+            p for p in params if not (isinstance(p, dict) and p.get("name") == "scroll")
+        ]
+        if not spec["params"]:
+            spec.pop("params", None)
+    for key in ("layer", "vconcat", "hconcat", "concat"):
+        for child in spec.get(key, []) or []:
+            _remove_scroll_selections(child)

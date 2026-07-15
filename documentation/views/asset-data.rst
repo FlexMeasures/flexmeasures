@@ -56,37 +56,27 @@ Per asset, you can set fields in :ref:`the flex-context <flex_context>`, which w
 
 |
 
-Editing an asset's flex-model
+
+Creating a new child asset
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Per asset, you can set fields in :ref:`the flex-model <flex_model>`. The flex model dialogue allows you to define a set or a single value type based on what the field allows, these include fixed values, sensors, floats, list (sensors or fixed values) and booleans. Initially, no fields are set.
+From the context page, you can create a new child asset (you can also get there from the properties page, actually).
+There are to ways to do that.
 
-.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_flexmodel.png
+A simple asset form, including a map selector:
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_new.png
     :align: center
 ..    :scale: 40%
 
 |
 
-Flex context overview
-"""""""""""""""""""""""
+You can also copy an exisiting asset, including its child assets, sensors and flex-config.
+You can search for the asset you want to copy:
 
-* **Left Panel:** Displays a list of currently configured fields.
-* **Right Panel:** Shows details of the selected field and provides a form to modify its value.
-
-Adding a field
-"""""""""""""""
-1.  **Select Field:** Choose the desired field from the dropdown menu in the top right corner of the modal.
-2.  **Add Field:** Click the "Add Field" button next to the dropdown.
-3.  The field will be added to the list in the left panel.
-
-Setting a field value
-"""""""""""""""""""""
-
-1.  **Select Field (if it is not selected yet):** Click on the field in the left panel.
-2.  **Save Value:** In the right panel, use the provided form to set the field's value.
-
-    * Some fields may only accept a sensor value.
-    * Other fields may accept either a sensor or a fixed value.
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_copy.png
+    :align: center
+..    :scale: 40%
 
 |
 
@@ -161,7 +151,9 @@ An example would be:
 Properties page
 ---------------
 
-The properties page allows you to view and edit the properties of the asset.
+The properties page allows you to view and edit the properties of the asset,
+including attributes, sensors and child assets.
+Also, it lists stored secret names and expiration times without exposing their values.
 
 You can also delete the asset by clicking on the "Delete this asset" button.
 
@@ -171,6 +163,39 @@ You can also delete the asset by clicking on the "Delete this asset" button.
 
 |
 
+Editing an asset's flex-model
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Per asset, you can set fields in :ref:`the flex-model <flex_model>`. The flex model dialogue allows you to define a set or a single value type based on what the field allows, these include fixed values, sensors, floats, list (sensors or fixed values) and booleans. Initially, no fields are set.
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_asset_flexmodel.png
+    :align: center
+..    :scale: 40%
+
+|
+
+Flex context overview
+"""""""""""""""""""""""
+
+* **Left Panel:** Displays a list of currently configured fields.
+* **Right Panel:** Shows details of the selected field and provides a form to modify its value.
+
+Adding a field
+"""""""""""""""
+1.  **Select Field:** Choose the desired field from the dropdown menu in the top right corner of the modal.
+2.  **Add Field:** Click the "Add Field" button next to the dropdown.
+3.  The field will be added to the list in the left panel.
+
+Setting a field value
+"""""""""""""""""""""
+
+1.  **Select Field (if it is not selected yet):** Click on the field in the left panel.
+2.  **Save Value:** In the right panel, use the provided form to set the field's value.
+
+    * Some fields may only accept a sensor value.
+    * Other fields may accept either a sensor or a fixed value.
+
+|
 .. _view_asset_status:
 
 Status page
@@ -188,8 +213,19 @@ Below is a fictious example, where the toy battery (from our tutorial) has sched
 
 |
    
-Hovering over the traffic light will tell you how long ago this most recent entry is and why the light is red, yellow or green. For jobs, you can also get more information (e.g. error message).
+Hovering over the traffic light will tell you how long ago this most recent entry is and why the light is red, yellow or green.
 
+For jobs, you can also get more information (e.g. error message) by hovering over the traffic light.
+
+You can also click the "Info" button, to see much information about how the scheduling or forecasting job
+was configured. Here is an example:
+
+
+.. image:: https://github.com/FlexMeasures/screenshots/raw/main/screenshot_status_page_job_info.png
+    :align: center
+..    :scale: 40%
+
+|
 
 .. _view_asset_auditlog:
 
@@ -204,4 +240,3 @@ This is how the audit log looks for the history of actions taken on an asset:
 ..    :scale: 40%
 
 |
-

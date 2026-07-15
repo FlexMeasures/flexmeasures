@@ -1,21 +1,38 @@
 import io
 import pytest
 from datetime import timedelta
+import pandas as pd
 
 from flask import url_for
 from sqlalchemy import select
 from timely_beliefs import BeliefsDataFrame
 
+from flexmeasures import Sensor
 from flexmeasures.data.models.time_series import TimedBelief
-from flexmeasures.api.v3_0.tests.utils import generate_csv_content
+from flexmeasures.api.v3_0.tests.utils import generate_csv_content, get_sensor_by_name
+
+
+def _unused_id_with_prefix(db, model, id_prefix: str) -> int:
+    matching_id = int(f"{id_prefix}0")
+    while db.session.get(model, matching_id) is not None:
+        matching_id = int(f"{matching_id}0")
+    return matching_id
+
+
+def _unused_id_containing_but_not_starting_with(db, model, id_prefix: str) -> int:
+    leading_digit = "9" if not id_prefix.startswith("9") else "8"
+    decoy_id = int(f"{leading_digit}{id_prefix}")
+    while db.session.get(model, decoy_id) is not None:
+        decoy_id = int(f"{leading_digit}{decoy_id}")
+    return decoy_id
 
 
 @pytest.mark.parametrize(
-    "requesting_user, sensor_index, data_unit, data_resolution, data_values, expected_event_values, expected_status",
+    "requesting_user, sensor_name, data_unit, data_resolution, data_values, expected_event_values, expected_status",
     [
         (
             "test_prosumer_user_2@seita.nl",
-            2,  # this sensor has unit=kWh, res=01:00
+            "energy (kWh)",  # this sensor has unit=kWh, res=01:00
             "kWh",  # No conversion needed                      - kWh to kWh
             timedelta(hours=1),  # No resampling                - 1 hour to 1 hour
             [45.3] * 4,
@@ -24,7 +41,7 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            0,  # this sensor has unit=MW, res=00:15
+            "power",  # this sensor has unit=MW, res=00:15
             "kWh",  # Conversion needed                         - kWh to MW
             timedelta(hours=1),  # Upsampling                   - 1 hour to 15 minutes
             [45.3] * 4,
@@ -35,7 +52,7 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            1,  # this sensor has unit=kW, res=00:15
+            "power (kW)",  # this sensor has unit=kW, res=00:15
             "MW",  # Conversion needed                          - MW to kW
             timedelta(hours=1),  # Upsampling                   - 1 hour to 15 minutes
             [2] * 6,
@@ -46,7 +63,7 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            1,  # this sensor has unit=kW, res=00:15
+            "power (kW)",  # this sensor has unit=kW, res=00:15
             "kWh",  # Conversion needed                         - kWh to kW
             # Upsampling                                        - 30 minutes to 15 minutes
             timedelta(minutes=30),
@@ -58,7 +75,7 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            2,  # this sensor has unit=kWh, res=01:00
+            "energy (kWh)",  # this sensor has unit=kWh, res=01:00
             "kWh",  # No conversion needed                      - kWh to kWh
             timedelta(minutes=30),  # Downsampling              - 30 minutes to 1 hour
             [10, 20, 20, 40],
@@ -70,7 +87,7 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            1,  # this sensor has unit=kW, res=00:15
+            "power (kW)",  # this sensor has unit=kW, res=00:15
             "kWh",  # Conversion needed                         - kWh to kW
             # Downsampling                                      - 7.5 minutes to 15 minutes
             timedelta(minutes=7, seconds=30),
@@ -83,7 +100,7 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            1,  # this sensor has unit=kW, res=00:15
+            "power (kW)",  # this sensor has unit=kW, res=00:15
             "MW",  # Conversion needed                          - MW to kW
             # Downsampling                                      - 7.5 minutes to 15 minutes
             timedelta(minutes=7, seconds=30),
@@ -97,7 +114,7 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            3,  # this sensor has unit=kWh, res=00:00
+            "state of charge",  # this sensor has unit=kWh, res=00:00
             "MWh",  # Conversion needed                         - MWh to kWh
             # No resampling                                     - 7.5 minutes to instantaneous
             timedelta(minutes=7, seconds=30),
@@ -107,7 +124,7 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            4,  # this sensor has unit=EUR/kWh, res=01:00
+            "consumption sensor",  # this sensor has unit=EUR/kWh, res=01:00
             "EUR/MWh",  # Conversion needed                     - EUR/MWh to EUR/kWh
             timedelta(minutes=30),  # Downsampling              - 30 minutes to 1 hour
             [200, 300, 400, 500],
@@ -116,7 +133,7 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            4,  # this sensor has unit=EUR/kWh, res=01:00
+            "consumption sensor",  # this sensor has unit=EUR/kWh, res=01:00
             "EUR/kWh",  # Conversion needed                     - EUR/kWh to EUR/kWh
             timedelta(hours=2),  # Upsampling                   - 2 hours to 1 hour
             [200, 300, 400],
@@ -125,7 +142,7 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            5,  # this sensor has unit=EUR, res=01:00
+            "cost sensor",  # this sensor has unit=EUR, res=01:00
             "kEUR",  # Conversion needed                        - kEUR to EUR
             timedelta(minutes=30),  # Downsampling              - 30 minutes to 1 hour
             [2, 3, 4, 2],
@@ -135,7 +152,7 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            5,  # this sensor has unit=EUR, res=01:00
+            "cost sensor",  # this sensor has unit=EUR, res=01:00
             "kEUR",  # Conversion needed                        - kEUR to EUR
             timedelta(hours=2),  # Upsampling                   - 2 hours to 1 hour
             [5, 6],
@@ -148,7 +165,7 @@ from flexmeasures.api.v3_0.tests.utils import generate_csv_content
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            5,  # this sensor has unit=EUR, res=01:00
+            "cost sensor",  # this sensor has unit=EUR, res=01:00
             "kEUR",  # Conversion needed                        - kEUR to EUR
             timedelta(hours=1),  # No resampling                - 1 hour (!) to 1 hour
             # Note that this test case could also define 2 hours between rows, but since there is only 1 row of data,
@@ -166,7 +183,7 @@ def test_upload_sensor_data_with_unit_conversion_success(
     client,
     add_battery_assets_fresh_db,
     requesting_user,
-    sensor_index,
+    sensor_name,
     data_unit,
     data_resolution,
     data_values,
@@ -185,7 +202,7 @@ def test_upload_sensor_data_with_unit_conversion_success(
         "2025-01-01T10:00:00+00:00"  # This date would be used to generate CSV content
     )
     test_battery = add_battery_assets_fresh_db["Test battery"]
-    sensor = test_battery.sensors[sensor_index]
+    sensor = get_sensor_by_name(test_battery, sensor_name)
     num_test_intervals = len(data_values)
     print(
         f"Uploading data to sensor '{sensor.name}' with unit={sensor.unit} and resolution={sensor.event_resolution}."
@@ -229,15 +246,97 @@ def test_upload_sensor_data_with_unit_conversion_success(
             len(beliefs) == expected_num_beliefs
         ), f"Fetched {len(beliefs)} beliefs from the database, expecting {expected_num_beliefs}."
 
-        assert [b.event_value for b in beliefs] == expected_event_values
+        # approximate equality: unit conversion can differ slightly by pint/numpy version
+        assert [b.event_value for b in beliefs] == pytest.approx(expected_event_values)
 
 
 @pytest.mark.parametrize(
-    "requesting_user, sensor_index, data_unit, data_resolution, data_values, expected_err_msg, expected_status",
+    "requesting_user, sensor_name, start_date, data_resolution, data_values, expected_event_starts, expected_event_values",
     [
         (
             "test_prosumer_user_2@seita.nl",
-            1,  # this sensor has unit=kW, res=00:15
+            "power (kW)",
+            "2025-01-01T10:00:40+00:00",
+            timedelta(minutes=15),
+            [2, 3, 4],
+            [
+                pd.Timestamp("2025-01-01T10:00:00+00:00"),
+                pd.Timestamp("2025-01-01T10:15:00+00:00"),
+                pd.Timestamp("2025-01-01T10:30:00+00:00"),
+            ],
+            [2, 3, 4],
+        ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            "energy (kWh)",
+            "2025-01-01T10:00:40+00:00",
+            timedelta(minutes=30),
+            [10, 20, 20, 40],
+            [
+                pd.Timestamp("2025-01-01T10:00:00+00:00"),
+                pd.Timestamp("2025-01-01T11:00:00+00:00"),
+            ],
+            [30, 60],
+        ),
+        (
+            "test_prosumer_user_2@seita.nl",
+            "power (kW)",
+            "2025-01-01T10:00:40+00:00",
+            timedelta(minutes=5),
+            [10, 20, 30, 40],
+            [
+                pd.Timestamp("2025-01-01T10:00:00+00:00"),
+                pd.Timestamp("2025-01-01T10:15:00+00:00"),
+            ],
+            [20, 40],
+        ),
+    ],
+    indirect=["requesting_user"],
+)
+def test_upload_sensor_data_floors_offclock_datetimes(
+    fresh_db,
+    client,
+    add_battery_assets_fresh_db,
+    requesting_user,
+    sensor_name,
+    start_date,
+    data_resolution,
+    data_values,
+    expected_event_starts,
+    expected_event_values,
+):
+    test_battery = add_battery_assets_fresh_db["Test battery"]
+    sensor = get_sensor_by_name(test_battery, sensor_name)
+
+    csv_content = generate_csv_content(
+        start_time_str=start_date,
+        interval=data_resolution,
+        values=data_values,
+    )
+    file_obj = io.BytesIO(csv_content.encode("utf-8"))
+
+    response = client.post(
+        url_for("SensorAPI:upload_data", id=sensor.id),
+        data={"uploaded-files": (file_obj, "data.csv"), "unit": sensor.unit},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
+
+    bdf = sensor.search_beliefs(
+        expected_event_starts[0], expected_event_starts[-1] + sensor.event_resolution
+    )
+    pd.testing.assert_index_equal(
+        bdf.event_starts, pd.DatetimeIndex(expected_event_starts, name="event_start")
+    )
+    assert bdf["event_value"].to_list() == expected_event_values
+
+
+@pytest.mark.parametrize(
+    "requesting_user, sensor_name, data_unit, data_resolution, data_values, expected_err_msg, expected_status",
+    [
+        (
+            "test_prosumer_user_2@seita.nl",
+            "power (kW)",  # this sensor has unit=kW, res=00:15
             "m/s",  # Invalid conversion                        - m/s to kW
             timedelta(hours=1),  # Upsampling                   - 1 hour to 15 minutes
             [45.3, 45.3],
@@ -246,7 +345,7 @@ def test_upload_sensor_data_with_unit_conversion_success(
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            2,  # this sensor has unit=kWh, res=01:00
+            "energy (kWh)",  # this sensor has unit=kWh, res=01:00
             "kW",  # Conversion needed                          - kW to kWh
             timedelta(minutes=30),  # Downsampling              - 30 minutes to 1 hour
             [20, 40, 40, 80],
@@ -255,7 +354,7 @@ def test_upload_sensor_data_with_unit_conversion_success(
         ),
         (
             "test_prosumer_user_2@seita.nl",
-            3,  # this sensor has unit=kWh, res=00:00
+            "state of charge",  # this sensor has unit=kWh, res=00:00
             "kW",  # Conversion needed                          - kW to kWh
             # No resampling                                     - 7.5 minutes to instantaneous
             timedelta(minutes=7, seconds=30),
@@ -271,7 +370,7 @@ def test_upload_sensor_data_with_unit_conversion_failure(
     client,
     add_battery_assets_fresh_db,
     requesting_user,
-    sensor_index,
+    sensor_name,
     data_unit,
     data_resolution,
     data_values,
@@ -288,7 +387,7 @@ def test_upload_sensor_data_with_unit_conversion_failure(
         "2025-01-01T10:00:00+00:00"  # This date would be used to generate CSV content
     )
     test_battery = add_battery_assets_fresh_db["Test battery"]
-    sensor = test_battery.sensors[sensor_index]
+    sensor = get_sensor_by_name(test_battery, sensor_name)
     print(
         f"Uploading data to sensor '{sensor.name}' with unit={sensor.unit} and resolution={sensor.event_resolution}."
     )
@@ -320,3 +419,61 @@ def test_upload_sensor_data_with_unit_conversion_failure(
         )
     else:
         pytest.fail("Test case did not fail as expected.")
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_fetch_sensors_can_filter_by_sensor_id_prefix(
+    client,
+    fresh_db,
+    setup_api_fresh_test_data,
+    requesting_user,
+):
+    sensor = setup_api_fresh_test_data["some gas sensor"]
+    id_prefix = str(sensor.id)
+    matching_sensor_id = _unused_id_with_prefix(fresh_db, Sensor, id_prefix)
+    decoy_sensor_id = _unused_id_containing_but_not_starting_with(
+        fresh_db, Sensor, id_prefix
+    )
+    matching_sensor = Sensor(
+        name="matching sensor ID prefix",
+        unit=sensor.unit,
+        event_resolution=sensor.event_resolution,
+        generic_asset=sensor.generic_asset,
+    )
+    matching_sensor.id = matching_sensor_id
+    decoy_sensor = Sensor(
+        name="decoy sensor ID substring",
+        unit=sensor.unit,
+        event_resolution=sensor.event_resolution,
+        generic_asset=sensor.generic_asset,
+    )
+    decoy_sensor.id = decoy_sensor_id
+    fresh_db.session.add_all([matching_sensor, decoy_sensor])
+    fresh_db.session.flush()
+
+    response = client.get(
+        url_for("SensorAPI:index"),
+        query_string={
+            "asset_id": sensor.generic_asset_id,
+            "filter": id_prefix,
+        },
+    )
+
+    assert response.status_code == 200
+    sensor_ids = [s["id"] for s in response.json]
+    assert set(sensor_ids) == {sensor.id, matching_sensor.id}
+    assert decoy_sensor.id not in sensor_ids
+    assert all(str(sensor_id).startswith(id_prefix) for sensor_id in sensor_ids)
+
+    full_id_response = client.get(
+        url_for("SensorAPI:index"),
+        query_string={
+            "asset_id": sensor.generic_asset_id,
+            "filter": str(matching_sensor.id),
+        },
+    )
+
+    assert full_id_response.status_code == 200
+    assert [s["id"] for s in full_id_response.json] == [matching_sensor.id]

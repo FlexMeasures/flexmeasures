@@ -51,10 +51,15 @@ export function decompressChartData(responseData) {
           asset_description: sensor.asset_description || "",
         },
         source: {
+          ...source,
           id: belief.src,
           name: source.name || "",
           model: source.model || "",
+          version: source.version || "",
           type: source.type || "other",
+          raw_type: source.raw_type || "",
+          display_type:
+            source.display_type || source.raw_type || source.type || "other",
           description: source.description || "",
         },
 
@@ -89,5 +94,49 @@ export function checkSourceMasking(data, chartType) {
     showToast(
       "Please note that only data from the most prevalent source is shown."
     );
+  }
+}
+
+/**
+ * Warn when loaded belief data falls outside a sub-chart's "Strict range…"
+ * y-axis, since that data is drawn clamped to the nearest edge rather than
+ * shown at its true value.
+ *
+ * @param {Object[]} data - Belief data, each with a `sensor.id` and `event_value`.
+ * @param {Object[]} sensorsToShow - The asset's `sensors_to_show` entries.
+ */
+export function checkStrictYAxisRanges(data, sensorsToShow) {
+  if (!Array.isArray(sensorsToShow)) return;
+  for (const entry of sensorsToShow) {
+    const yAxis = entry["y-axis"];
+    const isStrict =
+      yAxis !== null &&
+      typeof yAxis === "object" &&
+      !Array.isArray(yAxis) &&
+      typeof yAxis.min === "number" &&
+      typeof yAxis.max === "number";
+    if (!isStrict) continue;
+
+    const sensorIds = new Set();
+    for (const plot of entry.plots || []) {
+      if (typeof plot.sensor === "number") sensorIds.add(plot.sensor);
+      if (Array.isArray(plot.sensors)) {
+        for (const id of plot.sensors) sensorIds.add(id);
+      }
+    }
+    if (sensorIds.size === 0) continue;
+
+    const outOfRange = data.some(
+      (datum) =>
+        sensorIds.has(datum.sensor && datum.sensor.id) &&
+        typeof datum.event_value === "number" &&
+        (datum.event_value < yAxis.min || datum.event_value > yAxis.max),
+    );
+    if (outOfRange) {
+      showToast(
+        `'${entry.title || "A graph"}' has data outside its strict y-axis range (${yAxis.min} to ${yAxis.max}); those values are shown clamped to the nearest edge.`,
+        "warning",
+      );
+    }
   }
 }

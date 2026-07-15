@@ -16,7 +16,9 @@ from flexmeasures.auth.error_handling import (
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
-def test_api_task_run_post_unauthorized_wrong_role(client, requesting_user):
+def test_api_task_run_post_unauthorized_wrong_role(
+    client, setup_api_test_data, requesting_user
+):
     url = url_for("flexmeasures_api_ops.post_task_run")
     auth_token = get_auth_token(client, "test_prosumer_user@seita.nl", "testtest")
     post_req_params = dict(
@@ -65,7 +67,7 @@ def test_api_task_run_post_no_name(client, requesting_user):
     assert task_run.json["reason"] == "No task name given."
 
 
-def test_api_task_run_get_recent_entry(client):
+def test_api_task_run_get_recent_entry(client, setup_api_test_data):
     task_run = get_task_run(client, "task-B")
     assert task_run.status_code == 200
     assert task_run.json["frequency"] == 10

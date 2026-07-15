@@ -5,6 +5,7 @@ import json
 from http import HTTPStatus
 from typing import Any, TYPE_CHECKING
 
+from flask import current_app
 from flask import abort
 from marshmallow import validates, ValidationError, fields, validates_schema
 from marshmallow.validate import OneOf
@@ -34,7 +35,15 @@ class SensorsToShowSchema(fields.Field):
 
     The `sensors_to_show` attribute defines which sensors should be displayed for a particular asset.
     It supports various input formats, which are standardized into a list of dictionaries, each containing
-    a `title` (optional) and a `plots` list, this list then consist of dictionaries with keys such as `sensor`, `asset` or `sensors`.
+    a `title` (optional), a `y-axis` (optional) and a `plots` list, this list
+    then consist of dictionaries with keys such as `sensor`, `asset` or `sensors`.
+    The `y-axis` key controls how the shared y-axis domain for that sub-chart is chosen:
+    - absent, or `"zero"`: the axis is padded out to include zero (the default).
+    - `"data"`: the axis is fitted to the data instead of being padded out to include zero.
+    - `[min, max]`: a minimum domain; the axis always covers at least this range,
+      and expands to fit the data if it goes beyond it (nothing is ever clipped).
+    - `{"min": min, "max": max}`: a strict domain; the axis never expands beyond this
+      range, and data outside it is visually clipped to the nearest edge.
 
     - A single sensor ID (int): `42` -> `{"title": None, "plots": [{"sensor": 42}]}`
     - A list of sensor IDs (list of ints): `[42, 43]` -> `{"title": None, "plots": [{"sensors": [42, 43]}]}`
@@ -111,18 +120,33 @@ class SensorsToShowSchema(fields.Field):
 
         item["title"] = title or "No Title"
 
+        y_axis_kwargs = {}
+        if "y-axis" in item:
+            validated_y_axis = self._validate_y_axis(item["y-axis"])
+            # Only store non-default values; "zero" is the implicit default.
+            if validated_y_axis != "zero":
+                y_axis_kwargs["y-axis"] = validated_y_axis
+
         if "sensor" in item:
             sensor = item["sensor"]
             if not isinstance(sensor, int):
                 raise ValidationError("'sensor' value must be an integer.")
-            return {"title": title, "plots": [{"sensor": sensor}]}
+            return {
+                "title": title,
+                **y_axis_kwargs,
+                "plots": [{"sensor": sensor}],
+            }
         elif "sensors" in item:
             sensors = item["sensors"]
             if not isinstance(sensors, list) or not all(
                 isinstance(sensor_id, int) for sensor_id in sensors
             ):
                 raise ValidationError("'sensors' value must be a list of integers.")
-            return {"title": title, "plots": [{"sensors": sensors}]}
+            return {
+                "title": title,
+                **y_axis_kwargs,
+                "plots": [{"sensors": sensors}],
+            }
         elif "plots" in item:
             plots = item["plots"]
             if not isinstance(plots, list):
@@ -130,11 +154,57 @@ class SensorsToShowSchema(fields.Field):
             for plot in plots:
                 self._validate_single_plot(plot)
 
-            return {"title": title, "plots": plots}
+            return {"title": title, **y_axis_kwargs, "plots": plots}
         else:
             raise ValidationError(
                 "Dictionary must contain either 'sensor', 'sensors' or 'plots' key."
             )
+
+    def _validate_y_axis(self, y_axis) -> str | list | dict:
+        """
+        Validate the 'y-axis' key: 'zero', 'data', a [min, max] list of two numbers
+        (a floor domain), or a {"min": min, "max": max} dict (a strict domain).
+        """
+        error_message = (
+            "'y-axis' must be 'zero', 'data', a [min, max] list of two numbers, "
+            "or a {'min': min, 'max': max} dict."
+        )
+        if isinstance(y_axis, str):
+            if y_axis not in ("zero", "data"):
+                raise ValidationError(error_message)
+            return y_axis
+        elif isinstance(y_axis, list):
+            if len(y_axis) != 2 or not all(
+                isinstance(v, (int, float)) and not isinstance(v, bool) for v in y_axis
+            ):
+                raise ValidationError(error_message)
+            minimum, maximum = y_axis
+            # An equal minimum and maximum is allowed: it keeps that single value in view.
+            if minimum > maximum:
+                raise ValidationError(
+                    "'y-axis' domain minimum cannot exceed its maximum."
+                )
+            return [minimum, maximum]
+        elif isinstance(y_axis, dict):
+            if set(y_axis.keys()) != {"min", "max"} or not all(
+                isinstance(v, (int, float)) and not isinstance(v, bool)
+                for v in y_axis.values()
+            ):
+                raise ValidationError(error_message)
+            minimum, maximum = y_axis["min"], y_axis["max"]
+            if minimum > maximum:
+                raise ValidationError(
+                    "'y-axis' domain minimum cannot exceed its maximum."
+                )
+            # Unlike the floor domain, a strict domain hard-bounds the axis, so an
+            # equal minimum and maximum would clamp all data to a single pixel.
+            if minimum == maximum:
+                raise ValidationError(
+                    "'y-axis' strict domain minimum and maximum cannot be equal."
+                )
+            return {"min": minimum, "max": maximum}
+        else:
+            raise ValidationError(error_message)
 
     def _validate_single_plot(self, plot):
         """
@@ -196,7 +266,12 @@ class SensorsToShowSchema(fields.Field):
         if field_name in plot_config:
             value = plot_config[field_name]
             asset_id = plot_config.get("asset")
-            asset = GenericAssetIdField().deserialize(asset_id)
+            try:
+                asset = GenericAssetIdField().deserialize(asset_id)
+            except ValidationError:
+                if self.allow_missing_asset_flex_field:
+                    return
+                raise
 
             if asset is None:
                 raise ValidationError(f"Asset with ID {asset_id} does not exist.")
@@ -251,27 +326,71 @@ class SensorsToShowSchema(fields.Field):
         :param nested_list: A list containing sensor IDs, or dictionaries with `sensors` or `sensor` keys.
         :returns:           A unique list of sensor IDs, or a unique list of Sensors
         """
-        all_objects = []
+        all_objects: list[Any] = []
         for s in nested_list:
-            if isinstance(s, list):
-                all_objects.extend(s)
-            elif isinstance(s, int):
-                all_objects.append(s)
-            elif isinstance(s, dict):
-                if "plots" in s:
-                    for plot in s["plots"]:
-                        if "sensors" in plot:
-                            all_objects.extend(plot["sensors"])
-                        if "sensor" in plot:
-                            all_objects.append(plot["sensor"])
-                        if "asset" in plot:
-                            sensors, _ = extract_sensors_from_flex_config(plot)
-                            all_objects.extend(sensors)
-                elif "sensors" in s:
-                    all_objects.extend(s["sensors"])
-                elif "sensor" in s:
-                    all_objects.append(s["sensor"])
+            all_objects.extend(cls._flatten_entry(s))
         return list(dict.fromkeys(all_objects).keys())
+
+    @classmethod
+    def _flatten_entry(cls, entry: Any) -> list[Any]:
+        """Flatten one sensors_to_show entry into sensor IDs or Sensor objects."""
+        if isinstance(entry, list):
+            return entry
+        if isinstance(entry, int):
+            return [entry]
+        if isinstance(entry, dict):
+            return cls._flatten_dict_entry(entry)
+        return []
+
+    @classmethod
+    def _flatten_dict_entry(cls, entry: dict) -> list[Any]:
+        """Flatten one dictionary-form sensors_to_show entry."""
+        if "plots" in entry:
+            return cls._flatten_plots(entry["plots"])
+        if "sensors" in entry:
+            return entry["sensors"]
+        if "sensor" in entry:
+            return [entry["sensor"]]
+        return []
+
+    @classmethod
+    def _flatten_plots(cls, plots: list[dict]) -> list[Any]:
+        """Flatten a list of plot dictionaries to sensor IDs or Sensor objects."""
+        flattened: list[Any] = []
+        for plot in plots:
+            flattened.extend(cls._flatten_plot_entry(plot))
+        return flattened
+
+    @classmethod
+    def _flatten_plot_entry(cls, plot: dict) -> list[Any]:
+        """Flatten one plot dictionary to sensor IDs or Sensor objects."""
+        flattened: list[Any] = []
+
+        if "sensors" in plot:
+            flattened.extend(plot["sensors"])
+        if "sensor" in plot:
+            flattened.append(plot["sensor"])
+        if "asset" in plot:
+            flattened.extend(cls._flatten_asset_plot_entry(plot))
+
+        return flattened
+
+    @classmethod
+    def _flatten_asset_plot_entry(cls, plot: dict) -> list[Sensor]:
+        """Resolve flex-config sensor references for one asset plot.
+
+        Invalid stale references are skipped to keep chart rendering robust.
+        """
+        try:
+            sensors, _ = extract_sensors_from_flex_config(plot)
+        except ValidationError as err:
+            current_app.logger.warning(
+                "Skipping invalid asset plot reference %s while flattening sensors_to_show: %s",
+                plot,
+                err,
+            )
+            return []
+        return sensors
 
 
 class SensorKPIFieldSchema(ma.SQLAlchemySchema):
@@ -299,6 +418,7 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
 
     id = ma.auto_field(dump_only=True)
     name = fields.Str(required=True)
+    description = fields.Str(required=False, allow_none=True)
     account_id = ma.auto_field()
     owner = ma.Nested("AccountSchema", dump_only=True, only=("id", "name"))
     latitude = LatitudeField(allow_none=True)
@@ -334,30 +454,69 @@ class GenericAssetSchema(ma.SQLAlchemySchema):
     @validates_schema(skip_on_field_errors=False)
     def validate_name_is_unique_under_parent(self, data, **kwargs):
         """
-        Validate that name is unique among siblings.
-        This is also checked by a db constraint.
+        Validate that name is unique in its asset context.
+        For child assets, names are unique among siblings.
+        For account-owned root assets, names are unique within the account.
+        For public root assets, names are unique globally.
+        This is also checked by db indexes.
         Here, we can only check if we have all information (a full form),
-        which usually is at creation time.
+        which usually is at creation time or when the existing asset is in context.
         """
 
-        if "name" in data:
-            parent_id = data.get("parent_asset_id", None)
+        context = getattr(self, "context", {})
+        current_asset = context.get("asset")
+        name = data.get("name", getattr(current_asset, "name", None))
+        if name is None:
+            return
 
+        parent_id = data.get(
+            "parent_asset_id", getattr(current_asset, "parent_asset_id", None)
+        )
+        current_editing_id = context.get("asset_id") or getattr(
+            current_asset, "id", None
+        )
+
+        if parent_id is not None:
             query = select(GenericAsset).filter_by(
-                name=data["name"],
+                name=name,
                 parent_asset_id=parent_id,
             )
+            err_msg = (
+                f"An asset with the name '{name}' already exists under parent asset "
+                f"{parent_id}"
+            )
+        else:
+            account_id = data.get(
+                "account_id", getattr(current_asset, "account_id", None)
+            )
+            if account_id is None:
+                query = select(GenericAsset).filter_by(
+                    name=name,
+                    account_id=None,
+                    parent_asset_id=None,
+                )
+                err_msg = (
+                    f"An asset with the name '{name}' already exists as a public "
+                    "top-level asset"
+                )
+            else:
+                query = select(GenericAsset).filter_by(
+                    name=name,
+                    account_id=account_id,
+                    parent_asset_id=None,
+                )
+                err_msg = (
+                    f"An asset with the name '{name}' already exists as a top-level "
+                    f"asset in account {account_id}"
+                )
 
-            current_editing_id = getattr(self, "context", {}).get("asset_id")
+        if current_editing_id is not None:
+            query = query.filter(GenericAsset.id != current_editing_id)
 
-            if current_editing_id is not None:
-                query = query.filter(GenericAsset.id != current_editing_id)
+        existing_asset = db.session.scalars(query).first()
 
-            existing_asset = db.session.scalars(query).first()
-
-            if existing_asset:
-                err_msg = f"An asset with the name '{data['name']}' already exists under parent asset {data.get('parent_asset_id')}"
-                raise ValidationError(err_msg, "name")
+        if existing_asset:
+            raise ValidationError(err_msg, "name")
 
     @validates("generic_asset_type_id")
     def validate_generic_asset_type(self, generic_asset_type_id: int, **kwargs):
@@ -458,6 +617,24 @@ class GenericAssetTypeSchema(ma.SQLAlchemySchema):
 
     class Meta:
         model = GenericAssetType
+
+
+class AssetTypeIdField(MarshmallowClickMixin, fields.Int):
+    """Field that deserializes to a GenericAssetType and serializes back to an integer."""
+
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> GenericAssetType:
+        """Turn a generic asset type id into a GenericAssetType."""
+        asset_type_id: int = super()._deserialize(value, attr, data, **kwargs)
+        asset_type = db.session.get(GenericAssetType, asset_type_id)
+        if asset_type is None:
+            raise FMValidationError(
+                f"No generic asset type found with id {asset_type_id}."
+            )
+        return asset_type
+
+    def _serialize(self, value: GenericAssetType, attr, obj, **kwargs):
+        """Turn a GenericAssetType into a generic asset type id."""
+        return value.id
 
 
 class GenericAssetIdField(MarshmallowClickMixin, fields.Int):

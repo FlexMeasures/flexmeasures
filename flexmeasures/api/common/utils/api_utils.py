@@ -9,29 +9,39 @@ from typing import Sequence
 from datetime import timedelta
 
 from flask import current_app
+from redis.exceptions import ConnectionError as RedisConnectionError
 from werkzeug.exceptions import Forbidden, Unauthorized
 from numpy import array
 from psycopg2.errors import UniqueViolation
-from rq.job import Job, JobStatus, NoSuchJobError
+from rq import Queue, Worker
+from rq.job import Job
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from flexmeasures.data import db
 from flexmeasures.data.models.audit_log import AssetAuditLog
 from flexmeasures.data.models.user import Account
+from flexmeasures.data.services.data_ingestion import (
+    add_beliefs_to_db_and_enqueue_forecasting_jobs,
+)
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.utils import save_to_db
+from flexmeasures.data.utils import (
+    SAVE_TO_DB_SUCCESS,
+    SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
+    SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+    TEMPLATE_COPY_GUIDANCE_PREFIX,
+)
 from flexmeasures.auth.policy import check_access
 from flexmeasures.api.common.responses import (
     invalid_replacement,
     ResponseTuple,
     request_processed,
+    request_accepted_for_processing,
     already_received_and_successfully_processed,
 )
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.utils.error_utils import error_handling_router
-from flexmeasures.utils.flexmeasures_inflection import capitalize
 
 
 def upsample_values(
@@ -77,59 +87,6 @@ def unique_ever_seen(iterable: Sequence, selector: Sequence):
     return u, s
 
 
-def job_status_description(job: Job, extra_message: str | None = None):
-    """Return a matching description for the job's status.
-
-    Supports each rq.job.JobStatus (NB JobStatus.CREATED is deprecated).
-
-    :param job:             The rq.Job.
-    :param extra_message:   Optionally, append a message to the job status description.
-    """
-
-    job_status = job.get_status()
-    queue_name = job.origin  # Name of the queue that the job is in
-    if job_status == JobStatus.QUEUED:
-        description = f"{capitalize(queue_name)} job waiting to be processed."
-    elif job_status == JobStatus.FINISHED:
-        description = f"{capitalize(queue_name)} job has finished."
-    elif job_status == JobStatus.FAILED:
-        # Try to inform the user on why the job failed
-        e = job.meta.get(
-            "exception",
-            Exception(
-                "The job does not state why it failed. "
-                "The worker may be missing an exception handler, "
-                "or its exception handler is not storing the exception as job meta data."
-            ),
-        )
-        description = (
-            f"{capitalize(queue_name)} job failed with {type(e).__name__}: {e}."
-        )
-    elif job_status == JobStatus.STARTED:
-        description = f"{capitalize(queue_name)} job in progress."
-    elif job_status == JobStatus.DEFERRED:
-        # Try to inform the user on what other job the job is waiting for
-        try:
-            preferred_job = job.dependency
-            description = f'{capitalize(queue_name)} job waiting for {preferred_job.status} job "{preferred_job.id}" to be processed.'
-        except NoSuchJobError:
-            description = (
-                f"{capitalize(queue_name)} job waiting for unknown job to be processed."
-            )
-    elif job_status == JobStatus.SCHEDULED:
-        description = (
-            f"{capitalize(queue_name)} job is scheduled to run at a later time."
-        )
-    elif job_status == JobStatus.STOPPED:
-        description = f"{capitalize(queue_name)} job has been stopped."
-    elif job_status == JobStatus.CANCELED:
-        description = f"{capitalize(queue_name)} job has been cancelled."
-    else:
-        description = f"{capitalize(queue_name)} job has an unknown status."
-
-    return description + f" {extra_message}" if extra_message else description
-
-
 def enqueue_forecasting_jobs(
     forecasting_jobs: list[Job] | None = None,
 ):
@@ -146,20 +103,109 @@ def save_and_enqueue(
     forecasting_jobs: list[Job] | None = None,
     save_changed_beliefs_only: bool = True,
 ) -> ResponseTuple:
-    # Attempt to save
-    status = save_to_db(data, save_changed_beliefs_only=save_changed_beliefs_only)
-    db.session.commit()
-
-    # Only enqueue forecasting jobs upon successfully saving new data
-    if status[:7] == "success" and status != "success_but_nothing_new":
-        enqueue_forecasting_jobs(forecasting_jobs)
+    status = add_beliefs_to_db_and_enqueue_forecasting_jobs(
+        data,
+        forecasting_jobs=forecasting_jobs,
+        save_changed_beliefs_only=save_changed_beliefs_only,
+    )
 
     # Pick a response
-    if status == "success":
+    if status == SAVE_TO_DB_SUCCESS:
         return request_processed()
     elif status in (
-        "success_with_unchanged_beliefs_skipped",
-        "success_but_nothing_new",
+        SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+        SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
+    ):
+        return already_received_and_successfully_processed()
+    return invalid_replacement()
+
+
+def queue_has_connected_workers(queue: Queue) -> bool:
+    """Return True when an RQ queue is reachable and has connected workers."""
+    try:
+        return bool(Worker.all(queue=queue))
+    except RedisConnectionError:
+        return False
+
+
+def process_sensor_data_ingestion(
+    sensor_id: int,
+    user_id: int,
+    sensor_data: dict | None = None,
+    uploaded_files: list[dict] | None = None,
+    upload_data: dict | None = None,
+    forecasting_jobs: list[Job] | None = None,
+    save_changed_beliefs_only: bool = True,
+) -> ResponseTuple:
+    """Process sensor data ingestion asynchronously when possible.
+
+    If an ingestion queue with connected workers is available, enqueue a background
+    job and return ``202 Accepted``. Otherwise, process the data synchronously and
+    return the resulting ingestion response.
+    """
+    ingestion_queue = current_app.queues.get("ingestion")
+    if ingestion_queue is None:
+        current_app.logger.warning(
+            "No ingestion queue configured. Processing sensor data directly."
+        )
+    elif queue_has_connected_workers(ingestion_queue):
+        forecasting_job_ids = (
+            [job.id for job in forecasting_jobs]
+            if forecasting_jobs is not None
+            else None
+        )
+        try:
+            job = ingestion_queue.enqueue(
+                add_beliefs_to_db_and_enqueue_forecasting_jobs,
+                sensor_id=sensor_id,
+                user_id=user_id,
+                sensor_data=sensor_data,
+                uploaded_files=uploaded_files,
+                upload_data=upload_data,
+                forecasting_job_ids=forecasting_job_ids,
+                save_changed_beliefs_only=save_changed_beliefs_only,
+                meta={"sensor_id": sensor_id},
+                ttl=current_app.config.get(
+                    "FLEXMEASURES_JOB_TTL", timedelta(-1)
+                ).total_seconds(),
+                # No need to keep ingestion results for the FLEXMEASURES_PLANNING_TTL
+                result_ttl=int(
+                    current_app.config.get(
+                        "FLEXMEASURES_JOB_TTL", timedelta(-1)
+                    ).total_seconds()
+                ),
+            )
+        except RedisConnectionError as error:
+            current_app.logger.warning(
+                "Unable to enqueue ingestion job in Redis queue %s: %s. Processing synchronously instead.",
+                getattr(ingestion_queue, "name", "<unknown>"),
+                error,
+            )
+        else:
+            return request_accepted_for_processing(
+                job.id,
+                "Sensor data has been accepted for processing.",
+            )
+    else:
+        current_app.logger.warning(
+            "No workers connected to the ingestion queue. Processing sensor data directly."
+        )
+
+    status = add_beliefs_to_db_and_enqueue_forecasting_jobs(
+        sensor_id=sensor_id,
+        user_id=user_id,
+        sensor_data=sensor_data,
+        uploaded_files=uploaded_files,
+        upload_data=upload_data,
+        forecasting_jobs=forecasting_jobs,
+        save_changed_beliefs_only=save_changed_beliefs_only,
+    )
+
+    if status == SAVE_TO_DB_SUCCESS:
+        return request_processed()
+    elif status in (
+        SAVE_TO_DB_SUCCESS_WITH_UNCHANGED_BELIEFS_SKIPPED,
+        SAVE_TO_DB_SUCCESS_BUT_NOTHING_NEW,
     ):
         return already_received_and_successfully_processed()
     return invalid_replacement()
@@ -215,6 +261,34 @@ def convert_asset_json_fields(asset_kwargs):
     return asset_kwargs
 
 
+def _remove_template_copy_guidance(description: str | None) -> str | None:
+    """Strip template-specific copy instructions from an asset description."""
+    if not description:
+        return description
+
+    cleaned_description = re.sub(
+        rf"\s*{re.escape(TEMPLATE_COPY_GUIDANCE_PREFIX)}(?: asset)?\b.*?(?:\.\s*|$)",
+        "",
+        description,
+        flags=re.IGNORECASE,
+    ).strip()
+    return cleaned_description or None
+
+
+def _sanitize_copied_asset_kwargs(asset_kwargs: dict) -> dict:
+    """Turn a copied template into a regular asset payload."""
+    attributes = asset_kwargs.get("attributes")
+    if isinstance(attributes, dict) and "template" in attributes:
+        sanitized_attributes: dict = deepcopy(attributes)
+        sanitized_attributes.pop("template", None)
+        asset_kwargs["attributes"] = sanitized_attributes
+        asset_kwargs["description"] = _remove_template_copy_guidance(
+            asset_kwargs.get("description")
+        )
+
+    return asset_kwargs
+
+
 def _copy_direct_sensors(
     source_asset: GenericAsset, copied_asset: GenericAsset
 ) -> dict[int, int]:
@@ -248,6 +322,9 @@ def _copy_direct_sensors(
             knowledge_horizon_fnc,
             deepcopy(source_sensor.knowledge_horizon_par),
         )
+        if isinstance(sensor_kwargs.get("attributes"), dict):
+            sensor_kwargs["attributes"] = deepcopy(sensor_kwargs["attributes"])
+            sensor_kwargs["attributes"].pop("template_role", None)
 
         new_sensor = Sensor(**sensor_kwargs)
         db.session.add(new_sensor)
@@ -394,7 +471,7 @@ def _update_sensor_refs_in_subtree(
 
 def _copy_asset_subtree(
     source_asset: GenericAsset,
-    destination_account_id: int,
+    destination_account_id: int | None,
     destination_parent_asset_id: int | None,
     asset_schema: AssetSchema,
     add_copy_suffix: bool,
@@ -417,7 +494,10 @@ def _copy_asset_subtree(
         )
     asset_kwargs["account_id"] = destination_account_id
     asset_kwargs["parent_asset_id"] = destination_parent_asset_id
+    # set external_id to None to avoid conflicts with unique constraint on (account_id, external_id)
+    asset_kwargs["external_id"] = None
     asset_kwargs = convert_asset_json_fields(asset_kwargs)
+    asset_kwargs = _sanitize_copied_asset_kwargs(asset_kwargs)
 
     copied_asset = GenericAsset(**asset_kwargs)
     db.session.add(copied_asset)
@@ -445,7 +525,7 @@ def _copy_asset_subtree(
 
 def _determine_copy_name(
     source_name: str,
-    destination_account_id: int,
+    destination_account_id: int | None,
     destination_parent_asset_id: int | None,
 ) -> str:
     """Return the next available copy name for the destination context.
@@ -536,13 +616,19 @@ def copy_asset(
         asset_schema = AssetSchema()
 
         if account is None and parent_asset is None:
-            target_account_id = int(asset.account_id)
+            target_account_id = (
+                int(asset.account_id) if asset.account_id is not None else None
+            )
             target_parent_asset_id = asset.parent_asset_id
         elif account is not None and parent_asset is None:
             target_account_id = int(account.id)
             target_parent_asset_id = None
         elif account is None and parent_asset is not None:
-            target_account_id = int(parent_asset.account_id)
+            target_account_id = (
+                int(parent_asset.account_id)
+                if parent_asset.account_id is not None
+                else None
+            )
             target_parent_asset_id = int(parent_asset.id)
         else:
             target_account_id = int(account.id)

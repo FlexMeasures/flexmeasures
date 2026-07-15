@@ -7,19 +7,412 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 from marshmallow import ValidationError
+from sqlalchemy import inspect as sa_inspect
 
+from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+from flexmeasures.data.models.forecasting.utils import (
+    apply_forecast_post_processing,
+)
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
+from flexmeasures.data.models.forecasting.pipelines.train import derive_daily_lag_steps
 from flexmeasures.data.models.generic_assets import (
     GenericAsset as Asset,
     GenericAssetType,
 )
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
+from flexmeasures.data.models.forecasting.pipelines.train_predict import (
+    _load_job_config_payload,
+    _load_job_parameters_payload,
+    _make_job_config_payload,
+    _make_job_parameters_payload,
+    run_train_predict_cycle_job,
+)
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
+
+
+def _contains_orm_instance(value) -> bool:
+    inspection = sa_inspect(value, raiseerr=False)
+    if inspection is not None and hasattr(inspection, "object"):
+        return True
+
+    if isinstance(value, dict):
+        return any(_contains_orm_instance(v) for v in value.values())
+    if isinstance(value, (list, tuple, set)):
+        return any(_contains_orm_instance(v) for v in value)
+    return False
+
+
+def test_train_predict_job_config_payload_preserves_plain_fields(
+    setup_fresh_test_forecast_data,
+):
+    future_regressor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    past_regressor = setup_fresh_test_forecast_data["solar-sensor-1"]
+
+    config = {
+        "model": "CustomLGBM",
+        "future_regressors": [future_regressor],
+        "past_regressors": [past_regressor],
+        "missing_threshold": 0.25,
+        "plain_future_option": {
+            "lower": "0 kW",
+            "upper": "20 kW",
+            "snap": {"0 kW": ["0 kW", "4 kW"]},
+        },
+    }
+
+    payload = _make_job_config_payload(config)
+
+    assert "future_regressors" not in payload
+    assert "past_regressors" not in payload
+    assert payload["future_regressor_ids"] == [future_regressor.id]
+    assert payload["past_regressor_ids"] == [past_regressor.id]
+    assert payload["plain_future_option"] == config["plain_future_option"]
+
+    restored_config = _load_job_config_payload(payload)
+
+    assert restored_config["future_regressors"] == [future_regressor]
+    assert restored_config["past_regressors"] == [past_regressor]
+    assert restored_config["plain_future_option"] == config["plain_future_option"]
+
+
+def test_train_predict_job_parameters_payload_preserves_plain_fields(
+    setup_fresh_test_forecast_data,
+):
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    sensor_to_save = setup_fresh_test_forecast_data["solar-sensor-1"]
+    parameters = {
+        "sensor": sensor,
+        "sensor_to_save": sensor_to_save,
+        "model_save_dir": "flexmeasures/data/models/forecasting/artifacts/models",
+        "plain_future_parameter": {"labels": ["expected", "preserved"]},
+    }
+
+    payload = _make_job_parameters_payload(parameters)
+
+    assert "sensor" not in payload
+    assert "sensor_to_save" not in payload
+    assert payload["sensor_id"] == sensor.id
+    assert payload["sensor_to_save_id"] == sensor_to_save.id
+    assert payload["plain_future_parameter"] == parameters["plain_future_parameter"]
+
+    restored_parameters = _load_job_parameters_payload(payload)
+
+    assert restored_parameters["sensor"] == sensor
+    assert restored_parameters["sensor_to_save"] == sensor_to_save
+    assert (
+        restored_parameters["plain_future_parameter"]
+        == parameters["plain_future_parameter"]
+    )
+
+
+def test_train_predict_job_payload_rejects_unexpected_orm_objects(
+    setup_fresh_test_forecast_data,
+):
+    sensor = setup_fresh_test_forecast_data["solar-sensor"]
+
+    with pytest.raises(ValueError, match="payload.unexpected_sensor.*Sensor"):
+        _make_job_config_payload(
+            {
+                "future_regressors": [],
+                "past_regressors": [],
+                "unexpected_sensor": sensor,
+            }
+        )
+
+    with pytest.raises(ValueError, match="payload.unexpected_sensor.*Sensor"):
+        _make_job_parameters_payload(
+            {
+                "sensor": sensor,
+                "unexpected_sensor": sensor,
+            }
+        )
+
+
+def test_custom_lgbm_falls_back_when_daily_lag_is_under_sampled():
+    """Short histories should drop daily lags only where they are under-sampled."""
+    under_sampled_model = CustomLGBM(
+        max_forecast_horizon=192,
+        probabilistic=False,
+        seasonal_lags_steps=[96, 1, 24],
+        training_sample_count=288,
+    )
+    assert under_sampled_model.seasonal_lags_steps == [96, 1, 24]
+    assert under_sampled_model.models[0].lags["target"] == [
+        -97,
+        -96,
+        -25,
+        -24,
+        -2,
+        -1,
+    ]
+    assert under_sampled_model.models[48].lags["target"] == [
+        -49,
+        -48,
+        -25,
+        -24,
+        -2,
+        -1,
+    ]
+    assert under_sampled_model.models[-1].lags["target"] == [-1]
+
+    sufficiently_sampled_model = CustomLGBM(
+        max_forecast_horizon=192,
+        probabilistic=False,
+        seasonal_lags_steps=[96, 1, 24],
+        training_sample_count=384,
+    )
+    assert sufficiently_sampled_model.seasonal_lags_steps == [96, 1, 24]
+    assert sufficiently_sampled_model.models[-1].lags["target"] == [-1]
+
+
+def test_custom_lgbm_rejects_invalid_lag_steps():
+    with pytest.raises(ValueError, match="seasonal_lags_steps values"):
+        CustomLGBM(
+            max_forecast_horizon=1,
+            probabilistic=False,
+            seasonal_lags_steps=[24, 0],
+        )
+
+    with pytest.raises(NotEnoughDataException, match="Not enough training data"):
+        CustomLGBM(
+            max_forecast_horizon=2,
+            probabilistic=False,
+            seasonal_lags_steps=[24],
+            training_sample_count=2,
+        )
+
+
+def test_derive_daily_lag_steps_requires_divisible_resolution(caplog):
+    assert derive_daily_lag_steps(timedelta(minutes=15)) == 96
+
+    with caplog.at_level(logging.WARNING):
+        assert derive_daily_lag_steps(timedelta(minutes=35)) == 24
+
+    assert any(
+        "does not evenly divide one day" in message for message in caplog.messages
+    )
+
+
+def test_forecast_post_processing_clips_and_snaps_values():
+    df = pd.DataFrame(
+        {
+            "1h": [-2.0, 2.0, 8.5, 11.5, 21.0],
+            "2h": [0.5, 3.5, 10.5, 12.5, 25.0],
+        }
+    )
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=2,
+        config={
+            "lower": "0 kW",
+            "snap": {
+                "0 kW": ["0 kW", "4 kW"],
+                "8 kW": ["8 kW", "11 kW"],
+                "12 kW": ["11 kW", "12 kW"],
+            },
+            "upper": "20 kW",
+        },
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame(
+            {
+                "1h": [0.0, 0.0, 8.0, 12.0, 20.0],
+                "2h": [0.0, 0.0, 8.0, 12.5, 20.0],
+            }
+        ),
+    )
+
+
+def test_forecast_post_processing_interprets_unitless_values_in_sensor_unit():
+    df = pd.DataFrame({"1h": [0.5, 1.3, 2.5]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={
+            "lower": 1,
+            "snap": {"1500 W": ["1.2 kW", "1.8 kW"]},
+            "upper": "2 kW",
+        },
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [1.0, 1.5, 2.0]}),
+    )
+
+
+def test_forecast_post_processing_interprets_unitless_snap_in_sensor_unit():
+    df = pd.DataFrame({"1h": [0.5, 2.5, 5.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"0": [0, 4]}},
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0, 0.0, 5.0]}),
+    )
+
+
+def test_forecast_post_processing_converts_snap_units_to_sensor_unit():
+    df = pd.DataFrame({"1h": [1.1, 1.5, 1.9]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"1200 W": ["1200 W", "1800 W"]}},
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [1.1, 1.2, 1.9]}),
+    )
+
+
+def test_forecast_post_processing_snap_bounds_are_half_open():
+    """The first bound is inclusive, the second exclusive: [first, second)."""
+    df = pd.DataFrame({"1h": [0.0, 2.0, 4.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"0 kW": ["0 kW", "4 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # 0 is included and snaps to 0; 4 is excluded and is left untouched.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0, 0.0, 4.0]}),
+    )
+
+
+def test_forecast_post_processing_reversed_snap_bounds_close_the_upper_side():
+    """Listing bounds in reverse order snaps the closed side: (second, first]."""
+    df = pd.DataFrame({"1h": [4.0, 7.0, 10.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"10 kW": ["10 kW", "4 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # 4 is excluded, 10 is included; both 7 and 10 snap up to 10.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [4.0, 10.0, 10.0]}),
+    )
+
+
+def test_forecast_post_processing_adjacent_intervals_share_a_boundary_unambiguously():
+    """A value on a shared boundary belongs to the interval that opens at it."""
+    df = pd.DataFrame({"1h": [3.0, 4.0, 9.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={
+            "snap": {
+                "0 kW": ["0 kW", "4 kW"],
+                "10 kW": ["4 kW", "10 kW"],
+            }
+        },
+        sensor_unit="kW",
+    )
+
+    # 3 -> 0 ([0, 4)), 4 -> 10 ([4, 10)), 9 -> 10 ([4, 10)).
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0, 10.0, 10.0]}),
+    )
+
+
+def test_forecast_post_processing_clip_takes_precedence_over_snap():
+    """A snap target outside the clip bounds is still clipped back into range."""
+    df = pd.DataFrame({"1h": [-3.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"lower": "0 kW", "snap": {"-5 kW": ["-5 kW", "-1 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # -3 snaps to -5, which is then clipped up to the lower bound of 0.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0]}),
+    )
+
+
+def test_forecast_post_processing_rejects_inconsistent_bounds():
+    df = pd.DataFrame({"1h": [1.0]})
+
+    with pytest.raises(ValueError, match="lower bound cannot be greater"):
+        apply_forecast_post_processing(
+            data=df,
+            horizon=1,
+            config={"lower": "2 kW", "upper": "1 kW"},
+            sensor_unit="kW",
+        )
+
+
+def test_forecast_post_processing_allows_snap_target_inside_the_interval():
+    """The snap target may lie inside the interval, not only on a bound."""
+    df = pd.DataFrame({"1h": [0.5, 3.9, 4.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"2 kW": ["0 kW", "4 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # Everything in [0, 4) collapses to the interior target 2; 4 is excluded.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [2.0, 2.0, 4.0]}),
+    )
+
+
+def test_forecast_post_processing_rejects_snap_target_outside_the_interval():
+    df = pd.DataFrame({"1h": [1.0]})
+
+    with pytest.raises(ValueError, match="snap target must lie within its interval"):
+        apply_forecast_post_processing(
+            data=df,
+            horizon=1,
+            config={"snap": {"11 kW": ["13 kW", "15 kW"]}},
+            sensor_unit="kW",
+        )
+
+
+def test_forecast_post_processing_rejects_incompatible_units():
+    df = pd.DataFrame({"1h": [1.0]})
+
+    with pytest.raises(ValueError, match="Could not convert"):
+        apply_forecast_post_processing(
+            data=df,
+            horizon=1,
+            config={"lower": "5 m"},
+            sensor_unit="kW",
+        )
 
 
 @pytest.mark.parametrize(
@@ -268,6 +661,50 @@ def test_train_predict_pipeline(  # noqa: C901
                 assert hasattr(pipeline, attr)
 
         if as_job:
+            queued_job = app.queues["forecasting"].fetch_job(pipeline_returns["job_id"])
+            assert queued_job is not None
+            if not queued_job.dependency_ids:
+                queued_cycle_job_ids = [queued_job.id]
+            else:
+                queued_cycle_job_ids = queued_job.kwargs.get("cycle_job_ids", [])
+
+            for job_id in queued_cycle_job_ids:
+                queued_cycle_job = app.queues["forecasting"].fetch_job(job_id)
+                assert queued_cycle_job is not None
+                assert queued_cycle_job.func == run_train_predict_cycle_job
+                assert not _contains_orm_instance(queued_cycle_job.kwargs)
+                assert isinstance(
+                    queued_cycle_job.kwargs["parameters"]["sensor_id"], int
+                )
+                assert isinstance(
+                    queued_cycle_job.kwargs["parameters"]["sensor_to_save_id"], int
+                )
+                assert all(
+                    isinstance(sensor_id, int)
+                    for sensor_id in queued_cycle_job.kwargs["config"][
+                        "future_regressor_ids"
+                    ]
+                )
+                assert all(
+                    isinstance(sensor_id, int)
+                    for sensor_id in queued_cycle_job.kwargs["config"][
+                        "past_regressor_ids"
+                    ]
+                )
+                for timing_field in (
+                    "predict_start",
+                    "end_date",
+                    "predict_period_in_hours",
+                    "max_forecast_horizon",
+                    "forecast_frequency",
+                    "save_belief_time",
+                    "m_viewpoints",
+                ):
+                    assert (
+                        queued_cycle_job.kwargs["parameters"][timing_field]
+                        == pipeline._parameters[timing_field]
+                    )
+
             work_on_rq(
                 app.queues["forecasting"], exc_handler=handle_forecasting_exception
             )
@@ -468,6 +905,70 @@ def test_missing_data_logs_warning(
     ), "Expected NotEnoughDataException for missing data threshold"
 
 
+def test_train_predict_pipeline_wraps_darts_value_error_with_not_enough_data_exception(
+    fresh_db,
+    tmp_path,
+):
+    data_source = DataSource(name="short-history-source", type="test")
+    asset_type = GenericAssetType(name="short-history-asset-type")
+    asset = Asset(
+        name="Short history test asset",
+        generic_asset_type=asset_type,
+        latitude=1.0,
+        longitude=1.0,
+    )
+    sensor = Sensor(
+        name="short-history-target",
+        generic_asset=asset,
+        unit="kW",
+        event_resolution=timedelta(minutes=15),
+    )
+    fresh_db.session.add_all([data_source, asset_type, asset, sensor])
+    fresh_db.session.flush()
+
+    history_index = pd.date_range(
+        datetime(2025, 1, 1),
+        datetime(2025, 1, 3, 23, 45),
+        freq="15min",
+        tz="UTC",
+    )
+    beliefs = [
+        TimedBelief(
+            sensor=sensor,
+            event_start=event_start,
+            event_value=float(i % 10),
+            source=data_source,
+            belief_horizon=timedelta(0),
+        )
+        for i, event_start in enumerate(history_index)
+    ]
+    fresh_db.session.add_all(beliefs)
+    fresh_db.session.commit()
+
+    pipeline = TrainPredictPipeline(
+        config={"train-start": "2025-01-01T00:00+00:00"},
+    )
+
+    with pytest.raises(NotEnoughDataException) as excinfo:
+        pipeline.compute(
+            parameters={
+                "sensor": sensor.id,
+                "model-save-dir": str(tmp_path / "models"),
+                "output-path": None,
+                "start": "2025-01-04T00:00+00:00",
+                "end": "2025-01-08T00:00+00:00",
+                "sensor-to-save": None,
+                "max-forecast-horizon": "PT96H",
+                "forecast-frequency": "PT1H",
+                "probabilistic": False,
+            }
+        )
+
+    assert "Not enough training data for the requested forecast horizon" in str(
+        excinfo.value
+    )
+
+
 # Test that max_training-period caps train-period and logs a warning
 @pytest.mark.parametrize(
     ["config", "params"],
@@ -598,6 +1099,209 @@ def test_prior_restricts_training_beliefs(
     )
 
 
+def test_future_regressor_split_selects_latest_known_value_per_regressor(monkeypatch):
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+    future_regressor_a = type(
+        "SensorStub",
+        (),
+        {"name": "weather-a", "id": 2, "event_resolution": timedelta(hours=1)},
+    )()
+    future_regressor_b = type(
+        "SensorStub",
+        (),
+        {"name": "weather-b", "id": 3, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[future_regressor_a, future_regressor_b],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 8, 9),
+        event_ends_before=datetime(2025, 1, 8, 10),
+    )
+    forecast_belief_time = pd.Timestamp("2025-01-08T10:00:00")
+    regressor_a, regressor_b = pipeline.future_regressors
+
+    df = pd.DataFrame(
+        [
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=30),
+                pipeline.target: None,
+                regressor_a: 3.0,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": forecast_belief_time,
+                pipeline.target: 1.0,
+                regressor_a: 4.0,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T10:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=30),
+                pipeline.target: None,
+                regressor_a: 5.0,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T10:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=15),
+                pipeline.target: None,
+                regressor_a: None,
+                regressor_b: 7.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T10:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=10),
+                pipeline.target: None,
+                regressor_a: None,
+                regressor_b: 8.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T10:00:00"),
+                "belief_time": forecast_belief_time + pd.Timedelta(minutes=5),
+                pipeline.target: None,
+                regressor_a: 50.0,
+                regressor_b: 80.0,
+            },
+        ]
+    )
+
+    captured_future_frames = []
+
+    # Capture the covariate frame before missing-value filling converts it
+    # to a Darts TimeSeries. This keeps the test focused on in-memory belief
+    # selection instead of requiring database-backed sensor data.
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.future_regressors:
+            captured_future_frames.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+
+    pipeline.split_data_all_beliefs(df)
+
+    assert len(captured_future_frames) == 1, (
+        "Expected one future-covariate frame because this one-step pipeline "
+        "prepares exactly one split."
+    )
+    selected = captured_future_frames[0].set_index("event_start")
+    assert selected.loc[pd.Timestamp("2025-01-08T09:00:00"), regressor_a] == 4.0, (
+        "Expected regressor A's latest known realized value for the historical "
+        "event, because it has the latest non-null belief by forecast time."
+    )
+    assert selected.loc[pd.Timestamp("2025-01-08T10:00:00"), regressor_a] == 5.0, (
+        "Expected regressor A's available forecast value to survive even though "
+        "regressor B has a later belief on a different joined row."
+    )
+    assert selected.loc[pd.Timestamp("2025-01-08T10:00:00"), regressor_b] == 8.0, (
+        "Expected regressor B's latest known forecast value, because selection "
+        "happens independently per regressor."
+    )
+    assert 50.0 not in set(selected[regressor_a].dropna()), (
+        "Expected regressor A's future belief recorded after the forecast "
+        "belief_time to be excluded."
+    )
+    assert 80.0 not in set(selected[regressor_b].dropna()), (
+        "Expected regressor B's future belief recorded after the forecast "
+        "belief_time to be excluded."
+    )
+
+
+def test_past_regressor_split_selects_latest_known_value_per_regressor(monkeypatch):
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+    past_regressor_a = type(
+        "SensorStub",
+        (),
+        {"name": "meter-a", "id": 2, "event_resolution": timedelta(hours=1)},
+    )()
+    past_regressor_b = type(
+        "SensorStub",
+        (),
+        {"name": "meter-b", "id": 3, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[],
+        past_regressors=[past_regressor_a, past_regressor_b],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 8, 9),
+        event_ends_before=datetime(2025, 1, 8, 10),
+    )
+    forecast_belief_time = pd.Timestamp("2025-01-08T10:00:00")
+    regressor_a, regressor_b = pipeline.past_regressors
+
+    df = pd.DataFrame(
+        [
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=30),
+                pipeline.target: None,
+                regressor_a: 5.0,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": forecast_belief_time - pd.Timedelta(minutes=15),
+                pipeline.target: None,
+                regressor_a: None,
+                regressor_b: 7.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": forecast_belief_time,
+                pipeline.target: 1.0,
+                regressor_a: None,
+                regressor_b: None,
+            },
+        ]
+    )
+
+    captured_past_frames = []
+
+    # Capture the covariate frame before missing-value filling converts it
+    # to a Darts TimeSeries. This keeps the test focused on in-memory belief
+    # selection instead of requiring database-backed sensor data.
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.past_regressors:
+            captured_past_frames.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+
+    pipeline.split_data_all_beliefs(df)
+
+    assert len(captured_past_frames) == 1, (
+        "Expected one past-covariate frame because this one-step pipeline "
+        "prepares exactly one split."
+    )
+    selected = captured_past_frames[0].set_index("event_start")
+    assert selected.loc[pd.Timestamp("2025-01-08T09:00:00"), regressor_a] == 5.0, (
+        "Expected past regressor A's value to survive even though past "
+        "regressor B is known on a different joined row."
+    )
+    assert selected.loc[pd.Timestamp("2025-01-08T09:00:00"), regressor_b] == 7.0, (
+        "Expected past regressor B's value to survive because selection happens "
+        "independently per regressor."
+    )
+
+
 def test_future_regressor_splits_use_only_beliefs_known_at_forecast_belief_time(
     monkeypatch,
 ):
@@ -702,6 +1406,133 @@ def test_future_regressor_splits_use_only_beliefs_known_at_forecast_belief_time(
     assert 88.0 not in set(values_by_event)
     assert 99.0 not in set(values_by_event)
     assert 77.0 not in set(values_by_event)
+
+
+def test_realized_future_regressors_use_latest_known_per_regressor_per_step(
+    monkeypatch,
+):
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+    future_regressor_a = type(
+        "SensorStub",
+        (),
+        {"name": "weather-a", "id": 2, "event_resolution": timedelta(hours=1)},
+    )()
+    future_regressor_b = type(
+        "SensorStub",
+        (),
+        {"name": "weather-b", "id": 3, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[future_regressor_a, future_regressor_b],
+        past_regressors=[],
+        n_steps_to_predict=2,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 8, 9),
+        event_ends_before=datetime(2025, 1, 8, 11),
+        predict_start=datetime(2025, 1, 8, 10),
+        predict_end=datetime(2025, 1, 8, 12),
+    )
+    regressor_a, regressor_b = pipeline.future_regressors
+
+    df = pd.DataFrame(
+        [
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": pd.Timestamp("2025-01-08T09:10:00"),
+                pipeline.target: None,
+                regressor_a: 1.0,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": pd.Timestamp("2025-01-08T09:40:00"),
+                pipeline.target: None,
+                regressor_a: None,
+                regressor_b: 20.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": pd.Timestamp("2025-01-08T09:50:00"),
+                pipeline.target: None,
+                regressor_a: 2.0,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": pd.Timestamp("2025-01-08T10:00:00"),
+                pipeline.target: 1.0,
+                regressor_a: None,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": pd.Timestamp("2025-01-08T10:30:00"),
+                pipeline.target: None,
+                regressor_a: 3.0,
+                regressor_b: None,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T09:00:00"),
+                "belief_time": pd.Timestamp("2025-01-08T10:45:00"),
+                pipeline.target: None,
+                regressor_a: None,
+                regressor_b: 30.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T10:00:00"),
+                "belief_time": pd.Timestamp("2025-01-08T11:00:00"),
+                pipeline.target: 2.0,
+                regressor_a: None,
+                regressor_b: None,
+            },
+        ]
+    )
+
+    captured_future_frames = []
+
+    # Capture the covariate frame before missing-value filling converts it
+    # to a Darts TimeSeries. This keeps the test focused on in-memory belief
+    # selection instead of requiring database-backed sensor data.
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.future_regressors:
+            captured_future_frames.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+
+    pipeline.split_data_all_beliefs(df, is_predict_pipeline=True)
+
+    assert len(captured_future_frames) == 2, (
+        "Expected two future-covariate frames because the predict pipeline "
+        "simulates two forecast belief_time steps."
+    )
+    first_step = captured_future_frames[0].set_index("event_start")
+    second_step = captured_future_frames[1].set_index("event_start")
+    event_start = pd.Timestamp("2025-01-08T09:00:00")
+
+    assert first_step.loc[event_start, regressor_a] == 2.0, (
+        "Expected the first forecast step to use regressor A's latest realized "
+        "belief known by 10:00, not the older 09:10 belief."
+    )
+    assert first_step.loc[event_start, regressor_b] == 20.0, (
+        "Expected the first forecast step to exclude regressor B's 10:45 belief "
+        "because it is not known yet at 10:00."
+    )
+    assert second_step.loc[event_start, regressor_a] == 3.0, (
+        "Expected the second forecast step to use regressor A's 10:30 belief "
+        "because it is known by 11:00."
+    )
+    assert second_step.loc[event_start, regressor_b] == 30.0, (
+        "Expected the second forecast step to use regressor B's 10:45 belief "
+        "because it is known by 11:00."
+    )
 
 
 def test_future_regressor_changes_forecasts_in_forecast_belief_time_window(

@@ -1,11 +1,36 @@
 import pytest
+import pandas as pd
+import timely_beliefs as tb
 from flexmeasures import Sensor
 from flexmeasures.data.schemas.sensors import (
     QuantityOrSensor,
+    SensorReference,
     VariableQuantityField,
+    floor_bdf_event_starts,
 )
 from flexmeasures.utils.unit_utils import ur
-from marshmallow import ValidationError
+from marshmallow import Schema, ValidationError
+
+
+class VariableQuantityDumpSchema(Schema):
+    value = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+
+def serialize_variable_quantity(value):
+    return VariableQuantityDumpSchema().dump({"value": value})["value"]
+
+
+def assert_quantity_almost_equal(actual: ur.Quantity, expected: ur.Quantity):
+    """Magnitude equality with a tolerance, since it can differ slightly by pint/numpy version."""
+    assert actual.units == expected.units
+    assert actual.magnitude == pytest.approx(expected.magnitude)
+
+
+def assert_quantity_str_almost_equal(actual: ur.Quantity, expected: str):
+    """String equality after rounding, since sub-1e-12 float noise (from pint/numpy
+    version differences) can otherwise show up in the string representation."""
+    rounded = ur.Quantity(round(actual.magnitude, 6), actual.units)
+    assert str(rounded) == expected
 
 
 @pytest.mark.parametrize(
@@ -81,11 +106,13 @@ def test_quantity_or_sensor_deserialize(
     try:
         dst_quantity = schema.deserialize(src_quantity)
         if isinstance(src_quantity, (ur.Quantity, int, float)):
-            assert dst_quantity == ur.Quantity(exp_dst_quantity)
-            assert str(dst_quantity) == exp_dst_quantity
+            assert_quantity_almost_equal(dst_quantity, ur.Quantity(exp_dst_quantity))
+            assert_quantity_str_almost_equal(dst_quantity, exp_dst_quantity)
         elif isinstance(src_quantity, list):
-            assert dst_quantity[0]["value"] == ur.Quantity(exp_dst_quantity)
-            assert str(dst_quantity[0]["value"]) == exp_dst_quantity
+            assert_quantity_almost_equal(
+                dst_quantity[0]["value"], ur.Quantity(exp_dst_quantity)
+            )
+            assert_quantity_str_almost_equal(dst_quantity[0]["value"], exp_dst_quantity)
         assert not fails
     except ValidationError as e:
         assert fails, e
@@ -175,3 +202,272 @@ def test_time_series_field(input_param, dst_unit, fails, db):
         assert not fails
     except Exception as e:
         assert fails, e
+
+
+def test_sensor_reference_backward_compatible(setup_dummy_sensors):
+    """Plain ``{"sensor": <id>}`` deserializes to a :class:`Sensor`, not a :class:`SensorReference`.
+
+    This verifies backward compatibility: existing flex-model/flex-context payloads that carry
+    only a sensor ID must continue to produce a plain Sensor object so that no calling code
+    needs to change.
+    """
+    sensor1, _, _, _ = setup_dummy_sensors
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    result = field.deserialize({"sensor": sensor1.id})
+
+    assert isinstance(result, Sensor)
+    assert result.id == sensor1.id
+
+
+def test_sensor_reference_with_source_types(setup_dummy_sensors):
+    """``{"sensor": <id>, "source-types": [...]}`` deserializes to a :class:`SensorReference`.
+
+    The deserialized object exposes the same ``unit``, ``id``, and ``event_resolution``
+    properties as the underlying sensor, and carries the requested ``source_types`` filter.
+    """
+    sensor1, _, _, _ = setup_dummy_sensors
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    result = field.deserialize(
+        {"sensor": sensor1.id, "source-types": ["scheduler", "forecaster"]}
+    )
+
+    assert isinstance(result, SensorReference)
+    assert result.sensor == sensor1
+    assert result.id == sensor1.id
+    assert result.unit == sensor1.unit
+    assert result.event_resolution == sensor1.event_resolution
+    assert result.source_types == ["scheduler", "forecaster"]
+    assert result.exclude_source_types is None
+    assert result.sources is None
+
+
+def test_sensor_reference_with_exclude_source_types(setup_dummy_sensors):
+    """``{"sensor": <id>, "exclude-source-types": [...]}`` deserializes to a :class:`SensorReference`.
+
+    The ``exclude_source_types`` attribute is populated and ``source_types`` remains ``None``.
+    """
+    sensor1, _, _, _ = setup_dummy_sensors
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    result = field.deserialize(
+        {"sensor": sensor1.id, "exclude-source-types": ["forecaster"]}
+    )
+
+    assert isinstance(result, SensorReference)
+    assert result.sensor == sensor1
+    assert result.source_types is None
+    assert result.exclude_source_types == ["forecaster"]
+    assert result.sources is None
+
+
+def test_sensor_reference_with_sources(setup_dummy_sensors, setup_sources, db):
+    """``{"sensor": <id>, "sources": [<source_id>]}`` deserializes to a :class:`SensorReference`.
+
+    Each integer source ID in the list is resolved to a :class:`DataSource` instance via
+    :class:`~flexmeasures.data.schemas.sources.DataSourceIdField`.
+    """
+    sensor1, _, _, _ = setup_dummy_sensors
+    seita_source = setup_sources["Seita"]
+    # Flush so that DataSources created by setup_sources get their DB-assigned primary keys.
+    # create_sources() adds objects to the session without committing; without an explicit flush
+    # the id column stays None whenever sensor1.id is already cached and no auto-flush fires.
+    db.session.flush()
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    result = field.deserialize({"sensor": sensor1.id, "sources": [seita_source.id]})
+
+    assert isinstance(result, SensorReference)
+    assert result.sensor == sensor1
+    assert result.source_types is None
+    assert result.exclude_source_types is None
+    assert result.sources is not None
+    assert len(result.sources) == 1
+    assert result.sources[0].id == seita_source.id
+
+
+def test_sensor_reference_with_source_account(setup_dummy_sensors, setup_accounts, db):
+    """``{"sensor": <id>, "source-account": [<account_id>]}`` deserializes to a :class:`SensorReference`.
+
+    The ``source_account`` attribute is populated with a list of :class:`~flexmeasures.data.models.user.Account`
+    objects resolved from the given account IDs.
+    """
+    sensor1, _, _, _ = setup_dummy_sensors
+    prosumer_account = setup_accounts["Prosumer"]
+    # Flush so that Account objects created by setup_accounts get their DB-assigned primary keys.
+    db.session.flush()
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    result = field.deserialize(
+        {"sensor": sensor1.id, "source-account": [prosumer_account.id]}
+    )
+
+    assert isinstance(result, SensorReference)
+    assert result.sensor == sensor1
+    assert result.source_account is not None
+    assert len(result.source_account) == 1
+    assert result.source_account[0].id == prosumer_account.id
+    assert result.source_types is None
+    assert result.exclude_source_types is None
+    assert result.sources is None
+
+
+def test_sensor_reference_serialization_preserves_source_filters(
+    setup_dummy_sensors, setup_sources, setup_accounts, db
+):
+    sensor1, _, _, _ = setup_dummy_sensors
+    seita_source = setup_sources["Seita"]
+    prosumer_account = setup_accounts["Prosumer"]
+    db.session.flush()
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+    source_reference = field.deserialize(
+        {
+            "sensor": sensor1.id,
+            "source-types": ["scheduler"],
+            "exclude-source-types": ["forecaster"],
+            "sources": [seita_source.id],
+            "source-account": [prosumer_account.id],
+        }
+    )
+
+    assert isinstance(source_reference, SensorReference)
+    serialized_reference = serialize_variable_quantity(source_reference)
+    assert serialized_reference == {
+        "sensor": sensor1.id,
+        "source-types": ["scheduler"],
+        "exclude-source-types": ["forecaster"],
+        "sources": [seita_source.id],
+        "source-account": [prosumer_account.id],
+    }
+
+
+def test_sensor_reference_filters_are_kept_per_reference(
+    setup_dummy_sensors, setup_sources, db
+):
+    sensor1, _, _, _ = setup_dummy_sensors
+    seita_source = setup_sources["Seita"]
+    entsoe_source = setup_sources["ENTSO-E"]
+    db.session.flush()
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    seita_reference = field.deserialize(
+        {"sensor": sensor1.id, "sources": [seita_source.id]}
+    )
+    entsoe_reference = field.deserialize(
+        {"sensor": sensor1.id, "sources": [entsoe_source.id]}
+    )
+
+    assert isinstance(seita_reference, SensorReference)
+    assert isinstance(entsoe_reference, SensorReference)
+    assert seita_reference.sensor == entsoe_reference.sensor
+    assert seita_reference.sources[0].id == seita_source.id
+    assert entsoe_reference.sources[0].id == entsoe_source.id
+    serialized_seita_reference = serialize_variable_quantity(seita_reference)
+    serialized_entsoe_reference = serialize_variable_quantity(entsoe_reference)
+    assert serialized_seita_reference["sources"] == [seita_source.id]
+    assert serialized_entsoe_reference["sources"] == [entsoe_source.id]
+
+
+@pytest.mark.parametrize(
+    "invalid_payload, expected_fragment",
+    [
+        (
+            {"sensor": 1, "source-types": "scheduler"},
+            "list of strings",
+        ),
+        (
+            {"sensor": 1, "source-types": [1, 2]},
+            "list of strings",
+        ),
+        (
+            {"sensor": 1, "exclude-source-types": "forecaster"},
+            "list of strings",
+        ),
+        (
+            {"sensor": 1, "sources": 42},
+            "list of data source IDs",
+        ),
+        (
+            {"sensor": 1, "source-account": 42},
+            "list of account IDs",
+        ),
+    ],
+)
+def test_sensor_reference_invalid_source_filter(
+    setup_dummy_sensors, invalid_payload, expected_fragment
+):
+    """Malformed source filter values raise a :class:`~marshmallow.ValidationError`.
+
+    The error message must contain the relevant fragment so callers get actionable feedback.
+    """
+    sensor1, _, _, _ = setup_dummy_sensors
+    # Replace the placeholder sensor ID 1 with the real fixture ID so the sensor lookup
+    # succeeds and the validation error comes from the source-filter branch, not the sensor lookup.
+    payload = dict(invalid_payload)
+    payload["sensor"] = sensor1.id
+
+    field = VariableQuantityField(to_unit="MWh", return_magnitude=False)
+
+    with pytest.raises(ValidationError) as exc_info:
+        field.deserialize(payload)
+
+    assert expected_fragment in str(exc_info.value)
+
+
+def test_floor_bdf_event_starts(setup_dummy_sensors, setup_sources):
+    sensor1, _, _, _ = setup_dummy_sensors
+    belief_time = pd.Timestamp("2025-01-01T09:00:00+00:00")
+    bdf = tb.BeliefsDataFrame(
+        pd.DataFrame(
+            {
+                "event_start": pd.to_datetime(
+                    [
+                        "2025-01-01T10:00:40+00:00",
+                        "2025-01-01T10:15:40+00:00",
+                    ]
+                ),
+                "belief_time": [belief_time, belief_time],
+                "source": [setup_sources["Seita"], setup_sources["Seita"]],
+                "event_value": [1.0, 2.0],
+            }
+        ),
+        sensor=sensor1,
+        event_resolution=pd.Timedelta(minutes=15),
+    )
+
+    floored_bdf = floor_bdf_event_starts(bdf, pd.Timedelta(minutes=15))
+
+    pd.testing.assert_index_equal(
+        floored_bdf.event_starts,
+        pd.DatetimeIndex(
+            ["2025-01-01T10:00:00+00:00", "2025-01-01T10:15:00+00:00"],
+            name="event_start",
+        ),
+    )
+    assert floored_bdf["event_value"].to_list() == [1.0, 2.0]
+
+
+def test_floor_bdf_event_starts_rejects_collisions(setup_dummy_sensors, setup_sources):
+    sensor1, _, _, _ = setup_dummy_sensors
+    belief_time = pd.Timestamp("2025-01-01T09:00:00+00:00")
+    bdf = tb.BeliefsDataFrame(
+        pd.DataFrame(
+            {
+                "event_start": pd.to_datetime(
+                    [
+                        "2025-01-01T10:00:40+00:00",
+                        "2025-01-01T10:08:10+00:00",
+                    ]
+                ),
+                "belief_time": [belief_time, belief_time],
+                "source": [setup_sources["Seita"], setup_sources["Seita"]],
+                "event_value": [1.0, 2.0],
+            }
+        ),
+        sensor=sensor1,
+        event_resolution=pd.Timedelta(minutes=7, seconds=30),
+    )
+
+    with pytest.raises(ValidationError, match="would merge multiple beliefs"):
+        floor_bdf_event_starts(bdf, pd.Timedelta(minutes=15))

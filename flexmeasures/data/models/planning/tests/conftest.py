@@ -29,7 +29,7 @@ def app_with_each_solver(app, request):
     app.config["FLEXMEASURES_LP_SOLVER"] = original_solver
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="module")
 def setup_planning_test_data(db, add_market_prices, add_charging_station_assets):
     """
     Set up data for all planning tests.
@@ -105,7 +105,7 @@ def building(db, setup_accounts, setup_markets) -> GenericAsset:
         building_type = GenericAssetType(name="building")
     db.session.add(building_type)
     building = GenericAsset(
-        name="building",
+        name="planning building",
         generic_asset_type=building_type,
         owner=setup_accounts["Prosumer"],
         flex_context={

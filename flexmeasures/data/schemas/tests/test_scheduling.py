@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 import pytest
 
@@ -14,6 +14,7 @@ from flexmeasures.data.schemas.scheduling.storage import (
     StorageFlexModelSchema,
     DBStorageFlexModelSchema,
 )
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.sensors import TimedEventSchema, VariableQuantityField
 
 
@@ -160,6 +161,26 @@ def test_process_scheduler_flex_model_process_type(db, app, setup_dummy_sensors)
     )
 
     assert process_scheduler_flex_model["process_type"] == ProcessType.SHIFTABLE
+
+
+def test_storage_flex_model_schema_does_not_floor_instantaneous_sensor(
+    db, app, dummy_asset
+):
+    sensor = Sensor(
+        "instantaneous power sensor",
+        generic_asset=dummy_asset,
+        event_resolution=timedelta(0),
+        unit="MW",
+    )
+    db.session.add(sensor)
+    db.session.flush()
+
+    schema = StorageFlexModelSchema(
+        sensor=sensor,
+        start=datetime(2023, 1, 1, tzinfo=pytz.UTC),
+    )
+
+    assert schema.flooring_resolution is None
 
 
 @pytest.mark.parametrize(
@@ -749,7 +770,26 @@ def test_get_variable_quantity_unit(
         )
 
 
-# test DBStorageFlexModelSchema
+def test_flex_context_schema_rejects_filtered_aggregate_power(
+    setup_dummy_sensors, setup_sources, db
+):
+    _, _, _, power_sensor = setup_dummy_sensors
+    seita_source = setup_sources["Seita"]
+    db.session.flush()
+
+    with pytest.raises(ValidationError) as exc_info:
+        FlexContextSchema().load(
+            {
+                "aggregate-power": {
+                    "sensor": power_sensor.id,
+                    "sources": [seita_source.id],
+                }
+            }
+        )
+
+    assert "cannot use source filters" in str(exc_info.value)
+
+
 @pytest.mark.parametrize(
     ["flex_model", "fails"],
     [
@@ -782,15 +822,74 @@ def test_get_variable_quantity_unit(
             {"soc-usage": ["3500 kW", {"sensor": "power-sensor"}]},
             False,
         ),
+        (
+            {"roundtrip-efficiency": "90%"},
+            False,
+        ),
+        (
+            {"roundtrip-efficiency": "12 MW"},
+            {"roundtrip-efficiency": "Cannot convert value `12 MW` to '%'"},
+        ),
+        (
+            {"storage-efficiency": {"sensor": "efficiency-sensor"}},
+            False,
+        ),
+        (
+            {"storage-efficiency": {"sensor": "power-sensor"}},
+            {"storage-efficiency": "Cannot convert MW to %"},
+        ),
+        # plain quantity storage-efficiency without sensor-backed consumption/production should fail
+        (
+            {"storage-efficiency": "90%"},
+            [
+                {
+                    "storage-efficiency": "The storage-efficiency cannot be interpreted without a resolution."
+                },
+                False,
+            ],
+        ),
+        # plain quantity storage-efficiency is valid when consumption is sensor-backed
+        (
+            {
+                "storage-efficiency": "90%",
+                "consumption": {"sensor": "power-sensor"},
+            },
+            False,
+        ),
     ],
 )
-def test_db_flex_model_schema(db, app, setup_dummy_sensors, flex_model, fails):
-    schema = DBStorageFlexModelSchema()
+def test_flex_model_schemas(
+    db, app, setup_dummy_sensors, setup_efficiency_sensors, flex_model, fails
+):
+    """Validate StorageFlexModelSchema and DBStorageFlexModelSchema for accepted and rejected flex-model inputs.
+
+    Input under test:
+    - ``flex_model`` payloads with fixed quantities, sensor references, and list fields
+        (for example ``soc-min``, ``soc-minima``, ``soc-gain``,
+        ``roundtrip-efficiency``, ``storage-efficiency``).
+    - Sensor placeholders in parametrized payloads are replaced with fixture-backed
+        sensor IDs before schema loading.
+
+    Expected outcomes:
+    - When ``fails`` is ``False``, schema loading succeeds.
+    - When ``fails`` is a field-to-message mapping, schema loading raises
+        ``ValidationError`` and contains the expected field-specific error message(s).
+    - When ``fails`` is a list, its first entry represents the expectation for the StorageFlexModelSchema,
+        and the second entry represents the expectation for the DBStorageFlexModelSchema.
+    """
+    schemas = [
+        StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None),
+        DBStorageFlexModelSchema(),
+    ]
+    if not isinstance(fails, list):
+        # Then the same expectation holds for both schemas
+        fails = [fails, fails]
 
     sensors = {
         "energy-sensor": setup_dummy_sensors[0],
         "price-sensor": setup_dummy_sensors[1],
         "power-sensor": setup_dummy_sensors[3],
+        "efficiency-sensor": setup_efficiency_sensors,
     }
 
     for field_name, field_value in flex_model.items():
@@ -806,21 +905,295 @@ def test_db_flex_model_schema(db, app, setup_dummy_sensors, flex_model, fails):
                 for item in field_value
             ]
 
-    if fails:
-        with pytest.raises(ValidationError) as e_info:
-            schema.load(flex_model)
-        for field_name, expected_message in fails.items():
-            assert field_name in e_info.value.messages
-            if field_name in ["soc-gain", "soc-usage"]:
-                for index, message_list in e_info.value.messages[field_name].items():
-                    assert message_list[0] == expected_message[index][0]
-            else:
-                # Check all messages for the given field for the expected message
-                assert any(
-                    [
-                        expected_message in message
-                        for message in e_info.value.messages[field_name]
-                    ]
-                )
-    else:
-        schema.load(flex_model)
+    for schema, fail in zip(schemas, fails):
+        if fail:
+            with pytest.raises(ValidationError) as e_info:  # noqa: F841
+                schema.load(flex_model)
+
+
+@pytest.mark.parametrize(
+    ["flex_context", "fails"],
+    [
+        # Test aggregate-consumption field with sensor reference
+        (
+            {"aggregate-consumption": {"sensor": "consumption-price in SEK/MWh"}},
+            False,
+        ),
+        # Test aggregate-production field with sensor reference
+        (
+            {"aggregate-production": {"sensor": "production-price in SEK/MWh"}},
+            False,
+        ),
+        # Test both aggregate fields together
+        (
+            {
+                "aggregate-consumption": {"sensor": "consumption-price in SEK/MWh"},
+                "aggregate-production": {"sensor": "production-price in SEK/MWh"},
+            },
+            False,
+        ),
+        # Test that relax_constraints defaults to True in FlexContextSchema
+        (
+            {"site-power-capacity": "1 MVA"},
+            False,
+        ),
+        # Test breach prices moved to SharedSchema
+        (
+            {
+                "consumption-breach-price": "100 EUR/MW",
+                "production-breach-price": "100 EUR/MW",
+            },
+            False,
+        ),
+        # Test soc breach prices moved to SharedSchema
+        (
+            {
+                "soc-minima-breach-price": "1000 EUR/MWh",
+                "soc-maxima-breach-price": "1000 EUR/MWh",
+            },
+            False,
+        ),
+    ],
+)
+def test_shared_schema_fields_in_flex_context(
+    db, app, setup_site_capacity_sensor, setup_price_sensors, flex_context, fails
+):
+    """Test that SharedSchema fields are accessible in FlexContextSchema."""
+    schema = FlexContextSchema()
+
+    # Replace sensor name with sensor ID
+    sensors_to_pick_from = {**setup_site_capacity_sensor, **setup_price_sensors}
+    for field_name, field_value in flex_context.items():
+        if isinstance(field_value, dict) and "sensor" in field_value:
+            sensor_name = field_value["sensor"]
+            if sensor_name in sensors_to_pick_from:
+                flex_context[field_name]["sensor"] = sensors_to_pick_from[
+                    sensor_name
+                ].id
+
+    check_schema_loads_data(schema=schema, data=flex_context, fails=fails)
+
+
+@pytest.mark.parametrize(
+    ["commodity_contexts", "fails"],
+    [
+        # Test single commodity pass validation and defaults relax_constraints to True
+        (
+            [
+                {
+                    "commodity": "electricity",
+                    "site-power-capacity": "1 MVA",
+                }
+            ],
+            False,
+        ),
+        # Likewise for multiple commodities, relax_constraints should default to True for each
+        (
+            [
+                {
+                    "commodity": "electricity",
+                    "site-power-capacity": "1 MVA",
+                },
+                {
+                    "commodity": "heat",
+                    "site-power-capacity": "500 kW",
+                },
+            ],
+            False,
+        ),
+        # Test aggregate fields in commodity context pass validation
+        (
+            [
+                {
+                    "commodity": "electricity",
+                    "aggregate-consumption": {"sensor": "consumption-price in SEK/MWh"},
+                    "aggregate-production": {"sensor": "production-price in SEK/MWh"},
+                }
+            ],
+            False,
+        ),
+        # Test breach prices in commodity context pass validation
+        (
+            [
+                {
+                    "commodity": "electricity",
+                    "consumption-breach-price": "100 EUR/MW",
+                    "production-breach-price": "100 EUR/MW",
+                }
+            ],
+            False,
+        ),
+    ],
+)
+def test_commodity_flex_context_defaults(
+    db, app, setup_site_capacity_sensor, setup_price_sensors, commodity_contexts, fails
+):
+    """Test that CommodityFlexContextSchema has correct defaults, especially relax_constraints=True."""
+    from flexmeasures.data.schemas.scheduling import CommodityFlexContextSchema
+
+    # Replace sensor name with sensor ID
+    sensors_to_pick_from = {**setup_site_capacity_sensor, **setup_price_sensors}
+    for context in commodity_contexts:
+        for field_name, field_value in context.items():
+            if isinstance(field_value, dict) and "sensor" in field_value:
+                sensor_name = field_value["sensor"]
+                if sensor_name in sensors_to_pick_from:
+                    context[field_name]["sensor"] = sensors_to_pick_from[sensor_name].id
+
+    # Test loading each commodity context
+    schema = CommodityFlexContextSchema()
+    for context in commodity_contexts:
+        if fails:
+            with pytest.raises(ValidationError) as e_info:
+                loaded = schema.load(context)
+            print(f"Returned error message: {e_info.value.messages}")
+        else:
+            loaded = schema.load(context)
+            # Verify relax_constraints defaults to True in CommodityFlexContextSchema
+            assert loaded.get("relax_constraints", True) is True
+
+
+@pytest.mark.parametrize(
+    ["flex_context_listing", "fails"],
+    [
+        # Test flex-context listing with mixed currencies should fail
+        (
+            {
+                "commodities": [
+                    {
+                        "commodity": "electricity",
+                        "consumption-price": "1 EUR/MWh",
+                    },
+                    {
+                        "commodity": "heat",
+                        "consumption-price": "1 USD/MWh",
+                    },
+                ]
+            },
+            {
+                "commodities": "all prices in the flex-context must share the same currency unit"
+            },
+        ),
+        # Test flex-context listing with same currencies should pass
+        (
+            {
+                "commodities": [
+                    {
+                        "commodity": "electricity",
+                        "consumption-price": "1 EUR/MWh",
+                    },
+                    {
+                        "commodity": "heat",
+                        "consumption-price": "2 EUR/MWh",
+                    },
+                ]
+            },
+            False,
+        ),
+        # Test flex-context listing with breach prices sharing currency
+        (
+            {
+                "commodities": [
+                    {
+                        "commodity": "electricity",
+                        "consumption-breach-price": "100 EUR/MW",
+                        "production-breach-price": "10 cEUR/kW",
+                    }
+                ]
+            },
+            False,
+        ),
+        # Test flex-context listing with mixed breach price currencies should fail
+        (
+            {
+                "commodities": [
+                    {
+                        "commodity": "electricity",
+                        "consumption-breach-price": "100 EUR/MW",
+                    },
+                    {
+                        "commodity": "heat",
+                        "consumption-breach-price": "100 USD/MW",
+                    },
+                ]
+            },
+            {
+                "commodities": "all prices in the flex-context must share the same currency unit"
+            },
+        ),
+    ],
+)
+def test_flex_context_listing_shared_currency(
+    db,
+    app,
+    setup_site_capacity_sensor,
+    setup_price_sensors,
+    flex_context_listing,
+    fails,
+):
+    """Test that flex-context listings enforce shared currency across commodities."""
+    schema = FlexContextSchema()
+
+    check_schema_loads_data(schema=schema, data=flex_context_listing, fails=fails)
+
+
+def test_flex_context_listing_rejects_duplicate_commodities(db, app):
+    """test_flex_context_listing_rejects_duplicate_commodities: a commodity listed twice must be rejected."""
+    schema = FlexContextSchema()
+    flex_context = {
+        "commodities": [
+            {"commodity": "electricity", "consumption-price": "1 EUR/MWh"},
+            {"commodity": "electricity", "production-price": "1 EUR/MWh"},
+        ]
+    }
+    check_schema_loads_data(
+        schema=schema,
+        data=flex_context,
+        fails={"commodities": "may only be listed once"},
+    )
+
+
+def test_flex_context_single_dict_rejects_non_electricity_commodity(db, app):
+    """test_flex_context_single_dict_rejects_non_electricity_commodity: the single-dict form only supports electricity."""
+    schema = FlexContextSchema()
+    flex_context = {"commodity": "gas", "consumption-price": "1 EUR/MWh"}
+    check_schema_loads_data(
+        schema=schema,
+        data=flex_context,
+        fails={"commodity": "only supports the 'electricity' commodity"},
+    )
+
+
+def test_flex_context_single_dict_allows_explicit_electricity_commodity(db, app):
+    """test_flex_context_single_dict_allows_explicit_electricity_commodity: explicit electricity is fine."""
+    schema = FlexContextSchema()
+    flex_context = {"commodity": "electricity", "consumption-price": "1 EUR/MWh"}
+    check_schema_loads_data(schema=schema, data=flex_context, fails=False)
+
+
+def test_flex_context_tolerates_commodities_with_top_level_shared_fields(db, app):
+    """test_flex_context_tolerates_commodities_with_top_level_shared_fields: mixing must be tolerated.
+
+    The API path dict-merges an asset's db-stored (electricity) flex-context fields at the
+    top level after normalizing a multi-commodity list to {"commodities": [...]}, so this
+    mix must load fine. Top-level fields serve as the electricity context only when the
+    commodities list has no electricity entry (see _get_commodity_contexts in storage.py).
+    """
+    schema = FlexContextSchema()
+    flex_context = {
+        "consumption-price": "1 EUR/MWh",
+        "commodities": [
+            {"commodity": "gas", "consumption-price": "1 EUR/MWh"},
+        ],
+    }
+    check_schema_loads_data(schema=schema, data=flex_context, fails=False)
+
+
+def test_asset_trigger_schema_rejects_malformed_flex_context(app):
+    """test_asset_trigger_schema_rejects_malformed_flex_context: a non-dict/list flex-context must raise a ValidationError, not a TypeError."""
+    from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+
+    schema = AssetTriggerSchema()
+    with pytest.raises(ValidationError) as e_info:
+        schema.normalize_flex_context_format({"flex-context": "not-a-dict-or-list"})
+    assert "flex-context" in str(e_info.value)

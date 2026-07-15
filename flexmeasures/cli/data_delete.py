@@ -35,11 +35,129 @@ from flexmeasures.cli.utils import (
     DeprecatedOptionsCommand,
 )
 from flexmeasures.utils.flexmeasures_inflection import join_words_into_a_list
+from flexmeasures.utils.secrets_utils import delete_secret, get_secret_paths
+
+
+def _resolve_secret_path(
+    secret: str | None, secret_path_parts: tuple[str, ...]
+) -> str | tuple[str, ...]:
+    """Normalize CLI secret path arguments to a utility-friendly path."""
+    if secret is not None and secret_path_parts:
+        raise ValueError("Pass either --secret or --secret-path, not both.")
+    if secret is None and not secret_path_parts:
+        raise ValueError("Pass either --secret or --secret-path.")
+    if len(secret_path_parts) > 2:
+        raise ValueError("Pass --secret-path at most twice.")
+    if secret_path_parts:
+        return secret_path_parts
+    assert secret is not None
+    return secret
+
+
+def _count_affected_secrets(
+    secrets: dict | None, secret_path: str | tuple[str, ...]
+) -> int:
+    """Count stored secrets that would be removed by deleting ``secret_path``."""
+    if isinstance(secret_path, str):
+        prefix = secret_path
+    else:
+        prefix = ".".join(secret_path)
+    return sum(
+        path == prefix or path.startswith(f"{prefix}.")
+        for path in get_secret_paths(secrets)
+    )
 
 
 @click.group("delete")
 def fm_delete_data():
     """FlexMeasures: Delete data."""
+
+
+@fm_delete_data.command("secret")
+@with_appcontext
+@click.option(
+    "--account",
+    "account",
+    required=False,
+    type=AccountIdField(),
+    help="Delete a secret from this account. Follow up with the account's ID.",
+)
+@click.option(
+    "--asset",
+    "asset",
+    required=False,
+    type=AssetIdField(),
+    help="Delete a secret from this asset. Follow up with the asset's ID.",
+)
+@click.option(
+    "--secret",
+    "secret",
+    required=False,
+    help="Delete the secret with this name. Can also be a dot-separated path (maximally one dot).",
+)
+@click.option(
+    "--secret-path",
+    "secret_path_parts",
+    required=False,
+    multiple=True,
+    help="Delete the secret with this path part. Pass once or twice. Use this instead of --secret if your secret name contains a dot.",
+)
+@click.option(
+    "--force/--no-force",
+    default=False,
+    help="Delete without asking for confirmation.",
+)
+def delete_stored_secret(
+    account: Account | None,
+    asset: GenericAsset | None,
+    secret: str | None,
+    secret_path_parts: tuple[str, ...],
+    force: bool,
+) -> None:
+    """Delete one encrypted secret from an account or asset.
+
+    The command accepts exactly one account or asset and asks for confirmation
+    unless ``--force`` is used.
+
+    \b
+    Examples:
+      flexmeasures delete secret --account 1 --secret platform.access_token
+      flexmeasures delete secret --asset 2 --secret-path platform --secret-path token.v2 --force
+      flexmeasures delete secret --asset 2 --secret platform.password --force
+    """
+    if (account is None) == (asset is None):
+        raise ValueError("Pass exactly one of --account or --asset.")
+    resolved_secret_path = _resolve_secret_path(secret, secret_path_parts)
+    display_secret_path = secret or ".".join(secret_path_parts)
+
+    if account is not None:
+        target: Account | GenericAsset = account
+        target_type = "account"
+    else:
+        assert asset is not None
+        target = asset
+        target_type = "asset"
+    if not force:
+        affected_count = _count_affected_secrets(target.secrets, resolved_secret_path)
+        affected_clause = (
+            f" This affects {affected_count} stored secrets."
+            if affected_count > 1
+            else ""
+        )
+        click.confirm(
+            f"Delete secret '{display_secret_path}' from {target_type} {target.id}?{affected_clause}",
+            abort=True,
+        )
+
+    try:
+        target.secrets = delete_secret(target.secrets, resolved_secret_path)
+    except KeyError:
+        abort(f"Secret path '{display_secret_path}' does not exist.")
+    db.session.add(target)
+    db.session.commit()
+    done(
+        f"Secret '{display_secret_path}' has been deleted from {target_type} {target.id}."
+    )
 
 
 @fm_delete_data.command("account-role")

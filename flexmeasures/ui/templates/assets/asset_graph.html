@@ -246,6 +246,14 @@
                                     Sensors can be searched on the right. This will list sensors on the asset or its
                                     child asset, as well as public assets.
                                 </p>
+                                <p class="mb-0">
+                                    Each graph has a "Y-axis" selector; choose "Fit to the data" to let that
+                                    graph's shared y-axis zoom in on its data instead of being padded out to
+                                    include zero, "Fixed range…" to set an explicit min and max that the axis
+                                    is still allowed to expand beyond, or "Strict range…" to hard-bound the
+                                    axis to that min and max (data outside it is clamped to the nearest edge,
+                                    and you'll be warned if that happens).
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -408,15 +416,14 @@
         const unitsSelect = document.getElementById("unitsSelect");
         const searchInput = document.getElementById("searchInput");
 
-        let sensorsToShowRawJSON = "{{ asset.sensors_to_show | safe }}";
-        sensorsToShowRawJSON = sensorsToShowRawJSON.replace(/'/g, '"');
-        let sensorsToShow = JSON.parse(sensorsToShowRawJSON);
+        let sensorsToShow = {{ asset.sensors_to_show | tojson }};
         const newFormat = sensorsToShowFormatter(sensorsToShow);
 
         let cachedFilteredSensors = []; // keeps track of the filtered sensors
         let savedGraphIndex; // keeps track of the graph that is currently selected
         let selectedGraphTitle; // keeps track of the graph title that is currently selected
         const sensorsApiUrl = `${apiBasePath}/api/v3_0/sensors?page=1&per_page=100&asset_id={{ site_asset.id }}&include_public_assets=true`;
+        let unavailablePlotCount = 0;
 
         // ==========================================
         // REACTIVE STATE MANAGEMENT
@@ -463,7 +470,35 @@
             );
         }
 
+        // An unusable "Fixed range…" is never written into the state, so saving would
+        // silently drop it — or keep a stale earlier range — and still report success.
+        // Read the inputs rather than the state, and refuse the save instead.
+        function findInvalidYAxisRange() {
+            const graphs = getSensorToShow();
+            for (const [index, item] of graphs.entries()) {
+                const select = document.getElementById(`yAxisSelect_${index}`);
+                if (!select || (select.value !== "range" && select.value !== "strict")) continue;
+                const minVal = parseFloat(document.getElementById(`yAxisMin_${index}`).value);
+                const maxVal = parseFloat(document.getElementById(`yAxisMax_${index}`).value);
+                // A strict range hard-bounds the axis, so an equal Min and Max would
+                // clamp all data to a single pixel; the floor range has no such issue.
+                const boundsOk = select.value === "strict" ? minVal < maxVal : minVal <= maxVal;
+                if (Number.isNaN(minVal) || Number.isNaN(maxVal) || !boundsOk) {
+                    return item.title || `Graph ${index + 1}`;
+                }
+            }
+            return null;
+        }
+
         saveChangesBtn.onclick = async function () {
+            const invalidGraph = findInvalidYAxisRange();
+            if (invalidGraph !== null) {
+                showToast(
+                    `Not saved: the y-axis range of '${invalidGraph}' needs two numbers, with Min no higher than Max.`,
+                    "error",
+                );
+                return;
+            }
             await updateAssetSensorsToShow();
         };
         addPlotBtn.onclick = async function () {
@@ -594,18 +629,27 @@
                     if ("sensors" in graph) {
                         const item = {};
                         item['title'] = graph['title'] || "No Title";
+                        if ("y-axis" in graph) {
+                            item["y-axis"] = graph["y-axis"];
+                        }
                         item['plots'] = [];
                         item['plots'].push({ "sensors": graph['sensors'] });
                         newShape.push(item);
                     } else if ("sensor" in graph) {
                         const item = {};
                         item['title'] = graph['title'] || "No Title";
+                        if ("y-axis" in graph) {
+                            item["y-axis"] = graph["y-axis"];
+                        }
                         item['plots'] = [];
                         item['plots'].push({ "sensor": graph['sensor'] });
                         newShape.push(item);
                     } else if ("plots" in graph) {
                         const item = {};
                         item['title'] = graph['title'] || "No Title";
+                        if ("y-axis" in graph) {
+                            item["y-axis"] = graph["y-axis"];
+                        }
                         item['plots'] = graph['plots'];
                         newShape.push(item);
                     } else {
@@ -752,6 +796,177 @@
             return header;
         }
 
+        /**
+        * Renders the "Y-axis" selector for a graph card, letting the user choose whether
+        * the sub-chart's y-axis is padded out to zero, fitted to the data, or fixed to
+        * an explicit [min, max] range.
+        * @param {Object} item - The graph/sub-chart entry.
+        * @param {number} index - The index of the graph in the list.
+        */
+        function renderYAxisSelector(item, index) {
+            const wrapper = document.createElement("div");
+            wrapper.className = "mb-2";
+            // The enclosing card toggles the active graph on click, so keep clicks in here
+            wrapper.onclick = (e) => {
+                e.stopPropagation();
+            };
+
+            const yAxis = item["y-axis"];
+            const isRange = Array.isArray(yAxis);
+            const isStrict = yAxis !== null && typeof yAxis === "object" && !isRange;
+            const currentMode = isRange
+                ? "range"
+                : (isStrict ? "strict" : (yAxis === "data" ? "data" : "zero"));
+
+            const label = document.createElement("label");
+            label.className = "form-label me-2";
+            label.htmlFor = `yAxisSelect_${index}`;
+            label.textContent = "Y-axis";
+            label.title = "How the y-axis domain for this sub-chart is chosen.";
+
+            const select = document.createElement("select");
+            select.className = "form-select form-select-sm d-inline-block w-auto";
+            select.id = `yAxisSelect_${index}`;
+            select.title = "How the y-axis domain for this sub-chart is chosen.";
+
+            const options = [
+                {
+                    value: "zero",
+                    text: "Include zero (default)",
+                    title: "The axis is padded out so that zero is always visible. Good for power and other quantities where zero is meaningful.",
+                },
+                {
+                    value: "data",
+                    text: "Fit to the data",
+                    title: "The axis zooms in on the values shown. Zero may still appear if the data spans it.",
+                },
+                {
+                    value: "range",
+                    text: "Fixed range…",
+                    title: "The axis always covers at least this range, and expands if the data goes beyond it. Set Min and Max to the same number to always keep that one value in view.",
+                },
+                {
+                    value: "strict",
+                    text: "Strict range…",
+                    title: "The axis never covers more than this range. Data outside it is drawn clamped to the nearest edge, so out-of-range values can look misleadingly close to Min or Max. Min must be strictly lower than Max.",
+                },
+            ];
+            for (const opt of options) {
+                const optionEl = document.createElement("option");
+                optionEl.value = opt.value;
+                optionEl.textContent = opt.text;
+                optionEl.title = opt.title;
+                optionEl.selected = opt.value === currentMode;
+                select.appendChild(optionEl);
+            }
+
+            wrapper.appendChild(label);
+            wrapper.appendChild(select);
+
+            // Range inputs (min/max), shared by "Fixed range…" and "Strict range…"
+            const rangeWrapper = document.createElement("div");
+            rangeWrapper.className = "mt-2";
+            const isRangeMode = (mode) => mode === "range" || mode === "strict";
+            rangeWrapper.style.display = isRangeMode(currentMode) ? "" : "none";
+
+            // Repeat the selected option's explanation here: by the time the user is
+            // filling these in, the option's own tooltip is out of reach.
+            const titleFor = (mode) => options.find((opt) => opt.value === mode).title;
+            const applyRangeTitle = (mode) => {
+                const title = titleFor(isRangeMode(mode) ? mode : "range");
+                rangeWrapper.title = title;
+                minInput.title = title;
+                maxInput.title = title;
+            };
+
+            const makeNumberInput = (id, placeholder, initialValue) => {
+                const input = document.createElement("input");
+                input.type = "number";
+                input.className = "form-control form-control-sm d-inline-block w-auto me-2";
+                input.id = id;
+                input.placeholder = placeholder;
+                if (initialValue !== undefined && initialValue !== null) {
+                    input.value = initialValue;
+                }
+                return input;
+            };
+
+            const minInput = makeNumberInput(
+                `yAxisMin_${index}`,
+                "Min",
+                isRange ? yAxis[0] : (isStrict ? yAxis.min : undefined),
+            );
+            const maxInput = makeNumberInput(
+                `yAxisMax_${index}`,
+                "Max",
+                isRange ? yAxis[1] : (isStrict ? yAxis.max : undefined),
+            );
+            applyRangeTitle(currentMode);
+
+            const feedback = document.createElement("div");
+            feedback.className = "invalid-feedback d-block d-none";
+
+            const validateAndStoreRange = () => {
+                const mode = select.value;
+                const minVal = parseFloat(minInput.value);
+                const maxVal = parseFloat(maxInput.value);
+                // A strict range hard-bounds the axis, so an equal Min and Max would
+                // clamp all data to a single pixel; the floor range has no such issue.
+                const boundsOk = mode === "strict" ? minVal < maxVal : minVal <= maxVal;
+                const valid =
+                    minInput.value !== "" &&
+                    maxInput.value !== "" &&
+                    !Number.isNaN(minVal) &&
+                    !Number.isNaN(maxVal) &&
+                    boundsOk;
+                if (valid) {
+                    minInput.classList.remove("is-invalid");
+                    maxInput.classList.remove("is-invalid");
+                    feedback.classList.add("d-none");
+                    setGraphYAxis(
+                        index,
+                        mode === "strict" ? { min: minVal, max: maxVal } : [minVal, maxVal],
+                    );
+                } else {
+                    minInput.classList.add("is-invalid");
+                    maxInput.classList.add("is-invalid");
+                    feedback.classList.remove("d-none");
+                    feedback.textContent = mode === "strict"
+                        ? "Enter two numbers, with Min strictly lower than Max."
+                        : "Enter two numbers, with Min no higher than Max.";
+                }
+            };
+
+            minInput.onchange = validateAndStoreRange;
+            maxInput.onchange = validateAndStoreRange;
+
+            rangeWrapper.appendChild(minInput);
+            rangeWrapper.appendChild(maxInput);
+            rangeWrapper.appendChild(feedback);
+            wrapper.appendChild(rangeWrapper);
+
+            select.onchange = (e) => {
+                const mode = e.target.value;
+                rangeWrapper.style.display = isRangeMode(mode) ? "" : "none";
+                applyRangeTitle(mode);
+                if (mode === "zero") {
+                    setGraphYAxis(index, null);
+                } else if (mode === "data") {
+                    setGraphYAxis(index, "data");
+                } else if (isRangeMode(mode)) {
+                    // Do not store anything until both inputs are valid.
+                    minInput.classList.remove("is-invalid");
+                    maxInput.classList.remove("is-invalid");
+                    feedback.classList.add("d-none");
+                    if (minInput.value !== "" && maxInput.value !== "") {
+                        validateAndStoreRange();
+                    }
+                }
+            };
+
+            return wrapper;
+        }
+
 
         async function renderGraphCard(item, index, sensorsToShowLength) {
             // 2. Outer Column
@@ -822,8 +1037,19 @@
                 } else if ("asset" in plot) {
                     const plotHeader = document.createElement("h5");
                     plotHeader.className = "pt-2 fs-[1rem]";
-                    const asset = await getAsset(plot.asset);
-                    plotHeader.innerHTML = `<b>${asset.name}: ${plot["flex-model"] || plot["flex-context"]}</b>`;
+                    let asset = null;
+                    try {
+                        asset = await getAsset(plot.asset);
+                    } catch (_error) {
+                        asset = null;
+                    }
+                    if (!asset || !asset.name) {
+                        unavailablePlotCount += 1;
+                        plotHeader.innerHTML = `<b>Asset ${plot.asset}: ${plot["flex-model"] || plot["flex-context"]} (Not available)</b>`;
+                        plotHeader.classList.add("text-warning");
+                    } else {
+                        plotHeader.innerHTML = `<b>${asset.name}: ${plot["flex-model"] || plot["flex-context"]}</b>`;
+                    }
                     const assetPlotContent = await renderAssetPlotCard(plot, removePlotOrSensor, index, plotIndex);
                     plotContainer.appendChild(plotHeader);
                     plotContainer.appendChild(assetPlotContent);
@@ -863,6 +1089,7 @@
             // Assemble
             cardBody.appendChild(header);
             cardBody.appendChild(plotContainer);
+            cardBody.appendChild(renderYAxisSelector(item, index));
             cardBody.appendChild(footer);
             card.appendChild(cardBody);
             col.appendChild(card);
@@ -902,6 +1129,7 @@
 
             const graphList = document.getElementById("graphList");
             graphList.innerHTML = "";
+            unavailablePlotCount = 0;
             const oldSensorsToShow = getSensorToShow();
             const newSensorsToShow = [];
 
@@ -929,6 +1157,14 @@
                     oldSensorsToShow.length,
                 );
                 graphList.appendChild(graphCard);
+            }
+
+            if (unavailablePlotCount > 0) {
+                const warning = document.createElement("div");
+                warning.className = "alert alert-warning mt-2";
+                warning.setAttribute("role", "alert");
+                warning.textContent = `${unavailablePlotCount} saved plot${unavailablePlotCount > 1 ? "s are" : " is"} not available anymore. You can remove or update these references.`;
+                graphList.prepend(warning);
             }
 
             sensorsToShow = newSensorsToShow;
@@ -1064,6 +1300,24 @@
 
         }
 
+        /**
+        * Update the `y-axis` field of a graph/sub-chart entry.
+        * @param {number} graphIndex - The index of the graph in the list.
+        * @param {("data"|[number, number]|null)} value - "data" to fit the axis to the
+        *   data, a [min, max] pair for a fixed range, or null/undefined to reset to the
+        *   default (padded out to include zero).
+        */
+        function setGraphYAxis(graphIndex, value) {
+            const state = getSensorToShow();
+            const next = state.map((item, i) => {
+                if (i !== graphIndex) return item;
+                // The y-axis is padded out to include zero by default, so only store non-defaults
+                const { "y-axis": _, ...rest } = item;
+                return value == null ? rest : { ...rest, "y-axis": value };
+            });
+            setSensorToShow(next);
+        }
+
         window.addNewGraph = addNewGraph;
         window.addSensorAsGraph = addSensorAsGraph;
         window.addSensorToExistingGraph = addSensorToExistingGraph;
@@ -1165,7 +1419,9 @@
                 const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
                 showToast(`Failed to update the asset: ${errorMessage}`, "error");
             } else {
-                document.dispatchEvent(new Event('sensorsToShowUpdated'));
+                document.dispatchEvent(new CustomEvent('sensorsToShowUpdated', {
+                    detail: { sensorsToShow: getSensorToShow() },
+                }));
                 showToast("Changes saved successfully", "success");
                 refreshSpinner.style.display = 'none';
                 sensorChartDiv.style.display = 'block';

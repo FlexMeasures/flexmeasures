@@ -27,6 +27,12 @@ class MetaData:
 # FLEX-CONTEXT
 
 
+COMMODITY_FLEX_CONTEXT = MetaData(
+    description="""Commodity to which this part of the flex-context applies.
+Defaults to ``"electricity"``.
+""",
+    examples=["electricity", "gas"],
+)
 INFLEXIBLE_DEVICE_SENSORS = MetaData(
     description="""Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
 For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.
@@ -36,20 +42,47 @@ Must be a list of integers.
     example=[3, 4],
 )
 AGGREGATE_POWER = MetaData(
-    description="""Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.""",
+    description="""[Deprecated field] Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.
+To avoid using the field, use ``aggregate-consumption`` or ``aggregate-production`` instead, which make clear the sign convention.
+""",
     example={"sensor": 9},
+)
+AGGREGATE_CONSUMPTION = MetaData(
+    description="""Sensor used to record the aggregate consumption schedule of all flexible and inflexible devices involved when scheduling this asset.
+
+The sign convention is determined by the key name, and is stored on the sensor itself using the ``consumption_is_positive`` attribute.
+
+Depending on which output sensors are defined:
+
+- **Only** ``aggregate-consumption`` **defined**: the full aggregate power schedule is stored on this sensor using the
+  consumption-positive sign convention (consumption positive, production negative).
+- **Only** ``aggregate-production`` **defined**: the full aggregate power schedule is stored on the aggregate-production sensor
+  with the production-positive convention (production positive, consumption negative).
+- **Both defined**: only the non-negative part of the aggregate schedule is stored on this sensor (zero for
+  time steps with net production), and only the non-positive part (sign-flipped) is stored on the
+  aggregate-production sensor.
+""",
+    example={"sensor": 10},
+)
+AGGREGATE_PRODUCTION = MetaData(
+    description="""Sensor used to record the aggregate production schedule of all flexible and inflexible devices involved when scheduling this asset.
+
+The sign convention is determined by the key name, and is stored on the sensor itself using the ``consumption_is_positive`` attribute.
+
+See the ``aggregate-consumption`` field for the full description of the split logic when both sensors are defined.
+""",
+    example={"sensor": 11},
 )
 COMMITMENTS = MetaData(
     description="Prior commitments. Support for this field in the UI is still under further development, but you can find more information in :ref:`commitments`.",
     example=[],
 )
 CONSUMPTION_PRICE = MetaData(
-    description="The electricity price applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. [#old_consumption_price_field]_",
-    example={"sensor": 5},
-    # examples=[{"sensor": 5}, "0.29 EUR/kWh"],  # todo: waiting for https://github.com/marshmallow-code/apispec/pull/999
+    description="The commodity price (e.g. electricity price) applied to the site's aggregate consumption. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem. [#old_consumption_price_field]_",
+    examples=[{"sensor": 5}, "0.29 EUR/kWh"],
 )
 PRODUCTION_PRICE = MetaData(
-    description="The electricity price applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. [#old_production_price_field]_",
+    description="The commodity price (e.g. electricity price) applied to the site's aggregate production. Can be (a sensor recording) market prices, but also CO₂ intensity—whatever fits your optimization problem, as long as the unit matches the ``consumption-price`` unit. [#old_production_price_field]_",
     example="0.12 EUR/kWh",
 )
 SITE_POWER_CAPACITY = MetaData(
@@ -184,9 +217,40 @@ The field may define (a sensor recording) contractual penalties, or a theoretica
 
 # FLEX-MODEL
 
+COMMODITY_FLEX_MODEL = MetaData(
+    description="""Commodity on which this device acts.
+Defaults to ``"electricity"``.
+""",
+    examples=["electricity", "gas"],
+)
+CONSUMPTION = MetaData(
+    description="""Sensor used to record the scheduled power as seen from a consumption perspective.
 
+The sign convention is determined by the key name, and is stored on the sensor itself using the ``consumption_is_positive`` attribute.
+
+Depending on which output sensors are defined:
+
+- **Only** ``consumption`` **defined**: the full power schedule is stored on this sensor using the
+  consumption-positive sign convention (consumption positive, production negative).
+- **Only** ``production`` **defined**: the full power schedule is stored on the production sensor
+  with the production-positive convention (production positive, consumption negative).
+- **Both defined**: only the non-negative part of the schedule is stored on this sensor (zero for
+  time steps with net production), and only the non-positive part (sign-flipped) is stored on the
+  production sensor.
+""",
+    example={"sensor": 14},
+)
+PRODUCTION = MetaData(
+    description="""Sensor used to record the scheduled power as seen from a production perspective.
+
+The sign convention is determined by the key name, and is stored on the sensor itself using the ``consumption_is_positive`` attribute.
+
+See the ``consumption`` field for the full description of the split logic when both sensors are defined.
+""",
+    example={"sensor": 15},
+)
 STATE_OF_CHARGE = MetaData(
-    description="Sensor used to record the scheduled state of charge. If ``soc-at-start`` is omitted, FlexMeasures will also use this field to infer the starting state of charge. For this use case, the field may also contain a time series specification instead. When a sensor is used, its unit may be an energy unit (e.g. MWh or kWh) or a percentage (%). For sensors with a % unit, the ``soc-max`` flex-model field must be set to a non-zero value to allow converting between the energy-based schedule and a percentage.",
+    description="Sensor used to record the scheduled state of charge. If ``soc-at-start`` is omitted, FlexMeasures will also use this field to infer the starting state of charge. For this use case, the field may also contain a time series specification instead. When a sensor is used, its unit may be an energy unit (e.g. MWh or kWh) or a percentage (%). For sensors with a % unit, the ``soc-max`` flex-model field must be set to a non-zero value to allow converting between the energy-based schedule and a percentage. Also, the state-of-charge sensor's resolution should be instantaneous (i.e. `PT0M`).",
     example={"sensor": 12},
 )
 SOC_AT_START = MetaData(
@@ -203,7 +267,8 @@ Only kWh and MWh are allowed.
     example="kWh",
 )
 SOC_MIN = MetaData(
-    description="""A constant and non-negotiable lower boundary for all values in the schedule (for storage devices, this defaults to 0).
+    description="""A constant and non-negotiable lower boundary for all SoC values in the schedule.
+If omitted, no lower boundary is applied.
 If used, this is regarded as an unsurpassable physical limitation.
 To set softer boundaries, use the ``soc-minima`` flex-model field instead together with the ``soc-minima-breach-price`` field in the flex-context. [#quantity_field]_
 """,
@@ -211,6 +276,7 @@ To set softer boundaries, use the ``soc-minima`` flex-model field instead togeth
 )
 SOC_MAX = MetaData(
     description="""A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).
+If omitted, no upper boundary is applied.
 If used, this is regarded as an unsurpassable physical limitation.
 To set softer boundaries, use the ``soc-maxima`` flex-model field instead together with the ``soc-maxima-breach-price`` field in the flex-context. [#quantity_field]_
 """,
@@ -219,18 +285,27 @@ To set softer boundaries, use the ``soc-maxima`` flex-model field instead togeth
 SOC_MINIMA = MetaData(
     description="""Set points that form lower boundaries, e.g. to target a full car battery in the morning.
 If a ``soc-minima-breach-price`` is defined, the ``soc-minima`` become soft constraints in the optimization problem.
-Otherwise, they become hard constraints. [#maximum_overlap]_""",
-    example=[{"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"}],
+Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points in time and ranges are possible, see example.""",
+    example=[
+        {"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"},
+        {
+            "value": "51 kWh",
+            "start": "2024-02-05T12:00:00+01:00",
+            "end": "2024-02-05T13:30:00+01:00",
+        },
+    ],
 )
 SOC_MAXIMA = MetaData(
     description="""Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.
 If a ``soc-maxima-breach-price`` is defined, the ``soc-maxima`` become soft constraints in the optimization problem.
 Otherwise, they become hard constraints. [#minimum_overlap]_""",
-    example={
-        "value": "51 kWh",
-        "start": "2024-02-05T12:00:00+01:00",
-        "end": "2024-02-05T13:30:00+01:00",
-    },
+    example=[
+        {
+            "value": "51 kWh",
+            "start": "2024-02-05T12:00:00+01:00",
+            "end": "2024-02-05T13:30:00+01:00",
+        }
+    ],
 )
 SOC_TARGETS = MetaData(
     description="""
@@ -264,14 +339,14 @@ Defaults to 100% (no roundtrip loss). [#quantity_field]_
     example="90%",
 )
 CHARGING_EFFICIENCY = MetaData(
-    description="""One-way conversion efficiency from electricity to the storage's state of charge.
+    description="""One-way conversion efficiency from the commodity (e.g. electricity) to the storage's state of charge.
 Can be a percentage, a ratio in the range [0,1], or a coefficient of performance (>1).
 Defaults to 100% (no conversion loss).
 """,
     example=".9",
 )
 DISCHARGING_EFFICIENCY = MetaData(
-    description="""One-way conversion efficiency from the storage's state of charge to electricity.
+    description="""One-way conversion efficiency from the storage's state of charge to the commodity (e.g. electricity).
 Defaults to 100% (no conversion loss).""",
     example="90%",
 )
@@ -280,8 +355,10 @@ STORAGE_EFFICIENCY = MetaData(
 As a result, each time step the energy is held longer leads to higher losses.
 This setting is crucial to some sorts of energy storage, e.g. thermal buffers.
 To give an example, when this setting is at 95% (or 0.95), this means a loss of 5% per time step. Defaults to 100% (no storage loss over time).
-Note that the storage efficiency used by the scheduler is applied over each time step equal to the sensor resolution.
+Note that the storage efficiency used by the scheduler is applied over each time step equal to the scheduling resolution.
 For example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of :math:`0.95^{1/24} = 0.997865`.
+Alternatively, to let FlexMeasures handle the conversion for you, record the storage-efficiency on a dedicated sensor (in this example, with a 24-hour event resolution).
+Then reference that sensor in the storage-efficiency field.
 """,
     example="99.9%",
 )
@@ -299,7 +376,9 @@ Boolean option only.
     example=True,
 )
 POWER_CAPACITY = MetaData(
-    description="Device-level power constraint. How much power can be applied to this asset. [#minimum_overlap]_",
+    description="""Symmetric device-level power constraint. How much power can be applied to this asset in either direction.
+If omitted, the scheduler infers this limit from the greatest of ``consumption-capacity`` and ``production-capacity`` when either is configured, before falling back to ``site-power-capacity``.
+When exactly one of ``consumption-capacity`` or ``production-capacity`` is configured to non-zero capacity, the missing opposite capacity defaults to zero. [#minimum_overlap]_""",
     example="50 kVA",
 )
 CONSUMPTION_CAPACITY = MetaData(

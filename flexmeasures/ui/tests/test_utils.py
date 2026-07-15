@@ -79,6 +79,8 @@ def test_ui_flexcontext_schema():
         "relax-site-capacity-constraints",
         "consumption-price-sensor",
         "production-price-sensor",
+        "commodities",  # todo: https://github.com/FlexMeasures/flexmeasures/issues/2230
+        "commodity",  # single-dict form is electricity-only; not exposed in the UI
     ]
 
     schema_keys = []
@@ -91,7 +93,10 @@ def test_ui_flexcontext_schema():
 
     assert (
         schema_keys == ui_flexcontext_schema_fields
-    ), "If this test fails, you may have added a new flex-context field, but forgot about UI support."
+    ), "If this fails, you may have added a new flex-context field, but forgot about UI support."
+    assert (
+        schema_keys - set(exclude_fields) == schema_keys
+    ), "If this fails, you may have added UI support for a new flex-context field, but forgot to remove it from exclude_fields."
 
 
 def test_ui_flexmodel_schema():
@@ -106,7 +111,7 @@ def test_ui_flexmodel_schema():
 
     schema_keys = []
     for value in DBStorageFlexModelSchema().fields.values():
-        schema_keys.append(value.data_key)
+        schema_keys.append(value.data_key if value.data_key else value.name)
 
     schema_keys = set(schema_keys)
     ui_flexmodel_schema_fields = set(ui_flexmodel_schema_fields)

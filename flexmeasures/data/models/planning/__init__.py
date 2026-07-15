@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from tabulate import tabulate
 from typing import Any, Type
 
+import numpy as np
 import pandas as pd
 from flask import current_app
 
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
-from flexmeasures.utils.coding_utils import deprecated
+from flexmeasures.utils.coding_utils import deprecated, merge_or_append
 from .exceptions import WrongEntityException
 
 
@@ -50,6 +54,7 @@ class Scheduler:
 
     flex_model: list[dict] | dict | None = None
     flex_context: dict | None = None
+    stock_groups: dict | None = None
 
     fallback_scheduler_class: "Type[Scheduler] | None" = None
     info: dict | None = None
@@ -61,6 +66,39 @@ class Scheduler:
     supports_scheduling_an_asset = False
 
     return_multiple: bool = False
+
+    @staticmethod
+    def _build_stock_groups(flex_model: list[dict]) -> dict:
+        """
+        Build stock groups where devices sharing the same state-of-charge sensor are grouped together.
+        """
+        groups = defaultdict(list)
+        soc_usage = defaultdict(list)
+
+        for d, fm in enumerate(flex_model):
+            soc = fm.get("state_of_charge")
+            if soc is not None:
+                if hasattr(soc, "id"):
+                    soc_id = soc.id
+                elif isinstance(soc, dict) and "sensor" in soc:
+                    sensor = soc["sensor"]
+                    soc_id = sensor.id if hasattr(sensor, "id") else sensor
+                else:
+                    soc_id = soc
+
+                soc_usage[soc_id].append(d)
+
+        for soc_id, device_list in soc_usage.items():
+            groups[soc_id] = device_list
+
+        already_grouped = {dev for group in groups.values() for dev in group}
+        missing_soc_sensor_i = -len(flex_model)
+        for d in range(len(flex_model)):
+            if d not in already_grouped:
+                groups[missing_soc_sensor_i].append(d)
+                missing_soc_sensor_i += 1
+
+        return dict(groups)
 
     def __init__(
         self,
@@ -182,8 +220,19 @@ class Scheduler:
             asset = self.asset
         else:
             asset = self.sensor.generic_asset
+
+        # Merge the passed flex_context with the db_flex_context by matching commodities
         db_flex_context = asset.get_flex_context()
-        self.flex_context = {**db_flex_context, **self.flex_context}
+        if isinstance(self.flex_context, dict):
+            self.flex_context = {**db_flex_context, **self.flex_context}
+        elif isinstance(self.flex_context, list):
+            # Currently, db_flex_context is always a dict describing only electricity
+            merge_or_append(
+                db_flex_context,
+                self.flex_context,
+                match_key="commodity",
+                match_value="electricity",
+            )
 
         # Merge the passed flex_model with the db_flex_model by matching asset IDs
         db_flex_model = asset.get_flex_model()
@@ -200,12 +249,19 @@ class Scheduler:
             # Listify the flex-model for the next code block, which actually does the merging with the db_flex_model
             flex_model = [flex_model]
 
+        # Find which asset is relevant for a given device model in the flex-model from the trigger message
         for flex_model_d in flex_model:
             asset_id = flex_model_d.get("asset")
             if asset_id is None:
-                sensor_id = flex_model_d["sensor"]
-                sensor = db.session.get(Sensor, sensor_id)
-                asset_id = sensor.asset_id
+                sensor_id = flex_model_d.get("sensor")
+                if sensor_id is not None:
+                    sensor = db.session.get(Sensor, sensor_id)
+                    asset_id = sensor.asset_id
+                else:
+                    soc_sensor_ref = flex_model_d.get("state-of-charge")
+                    if soc_sensor_ref is not None:
+                        soc_sensor = db.session.get(Sensor, soc_sensor_ref["sensor"])
+                        asset_id = soc_sensor.asset_id
             if asset_id in db_flex_model:
                 flex_model_d = {**db_flex_model[asset_id], **flex_model_d}
             amended_flex_model.append(flex_model_d)
@@ -279,18 +335,34 @@ class Commitment:
 
     name: str
     device: pd.Series = None
+    device_group: pd.Series = None
     index: pd.DatetimeIndex = field(repr=False, default=None)
     _type: str = field(repr=False, default="each")
     group: pd.Series = field(init=False)
     quantity: pd.Series = 0
     upwards_deviation_price: pd.Series = 0
     downwards_deviation_price: pd.Series = 0
+    commodity: str | pd.Series | None = None
 
     def __post_init__(self):
+        # device_group is a device→label lookup table, not a time series;
+        # exclude it from automatic time-series index coercion.
+        if (
+            isinstance(self, FlowCommitment)
+            and isinstance(self.commodity, pd.Series)
+            and self.device is not None
+        ):
+            devices = extract_devices(self.device)
+            missing = set(devices) - set(self.commodity.index)
+            if missing:
+                raise ValueError(f"commodity mapping missing for devices: {missing}")
+
         series_attributes = [
             attr
             for attr, _type in self.__annotations__.items()
-            if _type == "pd.Series" and hasattr(self, attr)
+            if _type == "pd.Series"
+            and hasattr(self, attr)
+            and attr not in ("device_group", "commodity")
         ]
         for series_attr in series_attributes:
             val = getattr(self, series_attr)
@@ -361,10 +433,71 @@ class Commitment:
             "downwards deviation price"
         )
         self.group = self.group.rename("group")
+        self._init_device_group()
+
+    def _init_device_group(self):
+        # Extract device universe (empty for EMS-level commitments where device was None)
+        if isinstance(self.device, pd.Series):
+            devices = extract_devices(self.device)
+        else:
+            devices = [self.device]
+
+        devices = list(devices)
+
+        # EMS-level commitment: no device assignments, leave device_group empty.
+        if not devices:
+            self.device_group = pd.Series(dtype=object, name="device_group")
+            return
+
+        # Default: one group per device (backwards compatible)
+        if self.device_group is None:
+            self.device_group = pd.Series(
+                range(len(devices)), index=devices, name="device_group"
+            )
+        else:
+            if not isinstance(self.device_group, pd.Series):
+                self.device_group = pd.Series(
+                    self.device_group, index=devices, name="device_group"
+                )
+            # Validate custom grouping
+            missing = set(devices) - set(self.device_group.index)
+            if missing:
+                raise ValueError(
+                    f"device_group missing assignments for devices: {missing}"
+                )
+            self.device_group = self.device_group.loc[devices]
+            self.device_group.name = "device_group"
+
+    def pretty_print(self):
+        """
+        Pretty-print a list of Commitment objects as tabulated pandas DataFrames.
+
+        For each Commitment, a DataFrame indexed by time is created containing
+        the commitment name, device values, group index, quantity, and any available
+        upward or downward deviation prices. Each commitment is printed separately
+        in a readable table format, making this function suitable for debugging,
+        logging, and interactive inspection.
+        """
+        df = self.to_frame()
+        df = pd.DataFrame(index=df.device.index)
+
+        df["commitment"] = self.name
+        df["device"] = self.device
+        df["group"] = self.group
+        df["quantity"] = self.quantity
+
+        if hasattr(self, "upwards_deviation_price"):
+            df["up_price"] = self.upwards_deviation_price
+
+        if hasattr(self, "downwards_deviation_price"):
+            df["down_price"] = self.downwards_deviation_price
+
+        if not df.empty:
+            print(tabulate(df, headers=df.columns, tablefmt="fancy_grid"))
 
     def to_frame(self) -> pd.DataFrame:
         """Contains all info apart from the name."""
-        return pd.concat(
+        df = pd.concat(
             [
                 self.device,
                 self.quantity,
@@ -375,6 +508,32 @@ class Commitment:
             ],
             axis=1,
         )
+        # Map device → device_group.
+        # For EMS-level commitments (device was None, now a NaN series) there are
+        # no device assignments, so device_group is an empty Series and we must not
+        # call map_device_to_group (it would KeyError on the NaN values).
+        devices = extract_devices(self.device)
+        if devices:
+            df["device_group"] = map_device_to_group(self.device, self.device_group)
+        else:
+            df["device_group"] = (
+                np.nan
+            )  # EMS-level: handled by ems_flow_commitment_equalities
+
+        # commodity
+        if getattr(self, "commodity", None) is None:
+            df["commodity"] = None
+        elif isinstance(self.commodity, pd.Series):
+            # commodity is a device→commodity mapping, like device_group
+            if self.device is None:
+                df["commodity"] = None
+            else:
+                df["commodity"] = map_device_to_group(self.device, self.commodity)
+        else:
+            # scalar commodity
+            df["commodity"] = self.commodity
+
+        return df
 
 
 class FlowCommitment(Commitment):
@@ -396,3 +555,48 @@ Deprecations
 Scheduler.compute_schedule = deprecated(Scheduler.compute, "0.14")(
     Scheduler.compute_schedule
 )
+
+
+def extract_devices(device):
+    """
+    Return a flat list of unique device identifiers from:
+    - scalar device
+    - Series of scalars
+    - Series of iterables (e.g. [0, 1])
+    """
+    if device is None:
+        return []
+
+    if isinstance(device, pd.Series):
+        values = device.dropna().values
+    else:
+        values = [device]
+
+    devices = set()
+    for v in values:
+        if isinstance(v, Iterable) and not isinstance(v, (str, bytes)):
+            devices.update(v)
+        else:
+            devices.add(v)
+
+    return list(devices)
+
+
+def map_device_to_group(device_series, device_group_map):
+    """
+    Map device identifiers to device_group.
+
+    - scalar device → group label
+    - iterable of devices → group label (must be identical)
+    """
+
+    def resolve(v):
+        if isinstance(v, (list, tuple, set)):
+            groups = {device_group_map[d] for d in v}
+            if len(groups) != 1:
+                raise ValueError(f"Devices {v} map to multiple device groups: {groups}")
+            return groups.pop()
+        else:
+            return device_group_map[v]
+
+    return device_series.apply(resolve)

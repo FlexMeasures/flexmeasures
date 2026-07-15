@@ -9,6 +9,8 @@ description: Ensures excellent documentation, clear error messages, and smooth d
 
 Keep FlexMeasures understandable and contributor-friendly by ensuring excellent documentation, clear error messages, and smooth developer workflows. Review docstrings, user-facing docs, CLI help text, error messages, and README updates. Ensure FlexMeasures is accessible to new users and contributors.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review
@@ -89,48 +91,39 @@ Keep FlexMeasures understandable and contributor-friendly by ensuring excellent 
 
 ### API Feature Documentation
 
-- [ ] **Structure**: Follow standard feature guide structure (see Domain Knowledge)
+- [ ] **Structure**: Follow the standard feature-guide structure — What, Why, Types/Models,
+  Usage (with auth), Permissions, Error Handling, Best Practices, Limitations
 - [ ] **Examples**: Provide both curl and Python examples for all endpoints
 - [ ] **Error handling**: Include error handling in all code examples
 - [ ] **Timezone awareness**: Use timezone-aware datetimes in all examples
 - [ ] **Imports**: Verify all imports are correct and work
-- [ ] **Field descriptions**: Match OpenAPI schema field descriptions
-- [ ] **Completeness**: Cover What, Why, Types, Usage, Auth, Errors, Best Practices, Limitations
-- [ ] **Testing**: Verify examples run and produce expected output
+- [ ] **Field descriptions**: Match OpenAPI schema field descriptions exactly
+- [ ] **Testing**: Verify examples run and produce expected output (see verification commands below)
 
 ### Endpoint Migration Documentation
 
 When API endpoints are migrated or restructured:
 
-- [ ] **Update all endpoint URLs** in documentation
-- [ ] **Update curl examples** with new endpoint structure
-- [ ] **Update Python examples** with new URL patterns  
-- [ ] **Add migration note** explaining old → new pattern
-- [ ] **Update API overview** with new structure
-- [ ] **Verify internal links** work in generated docs
+- [ ] **Update all endpoint URLs, curl examples, and Python examples** to the new structure
+- [ ] **Add a migration note** explaining old → new pattern, e.g.:
+  ```rst
+  .. http:get:: /api/v3_0/accounts/(int:account_id)/annotations
+
+     Get annotations for a specific account.
+
+     **Replaces (deprecated):** ``/api/v3_0/annotations?account_id=<id>``
+  ```
+- [ ] **Update the API overview** with the new structure; verify internal links still work
 - [ ] **Document backward compatibility** approach if endpoints support both patterns
 
-**Pattern for nested resource endpoints:**
+### Cross-document terminology consistency
 
-When migrating from flat to nested RESTful structure:
-
-```rst
-.. http:get:: /api/v3_0/accounts/(int:account_id)/annotations
-
-   Get annotations for a specific account.
-   
-   **URL structure**: This endpoint follows RESTful nesting under account resources.
-   
-   **Replaces (deprecated):** ``/api/v3_0/annotations?account_id=<id>``
-```
-
-**Checklist for endpoint migration docs:**
-
-- [ ] All examples updated to new URL structure
-- [ ] Both curl and Python code examples reflect new pattern
-- [ ] Migration guide explains what changed and why
-- [ ] Deprecated endpoints marked clearly
-- [ ] Timeline for deprecation (if applicable)
+When a term changes across the codebase (renamed field, removed concept, changed constraint
+name), update in order of authority: code docstrings/type hints first, then inline comments,
+then feature docs (`documentation/features/`), then API reference
+(`documentation/api/`), then the changelog. Verify completeness with
+`grep -r "old_term" documentation/ flexmeasures/` before and after — it should return zero
+matches afterward except in a changelog entry documenting the rename/removal.
 
 ## Domain Knowledge
 
@@ -155,17 +148,17 @@ RST format for Sphinx:
 ```python
 def function_name(param1: str, param2: int) -> bool:
     """One-line summary (ends with period).
-    
+
     Longer description explaining purpose and usage.
     Notice parameter descriptions are:
     - aligned
     - separated from the preceding colon with at least 1 space
     - starting at a multiple of 4 characters from the start of the line
-    
+
     :param param1:      Description of param1
     :param param123:    Description of param2
     :return:            Description of return value
-    
+
     Example:
         >>> function_name("test", 42)
         True
@@ -179,7 +172,7 @@ Click command docstrings:
 @click.command()
 def my_command(name: str):
     """One-line summary of command.
-    
+
     Longer description with usage examples.
     """
     pass
@@ -197,11 +190,8 @@ raise ValueError(
 )
 ```
 
-Elements:
-- State what went wrong
-- Explain why it's wrong
-- Suggest how to fix it
-- Link to docs when helpful
+Elements: state what went wrong, explain why it's wrong, suggest how to fix it, link to docs
+when helpful.
 
 ### Comment Guidelines
 
@@ -213,101 +203,48 @@ Good comments explain *why*:
 SECURITY_HASHING_SCHEMES: list[str] = ["hex_md5"]
 ```
 
-Avoid redundant comments:
+Avoid redundant comments (`# Set name to value` above `name = value`).
 
-```python
-# Bad: redundant
-# Set name to value
-name = value
-```
+### API feature documentation example
 
-### API Feature Documentation Structure
-
-When documenting a new API feature (learned from annotation API session 2026-02-10):
-
-**Standard Feature Guide Structure:**
-
-1. **What** - Brief description of the feature (1-2 paragraphs)
-2. **Why** - Use cases and benefits (bullet list)
-3. **Types/Models** - Data structures involved (with field descriptions)
-4. **Usage** - How to use the feature
-   - Authentication section
-   - Multiple examples (curl and Python)
-   - Request/response examples
-5. **Permissions** - Access control requirements
-6. **Error Handling** - Common errors and solutions
-7. **Best Practices** - Tips for optimal usage
-8. **Limitations** - Known constraints
-
-**Example Requirements:**
-
-Always provide **both** curl and Python examples:
+Always provide both curl and Python examples, with error handling and timezone-aware
+datetimes:
 
 ```bash
-# curl example with authentication
 curl -X POST "https://flexmeasures.example.com/api/v3/sensors/1/annotations" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "content": "Example annotation",
-    "start": "2024-01-15T10:00:00+01:00"
-  }'
+  -d '{"content": "Example annotation", "start": "2024-01-15T10:00:00+01:00"}'
 ```
 
 ```python
-# Python example with error handling and timezone awareness
 from datetime import datetime, timezone
 import requests
 
-# Always use timezone-aware datetimes
 start_time = datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc)
-
 response = requests.post(
     "https://flexmeasures.example.com/api/v3/sensors/1/annotations",
     headers={"Authorization": "Bearer YOUR_TOKEN"},
-    json={
-        "content": "Example annotation",
-        "start": start_time.isoformat()
-    }
+    json={"content": "Example annotation", "start": start_time.isoformat()},
 )
-
-# Include error handling
 if response.status_code == 201:
-    annotation = response.json()
-    print(f"Created annotation: {annotation['id']}")
+    print(f"Created annotation: {response.json()['id']}")
 else:
     print(f"Error: {response.status_code} - {response.json()}")
 ```
 
-**Critical Requirements for API Examples:**
+**Documentation placement**: feature guides in `documentation/features/<feature-name>.rst`;
+add endpoints to `documentation/api/v3.0.rst`; update `documentation/concepts/data.rst` for
+new domain models.
 
-1. **Timezone-aware datetimes**: Always import `timezone` from `datetime` and use timezone-aware datetime objects
-2. **Error handling**: Include response status code checks and error output
-3. **Complete imports**: Verify all imports are included and work
-4. **Real endpoints**: Use actual API endpoint paths from the codebase
-5. **Valid JSON**: Ensure JSON structure matches OpenAPI schema
-6. **Field descriptions**: Copy field descriptions from OpenAPI specs exactly
-
-**Documentation Placement:**
-
-- **Feature guides**: `documentation/features/<feature-name>.rst`
-- **API reference**: Add endpoint to `documentation/api/v3.0.rst`
-- **Data models**: Update `documentation/concepts/data.rst` if new models introduced
-
-**Testing API Documentation:**
-
+**Verify before finalizing**:
 ```bash
-# 1. Verify imports work
-python3 -c "from datetime import datetime, timezone; import requests"
-
-# 2. Check field descriptions match schema
-grep -A 10 "annotation" openapi-specs.json
-
-# 3. Verify endpoints exist in code
-grep -r "annotations" flexmeasures/api/
-
-# 4. Build docs to check for errors
-make update-docs
+uv sync --group dev --group test
+flexmeasures <command> --help && flexmeasures <command> <args>  # run the actual example
+make update-docs                                                  # build & catch errors
+pytest --doctest-modules                                          # doctests pass
+python3 -c "from datetime import datetime, timezone; import requests"  # imports work
+grep -r "datetime(" documentation/features/ | grep -v "timezone"  # catch naive examples
 ```
 
 ### Related Files
@@ -347,169 +284,10 @@ make update-docs
 
 ## Self-Improvement Notes
 
-### When to Update Instructions
+Update this file when: documentation structure changes, a new documentation pattern emerges, a
+common documentation mistake is identified repeatedly, or FlexMeasures adopts a new doc tool.
+Edit the relevant section in place — don't append a dated narrative.
 
-- Documentation structure changes
-- New documentation patterns emerge
-- Common documentation mistakes identified
-- FlexMeasures adopts new doc tools
-- User feedback reveals doc gaps
-
-### Learning from PRs
-
-- Track which docs are frequently outdated
-- Note recurring documentation mistakes
-- Document new documentation patterns
-- Update checklist based on real gaps
-- Refine guidance on error messages
-
-**Patterns Learned:**
-
-- **2026-02-10 (Annotation API #470)**: Comprehensive API feature documentation requires:
-  - 8-section structure (What, Why, Types, Usage, Auth, Errors, Best Practices, Limitations)
-  - Both curl and Python examples for every operation
-  - Timezone-aware datetime objects in all examples (import `timezone` from `datetime`)
-  - Error handling in code examples
-  - Field descriptions matching OpenAPI schema exactly
-  - Testing all imports work before finalizing
-  - ~500 lines for complete feature coverage
-
-### Continuous Improvement
-
-- Monitor user questions (docs should answer them)
-- Review ReadTheDocs build warnings
-- Keep docstring examples accurate
-- Track broken links
-- Update contribution guidelines based on feedback
-
-* * *
-
-## Critical Requirements for Documentation Specialist
-
-### Must Use Correct Examples from Actual Code
-
-**This agent MUST use examples that match the actual bug report or code being documented.**
-When writing documentation:
-1. **Use the exact examples from bug reports**:
-   - If bug report mentions PT2H, use PT2H (not PT1H)
-   - If bug mentions specific timezone (CET), use that timezone
-   - If bug shows specific commands, document those commands
-2. **Test examples in FlexMeasures dev environment**:
-   ```bash
-   # Verify examples actually work
-   uv sync --group dev --group test
-   flexmeasures <command from docs>
-   ```
-3. **Verify code behavior before documenting**:
-   - Check source code for actual parameter names
-   - Test edge cases mentioned in docs
-   - Ensure examples produce expected output
-
-### Must Verify Claims Before Documenting
-
-**All claims about performance, behavior, or correctness must be verified.**
-
-Avoid unfounded claims like:
-
-- "This is 1000x faster" (without benchmarks)
-- "This always works" (without testing edge cases)
-- "Output will be X" (without running the command)
-Instead:
-- Run actual commands and show real output
-- Test edge cases mentioned in documentation
-- Use realistic examples from actual usage
-
-### Must Make Atomic Commits
-
-**Never mix documentation changes with code or analysis files.**
-
-Bad (non-atomic):
-
-- Documentation update + code change
-- Multiple unrelated doc changes
-- Docs + `DOCUMENTATION_CHANGES.md` tracking file
-
-Good (atomic):
-
-1. Single documentation file update
-2. Related test documentation (separate commit)
-3. Agent instruction update (separate commit)
-
-### Must Avoid Committing Planning Files
-
-**Never commit temporary documentation planning files:**
-
-Files to never commit:
-
-- `DOCUMENTATION_CHANGES.md`
-- `DOC_PLAN.md`
-- Any `.md` files created for planning doc updates
-
-These should:
-
-- Stay in working memory only
-- Be written to `/tmp/` if needed
-- Never be added to git
-
-### Using FlexMeasures Dev Environment for Doc Testing
-
-Before finalizing documentation:
-
-1. **Set up dev environment**:
-   ```bash
-   uv sync --group dev --group test
-   ```
-2. **Test CLI examples**:
-   ```bash
-   flexmeasures --help
-   flexmeasures <command> --help
-   flexmeasures <command> <args>  # Run the actual example
-   ```
-3. **Build and preview docs locally**:
-   ```bash
-   make update-docs
-   # Preview at flexmeasures/ui/static/documentation/html/
-   ```
-4. **Verify doctests pass**:
-   ```bash
-   pytest --doctest-modules
-   ```
-
-**Additional Testing for API Documentation:**
-
-5. **Verify Python examples work**:
-   ```bash
-   # Extract and test Python code blocks
-   python3 -c "from datetime import datetime, timezone; import requests"
-   ```
-6. **Check timezone imports**:
-   ```bash
-   # Ensure all datetime examples include timezone
-   grep -r "datetime(" documentation/features/ | grep -v "timezone"
-   ```
-7. **Validate field descriptions**:
-   ```bash
-   # Compare docs to OpenAPI specs
-   diff <(grep "field_name" documentation/features/feature.rst) \
-        <(grep "field_name" openapi-specs.json)
-   ```
-
-### Self-Improvement Loop
-
-After each assignment:
-
-1. **Review documentation accuracy**
-   - Were examples correct?
-   - Did claims match reality?
-   - Were commands tested?
-2. **Update this agent file** with lessons learned
-3. **Commit agent updates separately**:
-   ```
-   agents/documentation: learned <specific lesson>
-   
-   Context:
-   - Assignment revealed issue with <area>
-   
-   Change:
-   - Added guidance on <specific topic>
-   ```
+Before documenting behavior, examples, or claims (including performance claims), verify them:
+use the exact parameters/timezone/commands from the actual bug report or code, run them in the
+dev environment, and show real output rather than asserting "this works" or "this is faster."

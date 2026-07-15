@@ -9,6 +9,8 @@ description: Prevents subtle bugs in time handling, units, and data semantics wi
 
 Prevent subtle bugs in time handling, units, and data semantics across FlexMeasures. Ensure timezone-aware datetime operations, correct unit conversions with pint, proper pandas time index handling, and validate time-series data contracts. This agent owns the correctness of temporal and physical unit operations.
 
+> **Shared conventions**: For project-wide rules on atomic commits, pre-commit hooks, changelog entries, error handling, Marshmallow schema conventions, timezone awareness, and testing, see `.github/instructions/`.
+
 ## Scope
 
 ### What this agent MUST review
@@ -134,71 +136,11 @@ Critical conversions require duration or capacity parameters.
 
 ## Self-Improvement Notes
 
-### When to Update Instructions
+Update this file when: a new time-handling pattern emerges, a DST-related bug is discovered, a
+unit-conversion edge case is found, a pandas version update changes time semantics (e.g.
+https://github.com/pandas-dev/pandas/issues/35248), or new timezones/unit definitions are added.
+Edit the relevant section in place — don't append a dated narrative.
 
-- New time handling patterns emerge
-- DST-related bugs discovered
-- Unit conversion edge cases found
-- Pandas version updates change time semantics (e.g. https://github.com/pandas-dev/pandas/issues/35248)
-- New time zones or unit definitions added
-
-### Learning from PRs
-
-- Track time/unit bugs that slip through
-- Document new edge cases discovered
-- Update checklist based on recurring issues
-- Keep pitfall table updated
-
-### Continuous Improvement
-
-- Monitor for time-related production bugs
-- Review DST transition periods for issues
-- Keep unit conversion logic current
-- Update pandas time operation patterns
-
-* * *
-
-## Commit Discipline and Self-Improvement
-
-### Must Make Atomic Commits
-
-When making time/unit fixes:
-
-- **Separate code changes from tests** - One commit per logical unit
-- **Separate documentation updates** - Don't mix with code
-- **Never commit analysis files** - No `TIME_ANALYSIS.md` or similar
-- **Update agent instructions separately** - Own file, own commit
-
-### Must Verify Claims
-
-When documenting time/unit behavior:
-
-- **Test timezone handling** - Actually run code with different timezones
-- **Verify DST behavior** - Test during spring forward/fall back
-- **Check unit conversions** - Run actual conversion calculations
-- **Show real output** - Don't claim "works correctly" without proof
-
-### Self-Improvement Loop
-
-After each assignment:
-
-1. **Review time/unit issues found** - What was missed? What patterns emerged?
-2. **Update this agent file** - Add new patterns, pitfalls, or checks
-3. **Commit separately** with format:
-   ```
-   agents/data-time-semantics: learned <specific lesson>
-   
-   Context:
-   - Assignment revealed gap in <area>
-   
-   Change:
-   - Added guidance on <topic>
-   ```
-
-### Lessons Learned
-
-**Session 2025 (PR #2176 — annotation regressors, timezone-aware holiday import)**:
-
-- **Holiday CLI commands need `--timezone`**: Without `--timezone`, `flexmeasures add holidays` and `flexmeasures add holidays-by-package` store annotations at UTC midnight. In CET (UTC+1), this means a holiday appearing at 01:00 local time in charts — one hour off. Always recommend `--timezone Europe/Amsterdam` (or equivalent) when documenting holiday import. The warning message in the CLI also surfaces this, but documentation must reinforce it.
-- **Annotation-to-pipeline UTC-naive convention**: When loading annotation timestamps into the forecasting pipeline, convert tz-aware datetimes to UTC-naive using `.tz_convert("UTC").tz_localize(None)`. This matches the convention established in `load_data_all_beliefs`. Failure to do this causes merge/alignment failures when joining annotation data with sensor data that uses the same convention.
-- **DST boundary risk for full-day annotations**: Holiday annotations span exactly one calendar day (e.g., `start=2024-03-31T00:00 CET`, `end=2024-04-01T00:00 CEST`). If stored tz-aware, the `end - start` interval is 23 hours across the spring-forward transition. If stored at UTC midnight (no timezone), `end - start` is always exactly 24 hours. Validate this is handled consistently when querying multi-year ranges spanning DST transitions.
+Before claiming timezone/DST/unit-conversion behavior is correct, actually run the code with
+different timezones and across a DST transition, and show the real output — don't assert
+correctness without proof.

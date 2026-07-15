@@ -12,10 +12,10 @@ from isodate import parse_duration
 import pandas as pd
 import numpy as np
 from flask import request, jsonify, Flask
+from flask.testing import FlaskCliRunner
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import roles_accepted
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
-
 from werkzeug.exceptions import (
     InternalServerError,
     BadRequest,
@@ -25,7 +25,11 @@ from werkzeug.exceptions import (
 )
 
 from flexmeasures.app import create as create_app
-from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
+from flexmeasures.auth.policy import (
+    ADMIN_ROLE,
+    ADMIN_READER_ROLE,
+    CONSULTANCY_ACCOUNT_ROLE,
+)
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
@@ -64,10 +68,23 @@ Such fixtures can be recognised by having fresh_db appended to their name.
 """
 
 
+class CustomFlaskCliRunner(FlaskCliRunner):
+    """A CLI test runner that lets exceptions propagate instead of catching them.
+
+    This makes test failures more informative: instead of seeing only a non-zero
+    exit code, the full exception with traceback is shown directly.
+    """
+
+    def invoke(self, *args, **kwargs):
+        kwargs.setdefault("catch_exceptions", False)
+        return super().invoke(*args, **kwargs)
+
+
 @pytest.fixture(scope="session")
 def app():
     print("APP FIXTURE")
     test_app = create_app(env="testing")
+    test_app.test_cli_runner_class = CustomFlaskCliRunner
 
     with test_app.app_context():
         yield test_app
@@ -155,12 +172,14 @@ def create_test_accounts(db) -> dict[str, Account]:
     )
     db.session.add(multi_role_account)
     consultancy_account_role = AccountRole(
-        name="Consultancy", description="A consultancy account"
+        name=CONSULTANCY_ACCOUNT_ROLE,
+        description="Consultancy account that can create own client accounts",
     )
     # Create Consultancy and ConsultancyClient account.
     # The ConsultancyClient account needs the account id of the Consultancy account so the order is important.
     consultancy_account = Account(
-        name="Test Consultancy Account", account_roles=[consultancy_account_role]
+        name="Test Consultancy Account",
+        account_roles=[consultancy_account_role, consultancy_account_role],
     )
     db.session.add(consultancy_account)
     consultancy_client_account_role = AccountRole(
