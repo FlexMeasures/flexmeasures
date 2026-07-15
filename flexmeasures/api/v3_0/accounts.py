@@ -305,6 +305,7 @@ class AccountAPI(FlaskView):
             - The **consultancy_account_id** field can be edited by admins. Non-admin users can only set it to their
               own account, and only if their account has the {{CONSULTANCY_ACCOUNT_ROLE}} account role and they have
               the consultant or account-admin user role.
+            - The **plan_id** field can only be edited by admins, and cannot be set to a legacy plan.
 
           security:
             - ApiKeyAuth: []
@@ -360,6 +361,7 @@ class AccountAPI(FlaskView):
             "secondary_color",
             "logo_url",
             "consultancy_account_id",
+            "plan_id",
             "attributes",
             "account_roles",
         ]

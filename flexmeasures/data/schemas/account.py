@@ -6,7 +6,7 @@ from flask_security import current_user
 from werkzeug.exceptions import Forbidden
 
 from flexmeasures.data import db
-from flexmeasures.data.models.user import Account, AccountRole
+from flexmeasures.data.models.user import Account, AccountRole, Plan
 from flexmeasures.data.schemas.attributes import JSON
 from flexmeasures.data.schemas.utils import (
     FMValidationError,
@@ -47,6 +47,7 @@ class AccountSchema(ma.SQLAlchemySchema):
     attributes = JSON(required=False, load_default={})
     account_roles = fields.Nested("AccountRoleSchema", exclude=("accounts",), many=True)
     consultancy_account_id = ma.auto_field()
+    plan_id = ma.auto_field(allow_none=True)
 
     @validates("primary_color")
     def validate_primary_color(self, value, **kwargs):
@@ -185,6 +186,7 @@ class AccountPatchSchema(Schema):
     secondary_color = fields.String(required=False, allow_none=True)
     logo_url = fields.String(required=False, allow_none=True)
     consultancy_account_id = fields.Integer(required=False, allow_none=True)
+    plan_id = fields.Integer(required=False, allow_none=True)
     attributes = JSON(required=False)
     account_roles = fields.List(fields.Integer(), required=False)
 
@@ -217,6 +219,25 @@ class AccountPatchSchema(Schema):
         Uses shared validation logic. For PATCH requests, None clears the relationship.
         """
         _validate_consultancy_account_id_permissions(value, allow_clearing=True)
+
+    @validates("plan_id")
+    @with_appcontext_if_needed()
+    def validate_plan_id(self, value, **kwargs):
+        """Validate the plan an account is being put on.
+
+        Which plan an account is on decides what it may ask of the server, so only admins
+        get to say. None clears the plan, which falls the account back on the server config.
+        """
+        if not user_has_admin_access(current_user, "update"):
+            raise Forbidden("You must be an admin to put an account on a plan.")
+        if value is None:
+            return
+        plan = db.session.get(Plan, value)
+        if plan is None:
+            raise FMValidationError(f"No plan found with id {value}.")
+        if plan.legacy:
+            # A legacy plan keeps applying to the accounts already on it, but is not handed out anymore
+            raise FMValidationError(f"Plan '{plan.name}' is a legacy plan.")
 
     @post_load
     @with_appcontext_if_needed()

@@ -17,7 +17,11 @@ from marshmallow import fields
 
 from flexmeasures.data.schemas.utils import MarshmallowClickMixin
 from flexmeasures.utils.time_utils import get_most_recent_hour, get_timezone
-from flexmeasures.utils.validation_utils import validate_color_hex, validate_url
+from flexmeasures.utils.validation_utils import (
+    validate_color_hex,
+    validate_rate_limit,
+    validate_url,
+)
 from flexmeasures import Sensor
 
 
@@ -315,6 +319,27 @@ def get_sensor_aliases(
     }
 
     return aliases
+
+
+def validate_rate_limit_cli(ctx, param, value):
+    """
+    Optional parameter validation
+
+    Validates that a given value is a rate limit Flask-Limiter can make sense of,
+    like "10 per 5 minutes", or "unlimited".
+
+    Parameters:
+    :param ctx:     Click context.
+    :param param:   Click parameter name.
+    :param value:   The rate limit to validate.
+    """
+
+    try:
+        validate_rate_limit(value)
+    except ValueError as e:
+        click.secho(str(e), **MsgStyle.ERROR)
+        raise click.Abort()
+    return value
 
 
 def validate_color_cli(ctx, param, value):

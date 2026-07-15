@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from flask import request
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from werkzeug.exceptions import Forbidden, Unauthorized, NotFound
 from flask_classful import FlaskView, route
 from flask_security import login_required
@@ -17,7 +17,7 @@ from flexmeasures.auth.policy import (
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template, ICON_MAPPING
 from flexmeasures.ui.utils.breadcrumb_utils import get_breadcrumb_info
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import Account, AccountRole
+from flexmeasures.data.models.user import Account, AccountRole, Plan
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.data import db
 from flexmeasures.ui.views import (
@@ -86,6 +86,17 @@ class AccountCrudUI(FlaskView):
         potential_consultant_accounts = (
             get_accounts() if user_has_admin_access(current_user, "read") else []
         )
+        # Only admins get to assign a plan, and only a plan we still hand out
+        # (or the legacy plan the account happens to be on already)
+        assignable_plans = (
+            db.session.scalars(
+                select(Plan)
+                .filter(or_(Plan.legacy.is_(False), Plan.id == account.plan_id))
+                .order_by(Plan.name)
+            ).all()
+            if user_has_admin_access(current_user, "read")
+            else []
+        )
 
         user_can_view_account_auditlog = True
         try:
@@ -119,6 +130,7 @@ class AccountCrudUI(FlaskView):
             "accounts/account.html",
             account=account,
             accounts=potential_consultant_accounts,
+            plans=assignable_plans,
             user_is_admin=user_is_admin,
             can_add_client_account=can_add_client_account,
             account_role_options=account_role_options,

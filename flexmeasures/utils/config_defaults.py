@@ -176,6 +176,15 @@ class Config(object):
     FLEXMEASURES_REDIS_PORT: int = 6379
     FLEXMEASURES_REDIS_DB_NR: int = 0  # Redis per default has 16 databases, [0-15]
     FLEXMEASURES_REDIS_PASSWORD: str | None = None
+    # API rate limiting (see flexmeasures.api.common.rate_limiting)
+    RATELIMIT_ENABLED: bool = (
+        True  # Flask-Limiter's own switch, to turn off rate limiting altogether
+    )
+    FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "500 per minute"
+    FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "10 per 5 minutes"
+    FLEXMEASURES_API_RATE_LIMIT_KEY: str = (
+        "account"  # what to count triggers against: "account", "account+asset" or "user"
+    )
     FLEXMEASURES_JS_VERSIONS: dict = dict(
         vega="5.22.1",
         vegaembed="6.21.0",
@@ -278,6 +287,12 @@ class TestingConfig(Config):
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(
         hours=2 * 24
     )  # if more than 2 days, consider setting up more days of price data for tests
+
+    # The rate limiter stays initialized during tests (turning it on later is not possible),
+    # but its limits are set so high that only the rate limiting tests, which lower them, will hit them.
+    RATELIMIT_STORAGE_URI: str = "memory://"
+    FLEXMEASURES_API_DEFAULT_RATE_LIMIT: str = "1000000 per hour"
+    FLEXMEASURES_API_TRIGGER_RATE_LIMIT: str = "1000000 per hour"
 
     SECURITY_TWO_FACTOR = False  # disable 2FA
     SECURITY_TOTP_SECRETS = {"1": "00000000000000000000000000000000"}
