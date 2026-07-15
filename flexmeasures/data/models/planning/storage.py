@@ -220,12 +220,6 @@ class MetaStorageScheduler(Scheduler):
             flex_model_d.get("discharging_efficiency") for flex_model_d in flex_model
         ]
 
-        # Get info from flex-context
-        # (normalize to a list; tests may pass e.g. dict_values when bypassing the schema)
-        inflexible_device_sensors = list(
-            self.flex_context.get("inflexible_device_sensors", [])
-        )
-
         # Fetch the device's power capacity (required to keep the optimization problem bounded)
         power_capacity_in_mw = self._get_device_power_capacity(
             flex_model,
@@ -269,41 +263,12 @@ class MetaStorageScheduler(Scheduler):
         ) -> pd.Series:
             return pd.Series([tuple(devices)] * len(index), index=index, name="device")
 
-        # Enumerate only device models (not stock entries), so device indices line up
-        # with the sensors and device_constraints lists.
-        commodity_to_devices = {}
-        for d, flex_model_d in enumerate(device_models):
-            commodity = flex_model_d.get("commodity", "electricity")
-            commodity_to_devices.setdefault(commodity, []).append(d)
-
-        # inflexible devices are electricity by default
-        number_flexible_devices = len(device_models)
-        number_inflexible_devices = len(
-            self.flex_context.get("inflexible_device_sensors", [])
-        )
-        commodity_to_devices.setdefault("electricity", []).extend(
-            range(
-                number_flexible_devices,
-                number_flexible_devices + number_inflexible_devices,
-            )
-        )
-
-        # Per-commodity inflexible-device-sensors, enumerated after the top-level
-        # (electricity) inflexible devices, in the order the commodity contexts are
-        # given. This mirrors the enumeration that
-        # `_compute_commodity_aggregate_schedules` already assumes.
-        commodity_context_inflexible_sensors: list[Sensor] = []
-        num_devices = number_flexible_devices + number_inflexible_devices
-        for commodity_context in self.flex_context.get("commodity_contexts", []):
-            commodity = commodity_context["commodity"]
-            commodity_inflexible_sensors = commodity_context.get(
-                "inflexible_device_sensors", []
-            )
-            commodity_to_devices.setdefault(commodity, []).extend(
-                range(num_devices, num_devices + len(commodity_inflexible_sensors))
-            )
-            commodity_context_inflexible_sensors.extend(commodity_inflexible_sensors)
-            num_devices += len(commodity_inflexible_sensors)
+        # The canonical device enumeration comes from the inventory: flexible devices
+        # (indices lining up with the sensors and device_constraints lists), then
+        # top-level (electricity) inflexible devices, then each commodity context's
+        # own inflexible devices. This is the same enumeration that
+        # `_compute_commodity_aggregate_schedules` relies on.
+        commodity_to_devices = inventory.commodity_to_devices
 
         commodity_contexts = self._get_commodity_contexts()
         price_frames_by_commodity = {}
@@ -677,18 +642,12 @@ class MetaStorageScheduler(Scheduler):
 
         # Set up device constraints: scheduled flexible devices for this EMS (from index 0 to D-1),
         # plus the forecasted top-level (electricity) inflexible devices, plus each commodity
-        # context's own inflexible devices, in that order.
+        # context's own inflexible devices, in that order (the inventory's canonical order).
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
-            for i in range(
-                num_flexible_devices
-                + len(inflexible_device_sensors)
-                + len(commodity_context_inflexible_sensors)
-            )
+            for i in range(inventory.num_scheduled)
         ]
-        for i, inflexible_sensor in enumerate(
-            inflexible_device_sensors + commodity_context_inflexible_sensors
-        ):
+        for i, inflexible_sensor in enumerate(inventory.inflexible_sensors):
             device_constraints[i + num_flexible_devices]["derivative equals"] = (
                 get_power_values(
                     query_window=(start, end),
@@ -2376,70 +2335,32 @@ class StorageScheduler(MetaStorageScheduler):
         return schedules
 
     def _reconstruct_commodity_to_devices(self) -> dict[str, list[int]]:
-        """Reconstruct the mapping of commodity -> device indices as enumerated by `_prepare()`.
+        """Return the mapping of commodity -> device indices, as enumerated by the device inventory.
 
-        Device enumeration order:
+        Device enumeration order (the inventory's canonical order, also used by `_prepare()`):
             1. flexible devices (from the flex-model), in order,
             2. top-level (electricity) inflexible-device-sensors, in order,
             3. each commodity context's own inflexible-device-sensors, in the order the
                commodity contexts are given.
 
-        This mirrors `_prepare()`'s device enumeration exactly, so the returned device
-        indices line up with entries of `ems_schedule` / `device_constraints`.
+        The returned device indices line up with entries of `ems_schedule` /
+        `device_constraints`.
         """
-        # Get the device models to reconstruct commodity_to_devices mapping
-        flex_model = getattr(self, "_device_models", None)
-        if flex_model is None:
-            # Fallback: reconstruct if not available (shouldn't happen in normal flow)
-            flex_model = (
-                self.flex_model.copy()
-                if isinstance(self.flex_model, dict)
-                else [fm for fm in self.flex_model if fm.get("sensor") is not None]
-            )
-        if not isinstance(flex_model, list):
-            flex_model = [flex_model]
-
-        # Reconstruct commodity_to_devices mapping
-        commodity_to_devices: dict[str, list[int]] = {}
-        for d, flex_model_d in enumerate(flex_model):
-            commodity = flex_model_d.get("commodity", "electricity")
-            commodity_to_devices.setdefault(commodity, []).append(d)
-
-        # Add inflexible devices to commodities, mirroring _prepare()'s device
-        # enumeration so the device indices line up with ems_schedule:
-        #   - top-level inflexible-device-sensors go to electricity (backwards compat),
-        #   - then each commodity context's own inflexible-device-sensors are appended to
-        #     that commodity, in the order the commodity contexts are given.
-        # Without this, a commodity's inflexible demand (e.g. a heat load) is left
-        # out of its aggregate schedule, so an aggregate-consumption sensor only reflects
-        # the flexible devices of that commodity.
-        inflexible_device_sensors = self.flex_context.get(
-            "inflexible_device_sensors", []
-        )
-        number_flexible_devices = len(flex_model)
-        commodity_to_devices.setdefault("electricity", []).extend(
-            range(
-                number_flexible_devices,
-                number_flexible_devices + len(inflexible_device_sensors),
-            )
-        )
-
-        # Per-commodity inflexible devices, enumerated after the top-level ones.
-        num_devices = number_flexible_devices + len(inflexible_device_sensors)
-        for commodity_context in self.flex_context.get("commodity_contexts", []):
-            commodity = commodity_context["commodity"]
-            commodity_inflexible_device_sensors = commodity_context.get(
-                "inflexible_device_sensors", []
-            )
-            commodity_to_devices.setdefault(commodity, []).extend(
-                range(
-                    num_devices,
-                    num_devices + len(commodity_inflexible_device_sensors),
+        inventory = self.device_inventory
+        if inventory is None:
+            # Fallback (e.g. bare schedulers in tests): classify the stored device
+            # models, or failing that, the flex-model itself.
+            flex_model = getattr(self, "_device_models", None)
+            if flex_model is None:
+                flex_model = (
+                    self.flex_model.copy()
+                    if isinstance(self.flex_model, dict)
+                    else [fm for fm in self.flex_model if fm.get("sensor") is not None]
                 )
+            inventory = DeviceInventory.from_flex_config(
+                flex_model, self.flex_context, sensor=getattr(self, "sensor", None)
             )
-            num_devices += len(commodity_inflexible_device_sensors)
-
-        return commodity_to_devices
+        return inventory.commodity_to_devices
 
     def _electricity_device_indices(self) -> list[int]:
         """Return the device indices (flexible and inflexible) belonging to the electricity commodity."""
