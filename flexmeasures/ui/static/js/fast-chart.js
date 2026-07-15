@@ -566,15 +566,11 @@ function niceTimeStep(span, target) {
   return TIME_STEPS_MS[TIME_STEPS_MS.length - 1];
 }
 
-// Target plotting width per major gridline (px). Smaller → denser gridlines. Tunable:
-// this sets whether a 1-day view shows 3h or 6h majors on a given screen width.
-const TICK_TARGET_PX = 130;
-
-// Bias the time axis toward 3h/6h/12h ticks (rather than ECharts' default 2h/4h): set
-// minInterval to a width- and zoom-adaptive nice step (a day → ~3h on a wide chart,
-// stepping to 6h/12h as it narrows / stays equidistant and nice-aligned). Recomputed on
-// zoom so zooming in reveals finer ticks. (No forced `interval`: the time axis ignores
-// it. No minor gridlines: on a time axis they mis-space at the domain edges.)
+// Give the time axis an intermediate tick level instead of jumping straight from the
+// day level (only midnights) to 4h. ECharts honors maxInterval (a CAP) but not
+// minInterval (a floor), so cap the interval to ~span/4 — enough to guarantee several
+// gridlines: a 2-day view then shows 12h lines rather than only midnights, while a
+// 1-day view keeps its 4h (4h is already below the 6h cap). Recomputed on zoom.
 function refreshTimeTicks(instance) {
   const chart = instance.chart;
   if (!chart || chart.isDisposed() || !(instance._xDomainSpan > 0)) return;
@@ -582,10 +578,9 @@ function refreshTimeTicks(instance) {
   const start = dz && typeof dz.start === "number" ? dz.start : 0;
   const end = dz && typeof dz.end === "number" ? dz.end : 100;
   const span = (instance._xDomainSpan * (end - start)) / 100;
-  const target = Math.max(2, Math.round((chart.getWidth() || 800) / TICK_TARGET_PX));
-  const minInterval = niceTimeStep(span, target);
+  const maxInterval = niceTimeStep(span, 4); // ~4+ major gridlines across the visible span
   const xAxis = chart.getOption().xAxis || [];
-  const patch = xAxis.map((ax) => (ax && ax.type === "time" ? { minInterval: minInterval } : {}));
+  const patch = xAxis.map((ax) => (ax && ax.type === "time" ? { maxInterval: maxInterval } : {}));
   chart.setOption({ xAxis: patch });
 }
 
