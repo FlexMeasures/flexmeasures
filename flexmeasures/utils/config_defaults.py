@@ -156,9 +156,7 @@ class Config(object):
     }  # how to group assets by asset types
     FLEXMEASURES_LP_SOLVER: str = "appsi_highs"
     FLEXMEASURES_DEFAULT_JOB_TIMEOUT: timedelta = timedelta(seconds=180)
-    FLEXMEASURES_JOB_TIMEOUT: dict[str, timedelta | str] = {
-        "forecasting": timedelta(hours=1),
-    }
+    FLEXMEASURES_JOB_TIMEOUT: dict[str, timedelta | str] = {}
     FLEXMEASURES_JOB_TTL: timedelta = timedelta(days=1)
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(days=2)
     FLEXMEASURES_MAX_PLANNING_HORIZON: timedelta | int | None = (
