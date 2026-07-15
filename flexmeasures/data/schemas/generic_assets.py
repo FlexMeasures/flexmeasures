@@ -42,6 +42,8 @@ class SensorsToShowSchema(fields.Field):
     - `"data"`: the axis is fitted to the data instead of being padded out to include zero.
     - `[min, max]`: a minimum domain; the axis always covers at least this range,
       and expands to fit the data if it goes beyond it (nothing is ever clipped).
+    - `{"min": min, "max": max}`: a strict domain; the axis never expands beyond this
+      range, and data outside it is visually clipped to the nearest edge.
 
     - A single sensor ID (int): `42` -> `{"title": None, "plots": [{"sensor": 42}]}`
     - A list of sensor IDs (list of ints): `[42, 43]` -> `{"title": None, "plots": [{"sensors": [42, 43]}]}`
@@ -158,12 +160,14 @@ class SensorsToShowSchema(fields.Field):
                 "Dictionary must contain either 'sensor', 'sensors' or 'plots' key."
             )
 
-    def _validate_y_axis(self, y_axis) -> str | list:
+    def _validate_y_axis(self, y_axis) -> str | list | dict:
         """
-        Validate the 'y-axis' key: 'zero', 'data', or a [min, max] list of two numbers.
+        Validate the 'y-axis' key: 'zero', 'data', a [min, max] list of two numbers
+        (a floor domain), or a {"min": min, "max": max} dict (a strict domain).
         """
         error_message = (
-            "'y-axis' must be 'zero', 'data', or a [min, max] list of two numbers."
+            "'y-axis' must be 'zero', 'data', a [min, max] list of two numbers, "
+            "or a {'min': min, 'max': max} dict."
         )
         if isinstance(y_axis, str):
             if y_axis not in ("zero", "data"):
@@ -181,6 +185,24 @@ class SensorsToShowSchema(fields.Field):
                     "'y-axis' domain minimum cannot exceed its maximum."
                 )
             return [minimum, maximum]
+        elif isinstance(y_axis, dict):
+            if set(y_axis.keys()) != {"min", "max"} or not all(
+                isinstance(v, (int, float)) and not isinstance(v, bool)
+                for v in y_axis.values()
+            ):
+                raise ValidationError(error_message)
+            minimum, maximum = y_axis["min"], y_axis["max"]
+            if minimum > maximum:
+                raise ValidationError(
+                    "'y-axis' domain minimum cannot exceed its maximum."
+                )
+            # Unlike the floor domain, a strict domain hard-bounds the axis, so an
+            # equal minimum and maximum would clamp all data to a single pixel.
+            if minimum == maximum:
+                raise ValidationError(
+                    "'y-axis' strict domain minimum and maximum cannot be equal."
+                )
+            return {"min": minimum, "max": maximum}
         else:
             raise ValidationError(error_message)
 

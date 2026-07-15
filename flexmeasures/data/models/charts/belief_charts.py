@@ -538,7 +538,7 @@ def _setup_event_start_field(
 
 
 def _setup_event_value_field(
-    sensor_type: str, unit: str, y_axis: str | list | None = None
+    sensor_type: str, unit: str, y_axis: str | list | dict | None = None
 ) -> dict:
     """Set up the event value field definition.
 
@@ -548,8 +548,11 @@ def _setup_event_value_field(
         y_axis: How the y-axis domain for this sub-chart should be chosen.
             - None (or "zero"): the axis is padded out to include zero (default behaviour).
             - "data": the axis is fitted to the data.
-            - [min, max]: a minimum domain; the axis covers at least this range,
-              and expands (via unionWith) if the data goes beyond it.
+            - [min, max]: a minimum (floor) domain; the axis covers at least this range,
+              and expands (via unionWith) with the same margin as "data" mode if the
+              data goes beyond it (nothing is clipped).
+            - {"min": min, "max": max}: a strict domain; the axis never expands beyond
+              this range, and data outside it is clamped to the nearest edge.
 
     Returns:
         Field definition dictionary
@@ -563,10 +566,14 @@ def _setup_event_value_field(
     )
     if y_axis == "data":
         event_value_field_definition["scale"] = dict(zero=False)
-    elif isinstance(y_axis, list):
+    elif isinstance(y_axis, dict):
         event_value_field_definition["scale"] = dict(
-            domain={"unionWith": y_axis}, nice=False
+            domain=[y_axis["min"], y_axis["max"]], clamp=True, nice=False
         )
+    elif isinstance(y_axis, list):
+        # Match "data" mode's margin around out-of-range values: nice=True (the
+        # Vega-Lite default) pads the domain instead of stopping exactly at the data.
+        event_value_field_definition["scale"] = dict(domain={"unionWith": y_axis})
     elif unit == "%":
         event_value_field_definition["scale"] = dict(
             domain={"unionWith": [0, 105]}, nice=False
@@ -1033,15 +1040,13 @@ def create_circle_layer(
     )  # deepcopy so the next line doesn't update the dicts
     scaled_shared_tooltip[1]["field"] = "scaled_event_value"
 
-    # Ignore events on annotation marks, whose datums lack the event_start field
-    mouseover_ignoring_annotations = "mouseover[!event.item || !event.item.mark || indexof(event.item.mark.name, 'annotation_') < 0]"
     params = [
         {
             "name": "hover_x_brush",
             "select": {
                 "type": "point",
                 "encodings": ["x"],
-                "on": mouseover_ignoring_annotations,
+                "on": "mouseover",
                 "nearest": False,
                 "clear": "mouseout",
             },
@@ -1054,7 +1059,7 @@ def create_circle_layer(
                 "name": "hover_nearest_brush",
                 "select": {
                     "type": "point",
-                    "on": mouseover_ignoring_annotations,
+                    "on": "mouseover",
                     "nearest": True,
                     "clear": "mouseout",
                 },

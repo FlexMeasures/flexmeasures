@@ -249,7 +249,10 @@
                                 <p class="mb-0">
                                     Each graph has a "Y-axis" selector; choose "Fit to the data" to let that
                                     graph's shared y-axis zoom in on its data instead of being padded out to
-                                    include zero, or "Fixed range…" to set an explicit min and max.
+                                    include zero, "Fixed range…" to set an explicit min and max that the axis
+                                    is still allowed to expand beyond, or "Strict range…" to hard-bound the
+                                    axis to that min and max (data outside it is clamped to the nearest edge,
+                                    and you'll be warned if that happens).
                                 </p>
                             </div>
                         </div>
@@ -474,10 +477,13 @@
             const graphs = getSensorToShow();
             for (const [index, item] of graphs.entries()) {
                 const select = document.getElementById(`yAxisSelect_${index}`);
-                if (!select || select.value !== "range") continue;
+                if (!select || (select.value !== "range" && select.value !== "strict")) continue;
                 const minVal = parseFloat(document.getElementById(`yAxisMin_${index}`).value);
                 const maxVal = parseFloat(document.getElementById(`yAxisMax_${index}`).value);
-                if (Number.isNaN(minVal) || Number.isNaN(maxVal) || minVal > maxVal) {
+                // A strict range hard-bounds the axis, so an equal Min and Max would
+                // clamp all data to a single pixel; the floor range has no such issue.
+                const boundsOk = select.value === "strict" ? minVal < maxVal : minVal <= maxVal;
+                if (Number.isNaN(minVal) || Number.isNaN(maxVal) || !boundsOk) {
                     return item.title || `Graph ${index + 1}`;
                 }
             }
@@ -623,18 +629,27 @@
                     if ("sensors" in graph) {
                         const item = {};
                         item['title'] = graph['title'] || "No Title";
+                        if ("y-axis" in graph) {
+                            item["y-axis"] = graph["y-axis"];
+                        }
                         item['plots'] = [];
                         item['plots'].push({ "sensors": graph['sensors'] });
                         newShape.push(item);
                     } else if ("sensor" in graph) {
                         const item = {};
                         item['title'] = graph['title'] || "No Title";
+                        if ("y-axis" in graph) {
+                            item["y-axis"] = graph["y-axis"];
+                        }
                         item['plots'] = [];
                         item['plots'].push({ "sensor": graph['sensor'] });
                         newShape.push(item);
                     } else if ("plots" in graph) {
                         const item = {};
                         item['title'] = graph['title'] || "No Title";
+                        if ("y-axis" in graph) {
+                            item["y-axis"] = graph["y-axis"];
+                        }
                         item['plots'] = graph['plots'];
                         newShape.push(item);
                     } else {
@@ -798,7 +813,10 @@
 
             const yAxis = item["y-axis"];
             const isRange = Array.isArray(yAxis);
-            const currentMode = isRange ? "range" : (yAxis === "data" ? "data" : "zero");
+            const isStrict = yAxis !== null && typeof yAxis === "object" && !isRange;
+            const currentMode = isRange
+                ? "range"
+                : (isStrict ? "strict" : (yAxis === "data" ? "data" : "zero"));
 
             const label = document.createElement("label");
             label.className = "form-label me-2";
@@ -827,6 +845,11 @@
                     text: "Fixed range…",
                     title: "The axis always covers at least this range, and expands if the data goes beyond it. Set Min and Max to the same number to always keep that one value in view.",
                 },
+                {
+                    value: "strict",
+                    text: "Strict range…",
+                    title: "The axis never covers more than this range. Data outside it is drawn clamped to the nearest edge, so out-of-range values can look misleadingly close to Min or Max. Min must be strictly lower than Max.",
+                },
             ];
             for (const opt of options) {
                 const optionEl = document.createElement("option");
@@ -840,15 +863,21 @@
             wrapper.appendChild(label);
             wrapper.appendChild(select);
 
-            // Range inputs (min/max), only shown when "Fixed range…" is selected
+            // Range inputs (min/max), shared by "Fixed range…" and "Strict range…"
             const rangeWrapper = document.createElement("div");
             rangeWrapper.className = "mt-2";
-            rangeWrapper.style.display = currentMode === "range" ? "" : "none";
+            const isRangeMode = (mode) => mode === "range" || mode === "strict";
+            rangeWrapper.style.display = isRangeMode(currentMode) ? "" : "none";
 
-            // Repeat the "Fixed range…" explanation here: by the time the user is filling
-            // these in, the option's own tooltip is out of reach.
-            const rangeTitle = options.find((opt) => opt.value === "range").title;
-            rangeWrapper.title = rangeTitle;
+            // Repeat the selected option's explanation here: by the time the user is
+            // filling these in, the option's own tooltip is out of reach.
+            const titleFor = (mode) => options.find((opt) => opt.value === mode).title;
+            const applyRangeTitle = (mode) => {
+                const title = titleFor(isRangeMode(mode) ? mode : "range");
+                rangeWrapper.title = title;
+                minInput.title = title;
+                maxInput.title = title;
+            };
 
             const makeNumberInput = (id, placeholder, initialValue) => {
                 const input = document.createElement("input");
@@ -856,7 +885,6 @@
                 input.className = "form-control form-control-sm d-inline-block w-auto me-2";
                 input.id = id;
                 input.placeholder = placeholder;
-                input.title = rangeTitle;
                 if (initialValue !== undefined && initialValue !== null) {
                     input.value = initialValue;
                 }
@@ -866,36 +894,46 @@
             const minInput = makeNumberInput(
                 `yAxisMin_${index}`,
                 "Min",
-                isRange ? yAxis[0] : undefined,
+                isRange ? yAxis[0] : (isStrict ? yAxis.min : undefined),
             );
             const maxInput = makeNumberInput(
                 `yAxisMax_${index}`,
                 "Max",
-                isRange ? yAxis[1] : undefined,
+                isRange ? yAxis[1] : (isStrict ? yAxis.max : undefined),
             );
+            applyRangeTitle(currentMode);
 
             const feedback = document.createElement("div");
             feedback.className = "invalid-feedback d-block d-none";
-            feedback.textContent = "Enter two numbers, with Min no higher than Max.";
 
             const validateAndStoreRange = () => {
+                const mode = select.value;
                 const minVal = parseFloat(minInput.value);
                 const maxVal = parseFloat(maxInput.value);
+                // A strict range hard-bounds the axis, so an equal Min and Max would
+                // clamp all data to a single pixel; the floor range has no such issue.
+                const boundsOk = mode === "strict" ? minVal < maxVal : minVal <= maxVal;
                 const valid =
                     minInput.value !== "" &&
                     maxInput.value !== "" &&
                     !Number.isNaN(minVal) &&
                     !Number.isNaN(maxVal) &&
-                    minVal <= maxVal;
+                    boundsOk;
                 if (valid) {
                     minInput.classList.remove("is-invalid");
                     maxInput.classList.remove("is-invalid");
                     feedback.classList.add("d-none");
-                    setGraphYAxis(index, [minVal, maxVal]);
+                    setGraphYAxis(
+                        index,
+                        mode === "strict" ? { min: minVal, max: maxVal } : [minVal, maxVal],
+                    );
                 } else {
                     minInput.classList.add("is-invalid");
                     maxInput.classList.add("is-invalid");
                     feedback.classList.remove("d-none");
+                    feedback.textContent = mode === "strict"
+                        ? "Enter two numbers, with Min strictly lower than Max."
+                        : "Enter two numbers, with Min no higher than Max.";
                 }
             };
 
@@ -909,12 +947,13 @@
 
             select.onchange = (e) => {
                 const mode = e.target.value;
-                rangeWrapper.style.display = mode === "range" ? "" : "none";
+                rangeWrapper.style.display = isRangeMode(mode) ? "" : "none";
+                applyRangeTitle(mode);
                 if (mode === "zero") {
                     setGraphYAxis(index, null);
                 } else if (mode === "data") {
                     setGraphYAxis(index, "data");
-                } else if (mode === "range") {
+                } else if (isRangeMode(mode)) {
                     // Do not store anything until both inputs are valid.
                     minInput.classList.remove("is-invalid");
                     maxInput.classList.remove("is-invalid");
@@ -1380,7 +1419,9 @@
                 const errorMessage = errorData?.message?.json || errorData?.error || response.statusText;
                 showToast(`Failed to update the asset: ${errorMessage}`, "error");
             } else {
-                document.dispatchEvent(new Event('sensorsToShowUpdated'));
+                document.dispatchEvent(new CustomEvent('sensorsToShowUpdated', {
+                    detail: { sensorsToShow: getSensorToShow() },
+                }));
                 showToast("Changes saved successfully", "success");
                 refreshSpinner.style.display = 'none';
                 sensorChartDiv.style.display = 'block';
