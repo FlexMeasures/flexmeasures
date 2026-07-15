@@ -2095,9 +2095,12 @@ function wireZoomInteractions(instance, opts) {
     zr.off("dblclick", instance.onDblClickReset);
     instance.onDblClickReset = null;
   }
-  if (instance.onTapReset) {
-    zr.off("click", instance.onTapReset);
-    instance.onTapReset = null;
+  if (instance.onTouchStart) {
+    const dom = chart.getDom();
+    dom.removeEventListener("touchstart", instance.onTouchStart);
+    dom.removeEventListener("touchend", instance.onTouchEnd);
+    instance.onTouchStart = null;
+    instance.onTouchEnd = null;
   }
   if (instance.onCtrlDown) {
     document.removeEventListener("keydown", instance.onCtrlDown);
@@ -2117,32 +2120,46 @@ function wireZoomInteractions(instance, opts) {
   };
 
   if (IS_TOUCH) {
-    // Reset on a genuine double-tap (two quick taps in place), ignoring swipes.
+    // Reset on a genuine double-tap, detected from NATIVE touch events (not zrender's
+    // synthetic click, which is unreliable once touch-action:pan-y hands the gesture to
+    // the browser for scrolling). A tap barely moves between touchstart and touchend; a
+    // scroll swipe moves far, so it never counts — and a scroll between two taps clears
+    // the sequence, so scrolling can never complete a double-tap and reset the zoom.
     instance._lastTapAt = 0;
     instance._lastTapXY = null;
-    instance.onTapReset = (e) => {
-      const x = e && e.offsetX, y = e && e.offsetY;
-      const down = instance._downPixel;
-      if (down && (Math.abs(x - down[0]) > 12 || Math.abs(y - down[1]) > 12)) {
-        instance._lastTapAt = 0;
+    instance._touchStartXY = null;
+    instance.onTouchStart = (e) => {
+      instance._touchStartXY =
+        e.touches && e.touches.length === 1 ? [e.touches[0].clientX, e.touches[0].clientY] : null;
+    };
+    instance.onTouchEnd = (e) => {
+      const start = instance._touchStartXY;
+      instance._touchStartXY = null;
+      if (!start || (e.touches && e.touches.length > 0)) return; // pinch / fingers remaining
+      const t = e.changedTouches && e.changedTouches[0];
+      if (!t) return;
+      if (Math.abs(t.clientX - start[0]) > 12 || Math.abs(t.clientY - start[1]) > 12) {
+        instance._lastTapAt = 0; // a swipe/scroll — clear any pending first tap
         instance._lastTapXY = null;
         return;
       }
       const now = Date.now();
       const near =
         instance._lastTapXY &&
-        Math.abs(x - instance._lastTapXY[0]) < 24 &&
-        Math.abs(y - instance._lastTapXY[1]) < 24;
+        Math.abs(t.clientX - instance._lastTapXY[0]) < 40 &&
+        Math.abs(t.clientY - instance._lastTapXY[1]) < 40;
       if (now - instance._lastTapAt < 300 && near) {
         resetZoom();
         instance._lastTapAt = 0;
         instance._lastTapXY = null;
       } else {
         instance._lastTapAt = now;
-        instance._lastTapXY = [x, y];
+        instance._lastTapXY = [t.clientX, t.clientY];
       }
     };
-    zr.on("click", instance.onTapReset);
+    const dom = chart.getDom();
+    dom.addEventListener("touchstart", instance.onTouchStart, { passive: true });
+    dom.addEventListener("touchend", instance.onTouchEnd, { passive: true });
     return;
   }
 
@@ -2210,15 +2227,13 @@ function wirePointerTracking(instance) {
     instance._pointerPixel = [e.offsetX, e.offsetY];
   };
   zr.on("mousemove", instance.onPointerMove);
-  // Record the press position, so a touch tap's tooltip has a pointer to snap to
-  // (there's no mousemove before a tap) and the double-tap reset can tell a tap
-  // from a swipe (see wireZoomInteractions).
+  // Record the press position too, so a touch tap's tooltip has a pointer to snap to
+  // (there's no mousemove before a tap).
   if (instance.onPointerDown) {
     zr.off("mousedown", instance.onPointerDown);
   }
   instance.onPointerDown = (e) => {
     instance._pointerPixel = [e.offsetX, e.offsetY];
-    instance._downPixel = [e.offsetX, e.offsetY];
   };
   zr.on("mousedown", instance.onPointerDown);
   // Clear the synced tooltip highlight (see syncEmphasis) when the cursor leaves.
@@ -2340,6 +2355,12 @@ export function disposeFastChart(elementId) {
     if (instance.onDocTapDismiss) {
       document.removeEventListener("touchend", instance.onDocTapDismiss);
       document.removeEventListener("click", instance.onDocTapDismiss);
+    }
+    // Native touch listeners live on the container DOM, so remove them before disposing.
+    if (instance.onTouchStart && !instance.chart.isDisposed()) {
+      const dom = instance.chart.getDom();
+      dom.removeEventListener("touchstart", instance.onTouchStart);
+      dom.removeEventListener("touchend", instance.onTouchEnd);
     }
     clearTimeout(instance.resizeTimer);
     if (!instance.chart.isDisposed()) {
