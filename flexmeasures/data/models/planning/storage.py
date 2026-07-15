@@ -37,11 +37,7 @@ from flexmeasures.data.schemas.scheduling import (
     FlexContextSchema,
     MultiSensorFlexModelSchema,
 )
-from flexmeasures.data.schemas.sensors import (
-    SensorReference,
-    VariableQuantityField,
-    PriceField,
-)
+from flexmeasures.data.schemas.sensors import SensorReference, VariableQuantityField
 from flexmeasures.data.services.scheduling_result import SchedulingJobResult
 from flexmeasures.utils.calculations import (
     integrate_time_series,
@@ -181,7 +177,6 @@ class MetaStorageScheduler(Scheduler):
         soc_maxima = [None] * num_flexible_devices
         soc_gain = [None] * num_flexible_devices
         soc_usage = [None] * num_flexible_devices
-        soc_value_at_end = [None] * num_flexible_devices
         prefer_charging_sooner = [None] * num_flexible_devices
         prefer_curtailing_later = [None] * num_flexible_devices
 
@@ -196,12 +191,12 @@ class MetaStorageScheduler(Scheduler):
             d0 = devices[0]
 
             soc_at_start[d0] = stock_model.get("soc_at_start")
-            # In multi-device mode, the soc-at-start of a stock is not resolved during
-            # deserialization (unlike single-sensor mode's ensure_soc_at_start()). If the
-            # stock's owning entry carries a state-of-charge sensor (or time series) but
-            # no explicit soc-at-start, resolve the starting stock from it here. Without
-            # this, soc_at_start stays None and the scheduler applies no stock
-            # constraints, so the device could discharge more energy than its store holds.
+            # In multi-device mode, the soc-at-start of a stock is not resolved during deserialization
+            # (unlike single-sensor mode's ensure_soc_at_start()).
+            # If the stock's owning entry carries a state-of-charge sensor (or time series) but no explicit soc-at-start,
+            # resolve the starting stock from it here.
+            # Without this, soc_at_start stays None and the scheduler applies no stock constraints,
+            # so the device could discharge more energy than its store holds.
             if soc_at_start[d0] is None:
                 resolved_soc_at_start = self._resolve_stock_soc_at_start(
                     stock_model, sensor=sensors[d0]
@@ -215,7 +210,6 @@ class MetaStorageScheduler(Scheduler):
             soc_maxima[d0] = stock_model.get("soc_maxima")
             soc_gain[d0] = stock_model.get("soc_gain")
             soc_usage[d0] = stock_model.get("soc_usage")
-            soc_value_at_end[d0] = stock_model.get("soc_value_at_end")
             prefer_charging_sooner[d0] = stock_model.get("prefer_charging_sooner")
             prefer_curtailing_later[d0] = stock_model.get("prefer_curtailing_later")
 
@@ -230,9 +224,6 @@ class MetaStorageScheduler(Scheduler):
         ]
         production_capacity = [
             flex_model_d.get("production_capacity") for flex_model_d in flex_model
-        ]
-        operation_modes = [
-            flex_model_d.get("operation_modes") for flex_model_d in flex_model
         ]
         charging_efficiency = [
             flex_model_d.get("charging_efficiency") for flex_model_d in flex_model
@@ -255,7 +246,6 @@ class MetaStorageScheduler(Scheduler):
         end = pd.Timestamp(end).tz_convert("UTC")
 
         # Set up commitments to optimise for.
-        # (EMS capacities are computed per commodity further below.)
         commitments = self.convert_to_commitments(
             query_window=(start, end),
             resolution=resolution,
@@ -844,34 +834,6 @@ class MetaStorageScheduler(Scheduler):
                 # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
                 soc_maxima[d] = None
 
-            if soc_value_at_end[d] is not None and soc_at_start[d] is not None:
-                # Assign a marginal value to energy left in storage at the end of the
-                # planning window, to counter myopic depletion of the storage.
-                soc_value_at_end_d = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_value_at_end[d],
-                    unit=self.flex_context["shared_currency_unit"]
-                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
-                # Only the state of charge at the end of the planning window is valued
-                soc_value_at_end_d.iloc[:-1] = 0
-
-                commitment = StockCommitment(
-                    name="value of soc at end",
-                    # baseline is an (absolute) zero state of charge, so the upwards
-                    # deviation in the final time slot is the final state of charge
-                    quantity=-soc_at_start[d] * (timedelta(hours=1) / resolution),
-                    # negative prices reward a higher state of charge at the end
-                    upwards_deviation_price=-soc_value_at_end_d,
-                    downwards_deviation_price=-soc_value_at_end_d,
-                    index=index,
-                    device=d,
-                )
-                commitments.append(commitment)
-
             # only apply SOC constraints to the first device of a shared stock
             apply_soc_constraints = True
 
@@ -907,17 +869,6 @@ class MetaStorageScheduler(Scheduler):
             )
             device_constraints[d]["derivative max"] = power_capacity_in_mw[d]
             device_constraints[d]["derivative min"] = -power_capacity_in_mw[d]
-
-            # Power bands (S2 operation modes): carried on the constraints frame,
-            # in signed MW (positive is consumption), for the device scheduler.
-            if operation_modes[d]:
-                device_constraints[d].attrs["operation_modes"] = [
-                    (
-                        float(mode["power_range"][0].to("MW").magnitude),
-                        float(mode["power_range"][1].to("MW").magnitude),
-                    )
-                    for mode in operation_modes[d]
-                ]
 
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_positive"
@@ -1335,15 +1286,8 @@ class MetaStorageScheduler(Scheduler):
             self.flex_model = {}
 
         self.collect_flex_config()
-        current_app.logger.debug(
-            f"FLEXCONTEXT_TRACE deserialize_flex_config: raw flex_context before schema load: {self.flex_context}"
-        )
         self._deserialize_flex_context()
-        current_app.logger.debug(
-            f"FLEXCONTEXT_TRACE deserialize_flex_config: deserialized flex_context={self.flex_context!r}"
-        )
         self._deserialize_flex_model()
-        self._validate_flex_model_price_units()
 
         # Classify all flex-model entries (and the flex-context's inflexible devices)
         # once; scheduling and result mapping rely on this inventory for device
@@ -1386,37 +1330,6 @@ class MetaStorageScheduler(Scheduler):
                 f"Unsupported type of flex-context: '{type(self.flex_context)}'"
             )
 
-    def _validate_flex_model_price_units(self):
-        """Check that price fields in the flex-model use the flex-context's shared currency.
-
-        The flex-context validates that all its price fields share one currency
-        (its ``shared_currency_unit``); here we hold the flex-model's price fields
-        (declared as PriceField) to that same currency, so that unit conversion
-        cannot fail later, when the scheduler runs.
-        """
-        shared_currency_unit = self.flex_context.get("shared_currency_unit")
-        if shared_currency_unit is None:
-            return
-        flex_model = (
-            self.flex_model if isinstance(self.flex_model, list) else [self.flex_model]
-        )
-        for flex_model_d in flex_model:
-            for field_name, field in StorageFlexModelSchema._declared_fields.items():
-                if (
-                    not isinstance(field, PriceField)
-                    or flex_model_d.get(field_name) is None
-                ):
-                    continue
-                price_unit = field._get_unit(flex_model_d[field_name])
-                currency_unit = str(
-                    (ur.Quantity(price_unit) / ur.Quantity(f"1{field.to_unit}")).units
-                )
-                if not units_are_convertible(currency_unit, shared_currency_unit):
-                    raise ValidationError(
-                        f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit + field.to_unit}', because the flex-context uses '{shared_currency_unit}' as its currency. However, the '{field.data_key}' field in the flex-model uses an incompatible price unit ('{price_unit}').",
-                        field_name=field.data_key,
-                    )
-
     def _deserialize_flex_model(self):
         if isinstance(self.flex_model, dict):
             if self.sensor.generic_asset.asset_type.name in storage_asset_types:
@@ -1457,24 +1370,6 @@ class MetaStorageScheduler(Scheduler):
                 ).load(sensor_flex_model["sensor_flex_model"])
                 self.flex_model[d]["sensor"] = sensor_flex_model.get("sensor")
                 self.flex_model[d]["asset"] = sensor_flex_model.get("asset")
-
-                # Devices that reference their power sensor only via a nested output
-                # reference (e.g. {"consumption": {"sensor": N}}) have no top-level
-                # "sensor". Without one they would be misclassified as stock-only in
-                # _prepare() and silently dropped from the schedule. Resolve the power
-                # sensor from the output reference so the device is scheduled and its
-                # schedule is saved to its declared output sensor.
-                if self.flex_model[d]["sensor"] is None:
-                    for output_field in ("consumption", "production"):
-                        output_ref = self.flex_model[d].get(output_field)
-                        if isinstance(output_ref, dict):
-                            output_sensor = output_ref.get("sensor")
-                            if isinstance(output_sensor, Sensor):
-                                self.flex_model[d]["sensor"] = output_sensor
-                                break
-                            elif isinstance(output_sensor, SensorReference):
-                                self.flex_model[d]["sensor"] = output_sensor.sensor
-                                break
 
                 # Extend schedule period in case a target exceeds its end
                 self.possibly_extend_end(
@@ -1730,32 +1625,31 @@ class MetaStorageScheduler(Scheduler):
     ) -> float | None:
         """Resolve a stock's soc-at-start (in MWh) from its (deserialized) state-of-charge.
 
-        Used in multi-device mode, where soc-at-start is not resolved during
-        deserialization. Operates on the deserialized stock-owning entry, whose
-        ``state_of_charge`` is a :class:`Sensor`, :class:`SensorReference` or time series.
+        Used in multi-device mode, where soc-at-start is not resolved during deserialization.
+        Operates on the deserialized stock-owning entry,
+        whose ``state_of_charge`` is a :class:`Sensor`, :class:`SensorReference` or time series.
 
-        Returns None (rather than raising) when no starting stock can be inferred - e.g.
-        a state-of-charge sensor without a recent value - so that a stock simply keeps no
-        stock constraints, as before, instead of failing the whole schedule.
+        In line with single-sensor mode's ``ensure_soc_at_start()``,
+        a state of charge that is given but cannot be resolved fails the schedule:
+        a ``ValueError`` is raised, e.g. for a state-of-charge sensor without a recent value.
 
         :param stock_model: The deserialized flex-model entry owning the stock's SoC parameters.
         :param sensor:      The stock's (first) device power sensor, used for the SoC lookup radius.
-        :returns:           Starting stock in MWh, or None if it cannot be inferred.
+        :returns:           Starting stock in MWh, or None if the entry defines no state of charge.
         """
         state_of_charge = stock_model.get("state_of_charge")
-        try:
-            if isinstance(state_of_charge, (Sensor, SensorReference)):
-                return self._resolve_soc_at_start_from_sensor(
-                    state_of_charge, stock_model, sensor
-                )
-            if isinstance(state_of_charge, list):
-                return self._resolve_soc_at_start_from_time_series(
-                    state_of_charge, sensor
-                )
-        except ValueError:
-            # No recent state-of-charge value (or no matching time-series segment):
-            # leave the stock without a resolved starting SoC.
-            return None
+        if isinstance(state_of_charge, (Sensor, SensorReference)):
+            # The percent-conversion helpers expect a pre-deserialization (hyphenated) flex model,
+            # while the stock-owning entry is already deserialized (underscored keys, values in MWh).
+            percent_conversion_model = {
+                "soc-max": stock_model.get("soc_max"),
+                "soc-unit": "MWh",
+            }
+            return self._resolve_soc_at_start_from_sensor(
+                state_of_charge, percent_conversion_model, sensor
+            )
+        if isinstance(state_of_charge, list):
+            return self._resolve_soc_at_start_from_time_series(state_of_charge, sensor)
         return None
 
     def possibly_extend_end(self, soc_targets, sensor: Sensor = None):
@@ -1881,7 +1775,7 @@ class MetaStorageScheduler(Scheduler):
             # 4
             site_power_capacity = asset.get_attribute("site-power-capacity")
             if site_power_capacity is not None:
-                current_app.logger.debug(
+                current_app.logger.warning(
                     f"Missing 'power-capacity' on asset {asset.id}. Using site-power-capacity instead."
                 )
                 if isinstance(site_power_capacity, dict):
@@ -2646,9 +2540,6 @@ class StorageScheduler(MetaStorageScheduler):
             ems_constraints=ems_constraints,
             ems_constraint_groups=self.ems_constraint_groups,
             commitments=commitments,
-            device_power_bands=[
-                dc.attrs.get("operation_modes") for dc in device_constraints
-            ],
             initial_stock=initial_stock,
             stock_groups=self.stock_groups,
         )
@@ -2924,16 +2815,16 @@ def build_device_soc_values(
         elif len(disregarded_periods) == 1:
             soc_constraint_start, soc_constraint_end = disregarded_periods[0]
             if soc_constraint_start == soc_constraint_end:
-                current_app.logger.debug(
+                current_app.logger.warning(
                     f"Disregarding target datetime {soc_constraint_end}, because it exceeds {end_of_schedule}. Maximum scheduling horizon is {max_server_horizon}."
                 )
             else:
-                current_app.logger.debug(
+                current_app.logger.warning(
                     f"Disregarding target datetimes that exceed {end_of_schedule} (within the window {soc_constraint_start} until {soc_constraint_end}). Maximum scheduling horizon is {max_server_horizon}."
                 )
         else:
             soc_constraint_starts, soc_constraint_ends = zip(*disregarded_periods)
-            current_app.logger.debug(
+            current_app.logger.warning(
                 f"Disregarding target datetimes that exceed {end_of_schedule} (within the window {min(soc_constraint_starts)} until {max(soc_constraint_ends)} spanning {len(disregarded_periods)} targets). Maximum scheduling horizon is {max_server_horizon}."
             )
 
