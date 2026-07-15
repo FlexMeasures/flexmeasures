@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
+import logging
 import os
 
 from rq.job import Job
+from rq.timeouts import JobTimeoutException
 
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
-from flexmeasures.data.services.forecasting import handle_forecasting_exception
+from flexmeasures.data.services.forecasting import (
+    FORECASTING_JOB_TIMEOUT_HINT,
+    handle_forecasting_exception,
+)
 from flexmeasures.utils.job_utils import work_on_rq
 from flexmeasures.utils.time_utils import as_server_time
 
@@ -100,6 +105,29 @@ def test_failed_forecasting_job_does_not_enqueue_fallback(
         assert failed_job.meta["exception"]["message"] != ""
         assert failed_job.meta.get("fallback_job_id") is None
     assert app.queues["forecasting"].count == 0
+
+
+def test_forecasting_job_timeout_exception_has_actionable_hint(
+    app, clean_redis, caplog, capsys
+):
+    job = app.queues["forecasting"].enqueue(sum, [1, 2])
+
+    with caplog.at_level(logging.WARNING):
+        handle_forecasting_exception(
+            job,
+            JobTimeoutException,
+            JobTimeoutException("Task exceeded maximum timeout value"),
+            None,
+        )
+
+    captured = capsys.readouterr()
+    failed_job = Job.fetch(job.id, connection=app.queues["forecasting"].connection)
+
+    assert FORECASTING_JOB_TIMEOUT_HINT in captured.out
+    assert FORECASTING_JOB_TIMEOUT_HINT in caplog.text
+    assert failed_job.meta["failures"] == 1
+    assert failed_job.meta["exception"]["type"] == "JobTimeoutException"
+    assert failed_job.meta["exception"]["hint"] == FORECASTING_JOB_TIMEOUT_HINT
 
 
 def test_forecasting_job_meta_is_json_serializable(
