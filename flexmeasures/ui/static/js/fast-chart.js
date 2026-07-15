@@ -2028,8 +2028,16 @@ export function renderFastChart(elementId, data, options) {
   if (!instance || instance.chart.isDisposed()) {
     const chart = echarts.init(container, null, { renderer: "canvas" });
     instance = { chart: chart, resizeTimer: null, lastArgs: null, lastOption: null, replayTime: null };
-    // Re-render on resize (debounced), so centered titles stay centered
+    instance._lastWidth = container.clientWidth;
+    // Re-render on resize (debounced), so centered titles stay centered — but ONLY when
+    // the WIDTH changed. A height-only resize (mobile browsers fire one when the address
+    // bar shows/hides on scroll) would otherwise re-render with notMerge and reset the
+    // zoom. Layout only depends on width, so height-only resizes are safely ignored.
     instance.onResize = () => {
+      if (instance.chart.isDisposed()) return;
+      const width = instance.chart.getDom().clientWidth;
+      if (width === instance._lastWidth) return;
+      instance._lastWidth = width;
       clearTimeout(instance.resizeTimer);
       instance.resizeTimer = setTimeout(() => {
         if (!instance.chart.isDisposed() && instance.lastArgs) {
