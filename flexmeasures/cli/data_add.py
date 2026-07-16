@@ -19,7 +19,7 @@ from io import TextIOBase
 from io import StringIO
 from string import Template
 
-from marshmallow import validate
+from marshmallow import validate, ValidationError
 import pandas as pd
 import pytz
 from flask import current_app as app
@@ -1357,6 +1357,12 @@ def add_forecast(  # noqa: C901
     if edit_config:
         config = launch_editor("/tmp/config.yml")
 
+    if source is not None and config:
+        raise click.UsageError(
+            "--source uses the forecaster configuration stored with that source. "
+            "Omit --source to use the supplied configuration options."
+        )
+
     parameters = dict()
 
     if parameters_file:
@@ -1371,13 +1377,18 @@ def add_forecast(  # noqa: C901
         if kebab_key not in parameters:
             parameters[kebab_key] = v
 
-    forecaster = get_data_generator(
-        source=source,
-        model=forecaster_class,
-        config=config,
-        save_config=True,
-        data_generator_type=Forecaster,
-    )
+    try:
+        forecaster = get_data_generator(
+            source=source,
+            model=forecaster_class,
+            config=config,
+            save_config=True,
+            data_generator_type=Forecaster,
+        )
+    except ValidationError as e:
+        raise click.UsageError(
+            f"Invalid forecasting configuration: {e.messages}"
+        ) from e
 
     try:
         # Drop None values
