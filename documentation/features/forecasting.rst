@@ -201,10 +201,12 @@ Usage:
 .. code-block:: bash
 
     flexmeasures add forecasts \
-      --from-date 2024-01-01 --to-date 2024-12-31 \
-      --max-forecast-horizon 24 \
+      --from-date 2024-01-01T00:00:00+00:00 \
+      --to-date 2024-12-31T00:00:00+00:00 \
+      --max-forecast-horizon PT24H \
       --sensor 42 \
-      --config '{"annotation-regressors": [{"account": 1, "annotation-type": "holiday"}]}'
+      --annotation-regressors \
+        '{"account": 1, "annotation-type": "holiday", "name": "public_holidays"}'
 
 .. note::
 

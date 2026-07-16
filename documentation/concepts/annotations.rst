@@ -394,8 +394,8 @@ The ``flexmeasures add holidays`` command supports both the `workalendar <https:
 
 .. tip::
 
-   Omitting ``--timezone`` causes annotations to be stored at UTC midnight, which may make
-   holidays appear at the wrong local hour in charts (e.g. 1 AM or 2 AM in CET/CEST).
+   Omitting ``--timezone`` uses the configured ``FLEXMEASURES_TIMEZONE``. If that
+   setting is unavailable, FlexMeasures falls back to UTC.
 
 .. tabs::
 
