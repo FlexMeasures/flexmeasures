@@ -62,6 +62,35 @@ Note that:
 ``forecast-frequency`` together with ``max-forecast-horizon`` determine how the forecasting cycles advance through time.
 ``train-period``, ``from-date`` and ``to-date`` allow precise control over the training and prediction windows in each cycle.
 
+Forecast post-processing
+--------------------------------
+
+Forecaster configuration can clip and snap forecast values before they are stored.
+Use ``lower`` and ``upper`` to clip values to bounds, and ``snap`` to replace values inside a configured interval with a target value.
+Units are optional; unitless values are interpreted in the output sensor unit.
+
+For example, this configuration clips forecasts to the 0-20 kW range and snaps values in ``[0 kW, 4 kW)`` to 0 kW:
+
+.. code-block:: json
+
+    {
+      "lower": "0 kW",
+      "snap": {
+        "0 kW": ["0 kW", "4 kW"]
+      },
+      "upper": "20 kW"
+    }
+
+The snap target must lie within its interval (on a bound or inside it), so values never snap to a value outside the interval. A target inside the interval snaps the whole band to that value, for example ``{"2 kW": ["0 kW", "4 kW"]}`` snaps everything in ``[0 kW, 4 kW)`` to 2 kW.
+The first bound is inclusive and the second is exclusive, so an interval reads as ``[first, second)``.
+Listing the bounds in reverse order flips the closed side: ``["10 kW", "4 kW"]`` means ``(4 kW, 10 kW]``.
+This keeps adjacent intervals unambiguous — a value on a shared boundary belongs to the interval that opens at it.
+For instance, given ``{"0 kW": ["0 kW", "4 kW"], "10 kW": ["4 kW", "10 kW"]}``, a forecast of exactly 4 kW snaps to 10 kW.
+
+Snapping runs first and clipping runs afterwards, so ``lower``/``upper`` always take precedence: a snap target outside the bounds is clipped back into range.
+
+Pass the same object as the API ``config`` payload, or place it in a JSON or YAML file and pass it to ``flexmeasures add forecasts`` with ``--config``.
+
 Forecasting via the UI
 -----------------------
 
@@ -142,4 +171,3 @@ If you want to take regressors into account, in addition to merely past measurem
 
 Including regressors can significantly improve forecasting accuracy, especially when they are highly correlated with the target variable. For example, using irradiation forecasts as regressors can substantially improve solar production predictions.
 In `this weather forecast plugin <https://github.com/flexmeasures/flexmeasures-weather>`_, we enable you to collect regressor data for ``["temperature", "wind speed", "cloud cover", "irradiance"]``, at a location you select.
-

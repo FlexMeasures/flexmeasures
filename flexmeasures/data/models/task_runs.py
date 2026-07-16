@@ -13,7 +13,12 @@ class LatestTaskRun(db.Model):
     """
 
     name = db.Column(db.String(80), primary_key=True)
-    datetime = db.Column(db.DateTime(timezone=True), default=datetime.now(timezone.utc))
+    # NB pass a callable, so the default is the time of insertion.
+    # (Calling datetime.now() here would evaluate it once, at import time, stamping
+    # every task run with the time the process started.)
+    datetime = db.Column(
+        db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
     status = db.Column(db.Boolean, default=True)
 
     def __repr__(self):

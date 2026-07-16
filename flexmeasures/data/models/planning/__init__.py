@@ -55,6 +55,9 @@ class Scheduler:
     flex_model: list[dict] | dict | None = None
     flex_context: dict | None = None
     stock_groups: dict | None = None
+    #: Typed classification of the flex config (see planning.devices.DeviceInventory);
+    #: derived state, (re)built when the flex config is deserialized.
+    device_inventory = None
 
     fallback_scheduler_class: "Type[Scheduler] | None" = None
     info: dict | None = None
@@ -71,6 +74,12 @@ class Scheduler:
     def _build_stock_groups(flex_model: list[dict]) -> dict:
         """
         Build stock groups where devices sharing the same state-of-charge sensor are grouped together.
+
+        Deprecated: use ``DeviceInventory.stock_groups`` (see ``planning.devices``),
+        which classifies flex-model entries once and keeps stock-group keys in sync
+        with the stock parameters. Note that this function's synthetic keys (for
+        devices without a state-of-charge sensor) depend on the length of the passed
+        list, so they only match ``stock_models`` keys built from the same list.
         """
         groups = defaultdict(list)
         soc_usage = defaultdict(list)
@@ -97,70 +106,6 @@ class Scheduler:
             if d not in already_grouped:
                 groups[missing_soc_sensor_i].append(d)
                 missing_soc_sensor_i += 1
-
-        return dict(groups)
-
-    @staticmethod
-    def _build_coupling_groups(
-        flex_model: list[dict],
-    ) -> dict[str, list[tuple[int, float]]]:
-        """Build coupling groups from the 'coupling' and 'coupling_coefficient' fields
-        of each device model.
-
-        Devices sharing the same coupling name form a coupling group.
-        The optimization model introduces a decision variable ``alpha`` per group per time
-        step, and constrains every device by ``P[d] == coeff_d * alpha``.
-
-        Coupling coefficients in flex-models are user-facing positive magnitudes.
-        The internal sign is inferred from directional capacities:
-
-        - ``consumption_capacity == 0`` -> output device -> internally negative coefficient
-        - ``production_capacity == 0`` -> input device -> internally positive coefficient
-
-        If neither direction is explicitly blocked, the coefficient stays positive.
-
-        Example — a CHP with 50% heat efficiency and 30% power efficiency:
-
-            [
-                {"coupling": "chp", "coupling_coefficient": 1.0},  # gas input (alpha = P_gas)
-                {"coupling": "chp", "coupling_coefficient": 0.5},  # heat output (50% of gas)
-                {"coupling": "chp", "coupling_coefficient": 0.3},  # power output (30% of gas)
-            ]
-
-        :param flex_model: List of deserialized device flex-model dicts.
-        :returns: Mapping from coupling-group name to a list of
-                  ``(device_index, internal_signed_coefficient)`` tuples suitable for
-                  passing to ``device_scheduler(coupling_groups=...)``. Returns an empty dict
-                  when no device defines a ``coupling`` field.
-        """
-
-        def _is_zero_capacity(value: Any) -> bool:
-            """Return True if the capacity value is numerically zero."""
-
-            if value is None:
-                return False
-
-            # Pint quantities expose ``magnitude``.
-            magnitude = getattr(value, "magnitude", value)
-            try:
-                return bool(np.isclose(float(magnitude), 0.0))
-            except (TypeError, ValueError):
-                return False
-
-        groups: dict[str, list[tuple[int, float]]] = defaultdict(list)
-        for d, fm in enumerate(flex_model):
-            coupling_name = fm.get("coupling")
-            if coupling_name is None:
-                continue
-            coefficient = abs(float(fm.get("coupling_coefficient", 1.0)))
-
-            is_output = _is_zero_capacity(fm.get("consumption_capacity"))
-            is_input = _is_zero_capacity(fm.get("production_capacity"))
-
-            if is_output and not is_input:
-                coefficient = -coefficient
-
-            groups[coupling_name].append((d, coefficient))
 
         return dict(groups)
 

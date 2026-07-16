@@ -245,12 +245,6 @@ class StorageFlexModelSchema(Schema):
         validate=validate.Length(min=1),
         metadata=metadata.SOC_USAGE.to_dict(),
     )
-    commodity = fields.Str(
-        data_key="commodity",
-        load_default="electricity",
-        metadata=metadata.COMMODITY_FLEX_MODEL.to_dict(),
-    )
-
     coupling = fields.Str(
         data_key="coupling",
         required=False,

@@ -47,6 +47,7 @@ def create(  # noqa C901
     )
     from flexmeasures.utils.app_utils import (
         init_sentry,
+        provision_default_template_assets_on_startup,
     )
     from flexmeasures.utils.error_utils import add_basic_error_handlers
     from flexmeasures.utils.secrets_utils import set_secret_key, set_totp_secrets
@@ -208,6 +209,8 @@ def create(  # noqa C901
     from flexmeasures.ui import register_at as register_ui_at
 
     register_ui_at(app)
+
+    provision_default_template_assets_on_startup(app)
 
     # Global template variables for both our own templates and external templates
     @app.context_processor
