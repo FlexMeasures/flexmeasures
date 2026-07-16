@@ -18,6 +18,7 @@ from flexmeasures.data.models.planning import (
     SchedulerOutputType,
     StockCommitment,
 )
+from flexmeasures.data.models.planning.devices import DeviceInventory
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
     add_tiny_price_slope,
@@ -127,121 +128,47 @@ class MetaStorageScheduler(Scheduler):
         resolution = self.resolution
         belief_time = self.belief_time
 
-        # For backwards compatibility with the single asset scheduler
-        # Track whether we started with a single dict (single-sensor mode) or a list
-        is_single_sensor_mode = not isinstance(self.flex_model, list)
-        flex_model = self.flex_model.copy()
-        if not isinstance(flex_model, list):
-            flex_model = [flex_model]
+        # Look up the device inventory: every flex-model entry (and the flex-context's
+        # inflexible devices) classified once, as the single source of truth for
+        # device roles and canonical device indices. Tests may bypass deserialization
+        # (setting config_deserialized) with an already deserialized flex config,
+        # in which case we classify it here.
+        inventory = self.device_inventory
+        if inventory is None:
+            inventory = DeviceInventory.from_flex_config(
+                self.flex_model, self.flex_context, sensor=self.sensor
+            )
+            self.device_inventory = inventory
 
-        # Identify stock models: entries not defining a power sensor, but only a (state-of-charge) sensor
-        self.stock_models = {}
-
-        device_models = []  # everything except stock models
-        stock_models = {}  # stock models only
-
-        missing_soc_sensor_i = -len(flex_model)
-        for fm in flex_model:
-
-            # stock model: entry in the flex-model list where the sensor key is the state-of-charge sensor of the device (e.g. a stock)
-            # Only apply this detection in multi-device mode; in single-sensor mode the power sensor is self.sensor (not in the fm dict)
-            if (
-                not is_single_sensor_mode
-                and fm.get("sensor") is None
-                and (soc_sensor := fm.get("state_of_charge"))
-            ):
-                stock_models[
-                    soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
-                ] = fm
-                continue
-
-            """
-            [
-              {
-                "sensor": 1,
-                "charging-efficiency": 0.9,
-                "state-of-charge": {"sensor": 2},
-              },
-              {
-                "sensor": 3,
-                "charging-efficiency": 0.9,
-                "state-of-charge": {"sensor": 2},
-              },
-              {
-                "state-of-charge": {"sensor": 2},
-                "storage-efficiency": 0.99,
-              },
-            ]
-            """
-
-            # Check if this is a stock-only model (no power sensor)
-            # Stock-only entries have SOC parameters but no power sensor
-            # Only apply in multi-device mode; single-sensor mode devices have no "sensor" key by design
-            soc_sensor = fm.get("state_of_charge")
-            if (
-                not is_single_sensor_mode
-                and fm.get("sensor") is None
-                and soc_sensor is not None
-            ):
-                # This is a stock-only entry, add to stock_models only
-                soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
-                stock_models[soc_id] = fm
-                continue
-
-            # device model: entry in the flex-model list where the sensor key is the power sensor of the device (e.g. a feeder)
-            device_models.append(fm)
-
-            # If this device has state-of-charge parameters (soc-at-start, soc-min, etc.),
-            # also create a stock model entry so those parameters are properly captured
-            if soc_sensor is not None:
-                soc_id = soc_sensor.id if isinstance(soc_sensor, Sensor) else soc_sensor
-                # Check if there are SOC parameters in this device entry
-                has_soc_params = any(
-                    param in fm
-                    for param in ["soc_at_start", "soc_min", "soc_max", "soc_targets"]
-                )
-                if has_soc_params:
-                    stock_models[soc_id] = fm
-            elif fm.get("state_of_charge") is None:
-                stock_models[missing_soc_sensor_i] = fm
-                missing_soc_sensor_i += 1
-
-        flex_model = device_models
-        self.stock_models = stock_models
+        device_models = inventory.device_flex_models
         self._device_models = (
             device_models  # Store filtered model for later use in _build_soc_schedule
         )
+        self.stock_models = inventory.stock_entries
+        # The stock groups' device indices align with the device models
+        self.stock_groups = inventory.stock_groups
 
-        # Rebuild stock_groups using only device_models (which have sensors)
-        # This ensures the mapping aligns with the device indices
-        self.stock_groups = self._build_stock_groups(device_models)
-
-        # Build coupling_groups from the 'coupling' and 'coupling_coefficient' fields
-        # of each device model. Devices sharing the same coupling name form a group.
-        self.coupling_groups = self._build_coupling_groups(device_models)
+        # The coupling groups (converter ports sharing a coupling name) also derive from the inventory,
+        # with signed coefficients per canonical device index.
+        self.coupling_groups = inventory.coupling_groups
 
         # List the asset(s) and sensor(s) being scheduled
+        sensors: list[Sensor | None] = inventory.power_sensors
+        assets: list[Asset | None] = inventory.assets
         if self.asset is not None:
             if not isinstance(self.flex_model, list):
                 self.flex_model = [self.flex_model]
-            sensors: list[Sensor | None] = [fm.get("sensor") for fm in device_models]
-            assets: list[Asset | None] = [  # noqa: F841
-                s.asset if s is not None else flex_model_d.get("asset")
-                for s, flex_model_d in zip(sensors, self.flex_model)
-            ]
             if resolution is None:
                 # in case of no sensors with a non-instantaneous resolution, schedule with a 15-minute resolution
                 resolution = determine_minimum_resampling_resolution(
                     [s.event_resolution for s in sensors if s is not None],
                     fallback_resolution=self.default_resolution,
                 )
-            asset = self.asset
-        else:
-            # For backwards compatibility with the single asset scheduler
-            sensors = [self.sensor]
-            asset = self.sensor.generic_asset
-            assets = [asset]  # noqa: F841
 
+        # Work on copies of the device flex-models (aligned with the device indices,
+        # unlike the unfiltered self.flex_model), so the defaults applied here don't
+        # leak back into the inventory's raw entries.
+        flex_model = [flex_model_d.copy() for flex_model_d in device_models]
         for flex_model_d in flex_model:
             self._default_missing_directional_capacity_to_zero(flex_model_d)
         num_flexible_devices = len(device_models)
@@ -268,6 +195,18 @@ class MetaStorageScheduler(Scheduler):
             d0 = devices[0]
 
             soc_at_start[d0] = stock_model.get("soc_at_start")
+            # In multi-device mode, the soc-at-start of a stock is not resolved during deserialization
+            # (unlike single-sensor mode's ensure_soc_at_start()).
+            # If the stock's owning entry carries a state-of-charge sensor (or time series) but no explicit soc-at-start,
+            # resolve the starting stock from it here.
+            # Without this, soc_at_start stays None and the scheduler applies no stock constraints,
+            # so the device could discharge more energy than its store holds.
+            if soc_at_start[d0] is None:
+                resolved_soc_at_start = self._resolve_stock_soc_at_start(
+                    stock_model, sensor=sensors[d0]
+                )
+                if resolved_soc_at_start is not None:
+                    soc_at_start[d0] = resolved_soc_at_start
             soc_targets[d0] = stock_model.get("soc_targets")
             soc_min[d0] = stock_model.get("soc_min")
             soc_max[d0] = stock_model.get("soc_max")
@@ -296,12 +235,6 @@ class MetaStorageScheduler(Scheduler):
         discharging_efficiency = [
             flex_model_d.get("discharging_efficiency") for flex_model_d in flex_model
         ]
-
-        # Get info from flex-context
-        # (normalize to a list; tests may pass e.g. dict_values when bypassing the schema)
-        inflexible_device_sensors = list(
-            self.flex_context.get("inflexible_device_sensors", [])
-        )
 
         # Fetch the device's power capacity (required to keep the optimization problem bounded)
         power_capacity_in_mw = self._get_device_power_capacity(
@@ -346,41 +279,12 @@ class MetaStorageScheduler(Scheduler):
         ) -> pd.Series:
             return pd.Series([tuple(devices)] * len(index), index=index, name="device")
 
-        # Enumerate only device models (not stock entries), so device indices line up
-        # with the sensors and device_constraints lists.
-        commodity_to_devices = {}
-        for d, flex_model_d in enumerate(device_models):
-            commodity = flex_model_d.get("commodity", "electricity")
-            commodity_to_devices.setdefault(commodity, []).append(d)
-
-        # inflexible devices are electricity by default
-        number_flexible_devices = len(device_models)
-        number_inflexible_devices = len(
-            self.flex_context.get("inflexible_device_sensors", [])
-        )
-        commodity_to_devices.setdefault("electricity", []).extend(
-            range(
-                number_flexible_devices,
-                number_flexible_devices + number_inflexible_devices,
-            )
-        )
-
-        # Per-commodity inflexible-device-sensors, enumerated after the top-level
-        # (electricity) inflexible devices, in the order the commodity contexts are
-        # given. This mirrors the enumeration that
-        # `_compute_commodity_aggregate_schedules` already assumes.
-        commodity_context_inflexible_sensors: list[Sensor] = []
-        num_devices = number_flexible_devices + number_inflexible_devices
-        for commodity_context in self.flex_context.get("commodity_contexts", []):
-            commodity = commodity_context["commodity"]
-            commodity_inflexible_sensors = commodity_context.get(
-                "inflexible_device_sensors", []
-            )
-            commodity_to_devices.setdefault(commodity, []).extend(
-                range(num_devices, num_devices + len(commodity_inflexible_sensors))
-            )
-            commodity_context_inflexible_sensors.extend(commodity_inflexible_sensors)
-            num_devices += len(commodity_inflexible_sensors)
+        # The canonical device enumeration comes from the inventory: flexible devices
+        # (indices lining up with the sensors and device_constraints lists), then
+        # top-level (electricity) inflexible devices, then each commodity context's
+        # own inflexible devices. This is the same enumeration that
+        # `_compute_commodity_aggregate_schedules` relies on.
+        commodity_to_devices = inventory.commodity_to_devices
 
         commodity_contexts = self._get_commodity_contexts()
         price_frames_by_commodity = {}
@@ -754,18 +658,12 @@ class MetaStorageScheduler(Scheduler):
 
         # Set up device constraints: scheduled flexible devices for this EMS (from index 0 to D-1),
         # plus the forecasted top-level (electricity) inflexible devices, plus each commodity
-        # context's own inflexible devices, in that order.
+        # context's own inflexible devices, in that order (the inventory's canonical order).
         device_constraints = [
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
-            for i in range(
-                num_flexible_devices
-                + len(inflexible_device_sensors)
-                + len(commodity_context_inflexible_sensors)
-            )
+            for i in range(inventory.num_scheduled)
         ]
-        for i, inflexible_sensor in enumerate(
-            inflexible_device_sensors + commodity_context_inflexible_sensors
-        ):
+        for i, inflexible_sensor in enumerate(inventory.inflexible_sensors):
             device_constraints[i + num_flexible_devices]["derivative equals"] = (
                 get_power_values(
                     query_window=(start, end),
@@ -1395,6 +1293,13 @@ class MetaStorageScheduler(Scheduler):
         self._deserialize_flex_context()
         self._deserialize_flex_model()
 
+        # Classify all flex-model entries (and the flex-context's inflexible devices)
+        # once; scheduling and result mapping rely on this inventory for device
+        # identity and canonical device indices.
+        self.device_inventory = DeviceInventory.from_flex_config(
+            self.flex_model, self.flex_context, sensor=self.sensor
+        )
+
     def _deserialize_flex_context(self):
         if isinstance(self.flex_context, dict):
             # Load the one flex-context for electricity
@@ -1475,8 +1380,6 @@ class MetaStorageScheduler(Scheduler):
                     soc_targets=self.flex_model[d].get("soc_targets"),
                     sensor=self.flex_model[d]["sensor"],
                 )
-            self.stock_groups = self._build_stock_groups(self.flex_model)
-
         else:
             raise TypeError(
                 f"Unsupported type of flex-model: '{type(self.flex_model)}'"
@@ -1719,6 +1622,38 @@ class MetaStorageScheduler(Scheduler):
             return self._resolve_soc_at_start_from_sensor(
                 state_of_charge_sensor, flex_model, sensor
             )
+        return None
+
+    def _resolve_stock_soc_at_start(
+        self, stock_model: dict, sensor: Sensor | None = None
+    ) -> float | None:
+        """Resolve a stock's soc-at-start (in MWh) from its (deserialized) state-of-charge.
+
+        Used in multi-device mode, where soc-at-start is not resolved during deserialization.
+        Operates on the deserialized stock-owning entry,
+        whose ``state_of_charge`` is a :class:`Sensor`, :class:`SensorReference` or time series.
+
+        In line with single-sensor mode's ``ensure_soc_at_start()``,
+        a state of charge that is given but cannot be resolved fails the schedule:
+        a ``ValueError`` is raised, e.g. for a state-of-charge sensor without a recent value.
+
+        :param stock_model: The deserialized flex-model entry owning the stock's SoC parameters.
+        :param sensor:      The stock's (first) device power sensor, used for the SoC lookup radius.
+        :returns:           Starting stock in MWh, or None if the entry defines no state of charge.
+        """
+        state_of_charge = stock_model.get("state_of_charge")
+        if isinstance(state_of_charge, (Sensor, SensorReference)):
+            # The percent-conversion helpers expect a pre-deserialization (hyphenated) flex model,
+            # while the stock-owning entry is already deserialized (underscored keys, values in MWh).
+            percent_conversion_model = {
+                "soc-max": stock_model.get("soc_max"),
+                "soc-unit": "MWh",
+            }
+            return self._resolve_soc_at_start_from_sensor(
+                state_of_charge, percent_conversion_model, sensor
+            )
+        if isinstance(state_of_charge, list):
+            return self._resolve_soc_at_start_from_time_series(state_of_charge, sensor)
         return None
 
     def possibly_extend_end(self, soc_targets, sensor: Sensor = None):
@@ -2448,70 +2383,32 @@ class StorageScheduler(MetaStorageScheduler):
         return schedules
 
     def _reconstruct_commodity_to_devices(self) -> dict[str, list[int]]:
-        """Reconstruct the mapping of commodity -> device indices as enumerated by `_prepare()`.
+        """Return the mapping of commodity -> device indices, as enumerated by the device inventory.
 
-        Device enumeration order:
+        Device enumeration order (the inventory's canonical order, also used by `_prepare()`):
             1. flexible devices (from the flex-model), in order,
             2. top-level (electricity) inflexible-device-sensors, in order,
             3. each commodity context's own inflexible-device-sensors, in the order the
                commodity contexts are given.
 
-        This mirrors `_prepare()`'s device enumeration exactly, so the returned device
-        indices line up with entries of `ems_schedule` / `device_constraints`.
+        The returned device indices line up with entries of `ems_schedule` /
+        `device_constraints`.
         """
-        # Get the device models to reconstruct commodity_to_devices mapping
-        flex_model = getattr(self, "_device_models", None)
-        if flex_model is None:
-            # Fallback: reconstruct if not available (shouldn't happen in normal flow)
-            flex_model = (
-                self.flex_model.copy()
-                if isinstance(self.flex_model, dict)
-                else [fm for fm in self.flex_model if fm.get("sensor") is not None]
-            )
-        if not isinstance(flex_model, list):
-            flex_model = [flex_model]
-
-        # Reconstruct commodity_to_devices mapping
-        commodity_to_devices: dict[str, list[int]] = {}
-        for d, flex_model_d in enumerate(flex_model):
-            commodity = flex_model_d.get("commodity", "electricity")
-            commodity_to_devices.setdefault(commodity, []).append(d)
-
-        # Add inflexible devices to commodities, mirroring _prepare()'s device
-        # enumeration so the device indices line up with ems_schedule:
-        #   - top-level inflexible-device-sensors go to electricity (backwards compat),
-        #   - then each commodity context's own inflexible-device-sensors are appended to
-        #     that commodity, in the order the commodity contexts are given.
-        # Without this, a commodity's inflexible demand (e.g. a heat load) is left
-        # out of its aggregate schedule, so an aggregate-consumption sensor only reflects
-        # the flexible devices of that commodity.
-        inflexible_device_sensors = self.flex_context.get(
-            "inflexible_device_sensors", []
-        )
-        number_flexible_devices = len(flex_model)
-        commodity_to_devices.setdefault("electricity", []).extend(
-            range(
-                number_flexible_devices,
-                number_flexible_devices + len(inflexible_device_sensors),
-            )
-        )
-
-        # Per-commodity inflexible devices, enumerated after the top-level ones.
-        num_devices = number_flexible_devices + len(inflexible_device_sensors)
-        for commodity_context in self.flex_context.get("commodity_contexts", []):
-            commodity = commodity_context["commodity"]
-            commodity_inflexible_device_sensors = commodity_context.get(
-                "inflexible_device_sensors", []
-            )
-            commodity_to_devices.setdefault(commodity, []).extend(
-                range(
-                    num_devices,
-                    num_devices + len(commodity_inflexible_device_sensors),
+        inventory = self.device_inventory
+        if inventory is None:
+            # Fallback (e.g. bare schedulers in tests): classify the stored device
+            # models, or failing that, the flex-model itself.
+            flex_model = getattr(self, "_device_models", None)
+            if flex_model is None:
+                flex_model = (
+                    self.flex_model.copy()
+                    if isinstance(self.flex_model, dict)
+                    else [fm for fm in self.flex_model if fm.get("sensor") is not None]
                 )
+            inventory = DeviceInventory.from_flex_config(
+                flex_model, self.flex_context, sensor=getattr(self, "sensor", None)
             )
-            num_devices += len(commodity_inflexible_device_sensors)
-
-        return commodity_to_devices
+        return inventory.commodity_to_devices
 
     def _electricity_device_indices(self) -> list[int]:
         """Return the device indices (flexible and inflexible) belonging to the electricity commodity."""
