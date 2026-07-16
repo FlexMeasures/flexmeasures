@@ -408,6 +408,35 @@ To log out:
    \q
 
 
+.. _mview-data:
+
+Speeding up queries with a materialized view
+---------------------------------------------
+
+FlexMeasures stores multiple beliefs per event (e.g. subsequent forecasts, as well as measurements, from multiple sources).
+The most common query — the most recent belief about each event — therefore requires an expensive aggregation over the beliefs table.
+FlexMeasures maintains a materialized view (``most_recent_beliefs_mview``, created by a database migration) that pre-computes this aggregation,
+speeding up such queries considerably on large databases.
+
+The view is used automatically, but only if it is being refreshed regularly. Set up a cron job to refresh it, for example, every 10 minutes:
+
+.. code-block:: bash
+
+   */10 * * * * flexmeasures db-ops refresh-materialized-views --concurrent
+
+The ``--concurrent`` option avoids locking reads during the refresh, at the cost of higher resource usage.
+
+The time of the last successful refresh is recorded in the ``latest_task_run`` table
+(so the cron schedule is the only place where you control the cadence),
+and can be monitored with ``flexmeasures monitor latest-run --task refresh-materialized-views``.
+If the last successful refresh is older than 24 hours, FlexMeasures stops trusting the view and queries fall back to the beliefs table.
+
+Events recorded since the last refresh are looked up in the beliefs table by default,
+so query results are complete (see :ref:`mview-live-tail-config`).
+Note that *revised* beliefs about previously recorded events only show up after the next refresh,
+so the refresh cadence bounds how stale query results can get.
+
+
 Transaction management
 -----------------------
 

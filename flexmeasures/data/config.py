@@ -16,6 +16,7 @@ db: sa = (
 )
 Base = None  # type: ignore
 session_options = None
+most_recent_beliefs_mview = None
 
 
 def init_db():
@@ -32,7 +33,7 @@ def init_db():
 def configure_db_for(app: Flask):
     """Call this to configure the database and the tools we use on it for the Flask app.
     This should only be called once in the app's lifetime."""
-    global db, Base
+    global db, Base, most_recent_beliefs_mview
 
     with app.app_context():
         db.init_app(app)
@@ -50,6 +51,19 @@ def configure_db_for(app: Flask):
             task_runs,
             forecasting,
         )  # noqa: F401
+
+        from timely_beliefs.beliefs.materialized_views import (
+            get_most_recent_beliefs_mview,
+        )
+
+        try:
+            most_recent_beliefs_mview = get_most_recent_beliefs_mview(db.session)
+        except Exception:
+            app.logger.warning(
+                "Could not determine whether the most_recent_beliefs_mview materialized view exists."
+                " Beliefs will be retrieved from the beliefs table instead of the materialized view.",
+            )
+            db.session.rollback()
 
         # This would create db structure based on models, but you should use `flask db upgrade` for that.
         # Base.metadata.create_all(bind=db.engine)

@@ -9,6 +9,8 @@ v1.0.0 | July XX, 2026
 ============================
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
+             This upgrade may take a few minutes, depending on how much time series data you have in your database (a materialized view will be created).
+             Expect roughly 1 minute per 15 million rows in your ``timed_belief`` table; the migration logs an estimate for your table size when it starts.
 
 New features
 -------------
@@ -30,6 +32,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Speed up queries for the most recent beliefs with a materialized view, kept fresh by scheduling the new ``flexmeasures db-ops refresh-materialized-views`` command; also introduces the ``FLEXMEASURES_MVIEW_ALWAYS_INCLUDE_LIVE_TAIL`` setting and the ``include_live_tail`` chart data API parameter [see `PR #1671 <https://github.com/FlexMeasures/flexmeasures/pull/1671>`_]
 * Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_, `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_ and `PR #2243 <https://www.github.com/FlexMeasures/flexmeasures/pull/2243>`_]
 * Prepare the ``device_scheduler`` to deal with commitments per device group [see `PR #1934 <https://www.github.com/FlexMeasures/flexmeasures/pull/1934>`_]
 * Support storing encrypted connection secrets on organisations and assets, including utility functions, encryption key configuration, CLI commands to set and delete secrets, and UI tables that show stored secret names and optional expiration times without exposing their values [see `PR #2236 <https://www.github.com/FlexMeasures/flexmeasures/pull/2236>`_]

@@ -93,6 +93,8 @@ class SensorAPI(FlaskView):
             "most_recent_beliefs_only": fields.Boolean(
                 required=False, load_default=True
             ),
+            "use_materialized_view": fields.Boolean(required=False, load_default=True),
+            "include_live_tail": fields.Boolean(required=False, load_default=None),
             "compress_json": fields.Boolean(required=False),
         },
         location="query",
@@ -113,6 +115,8 @@ class SensorAPI(FlaskView):
         - "beliefs_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "resolution" (see [docs about describing timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))
         - "most_recent_beliefs_only" (if true, returns the most recent belief for each event; if false, returns each belief for each event; defaults to true)
+        - "use_materialized_view" (if true, the most recent beliefs may be looked up in a materialized view, if available and recently refreshed; defaults to true)
+        - "include_live_tail" (whether queries served by the materialized view also look up events recorded since its last refresh; defaults to the FLEXMEASURES_MVIEW_ALWAYS_INCLUDE_LIVE_TAIL setting)
         """
         return sensor.search_beliefs(as_json=True, **kwargs)
 

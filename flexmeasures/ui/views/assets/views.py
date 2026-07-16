@@ -25,8 +25,10 @@ from flexmeasures.data.models.generic_assets import (
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.ui.utils.view_utils import ICON_MAPPING
 from flexmeasures.data.models.user import Account
-from flexmeasures.utils.time_utils import duration_isoformat
+from flexmeasures.data.models.task_runs import LatestTaskRun
+from flexmeasures.data.services.materialized_views import MVIEW_REFRESH_TASK_NAME
 from flexmeasures.utils.secrets_utils import get_secret_overview
+from flexmeasures.utils.time_utils import duration_isoformat, naturalized_datetime_str
 from flexmeasures.ui.utils.view_utils import render_flexmeasures_template
 from flexmeasures.ui.views.assets.forms import NewAssetForm, AssetForm
 from flexmeasures.ui.views import (
@@ -371,6 +373,21 @@ class AssetCrudUI(FlaskView):
         asset_form.with_options()
         asset_form.process(obj=asset)
 
+        # Offer a toggle for including the latest data (recorded since the materialized
+        # view was last refreshed), unless such data is already included in every query
+        mview_last_refresh = None
+        if not current_app.config["FLEXMEASURES_MVIEW_ALWAYS_INCLUDE_LIVE_TAIL"]:
+            from flexmeasures.data import config as data_config
+            from flexmeasures.data.services.materialized_views import get_mview_cutoff
+
+            if (
+                data_config.most_recent_beliefs_mview is not None
+                and get_mview_cutoff() is not None
+            ):
+                mview_last_refresh = naturalized_datetime_str(
+                    db.session.get(LatestTaskRun, MVIEW_REFRESH_TASK_NAME).datetime
+                )
+
         site_asset = asset.find_site_asset()
 
         return render_flexmeasures_template(
@@ -379,6 +396,7 @@ class AssetCrudUI(FlaskView):
             site_asset=site_asset,
             has_kpis=has_kpis,
             asset_kpis=asset_kpis,
+            mview_last_refresh=mview_last_refresh,
             available_units=available_units(),
             current_page="Graphs",
         )

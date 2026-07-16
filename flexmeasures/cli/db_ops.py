@@ -9,6 +9,7 @@ import flask_migrate as migrate
 import click
 
 from flexmeasures.cli.utils import MsgStyle
+from flexmeasures.data import db
 
 
 @click.group("db-ops")
@@ -93,6 +94,76 @@ def restore(file: str):
     except Exception as e:
         click.secho(f"Exception happened during restore: {e}", **MsgStyle.ERROR)
         click.secho("db restore unsuccessful", **MsgStyle.ERROR)
+
+
+@fm_db_ops.command("refresh-materialized-views")
+@with_appcontext
+@click.option(
+    "--concurrent",
+    is_flag=True,
+    default=False,
+    help="Refresh without locking reads on the materialized view, at the cost of higher resource usage."
+    " Requires the unique index created by the corresponding migration.",
+)
+def refresh_materialized_views(concurrent: bool):
+    """
+    Refresh the materialized view that caches the most recent beliefs (for faster queries).
+
+    By default, this locks the materialized view for the duration of the refresh.
+    Use the --concurrent option to avoid locking reads, at the cost of higher resource usage
+    (this requires the unique index that the corresponding migration created).
+
+    Run this periodically (e.g. from a cron job) to bound how stale the cached data can get.
+    The time of the last successful run is recorded in the latest_task_run table, which serves
+    as the queries' cutoff between trusting the view and reading recent events from the beliefs
+    table, and can be monitored with ``flexmeasures monitor latest-run``.
+
+    After refreshing, this also runs ANALYZE on the view, since autovacuum may not have
+    gotten to it yet, which would otherwise leave the query planner without up-to-date
+    statistics and prone to picking bad plans.
+    """
+    import time
+
+    from sqlalchemy import text
+    from timely_beliefs.beliefs.materialized_views import refresh_mview_ddl, MVIEW_NAME
+
+    from flexmeasures.data.transactional import task_with_status_report
+    from flexmeasures.data.models.task_runs import LatestTaskRun
+    from flexmeasures.data.services.materialized_views import MVIEW_REFRESH_TASK_NAME
+
+    @task_with_status_report(MVIEW_REFRESH_TASK_NAME)
+    def _refresh():
+        ddl = refresh_mview_ddl(concurrently=concurrent)
+        # Autovacuum may lag behind the refresh, leaving the planner without fresh
+        # statistics, so we analyze the view explicitly right after refreshing it.
+        analyze_ddl = f"ANALYZE {MVIEW_NAME};"
+        if concurrent:
+            # REFRESH MATERIALIZED VIEW CONCURRENTLY cannot run inside a transaction block
+            with db.engine.connect().execution_options(
+                isolation_level="AUTOCOMMIT"
+            ) as connection:
+                connection.execute(text(ddl))
+                connection.execute(text(analyze_ddl))
+        else:
+            db.session.execute(text(ddl))
+            db.session.execute(text(analyze_ddl))
+
+    start_time = time.time()
+    click.secho(
+        f"Refreshing materialized view{' concurrently' if concurrent else ''}...",
+        **MsgStyle.WARN,
+    )
+    _refresh()
+
+    # The task decorator recorded success/failure in the db; convey it as an exit status, too
+    task_run = db.session.get(LatestTaskRun, MVIEW_REFRESH_TASK_NAME)
+    if task_run is None or not task_run.status:
+        click.secho("Refreshing the materialized view failed.", **MsgStyle.ERROR)
+        raise click.Abort()
+    click.secho(
+        f"Materialized view refreshed in {time.time() - start_time:.2f} seconds.",
+        **MsgStyle.SUCCESS,
+    )
 
 
 app.cli.add_command(fm_db_ops)
