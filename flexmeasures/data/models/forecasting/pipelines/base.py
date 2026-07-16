@@ -252,9 +252,12 @@ class BasePipeline:
                     data_pd = data_pd.merge(
                         ann_df[["event_start", col_name]],
                         on="event_start",
-                        how="left",
+                        how="outer",
                     )
                     data_pd[col_name] = data_pd[col_name].fillna(0.0)
+            data_pd = data_pd.sort_values(
+                by=["event_start", "belief_time"], na_position="last"
+            ).reset_index(drop=True)
             logging.debug(
                 "Added %d annotation regressor(s) to data: %s",
                 len(self.annotation_regressors),
