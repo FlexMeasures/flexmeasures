@@ -247,14 +247,18 @@ def test_annotation_regressors_loaded_in_pipeline(
         0.0 outside it.
 
     Part 2 - CLI end-to-end
+        Verify future annotation rows remain available after annotation data is
+        combined with target sensor beliefs.
+
+    Part 3 - CLI end-to-end
         Invoke ``flexmeasures add forecasts`` via the Click test runner using the
         JSON double-quoted form of ``--annotation-regressors``.  Verify no exception
         is raised.
 
-    Part 3 - DB persistence
+    Part 4 - DB persistence
         Verify that forecast beliefs were persisted for the full 4-day window.
 
-    Part 4 - CLI parsing
+    Part 5 - CLI parsing
         Verify the Python-literal single-quoted form is accepted by the same Click
         parameter type and schema used by the command, without writing a duplicate
         forecast to the same DB key.
@@ -417,7 +421,18 @@ def test_annotation_regressors_loaded_in_pipeline(
     ).all(), "Non-shutdown period should be marked as 0.0"
 
     # ------------------------------------------------------------------
-    # Part 2: CLI end-to-end
+    # Part 2: Future annotation rows survive the sensor-belief merge
+    # ------------------------------------------------------------------
+    loaded_df = pipeline.load_data_all_beliefs()
+    loaded_shutdown = loaded_df.loc[
+        (loaded_df["event_start"] >= pd.Timestamp("2024-01-15"))
+        & (loaded_df["event_start"] < pd.Timestamp("2024-01-17"))
+    ]
+    assert len(loaded_shutdown) == 48
+    assert (loaded_shutdown[col_name] == 1.0).all()
+
+    # ------------------------------------------------------------------
+    # Part 3: CLI end-to-end
     # ------------------------------------------------------------------
     runner = app.test_cli_runner()
     sensor_id = str(power_sensor.id)
@@ -450,7 +465,7 @@ def test_annotation_regressors_loaded_in_pipeline(
     )
 
     # ------------------------------------------------------------------
-    # Part 3: Verify that forecast beliefs were persisted for the full window.
+    # Part 4: Verify that forecast beliefs were persisted for the full window.
     #
     # We do not assert a specific forecast magnitude here: whether the LGBM model
     # learns to produce lower values during the shutdown depends on regularisation
@@ -483,7 +498,7 @@ def test_annotation_regressors_loaded_in_pipeline(
         f"got {len(forecast_beliefs)}"
     )
 
-    # --- Part 4: Python-literal single-quoted form – parsing only, no DB write ---
+    # --- Part 5: Python-literal single-quoted form – parsing only, no DB write ---
     literal_arg = str({"asset": asset_id, "annotation-type": "label"})
     parsed_literal = NestedDictParamType().convert(literal_arg, None, None)
     literal_config = TrainPredictPipelineConfigSchema().load(
