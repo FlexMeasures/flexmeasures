@@ -46,6 +46,7 @@ export function decompressChartData(responseData) {
           name: sensor.name || "",
           sensor_unit: sensor.unit || "",
           unit: sensor.unit || "",
+          event_resolution: sensor.event_resolution,
           description: sensor.description || "",
           asset_id: sensor.asset_id,
           asset_description: sensor.asset_description || "",
@@ -105,8 +106,15 @@ export function checkSourceMasking(data, chartType) {
  * @param {Object[]} data - Belief data, each with a `sensor.id` and `event_value`.
  * @param {Object[]} sensorsToShow - The asset's `sensors_to_show` entries.
  */
+// Remembers the last set of strict-range warnings shown, so calling
+// checkStrictYAxisRanges repeatedly (e.g. from both the data-load path and the
+// fast-chart render path) doesn't re-toast the same warning. Reset to "" whenever
+// nothing is out of range, so a later out-of-range state warns again.
+let lastStrictWarningKey = "";
+
 export function checkStrictYAxisRanges(data, sensorsToShow) {
   if (!Array.isArray(sensorsToShow)) return;
+  const warnings = [];
   for (const entry of sensorsToShow) {
     const yAxis = entry["y-axis"];
     const isStrict =
@@ -133,10 +141,17 @@ export function checkStrictYAxisRanges(data, sensorsToShow) {
         (datum.event_value < yAxis.min || datum.event_value > yAxis.max),
     );
     if (outOfRange) {
-      showToast(
+      warnings.push(
         `'${entry.title || "A graph"}' has data outside its strict y-axis range (${yAxis.min} to ${yAxis.max}); those values are shown clamped to the nearest edge.`,
-        "warning",
       );
     }
+  }
+
+  // De-duplicate: only toast when the set of warnings changed since last time.
+  const key = warnings.join("\n");
+  if (key === lastStrictWarningKey) return;
+  lastStrictWarningKey = key;
+  for (const message of warnings) {
+    showToast(message, "warning");
   }
 }
