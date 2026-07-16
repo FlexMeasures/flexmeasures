@@ -46,6 +46,7 @@ export function decompressChartData(responseData) {
           name: sensor.name || "",
           sensor_unit: sensor.unit || "",
           unit: sensor.unit || "",
+          event_resolution: sensor.event_resolution,
           description: sensor.description || "",
           asset_id: sensor.asset_id,
           asset_description: sensor.asset_description || "",
@@ -94,5 +95,63 @@ export function checkSourceMasking(data, chartType) {
     showToast(
       "Please note that only data from the most prevalent source is shown."
     );
+  }
+}
+
+/**
+ * Warn when loaded belief data falls outside a sub-chart's "Strict range…"
+ * y-axis, since that data is drawn clamped to the nearest edge rather than
+ * shown at its true value.
+ *
+ * @param {Object[]} data - Belief data, each with a `sensor.id` and `event_value`.
+ * @param {Object[]} sensorsToShow - The asset's `sensors_to_show` entries.
+ */
+// Remembers the last set of strict-range warnings shown, so calling
+// checkStrictYAxisRanges repeatedly (e.g. from both the data-load path and the
+// fast-chart render path) doesn't re-toast the same warning. Reset to "" whenever
+// nothing is out of range, so a later out-of-range state warns again.
+let lastStrictWarningKey = "";
+
+export function checkStrictYAxisRanges(data, sensorsToShow) {
+  if (!Array.isArray(sensorsToShow)) return;
+  const warnings = [];
+  for (const entry of sensorsToShow) {
+    const yAxis = entry["y-axis"];
+    const isStrict =
+      yAxis !== null &&
+      typeof yAxis === "object" &&
+      !Array.isArray(yAxis) &&
+      typeof yAxis.min === "number" &&
+      typeof yAxis.max === "number";
+    if (!isStrict) continue;
+
+    const sensorIds = new Set();
+    for (const plot of entry.plots || []) {
+      if (typeof plot.sensor === "number") sensorIds.add(plot.sensor);
+      if (Array.isArray(plot.sensors)) {
+        for (const id of plot.sensors) sensorIds.add(id);
+      }
+    }
+    if (sensorIds.size === 0) continue;
+
+    const outOfRange = data.some(
+      (datum) =>
+        sensorIds.has(datum.sensor && datum.sensor.id) &&
+        typeof datum.event_value === "number" &&
+        (datum.event_value < yAxis.min || datum.event_value > yAxis.max),
+    );
+    if (outOfRange) {
+      warnings.push(
+        `'${entry.title || "A graph"}' has data outside its strict y-axis range (${yAxis.min} to ${yAxis.max}); those values are shown clamped to the nearest edge.`,
+      );
+    }
+  }
+
+  // De-duplicate: only toast when the set of warnings changed since last time.
+  const key = warnings.join("\n");
+  if (key === lastStrictWarningKey) return;
+  lastStrictWarningKey = key;
+  for (const message of warnings) {
+    showToast(message, "warning");
   }
 }
