@@ -35,12 +35,14 @@ def test_post_an_asset_as_admin(client, setup_api_fresh_test_data, requesting_us
     print("Server responded with:\n%s" % post_assets_response.json)
     assert post_assets_response.status_code == 201
     assert post_assets_response.json["latitude"] == 30.1
+    assert post_assets_response.json["description"] == post_data["description"]
 
     asset: GenericAsset = db.session.execute(
         select(GenericAsset).filter_by(name=post_data["name"])
     ).scalar_one_or_none()
     assert asset is not None
     assert asset.latitude == 30.1
+    assert asset.description == post_data["description"]
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
@@ -106,7 +108,7 @@ def test_edit_an_asset(client, setup_api_fresh_test_data, requesting_user, db):
     with AccountContext("Test Supplier Account") as supplier:
         existing_asset = supplier.generic_assets[0]
 
-    post_data = dict(latitude=10)
+    post_data = dict(latitude=10, description="Updated description")
     edit_asset_response = client.patch(
         url_for("AssetAPI:patch", id=existing_asset.id),
         json=post_data,
@@ -118,6 +120,7 @@ def test_edit_an_asset(client, setup_api_fresh_test_data, requesting_user, db):
     assert updated_asset.latitude == 10  # changed value
     assert updated_asset.longitude == existing_asset.longitude
     assert updated_asset.name == existing_asset.name
+    assert updated_asset.description == "Updated description"
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)

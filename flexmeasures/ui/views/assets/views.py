@@ -409,6 +409,7 @@ class AssetCrudUI(FlaskView):
         asset_summary = {
             "Name": asset.name,
             "Type": asset.generic_asset_type.name,
+            "Description": asset.description or "",
             "Latitude": asset.latitude,
             "Longitude": asset.longitude,
             "Parent Asset": (
