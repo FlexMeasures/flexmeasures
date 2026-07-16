@@ -37,7 +37,11 @@ from flexmeasures.data.schemas.scheduling import (
     FlexContextSchema,
     MultiSensorFlexModelSchema,
 )
-from flexmeasures.data.schemas.sensors import SensorReference, VariableQuantityField
+from flexmeasures.data.schemas.sensors import (
+    SensorReference,
+    VariableQuantityField,
+    PriceField,
+)
 from flexmeasures.data.services.scheduling_result import SchedulingJobResult
 from flexmeasures.utils.calculations import (
     integrate_time_series,
@@ -177,6 +181,7 @@ class MetaStorageScheduler(Scheduler):
         soc_maxima = [None] * num_flexible_devices
         soc_gain = [None] * num_flexible_devices
         soc_usage = [None] * num_flexible_devices
+        soc_value_at_end = [None] * num_flexible_devices
         prefer_charging_sooner = [None] * num_flexible_devices
         prefer_curtailing_later = [None] * num_flexible_devices
 
@@ -210,6 +215,7 @@ class MetaStorageScheduler(Scheduler):
             soc_maxima[d0] = stock_model.get("soc_maxima")
             soc_gain[d0] = stock_model.get("soc_gain")
             soc_usage[d0] = stock_model.get("soc_usage")
+            soc_value_at_end[d0] = stock_model.get("soc_value_at_end")
             prefer_charging_sooner[d0] = stock_model.get("prefer_charging_sooner")
             prefer_curtailing_later[d0] = stock_model.get("prefer_curtailing_later")
 
@@ -834,6 +840,34 @@ class MetaStorageScheduler(Scheduler):
                 # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
                 soc_maxima[d] = None
 
+            if soc_value_at_end[d] is not None and soc_at_start[d] is not None:
+                # Assign a marginal value to energy left in storage at the end of the
+                # planning window, to counter myopic depletion of the storage.
+                soc_value_at_end_d = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_value_at_end[d],
+                    unit=self.flex_context["shared_currency_unit"]
+                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                # Only the state of charge at the end of the planning window is valued
+                soc_value_at_end_d.iloc[:-1] = 0
+
+                commitment = StockCommitment(
+                    name="value of soc at end",
+                    # baseline is an (absolute) zero state of charge, so the upwards
+                    # deviation in the final time slot is the final state of charge
+                    quantity=-soc_at_start[d] * (timedelta(hours=1) / resolution),
+                    # negative prices reward a higher state of charge at the end
+                    upwards_deviation_price=-soc_value_at_end_d,
+                    downwards_deviation_price=-soc_value_at_end_d,
+                    index=index,
+                    device=d,
+                )
+                commitments.append(commitment)
+
             # only apply SOC constraints to the first device of a shared stock
             apply_soc_constraints = True
 
@@ -1288,6 +1322,7 @@ class MetaStorageScheduler(Scheduler):
         self.collect_flex_config()
         self._deserialize_flex_context()
         self._deserialize_flex_model()
+        self._validate_flex_model_price_units()
 
         # Classify all flex-model entries (and the flex-context's inflexible devices)
         # once; scheduling and result mapping rely on this inventory for device
@@ -1329,6 +1364,37 @@ class MetaStorageScheduler(Scheduler):
             raise TypeError(
                 f"Unsupported type of flex-context: '{type(self.flex_context)}'"
             )
+
+    def _validate_flex_model_price_units(self):
+        """Check that price fields in the flex-model use the flex-context's shared currency.
+
+        The flex-context validates that all its price fields share one currency
+        (its ``shared_currency_unit``); here we hold the flex-model's price fields
+        (declared as PriceField) to that same currency, so that unit conversion
+        cannot fail later, when the scheduler runs.
+        """
+        shared_currency_unit = self.flex_context.get("shared_currency_unit")
+        if shared_currency_unit is None:
+            return
+        flex_model = (
+            self.flex_model if isinstance(self.flex_model, list) else [self.flex_model]
+        )
+        for flex_model_d in flex_model:
+            for field_name, field in StorageFlexModelSchema._declared_fields.items():
+                if (
+                    not isinstance(field, PriceField)
+                    or flex_model_d.get(field_name) is None
+                ):
+                    continue
+                price_unit = field._get_unit(flex_model_d[field_name])
+                currency_unit = str(
+                    (ur.Quantity(price_unit) / ur.Quantity(f"1{field.to_unit}")).units
+                )
+                if not units_are_convertible(currency_unit, shared_currency_unit):
+                    raise ValidationError(
+                        f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit + field.to_unit}', because the flex-context uses '{shared_currency_unit}' as its currency. However, the '{field.data_key}' field in the flex-model uses an incompatible price unit ('{price_unit}').",
+                        field_name=field.data_key,
+                    )
 
     def _deserialize_flex_model(self):
         if isinstance(self.flex_model, dict):

@@ -215,6 +215,92 @@ def test_battery_solver_day_2(
         )
 
 
+@pytest.mark.parametrize(
+    "soc_value_at_end, expect_full_at_end",
+    [
+        ("0 EUR/MWh", False),
+        ("0.001 EUR/kWh", False),
+        ("1000 EUR/MWh", True),
+    ],
+)
+def test_battery_solver_day_2_with_soc_value_at_end(
+    setup_planning_test_data,
+    add_battery_assets,
+    soc_value_at_end: str,
+    expect_full_at_end: bool,
+    db,
+):
+    """Check that valuing the SoC at the end of the scheduling horizon counters myopic depletion.
+
+    Day 2 is set up with 8 expensive, then 8 cheap, then again 8 expensive hours.
+    Without (or with only a tiny) soc-value-at-end, the battery sells out towards the end of the horizon.
+    With a soc-value-at-end that exceeds the highest consumption price, the battery ends the horizon full instead.
+    """
+    _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+    soc_at_start = battery.get_attribute("soc_in_mwh")
+    soc_min = 0.5
+    soc_max = 4.5
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": soc_at_start,
+            "soc-min": soc_min,
+            "soc-max": soc_max,
+            "roundtrip-efficiency": 1,
+            "storage-efficiency": 1,
+            "prefer-curtailing-later": False,
+            "soc-value-at-end": soc_value_at_end,
+        },
+    )
+    schedule = scheduler.compute()
+
+    # Check if constraints were met
+    soc_schedule = check_constraints(battery, schedule, soc_at_start)
+
+    if expect_full_at_end:
+        np.testing.assert_approx_equal(
+            soc_schedule.iloc[-1], soc_max, significant=3
+        )  # The value of a full battery at the end beats the energy prices
+    else:
+        np.testing.assert_approx_equal(
+            soc_schedule.iloc[-1], soc_min, significant=3
+        )  # Battery still sold out at the end of its planning horizon
+
+
+def test_soc_value_at_end_currency_mismatch(
+    setup_planning_test_data,
+    add_battery_assets,
+    db,
+):
+    """A soc-value-at-end in a different currency than the flex-context's shared currency is rejected upon deserialization."""
+    from marshmallow import ValidationError
+
+    _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 2))
+    end = tz.localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-at-start": battery.get_attribute("soc_in_mwh"),
+            "soc-value-at-end": "1000 USD/MWh",
+        },
+    )
+    with pytest.raises(ValidationError, match="soc-value-at-end"):
+        scheduler.compute()
+
+
 def run_test_charge_discharge_sign(
     battery,
     roundtrip_efficiency,
