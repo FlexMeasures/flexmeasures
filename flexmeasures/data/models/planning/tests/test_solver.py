@@ -507,7 +507,7 @@ def test_storage_scheduler_reports_unsolvable_problem_without_fallback(
     """Starting with a state of charge 10 kWh, within 2 hours we should be able to reach
     any state of charge in the range [10, 14] kWh for a unidirectional station,
     or [6, 14] for a bidirectional station, given a charging capacity of 2 kW.
-    Here we test target states of charge outside that range, ones that we should be able
+    Here we test target states of charge outside that range.
     The StorageScheduler should report this infeasible problem without hiding it behind
     a fallback schedule.
     """
