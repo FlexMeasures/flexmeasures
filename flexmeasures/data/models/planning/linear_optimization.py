@@ -146,6 +146,10 @@ def device_scheduler(  # noqa C901
         for d in range(len(device_constraints)):
             device_to_group[d] = d
 
+    group_to_devices: dict[int, list[int]] = {}
+    for d, g in device_to_group.items():
+        group_to_devices.setdefault(g, []).append(d)
+
     # Move commitments from old structure to new
     if commitments is None:
         commitments = []
@@ -563,8 +567,7 @@ def device_scheduler(  # noqa C901
 
     def _stock_change_at(m, d, j):
         """Stock change of device d's stock group during time step j (before losses)."""
-        group = device_to_group[d]
-        devices = [dev for dev, g in device_to_group.items() if g == group]
+        devices = group_to_devices[device_to_group[d]]
         return sum(
             m.device_power_down[dev, j] / m.device_derivative_down_efficiency[dev, j]
             + m.device_power_up[dev, j] * m.device_derivative_up_efficiency[dev, j]
