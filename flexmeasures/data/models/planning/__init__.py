@@ -55,6 +55,9 @@ class Scheduler:
     flex_model: list[dict] | dict | None = None
     flex_context: dict | None = None
     stock_groups: dict | None = None
+    #: Typed classification of the flex config (see planning.devices.DeviceInventory);
+    #: derived state, (re)built when the flex config is deserialized.
+    device_inventory = None
 
     fallback_scheduler_class: "Type[Scheduler] | None" = None
     info: dict | None = None
@@ -71,6 +74,12 @@ class Scheduler:
     def _build_stock_groups(flex_model: list[dict]) -> dict:
         """
         Build stock groups where devices sharing the same state-of-charge sensor are grouped together.
+
+        Deprecated: use ``DeviceInventory.stock_groups`` (see ``planning.devices``),
+        which classifies flex-model entries once and keeps stock-group keys in sync
+        with the stock parameters. Note that this function's synthetic keys (for
+        devices without a state-of-charge sensor) depend on the length of the passed
+        list, so they only match ``stock_models`` keys built from the same list.
         """
         groups = defaultdict(list)
         soc_usage = defaultdict(list)
@@ -343,6 +352,10 @@ class Commitment:
     upwards_deviation_price: pd.Series = 0
     downwards_deviation_price: pd.Series = 0
     commodity: str | pd.Series | None = None
+    #: Stock key of the stock the commitment pertains to (StockCommitments only).
+    #: When set, the solver couples the commitment to the stock group as a whole,
+    #: rather than to the device index named by ``device``.
+    stock: int | None = None
 
     def __post_init__(self):
         # device_group is a device→label lookup table, not a time series;
@@ -532,6 +545,9 @@ class Commitment:
         else:
             # scalar commodity
             df["commodity"] = self.commodity
+
+        # stock key (scalar; set on stock-scoped StockCommitments)
+        df["stock"] = self.stock
 
         return df
 
