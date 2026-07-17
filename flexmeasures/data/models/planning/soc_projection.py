@@ -387,3 +387,100 @@ def project_off_tick_soc_constraints(
         _projected_soc_events_or_original(soc_maxima, projected_maxima, "soc-maxima"),
         _projected_soc_events_or_original(soc_minima, projected_minima, "soc-minima"),
     )
+
+
+def project_off_tick_soc_at_start(
+    soc_at_start_time: datetime,
+    soc_at_start: ur.Quantity | float,
+    soc_maxima: (
+        list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None
+    ),
+    soc_minima: (
+        list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None
+    ),
+    schedule_start: datetime,
+    consumption_capacity: pd.Series,
+    production_capacity: pd.Series,
+    resolution: timedelta,
+    soc_min: ur.Quantity | float | None,
+    soc_max: ur.Quantity | float | None,
+    charging_efficiency: pd.Series | ur.Quantity | float | None = None,
+    discharging_efficiency: pd.Series | ur.Quantity | float | None = None,
+) -> tuple[
+    list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
+    list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
+]:
+    """Project an off-tick starting state of charge onto the next scheduling tick.
+
+    When the starting SoC is known at a time ``t`` between the schedule start and
+    the next scheduling tick ``n`` (e.g. because the ``state-of-charge`` field
+    resolved to a measurement taken at ``t``), the SoC is assumed to hold from the
+    schedule start until ``t`` (the device is not moving its stock before then), and
+    the SoC at ``n`` is bounded by how much the device can (dis)charge between ``t``
+    and ``n``:
+
+    - an upper bound of ``soc_at_start`` plus the energy chargeable between ``t`` and ``n``,
+    - a lower bound of ``soc_at_start`` minus the energy dischargeable between ``t`` and ``n``.
+
+    Both bounds are clamped to the global ``soc-min``/``soc-max`` and merged into
+    the given ``soc-maxima``/``soc-minima`` (the stricter bound wins on collisions).
+    Known SoC times on a scheduling tick, or outside the first scheduling interval,
+    leave the bounds unchanged.
+
+    Returns ``(soc_maxima, soc_minima)``.
+    """
+    event_time = pd.Timestamp(soc_at_start_time)
+    start = pd.Timestamp(schedule_start)
+    if is_on_schedule_tick(event_time, resolution) or not (
+        start < event_time < start + resolution
+    ):
+        return soc_maxima, soc_minima
+
+    next_tick = event_time.ceil(resolution)
+    value = _soc_value_in_mwh(soc_at_start)
+    chargeable = _reachable_energy(
+        consumption_capacity,
+        event_time,
+        next_tick,
+        resolution,
+        efficiency=charging_efficiency,
+        efficiency_affects_stock="multiply",
+    )
+    dischargeable = _reachable_energy(
+        production_capacity,
+        event_time,
+        next_tick,
+        resolution,
+        efficiency=discharging_efficiency,
+        efficiency_affects_stock="divide",
+    )
+
+    projected_minima = copy.deepcopy(soc_minima) if isinstance(soc_minima, list) else []
+    projected_maxima = copy.deepcopy(soc_maxima) if isinstance(soc_maxima, list) else []
+    tick_datetime = next_tick.to_pydatetime()
+    _add_soc_bound(
+        projected_minima,
+        {
+            "start": tick_datetime,
+            "end": tick_datetime,
+            "value": _clamp_soc_min(
+                value - dischargeable, _optional_soc_value_in_mwh(soc_min)
+            ),
+        },
+        bound_type="min",
+    )
+    _add_soc_bound(
+        projected_maxima,
+        {
+            "start": tick_datetime,
+            "end": tick_datetime,
+            "value": _clamp_soc_max(
+                value + chargeable, _optional_soc_value_in_mwh(soc_max)
+            ),
+        },
+        bound_type="max",
+    )
+    return (
+        _projected_soc_events_or_original(soc_maxima, projected_maxima, "soc-maxima"),
+        _projected_soc_events_or_original(soc_minima, projected_minima, "soc-minima"),
+    )

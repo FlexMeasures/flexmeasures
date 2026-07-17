@@ -38,6 +38,7 @@ from flexmeasures.data.schemas.scheduling import (
     MultiSensorFlexModelSchema,
 )
 from flexmeasures.data.models.planning.soc_projection import (
+    project_off_tick_soc_at_start,
     project_off_tick_soc_constraints,
 )
 from flexmeasures.data.schemas.scheduling.utils import (
@@ -910,6 +911,26 @@ class MetaStorageScheduler(Scheduler):
             # before they are turned into soft commitments or hard constraints,
             # so that both paths consume on-tick events.
             if should_project_off_tick_soc_constraints(sensor_d):
+                # A starting SoC known at an off-tick time within the first
+                # scheduling interval bounds the SoC on the next tick.
+                soc_at_start_time = getattr(self, "soc_at_start_datetimes", {}).get(
+                    getattr(sensor_d, "id", None)
+                )
+                if soc_at_start_time is not None and soc_at_start[d] is not None:
+                    soc_maxima[d], soc_minima[d] = project_off_tick_soc_at_start(
+                        soc_at_start_time,
+                        soc_at_start[d],
+                        soc_maxima[d],
+                        soc_minima[d],
+                        start,
+                        consumption_capacity_d,
+                        production_capacity_d,
+                        resolution,
+                        soc_min[d],
+                        soc_max[d],
+                        charging_efficiency=charging_efficiency[d],
+                        discharging_efficiency=discharging_efficiency[d],
+                    )
                 (
                     soc_targets[d],
                     soc_maxima[d],
@@ -1566,6 +1587,21 @@ class MetaStorageScheduler(Scheduler):
     def has_soc_at_start_in(flex_model: dict) -> bool:
         return "soc-at-start" in flex_model and flex_model["soc-at-start"] is not None
 
+    def _record_soc_at_start_datetime(
+        self, sensor: Sensor | None, soc_datetime: datetime | None
+    ) -> None:
+        """Remember at which time the starting state of charge is actually known.
+
+        Keyed by the device's power sensor id. Used to project an off-tick
+        starting SoC onto the next scheduling tick (see
+        :func:`flexmeasures.data.models.planning.soc_projection.project_off_tick_soc_at_start`).
+        """
+        if sensor is None or soc_datetime is None:
+            return
+        if not hasattr(self, "soc_at_start_datetimes"):
+            self.soc_at_start_datetimes: dict[int, datetime] = {}
+        self.soc_at_start_datetimes[sensor.id] = soc_datetime
+
     def _get_soc_lookup_radius(
         self, sensor: Sensor | None = None, slack_steps: int = 4
     ) -> timedelta:
@@ -1691,6 +1727,7 @@ class MetaStorageScheduler(Scheduler):
             beliefs_df["time_distance"] == beliefs_df["time_distance"].min()
         ]
         nearest_belief = nearest_beliefs.loc[nearest_beliefs["event_start"].idxmax()]
+        self._record_soc_at_start_datetime(sensor, nearest_belief["event_start"])
 
         return self._convert_soc_value_to_mwh(
             value=nearest_belief["event_value"],
@@ -1743,6 +1780,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
         _, nearest_segment = min(candidate_segments, key=lambda item: item[0])
+        self._record_soc_at_start_datetime(sensor, nearest_segment["start"])
         return (nearest_segment["value"] / ur.Quantity("MWh")).magnitude
 
     def _resolve_soc_at_start_from_state_of_charge(

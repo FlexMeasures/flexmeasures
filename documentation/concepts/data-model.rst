@@ -120,6 +120,8 @@ If multiple projected upper bounds land on the same tick, the lowest upper bound
 Because projection can introduce additional bounds and more complex combinations can become infeasible, FlexMeasures enables ``relax-soc-constraints`` automatically when off-tick SoC constraints are submitted (unless it was explicitly set to ``False``, which is respected with a logged warning).
 When relaxation is enabled purely because of off-tick projection (rather than by the flex-context settings), the softening is scoped to the devices that actually use off-tick SoC constraints; other devices keep their hard SoC constraints.
 
+The starting state of charge is projected as well: when ``soc-at-start`` is resolved from the ``state-of-charge`` field and the underlying measurement was taken at an off-tick time within the first scheduling interval, the SoC is assumed to hold until that time, and the next scheduling tick receives bounds reflecting how much the device can still (dis)charge after it.
+
 Projection can be disabled per sensor by setting the ``floor_datetimes_to_resolution`` sensor attribute to ``False``.
 In that case, off-tick point-like SoC constraints cannot be enforced on the scheduling ticks and are disregarded (with a logged warning).
 
