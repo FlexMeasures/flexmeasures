@@ -41,6 +41,8 @@ from flexmeasures.data.models.planning.soc_projection import (
     project_off_tick_soc_constraints,
 )
 from flexmeasures.data.schemas.scheduling.utils import (
+    flex_model_has_off_tick_soc_constraints,
+    get_soc_constraint_resolution,
     should_project_off_tick_soc_constraints,
 )
 from flexmeasures.data.schemas.sensors import SensorReference, VariableQuantityField
@@ -1373,17 +1375,17 @@ class MetaStorageScheduler(Scheduler):
             if self.sensor.generic_asset.asset_type.name in storage_asset_types:
                 self.ensure_soc_at_start()
 
+            self._possibly_relax_off_tick_soc_constraints(
+                self.flex_model, sensor=self.sensor
+            )
+
             # Now it's time to check if our flex configuration holds up to schemas
             schema = StorageFlexModelSchema(
                 start=self.start,
                 sensor=self.sensor,
                 default_soc_unit=self.flex_model.get("soc-unit"),
-                schedule_resolution=self.resolution,
-                default_resolution=self.default_resolution,
             )
             self.flex_model = schema.load(self.flex_model)
-            if schema.has_off_tick_soc_constraints:
-                self.enable_relax_soc_constraints()
 
             # Extend schedule period in case a target exceeds its end
             self.possibly_extend_end(soc_targets=self.flex_model.get("soc_targets"))
@@ -1400,22 +1402,22 @@ class MetaStorageScheduler(Scheduler):
                 soc_sensor = None
                 if soc_sensor_id is not None:
                     soc_sensor = Sensor.query.filter_by(id=soc_sensor_id).first()
+                sensor_d = (
+                    sensor_flex_model.get("sensor")
+                    if sensor_flex_model.get("sensor") is not None
+                    else soc_sensor
+                )
+                self._possibly_relax_off_tick_soc_constraints(
+                    sensor_flex_model["sensor_flex_model"], sensor=sensor_d
+                )
                 schema = StorageFlexModelSchema(
                     start=self.start,
-                    sensor=(
-                        sensor_flex_model.get("sensor")
-                        if sensor_flex_model.get("sensor") is not None
-                        else soc_sensor
-                    ),
+                    sensor=sensor_d,
                     default_soc_unit=sensor_flex_model["sensor_flex_model"].get(
                         "soc-unit"
                     ),
-                    schedule_resolution=self.resolution,
-                    default_resolution=self.default_resolution,
                 )
                 self.flex_model[d] = schema.load(sensor_flex_model["sensor_flex_model"])
-                if schema.has_off_tick_soc_constraints:
-                    self.enable_relax_soc_constraints()
                 self.flex_model[d]["sensor"] = sensor_flex_model.get("sensor")
                 self.flex_model[d]["asset"] = sensor_flex_model.get("asset")
 
@@ -1430,6 +1432,23 @@ class MetaStorageScheduler(Scheduler):
             )
 
         return self.flex_model
+
+    def _possibly_relax_off_tick_soc_constraints(
+        self, flex_model: dict, sensor: Sensor | None
+    ) -> None:
+        """Enable SoC constraint relaxation if the (serialized) flex-model contains off-tick SoC events.
+
+        The detection uses the scheduler's actual resolution (falling back to the
+        sensor's event resolution), matching the resolution later used to project
+        off-tick SoC constraints onto the scheduling ticks.
+        """
+        if not should_project_off_tick_soc_constraints(sensor):
+            return
+        resolution = get_soc_constraint_resolution(
+            self.resolution, sensor, self.default_resolution
+        )
+        if flex_model_has_off_tick_soc_constraints(flex_model, resolution=resolution):
+            self.enable_relax_soc_constraints()
 
     def enable_relax_soc_constraints(self) -> None:
         """Relax SoC constraints when off-tick SoC events require scheduling-tick projection.

@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from flask import current_app
 from marshmallow import (
     Schema,
-    pre_load,
     post_load,
     validate,
     validates_schema,
@@ -19,11 +18,6 @@ from flexmeasures import Asset, Sensor
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata
-from flexmeasures.data.schemas.scheduling.utils import (
-    flex_model_has_off_tick_soc_constraints,
-    get_soc_constraint_resolution,
-    should_project_off_tick_soc_constraints,
-)
 from flexmeasures.data.schemas.sensors import (
     SensorReference,
     OutputSensorReferenceSchema,
@@ -258,18 +252,12 @@ class StorageFlexModelSchema(Schema):
         sensor: Sensor | None,
         *args,
         default_soc_unit: str | None = None,
-        schedule_resolution: timedelta | None = None,
-        default_resolution: timedelta = timedelta(minutes=15),
         **kwargs,
     ):
         """Pass the schedule's start, so we can use it to validate soc-target datetimes."""
         self.start = start
         self.sensor = sensor
         self.timezone = sensor.timezone if sensor is not None else None
-        self.has_off_tick_soc_constraints = False
-        self.soc_constraint_resolution = get_soc_constraint_resolution(
-            schedule_resolution, sensor, default_resolution
-        )
         # guess default soc-unit
         if default_soc_unit is None:
             if self.sensor is not None and self.sensor.unit in ("MWh", "kWh"):
@@ -291,17 +279,6 @@ class StorageFlexModelSchema(Schema):
                 setattr(self.fields[field], "timezone", self.timezone)
                 if default_soc_unit is not None:
                     setattr(self.fields[field], "default_src_unit", default_soc_unit)
-
-    @pre_load
-    def detect_off_tick_soc_constraints(self, data: dict, **kwargs) -> dict:
-        self.has_off_tick_soc_constraints = (
-            isinstance(data, dict)
-            and should_project_off_tick_soc_constraints(self.sensor)
-            and flex_model_has_off_tick_soc_constraints(
-                data, resolution=self.soc_constraint_resolution
-            )
-        )
-        return data
 
     @validates_schema
     def check_whether_targets_exceed_max_planning_horizon(self, data: dict, **kwargs):
