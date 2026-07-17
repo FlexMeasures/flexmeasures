@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 import pytest
 
@@ -14,8 +14,8 @@ from flexmeasures.data.schemas.scheduling.storage import (
     StorageFlexModelSchema,
     DBStorageFlexModelSchema,
 )
-from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.sensors import TimedEventSchema, VariableQuantityField
+from flexmeasures.utils.unit_utils import ur
 
 
 @pytest.mark.parametrize(
@@ -163,24 +163,28 @@ def test_process_scheduler_flex_model_process_type(db, app, setup_dummy_sensors)
     assert process_scheduler_flex_model["process_type"] == ProcessType.SHIFTABLE
 
 
-def test_storage_flex_model_schema_does_not_floor_instantaneous_sensor(
-    db, app, dummy_asset
+def test_storage_flex_model_schema_preserves_off_tick_soc_datetimes(
+    db, app, setup_dummy_sensors
 ):
-    sensor = Sensor(
-        "instantaneous power sensor",
-        generic_asset=dummy_asset,
-        event_resolution=timedelta(0),
-        unit="MW",
-    )
-    db.session.add(sensor)
-    db.session.flush()
+    sensor1, _, _, _ = setup_dummy_sensors
 
     schema = StorageFlexModelSchema(
-        sensor=sensor,
+        sensor=sensor1,
         start=datetime(2023, 1, 1, tzinfo=pytz.UTC),
     )
 
-    assert schema.flooring_resolution is None
+    flex_model = schema.load(
+        {
+            "soc-at-start": "0 MWh",
+            "soc-targets": [
+                {"datetime": "2023-01-01T00:04:40+00:00", "value": "1 MWh"}
+            ],
+        }
+    )
+
+    assert flex_model["soc_targets"][0]["datetime"] == pd.Timestamp(
+        "2023-01-01T00:04:40+00:00"
+    )
 
 
 @pytest.mark.parametrize(
@@ -1093,6 +1097,150 @@ def test_commodity_flex_context_defaults(
             assert loaded.get("relax_constraints", True) is True
 
 
+def _assert_quantity_or_none(actual, expected):
+    """Compare an (optionally None) ur.Quantity against an expected ur.Quantity or None."""
+    if expected is None:
+        assert actual is None
+    else:
+        assert actual is not None
+        assert actual.to(expected.units).magnitude == pytest.approx(expected.magnitude)
+
+
+@pytest.mark.parametrize(
+    ["context_input", "expected"],
+    [
+        # Case 1: none of the 5 grid-connection fields given -> fully disconnected
+        # commodity. Both site capacities default to 0 as *soft* constraints (a
+        # default breach price is filled in); site-power-capacity stays unlimited.
+        (
+            {"commodity": "gas"},
+            {
+                "ems_consumption_capacity_in_mw": ur.Quantity("0 MW"),
+                "ems_production_capacity_in_mw": ur.Quantity("0 MW"),
+                "ems_power_capacity_in_mw": None,
+                "consumption_price": ur.Quantity("0 EUR/MWh"),
+                "ems_consumption_breach_price_set": True,
+                "ems_production_breach_price_set": True,
+            },
+        ),
+        # Case 2: only consumption-price given -> assume a grid connection for
+        # consumption (unlimited site-power/consumption-capacity); 0
+        # site-production-capacity (soft).
+        (
+            {"commodity": "gas", "consumption-price": "10 EUR/MWh"},
+            {
+                "ems_consumption_capacity_in_mw": None,
+                "ems_production_capacity_in_mw": ur.Quantity("0 MW"),
+                "ems_power_capacity_in_mw": None,
+                "consumption_price": ur.Quantity("10 EUR/MWh"),
+                "ems_production_breach_price_set": True,
+            },
+        ),
+        # Case 3: only production-price given -> mirror image of case 2.
+        (
+            {"commodity": "gas", "production-price": "10 EUR/MWh"},
+            {
+                "ems_consumption_capacity_in_mw": ur.Quantity("0 MW"),
+                "ems_production_capacity_in_mw": None,
+                "ems_power_capacity_in_mw": None,
+                "consumption_price": ur.Quantity("0 EUR/MWh"),
+                "production_price": ur.Quantity("10 EUR/MWh"),
+                "ems_consumption_breach_price_set": True,
+            },
+        ),
+        # Case 4: only site-consumption-capacity given -> unlimited
+        # site-power-capacity, 0 consumption-price, 0 site-production-capacity
+        # (soft), (and thereby 0 production-price).
+        (
+            {"commodity": "gas", "site-consumption-capacity": "5 MW"},
+            {
+                "ems_consumption_capacity_in_mw": ur.Quantity("5 MW"),
+                "ems_production_capacity_in_mw": ur.Quantity("0 MW"),
+                "ems_power_capacity_in_mw": None,
+                "consumption_price": ur.Quantity("0 EUR/MWh"),
+                "ems_production_breach_price_set": True,
+            },
+        ),
+        # Case 5: only site-production-capacity given -> mirror image of case 4.
+        (
+            {"commodity": "gas", "site-production-capacity": "5 MW"},
+            {
+                "ems_consumption_capacity_in_mw": ur.Quantity("0 MW"),
+                "ems_production_capacity_in_mw": ur.Quantity("5 MW"),
+                "ems_power_capacity_in_mw": None,
+                "consumption_price": ur.Quantity("0 EUR/MWh"),
+                "production_price": ur.Quantity("0 EUR/MWh"),
+                "ems_consumption_breach_price_set": True,
+            },
+        ),
+        # Case 6: only site-power-capacity given -> a *hard* constraint at that
+        # capacity (both site capacities set equal to it; no breach price filled
+        # in); 0 consumption- and production-price.
+        (
+            {"commodity": "gas", "site-power-capacity": "5 MW"},
+            {
+                "ems_consumption_capacity_in_mw": ur.Quantity("5 MW"),
+                "ems_production_capacity_in_mw": ur.Quantity("5 MW"),
+                "ems_power_capacity_in_mw": ur.Quantity("5 MW"),
+                "consumption_price": ur.Quantity("0 EUR/MWh"),
+                "production_price": ur.Quantity("0 EUR/MWh"),
+                "ems_consumption_breach_price_set": False,
+                "ems_production_breach_price_set": False,
+            },
+        ),
+        # A multi-field combination: consumption-price given together with an
+        # explicit site-power-capacity. The site-power-capacity is not the *sole*
+        # field given, so it does not trigger the hard-constraint case; instead,
+        # each direction is filled in independently: consumption-price given ->
+        # site-consumption-capacity stays unlimited (implicitly bounded by
+        # site-power-capacity at the scheduler level); production side untouched
+        # -> 0 site-production-capacity (soft).
+        (
+            {
+                "commodity": "gas",
+                "consumption-price": "10 EUR/MWh",
+                "site-power-capacity": "5 MW",
+            },
+            {
+                "ems_consumption_capacity_in_mw": None,
+                "ems_production_capacity_in_mw": ur.Quantity("0 MW"),
+                "ems_power_capacity_in_mw": ur.Quantity("5 MW"),
+                "consumption_price": ur.Quantity("10 EUR/MWh"),
+                "ems_production_breach_price_set": True,
+            },
+        ),
+    ],
+)
+def test_commodity_flex_context_smart_defaults(context_input, expected):
+    """Test the smarter defaults for commodity contexts (see
+    CommodityFlexContextSchema.fill_grid_connection_defaults).
+
+    These are DB-free, direct schema loads (no sensors involved).
+    """
+    from flexmeasures.data.schemas.scheduling import CommodityFlexContextSchema
+
+    loaded = CommodityFlexContextSchema().load(context_input)
+
+    for field in (
+        "ems_consumption_capacity_in_mw",
+        "ems_production_capacity_in_mw",
+        "ems_power_capacity_in_mw",
+        "consumption_price",
+        "production_price",
+    ):
+        if field in expected:
+            _assert_quantity_or_none(loaded.get(field), expected[field])
+
+    if "ems_consumption_breach_price_set" in expected:
+        assert (loaded.get("ems_consumption_breach_price") is not None) == expected[
+            "ems_consumption_breach_price_set"
+        ]
+    if "ems_production_breach_price_set" in expected:
+        assert (loaded.get("ems_production_breach_price") is not None) == expected[
+            "ems_production_breach_price_set"
+        ]
+
+
 @pytest.mark.parametrize(
     ["flex_context_listing", "fails"],
     [
@@ -1175,6 +1323,71 @@ def test_flex_context_listing_shared_currency(
     schema = FlexContextSchema()
 
     check_schema_loads_data(schema=schema, data=flex_context_listing, fails=fails)
+
+
+def test_flex_context_listing_tolerates_price_free_context_in_other_currency():
+    """test_flex_context_listing_tolerates_price_free_context_in_other_currency:
+    a bare (price-free) commodity context must not trip the shared-currency check
+    against a differently-currencied portfolio, since it has no user-given prices
+    of its own -- its 0-price/breach-price fills should just inherit the
+    portfolio's real currency.
+    """
+    schema = FlexContextSchema()
+
+    # Case A: top-level price sets the portfolio currency.
+    loaded = schema.load(
+        {
+            "consumption-price": "10 USD/MWh",
+            "commodities": [
+                {"commodity": "electricity", "consumption-price": "10 USD/MWh"},
+                {"commodity": "gas"},
+            ],
+        }
+    )
+    assert loaded["shared_currency_unit"] == "USD"
+    gas_context = next(
+        c for c in loaded["commodity_contexts"] if c["commodity"] == "gas"
+    )
+    assert gas_context["shared_currency_unit"] == "USD"
+    assert str(gas_context["consumption_price"].units) == "USD/MWh"
+
+    # Case B: no top-level price; a sibling commodity context sets the currency.
+    loaded = schema.load(
+        {
+            "commodities": [
+                {"commodity": "electricity", "consumption-price": "10 USD/MWh"},
+                {"commodity": "gas"},
+            ],
+        }
+    )
+    assert loaded["shared_currency_unit"] == "USD"
+    gas_context = next(
+        c for c in loaded["commodity_contexts"] if c["commodity"] == "gas"
+    )
+    assert gas_context["shared_currency_unit"] == "USD"
+    assert str(gas_context["consumption_price"].units) == "USD/MWh"
+
+    # Case C: no price given anywhere -> falls back to EUR everywhere.
+    loaded = schema.load({"commodities": [{"commodity": "gas"}]})
+    assert loaded["shared_currency_unit"] == "EUR"
+    gas_context = loaded["commodity_contexts"][0]
+    assert gas_context["shared_currency_unit"] == "EUR"
+
+    # A genuine mismatch (both contexts have explicit, different currencies) must
+    # still be rejected.
+    check_schema_loads_data(
+        schema=schema,
+        data={
+            "consumption-price": "10 USD/MWh",
+            "commodities": [
+                {"commodity": "electricity", "consumption-price": "10 USD/MWh"},
+                {"commodity": "gas", "consumption-price": "10 EUR/MWh"},
+            ],
+        },
+        fails={
+            "commodities": "all prices in the flex-context must share the same currency unit"
+        },
+    )
 
 
 def test_flex_context_listing_rejects_duplicate_commodities(db, app):
