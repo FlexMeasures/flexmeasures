@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -10,6 +11,8 @@ import pandas as pd
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.scheduling.utils import is_on_schedule_tick
 from flexmeasures.utils.unit_utils import ur
+
+logger = logging.getLogger(__name__)
 
 
 def _soc_value_in_mwh(value: ur.Quantity | float | int) -> float:
@@ -154,16 +157,24 @@ def _projected_soc_events_or_original(
         list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None
     ),
     projected_soc_events: list[dict[str, datetime | float]],
+    field_name: str,
 ) -> list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None:
     """Choose between the projected event list and the original specification.
 
     Only list-based (or missing) specifications can absorb projected bounds;
-    sensors, series and fixed quantities are returned unchanged.
+    sensors, series and fixed quantities are returned unchanged. If projected
+    bounds had to be dropped as a result, a warning is logged.
     """
     if isinstance(original_soc_events, list):
         return projected_soc_events
     if original_soc_events is None and projected_soc_events:
         return projected_soc_events
+    if projected_soc_events:
+        logger.warning(
+            f"Dropping {len(projected_soc_events)} projected SoC bound(s): "
+            f"the '{field_name}' field is not given as a list of timed events, "
+            f"so projected bounds cannot be merged into it."
+        )
     return original_soc_events
 
 
@@ -373,6 +384,6 @@ def project_off_tick_soc_constraints(
 
     return (
         projected_targets,
-        _projected_soc_events_or_original(soc_maxima, projected_maxima),
-        _projected_soc_events_or_original(soc_minima, projected_minima),
+        _projected_soc_events_or_original(soc_maxima, projected_maxima, "soc-maxima"),
+        _projected_soc_events_or_original(soc_minima, projected_minima, "soc-minima"),
     )
