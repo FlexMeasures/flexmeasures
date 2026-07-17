@@ -1365,7 +1365,6 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             "charging-efficiency": 0.9,
             "commodity": "electricity",
             "production-capacity": "0 kW",
-            # "storage-efficiency": "99%",  # supported since #2324 (on the SoC-parameters entry below)
         },
         {
             "sensor": boiler_power.id,
@@ -1374,7 +1373,6 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             "charging-efficiency": 0.9,
             "commodity": "gas",
             "production-capacity": "0 kW",
-            # "storage-efficiency": "99%",  # supported since #2324 (on the SoC-parameters entry below)
         },
         {
             # "sensor": tank_power.id,
@@ -1386,7 +1384,7 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             # ],
             "state-of-charge": {"sensor": buffer_soc.id},
             "soc-usage": [{"sensor": buffer_soc_usage.id}],
-            # "storage-efficiency": "99%",  # supported since #2324, but losses would change the expected schedules below
+            "storage-efficiency": "99%",  # the buffer leaks 1% of its stock every 15 minutes
             # todo: consider assigning this to the heat commodity, maybe we can derive some useful (costs?) KPI from it
         },
     ]
@@ -1450,7 +1448,6 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
         for schedule in schedules
         if schedule.get("sensor") == boiler_power
     )
-    # The electric heater should only be active in the cheap-electricity window.
     # In local time, electricity is cheaper from 12:00 to 16:00.
     # During this period, the dynamic electricity site capacity is only 60 kW.
     # Therefore, the electric heater is expected to run at 60 kW, not its full
@@ -1473,15 +1470,18 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
         ),
     )
 
-    # When electricity is cheaper than gas, the gas boiler should stay off.
-    # The heat demand is then supplied by the electric heater instead.
+    # When electricity is cheaper than gas, the gas boiler should stay off,
+    # with the heat demand supplied by the electric heater instead. Only near
+    # the end of the window does the boiler top up the heat buffer: the 60 kW
+    # electricity capacity cannot cover demand plus the buffer's storage losses
+    # for the whole window, and topping up as late as possible leaks the least.
     pd.testing.assert_series_equal(
-        boiler_schedule.loc["2026-04-07T11:00:00+00:00":"2026-04-07T14:45:00+00:00"],
+        boiler_schedule.loc["2026-04-07T11:00:00+00:00":"2026-04-07T13:45:00+00:00"],
         pd.Series(
             0.0,
             index=pd.date_range(
                 "2026-04-07T11:00:00+00:00",
-                "2026-04-07T14:45:00+00:00",
+                "2026-04-07T13:45:00+00:00",
                 freq="15min",
             ),
             dtype="float64",
@@ -1491,6 +1491,12 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             "gas boiler dispatch during cheap-electricity window on day 1; "
             "expected 0 kW because electricity is cheaper than gas"
         ),
+    )
+    np.testing.assert_allclose(
+        boiler_schedule.loc["2026-04-07T14:00:00+00:00":"2026-04-07T14:45:00+00:00"],
+        60.044743,
+        atol=1e-3,
+        err_msg="Gas boiler should top up the heat buffer in the final hour of the cheap-electricity window on day 1.",
     )
 
     pd.testing.assert_series_equal(
@@ -1512,12 +1518,12 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
     )
 
     pd.testing.assert_series_equal(
-        boiler_schedule.loc["2026-04-08T11:00:00+00:00":"2026-04-08T14:45:00+00:00"],
+        boiler_schedule.loc["2026-04-08T11:00:00+00:00":"2026-04-08T13:45:00+00:00"],
         pd.Series(
             0.0,
             index=pd.date_range(
                 "2026-04-08T11:00:00+00:00",
-                "2026-04-08T14:45:00+00:00",
+                "2026-04-08T13:45:00+00:00",
                 freq="15min",
             ),
             dtype="float64",
@@ -1528,32 +1534,44 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             "expected 0 kW because electricity is cheaper than gas"
         ),
     )
+    np.testing.assert_allclose(
+        boiler_schedule.loc["2026-04-08T14:00:00+00:00":"2026-04-08T14:45:00+00:00"],
+        60.044743,
+        atol=1e-3,
+        err_msg="Gas boiler should top up the heat buffer in the final hour of the cheap-electricity window on day 2.",
+    )
 
     # Outside the cheap-electricity window, gas is cheaper than electricity.
     # Therefore, the gas boiler should become the preferred heat source and run
-    # at full 100 kW capacity, while the electric heater should remain off.
+    # at full 100 kW capacity. The pricier electric heater cannot switch off
+    # entirely, though: the buffer's storage losses push the total heat need
+    # beyond the boiler's capacity, so the heater covers the remainder.
     assert boiler_schedule.loc["2026-04-07T15:00:00+00:00"] == pytest.approx(
         100.0
     ), "Gas boiler should run at full capacity after the cheap-electricity window on day 1."
 
     assert heater_schedule.loc["2026-04-07T15:00:00+00:00"] == pytest.approx(
-        0.0
-    ), "Electric heater should be off after the cheap-electricity window because gas is cheaper."
+        20.044743, abs=1e-3
+    ), "Electric heater should only cover what the maxed-out gas boiler cannot, after the cheap-electricity window on day 1."
 
     assert boiler_schedule.loc["2026-04-08T15:00:00+00:00"] == pytest.approx(
         100.0
     ), "Gas boiler should run at full capacity after the cheap-electricity window on day 2."
 
     assert heater_schedule.loc["2026-04-08T15:00:00+00:00"] == pytest.approx(
-        0.0
-    ), "Electric heater should be off after the cheap-electricity window on day 2 because gas is cheaper."
+        20.044743, abs=1e-3
+    ), "Electric heater should only cover what the maxed-out gas boiler cannot, after the cheap-electricity window on day 2."
 
-    # Before the first cheap-electricity window, the optimizer uses a partial
-    # 80 kW electric-heater step to prepare the heat buffer. This is part of the
-    # expected optimal schedule and protects against accidental dispatch changes.
-    assert heater_schedule.loc["2026-04-07T08:00:00+00:00"] == pytest.approx(
-        80.0
-    ), "Electric heater should have one expected partial 80 kW dispatch step before the first cheap-electricity window."
+    # Before the first cheap-electricity window, the optimizer ramps up the
+    # electric heater (one partial step, then full 100 kW capacity) to prepare
+    # the heat buffer. This is part of the expected optimal schedule and
+    # protects against accidental dispatch changes.
+    assert heater_schedule.loc["2026-04-07T08:15:00+00:00"] == pytest.approx(
+        25.713284, abs=1e-3
+    ), "Electric heater should have one expected partial dispatch step before ramping up to prepare for the first cheap-electricity window."
+    assert heater_schedule.loc["2026-04-07T08:30:00+00:00"] == pytest.approx(
+        100.0
+    ), "Electric heater should charge the heat buffer at full capacity just before the first cheap-electricity window."
 
 
 def test_all_gas_flex_model_without_electricity_device(app, db):
