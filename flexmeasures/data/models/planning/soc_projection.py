@@ -3,64 +3,13 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Literal
 
 import pandas as pd
 
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.schemas.scheduling.utils import is_on_schedule_tick
 from flexmeasures.utils.unit_utils import ur
-
-
-SocBoundType = Literal["min", "max"]
-SocProjectionTick = Literal["previous", "next"]
-SocCapacityType = Literal["consumption", "production"]
-SocCapacityPeriod = Literal["before", "after"]
-
-
-@dataclass(frozen=True)
-class SocProjectionRule:
-    """One projection rule for an off-tick SoC event.
-
-    Each rule creates a single projected bound:
-
-    - ``bound_type``: whether the projected bound is a lower ("min") or upper ("max") bound.
-    - ``tick``: whether the bound lands on the scheduling tick just before or just after the event.
-    - ``capacity``: which device capacity limits how fast the SoC can move towards or away from
-      the event value ("consumption" for charging, "production" for discharging).
-    - ``period``: over which period that capacity applies: from the previous tick up to the
-      event time ("before"), or from the event time up to the next tick ("after").
-    - ``sign``: -1 to lower the event value by the reachable energy (loosening a lower bound),
-      +1 to raise it (loosening an upper bound).
-    """
-
-    bound_type: SocBoundType
-    tick: SocProjectionTick
-    capacity: SocCapacityType
-    period: SocCapacityPeriod
-    sign: int
-
-
-#: How each type of off-tick point-like SoC constraint is projected onto the
-#: surrounding scheduling ticks (see :class:`SocProjectionRule`).
-#: Off-tick ``soc-targets`` additionally become an exact target on the next tick,
-#: which is handled directly in :func:`project_off_tick_soc_constraints`.
-SOC_PROJECTION_POLICIES = {
-    "soc-targets": (
-        SocProjectionRule("min", "previous", "consumption", "before", -1),
-        SocProjectionRule("max", "previous", "production", "before", +1),
-    ),
-    "soc-minima": (
-        SocProjectionRule("min", "previous", "consumption", "before", -1),
-        SocProjectionRule("min", "next", "production", "after", -1),
-    ),
-    "soc-maxima": (
-        SocProjectionRule("max", "previous", "production", "before", +1),
-        SocProjectionRule("max", "next", "consumption", "after", +1),
-    ),
-}
 
 
 def _soc_value_in_mwh(value: ur.Quantity | float | int) -> float:
@@ -107,7 +56,7 @@ def _soc_event_at(
     return shifted_event
 
 
-def _energy_capacity_between(
+def _reachable_energy(
     capacity: pd.Series,
     start: pd.Timestamp,
     end: pd.Timestamp,
@@ -115,119 +64,22 @@ def _energy_capacity_between(
 ) -> float:
     """Compute how much energy (in MWh) the device can move between two times.
 
-    Integrates the given power capacity series (in MW, indexed by tick start at the
-    given resolution) over the period from ``start`` to ``end``, weighing partial
-    tick overlaps. Missing capacity values count as zero (conservative: the
-    projected bound then sticks close to the original event value).
+    The period from ``start`` to ``end`` always lies within a single scheduling
+    tick (from the tick just before an off-tick event to the event, or from the
+    event to the tick just after it), so the given power capacity series (in MW,
+    indexed by tick start at the given resolution) applies at a single constant
+    value. A missing capacity value counts as zero (conservative: the projected
+    bound then sticks close to the original event value).
     """
     if end <= start:
         return 0
-
-    if capacity.index.tz is not None:
-        start = start.tz_convert(capacity.index.tz)
-        end = end.tz_convert(capacity.index.tz)
-
-    capacity = capacity.astype(float).fillna(0)
     tick = start.floor(resolution)
-    energy = 0.0
-    while tick < end:
-        next_tick = tick + resolution
-        overlap_start = max(start, tick)
-        overlap_end = min(end, next_tick)
-        if overlap_end > overlap_start and tick in capacity.index:
-            energy += float(capacity.loc[tick]) * (
-                (overlap_end - overlap_start) / pd.Timedelta(hours=1)
-            )
-        tick = next_tick
-    return energy
-
-
-def _tick_for_projection_rule(
-    rule: SocProjectionRule,
-    previous_tick: pd.Timestamp,
-    next_tick: pd.Timestamp,
-) -> pd.Timestamp:
-    """Return the scheduling tick on which the rule's projected bound lands."""
-    return previous_tick if rule.tick == "previous" else next_tick
-
-
-def _capacity_for_projection_rule(
-    rule: SocProjectionRule,
-    consumption_capacity: pd.Series,
-    production_capacity: pd.Series,
-) -> pd.Series:
-    """Return the capacity series that limits SoC movement for this rule."""
-    return (
-        consumption_capacity if rule.capacity == "consumption" else production_capacity
-    )
-
-
-def _capacity_period_for_projection_rule(
-    rule: SocProjectionRule,
-    previous_tick: pd.Timestamp,
-    event_time: pd.Timestamp,
-    next_tick: pd.Timestamp,
-) -> tuple[pd.Timestamp, pd.Timestamp]:
-    """Return the period over which the rule's capacity applies."""
-    if rule.period == "before":
-        return previous_tick, event_time
-    return event_time, next_tick
-
-
-def _clamp_projected_soc_value(
-    value: float,
-    rule: SocProjectionRule,
-    soc_min: float | None,
-    soc_max: float | None,
-) -> float:
-    """Clamp a projected bound to the storage's global soc-min/soc-max limits."""
-    if rule.bound_type == "min":
-        return _clamp_soc_min(value, soc_min)
-    return _clamp_soc_max(value, soc_max)
-
-
-def _add_projected_soc_bound(
-    projected_minima: list[dict[str, datetime | float]],
-    projected_maxima: list[dict[str, datetime | float]],
-    soc_event: dict[str, datetime | float],
-    rule: SocProjectionRule,
-    event_time: pd.Timestamp,
-    previous_tick: pd.Timestamp,
-    next_tick: pd.Timestamp,
-    consumption_capacity: pd.Series,
-    production_capacity: pd.Series,
-    resolution: timedelta,
-    soc_min: float | None,
-    soc_max: float | None,
-) -> None:
-    """Apply one projection rule to one off-tick SoC event.
-
-    Computes the capacity-adjusted bound value (event value +/- the energy the
-    device can move over the rule's capacity period), clamps it to the global SoC
-    limits, and merges it into the projected minima or maxima (keeping the
-    stricter bound if one already exists on the same tick).
-    """
-    capacity_start, capacity_end = _capacity_period_for_projection_rule(
-        rule, previous_tick, event_time, next_tick
-    )
-    capacity = _capacity_for_projection_rule(
-        rule, consumption_capacity, production_capacity
-    )
-    projected_value = _soc_value_in_mwh(soc_event["value"]) + rule.sign * (
-        _energy_capacity_between(capacity, capacity_start, capacity_end, resolution)
-    )
-    projected_soc_events = (
-        projected_minima if rule.bound_type == "min" else projected_maxima
-    )
-    _add_soc_bound(
-        projected_soc_events,
-        _soc_event_at(
-            soc_event,
-            _tick_for_projection_rule(rule, previous_tick, next_tick),
-            _clamp_projected_soc_value(projected_value, rule, soc_min, soc_max),
-        ),
-        bound_type=rule.bound_type,
-    )
+    if capacity.index.tz is not None:
+        tick = tick.tz_convert(capacity.index.tz)
+    capacity_in_mw = capacity.get(tick)
+    if capacity_in_mw is None or pd.isna(capacity_in_mw):
+        return 0
+    return float(capacity_in_mw) * ((end - start) / pd.Timedelta(hours=1))
 
 
 def _add_soc_bound(
@@ -301,11 +153,22 @@ def project_off_tick_soc_constraints(
     next tick that preserve reachability using the available charge and discharge
     capacity between the original event time and those ticks.
 
-    ``soc-targets`` are projected to an exact target on the next tick, plus
-    capacity-adjusted lower and upper bounds on the previous tick. ``soc-minima``
-    become lower bounds on both surrounding ticks, and ``soc-maxima`` become upper
-    bounds on both surrounding ticks. If multiple projected bounds land on the same
-    tick, the stricter lower or upper bound is kept.
+    For an off-tick event with value ``v`` at time ``t``, between previous tick ``p``
+    and next tick ``n``:
+
+    - ``soc-targets`` become an exact target ``v`` on ``n``, plus bounds on ``p`` that
+      keep the target reachable at ``t``: a lower bound of ``v`` minus the energy that
+      can still be charged between ``p`` and ``t``, and an upper bound of ``v`` plus
+      the energy that can still be discharged between ``p`` and ``t``.
+    - ``soc-minima`` become lower bounds on both surrounding ticks: on ``p``, ``v``
+      minus the energy that can be charged between ``p`` and ``t``; on ``n``, ``v``
+      minus the energy that can be discharged between ``t`` and ``n``.
+    - ``soc-maxima`` become upper bounds on both surrounding ticks: on ``p``, ``v``
+      plus the energy that can be discharged between ``p`` and ``t``; on ``n``, ``v``
+      plus the energy that can be charged between ``t`` and ``n``.
+
+    If multiple projected bounds land on the same tick, the stricter lower or upper
+    bound is kept. Projected bounds are clamped to the global ``soc-min``/``soc-max``.
 
     Returns ``(soc_targets, soc_maxima, soc_minima)`` with projected list-based
     timed events. Non-list specifications such as sensors, series, fixed
@@ -325,6 +188,20 @@ def project_off_tick_soc_constraints(
     soc_min_value = _optional_soc_value_in_mwh(soc_min)
     soc_max_value = _optional_soc_value_in_mwh(soc_max)
 
+    def add_min_bound(soc_event: dict, tick: pd.Timestamp, value: float) -> None:
+        _add_soc_bound(
+            projected_minima,
+            _soc_event_at(soc_event, tick, _clamp_soc_min(value, soc_min_value)),
+            bound_type="min",
+        )
+
+    def add_max_bound(soc_event: dict, tick: pd.Timestamp, value: float) -> None:
+        _add_soc_bound(
+            projected_maxima,
+            _soc_event_at(soc_event, tick, _clamp_soc_max(value, soc_max_value)),
+            bound_type="max",
+        )
+
     if isinstance(soc_targets, list):
         projected_targets = []
         for soc_target in soc_targets:
@@ -338,33 +215,23 @@ def project_off_tick_soc_constraints(
             previous_tick = target_time.floor(resolution)
             next_tick = target_time.ceil(resolution)
             target_value = _soc_value_in_mwh(soc_target["value"])
+            chargeable = _reachable_energy(
+                consumption_capacity, previous_tick, target_time, resolution
+            )
+            dischargeable = _reachable_energy(
+                production_capacity, previous_tick, target_time, resolution
+            )
 
+            # Exact target on the next tick, plus previous-tick bounds that keep
+            # the target reachable at the original (off-tick) target time.
             projected_targets.append(_soc_event_at(soc_target, next_tick, target_value))
-            for rule in SOC_PROJECTION_POLICIES["soc-targets"]:
-                _add_projected_soc_bound(
-                    projected_minima,
-                    projected_maxima,
-                    soc_target,
-                    rule,
-                    target_time,
-                    previous_tick,
-                    next_tick,
-                    consumption_capacity,
-                    production_capacity,
-                    resolution,
-                    soc_min_value,
-                    soc_max_value,
-                )
+            add_min_bound(soc_target, previous_tick, target_value - chargeable)
+            add_max_bound(soc_target, previous_tick, target_value + dischargeable)
     else:
         projected_targets = soc_targets
 
-    for field_name, soc_events in (
-        ("soc-minima", soc_minima),
-        ("soc-maxima", soc_maxima),
-    ):
-        if not isinstance(soc_events, list):
-            continue
-        for soc_event in copy.deepcopy(soc_events):
+    if isinstance(soc_minima, list):
+        for soc_event in copy.deepcopy(soc_minima):
             if soc_event["start"] != soc_event["end"] or is_on_schedule_tick(
                 soc_event["end"], resolution
             ):
@@ -373,21 +240,57 @@ def project_off_tick_soc_constraints(
             event_time = pd.Timestamp(soc_event["end"])
             previous_tick = event_time.floor(resolution)
             next_tick = event_time.ceil(resolution)
-            for rule in SOC_PROJECTION_POLICIES[field_name]:
-                _add_projected_soc_bound(
-                    projected_minima,
-                    projected_maxima,
-                    soc_event,
-                    rule,
-                    event_time,
-                    previous_tick,
-                    next_tick,
-                    consumption_capacity,
-                    production_capacity,
-                    resolution,
-                    soc_min_value,
-                    soc_max_value,
-                )
+            minimum = _soc_value_in_mwh(soc_event["value"])
+
+            # Lower bounds on both surrounding ticks that preserve whether the
+            # requested minimum can still be reached at the original event time.
+            add_min_bound(
+                soc_event,
+                previous_tick,
+                minimum
+                - _reachable_energy(
+                    consumption_capacity, previous_tick, event_time, resolution
+                ),
+            )
+            add_min_bound(
+                soc_event,
+                next_tick,
+                minimum
+                - _reachable_energy(
+                    production_capacity, event_time, next_tick, resolution
+                ),
+            )
+
+    if isinstance(soc_maxima, list):
+        for soc_event in copy.deepcopy(soc_maxima):
+            if soc_event["start"] != soc_event["end"] or is_on_schedule_tick(
+                soc_event["end"], resolution
+            ):
+                continue
+
+            event_time = pd.Timestamp(soc_event["end"])
+            previous_tick = event_time.floor(resolution)
+            next_tick = event_time.ceil(resolution)
+            maximum = _soc_value_in_mwh(soc_event["value"])
+
+            # Upper bounds on both surrounding ticks that preserve whether the
+            # requested maximum can still be respected at the original event time.
+            add_max_bound(
+                soc_event,
+                previous_tick,
+                maximum
+                + _reachable_energy(
+                    production_capacity, previous_tick, event_time, resolution
+                ),
+            )
+            add_max_bound(
+                soc_event,
+                next_tick,
+                maximum
+                + _reachable_energy(
+                    consumption_capacity, event_time, next_tick, resolution
+                ),
+            )
 
     return (
         projected_targets,
