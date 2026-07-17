@@ -959,11 +959,26 @@ def _holidays_from_workalendar_class(year, calendar_class, calendar_kwargs, time
             )
             raise click.Abort()
 
+    try:
+        calendar = cls(**kwargs)
+    except (TypeError, ValueError) as e:
+        click.secho(
+            f"Could not instantiate calendar class '{class_name}' with arguments {kwargs}: {e}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    try:
+        holidays_list = calendar.holidays(year)
+    except (NotImplementedError, KeyError, ValueError) as e:
+        click.secho(
+            f"Calendar '{class_name}' has no holiday data for year {year}: {e}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
     source = get_or_create_source(
         "workalendar", model=class_name, source_type="CLI script"
     )
-    calendar = cls(**kwargs)
-    holidays_list = calendar.holidays(year)
     annotations = [
         _make_holiday_annotation(h[1], h[0], timezone, source) for h in holidays_list
     ]

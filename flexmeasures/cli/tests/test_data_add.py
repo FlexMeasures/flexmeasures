@@ -183,6 +183,32 @@ def test_add_holidays_with_workalendar_school_holidays(
     ), f"Expected >90 NL north school+public holidays in 2024, got {count}"
 
 
+def test_add_holidays_with_workalendar_class_unsupported_year(app, fresh_db):
+    """A calendar year without holiday data should abort with a friendly error, not a traceback."""
+    from flexmeasures.cli.data_add import add_holidays
+    import json
+
+    runner = app.test_cli_runner()
+
+    result = runner.invoke(
+        add_holidays,
+        [
+            "--year",
+            "2131",
+            "--calendar-class",
+            "workalendar.europe.netherlands.NetherlandsWithSchoolHolidays",
+            "--calendar-kwargs",
+            json.dumps({"region": "north"}),
+            "--timezone",
+            "Europe/Amsterdam",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "has no holiday data for year 2131" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_add_holidays_by_package_school(app, fresh_db, setup_roles_users_fresh_db):
     """Test adding school holidays via the holidays package.
 
