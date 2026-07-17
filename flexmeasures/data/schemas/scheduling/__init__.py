@@ -930,21 +930,11 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "aggregate-consumption": {
         "default": None,
         "description": rst_to_openapi(metadata.AGGREGATE_CONSUMPTION.description),
-        # todo: the field type is defined in asset_context.html in 3 places?
-        # "types": {
-        #     "backend": "typeTwo",
-        #     "ui": "A sensor which records the scheduled aggregate consumption.",
-        # },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "aggregate-production": {
         "default": None,
         "description": rst_to_openapi(metadata.AGGREGATE_PRODUCTION.description),
-        # todo: the field type is defined in asset_context.html in 3 places?
-        # "types": {
-        #     "backend": "typeTwo",
-        #     "ui": "A sensor which records the scheduled aggregate production.",
-        # },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "consumption-price": {
@@ -1334,6 +1324,55 @@ class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
                 "Fixed prices are not currently supported for production-price in flex-context fields in the DB.",
                 field_name="production-price",
             )
+
+
+# One UI description per backend type token (same tokens as UI_FLEX_MODEL_SCHEMA uses).
+UI_TYPE_DESCRIPTIONS: Dict[str, str] = {
+    "typeOne": "One fixed value only.",
+    "typeTwo": "One dynamic signal (via a sensor) only.",
+    "typeThree": "One fixed value or a dynamic signal (via a sensor).",
+    "typeFour": "A list of sensors.",
+    "typeFive": "One fixed string value only.",
+    "typeSix": "A list of structured entries.",
+}
+
+
+def _derive_backend_type(schema_field: fields.Field) -> str:
+    """Derive the UI editor's backend type token from a marshmallow field."""
+    if isinstance(schema_field, fields.Bool):
+        return "typeOne"
+    if isinstance(schema_field, fields.List):
+        return "typeFour"
+    if isinstance(schema_field, fields.Nested):
+        return "typeSix" if schema_field.many else "typeTwo"
+    if isinstance(schema_field, VariableQuantityField):
+        return "typeThree"
+    if isinstance(schema_field, fields.Str):
+        return "typeFive"
+    raise NotImplementedError(
+        f"Cannot derive a UI type for field {schema_field.data_key}."
+    )
+
+
+# Fill in the "types" of each UI flex-context schema entry by deriving them
+# from the corresponding DBFlexContextSchema field, so the UI editor stays in
+# sync with what the DB schema actually accepts.
+_db_flex_context_fields: Dict[str, fields.Field] = {
+    schema_field.data_key or field_name: schema_field
+    for field_name, schema_field in DBFlexContextSchema().fields.items()
+}
+for _field_name, _entry in UI_FLEX_CONTEXT_SCHEMA.items():
+    _backend_type = _derive_backend_type(_db_flex_context_fields[_field_name])
+    if _field_name in ("consumption-price", "production-price", "aggregate-power"):
+        # Fixed prices are forbidden when storing the flex-context in the DB
+        # (see DBFlexContextSchema._forbid_fixed_prices), and aggregate-power
+        # must reference a sensor (see validate_aggregate_power_is_sensor),
+        # so the editor only offers a sensor for these fields.
+        _backend_type = "typeTwo"
+    _entry["types"] = {
+        "backend": _backend_type,
+        "ui": UI_TYPE_DESCRIPTIONS[_backend_type],
+    }
 
 
 class MultiSensorFlexModelSchema(Schema):
