@@ -975,6 +975,43 @@ class MetaStorageScheduler(Scheduler):
                     # consumption-capacity will become a hard constraint
                     device_constraints[d]["derivative max"] = consumption_capacity_d
 
+            # Apply round-trip efficiency evenly to charging and discharging
+            charging_efficiency[d] = (
+                get_continuous_series_sensor_or_quantity(
+                    variable_quantity=charging_efficiency[d],
+                    unit="dimensionless",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                )
+                .astype(float)
+                .fillna(1)
+            )
+            discharging_efficiency[d] = (
+                get_continuous_series_sensor_or_quantity(
+                    variable_quantity=discharging_efficiency[d],
+                    unit="dimensionless",
+                    query_window=(start, end),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                )
+                .astype(float)
+                .fillna(1)
+            )
+
+            roundtrip_efficiency = flex_model[d].get(
+                "roundtrip_efficiency",
+                asset_d.flex_model.get("roundtrip-efficiency", 1),
+            )
+
+            # if roundtrip efficiency is provided in the flex-model or defined as an asset attribute
+            if (
+                "roundtrip_efficiency" in flex_model[d]
+                or asset_d.flex_model.get("roundtrip-efficiency") is not None
+            ):
+                charging_efficiency[d] = roundtrip_efficiency**0.5
+                discharging_efficiency[d] = roundtrip_efficiency**0.5
+
             # Project off-tick point-like SoC constraints onto the scheduling ticks
             # before they are turned into soft commitments or hard constraints,
             # so that both paths consume on-tick events.
@@ -992,6 +1029,8 @@ class MetaStorageScheduler(Scheduler):
                     resolution,
                     soc_min[d],
                     soc_max[d],
+                    charging_efficiency=charging_efficiency[d],
+                    discharging_efficiency=discharging_efficiency[d],
                 )
 
             if (
@@ -1178,43 +1217,6 @@ class MetaStorageScheduler(Scheduler):
 
                 device_constraints[d]["stock delta"] = all_stock_delta.sum(1)
                 device_constraints[d]["stock delta"] *= timedelta(hours=1) / resolution
-
-            # Apply round-trip efficiency evenly to charging and discharging
-            charging_efficiency[d] = (
-                get_continuous_series_sensor_or_quantity(
-                    variable_quantity=charging_efficiency[d],
-                    unit="dimensionless",
-                    query_window=(start, end),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                )
-                .astype(float)
-                .fillna(1)
-            )
-            discharging_efficiency[d] = (
-                get_continuous_series_sensor_or_quantity(
-                    variable_quantity=discharging_efficiency[d],
-                    unit="dimensionless",
-                    query_window=(start, end),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                )
-                .astype(float)
-                .fillna(1)
-            )
-
-            roundtrip_efficiency = flex_model[d].get(
-                "roundtrip_efficiency",
-                asset_d.flex_model.get("roundtrip-efficiency", 1),
-            )
-
-            # if roundtrip efficiency is provided in the flex-model or defined as an asset attribute
-            if (
-                "roundtrip_efficiency" in flex_model[d]
-                or asset_d.flex_model.get("roundtrip-efficiency") is not None
-            ):
-                charging_efficiency[d] = roundtrip_efficiency**0.5
-                discharging_efficiency[d] = roundtrip_efficiency**0.5
 
             device_constraints[d]["derivative down efficiency"] = (
                 discharging_efficiency[d]

@@ -56,13 +56,38 @@ def _soc_event_at(
     return shifted_event
 
 
+def _efficiency_at(
+    efficiency: pd.Series | ur.Quantity | float | None,
+    tick: pd.Timestamp,
+) -> float:
+    """Return the (dis)charging efficiency at the given tick as a plain float.
+
+    Efficiencies may be given as a series (indexed by tick start), a fixed
+    dimensionless quantity, or a plain number. Missing values default to 1.
+    """
+    if efficiency is None:
+        return 1
+    if isinstance(efficiency, pd.Series):
+        if efficiency.index.tz is not None:
+            tick = tick.tz_convert(efficiency.index.tz)
+        value = efficiency.get(tick)
+        if value is None or pd.isna(value):
+            return 1
+        return float(value)
+    if isinstance(efficiency, ur.Quantity):
+        return float(efficiency.to("dimensionless").magnitude)
+    return float(efficiency)
+
+
 def _reachable_energy(
     capacity: pd.Series,
     start: pd.Timestamp,
     end: pd.Timestamp,
     resolution: timedelta,
+    efficiency: pd.Series | ur.Quantity | float | None = None,
+    efficiency_affects_stock: str = "multiply",
 ) -> float:
-    """Compute how much energy (in MWh) the device can move between two times.
+    """Compute by how much energy (in MWh) the device can move its stock between two times.
 
     The period from ``start`` to ``end`` always lies within a single scheduling
     tick (from the tick just before an off-tick event to the event, or from the
@@ -70,6 +95,13 @@ def _reachable_energy(
     indexed by tick start at the given resolution) applies at a single constant
     value. A missing capacity value counts as zero (conservative: the projected
     bound then sticks close to the original event value).
+
+    The capacity limits the power exchanged with the grid, while the projected
+    bounds concern the stock (SoC). Charging at power P raises the stock at rate
+    P * charging_efficiency (``efficiency_affects_stock="multiply"``; note that a
+    charging efficiency can exceed 1, e.g. a heat pump's COP), while discharging
+    at power P lowers the stock at rate P / discharging_efficiency
+    (``efficiency_affects_stock="divide"``).
     """
     if end <= start:
         return 0
@@ -79,7 +111,17 @@ def _reachable_energy(
     capacity_in_mw = capacity.get(tick)
     if capacity_in_mw is None or pd.isna(capacity_in_mw):
         return 0
-    return float(capacity_in_mw) * ((end - start) / pd.Timedelta(hours=1))
+    efficiency_value = _efficiency_at(efficiency, tick)
+    stock_rate_in_mw = float(capacity_in_mw)
+    if efficiency_affects_stock == "multiply":
+        stock_rate_in_mw *= efficiency_value
+    elif efficiency_value != 0:
+        stock_rate_in_mw /= efficiency_value
+    else:
+        # A zero discharging efficiency means the stock can drop arbitrarily
+        # fast without producing any power, so the bound becomes unbounded.
+        stock_rate_in_mw = float("inf")
+    return stock_rate_in_mw * ((end - start) / pd.Timedelta(hours=1))
 
 
 def _add_soc_bound(
@@ -140,6 +182,8 @@ def project_off_tick_soc_constraints(
     resolution: timedelta,
     soc_min: ur.Quantity | float | None,
     soc_max: ur.Quantity | float | None,
+    charging_efficiency: pd.Series | ur.Quantity | float | None = None,
+    discharging_efficiency: pd.Series | ur.Quantity | float | None = None,
 ) -> tuple[
     list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
     list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None,
@@ -166,6 +210,11 @@ def project_off_tick_soc_constraints(
     - ``soc-maxima`` become upper bounds on both surrounding ticks: on ``p``, ``v``
       plus the energy that can be discharged between ``p`` and ``t``; on ``n``, ``v``
       plus the energy that can be charged between ``t`` and ``n``.
+
+    The reachable energy accounts for the (dis)charging efficiencies: charging at
+    grid power P moves the stock at rate P * charging_efficiency (which can exceed
+    1, e.g. a heat pump's COP), and discharging at grid power P moves the stock at
+    rate P / discharging_efficiency.
 
     If multiple projected bounds land on the same tick, the stricter lower or upper
     bound is kept. Projected bounds are clamped to the global ``soc-min``/``soc-max``.
@@ -216,10 +265,20 @@ def project_off_tick_soc_constraints(
             next_tick = target_time.ceil(resolution)
             target_value = _soc_value_in_mwh(soc_target["value"])
             chargeable = _reachable_energy(
-                consumption_capacity, previous_tick, target_time, resolution
+                consumption_capacity,
+                previous_tick,
+                target_time,
+                resolution,
+                efficiency=charging_efficiency,
+                efficiency_affects_stock="multiply",
             )
             dischargeable = _reachable_energy(
-                production_capacity, previous_tick, target_time, resolution
+                production_capacity,
+                previous_tick,
+                target_time,
+                resolution,
+                efficiency=discharging_efficiency,
+                efficiency_affects_stock="divide",
             )
 
             # Exact target on the next tick, plus previous-tick bounds that keep
@@ -249,7 +308,12 @@ def project_off_tick_soc_constraints(
                 previous_tick,
                 minimum
                 - _reachable_energy(
-                    consumption_capacity, previous_tick, event_time, resolution
+                    consumption_capacity,
+                    previous_tick,
+                    event_time,
+                    resolution,
+                    efficiency=charging_efficiency,
+                    efficiency_affects_stock="multiply",
                 ),
             )
             add_min_bound(
@@ -257,7 +321,12 @@ def project_off_tick_soc_constraints(
                 next_tick,
                 minimum
                 - _reachable_energy(
-                    production_capacity, event_time, next_tick, resolution
+                    production_capacity,
+                    event_time,
+                    next_tick,
+                    resolution,
+                    efficiency=discharging_efficiency,
+                    efficiency_affects_stock="divide",
                 ),
             )
 
@@ -280,7 +349,12 @@ def project_off_tick_soc_constraints(
                 previous_tick,
                 maximum
                 + _reachable_energy(
-                    production_capacity, previous_tick, event_time, resolution
+                    production_capacity,
+                    previous_tick,
+                    event_time,
+                    resolution,
+                    efficiency=discharging_efficiency,
+                    efficiency_affects_stock="divide",
                 ),
             )
             add_max_bound(
@@ -288,7 +362,12 @@ def project_off_tick_soc_constraints(
                 next_tick,
                 maximum
                 + _reachable_energy(
-                    consumption_capacity, event_time, next_tick, resolution
+                    consumption_capacity,
+                    event_time,
+                    next_tick,
+                    resolution,
+                    efficiency=charging_efficiency,
+                    efficiency_affects_stock="multiply",
                 ),
             )
 
