@@ -147,6 +147,13 @@ class MetaStorageScheduler(Scheduler):
         self.stock_models = inventory.stock_entries
         # The stock groups' device indices align with the device models
         self.stock_groups = inventory.stock_groups
+        # Soft SoC constraints are attached to their stock (see StockCommitment.stock),
+        # so the solver couples them to the stock group rather than to a device index.
+        device_stock_key = {
+            d: stock_key
+            for stock_key, group_devices in self.stock_groups.items()
+            for d in group_devices
+        }
 
         # List the asset(s) and sensor(s) being scheduled
         sensors: list[Sensor | None] = inventory.power_sensors
@@ -676,6 +683,7 @@ class MetaStorageScheduler(Scheduler):
                     downwards_deviation_price=-penalty,
                     index=index,
                     device=d,
+                    stock=device_stock_key.get(d),
                 )
                 commitments.append(commitment)
 
@@ -771,6 +779,7 @@ class MetaStorageScheduler(Scheduler):
                     index=index,
                     _type="any",
                     device=d,
+                    stock=device_stock_key.get(d),
                 )
                 commitments.append(commitment)
 
@@ -781,6 +790,7 @@ class MetaStorageScheduler(Scheduler):
                     downwards_deviation_price=-all_soc_minima_breach_price,
                     index=index,
                     device=d,
+                    stock=device_stock_key.get(d),
                 )
                 commitments.append(commitment)
 
@@ -845,6 +855,7 @@ class MetaStorageScheduler(Scheduler):
                     index=index,
                     _type="any",
                     device=d,
+                    stock=device_stock_key.get(d),
                 )
                 commitments.append(commitment)
 
@@ -855,6 +866,7 @@ class MetaStorageScheduler(Scheduler):
                     upwards_deviation_price=all_soc_maxima_breach_price,
                     index=index,
                     device=d,
+                    stock=device_stock_key.get(d),
                 )
                 commitments.append(commitment)
 

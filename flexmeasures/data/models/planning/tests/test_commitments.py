@@ -1915,3 +1915,73 @@ def test_shared_stock_storage_efficiency_defined_twice_fails(db):
     )
     with pytest.raises(ValueError, match="define it on a single entry"):
         scheduler._prepare(skip_validation=True)
+
+
+@pytest.mark.parametrize("named_device", [0, 1])
+def test_stock_scoped_commitment_binds_group_stock(named_device):
+    """A stock-scoped StockCommitment binds its stock group as a whole,
+    regardless of which member device index it names."""
+    start = pd.Timestamp("2026-01-01T00:00+01")
+    end = pd.Timestamp("2026-01-01T04:00+01")
+    resolution = pd.Timedelta("PT1H")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    device_constraints = [
+        pd.DataFrame(
+            {
+                "min": 0.0,
+                "max": 100.0,
+                "equals": np.nan,
+                "derivative min": 0.0,
+                "derivative max": 10.0,
+                "derivative equals": np.nan,
+                "derivative down efficiency": 1.0,
+                "derivative up efficiency": 1.0,
+            },
+            index=index,
+        )
+        for _ in range(2)
+    ]
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -100, "derivative max": 100}, index=index
+    )
+
+    # Require the shared stock to hold 20 units at the end of the horizon.
+    min_stock = pd.Series(0.0, index=index)
+    min_stock.iloc[-1] = 20.0
+
+    commitments = [
+        StockCommitment(
+            name="soc minimum",
+            index=index,
+            quantity=min_stock,
+            downwards_deviation_price=-1000,
+            device=named_device,
+            stock=7,
+        ),
+    ] + [
+        FlowCommitment(
+            name=f"energy device {d}",
+            index=index,
+            quantity=0,
+            upwards_deviation_price=10,
+            downwards_deviation_price=10,
+            device=pd.Series(d, index=index),
+        )
+        for d in (0, 1)
+    ]
+
+    planned_power, planned_costs, results, model = device_scheduler(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitments=commitments,
+        initial_stock=0,
+        stock_groups={7: [0, 1]},
+    )
+
+    assert results.solver.termination_condition == "optimal"
+    # Charging just enough to meet the stock minimum beats paying the breach price,
+    # so the group's total stock change reaches exactly 20 - no matter whether the
+    # commitment named the group's first or second device.
+    total_energy = sum(schedule.sum() for schedule in planned_power)
+    np.testing.assert_allclose(total_energy, 20.0, atol=1e-6)

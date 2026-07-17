@@ -153,9 +153,15 @@ def device_scheduler(  # noqa C901
     # storage efficiency, so devices sharing a stock may not declare different ones.
     for g, group_devices in group_to_devices.items():
         if len(group_devices) > 1:
-            group_efficiency = device_constraints[group_devices[0]]["efficiency"]
+            # A missing efficiency column means the default (no losses) applies.
+            group_efficiency = device_constraints[group_devices[0]].get("efficiency")
             for d in group_devices[1:]:
-                if not device_constraints[d]["efficiency"].equals(group_efficiency):
+                efficiency = device_constraints[d].get("efficiency")
+                if (
+                    (efficiency is None) != (group_efficiency is None)
+                    or efficiency is not None
+                    and not efficiency.equals(group_efficiency)
+                ):
                     raise ValueError(
                         f"Devices {group_devices} share stock group {g} but have different"
                         " storage efficiencies. The storage efficiency is a property of the"
@@ -297,6 +303,18 @@ def device_scheduler(  # noqa C901
     device_group_lookup = {}
 
     for c, df in enumerate(commitments):
+        # Stock-scoped commitments couple to their stock group as a whole, regardless
+        # of which device index they name: the group's first device carries the group's
+        # stock, so a single-member group suffices (also avoiding double-counting the
+        # shared stock when the commitment names multiple members).
+        if "stock" in df.columns and pd.notna(df["stock"].iloc[0]):
+            stock_group_key = f"stock:{int(df['stock'].iloc[0])}"
+            if stock_group_key in group_to_devices:
+                device_group_lookup[c] = {
+                    stock_group_key: {group_to_devices[stock_group_key][0]}
+                }
+                continue
+
         if "device" not in df.columns:
             # EMS-level commitment: no device grouping needed here;
             # handled by ems_flow_commitment_equalities.
