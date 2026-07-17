@@ -811,70 +811,6 @@ class MetaStorageScheduler(Scheduler):
                     as_instantaneous_events=True,
                     resolve_overlaps="max",
                 )
-            if (
-                self.flex_context.get("soc_minima_breach_price") is not None
-                and soc_minima[d] is not None
-            ):
-                soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
-                any_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_minima_breach_price,
-                    unit=self.flex_context["shared_currency_unit"] + "/MWh",
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
-                all_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_minima_breach_price,
-                    unit=self.flex_context["shared_currency_unit"]
-                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
-                # Set up commitments DataFrame
-                # soc_minima_d is a temp variable because add_storage_constraints can't deal with Series yet
-                soc_minima_d = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_minima[d],
-                    unit="MWh",
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    as_instantaneous_events=True,
-                    resolve_overlaps="max",
-                )
-                # shift soc minima by one resolution (they define a state at a certain time,
-                # while the commitment defines what the total stock should be at the end of a time slot,
-                # where the time slot is indexed by its starting time)
-                soc_minima_d = soc_minima_d.shift(-1, freq=resolution) * (
-                    timedelta(hours=1) / resolution
-                ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
-
-                commitment = StockCommitment(
-                    name="any soc minima",
-                    quantity=soc_minima_d,
-                    # negative price because breaching in the downwards (shortage) direction is penalized
-                    downwards_deviation_price=-any_soc_minima_breach_price,
-                    index=index,
-                    _type="any",
-                    device=d,
-                )
-                commitments.append(commitment)
-
-                commitment = StockCommitment(
-                    name="all soc minima",
-                    quantity=soc_minima_d,
-                    # negative price because breaching in the downwards (shortage) direction is penalized
-                    downwards_deviation_price=-all_soc_minima_breach_price,
-                    index=index,
-                    device=d,
-                )
-                commitments.append(commitment)
-
-                # soc-minima will become a soft constraint (modelled as stock commitments), so remove hard constraint
-                soc_minima[d] = None
-
             if isinstance(soc_maxima[d], (Sensor, SensorReference)):
                 soc_maxima[d] = get_continuous_series_sensor_or_quantity(
                     variable_quantity=soc_maxima[d],
@@ -885,69 +821,6 @@ class MetaStorageScheduler(Scheduler):
                     as_instantaneous_events=True,
                     resolve_overlaps="min",
                 )
-            if (
-                self.flex_context.get("soc_maxima_breach_price") is not None
-                and soc_maxima[d] is not None
-            ):
-                soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
-                any_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_maxima_breach_price,
-                    unit=self.flex_context["shared_currency_unit"] + "/MWh",
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
-                all_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_maxima_breach_price,
-                    unit=self.flex_context["shared_currency_unit"]
-                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    fill_sides=True,
-                ).shift(-1, freq=resolution)
-                # Set up commitments DataFrame
-                # soc_maxima_d is a temp variable because add_storage_constraints can't deal with Series yet
-                soc_maxima_d = get_continuous_series_sensor_or_quantity(
-                    variable_quantity=soc_maxima[d],
-                    unit="MWh",
-                    query_window=(start + resolution, end + resolution),
-                    resolution=resolution,
-                    beliefs_before=belief_time,
-                    as_instantaneous_events=True,
-                    resolve_overlaps="min",
-                )
-                # shift soc maxima by one resolution (they define a state at a certain time,
-                # while the commitment defines what the total stock should be at the end of a time slot,
-                # where the time slot is indexed by its starting time)
-                soc_maxima_d = soc_maxima_d.shift(-1, freq=resolution) * (
-                    timedelta(hours=1) / resolution
-                ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
-
-                commitment = StockCommitment(
-                    name="any soc maxima",
-                    quantity=soc_maxima_d,
-                    # positive price because breaching in the upwards (surplus) direction is penalized
-                    upwards_deviation_price=any_soc_maxima_breach_price,
-                    index=index,
-                    _type="any",
-                    device=d,
-                )
-                commitments.append(commitment)
-
-                commitment = StockCommitment(
-                    name="all soc maxima",
-                    quantity=soc_maxima_d,
-                    # positive price because breaching in the upwards (surplus) direction is penalized
-                    upwards_deviation_price=all_soc_maxima_breach_price,
-                    index=index,
-                    device=d,
-                )
-                commitments.append(commitment)
-
-                # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
-                soc_maxima[d] = None
 
             power_capacity_in_mw[d] = get_continuous_series_sensor_or_quantity(
                 variable_quantity=power_capacity_in_mw[d],
@@ -1102,6 +975,153 @@ class MetaStorageScheduler(Scheduler):
                     # consumption-capacity will become a hard constraint
                     device_constraints[d]["derivative max"] = consumption_capacity_d
 
+            # Project off-tick point-like SoC constraints onto the scheduling ticks
+            # before they are turned into soft commitments or hard constraints,
+            # so that both paths consume on-tick events.
+            if should_project_off_tick_soc_constraints(sensor_d):
+                (
+                    soc_targets[d],
+                    soc_maxima[d],
+                    soc_minima[d],
+                ) = project_off_tick_soc_constraints(
+                    soc_targets[d],
+                    soc_maxima[d],
+                    soc_minima[d],
+                    consumption_capacity_d,
+                    production_capacity_d,
+                    resolution,
+                    soc_min[d],
+                    soc_max[d],
+                )
+
+            if (
+                self.flex_context.get("soc_minima_breach_price") is not None
+                and soc_minima[d] is not None
+            ):
+                soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
+                any_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima_breach_price,
+                    unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                all_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima_breach_price,
+                    unit=self.flex_context["shared_currency_unit"]
+                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                # Set up commitments DataFrame
+                # soc_minima_d is a temp variable because add_storage_constraints can't deal with Series yet
+                soc_minima_d = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_minima[d],
+                    unit="MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="max",
+                )
+                # shift soc minima by one resolution (they define a state at a certain time,
+                # while the commitment defines what the total stock should be at the end of a time slot,
+                # where the time slot is indexed by its starting time)
+                soc_minima_d = soc_minima_d.shift(-1, freq=resolution) * (
+                    timedelta(hours=1) / resolution
+                ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
+
+                commitment = StockCommitment(
+                    name="any soc minima",
+                    quantity=soc_minima_d,
+                    # negative price because breaching in the downwards (shortage) direction is penalized
+                    downwards_deviation_price=-any_soc_minima_breach_price,
+                    index=index,
+                    _type="any",
+                    device=d,
+                )
+                commitments.append(commitment)
+
+                commitment = StockCommitment(
+                    name="all soc minima",
+                    quantity=soc_minima_d,
+                    # negative price because breaching in the downwards (shortage) direction is penalized
+                    downwards_deviation_price=-all_soc_minima_breach_price,
+                    index=index,
+                    device=d,
+                )
+                commitments.append(commitment)
+
+                # soc-minima will become a soft constraint (modelled as stock commitments), so remove hard constraint
+                soc_minima[d] = None
+
+            if (
+                self.flex_context.get("soc_maxima_breach_price") is not None
+                and soc_maxima[d] is not None
+            ):
+                soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
+                any_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_breach_price,
+                    unit=self.flex_context["shared_currency_unit"] + "/MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                all_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima_breach_price,
+                    unit=self.flex_context["shared_currency_unit"]
+                    + "/MWh*h",  # from EUR/MWh² to EUR/MWh/resolution
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    fill_sides=True,
+                ).shift(-1, freq=resolution)
+                # Set up commitments DataFrame
+                # soc_maxima_d is a temp variable because add_storage_constraints can't deal with Series yet
+                soc_maxima_d = get_continuous_series_sensor_or_quantity(
+                    variable_quantity=soc_maxima[d],
+                    unit="MWh",
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                    as_instantaneous_events=True,
+                    resolve_overlaps="min",
+                )
+                # shift soc maxima by one resolution (they define a state at a certain time,
+                # while the commitment defines what the total stock should be at the end of a time slot,
+                # where the time slot is indexed by its starting time)
+                soc_maxima_d = soc_maxima_d.shift(-1, freq=resolution) * (
+                    timedelta(hours=1) / resolution
+                ) - soc_at_start[d] * (timedelta(hours=1) / resolution)
+
+                commitment = StockCommitment(
+                    name="any soc maxima",
+                    quantity=soc_maxima_d,
+                    # positive price because breaching in the upwards (surplus) direction is penalized
+                    upwards_deviation_price=any_soc_maxima_breach_price,
+                    index=index,
+                    _type="any",
+                    device=d,
+                )
+                commitments.append(commitment)
+
+                commitment = StockCommitment(
+                    name="all soc maxima",
+                    quantity=soc_maxima_d,
+                    # positive price because breaching in the upwards (surplus) direction is penalized
+                    upwards_deviation_price=all_soc_maxima_breach_price,
+                    index=index,
+                    device=d,
+                )
+                commitments.append(commitment)
+
+                # soc-maxima will become a soft constraint (modelled as stock commitments), so remove hard constraint
+                soc_maxima[d] = None
+
             # only apply SOC constraints to the first device of a shared stock
             apply_soc_constraints = True
             for stock_id, devices in self.stock_groups.items():
@@ -1110,22 +1130,6 @@ class MetaStorageScheduler(Scheduler):
                     break
 
             if soc_at_start[d] is not None and apply_soc_constraints:
-                if should_project_off_tick_soc_constraints(sensor_d):
-                    (
-                        soc_targets[d],
-                        soc_maxima[d],
-                        soc_minima[d],
-                    ) = project_off_tick_soc_constraints(
-                        soc_targets[d],
-                        soc_maxima[d],
-                        soc_minima[d],
-                        consumption_capacity_d,
-                        production_capacity_d,
-                        resolution,
-                        soc_min[d],
-                        soc_max[d],
-                    )
-
                 storage_constraints = add_storage_constraints(
                     start,
                     end,
