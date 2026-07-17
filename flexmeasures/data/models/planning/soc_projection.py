@@ -22,6 +22,20 @@ SocCapacityPeriod = Literal["before", "after"]
 
 @dataclass(frozen=True)
 class SocProjectionRule:
+    """One projection rule for an off-tick SoC event.
+
+    Each rule creates a single projected bound:
+
+    - ``bound_type``: whether the projected bound is a lower ("min") or upper ("max") bound.
+    - ``tick``: whether the bound lands on the scheduling tick just before or just after the event.
+    - ``capacity``: which device capacity limits how fast the SoC can move towards or away from
+      the event value ("consumption" for charging, "production" for discharging).
+    - ``period``: over which period that capacity applies: from the previous tick up to the
+      event time ("before"), or from the event time up to the next tick ("after").
+    - ``sign``: -1 to lower the event value by the reachable energy (loosening a lower bound),
+      +1 to raise it (loosening an upper bound).
+    """
+
     bound_type: SocBoundType
     tick: SocProjectionTick
     capacity: SocCapacityType
@@ -29,6 +43,10 @@ class SocProjectionRule:
     sign: int
 
 
+#: How each type of off-tick point-like SoC constraint is projected onto the
+#: surrounding scheduling ticks (see :class:`SocProjectionRule`).
+#: Off-tick ``soc-targets`` additionally become an exact target on the next tick,
+#: which is handled directly in :func:`project_off_tick_soc_constraints`.
 SOC_PROJECTION_POLICIES = {
     "soc-targets": (
         SocProjectionRule("min", "previous", "consumption", "before", -1),
@@ -46,22 +64,26 @@ SOC_PROJECTION_POLICIES = {
 
 
 def _soc_value_in_mwh(value: ur.Quantity | float | int) -> float:
+    """Return the SoC value as a plain float in MWh."""
     if isinstance(value, ur.Quantity):
         return value.to("MWh").magnitude
     return float(value)
 
 
 def _optional_soc_value_in_mwh(value: ur.Quantity | float | int | None) -> float | None:
+    """Return the SoC value as a plain float in MWh, passing through None."""
     if value is None:
         return None
     return _soc_value_in_mwh(value)
 
 
 def _clamp_soc_min(value: float, soc_min: float | None) -> float:
+    """Raise a projected lower bound to the storage's global soc-min, if defined."""
     return value if soc_min is None else max(soc_min, value)
 
 
 def _clamp_soc_max(value: float, soc_max: float | None) -> float:
+    """Lower a projected upper bound to the storage's global soc-max, if defined."""
     return value if soc_max is None else min(soc_max, value)
 
 
@@ -70,6 +92,11 @@ def _soc_event_at(
     dt: pd.Timestamp,
     value: float,
 ) -> dict[str, datetime | float]:
+    """Return a copy of a point-like SoC event, moved to the given tick with the given value.
+
+    All timing fields are set to the tick (any 'duration' is dropped), so the result
+    remains a point-like (instantaneous) event.
+    """
     shifted_event = copy.copy(soc_event)
     shifted_event["value"] = value
     shifted_event["start"] = dt.to_pydatetime()
@@ -86,6 +113,13 @@ def _energy_capacity_between(
     end: pd.Timestamp,
     resolution: timedelta,
 ) -> float:
+    """Compute how much energy (in MWh) the device can move between two times.
+
+    Integrates the given power capacity series (in MW, indexed by tick start at the
+    given resolution) over the period from ``start`` to ``end``, weighing partial
+    tick overlaps. Missing capacity values count as zero (conservative: the
+    projected bound then sticks close to the original event value).
+    """
     if end <= start:
         return 0
 
@@ -113,6 +147,7 @@ def _tick_for_projection_rule(
     previous_tick: pd.Timestamp,
     next_tick: pd.Timestamp,
 ) -> pd.Timestamp:
+    """Return the scheduling tick on which the rule's projected bound lands."""
     return previous_tick if rule.tick == "previous" else next_tick
 
 
@@ -121,6 +156,7 @@ def _capacity_for_projection_rule(
     consumption_capacity: pd.Series,
     production_capacity: pd.Series,
 ) -> pd.Series:
+    """Return the capacity series that limits SoC movement for this rule."""
     return (
         consumption_capacity if rule.capacity == "consumption" else production_capacity
     )
@@ -132,6 +168,7 @@ def _capacity_period_for_projection_rule(
     event_time: pd.Timestamp,
     next_tick: pd.Timestamp,
 ) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """Return the period over which the rule's capacity applies."""
     if rule.period == "before":
         return previous_tick, event_time
     return event_time, next_tick
@@ -143,6 +180,7 @@ def _clamp_projected_soc_value(
     soc_min: float | None,
     soc_max: float | None,
 ) -> float:
+    """Clamp a projected bound to the storage's global soc-min/soc-max limits."""
     if rule.bound_type == "min":
         return _clamp_soc_min(value, soc_min)
     return _clamp_soc_max(value, soc_max)
@@ -162,6 +200,13 @@ def _add_projected_soc_bound(
     soc_min: float | None,
     soc_max: float | None,
 ) -> None:
+    """Apply one projection rule to one off-tick SoC event.
+
+    Computes the capacity-adjusted bound value (event value +/- the energy the
+    device can move over the rule's capacity period), clamps it to the global SoC
+    limits, and merges it into the projected minima or maxima (keeping the
+    stricter bound if one already exists on the same tick).
+    """
     capacity_start, capacity_end = _capacity_period_for_projection_rule(
         rule, previous_tick, event_time, next_tick
     )
@@ -190,6 +235,11 @@ def _add_soc_bound(
     soc_event: dict[str, datetime | float],
     bound_type: str,
 ) -> None:
+    """Add a SoC bound to a list of timed events, merging bounds on the same period.
+
+    If an event with the same start and end already exists, the stricter bound wins:
+    the maximum of two lower bounds, or the minimum of two upper bounds.
+    """
     for existing_event in soc_events:
         if existing_event.get("start") == soc_event.get("start") and existing_event.get(
             "end"
@@ -211,6 +261,11 @@ def _projected_soc_events_or_original(
     ),
     projected_soc_events: list[dict[str, datetime | float]],
 ) -> list[dict[str, datetime | float]] | pd.Series | Sensor | ur.Quantity | None:
+    """Choose between the projected event list and the original specification.
+
+    Only list-based (or missing) specifications can absorb projected bounds;
+    sensors, series and fixed quantities are returned unchanged.
+    """
     if isinstance(original_soc_events, list):
         return projected_soc_events
     if original_soc_events is None and projected_soc_events:
