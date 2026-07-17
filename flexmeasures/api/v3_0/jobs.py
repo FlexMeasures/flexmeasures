@@ -13,6 +13,7 @@ from marshmallow import fields
 
 from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
 from flexmeasures.auth.policy import check_access
+from flexmeasures.api.common.responses import deprecated_response_fields_headers
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.utils import get_asset_or_sensor_from_ref
@@ -53,29 +54,6 @@ def _job_queue_unavailable_response():
         ),
         503,
     )
-
-
-JOB_STATUS_DEPRECATED_FIELDS = {
-    "func_name": "func-name",
-    "enqueued_at": "enqueued-at",
-    "started_at": "started-at",
-    "ended_at": "ended-at",
-    "exc_info": "exc-info",
-}
-
-
-def _job_status_deprecated_fields() -> dict[str, dict[str, str]]:
-    return {
-        legacy_key: {
-            "use": canonical_key,
-            "deprecated-since": "1.0.0",
-            "note": (
-                f"The '{legacy_key}' response field is deprecated; "
-                f"use '{canonical_key}' instead."
-            ),
-        }
-        for legacy_key, canonical_key in JOB_STATUS_DEPRECATED_FIELDS.items()
-    }
 
 
 class JobAPI(FlaskView):
@@ -135,6 +113,17 @@ class JobAPI(FlaskView):
           responses:
             200:
               description: Finished job status retrieved successfully.
+              headers:
+                Deprecation:
+                  description: Indicates that the response contains deprecated fields.
+                  schema:
+                    type: string
+                    example: "true"
+                Link:
+                  description: Link to migration guidance for deprecated response fields.
+                  schema:
+                    type: string
+                    example: '<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel="deprecation"; type="text/html"'
               content:
                 application/json:
                   schema:
@@ -219,9 +208,6 @@ class JobAPI(FlaskView):
                         nullable: true
                         deprecated: true
                         description: (DEPRECATED) Traceback information for failed jobs, or null otherwise. Use `exc-info` instead.
-                      deprecated-fields:
-                        type: object
-                        description: Machine-readable mapping of deprecated fields with migration guidance.
                   examples:
                     queued:
                       summary: Queued job
@@ -240,22 +226,6 @@ class JobAPI(FlaskView):
                         started_at: null
                         ended_at: null
                         exc_info: null
-                        deprecated-fields:
-                          func_name:
-                            use: "func-name"
-                            deprecated-since: "1.0.0"
-                          enqueued_at:
-                            use: "enqueued-at"
-                            deprecated-since: "1.0.0"
-                          started_at:
-                            use: "started-at"
-                            deprecated-since: "1.0.0"
-                          ended_at:
-                            use: "ended-at"
-                            deprecated-since: "1.0.0"
-                          exc_info:
-                            use: "exc-info"
-                            deprecated-since: "1.0.0"
                     finished:
                       summary: Finished job
                       value:
@@ -291,8 +261,30 @@ class JobAPI(FlaskView):
                         exc-info: "Traceback (most recent call last): ..."
             202:
               description: Job is still queued, scheduled, deferred, or running.
+              headers:
+                Deprecation:
+                  description: Indicates that the response contains deprecated fields.
+                  schema:
+                    type: string
+                    example: "true"
+                Link:
+                  description: Link to migration guidance for deprecated response fields.
+                  schema:
+                    type: string
+                    example: '<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel="deprecation"; type="text/html"'
             422:
               description: Job has failed.
+              headers:
+                Deprecation:
+                  description: Indicates that the response contains deprecated fields.
+                  schema:
+                    type: string
+                    example: "true"
+                Link:
+                  description: Link to migration guidance for deprecated response fields.
+                  schema:
+                    type: string
+                    example: '<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel="deprecation"; type="text/html"'
             404:
               description: NOT_FOUND
             401:
@@ -354,7 +346,6 @@ class JobAPI(FlaskView):
         response["started_at"] = response["started-at"]
         response["ended_at"] = response["ended-at"]
         response["exc_info"] = response["exc-info"]
-        response["deprecated-fields"] = _job_status_deprecated_fields()
 
         if status_name == JobStatus.FAILED.name:
             status_code = 422
@@ -363,4 +354,4 @@ class JobAPI(FlaskView):
         else:
             status_code = 202
 
-        return response, status_code
+        return response, status_code, deprecated_response_fields_headers()

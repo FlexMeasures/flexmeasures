@@ -297,8 +297,10 @@ def test_trigger_and_get_schedule_with_unknown_prices(
         json=message,
     )
     print("Server responded with:\n%s" % trigger_schedule_response.json)
-    check_deprecation(trigger_schedule_response, deprecation=None, sunset=None)
     assert trigger_schedule_response.status_code == 202
+    assert trigger_schedule_response.headers["Deprecation"] == "true"
+    assert 'rel="deprecation"' in trigger_schedule_response.headers["Link"]
+    assert "background-job-monitoring" in trigger_schedule_response.headers["Link"]
     job_id = trigger_schedule_response.json["schedule"]
 
     # look for scheduling jobs in queue

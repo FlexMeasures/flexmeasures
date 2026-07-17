@@ -1389,6 +1389,22 @@
         "responses": {
           "202": {
             "description": "ACCEPTED (Forecasting job queued for processing)",
+            "headers": {
+              "Deprecation": {
+                "description": "Indicates that the response contains deprecated fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "true"
+                }
+              },
+              "Link": {
+                "description": "Link to migration guidance for deprecated response fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1419,11 +1435,8 @@
                     },
                     "forecast": {
                       "type": "string",
+                      "deprecated": true,
                       "description": "(DEPRECATED) UUID of the queued forecasting job. Use `job` instead."
-                    },
-                    "deprecated-fields": {
-                      "type": "object",
-                      "description": "Machine-readable mapping of deprecated fields with migration guidance."
                     }
                   }
                 },
@@ -1433,14 +1446,7 @@
                   "message": "Forecasting job has been queued.",
                   "job-url": "/api/v3_0/jobs/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
                   "results-url": "/api/v3_0/sensors/3/forecasts/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
-                  "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
-                  "deprecated-fields": {
-                    "forecast": {
-                      "use": "job",
-                      "deprecated-since": "1.0.0",
-                      "note": "The 'forecast' response field is deprecated; use 'job' instead"
-                    }
-                  }
+                  "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
                 }
               }
             }
@@ -1567,6 +1573,22 @@
         "responses": {
           "202": {
             "description": "ACCEPTED (Scheduling job queued for processing)",
+            "headers": {
+              "Deprecation": {
+                "description": "Indicates that the response contains deprecated fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "true"
+                }
+              },
+              "Link": {
+                "description": "Link to migration guidance for deprecated response fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1597,32 +1619,22 @@
                     },
                     "schedule": {
                       "type": "string",
+                      "deprecated": true,
                       "description": "(DEPRECATED) UUID of the queued scheduling job. Use `job` instead."
-                    },
-                    "deprecated-fields": {
-                      "type": "object",
-                      "description": "Machine-readable mapping of deprecated fields with migration guidance."
                     }
                   }
                 },
                 "examples": {
                   "schedule_created": {
                     "summary": "Schedule response",
-                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job` field.\nFor backward-compatibility, the legacy `schedule` field is also included but is deprecated;\nuse `job` instead. The `deprecated-fields` object provides migration guidance.\nThe given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.\n",
+                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job` field.\nFor backward-compatibility, the legacy `schedule` field is also included but is deprecated;\nuse `job` instead.\nThe given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.\n",
                     "value": {
                       "status": "ACCEPTED",
                       "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "results-url": "/api/v3_0/sensors/3/schedules/364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                      "message": "Request has been accepted for processing.",
-                      "deprecated-fields": {
-                        "schedule": {
-                          "use": "job",
-                          "deprecated-since": "1.0.0",
-                          "note": "The 'schedule' response field is deprecated; use 'job'"
-                        }
-                      }
+                      "message": "Request has been accepted for processing."
                     }
                   }
                 }
@@ -4148,6 +4160,22 @@
         "responses": {
           "202": {
             "description": "ACCEPTED (Scheduling job queued for processing)",
+            "headers": {
+              "Deprecation": {
+                "description": "Indicates that the response contains deprecated fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "true"
+                }
+              },
+              "Link": {
+                "description": "Link to migration guidance for deprecated response fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4155,20 +4183,13 @@
                 },
                 "examples": {
                   "successful_response": {
-                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job` field.\nFor backward-compatibility, the legacy `schedule` field is also included but is deprecated;\nuse `job` instead. The `deprecated-fields` object provides migration guidance.\nThe given UUID may be used to obtain the resulting schedule for each flexible device via [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
+                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job` field.\nFor backward-compatibility, the legacy `schedule` field is also included but is deprecated;\nuse `job` instead.\nThe given UUID may be used to obtain the resulting schedule for each flexible device via [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
                     "value": {
                       "status": "ACCEPTED",
                       "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                      "message": "Request has been accepted for processing.",
-                      "deprecated-fields": {
-                        "schedule": {
-                          "use": "job",
-                          "deprecated-since": "1.0.0",
-                          "note": "The 'schedule' response field is deprecated; use 'job'"
-                        }
-                      }
+                      "message": "Request has been accepted for processing."
                     }
                   }
                 }
@@ -4405,6 +4426,22 @@
         "responses": {
           "200": {
             "description": "Finished job status retrieved successfully.",
+            "headers": {
+              "Deprecation": {
+                "description": "Indicates that the response contains deprecated fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "true"
+                }
+              },
+              "Link": {
+                "description": "Link to migration guidance for deprecated response fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4494,10 +4531,6 @@
                       "nullable": true,
                       "deprecated": true,
                       "description": "(DEPRECATED) Traceback information for failed jobs, or null otherwise. Use `exc-info` instead."
-                    },
-                    "deprecated-fields": {
-                      "type": "object",
-                      "description": "Machine-readable mapping of deprecated fields with migration guidance."
                     }
                   }
                 },
@@ -4518,29 +4551,7 @@
                       "enqueued_at": "2026-04-28T10:00:00+00:00",
                       "started_at": null,
                       "ended_at": null,
-                      "exc_info": null,
-                      "deprecated-fields": {
-                        "func_name": {
-                          "use": "func-name",
-                          "deprecated-since": "1.0.0"
-                        },
-                        "enqueued_at": {
-                          "use": "enqueued-at",
-                          "deprecated-since": "1.0.0"
-                        },
-                        "started_at": {
-                          "use": "started-at",
-                          "deprecated-since": "1.0.0"
-                        },
-                        "ended_at": {
-                          "use": "ended-at",
-                          "deprecated-since": "1.0.0"
-                        },
-                        "exc_info": {
-                          "use": "exc-info",
-                          "deprecated-since": "1.0.0"
-                        }
-                      }
+                      "exc_info": null
                     }
                   },
                   "finished": {
@@ -4594,10 +4605,42 @@
             }
           },
           "202": {
-            "description": "Job is still queued, scheduled, deferred, or running."
+            "description": "Job is still queued, scheduled, deferred, or running.",
+            "headers": {
+              "Deprecation": {
+                "description": "Indicates that the response contains deprecated fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "true"
+                }
+              },
+              "Link": {
+                "description": "Link to migration guidance for deprecated response fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              }
+            }
           },
           "422": {
-            "description": "Job has failed."
+            "description": "Job has failed.",
+            "headers": {
+              "Deprecation": {
+                "description": "Indicates that the response contains deprecated fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "true"
+                }
+              },
+              "Link": {
+                "description": "Link to migration guidance for deprecated response fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              }
+            }
           },
           "404": {
             "description": "NOT_FOUND"

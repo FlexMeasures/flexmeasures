@@ -1489,6 +1489,17 @@ class AssetAPI(FlaskView):
           responses:
               202:
                 description: ACCEPTED (Scheduling job queued for processing)
+                headers:
+                  Deprecation:
+                    description: Indicates that the response contains deprecated fields.
+                    schema:
+                      type: string
+                      example: "true"
+                  Link:
+                    description: Link to migration guidance for deprecated response fields.
+                    schema:
+                      type: string
+                      example: '<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel="deprecation"; type="text/html"'
                 content:
                   application/json:
                     schema:
@@ -1501,7 +1512,7 @@ class AssetAPI(FlaskView):
                           which will be picked up by a worker.
                           The given UUID is returned in the canonical `job` field.
                           For backward-compatibility, the legacy `schedule` field is also included but is deprecated;
-                          use `job` instead. The `deprecated-fields` object provides migration guidance.
+                          use `job` instead.
                           The given UUID may be used to obtain the resulting schedule for each flexible device via [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
                         value:
                           status: ACCEPTED
@@ -1509,11 +1520,6 @@ class AssetAPI(FlaskView):
                           schedule: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
                           job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
                           message: "Request has been accepted for processing."
-                          deprecated-fields:
-                            schedule:
-                              use: "job"
-                              deprecated-since: "1.0.0"
-                              note: "The 'schedule' response field is deprecated; use 'job'"
               400:
                 description: INVALID_DATA
               401:
@@ -1555,10 +1561,7 @@ class AssetAPI(FlaskView):
             return unprocessable_entity(str(err))
 
         # Keep legacy `schedule` key for backward compatibility; prefer `job`.
-        d, s = request_accepted_for_processing(
-            job.id, legacy_key="schedule", deprecated_since="1.0.0"
-        )
-        return d, s
+        return request_accepted_for_processing(job.id, legacy_key="schedule")
 
     @route("/<id>/kpis", methods=["GET"])
     @use_kwargs(

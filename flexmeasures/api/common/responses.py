@@ -6,7 +6,6 @@ from functools import wraps
 from flask import url_for
 
 from flexmeasures.auth.error_handling import FORBIDDEN_MSG, FORBIDDEN_STATUS_CODE
-from flexmeasures.utils.time_utils import server_now
 
 p = inflect.engine()
 
@@ -15,15 +14,31 @@ p = inflect.engine()
 ResponseTuple = tuple[dict, int] | tuple[dict, int, dict]
 
 
+DEPRECATED_RESPONSE_FIELDS_LINK = (
+    "https://flexmeasures.readthedocs.io/en/latest/api/"
+    "introduction.html#background-job-monitoring"
+)
+
+
+def deprecated_response_fields_headers() -> dict[str, str]:
+    """Headers used when a response contains deprecated fields."""
+    return {
+        "Deprecation": "true",
+        "Link": f'<{DEPRECATED_RESPONSE_FIELDS_LINK}>; rel="deprecation"; type="text/html"',
+    }
+
+
 def is_response_tuple(value) -> bool:
     """Check if an object qualifies as a ResponseTuple"""
     if not isinstance(value, tuple):
         return False
-    if not len(value) == 2:
+    if len(value) not in (2, 3):
         return False
     if not isinstance(value[0], dict):
         return False
     if not isinstance(value[1], int):
+        return False
+    if len(value) == 3 and not isinstance(value[2], dict):
         return False
     return True
 
@@ -385,7 +400,6 @@ def request_accepted_for_processing(
     job_id: str,
     message: str = "Request has been accepted for processing.",
     legacy_key: str | None = None,
-    deprecated_since: str | None = None,
     job_results_url: str | None = None,
 ) -> ResponseTuple:
     """
@@ -393,8 +407,7 @@ def request_accepted_for_processing(
 
     Optional backwards-compatibility: if `legacy_key` is provided the response
     will include the job id under that legacy key (e.g. `schedule` or
-    `forecast`). The response will also include a `deprecated-fields` object
-    with guidance for migrating to `job`.
+    `forecast`) and response headers marking the field deprecation.
 
     Optional `job_results_url` may be supplied to provide a direct link to the
     sensor-specific job results endpoint, e.g. `/api/v3_0/sensors/<id>/schedules/<uuid>`.
@@ -411,14 +424,7 @@ def request_accepted_for_processing(
     if legacy_key:
         # keep legacy key for backwards compatibility
         resp[legacy_key] = job_id
-        # include machine-readable deprecation info so clients can detect it
-        resp["deprecated-fields"] = {
-            legacy_key: {
-                "use": "job",
-                "deprecated-since": deprecated_since or server_now().date().isoformat(),
-                "note": f"The '{legacy_key}' response field is deprecated; use 'job'",
-            }
-        }
+        return resp, 202, deprecated_response_fields_headers()
 
     return resp, 202
 

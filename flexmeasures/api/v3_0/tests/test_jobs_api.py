@@ -31,11 +31,15 @@ JOB_STATUS_DEPRECATED_FIELDS = {
 
 
 def assert_legacy_job_status_fields(data: dict):
-    assert data["deprecated-fields"].keys() >= JOB_STATUS_DEPRECATED_FIELDS.keys()
     for legacy_key, canonical_key in JOB_STATUS_DEPRECATED_FIELDS.items():
         assert data[legacy_key] == data[canonical_key]
-        assert data["deprecated-fields"][legacy_key]["use"] == canonical_key
-        assert data["deprecated-fields"][legacy_key]["deprecated-since"] == "1.0.0"
+    assert "deprecated-fields" not in data
+
+
+def assert_deprecated_response_fields_headers(response):
+    assert response.headers["Deprecation"] == "true"
+    assert 'rel="deprecation"' in response.headers["Link"]
+    assert "background-job-monitoring" in response.headers["Link"]
 
 
 @pytest.mark.parametrize(
@@ -103,6 +107,7 @@ def test_get_job_status_requires_read_access(
     assert response.status_code == expected_status_code
     if expected_status_code == 202:
         assert response.json["status"] == "QUEUED"
+        assert_deprecated_response_fields_headers(response)
     else:
         assert response.json["status"] == "INVALID_SENDER"
 
@@ -153,6 +158,8 @@ def test_get_job_status_queued(
     assert data["result"] is None
     assert data["exc-info"] is None
     assert_legacy_job_status_fields(data)
+    assert_deprecated_response_fields_headers(response)
+    assert_deprecated_response_fields_headers(response)
 
 
 @pytest.mark.parametrize(
@@ -201,6 +208,7 @@ def test_get_job_status_started(
     assert data["result"] is None
     assert data["exc-info"] is None
     assert_legacy_job_status_fields(data)
+    assert_deprecated_response_fields_headers(response)
 
 
 @pytest.mark.parametrize(
@@ -387,6 +395,7 @@ def test_get_job_status_failed_custom_scheduler_includes_exc_info(
     assert "assert 1 == 2" in data["message"]
     assert "AssertionError: assert 1 == 2" in data["exc-info"]
     assert_legacy_job_status_fields(data)
+    assert_deprecated_response_fields_headers(response)
 
 
 @pytest.mark.parametrize(
@@ -426,6 +435,7 @@ def test_get_job_status_failed_infeasible_schedule_includes_exc_info(
         "ValueError: The input data yields an infeasible problem." in data["exc-info"]
     )
     assert_legacy_job_status_fields(data)
+    assert_deprecated_response_fields_headers(response)
 
 
 def test_get_job_status_unauthenticated(

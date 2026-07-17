@@ -972,6 +972,17 @@ class SensorAPI(FlaskView):
           responses:
             202:
               description: ACCEPTED (Scheduling job queued for processing)
+              headers:
+                Deprecation:
+                  description: Indicates that the response contains deprecated fields.
+                  schema:
+                    type: string
+                    example: "true"
+                Link:
+                  description: Link to migration guidance for deprecated response fields.
+                  schema:
+                    type: string
+                    example: '<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel="deprecation"; type="text/html"'
               content:
                 application/json:
                   schema:
@@ -995,10 +1006,8 @@ class SensorAPI(FlaskView):
                         description: URL to fetch the schedule results for this job once it is complete.
                       schedule:
                         type: string
+                        deprecated: true
                         description: (DEPRECATED) UUID of the queued scheduling job. Use `job` instead.
-                      deprecated-fields:
-                        type: object
-                        description: Machine-readable mapping of deprecated fields with migration guidance.
                   examples:
                     schedule_created:
                       summary: Schedule response
@@ -1008,7 +1017,7 @@ class SensorAPI(FlaskView):
                         which will be picked up by a worker.
                         The given UUID is returned in the canonical `job` field.
                         For backward-compatibility, the legacy `schedule` field is also included but is deprecated;
-                        use `job` instead. The `deprecated-fields` object provides migration guidance.
+                        use `job` instead.
                         The given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.
                       value:
                         status: "ACCEPTED"
@@ -1017,11 +1026,6 @@ class SensorAPI(FlaskView):
                         job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
                         results-url: "/api/v3_0/sensors/3/schedules/364bfd06-c1fa-430b-8d25-8f5a547651fb"
                         message: "Request has been accepted for processing."
-                        deprecated-fields:
-                          schedule:
-                            use: "job"
-                            deprecated-since: "1.0.0"
-                            note: "The 'schedule' response field is deprecated; use 'job'"
             400:
               description: INVALID_DATA
             401:
@@ -1070,15 +1074,13 @@ class SensorAPI(FlaskView):
         db.session.commit()
 
         # Keep legacy `schedule` key for backward compatibility; prefer `job`.
-        d, s = request_accepted_for_processing(
+        return request_accepted_for_processing(
             job.id,
             legacy_key="schedule",
-            deprecated_since="1.0.0",
             job_results_url=url_for(
                 "SensorAPI:get_schedule", id=sensor.id, uuid=job.id
             ),
         )
-        return dict(**d), s
 
     # mark endpoint as deprecated
     trigger_schedule.after_request = lambda response: add_deprecation_header(response)
@@ -1972,6 +1974,17 @@ class SensorAPI(FlaskView):
           responses:
             202:
               description: ACCEPTED (Forecasting job queued for processing)
+              headers:
+                Deprecation:
+                  description: Indicates that the response contains deprecated fields.
+                  schema:
+                    type: string
+                    example: "true"
+                Link:
+                  description: Link to migration guidance for deprecated response fields.
+                  schema:
+                    type: string
+                    example: '<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel="deprecation"; type="text/html"'
               content:
                 application/json:
                   schema:
@@ -1995,10 +2008,8 @@ class SensorAPI(FlaskView):
                         description: URL to fetch the forecast results for this job once it is complete.
                       forecast:
                         type: string
+                        deprecated: true
                         description: (DEPRECATED) UUID of the queued forecasting job. Use `job` instead.
-                      deprecated-fields:
-                        type: object
-                        description: Machine-readable mapping of deprecated fields with migration guidance.
                   example:
                     status: "ACCEPTED"
                     job: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
@@ -2006,11 +2017,6 @@ class SensorAPI(FlaskView):
                     job-url: "/api/v3_0/jobs/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
                     results-url: "/api/v3_0/sensors/3/forecasts/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
                     forecast: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
-                    deprecated-fields:
-                      forecast:
-                        use: "job"
-                        deprecated-since: "1.0.0"
-                        note: "The 'forecast' response field is deprecated; use 'job' instead"
             401:
               description: UNAUTHORIZED
             403:
@@ -2052,15 +2058,13 @@ class SensorAPI(FlaskView):
             return unprocessable_entity(str(e))
 
         # Keep legacy `forecast` key for backward compatibility; prefer `job`.
-        d, s = request_accepted_for_processing(
+        return request_accepted_for_processing(
             pipeline_returns["job_id"],
             legacy_key="forecast",
-            deprecated_since="1.0.0",
             job_results_url=url_for(
                 "SensorAPI:get_forecast", id=id, uuid=pipeline_returns["job_id"]
             ),
         )
-        return dict(**d), s
 
     @route("/<id>/forecasts/<uuid>", methods=["GET"])
     @use_kwargs(

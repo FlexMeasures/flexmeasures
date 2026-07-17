@@ -8,7 +8,7 @@ FlexMeasures Changelog
 v1.0.0 | July XX, 2026
 ============================
 
-.. warning:: As of this release we standardize asynchronous job responses to use the ``job`` field and return HTTP ``202 Accepted`` while a background job is queued or running. Legacy response fields such as ``schedule`` and ``forecast`` will be deprecated; clients should migrate to ``job`` (see the Infrastructure / Support section below for migration details).
+.. warning:: As of this release we standardize asynchronous job responses to use the ``job`` field and return HTTP ``202 Accepted`` while a background job is queued or running. See :ref:`api_background_jobs` for the response format and polling flow. Legacy response fields such as ``schedule`` and ``forecast`` will be deprecated; clients should migrate to ``job`` (see the Infrastructure / Support section below for migration details).
 
 .. warning:: Upgrading to this version requires running ``flexmeasures db upgrade`` (you can create a backup first with ``flexmeasures db-ops dump``).
 
@@ -32,7 +32,7 @@ Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_, `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_ and `PR #2243 <https://www.github.com/FlexMeasures/flexmeasures/pull/2243>`_]
 * Prepare the ``device_scheduler`` to deal with commitments per device group [see `PR #1934 <https://www.github.com/FlexMeasures/flexmeasures/pull/1934>`_]
-* Standardize job-trigger API responses to return ``202 Accepted`` and a canonical ``job`` field; legacy response fields such as ``schedule`` and ``forecast`` are preserved for backward-compatibility but marked deprecated with a migration guide in the API docs [see `PR #2224 <https://github.com/FlexMeasures/flexmeasures/pull/2224>`_].
+* Standardize job-trigger API responses to return ``202 Accepted`` and a canonical ``job`` field; legacy response fields such as ``schedule`` and ``forecast`` are preserved for backward-compatibility but marked deprecated with migration guidance in :ref:`api_background_jobs` [see `PR #2224 <https://github.com/FlexMeasures/flexmeasures/pull/2224>`_].
 * Support storing encrypted connection secrets on organisations and assets, including utility functions, encryption key configuration, CLI commands to set and delete secrets, and UI tables that show stored secret names and optional expiration times without exposing their values [see `PR #2236 <https://www.github.com/FlexMeasures/flexmeasures/pull/2236>`_]
 * Documentation section on the modelling choice for recording measurements, forecasts and schedules under one or multiple sensors [see `PR #2217 <https://www.github.com/FlexMeasures/flexmeasures/pull/2217>`_]
 * Document source filters better, and make use of the source-types filter in the PV curtailment tutorial [see `PR #2261 <https://www.github.com/FlexMeasures/flexmeasures/pull/2261>`_]
