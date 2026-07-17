@@ -340,6 +340,13 @@
     for (const [key, value] of Object.entries(schemaSpecs)) {
         assetFlexContextSchema[key] = value["default"];
     }
+
+    // Sensor-only fields offer no "Fixed value" tab in the editor.
+    // typeTwo = a single sensor reference, typeFour = a list of sensors.
+    function isSensorOnlyField(fieldName) {
+        const backendType = schemaSpecs[fieldName]?.["types"]?.["backend"];
+        return backendType === "typeTwo" || backendType === "typeFour";
+    }
     const [assetFlexContextRawJSON, extraFields] = processResourceRawJSON({ ...assetFlexContextSchema }, "{{ asset.flex_context | safe }}", true);
 
     const spinnerElement = document.getElementById('spinnerElement');
@@ -385,9 +392,8 @@
 
         setTimeout(() => {
             const card = document.getElementById(`${fieldName}-control`);
-            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price" || fieldName === "aggregate-power" || fieldName === "aggregate-consumption" || fieldName === "aggregate-production");
             card.classList.add('border-on-click'); // Add border to the clicked card
-            flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, isOnlySensorField));
+            flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, isSensorOnlyField(fieldName)));
             handleFlexSelectChange(fieldName);
             setActiveCard(card);
 
@@ -613,8 +619,7 @@
             document.querySelectorAll(".card-highlight").forEach(el => el.classList.remove("border-on-click")); // Remove border from all cards
             card.classList.add("border-on-click"); // Add border to the clicked card
             handleFlexSelectChange(fieldName);
-            const isOnlySensorField = (fieldName === "inflexible-device-sensors" || fieldName === "consumption-price" || fieldName === "production-price" || fieldName === "aggregate-power" || fieldName === "aggregate-consumption" || fieldName === "aggregate-production");
-            flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, (isOnlySensorField)));
+            flexOptionsContainer.appendChild(renderFlexInputOptions(fieldName, isSensorOnlyField(fieldName)));
             setActiveCard(card);
             // Store active card in local storage
             localStorage.setItem('activeCard', fieldName);
@@ -725,10 +730,9 @@
         if (storedActiveCard && activeCard()) {
             const flexId = (activeCard() ? activeCard().id : null).slice(0, -8);
             if (assetFlexContext[storedActiveCard]) {
-                const isOnlySensorField = (flexId === "inflexible-device-sensors" || flexId === "consumption-price" || flexId === "production-price" || flexId === "aggregate-power" || flexId === "aggregate-consumption" || flexId === "aggregate-production");
                 setTimeout(() => {
                     flexOptionsContainer.innerHTML = "";
-                    flexOptionsContainer.appendChild(renderFlexInputOptions(flexId, isOnlySensorField));
+                    flexOptionsContainer.appendChild(renderFlexInputOptions(flexId, isSensorOnlyField(flexId)));
                     handleFlexSelectChange(flexId);
                     activeCard().classList.add('border-on-click'); // Add border to the clicked card
                     const renderedActiveCard = document.getElementById(`${flexId}-control`);
