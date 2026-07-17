@@ -271,14 +271,6 @@ class StorageFlexModelSchema(Schema):
         self.start = start
         self.sensor = sensor
         self.timezone = sensor.timezone if sensor is not None else None
-        self.flooring_resolution = (
-            sensor.event_resolution
-            if sensor is not None
-            and sensor.event_resolution != timedelta(0)
-            and sensor.get_attribute("floor_datetimes_to_resolution", True)
-            else None
-        )
-
         # guess default soc-unit
         if default_soc_unit is None:
             if self.sensor is not None and self.sensor.unit in ("MWh", "kWh"):
@@ -288,34 +280,17 @@ class StorageFlexModelSchema(Schema):
             else:
                 default_soc_unit = "MWh"
 
-        self.soc_maxima = VariableQuantityField(
-            to_unit="MWh",
-            default_src_unit=default_soc_unit,
-            timezone=self.timezone,
-            event_resolution=self.flooring_resolution,
-            data_key="soc-maxima",
-        )
-
-        self.soc_minima = VariableQuantityField(
-            to_unit="MWh",
-            default_src_unit=default_soc_unit,
-            timezone=self.timezone,
-            event_resolution=self.flooring_resolution,
-            data_key="soc-minima",
-            value_validator=validate.Range(min=0),
-        )
-        self.soc_targets = VariableQuantityField(
-            to_unit="MWh",
-            default_src_unit=default_soc_unit,
-            timezone=self.timezone,
-            event_resolution=self.flooring_resolution,
-            data_key="soc-targets",
-        )
-
         super().__init__(*args, **kwargs)
-        if default_soc_unit is not None:
-            for field in self.fields.keys():
-                if field.startswith("soc_"):
+        for field in self.fields.keys():
+            if field.startswith("soc_"):
+                # Override the class-level placeholders. Note that assigning new
+                # instance-level fields would be inert (marshmallow resolves fields
+                # from the class-level declared fields), so we set attributes on
+                # the bound fields instead. SoC event datetimes are deliberately
+                # not floored (no event_resolution is set): off-tick events are
+                # preserved and later projected onto the scheduling ticks.
+                setattr(self.fields[field], "timezone", self.timezone)
+                if default_soc_unit is not None:
                     setattr(self.fields[field], "default_src_unit", default_soc_unit)
 
     @validates_schema

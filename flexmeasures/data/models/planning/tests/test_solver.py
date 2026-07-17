@@ -3348,6 +3348,10 @@ def test_stock_only_entry_first_keeps_device_alignment(
             "state-of-charge": {"sensor": a_soc.id},
             "power-capacity": "9 kW",
             "charging-efficiency": "10%",
+            # Lossy in both directions, so no free charge/discharge cycle exists and
+            # the optimum is unique (otherwise "A charges 2" and "A charges 3 while
+            # B discharges 1" are cost-equal under net site metering).
+            "discharging-efficiency": "10%",
         },
     ]
 

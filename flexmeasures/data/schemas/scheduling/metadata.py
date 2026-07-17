@@ -304,7 +304,7 @@ To set softer boundaries, use the ``soc-maxima`` flex-model field instead togeth
 SOC_MINIMA = MetaData(
     description="""Set points that form lower boundaries, e.g. to target a full car battery in the morning.
 If a ``soc-minima-breach-price`` is defined, the ``soc-minima`` become soft constraints in the optimization problem.
-Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points in time and ranges are possible, see example.""",
+Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points in time and ranges are possible, see example. [#projecting_scheduling_constraints]_""",
     example=[
         {"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"},
         {
@@ -317,7 +317,7 @@ Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points
 SOC_MAXIMA = MetaData(
     description="""Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.
 If a ``soc-maxima-breach-price`` is defined, the ``soc-maxima`` become soft constraints in the optimization problem.
-Otherwise, they become hard constraints. [#minimum_overlap]_""",
+Otherwise, they become hard constraints. [#minimum_overlap]_ [#projecting_scheduling_constraints]_""",
     example=[
         {
             "value": "51 kWh",
@@ -329,7 +329,7 @@ Otherwise, they become hard constraints. [#minimum_overlap]_""",
 SOC_TARGETS = MetaData(
     description="""
 Exact set point(s) of the storage's state of charge that the scheduler needs to realize.
-These are hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed.
+These are hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed. [#projecting_scheduling_constraints]_
 """,
     example=[{"datetime": "2024-02-05T08:00:00+01:00", "value": "3.2 kWh"}],
 )
