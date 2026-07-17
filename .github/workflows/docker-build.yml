@@ -47,7 +47,7 @@ jobs:
           db upgrade
       - name: Add toy user
         run: docker exec --env-file .env fm-container flexmeasures
-          add toy-account
+          add toy-account --kind battery --shell-vars | grep '^FM_TOY_' >> $GITHUB_ENV
       - name: Generate prices dummy data
         run: ci/generate-dummy-price.sh
       - name: Copy prices dummy data
@@ -55,19 +55,19 @@ jobs:
       - name: Add beliefs
         run: |
           docker exec --env-file .env fm-container flexmeasures \
-            add beliefs --sensor 1 --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+            add beliefs --sensor ${FM_TOY_PRICE_SENSOR_ID} --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
       - name: Export TOMORROW
         run: echo "TOMORROW=$(date --date="next day" '+%Y-%m-%d')"
           >> $GITHUB_ENV
       - name: Add schedule
         run: |
           docker exec --env-file .env fm-container flexmeasures \
-            add schedule --sensor 2 --start ${TOMORROW}T07:00+01:00 \
+            add schedule --sensor ${FM_TOY_BATTERY_SENSOR_ID} --start ${TOMORROW}T07:00+01:00 \
             --duration PT12H --soc-at-start 50% --flex-model '{"roundtrip-efficiency": "90%"}'
       - name: Add Toy Account for process
-        run: docker exec --env-file .env fm-container flexmeasures add toy-account --kind process
+        run: docker exec --env-file .env fm-container flexmeasures add toy-account --kind process --shell-vars | grep '^FM_TOY_' >> $GITHUB_ENV
       - name: Add Process schedule
         run: |
-          docker exec --env-file .env fm-container flexmeasures add schedule --sensor 5 --scheduler ProcessScheduler \
-            --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --flex-context '{"consumption-price": {"sensor": 1}}' \
+          docker exec --env-file .env fm-container flexmeasures add schedule --sensor ${FM_TOY_PROCESS_BREAKABLE_SENSOR_ID} --scheduler ProcessScheduler \
+            --start ${TOMORROW}T00:00:00+02:00 --duration PT24H --flex-context '{"consumption-price": {"sensor": '"${FM_TOY_PRICE_SENSOR_ID}"'}}' \
             --flex-model "{\"duration\": \"PT4H\", \"process-type\": \"BREAKABLE\", \"power\": 0.2, \"time-restrictions\": [{\"start\": \"${TOMORROW}T15:00:00+02:00\", \"duration\": \"PT1H\"}]}"

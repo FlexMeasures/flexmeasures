@@ -643,3 +643,52 @@ def test_timing_parameters_of_forecaster_config_schema(
         # Convert kebab-case key to snake_case to match data dictionary keys returned by schema
         snake_key = kebab_to_snake(k)
         assert data[snake_key] == v, f"{k} did not match expectations."
+
+
+def test_forecaster_config_schema_loads_forecast_post_processing_options():
+    data = TrainPredictPipelineConfigSchema().load(
+        {
+            "lower": "0 kW",
+            "upper": 20,
+            "snap": {"0 kW": ["0 kW", "4 kW"]},
+        }
+    )
+
+    assert data["lower"] == "0 kW"
+    assert data["upper"] == 20
+    assert data["snap"] == {"0 kW": ["0 kW", "4 kW"]}
+
+
+def test_forecaster_config_schema_defaults_forecast_post_processing_to_disabled():
+    data = TrainPredictPipelineConfigSchema().load({})
+
+    assert data["lower"] is None
+    assert data["upper"] is None
+    assert data["snap"] == {}
+
+
+def test_forecaster_config_schema_rejects_invalid_snap_interval_shape():
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(
+            {
+                "snap": {"0 kW": ["0 kW"]},
+            }
+        )
+
+    assert "snap" in exc.value.messages
+
+
+def test_forecaster_config_schema_rejects_unparseable_bound():
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load({"lower": "not a quantity"})
+
+    assert "lower" in exc.value.messages
+
+
+def test_forecaster_config_schema_rejects_unparseable_snap_value():
+    with pytest.raises(ValidationError) as exc:
+        TrainPredictPipelineConfigSchema().load(
+            {"snap": {"0 kW": ["0 kW", "not a quantity"]}}
+        )
+
+    assert "snap" in exc.value.messages
