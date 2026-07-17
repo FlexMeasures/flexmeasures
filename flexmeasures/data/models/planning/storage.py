@@ -1326,6 +1326,8 @@ class MetaStorageScheduler(Scheduler):
         self.collect_flex_config()
         if self.flex_context is None:
             self.flex_context = {}
+        # The flex-model is deserialized first, because off-tick SoC constraints
+        # may enable relax-soc-constraints on the still-serialized flex-context.
         self._deserialize_flex_model()
         self._deserialize_flex_context()
 
