@@ -9,6 +9,7 @@ import pandas as pd
 
 from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.soc_projection import (
+    project_off_tick_soc_at_start,
     project_off_tick_soc_constraints,
 )
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -1566,6 +1567,111 @@ def test_off_tick_soc_relaxation_is_scoped_to_the_off_tick_device(
     assert constraints_1.loc[start, "min"] == pytest.approx(
         4
     ), "the on-tick device's soc-minima should remain a hard constraint"
+
+
+def test_project_off_tick_soc_at_start_bounds_the_next_tick():
+    """An off-tick starting SoC bounds the next tick by reachable (dis)charge energy."""
+    tz = pytz.timezone("Europe/Amsterdam")
+    resolution = timedelta(minutes=15)
+    start = pd.Timestamp(tz.localize(datetime(2015, 1, 1, 16, 45)))
+    next_tick = start + resolution
+    capacity = pd.Series(0.04, index=pd.date_range(start, next_tick, freq=resolution))
+
+    soc_maxima, soc_minima = project_off_tick_soc_at_start(
+        soc_at_start_time=tz.localize(datetime(2015, 1, 1, 16, 47)),
+        soc_at_start=0.5,
+        soc_maxima=None,
+        soc_minima=None,
+        schedule_start=start,
+        consumption_capacity=capacity,
+        production_capacity=capacity,
+        resolution=resolution,
+        soc_min=0,
+        soc_max=1,
+        charging_efficiency=0.9,
+        discharging_efficiency=0.8,
+    )
+
+    # 13 minutes remain between the known SoC (16:47) and the next tick (17:00).
+    assert _soc_event_value_at(soc_maxima, next_tick) == pytest.approx(
+        0.5 + 0.04 * 0.9 * (13 / 60)
+    ), "the next tick's upper bound should reflect the chargeable energy since 16:47"
+    assert _soc_event_value_at(soc_minima, next_tick) == pytest.approx(
+        0.5 - 0.04 / 0.8 * (13 / 60)
+    ), "the next tick's lower bound should reflect the dischargeable energy since 16:47"
+
+    # A known SoC time on a scheduling tick (or outside the first interval) is a no-op.
+    assert project_off_tick_soc_at_start(
+        soc_at_start_time=start.to_pydatetime(),
+        soc_at_start=0.5,
+        soc_maxima=None,
+        soc_minima=None,
+        schedule_start=start,
+        consumption_capacity=capacity,
+        production_capacity=capacity,
+        resolution=resolution,
+        soc_min=0,
+        soc_max=1,
+    ) == (None, None)
+
+
+def test_off_tick_state_of_charge_bounds_first_scheduling_interval(
+    add_battery_assets, db
+):
+    """A state-of-charge measurement at an off-tick time caps the SoC at the next tick."""
+    _, battery = get_sensors_from_db(
+        db, add_battery_assets, battery_name="Test battery"
+    )
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1, 16, 45))
+    end = tz.localize(datetime(2015, 1, 1, 17, 15))
+    resolution = timedelta(minutes=15)
+
+    scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model={
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "0.04 MW",
+            "consumption-capacity": "0.04 MW",
+            "production-capacity": "0.04 MW",
+            "roundtrip-efficiency": 1,
+            "storage-efficiency": 1,
+            # the starting SoC is known at 16:47, not at the schedule start
+            "state-of-charge": [
+                {
+                    "start": "2015-01-01T16:47:00+01:00",
+                    "end": "2015-01-01T16:47:00+01:00",
+                    "value": "0 MWh",
+                }
+            ],
+        },
+        flex_context={
+            "consumption-price": "0 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "1 MW",
+            # keep SoC constraints hard, so we can assert the projected bounds directly
+            "relax-constraints": False,
+            "relax-soc-constraints": False,
+        },
+    )
+
+    _, _, _, _, soc_at_start, device_constraints, _, _ = scheduler._prepare(
+        skip_validation=True
+    )
+
+    assert soc_at_start[0] == pytest.approx(0), "the starting SoC should be resolved"
+    storage_constraints = device_constraints[0].tz_convert(tz)
+    # Charging can only start at 16:47, so by 17:00 at most 13 minutes of charging fit.
+    assert storage_constraints.loc[start, "max"] == pytest.approx(
+        0.04 * (13 / 60) * 4
+    ), "the first interval should be capped by the chargeable energy since 16:47"
+    assert storage_constraints.loc[start, "min"] == pytest.approx(
+        0
+    ), "the lower bound should be clamped to soc-min"
 
 
 def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(
