@@ -118,6 +118,7 @@ The projection uses the ``consumption-capacity`` and ``production-capacity`` act
 If multiple projected lower bounds land on the same tick, the highest lower bound is kept.
 If multiple projected upper bounds land on the same tick, the lowest upper bound is kept.
 Because projection can introduce additional bounds and more complex combinations can become infeasible, FlexMeasures enables ``relax-soc-constraints`` automatically when off-tick SoC constraints are submitted (unless it was explicitly set to ``False``, which is respected with a logged warning).
+When relaxation is enabled purely because of off-tick projection (rather than by the flex-context settings), the softening is scoped to the devices that actually use off-tick SoC constraints; other devices keep their hard SoC constraints.
 
 Projection can be disabled per sensor by setting the ``floor_datetimes_to_resolution`` sensor attribute to ``False``.
 In that case, off-tick point-like SoC constraints cannot be enforced on the scheduling ticks and are disregarded (with a logged warning).

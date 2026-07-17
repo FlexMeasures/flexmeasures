@@ -930,6 +930,7 @@ class MetaStorageScheduler(Scheduler):
             if (
                 self.flex_context.get("soc_minima_breach_price") is not None
                 and soc_minima[d] is not None
+                and self._soc_relaxation_applies_to(sensor_d)
             ):
                 soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
                 any_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
@@ -994,6 +995,7 @@ class MetaStorageScheduler(Scheduler):
             if (
                 self.flex_context.get("soc_maxima_breach_price") is not None
                 and soc_maxima[d] is not None
+                and self._soc_relaxation_applies_to(sensor_d)
             ):
                 soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
                 any_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
@@ -1326,6 +1328,12 @@ class MetaStorageScheduler(Scheduler):
         self.collect_flex_config()
         if self.flex_context is None:
             self.flex_context = {}
+        #: Power sensor ids of devices whose off-tick SoC constraints triggered
+        #: automatic relaxation (None marks an entry without a power sensor).
+        self.off_tick_soc_sensor_ids: set[int | None] = set()
+        #: Whether SoC constraint softening should apply only to those devices
+        #: (True when relaxation was enabled purely because of off-tick projection).
+        self.scope_soc_relaxation_to_off_tick_devices: bool = False
         # The flex-model is deserialized first, because off-tick SoC constraints
         # may enable relax-soc-constraints on the still-serialized flex-context.
         self._deserialize_flex_model()
@@ -1378,7 +1386,7 @@ class MetaStorageScheduler(Scheduler):
                 self.ensure_soc_at_start()
 
             self._possibly_relax_off_tick_soc_constraints(
-                self.flex_model, sensor=self.sensor
+                self.flex_model, sensor=self.sensor, power_sensor=self.sensor
             )
 
             # Now it's time to check if our flex configuration holds up to schemas
@@ -1410,7 +1418,9 @@ class MetaStorageScheduler(Scheduler):
                     else soc_sensor
                 )
                 self._possibly_relax_off_tick_soc_constraints(
-                    sensor_flex_model["sensor_flex_model"], sensor=sensor_d
+                    sensor_flex_model["sensor_flex_model"],
+                    sensor=sensor_d,
+                    power_sensor=sensor_flex_model.get("sensor"),
                 )
                 schema = StorageFlexModelSchema(
                     start=self.start,
@@ -1436,13 +1446,21 @@ class MetaStorageScheduler(Scheduler):
         return self.flex_model
 
     def _possibly_relax_off_tick_soc_constraints(
-        self, flex_model: dict, sensor: Sensor | None
+        self,
+        flex_model: dict,
+        sensor: Sensor | None,
+        power_sensor: Sensor | None = None,
     ) -> None:
         """Enable SoC constraint relaxation if the (serialized) flex-model contains off-tick SoC events.
 
         The detection uses the scheduler's actual resolution (falling back to the
         sensor's event resolution), matching the resolution later used to project
         off-tick SoC constraints onto the scheduling ticks.
+
+        When relaxation is enabled purely because of off-tick projection (rather
+        than by the user's own flex-context settings), softening is scoped to the
+        devices that actually use off-tick SoC constraints (tracked here by their
+        power sensor).
         """
         if not should_project_off_tick_soc_constraints(sensor):
             return
@@ -1450,7 +1468,57 @@ class MetaStorageScheduler(Scheduler):
             self.resolution, sensor, self.default_resolution
         )
         if flex_model_has_off_tick_soc_constraints(flex_model, resolution=resolution):
+            self.off_tick_soc_sensor_ids.add(
+                power_sensor.id if power_sensor is not None else None
+            )
+            self.scope_soc_relaxation_to_off_tick_devices = (
+                not self._soc_relaxation_user_enabled()
+            )
             self.enable_relax_soc_constraints()
+
+    def _soc_relaxation_user_enabled(self) -> bool:
+        """Whether the user's own (serialized) flex-context already softens SoC constraints.
+
+        That is the case when any context defines a SoC breach price explicitly,
+        sets ``relax-soc-constraints`` to ``True``, or leaves relaxation to the
+        general ``relax-constraints`` flag (which defaults to ``True``).
+        """
+        if isinstance(self.flex_context, dict):
+            contexts = [self.flex_context] + list(
+                self.flex_context.get("commodities", [])
+            )
+        elif isinstance(self.flex_context, list):
+            contexts = self.flex_context
+        else:
+            return True
+        for context in contexts:
+            if (
+                context.get("soc-minima-breach-price") is not None
+                or context.get("soc-maxima-breach-price") is not None
+            ):
+                return True
+            if context.get("relax-soc-constraints") is True:
+                return True
+            if context.get("relax-soc-constraints") is None and context.get(
+                "relax-constraints", True
+            ):
+                return True
+        return False
+
+    def _soc_relaxation_applies_to(self, sensor_d: Sensor | None) -> bool:
+        """Whether SoC constraint softening applies to the device with this power sensor.
+
+        Softening applies to all devices, unless relaxation was auto-enabled purely
+        for off-tick SoC constraint projection, in which case it is scoped to the
+        devices that use off-tick SoC constraints.
+        """
+        if not getattr(self, "scope_soc_relaxation_to_off_tick_devices", False):
+            return True
+        off_tick_sensor_ids = getattr(self, "off_tick_soc_sensor_ids", set())
+        if None in off_tick_sensor_ids:
+            # An entry without a power sensor cannot be matched to a device.
+            return True
+        return sensor_d is not None and sensor_d.id in off_tick_sensor_ids
 
     def enable_relax_soc_constraints(self) -> None:
         """Relax SoC constraints when off-tick SoC events require scheduling-tick projection.
