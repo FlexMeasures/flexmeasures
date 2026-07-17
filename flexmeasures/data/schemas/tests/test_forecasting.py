@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from marshmallow import ValidationError
@@ -736,6 +738,27 @@ def test_forecaster_config_schema_rejects_missing_or_ambiguous_annotation_source
 
     assert "Specify exactly one of account, asset, or sensor." in str(
         exc.value.messages
+    )
+
+
+def test_forecaster_config_schema_warns_when_train_start_overrides_train_period(
+    caplog,
+):
+    with caplog.at_level(logging.WARNING):
+        TrainPredictPipelineConfigSchema().load(
+            {
+                "train-start": "2025-01-01T00:00:00+01:00",
+                "train-period": "P7D",
+            }
+        )
+    assert any("train-period is ignored" in record.message for record in caplog.records)
+
+
+def test_forecaster_config_schema_does_not_warn_for_train_period_alone(caplog):
+    with caplog.at_level(logging.WARNING):
+        TrainPredictPipelineConfigSchema().load({"train-period": "P7D"})
+    assert not any(
+        "train-period is ignored" in record.message for record in caplog.records
     )
 
 

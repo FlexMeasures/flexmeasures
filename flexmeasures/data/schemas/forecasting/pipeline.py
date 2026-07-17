@@ -236,9 +236,9 @@ class TrainPredictPipelineConfigSchema(Schema):
         metadata={
             "description": (
                 "Duration of the initial training period (ISO 8601 format, min 2 days). "
-                "If not set and --train-start is provided, the period is the difference "
-                "between --start and --train-start, capped to --max-training-period. "
-                "If neither is set, defaults to P30D (30 days)."
+                "Defaults to P30D (30 days). Ignored when --train-start is set: "
+                "the training window then runs from --train-start to --start, "
+                "capped to --max-training-period."
             ),
             "example": "P7D",
             "cli": {
@@ -273,6 +273,16 @@ class TrainPredictPipelineConfigSchema(Schema):
             },
         },
     )
+
+    @pre_load
+    def warn_when_train_period_is_ignored(self, data, **kwargs):
+        """An explicit train-start takes precedence over train-period (see _derive_training_period)."""
+        if data.get("train-start") is not None and data.get("train-period") is not None:
+            logging.warning(
+                "Both train-start and train-period are set; train-period is ignored "
+                "and the training window runs from train-start (capped to max-training-period)."
+            )
+        return data
 
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):  # noqa: C901
