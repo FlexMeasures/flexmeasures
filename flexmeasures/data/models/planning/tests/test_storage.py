@@ -1963,3 +1963,116 @@ def test_resolve_soc_at_start_from_percent_sensor_uses_device_sensor_fallback(
         )
         == 2.5
     )
+
+
+def test_off_tick_soc_relaxation_covers_all_devices_of_a_shared_stock(
+    add_battery_assets, db
+):
+    """Auto-relaxation scoped by stock covers the whole stock group.
+
+    Devices 0 and 1 share a stock whose SoC parameters - including an off-tick
+    soc-minima - live on a stock-only entry, while device 2 uses an on-tick
+    soc-minima of its own. The shared stock's minima should be softened into
+    commitments (landing on the group's first device), while device 2's minima
+    should remain hard constraints.
+    """
+    template = add_battery_assets["Test battery"]
+    asset = GenericAsset(
+        name="Test shared-stock battery site",
+        generic_asset_type=template.generic_asset_type,
+        owner=template.owner,
+    )
+    power_sensors = [
+        Sensor(
+            name=f"shared-stock power {i}",
+            generic_asset=asset,
+            event_resolution=timedelta(minutes=15),
+            unit="MW",
+        )
+        for i in range(3)
+    ]
+    soc_sensor = Sensor(
+        name="shared-stock state of charge",
+        generic_asset=asset,
+        event_resolution=timedelta(0),
+        unit="MWh",
+    )
+    db.session.add_all([asset, soc_sensor, *power_sensors])
+    db.session.flush()
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1, 16, 45))
+    end = tz.localize(datetime(2015, 1, 1, 17, 15))
+    resolution = timedelta(minutes=15)
+
+    device_properties = {
+        "power-capacity": "0.04 MW",
+        "consumption-capacity": "0.04 MW",
+        "production-capacity": "0.04 MW",
+        "roundtrip-efficiency": 1,
+    }
+    soc_parameters = {
+        "soc-at-start": "0 MWh",
+        "soc-min": "0 MWh",
+        "soc-max": "1 MWh",
+    }
+    off_tick_minima = [{"datetime": "2015-01-01T17:12:00+01:00", "value": "1 MWh"}]
+    on_tick_minima = [{"datetime": "2015-01-01T17:00:00+01:00", "value": "1 MWh"}]
+
+    scheduler = StorageScheduler(
+        asset,
+        start,
+        end,
+        resolution,
+        flex_model=[
+            {
+                "sensor": power_sensors[0].id,
+                "state-of-charge": {"sensor": soc_sensor.id},
+                **device_properties,
+            },
+            {
+                "sensor": power_sensors[1].id,
+                "state-of-charge": {"sensor": soc_sensor.id},
+                **device_properties,
+            },
+            {
+                # Stock-only entry holding the shared stock's SoC parameters
+                "state-of-charge": {"sensor": soc_sensor.id},
+                **soc_parameters,
+                "soc-minima": off_tick_minima,
+            },
+            {
+                "sensor": power_sensors[2].id,
+                **device_properties,
+                **soc_parameters,
+                "soc-minima": on_tick_minima,
+            },
+        ],
+        flex_context={
+            "consumption-price": "0 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "1 MW",
+            # relaxation is otherwise off, so any softening is due to off-tick projection
+            "relax-constraints": False,
+        },
+    )
+
+    _, _, _, _, _, device_constraints, _, commitments = scheduler._prepare(
+        skip_validation=True
+    )
+
+    assert (
+        scheduler.flex_context["relax_soc_constraints"] is True
+    ), "off-tick SoC constraints should automatically enable SoC relaxation"
+
+    soc_minima_commitments = [
+        c for c in commitments if getattr(c, "name", "") == "any soc minima"
+    ]
+    assert (
+        len(soc_minima_commitments) == 1
+        and (soc_minima_commitments[0].device == 0).all()
+    ), "the shared stock's soc-minima should be softened once, on the group's first device"
+
+    constraints_2 = device_constraints[2].tz_convert(tz)
+    assert constraints_2.loc[start, "min"] == pytest.approx(
+        4
+    ), "the on-tick device's soc-minima should remain a hard constraint"

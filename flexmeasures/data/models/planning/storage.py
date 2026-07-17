@@ -18,7 +18,10 @@ from flexmeasures.data.models.planning import (
     SchedulerOutputType,
     StockCommitment,
 )
-from flexmeasures.data.models.planning.devices import DeviceInventory
+from flexmeasures.data.models.planning.devices import (
+    DeviceInventory,
+    _resolve_stock_key,
+)
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
     add_tiny_price_slope,
@@ -157,6 +160,13 @@ class MetaStorageScheduler(Scheduler):
         self.stock_models = inventory.stock_entries
         # The stock groups' device indices align with the device models
         self.stock_groups = inventory.stock_groups
+        # Off-tick SoC relaxation scoping and starting-SoC projection track stocks
+        # (not devices), so look up each device's stock key.
+        device_stock_key = {
+            d: stock_key
+            for stock_key, group_devices in self.stock_groups.items()
+            for d in group_devices
+        }
 
         # List the asset(s) and sensor(s) being scheduled
         sensors: list[Sensor | None] = inventory.power_sensors
@@ -209,7 +219,7 @@ class MetaStorageScheduler(Scheduler):
             # so the device could discharge more energy than its store holds.
             if soc_at_start[d0] is None:
                 resolved_soc_at_start = self._resolve_stock_soc_at_start(
-                    stock_model, sensor=sensors[d0]
+                    stock_model, sensor=sensors[d0], stock_key=stock_id
                 )
                 if resolved_soc_at_start is not None:
                     soc_at_start[d0] = resolved_soc_at_start
@@ -912,10 +922,13 @@ class MetaStorageScheduler(Scheduler):
             # so that both paths consume on-tick events.
             if should_project_off_tick_soc_constraints(sensor_d):
                 # A starting SoC known at an off-tick time within the first
-                # scheduling interval bounds the SoC on the next tick.
-                soc_at_start_time = getattr(self, "soc_at_start_datetimes", {}).get(
-                    getattr(sensor_d, "id", None)
-                )
+                # scheduling interval bounds the SoC on the next tick. The timing
+                # is tracked per stock; a None key covers the single-sensor case
+                # where the stock key cannot be resolved at record time.
+                soc_at_start_datetimes = getattr(self, "soc_at_start_datetimes", {})
+                soc_at_start_time = soc_at_start_datetimes.get(device_stock_key.get(d))
+                if soc_at_start_time is None:
+                    soc_at_start_time = soc_at_start_datetimes.get(None)
                 if soc_at_start_time is not None and soc_at_start[d] is not None:
                     soc_maxima[d], soc_minima[d] = project_off_tick_soc_at_start(
                         soc_at_start_time,
@@ -951,7 +964,7 @@ class MetaStorageScheduler(Scheduler):
             if (
                 self.flex_context.get("soc_minima_breach_price") is not None
                 and soc_minima[d] is not None
-                and self._soc_relaxation_applies_to(sensor_d)
+                and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
             ):
                 soc_minima_breach_price = self.flex_context["soc_minima_breach_price"]
                 any_soc_minima_breach_price = get_continuous_series_sensor_or_quantity(
@@ -1016,7 +1029,7 @@ class MetaStorageScheduler(Scheduler):
             if (
                 self.flex_context.get("soc_maxima_breach_price") is not None
                 and soc_maxima[d] is not None
-                and self._soc_relaxation_applies_to(sensor_d)
+                and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
             ):
                 soc_maxima_breach_price = self.flex_context["soc_maxima_breach_price"]
                 any_soc_maxima_breach_price = get_continuous_series_sensor_or_quantity(
@@ -1349,9 +1362,10 @@ class MetaStorageScheduler(Scheduler):
         self.collect_flex_config()
         if self.flex_context is None:
             self.flex_context = {}
-        #: Power sensor ids of devices whose off-tick SoC constraints triggered
-        #: automatic relaxation (None marks an entry without a power sensor).
-        self.off_tick_soc_sensor_ids: set[int | None] = set()
+        #: Stock keys of stocks whose off-tick SoC constraints triggered automatic
+        #: relaxation (None marks an entry whose stock key cannot be resolved from
+        #: its serialized form, e.g. a state-of-charge time series).
+        self.off_tick_stock_keys: set = set()
         #: Whether SoC constraint softening should apply only to those devices
         #: (True when relaxation was enabled purely because of off-tick projection).
         self.scope_soc_relaxation_to_off_tick_devices: bool = False
@@ -1480,8 +1494,10 @@ class MetaStorageScheduler(Scheduler):
 
         When relaxation is enabled purely because of off-tick projection (rather
         than by the user's own flex-context settings), softening is scoped to the
-        devices that actually use off-tick SoC constraints (tracked here by their
-        power sensor).
+        stocks that actually use off-tick SoC constraints (tracked here by their
+        stock key, so all devices sharing the stock are covered). An entry without
+        a resolvable stock key is tracked by its power sensor instead (its stock
+        gets a synthetic key only later, when the device inventory is built).
         """
         if not should_project_off_tick_soc_constraints(sensor):
             return
@@ -1489,9 +1505,10 @@ class MetaStorageScheduler(Scheduler):
             self.resolution, sensor, self.default_resolution
         )
         if flex_model_has_off_tick_soc_constraints(flex_model, resolution=resolution):
-            self.off_tick_soc_sensor_ids.add(
-                power_sensor.id if power_sensor is not None else None
-            )
+            stock_key = _resolve_stock_key(flex_model.get("state-of-charge"))
+            if stock_key is None and power_sensor is not None:
+                stock_key = ("sensor", power_sensor.id)
+            self.off_tick_stock_keys.add(stock_key)
             self.scope_soc_relaxation_to_off_tick_devices = (
                 not self._soc_relaxation_user_enabled()
             )
@@ -1526,20 +1543,27 @@ class MetaStorageScheduler(Scheduler):
                 return True
         return False
 
-    def _soc_relaxation_applies_to(self, sensor_d: Sensor | None) -> bool:
-        """Whether SoC constraint softening applies to the device with this power sensor.
+    def _soc_relaxation_applies_to(
+        self, stock_key, sensor_d: Sensor | None = None
+    ) -> bool:
+        """Whether SoC constraint softening applies to the stock with this key.
 
-        Softening applies to all devices, unless relaxation was auto-enabled purely
+        Softening applies to all stocks, unless relaxation was auto-enabled purely
         for off-tick SoC constraint projection, in which case it is scoped to the
-        devices that use off-tick SoC constraints.
+        stocks that use off-tick SoC constraints (covering all devices sharing them).
+        A stock tracked by power sensor (for lack of a resolvable stock key) is
+        matched via the device's power sensor.
         """
         if not getattr(self, "scope_soc_relaxation_to_off_tick_devices", False):
             return True
-        off_tick_sensor_ids = getattr(self, "off_tick_soc_sensor_ids", set())
-        if None in off_tick_sensor_ids:
-            # An entry without a power sensor cannot be matched to a device.
+        off_tick_stock_keys = getattr(self, "off_tick_stock_keys", set())
+        if None in off_tick_stock_keys:
+            # An entry with neither a resolvable stock key nor a power sensor
+            # cannot be matched to a stock.
             return True
-        return sensor_d is not None and sensor_d.id in off_tick_sensor_ids
+        if stock_key is not None and stock_key in off_tick_stock_keys:
+            return True
+        return sensor_d is not None and ("sensor", sensor_d.id) in off_tick_stock_keys
 
     def enable_relax_soc_constraints(self) -> None:
         """Relax SoC constraints when off-tick SoC events require scheduling-tick projection.
@@ -1588,19 +1612,20 @@ class MetaStorageScheduler(Scheduler):
         return "soc-at-start" in flex_model and flex_model["soc-at-start"] is not None
 
     def _record_soc_at_start_datetime(
-        self, sensor: Sensor | None, soc_datetime: datetime | None
+        self, stock_key, soc_datetime: datetime | None
     ) -> None:
-        """Remember at which time the starting state of charge is actually known.
+        """Remember at which time a stock's starting state of charge is actually known.
 
-        Keyed by the device's power sensor id. Used to project an off-tick
-        starting SoC onto the next scheduling tick (see
+        Keyed by the stock key (a None key covers the single-sensor case where the
+        stock key cannot be resolved, e.g. a state-of-charge time series). Used to
+        project an off-tick starting SoC onto the next scheduling tick (see
         :func:`flexmeasures.data.models.planning.soc_projection.project_off_tick_soc_at_start`).
         """
-        if sensor is None or soc_datetime is None:
+        if soc_datetime is None:
             return
         if not hasattr(self, "soc_at_start_datetimes"):
-            self.soc_at_start_datetimes: dict[int, datetime] = {}
-        self.soc_at_start_datetimes[sensor.id] = soc_datetime
+            self.soc_at_start_datetimes: dict = {}
+        self.soc_at_start_datetimes[stock_key] = soc_datetime
 
     def _get_soc_lookup_radius(
         self, sensor: Sensor | None = None, slack_steps: int = 4
@@ -1727,7 +1752,7 @@ class MetaStorageScheduler(Scheduler):
             beliefs_df["time_distance"] == beliefs_df["time_distance"].min()
         ]
         nearest_belief = nearest_beliefs.loc[nearest_beliefs["event_start"].idxmax()]
-        self._record_soc_at_start_datetime(sensor, nearest_belief["event_start"])
+        self._record_soc_at_start_datetime(soc_sensor.id, nearest_belief["event_start"])
 
         return self._convert_soc_value_to_mwh(
             value=nearest_belief["event_value"],
@@ -1737,12 +1762,14 @@ class MetaStorageScheduler(Scheduler):
         )
 
     def _resolve_soc_at_start_from_time_series(
-        self, soc_time_series: list[dict], sensor: Sensor | None = None
+        self, soc_time_series: list[dict], sensor: Sensor | None = None, stock_key=None
     ) -> float:
         """Resolve ``soc-at-start`` from a ``state-of-charge`` time series.
 
         :param soc_time_series: SoC time series specification.
         :param sensor:          Optional scheduled power sensor.
+        :param stock_key:       Key of the stock whose SoC is being resolved, if known
+                                (a time series does not resolve to a stock key by itself).
         :returns:               Starting SoC in MWh.
         """
         lookup_radius = self._get_soc_lookup_radius(sensor)
@@ -1780,7 +1807,7 @@ class MetaStorageScheduler(Scheduler):
             )
 
         _, nearest_segment = min(candidate_segments, key=lambda item: item[0])
-        self._record_soc_at_start_datetime(sensor, nearest_segment["start"])
+        self._record_soc_at_start_datetime(stock_key, nearest_segment["start"])
         return (nearest_segment["value"] / ur.Quantity("MWh")).magnitude
 
     def _resolve_soc_at_start_from_state_of_charge(
@@ -1832,7 +1859,7 @@ class MetaStorageScheduler(Scheduler):
         return None
 
     def _resolve_stock_soc_at_start(
-        self, stock_model: dict, sensor: Sensor | None = None
+        self, stock_model: dict, sensor: Sensor | None = None, stock_key=None
     ) -> float | None:
         """Resolve a stock's soc-at-start (in MWh) from its (deserialized) state-of-charge.
 
@@ -1860,7 +1887,9 @@ class MetaStorageScheduler(Scheduler):
                 state_of_charge, percent_conversion_model, sensor
             )
         if isinstance(state_of_charge, list):
-            return self._resolve_soc_at_start_from_time_series(state_of_charge, sensor)
+            return self._resolve_soc_at_start_from_time_series(
+                state_of_charge, sensor, stock_key=stock_key
+            )
         return None
 
     def possibly_extend_end(self, soc_targets, sensor: Sensor = None):
