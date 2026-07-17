@@ -183,10 +183,19 @@ def query_assets_by_search_terms(
 ) -> Select:
     select_statement = select(GenericAsset)
 
+    # Sorting by "owner" uses a correlated scalar subquery (rather than a join)
+    # so it doesn't change the query's FROM clause, which filter_assets_under_root
+    # relies on being just the (aliased) GenericAsset table.
+    account_name_subquery = (
+        select(Account.name)
+        .where(Account.id == GenericAsset.account_id)
+        .correlate(GenericAsset)
+        .scalar_subquery()
+    )
     valid_sort_columns = {
         "id": GenericAsset.id,
         "name": GenericAsset.name,
-        "owner": GenericAsset.account_id,
+        "owner": account_name_subquery,
     }
 
     # Initialize base query
@@ -219,20 +228,6 @@ def query_assets_by_search_terms(
             )
         )
 
-        if sort_by is not None and sort_dir is not None:
-            if sort_by in valid_sort_columns:
-                order_by_clause = (
-                    valid_sort_columns[sort_by].asc()
-                    if sort_dir == "asc"
-                    else valid_sort_columns[sort_by].desc()
-                )
-                private_select_statement = private_select_statement.order_by(
-                    order_by_clause
-                )
-                public_select_statement = public_select_statement.order_by(
-                    order_by_clause
-                )
-
         # Combine private and public queries
         subquery = union_all(
             private_select_statement.where(private_filter_statement),
@@ -241,6 +236,28 @@ def query_assets_by_search_terms(
 
         asset_alias = aliased(GenericAsset, subquery)
         query = select(asset_alias)
+
+        # Ordering must be applied to the outer query, not to the individual
+        # UNION ALL members: ORDER BY on a union member isn't guaranteed to
+        # survive in the combined result.
+        if sort_by is not None and sort_dir is not None:
+            if sort_by == "owner":
+                order_by_column = (
+                    select(Account.name)
+                    .where(Account.id == asset_alias.account_id)
+                    .correlate(asset_alias)
+                    .scalar_subquery()
+                )
+            elif sort_by in valid_sort_columns:
+                order_by_column = getattr(asset_alias, sort_by)
+            else:
+                order_by_column = None
+            if order_by_column is not None:
+                query = query.order_by(
+                    order_by_column.asc()
+                    if sort_dir == "asc"
+                    else order_by_column.desc()
+                )
 
     else:
         query = query.where(filter_statement)

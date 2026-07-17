@@ -47,10 +47,10 @@ def create(  # noqa C901
     )
     from flexmeasures.utils.app_utils import (
         init_sentry,
+        provision_default_template_assets_on_startup,
     )
     from flexmeasures.utils.error_utils import add_basic_error_handlers
     from flexmeasures.utils.secrets_utils import set_secret_key, set_totp_secrets
-    from sqlalchemy.exc import OperationalError, ProgrammingError
 
     configure_logging()  # do this first, see https://flask.palletsprojects.com/en/2.0.x/logging
     cfg_location = find_flexmeasures_cfg()  # Find flexmeasures.cfg location
@@ -210,23 +210,7 @@ def create(  # noqa C901
 
     register_ui_at(app)
 
-    if (
-        app.config.get("FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP", False)
-        and not app.testing
-        and app.config.get("FLEXMEASURES_ENV") != "documentation"
-    ):
-        from flexmeasures.data import db
-        from flexmeasures.data.scripts.data_gen import (
-            provision_default_template_assets,
-        )
-
-        try:
-            with app.app_context():
-                provision_default_template_assets(db)
-        except (OperationalError, ProgrammingError) as exc:
-            app.logger.warning(
-                f"Skipping startup template provisioning due to an error: {exc}"
-            )
+    provision_default_template_assets_on_startup(app)
 
     # Global template variables for both our own templates and external templates
     @app.context_processor
