@@ -1798,6 +1798,15 @@ class MetaStorageScheduler(Scheduler):
 
         if soc_targets and not isinstance(soc_targets, (Sensor, SensorReference)):
             max_target_datetime = max([soc_target["end"] for soc_target in soc_targets])
+            # Off-tick target times are preserved during deserialization, and their
+            # projection moves the target to the next scheduling tick. Ceil to the
+            # scheduling resolution, so the projected target still falls within the
+            # schedule (instead of being disregarded as beyond its end).
+            resolution = self.resolution or sensor.event_resolution
+            if resolution not in (None, timedelta(0)):
+                max_target_datetime = (
+                    pd.Timestamp(max_target_datetime).ceil(resolution).to_pydatetime()
+                )
             if max_target_datetime > self.end:
                 max_server_horizon = get_max_planning_horizon(sensor.event_resolution)
                 if max_server_horizon:
