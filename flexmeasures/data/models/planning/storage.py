@@ -2901,6 +2901,20 @@ def build_device_soc_values(
                     device_values.loc[soc_constraint_start:end_of_schedule] = soc
                 continue
 
+            if (
+                soc_constraint_start == soc_constraint_end
+                and soc_constraint_start not in device_values.index
+            ):
+                # Point-like events between scheduling ticks match no index entry.
+                # This can happen when off-tick projection is disabled through the
+                # sensor's floor_datetimes_to_resolution attribute.
+                current_app.logger.warning(
+                    f"Disregarding off-tick SoC constraint at {soc_constraint_start} "
+                    f"(value: {soc}): it does not fall on the scheduling ticks and "
+                    f"off-tick projection is disabled for this sensor."
+                )
+                continue
+
             device_values.loc[soc_constraint_start:soc_constraint_end] = soc
 
         if not disregarded_periods:

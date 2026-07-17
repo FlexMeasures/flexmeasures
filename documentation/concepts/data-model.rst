@@ -117,7 +117,10 @@ For off-tick ``soc-maxima``, both surrounding ticks receive upper bounds with th
 The projection uses the ``consumption-capacity`` and ``production-capacity`` active at the relevant ticks.
 If multiple projected lower bounds land on the same tick, the highest lower bound is kept.
 If multiple projected upper bounds land on the same tick, the lowest upper bound is kept.
-Because projection can introduce additional bounds and more complex combinations can become infeasible, FlexMeasures enables ``relax-soc-constraints`` automatically when off-tick SoC constraints are submitted.
+Because projection can introduce additional bounds and more complex combinations can become infeasible, FlexMeasures enables ``relax-soc-constraints`` automatically when off-tick SoC constraints are submitted (unless it was explicitly set to ``False``, which is respected with a logged warning).
+
+Projection can be disabled per sensor by setting the ``floor_datetimes_to_resolution`` sensor attribute to ``False``.
+In that case, off-tick point-like SoC constraints cannot be enforced on the scheduling ticks and are disregarded (with a logged warning).
 
 
 .. _signs_of_power_beliefs:
