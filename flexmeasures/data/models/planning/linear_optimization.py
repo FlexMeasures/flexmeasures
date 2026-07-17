@@ -708,34 +708,6 @@ def device_scheduler(  # noqa C901
         """Down deviation active only if sign points down."""
         return -m.commitment_downwards_deviation[c] <= Mc * (1 - m.commitment_sign[c])
 
-    def device_stock_commitment_equalities(m, c, j, d):
-        """Couple device stocks to each commitment."""
-        if (
-            "device" not in commitments[c].columns
-            or (commitments[c]["device"] != d).all()
-            or m.commitment_quantity[c, j] == -infinity
-        ):
-            # Commitment c does not concern device d
-            return Constraint.Skip
-
-        # Determine center part of the lhs <= center part <= rhs constraint
-        center_part = (
-            m.commitment_quantity[c, j]
-            + m.commitment_downwards_deviation[c]
-            + m.commitment_upwards_deviation[c]
-        )
-        if commitments[c]["class"].apply(lambda cl: cl == StockCommitment).all():
-            center_part -= _get_stock_change(m, d, j)
-        elif commitments[c]["class"].apply(lambda cl: cl == FlowCommitment).all():
-            center_part -= m.ems_power[d, j]
-        else:
-            raise NotImplementedError("Unknown commitment class")
-        return (
-            0 if "upwards deviation price" in commitments[c].columns else None,
-            center_part,
-            0 if "downwards deviation price" in commitments[c].columns else None,
-        )
-
     def ems_flow_commitment_equalities(m, c, j):
         """Couple EMS flow commitments to device flows, optionally filtered by commodity."""
 
