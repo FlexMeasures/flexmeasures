@@ -17,6 +17,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.utils import save_to_db
+from flexmeasures.utils.unit_utils import ur
 
 
 def test_multi_feed_device_scheduler_shared_buffer():
@@ -1985,3 +1986,63 @@ def test_stock_scoped_commitment_binds_group_stock(named_device):
     # commitment named the group's first or second device.
     total_energy = sum(schedule.sum() for schedule in planned_power)
     np.testing.assert_allclose(total_energy, 20.0, atol=1e-6)
+
+
+def test_commitment_commodity_does_not_bind_other_commodity_devices():
+    """A commitment
+    listed under the flex-context's `commitments` should only bind devices of its own
+    `commodity` (defaulting to "electricity", like devices do). A gas commitment
+    should therefore not create a FlowCommitment against an electricity device, and
+    vice versa.
+
+    This is a DB-free, unit-level test of StorageScheduler.convert_to_commitments.
+    """
+    scheduler = object.__new__(StorageScheduler)
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                "name": "gas commitment",
+                "commodity": "gas",
+                "baseline": ur.Quantity("1 MW"),
+            },
+            {
+                # No `commodity` given: defaults to "electricity", like devices do.
+                "name": "electricity commitment",
+                "baseline": ur.Quantity("2 MW"),
+            },
+        ],
+    }
+    # Flexible devices: 0 = electricity, 1 = gas.
+    flex_model = [
+        {"commodity": "electricity"},
+        {"commodity": "gas"},
+    ]
+
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    commitments = scheduler.convert_to_commitments(
+        flex_model=flex_model,
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=None,
+    )
+
+    assert len(commitments) == 2
+
+    gas_commitment = next(c for c in commitments if c.name == "gas commitment")
+    electricity_commitment = next(
+        c for c in commitments if c.name == "electricity commitment"
+    )
+
+    # The gas commitment binds only the gas device (index 1), not the electricity
+    # device (index 0).
+    assert (gas_commitment.device == 1).all()
+    assert set(gas_commitment.device_group.unique()) == {"gas"}
+
+    # The electricity commitment (commodity defaulting to "electricity") binds only
+    # the electricity device (index 0), not the gas device (index 1).
+    assert (electricity_commitment.device == 0).all()
+    assert set(electricity_commitment.device_group.unique()) == {"electricity"}

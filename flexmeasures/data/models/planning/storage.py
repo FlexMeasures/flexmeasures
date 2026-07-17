@@ -36,6 +36,7 @@ from flexmeasures.data.schemas.scheduling import (
     CommodityFlexContextSchema,
     FlexContextSchema,
     MultiSensorFlexModelSchema,
+    SharedSchema,
 )
 from flexmeasures.data.schemas.sensors import SensorReference, VariableQuantityField
 from flexmeasures.data.services.scheduling_result import SchedulingJobResult
@@ -1282,6 +1283,7 @@ class MetaStorageScheduler(Scheduler):
                 start, end, timing_kwargs["resolution"]
             )
             commitment_commodity = commitment_spec.get("commodity", "electricity")
+            bound_device_count = 0
             for d, flex_model_d in enumerate(flex_model):
                 device_commodity = flex_model_d.get("commodity", "electricity")
                 if device_commodity != commitment_commodity:
@@ -1292,6 +1294,15 @@ class MetaStorageScheduler(Scheduler):
                     **commitment_spec,
                 )
                 commitments.append(commitment)
+                bound_device_count += 1
+            if bound_device_count == 0:
+                current_app.logger.warning(
+                    f"Commitment '{commitment_spec.get('name')}' has commodity"
+                    f" '{commitment_commodity}', which matches none of the devices"
+                    " in the flex-model. This commitment will not bind any device"
+                    " (check for a typo in the commitment's `commodity` field, or in"
+                    " a device's `commodity` field in the flex-model)."
+                )
 
         return commitments
 
@@ -1346,9 +1357,17 @@ class MetaStorageScheduler(Scheduler):
                     commodity_flex_context
                 )
 
-            # Ensure all flex-contexts share the same currency unit
+            # Ensure all flex-contexts share the same currency unit. Contexts with
+            # no user-given price fields at all (shared_currency_unit_is_default)
+            # only carry a fallback "EUR" currency, which isn't a real constraint,
+            # so they're skipped here and instead backfilled below, once a real
+            # portfolio currency is known.
             shared_currency_unit = None
+            default_currency_contexts = []
             for commodity_flex_context in self.flex_context:
+                if commodity_flex_context.get("shared_currency_unit_is_default"):
+                    default_currency_contexts.append(commodity_flex_context)
+                    continue
                 context_currency_unit = commodity_flex_context["shared_currency_unit"]
                 if shared_currency_unit is None:
                     shared_currency_unit = context_currency_unit
@@ -1358,6 +1377,20 @@ class MetaStorageScheduler(Scheduler):
                     raise ValidationError(
                         f"All prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
                     )
+
+            # Let price-free contexts inherit the portfolio's actual currency,
+            # where determinable (i.e. when at least one other context set one).
+            if shared_currency_unit is not None:
+                for commodity_flex_context in default_currency_contexts:
+                    SharedSchema._rebase_default_context_currency(
+                        commodity_flex_context, shared_currency_unit
+                    )
+            elif default_currency_contexts:
+                # No context anywhere gave an explicit price: fall back to the
+                # (shared) default currency already stamped on each of them.
+                shared_currency_unit = default_currency_contexts[0][
+                    "shared_currency_unit"
+                ]
 
             # Nest the flex-contexts per commodity under the commodity_contexts field
             self.flex_context = dict(
