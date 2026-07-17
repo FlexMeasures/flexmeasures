@@ -148,6 +148,13 @@ class MetaStorageScheduler(Scheduler):
         self.stock_models = inventory.stock_entries
         # The stock groups' device indices align with the device models
         self.stock_groups = inventory.stock_groups
+        # Soft SoC constraints are attached to their stock (see StockCommitment.stock),
+        # so the solver couples them to the stock group rather than to a device index.
+        device_stock_key = {
+            d: stock_key
+            for stock_key, group_devices in self.stock_groups.items()
+            for d in group_devices
+        }
 
         # List the asset(s) and sensor(s) being scheduled
         sensors: list[Sensor | None] = inventory.power_sensors
@@ -214,10 +221,37 @@ class MetaStorageScheduler(Scheduler):
             prefer_charging_sooner[d0] = stock_model.get("prefer_charging_sooner")
             prefer_curtailing_later[d0] = stock_model.get("prefer_curtailing_later")
 
-        # todo: move storage-efficiency into a shared parameter for the first device belonging to a shared storage
         storage_efficiency = [
             flex_model_d.get("storage_efficiency") for flex_model_d in flex_model
         ]
+        # The storage efficiency is a property of the stock, not of a connected device:
+        # for shared stocks, it may be defined on the entry holding the stock's SoC
+        # parameters or on a single member device, and applies to all members.
+        for stock_id, stock_devices in self.stock_groups.items():
+            if len(stock_devices) <= 1:
+                continue
+            definitions = []
+            stock_model = self.stock_models.get(stock_id)
+            if (
+                stock_model is not None
+                and stock_model.get("storage_efficiency") is not None
+            ):
+                definitions.append(stock_model["storage_efficiency"])
+            definitions.extend(
+                storage_efficiency[d]
+                for d in stock_devices
+                if storage_efficiency[d] is not None
+            )
+            if len(set(map(id, definitions))) > 1:
+                raise ValueError(
+                    f"Multiple flex-model entries define a storage-efficiency for the same"
+                    f" stock (state-of-charge sensor {stock_id}). The storage efficiency"
+                    f" is a property of the shared stock, so please define it on a single"
+                    f" entry."
+                )
+            shared_efficiency = definitions[0] if definitions else None
+            for d in stock_devices:
+                storage_efficiency[d] = shared_efficiency
         consumption = [flex_model_d.get("consumption") for flex_model_d in flex_model]
         production = [flex_model_d.get("production") for flex_model_d in flex_model]
         consumption_capacity = [
@@ -650,6 +684,7 @@ class MetaStorageScheduler(Scheduler):
                     downwards_deviation_price=-penalty,
                     index=index,
                     device=d,
+                    stock=device_stock_key.get(d),
                 )
                 commitments.append(commitment)
 
@@ -745,6 +780,7 @@ class MetaStorageScheduler(Scheduler):
                     index=index,
                     _type="any",
                     device=d,
+                    stock=device_stock_key.get(d),
                 )
                 commitments.append(commitment)
 
@@ -755,6 +791,7 @@ class MetaStorageScheduler(Scheduler):
                     downwards_deviation_price=-all_soc_minima_breach_price,
                     index=index,
                     device=d,
+                    stock=device_stock_key.get(d),
                 )
                 commitments.append(commitment)
 
@@ -819,6 +856,7 @@ class MetaStorageScheduler(Scheduler):
                     index=index,
                     _type="any",
                     device=d,
+                    stock=device_stock_key.get(d),
                 )
                 commitments.append(commitment)
 
@@ -829,6 +867,7 @@ class MetaStorageScheduler(Scheduler):
                     upwards_deviation_price=all_soc_maxima_breach_price,
                     index=index,
                     device=d,
+                    stock=device_stock_key.get(d),
                 )
                 commitments.append(commitment)
 

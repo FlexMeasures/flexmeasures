@@ -344,6 +344,16 @@ class DeviceInventory:
         """Return the flex-model entry holding the SoC parameters of the given stock."""
         return self.stock_entries.get(stock_key)
 
+    def stock_constraint_device(self, stock_key: int) -> int | None:
+        """Return the device that applies the given stock's SoC constraints.
+
+        Hard SoC constraints (and the device-indexed remains of softened ones) land on
+        the first device of the stock group, whose stock represents the group's stock
+        in the solver. Use :attr:`stock_groups` to look up all member devices instead.
+        """
+        group_devices = self.stock_groups.get(stock_key)
+        return group_devices[0] if group_devices else None
+
     @cached_property
     def commodity_to_devices(self) -> dict[str, list[int]]:
         """Map each commodity to its device indices, in canonical solver order."""

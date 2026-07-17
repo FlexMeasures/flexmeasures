@@ -133,22 +133,51 @@ def device_scheduler(  # noqa C901
     # and map stock group -> all member devices (used for stock accumulation).
     device_to_group = {}
 
+    # Group keys are namespaced strings: a declared stock group's key (a state-of-charge
+    # sensor id) could otherwise collide with the device index of an ungrouped device,
+    # silently merging that device into the stock group.
     if stock_groups:
         for g, devices in stock_groups.items():
             for d in devices:
-                device_to_group[d] = g
-        # For devices not in any stock group (e.g., inflexible devices),
-        # map them to themselves so they're treated as individual groups
-        for d in range(len(device_constraints)):
-            if d not in device_to_group:
-                device_to_group[d] = d
-    else:
-        for d in range(len(device_constraints)):
-            device_to_group[d] = d
+                device_to_group[d] = f"stock:{g}"
+    # Devices not in any stock group (e.g. inflexible devices) form individual groups.
+    for d in range(len(device_constraints)):
+        if d not in device_to_group:
+            device_to_group[d] = f"device:{d}"
 
     group_to_devices: dict[int, list[int]] = {}
     for d, g in device_to_group.items():
         group_to_devices.setdefault(g, []).append(d)
+
+    # The stock recursion is modelled once per stock group, using the group's shared
+    # storage efficiency, so devices sharing a stock may not declare different ones.
+    for g, group_devices in group_to_devices.items():
+        if len(group_devices) > 1:
+            # A missing efficiency column means the default (no losses) applies.
+            group_efficiency = device_constraints[group_devices[0]].get("efficiency")
+            for d in group_devices[1:]:
+                efficiency = device_constraints[d].get("efficiency")
+                if (
+                    (efficiency is None) != (group_efficiency is None)
+                    or efficiency is not None
+                    and not efficiency.equals(group_efficiency)
+                ):
+                    raise ValueError(
+                        f"Devices {group_devices} share stock group {g} but have different"
+                        " storage efficiencies. The storage efficiency is a property of the"
+                        " shared stock, so define it once per stock group."
+                    )
+            if isinstance(initial_stock, list):
+                group_initial_stocks = {
+                    initial_stock[d] if d < len(initial_stock) else 0
+                    for d in group_devices
+                }
+                if len(group_initial_stocks) > 1:
+                    raise ValueError(
+                        f"Devices {group_devices} share stock group {g} but have different"
+                        " initial stocks. The initial stock is a property of the shared"
+                        " stock, so define it once per stock group."
+                    )
 
     # Move commitments from old structure to new
     if commitments is None:
@@ -274,6 +303,18 @@ def device_scheduler(  # noqa C901
     device_group_lookup = {}
 
     for c, df in enumerate(commitments):
+        # Stock-scoped commitments couple to their stock group as a whole, regardless
+        # of which device index they name: the group's first device carries the group's
+        # stock, so a single-member group suffices (also avoiding double-counting the
+        # shared stock when the commitment names multiple members).
+        if "stock" in df.columns and pd.notna(df["stock"].iloc[0]):
+            stock_group_key = f"stock:{int(df['stock'].iloc[0])}"
+            if stock_group_key in group_to_devices:
+                device_group_lookup[c] = {
+                    stock_group_key: {group_to_devices[stock_group_key][0]}
+                }
+                continue
+
         if "device" not in df.columns:
             # EMS-level commitment: no device grouping needed here;
             # handled by ems_flow_commitment_equalities.
@@ -541,10 +582,13 @@ def device_scheduler(  # noqa C901
     )
     model.device_power_up = Var(model.d, model.j, domain=NonNegativeReals, initialize=0)
     model.device_power_sign = Var(model.d, model.j, domain=Binary, initialize=0)
-    # Stock per device per time step, coupled recursively by device_stock_balance.
+    # Stock per stock group per time step, coupled recursively by group_stock_balance.
     # Having it as a variable (rather than a running sum expression) keeps the number
-    # of model nonzeros linear, rather than quadratic, in the scheduling horizon.
-    model.device_stock = Var(model.d, model.j, domain=Reals, initialize=0)
+    # of model nonzeros linear, rather than quadratic, in the scheduling horizon, and
+    # indexing it by stock group (rather than by device) avoids duplicating the
+    # recursion for each device sharing a stock.
+    model.sg = Set(initialize=sorted(group_to_devices), doc="Set of stock groups")
+    model.group_stock = Var(model.sg, model.j, domain=Reals, initialize=0)
     model.commitment_downwards_deviation = Var(
         model.c,
         domain=NonPositiveReals,
@@ -565,14 +609,13 @@ def device_scheduler(  # noqa C901
             return initial_stock[d] if d < len(initial_stock) else 0
         return initial_stock
 
-    def _stock_change_at(m, d, j):
-        """Stock change of device d's stock group during time step j (before losses)."""
-        devices = group_to_devices[device_to_group[d]]
+    def _stock_change_at(m, g, j):
+        """Stock change of stock group g during time step j (before losses)."""
         return sum(
             m.device_power_down[dev, j] / m.device_derivative_down_efficiency[dev, j]
             + m.device_power_up[dev, j] * m.device_derivative_up_efficiency[dev, j]
             + m.stock_delta[dev, j]
-            for dev in devices
+            for dev in group_to_devices[g]
         )
 
     def _loss_coefficients(efficiency: float) -> tuple[float, float]:
@@ -588,20 +631,24 @@ def device_scheduler(  # noqa C901
             return 1.0, 1.0
         return efficiency, (efficiency - 1) / math.log(efficiency)
 
-    def device_stock_balance(m, d, j):
-        """Recursively couple a device's stock to the previous step's stock.
+    def group_stock_balance(m, g, j):
+        """Recursively couple a stock group's stock to the previous step's stock.
 
         Expressing stock[j] as a running sum over all k <= j (as this once did) makes
         the number of nonzeros grow quadratically with the scheduling horizon. The
         recursion below is equivalent and keeps it linear.
+
+        The group's devices share their storage efficiency and initial stock
+        (validated above), so the first device can represent the group here.
         """
-        a, b = _loss_coefficients(m.device_efficiency[d, j])
-        previous = m.device_stock[d, j - 1] if j > 0 else _initial_stock_of(d)
-        return m.device_stock[d, j] == a * previous + b * _stock_change_at(m, d, j)
+        d0 = group_to_devices[g][0]
+        a, b = _loss_coefficients(m.device_efficiency[d0, j])
+        previous = m.group_stock[g, j - 1] if j > 0 else _initial_stock_of(d0)
+        return m.group_stock[g, j] == a * previous + b * _stock_change_at(m, g, j)
 
     def _get_stock_change(m, d, j):
         """Stock change of the stock group of device d, from the start until time j."""
-        return m.device_stock[d, j] - _initial_stock_of(d)
+        return m.group_stock[device_to_group[d], j] - _initial_stock_of(d)
 
     # Add constraints as a tuple of (lower bound, value, upper bound)
     def device_bounds(m, d, j):
@@ -661,34 +708,6 @@ def device_scheduler(  # noqa C901
         """Down deviation active only if sign points down."""
         return -m.commitment_downwards_deviation[c] <= Mc * (1 - m.commitment_sign[c])
 
-    def device_stock_commitment_equalities(m, c, j, d):
-        """Couple device stocks to each commitment."""
-        if (
-            "device" not in commitments[c].columns
-            or (commitments[c]["device"] != d).all()
-            or m.commitment_quantity[c, j] == -infinity
-        ):
-            # Commitment c does not concern device d
-            return Constraint.Skip
-
-        # Determine center part of the lhs <= center part <= rhs constraint
-        center_part = (
-            m.commitment_quantity[c, j]
-            + m.commitment_downwards_deviation[c]
-            + m.commitment_upwards_deviation[c]
-        )
-        if commitments[c]["class"].apply(lambda cl: cl == StockCommitment).all():
-            center_part -= _get_stock_change(m, d, j)
-        elif commitments[c]["class"].apply(lambda cl: cl == FlowCommitment).all():
-            center_part -= m.ems_power[d, j]
-        else:
-            raise NotImplementedError("Unknown commitment class")
-        return (
-            0 if "upwards deviation price" in commitments[c].columns else None,
-            center_part,
-            0 if "downwards deviation price" in commitments[c].columns else None,
-        )
-
     def ems_flow_commitment_equalities(m, c, j):
         """Couple EMS flow commitments to device flows, optionally filtered by commodity."""
 
@@ -728,7 +747,7 @@ def device_scheduler(  # noqa C901
         model.cjg, rule=grouped_commitment_equalities
     )
 
-    model.device_stock_balance = Constraint(model.d, model.j, rule=device_stock_balance)
+    model.group_stock_balance = Constraint(model.sg, model.j, rule=group_stock_balance)
     model.device_energy_bounds = Constraint(model.d, model.j, rule=device_bounds)
     model.device_power_bounds = Constraint(
         model.d, model.j, rule=device_derivative_bounds
