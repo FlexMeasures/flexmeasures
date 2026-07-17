@@ -142,22 +142,29 @@ def device_scheduler(  # noqa C901
     # map device -> primary stock group (used for per-device stock bounds)
     # and map stock group -> all member devices (used for stock accumulation).
     device_to_group = {}
+    group_to_devices: dict[str, list[int]] = {}
 
     # Group keys are namespaced strings: a declared stock group's key (a state-of-charge
     # sensor id) could otherwise collide with the device index of an ungrouped device,
     # silently merging that device into the stock group.
+    #
+    # A device may belong to more than one stock group — a commodity converter (e.g. a
+    # steamer bridging a heat node and a steam node) participates in every node it
+    # touches, so ``group_to_devices`` keeps the full (possibly overlapping) membership.
+    # ``device_to_group`` records only the primary group (first assignment wins), used
+    # where a single owning group is needed (per-device stock bounds).
     if stock_groups:
         for g, devices in stock_groups.items():
+            gkey = f"stock:{g}"
+            group_to_devices[gkey] = list(devices)
             for d in devices:
-                device_to_group[d] = f"stock:{g}"
+                device_to_group.setdefault(d, gkey)
     # Devices not in any stock group (e.g. inflexible devices) form individual groups.
     for d in range(len(device_constraints)):
         if d not in device_to_group:
-            device_to_group[d] = f"device:{d}"
-
-    group_to_devices: dict[int, list[int]] = {}
-    for d, g in device_to_group.items():
-        group_to_devices.setdefault(g, []).append(d)
+            gkey = f"device:{d}"
+            device_to_group[d] = gkey
+            group_to_devices[gkey] = [d]
 
     # The stock recursion is modelled once per stock group, using the group's shared
     # storage efficiency, so devices sharing a stock may not declare different ones.
