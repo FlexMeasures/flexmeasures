@@ -185,7 +185,7 @@ For tighter control over prices and priorities, the breach prices can also be se
     example=True,
 )
 RELAX_SOC_CONSTRAINTS = MetaData(
-    description="If True (default), avoids not meeting SoC minima/maxima as relaxed constraints. Set this to False to keep SoC minima/maxima as hard constraints unless breach prices are supplied explicitly.",
+    description="If True (default), avoids not meeting SoC minima/maxima as relaxed constraints. Setting this field (or ``relax-constraints``) to False keeps SoC minima/maxima as hard constraints unless breach prices are supplied explicitly; an explicit ``relax-soc-constraints`` takes precedence over ``relax-constraints``.",
     example=True,
 )
 RELAX_CAPACITY_CONSTRAINTS = MetaData(

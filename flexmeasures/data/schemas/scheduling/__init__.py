@@ -875,8 +875,16 @@ class FlexContextSchema(SharedSchema):
             return data
 
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
+        # Both relax-soc-constraints and relax-constraints default to True, so an
+        # explicit relax-soc-constraints wins and otherwise the umbrella
+        # relax-constraints decides: setting either flag to False keeps
+        # SoC minima/maxima as hard constraints.
+        if "relax-soc-constraints" in original_data:
+            relax_soc_constraints = data["relax_soc_constraints"]
+        else:
+            relax_soc_constraints = data["relax_constraints"]
         if (
-            (data["relax_soc_constraints"] or data["relax_constraints"])
+            relax_soc_constraints
             and data.get("soc_minima_breach_price") is None
             and data.get("soc_maxima_breach_price") is None
         ):
@@ -1215,6 +1223,10 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
 
 
 class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
+    # The relaxation defaults are turned off here, so validating a stored asset
+    # flex-context does not fill in default breach prices. The API-side defaults
+    # (which are True) are applied at scheduling time instead, after the stored
+    # flex-context is merged with the one passed in the scheduling request.
     relax_constraints = fields.Bool(
         data_key="relax-constraints",
         load_default=False,

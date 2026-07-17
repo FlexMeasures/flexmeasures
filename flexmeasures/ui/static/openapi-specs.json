@@ -4752,7 +4752,7 @@
           "relax-soc-constraints": {
             "type": "boolean",
             "default": true,
-            "description": "If True (default), avoids not meeting SoC minima/maxima as relaxed constraints. Set this to False to keep SoC minima/maxima as hard constraints unless breach prices are supplied explicitly.",
+            "description": "If True (default), avoids not meeting SoC minima/maxima as relaxed constraints. Setting this field (or <code>relax-constraints</code>) to False keeps SoC minima/maxima as hard constraints unless breach prices are supplied explicitly; an explicit <code>relax-soc-constraints</code> takes precedence over <code>relax-constraints</code>.",
             "example": true
           },
           "relax-capacity-constraints": {
@@ -6276,7 +6276,7 @@
             "example": true
           },
           "soc-maxima": {
-            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nThe <code>soc-maxima</code> are soft constraints in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-maxima-breach-price</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep them as hard constraints unless <code>soc-maxima-breach-price</code> is supplied explicitly.",
+            "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nThe <code>soc-maxima</code> are soft constraints in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-maxima-breach-price</code>.\nSet <code>relax-soc-constraints</code> (or <code>relax-constraints</code>) to <code>False</code> to keep them as hard constraints unless <code>soc-maxima-breach-price</code> is supplied explicitly.",
             "example": [
               {
                 "value": "51 kWh",
@@ -6287,7 +6287,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima": {
-            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nThe <code>soc-minima</code> are soft constraints in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-minima-breach-price</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep them as hard constraints unless <code>soc-minima-breach-price</code> is supplied explicitly.\nBoth single points in time and ranges are possible, see example.",
+            "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nThe <code>soc-minima</code> are soft constraints in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-minima-breach-price</code>.\nSet <code>relax-soc-constraints</code> (or <code>relax-constraints</code>) to <code>False</code> to keep them as hard constraints unless <code>soc-minima-breach-price</code> is supplied explicitly.\nBoth single points in time and ranges are possible, see example.",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",
