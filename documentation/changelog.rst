@@ -32,6 +32,7 @@ Infrastructure / Support
 ----------------------
 * Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_, `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_ and `PR #2243 <https://www.github.com/FlexMeasures/flexmeasures/pull/2243>`_]
 * Prepare the ``device_scheduler`` to deal with commitments per device group [see `PR #1934 <https://www.github.com/FlexMeasures/flexmeasures/pull/1934>`_]
+* Speed up scheduling on longer horizons using a recursive stock model, making the solve time linear with the horizon instead of quadratic (about 10x faster solves at the 2-day default horizon, 23x at 3 days) [see `PR #2282 <https://www.github.com/FlexMeasures/flexmeasures/pull/2282>`_]
 * Support storing encrypted connection secrets on organisations and assets, including utility functions, encryption key configuration, CLI commands to set and delete secrets, and UI tables that show stored secret names and optional expiration times without exposing their values [see `PR #2236 <https://www.github.com/FlexMeasures/flexmeasures/pull/2236>`_]
 * Documentation section on the modelling choice for recording measurements, forecasts and schedules under one or multiple sensors [see `PR #2217 <https://www.github.com/FlexMeasures/flexmeasures/pull/2217>`_]
 * Document source filters better, and make use of the source-types filter in the PV curtailment tutorial [see `PR #2261 <https://www.github.com/FlexMeasures/flexmeasures/pull/2261>`_]
