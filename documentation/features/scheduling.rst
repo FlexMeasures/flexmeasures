@@ -314,6 +314,7 @@ However, here are some tips to model a buffer correctly:
 
 If the flex model describes an infeasible problem for the storage scheduler, the failure should remain visible.
 By default, ``soc-minima`` and ``soc-maxima`` are relaxed into soft constraints, so the scheduler can still return a useful schedule when these boundaries cannot be fully met.
+Setting either ``relax-soc-constraints`` or ``relax-constraints`` to ``false`` in the flex-context keeps them as hard constraints.
 Exact ``soc-targets`` and physical ``soc-min`` / ``soc-max`` bounds remain hard constraints.
 If those hard constraints make the problem infeasible, the scheduling job fails instead of producing a fallback schedule.
 
