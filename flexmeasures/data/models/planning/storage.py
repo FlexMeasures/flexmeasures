@@ -1535,17 +1535,40 @@ class MetaStorageScheduler(Scheduler):
         return self.flex_model
 
     def enable_relax_soc_constraints(self) -> None:
-        """Relax SoC constraints when off-tick SoC events require scheduling-tick projection."""
+        """Relax SoC constraints when off-tick SoC events require scheduling-tick projection.
+
+        Projection can add bounds (and stricter combinations of bounds), which could
+        render the problem infeasible if they remain hard constraints. Therefore,
+        ``relax-soc-constraints`` is enabled unless the user explicitly disabled it,
+        in which case we respect that choice and only log a warning.
+        """
+
+        def _enable(context: dict) -> None:
+            if context.get("relax-soc-constraints") is False:
+                current_app.logger.warning(
+                    "Off-tick SoC constraints are projected onto the scheduling ticks, "
+                    "which can add bounds that render the scheduling problem infeasible, "
+                    "but 'relax-soc-constraints' is explicitly disabled. "
+                    "Keeping SoC constraints hard."
+                )
+                return
+            if context.get("relax-soc-constraints") is not True:
+                current_app.logger.info(
+                    "Enabling 'relax-soc-constraints' because off-tick SoC constraints "
+                    "are projected onto the scheduling ticks."
+                )
+            context["relax-soc-constraints"] = True
+
         if self.flex_context is None:
             self.flex_context = {}
         if isinstance(self.flex_context, dict):
-            self.flex_context["relax-soc-constraints"] = True
+            _enable(self.flex_context)
             for commodity_context in self.flex_context.get("commodities", []):
-                commodity_context["relax-soc-constraints"] = True
+                _enable(commodity_context)
             return
         if isinstance(self.flex_context, list):
             for commodity_context in self.flex_context:
-                commodity_context["relax-soc-constraints"] = True
+                _enable(commodity_context)
 
     def has_soc_at_start(self) -> bool:
         return (

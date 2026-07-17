@@ -1222,8 +1222,14 @@ def test_off_tick_soc_bounds_are_merged_on_the_same_scheduling_tick():
     ), "merged maxima should keep the stricter upper bound on the next tick"
 
 
-def test_off_tick_soc_constraints_enable_relax_soc_constraints(add_battery_assets, db):
-    """Off-tick SoC constraints enable relaxation because projection can add bounds."""
+@pytest.mark.parametrize("explicit_relax_setting", [None, False])
+def test_off_tick_soc_constraints_enable_relax_soc_constraints(
+    add_battery_assets, db, explicit_relax_setting
+):
+    """Off-tick SoC constraints enable relaxation because projection can add bounds.
+
+    An explicit ``relax-soc-constraints: False`` is respected, though.
+    """
     _, battery = get_sensors_from_db(
         db, add_battery_assets, battery_name="Test battery"
     )
@@ -1252,21 +1258,30 @@ def test_off_tick_soc_constraints_enable_relax_soc_constraints(add_battery_asset
         flex_context={
             "consumption-price": "0 EUR/MWh",
             "production-price": "0 EUR/MWh",
-            "relax-soc-constraints": False,
+            **(
+                {}
+                if explicit_relax_setting is None
+                else {"relax-soc-constraints": explicit_relax_setting}
+            ),
         },
     )
 
     scheduler.deserialize_config()
 
-    assert (
-        scheduler.flex_context["relax_soc_constraints"] is True
-    ), "off-tick SoC constraints should automatically enable SoC relaxation"
-    assert (
-        scheduler.flex_context["soc_minima_breach_price"] is not None
-    ), "auto-enabled SoC relaxation should include a minima breach price"
-    assert (
-        scheduler.flex_context["soc_maxima_breach_price"] is not None
-    ), "auto-enabled SoC relaxation should include a maxima breach price"
+    if explicit_relax_setting is False:
+        assert (
+            scheduler.flex_context["relax_soc_constraints"] is False
+        ), "an explicit relax-soc-constraints: False should be respected"
+    else:
+        assert (
+            scheduler.flex_context["relax_soc_constraints"] is True
+        ), "off-tick SoC constraints should automatically enable SoC relaxation"
+        assert (
+            scheduler.flex_context["soc_minima_breach_price"] is not None
+        ), "auto-enabled SoC relaxation should include a minima breach price"
+        assert (
+            scheduler.flex_context["soc_maxima_breach_price"] is not None
+        ), "auto-enabled SoC relaxation should include a maxima breach price"
 
 
 def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(
