@@ -830,7 +830,7 @@ def _get_sensor_stats(
             sa.func.max(
                 TimedBelief.event_start
                 + sensor.event_resolution
-                - TimedBelief.belief_horizon
+                - TimedBelief.belief_horizon * sa.literal_column("interval '1 second'")
             ).label("max_belief_time"),
             filtered_agg(sa.func.min).label("min_event_value"),
             filtered_agg(sa.func.max).label("max_event_value"),

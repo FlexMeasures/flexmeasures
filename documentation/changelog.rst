@@ -30,6 +30,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Store timed belief horizons as integer seconds in the database to reduce belief storage size; upgrading requires running the new migration with timely-beliefs support [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 * Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_, `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_ and `PR #2243 <https://www.github.com/FlexMeasures/flexmeasures/pull/2243>`_]
 * Prepare the ``device_scheduler`` to deal with commitments per device group [see `PR #1934 <https://www.github.com/FlexMeasures/flexmeasures/pull/1934>`_]
 * Speed up scheduling on longer horizons using a recursive stock model, making the solve time linear with the horizon instead of quadratic (about 10x faster solves at the 2-day default horizon, 23x at 3 days) [see `PR #2282 <https://www.github.com/FlexMeasures/flexmeasures/pull/2282>`_]
