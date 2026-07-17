@@ -1365,7 +1365,7 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             "charging-efficiency": 0.9,
             "commodity": "electricity",
             "production-capacity": "0 kW",
-            # "storage-efficiency": 0.9,  # todo: workaround does not work yet
+            # "storage-efficiency": "99%",  # supported since #2324 (on the SoC-parameters entry below)
         },
         {
             "sensor": boiler_power.id,
@@ -1374,7 +1374,7 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             "charging-efficiency": 0.9,
             "commodity": "gas",
             "production-capacity": "0 kW",
-            # "storage-efficiency": 0.9,  # todo: workaround does not work yet
+            # "storage-efficiency": "99%",  # supported since #2324 (on the SoC-parameters entry below)
         },
         {
             # "sensor": tank_power.id,
@@ -1386,7 +1386,7 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             # ],
             "state-of-charge": {"sensor": buffer_soc.id},
             "soc-usage": [{"sensor": buffer_soc_usage.id}],
-            "storage-efficiency": 0.9,  # todo: does not work yet
+            # "storage-efficiency": "99%",  # supported since #2324, but losses would change the expected schedules below
             # todo: consider assigning this to the heat commodity, maybe we can derive some useful (costs?) KPI from it
         },
     ]
@@ -1782,3 +1782,118 @@ def test_electricity_device_indices_exclude_other_commodities():
     assert mapping["electricity"] == [0, 2, 3, 4]
     assert mapping["gas"] == [1, 5]
     assert scheduler._electricity_device_indices() == [0, 2, 3, 4]
+
+
+def _shared_stock_scheduler(db, flex_model, label):
+    """Set up a battery with two inverter power sensors and one SoC sensor.
+
+    The passed flex_model receives the sensor references via format placeholders
+    ``power_1``, ``power_2`` and ``soc``.
+    """
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-02T00:00:00+01:00")
+    resolution = pd.Timedelta("15m")
+
+    battery_type = get_or_create_model(GenericAssetType, name="battery")
+    inverter_type = get_or_create_model(GenericAssetType, name="inverter")
+    battery = GenericAsset(
+        name=f"storage-efficiency test battery {label}", generic_asset_type=battery_type
+    )
+    inverter_1 = GenericAsset(
+        name=f"storage-efficiency test inverter 1 {label}",
+        generic_asset_type=inverter_type,
+    )
+    inverter_2 = GenericAsset(
+        name=f"storage-efficiency test inverter 2 {label}",
+        generic_asset_type=inverter_type,
+    )
+    db.session.add_all([battery, inverter_1, inverter_2])
+    power_1 = Sensor(
+        name="power", unit="kW", event_resolution=resolution, generic_asset=inverter_1
+    )
+    power_2 = Sensor(
+        name="power", unit="kW", event_resolution=resolution, generic_asset=inverter_2
+    )
+    soc = Sensor(
+        name="state-of-charge",
+        unit="kWh",
+        event_resolution=pd.Timedelta(0),
+        generic_asset=battery,
+    )
+    db.session.add_all([power_1, power_2, soc])
+    db.session.commit()
+
+    power_sensors = {"power_1": power_1.id, "power_2": power_2.id}
+    for entry in flex_model:
+        if "sensor" in entry:
+            entry["sensor"] = power_sensors[entry["sensor"]]
+        if "state-of-charge" in entry:
+            entry["state-of-charge"] = {"sensor": soc.id}
+
+    return StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "100 EUR/MWh",
+        },
+        return_multiple=True,
+    )
+
+
+def test_shared_stock_storage_efficiency_applies_to_all_members(db):
+    """A storage-efficiency defined on the stock's SoC-parameters entry applies to every member device."""
+    scheduler = _shared_stock_scheduler(
+        db,
+        [
+            {"sensor": "power_1", "state-of-charge": "soc", "power-capacity": "20 kW"},
+            {"sensor": "power_2", "state-of-charge": "soc", "power-capacity": "20 kW"},
+            {
+                "state-of-charge": "soc",
+                "soc-at-start": 20.0,
+                "soc-min": 10,
+                "soc-max": 200.0,
+                "storage-efficiency": "99%",
+            },
+        ],
+        label="propagate",
+    )
+    device_constraints = scheduler._prepare(skip_validation=True)[5]
+    assert (device_constraints[0]["efficiency"] == 0.99).all()
+    assert device_constraints[1]["efficiency"].equals(
+        device_constraints[0]["efficiency"]
+    )
+
+
+def test_shared_stock_storage_efficiency_defined_twice_fails(db):
+    """Two entries defining a storage-efficiency for the same stock are rejected."""
+    scheduler = _shared_stock_scheduler(
+        db,
+        [
+            {
+                "sensor": "power_1",
+                "state-of-charge": "soc",
+                "power-capacity": "20 kW",
+                "storage-efficiency": "99%",
+            },
+            {
+                "sensor": "power_2",
+                "state-of-charge": "soc",
+                "power-capacity": "20 kW",
+                "storage-efficiency": "99%",
+            },
+            {
+                "state-of-charge": "soc",
+                "soc-at-start": 20.0,
+                "soc-min": 10,
+                "soc-max": 200.0,
+            },
+        ],
+        label="conflict",
+    )
+    with pytest.raises(ValueError, match="define it on a single entry"):
+        scheduler._prepare(skip_validation=True)
