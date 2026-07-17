@@ -529,6 +529,13 @@ class CommodityFlexContextSchema(SharedSchema):
             or has_power_capacity
         )
 
+        # Record durably whether any price field was user-given, so the scheduler
+        # can distinguish a smart-defaulted zero price from a deliberate one
+        # (e.g. to treat a priceless commodity as an internal node).
+        data["prices_are_defaulted"] = not (
+            has_consumption_price or has_production_price
+        )
+
         currency = data.get("shared_currency_unit") or "EUR"
         zero_price = ur.Quantity(f"0 {currency}/MWh")
         zero_capacity = ur.Quantity("0 MW")

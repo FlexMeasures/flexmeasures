@@ -367,7 +367,16 @@ class MetaStorageScheduler(Scheduler):
             if production_price is None:
                 production_price = consumption_price
 
-            if consumption_price is None:
+            # A context without user-given price fields may still carry smart-defaulted
+            # zero prices (see CommodityFlexContextSchema.fill_grid_connection_defaults),
+            # in which case it is flagged with prices_are_defaulted.
+            has_no_user_given_prices = consumption_price is None or (
+                commodity_context.get("prices_are_defaulted", False)
+                and consumption_price_sensor is None
+                and production_price_sensor is None
+            )
+
+            if has_no_user_given_prices:
                 if commodity == "electricity":
                     # Electricity is assumed to be grid-connected, so a missing
                     # price is treated as a configuration error rather than as
