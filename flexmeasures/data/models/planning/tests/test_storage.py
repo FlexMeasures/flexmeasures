@@ -11,6 +11,7 @@ from flexmeasures.data.models.planning import Scheduler
 from flexmeasures.data.models.planning.soc_projection import (
     project_off_tick_soc_constraints,
 )
+from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
@@ -1450,6 +1451,121 @@ def test_off_tick_soc_minima_are_projected_into_soft_commitments(
     assert quantity.loc[start + resolution] == pytest.approx(
         0.998 * 4
     ), "the soft commitment should use the projected next-tick minimum"
+
+
+def test_off_tick_soc_relaxation_is_scoped_to_the_off_tick_device(
+    add_battery_assets, db
+):
+    """In a multi-device flex-model, auto-relaxation softens only the off-tick device.
+
+    Device 0 uses an off-tick soc-minima (triggering automatic relaxation and
+    projection), while device 1 uses an on-tick soc-minima. With relaxation
+    otherwise disabled, device 0's minima should become soft commitments and
+    device 1's minima should remain hard constraints.
+    """
+    template = add_battery_assets["Test battery"]
+    asset = GenericAsset(
+        name="Test multi-device battery site",
+        generic_asset_type=template.generic_asset_type,
+        owner=template.owner,
+    )
+    sensor_0 = Sensor(
+        name="multi-device power 0",
+        generic_asset=asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    sensor_1 = Sensor(
+        name="multi-device power 1",
+        generic_asset=asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    db.session.add_all([asset, sensor_0, sensor_1])
+    db.session.flush()
+    tz = pytz.timezone("Europe/Amsterdam")
+    start = tz.localize(datetime(2015, 1, 1, 16, 45))
+    end = tz.localize(datetime(2015, 1, 1, 17, 15))
+    resolution = timedelta(minutes=15)
+
+    common_flex_model = {
+        "soc-at-start": "0 MWh",
+        "soc-min": "0 MWh",
+        "soc-max": "1 MWh",
+        "power-capacity": "0.04 MW",
+        "consumption-capacity": "0.04 MW",
+        "production-capacity": "0.04 MW",
+        "roundtrip-efficiency": 1,
+        "storage-efficiency": 1,
+    }
+    scheduler = StorageScheduler(
+        asset,
+        start,
+        end,
+        resolution,
+        flex_model=[
+            {
+                "sensor": sensor_0.id,
+                **common_flex_model,
+                "soc-minima": [
+                    {
+                        "datetime": "2015-01-01T17:12:00+01:00",
+                        "value": "1 MWh",
+                    }
+                ],
+            },
+            {
+                "sensor": sensor_1.id,
+                **common_flex_model,
+                "soc-minima": [
+                    {
+                        "datetime": "2015-01-01T17:00:00+01:00",
+                        "value": "1 MWh",
+                    }
+                ],
+            },
+        ],
+        flex_context={
+            "consumption-price": "0 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "1 MW",
+            # relaxation is otherwise off, so any softening is due to off-tick projection
+            "relax-constraints": False,
+        },
+    )
+
+    _, _, _, _, _, device_constraints, _, commitments = scheduler._prepare(
+        skip_validation=True
+    )
+
+    assert (
+        scheduler.flex_context["relax_soc_constraints"] is True
+    ), "off-tick SoC constraints should automatically enable SoC relaxation"
+
+    soc_minima_commitments = [
+        c for c in commitments if getattr(c, "name", "") == "any soc minima"
+    ]
+    assert (
+        len(soc_minima_commitments) == 1
+        and (soc_minima_commitments[0].device == 0).all()
+    ), "only the off-tick device should have its soc-minima softened into commitments"
+    quantity = soc_minima_commitments[0].quantity.tz_convert(tz)
+    assert quantity.loc[start] == pytest.approx(
+        0.992 * 4
+    ), "the soft commitment should use the projected previous-tick minimum"
+    assert quantity.loc[start + resolution] == pytest.approx(
+        0.998 * 4
+    ), "the soft commitment should use the projected next-tick minimum"
+
+    constraints_0 = device_constraints[0].tz_convert(tz)
+    assert (
+        constraints_0["min"] == 0
+    ).all(), "the off-tick device should keep only the global soc-min as a hard bound"
+
+    constraints_1 = device_constraints[1].tz_convert(tz)
+    assert constraints_1.loc[start, "min"] == pytest.approx(
+        4
+    ), "the on-tick device's soc-minima should remain a hard constraint"
 
 
 def test_deserialize_storage_soc_at_start_from_state_of_charge_sensor(
