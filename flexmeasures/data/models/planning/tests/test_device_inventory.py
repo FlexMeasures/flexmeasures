@@ -330,3 +330,25 @@ def test_group_field_rejected_in_single_sensor_mode():
             {"soc_at_start": 0.0, "group": {"sensor": group_sensor}},
             sensor=power,
         )
+
+
+def test_stock_constraint_device():
+    """The first member of a stock group applies the stock's SoC constraints."""
+    soc = make_sensor(100, unit="kWh")
+    power_a = make_sensor(1)
+    power_b = make_sensor(2)
+    power_c = make_sensor(3)
+
+    inventory = DeviceInventory.from_flex_config(
+        [
+            {"state_of_charge": soc, "soc_at_start": 0.0},  # stock-only entry
+            {"sensor": power_a, "state_of_charge": soc},
+            {"sensor": power_b, "state_of_charge": soc},
+            {"sensor": power_c},  # own (synthetic) stock
+        ]
+    )
+
+    assert inventory.stock_constraint_device(soc.id) == 0
+    device_c = inventory.devices[2]
+    assert inventory.stock_constraint_device(device_c.stock_key) == 2
+    assert inventory.stock_constraint_device(999) is None

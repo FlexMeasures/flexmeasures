@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.33.2"
+    "version": "1.0.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -4620,6 +4620,10 @@
         "properties": {
           "name": {
             "type": "string"
+          },
+          "commodity": {
+            "type": "string",
+            "default": "electricity"
           },
           "baseline": {},
           "up-price": {},
