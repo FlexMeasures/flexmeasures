@@ -21,6 +21,7 @@ from flexmeasures.data.models.planning import (
 from flexmeasures.data.models.planning.devices import (
     DeviceInventory,
     _resolve_stock_key,
+    group_key_label,
 )
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.planning.utils import (
@@ -170,6 +171,77 @@ class MetaStorageScheduler(Scheduler):
             for stock_key, group_devices in self.stock_groups.items()
             for d in group_devices
         }
+
+        # Group entries (intermediate power constraints on groups of devices, e.g. a
+        # sub-EMS) come classified from the inventory, together with the resolved
+        # (leaf) group membership. Accessing `group_to_devices` also detects cyclic
+        # group references (raising a ValueError).
+        self._group_models = inventory.group_entries
+        self._group_to_devices = inventory.group_to_devices
+
+        if not skip_validation:
+            dangling = inventory.referenced_group_keys - set(
+                inventory.group_entries.keys()
+            )
+            if dangling:
+                raise ValueError(
+                    "The 'group' field references "
+                    f"{sorted(group_key_label(g) for g in dangling)}, but no "
+                    "flex-model entry was found for it. Add a flex-model entry for "
+                    "the group, carrying the group's power-capacity, "
+                    "consumption-capacity and/or production-capacity."
+                )
+            device_only_fields = (
+                "soc_at_start",
+                "soc_min",
+                "soc_max",
+                "soc_minima",
+                "soc_maxima",
+                "soc_targets",
+                "soc_gain",
+                "soc_usage",
+                "state_of_charge",
+                "storage_efficiency",
+                "charging_efficiency",
+                "discharging_efficiency",
+                "roundtrip_efficiency",
+            )
+            for gkey, group_entry in inventory.group_entries.items():
+                offending = [
+                    field for field in device_only_fields if group_entry.get(field)
+                ]
+                if offending:
+                    raise ValueError(
+                        f"Group entry for {group_key_label(gkey)} carries "
+                        f"device-only field(s) {offending}, which is not allowed: "
+                        "group entries only describe constraints on the group's "
+                        "aggregate power."
+                    )
+                if not any(
+                    group_entry.get(field) is not None
+                    for field in (
+                        "power_capacity_in_mw",
+                        "consumption_capacity",
+                        "production_capacity",
+                    )
+                ):
+                    raise ValueError(
+                        f"Group entry for {group_key_label(gkey)} defines none of "
+                        "'power-capacity', 'consumption-capacity' or "
+                        "'production-capacity'; such an entry has no effect."
+                    )
+            for gkey, leaves in inventory.group_to_devices.items():
+                if not leaves:
+                    raise ValueError(
+                        f"The 'group' field references {group_key_label(gkey)}, "
+                        "but no device in the flex-model belongs to that group."
+                    )
+                commodities = {inventory.devices[d].commodity for d in leaves}
+                if len(commodities) > 1:
+                    raise ValueError(
+                        f"All member devices of group {group_key_label(gkey)} must "
+                        f"share the same commodity; found {sorted(commodities)}."
+                    )
 
         # List the asset(s) and sensor(s) being scheduled
         sensors: list[Sensor | None] = inventory.power_sensors
@@ -655,6 +727,153 @@ class MetaStorageScheduler(Scheduler):
                 commodity_ems_constraints["derivative min"] = ems_production_capacity
             ems_constraints.append(commodity_ems_constraints)
             ems_constraint_groups.append(list(devices))
+
+        # Intermediate power constraints on groups of devices (sub-EMS's), declared via
+        # the `group` field on flex-model entries. See MetaStorageScheduler._prepare
+        # docstring notes on groups above.
+        default_group_breach_price = ur.Quantity(
+            f"10000 {self.flex_context['shared_currency_unit']}/kW"
+        )
+        for group_key, leaf_members in self._group_to_devices.items():
+            if not leaf_members:
+                continue
+            group_entry = self._group_models[group_key]
+            group_label = f"{group_key[0]}:{group_key[1]}"
+            group_commodity = inventory.devices[leaf_members[0]].commodity
+            group_devices = device_list_series(leaf_members, index)
+
+            group_power_capacity = get_continuous_series_sensor_or_quantity(
+                variable_quantity=group_entry.get("power_capacity_in_mw"),
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                resolve_overlaps="min",
+            )
+            group_consumption_capacity = get_continuous_series_sensor_or_quantity(
+                variable_quantity=group_entry.get("consumption_capacity"),
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                max_value=group_power_capacity,
+                resolve_overlaps="min",
+            )
+            group_production_capacity = -1 * get_continuous_series_sensor_or_quantity(
+                variable_quantity=group_entry.get("production_capacity"),
+                unit="MW",
+                query_window=(start, end),
+                resolution=resolution,
+                beliefs_before=belief_time,
+                max_value=group_power_capacity,
+                resolve_overlaps="min",
+            )
+
+            # Hard bound: the group's summed power may never exceed its (physical)
+            # power capacity, in either direction.
+            group_ems_constraints = initialize_df(
+                StorageScheduler.COLUMNS, start, end, resolution
+            )
+            group_ems_constraints["derivative max"] = group_power_capacity
+            group_ems_constraints["derivative min"] = -group_power_capacity
+            ems_constraints.append(group_ems_constraints)
+            ems_constraint_groups.append(list(leaf_members))
+
+            currency_unit = self.flex_context["shared_currency_unit"]
+
+            # Soft bound: directional (consumption/production) capacities on the group
+            # are enforced via breach commitments with default breach prices (no
+            # user-set prices are supported for groups), mirroring the site-level
+            # ems_consumption_breach_price / ems_production_breach_price pattern.
+            if group_entry.get("consumption_capacity") is not None:
+                any_group_consumption_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=default_group_breach_price,
+                        unit=currency_unit + "/MW",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                all_group_consumption_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=default_group_breach_price,
+                        unit=currency_unit + "/MW*h",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                commitments.append(
+                    FlowCommitment(
+                        name=f"group {group_label} any consumption breach",
+                        quantity=group_consumption_capacity,
+                        upwards_deviation_price=any_group_consumption_breach_price,
+                        _type="any",
+                        index=index,
+                        device=group_devices,
+                        device_group=f"group:{group_label}",
+                        commodity=group_commodity,
+                    )
+                )
+                commitments.append(
+                    FlowCommitment(
+                        name=f"group {group_label} all consumption breaches",
+                        quantity=group_consumption_capacity,
+                        upwards_deviation_price=all_group_consumption_breach_price,
+                        index=index,
+                        device=group_devices,
+                        device_group=f"group:{group_label}",
+                        commodity=group_commodity,
+                    )
+                )
+
+            if group_entry.get("production_capacity") is not None:
+                any_group_production_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=default_group_breach_price,
+                        unit=currency_unit + "/MW",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                all_group_production_breach_price = (
+                    get_continuous_series_sensor_or_quantity(
+                        variable_quantity=default_group_breach_price,
+                        unit=currency_unit + "/MW*h",
+                        query_window=(start, end),
+                        resolution=resolution,
+                        beliefs_before=belief_time,
+                        fill_sides=True,
+                    )
+                )
+                commitments.append(
+                    FlowCommitment(
+                        name=f"group {group_label} any production breach",
+                        quantity=group_production_capacity,
+                        downwards_deviation_price=-any_group_production_breach_price,
+                        _type="any",
+                        index=index,
+                        device=group_devices,
+                        device_group=f"group:{group_label}",
+                        commodity=group_commodity,
+                    )
+                )
+                commitments.append(
+                    FlowCommitment(
+                        name=f"group {group_label} all production breaches",
+                        quantity=group_production_capacity,
+                        downwards_deviation_price=-all_group_production_breach_price,
+                        index=index,
+                        device=group_devices,
+                        device_group=f"group:{group_label}",
+                        commodity=group_commodity,
+                    )
+                )
 
         # Keep one price frame for later preference logic.
         # The existing "prefer charging sooner" code uses `up_deviation_prices`.
@@ -2645,54 +2864,85 @@ class StorageScheduler(MetaStorageScheduler):
         """
         schedules: dict = {}
         for d, flex_model_d in enumerate(flex_model):
-            consumption_field = flex_model_d.get("consumption")
-            production_field = flex_model_d.get("production")
-            consumption_sensor = (
-                consumption_field["sensor"]
-                if isinstance(consumption_field, dict) and "sensor" in consumption_field
-                else None
-            )
-            production_sensor = (
-                production_field["sensor"]
-                if isinstance(production_field, dict) and "sensor" in production_field
-                else None
-            )
-            if consumption_sensor is None and production_sensor is None:
-                continue
             power_series = ems_schedule[d]  # in MW; consumption is positive
-            if consumption_sensor is not None and production_sensor is None:
-                # Full power profile on the consumption sensor (consumption positive, production negative).
-                schedules[consumption_sensor] = convert_units(
-                    power_series,
-                    "MW",
-                    consumption_sensor.unit,
-                    event_resolution=consumption_sensor.event_resolution,
-                )
-            elif production_sensor is not None and consumption_sensor is None:
-                # Full power profile on the production sensor in native scheduler convention.
-                # make_schedule inverts the sign via consumption_is_positive=False on the sensor.
-                schedules[production_sensor] = convert_units(
-                    power_series,
-                    "MW",
-                    production_sensor.unit,
-                    event_resolution=production_sensor.event_resolution,
-                )
-            else:
-                # Both sensors defined: clip to non-negative (consumption) and non-positive (production) parts.
-                # make_schedule inverts the sign for the production sensor via consumption_is_positive=False.
-                schedules[consumption_sensor] = convert_units(
-                    power_series.clip(lower=0),
-                    "MW",
-                    consumption_sensor.unit,
-                    event_resolution=consumption_sensor.event_resolution,
-                )
-                schedules[production_sensor] = convert_units(
-                    power_series.clip(upper=0),
-                    "MW",
-                    production_sensor.unit,
-                    event_resolution=production_sensor.event_resolution,
-                )
+            StorageScheduler._split_schedule_over_output_sensors(
+                flex_model_d, power_series, schedules
+            )
         return schedules
+
+    @staticmethod
+    def _split_schedule_over_output_sensors(
+        flex_model_d: dict,
+        power_series: pd.Series,
+        schedules: dict,
+    ) -> None:
+        """Save a power schedule (in MW, consumption positive) to the output sensor(s)
+        (``consumption``/``production``) defined on a single flex-model entry, in-place
+        on ``schedules`` (mapping output sensor -> power schedule).
+
+        Follows the same conventions as :func:`_build_consumption_production_schedules`:
+
+        - **Only** ``consumption`` **sensor defined**: the full power schedule is written to that
+          sensor using the scheduler's native sign convention (consumption positive, production
+          negative). ``make_schedule`` applies no further sign change because the sensor already
+          has ``consumption_is_positive=True``.
+        - **Only** ``production`` **sensor defined**: the full power schedule is written to that
+          sensor in the scheduler's native sign convention (consumption positive, production
+          negative). ``make_schedule`` inverts the sign based on the sensor's
+          ``consumption_is_positive=False`` attribute so that production is stored as positive values.
+        - **Both** ``consumption`` **and** ``production`` **sensors defined**: only the non-negative
+          part of the schedule (charging / consuming) is written to the consumption sensor, and only
+          the non-positive part (discharging / producing, still as negative values) is written to
+          the production sensor. ``make_schedule`` inverts the sign for the production sensor.
+
+        Unit conversion from MW to each sensor's unit is applied.
+        """
+        consumption_field = flex_model_d.get("consumption")
+        production_field = flex_model_d.get("production")
+        consumption_sensor = (
+            consumption_field["sensor"]
+            if isinstance(consumption_field, dict) and "sensor" in consumption_field
+            else None
+        )
+        production_sensor = (
+            production_field["sensor"]
+            if isinstance(production_field, dict) and "sensor" in production_field
+            else None
+        )
+        if consumption_sensor is None and production_sensor is None:
+            return
+        if consumption_sensor is not None and production_sensor is None:
+            # Full power profile on the consumption sensor (consumption positive, production negative).
+            schedules[consumption_sensor] = convert_units(
+                power_series,
+                "MW",
+                consumption_sensor.unit,
+                event_resolution=consumption_sensor.event_resolution,
+            )
+        elif production_sensor is not None and consumption_sensor is None:
+            # Full power profile on the production sensor in native scheduler convention.
+            # make_schedule inverts the sign via consumption_is_positive=False on the sensor.
+            schedules[production_sensor] = convert_units(
+                power_series,
+                "MW",
+                production_sensor.unit,
+                event_resolution=production_sensor.event_resolution,
+            )
+        else:
+            # Both sensors defined: clip to non-negative (consumption) and non-positive (production) parts.
+            # make_schedule inverts the sign for the production sensor via consumption_is_positive=False.
+            schedules[consumption_sensor] = convert_units(
+                power_series.clip(lower=0),
+                "MW",
+                consumption_sensor.unit,
+                event_resolution=consumption_sensor.event_resolution,
+            )
+            schedules[production_sensor] = convert_units(
+                power_series.clip(upper=0),
+                "MW",
+                production_sensor.unit,
+                event_resolution=production_sensor.event_resolution,
+            )
 
     def _reconstruct_commodity_to_devices(self) -> dict[str, list[int]]:
         """Return the mapping of commodity -> device indices, as enumerated by the device inventory.
@@ -2821,6 +3071,70 @@ class StorageScheduler(MetaStorageScheduler):
                     commodity_aggregate.clip(upper=0)
                 )
 
+    @staticmethod
+    def _merge_group_output_schedules(
+        consumption_production_schedule: dict, group_output_schedules: dict
+    ) -> None:
+        """Merge group output schedules (already unit-converted) into
+        ``consumption_production_schedule`` in-place, avoiding overwrite of a device's
+        own output sensor with a group's."""
+        for out_sensor, out_schedule in group_output_schedules.items():
+            if out_sensor in consumption_production_schedule:
+                raise ValueError(
+                    f"Sensor {out_sensor.id} is used as an output sensor both by a "
+                    "device and by a group; a sensor cannot be both."
+                )
+            consumption_production_schedule[out_sensor] = out_schedule
+
+    def _add_group_schedules(
+        self, storage_schedule: dict, ems_schedule: list[pd.Series]
+    ) -> dict:
+        """Compute each group's aggregate power schedule.
+
+        - Sensor-referenced groups: the aggregate is recorded under the group's own power
+          sensor (as before), added in-place to ``storage_schedule`` (still in MW,
+          native scheduler convention; unit conversion happens later, alongside other
+          device sensors).
+        - Asset-referenced groups: the group entry defines no power sensor of its own;
+          instead, the aggregate is recorded via the group entry's own ``consumption``/
+          ``production`` output sensors, if defined.
+        - Either kind of group may additionally define ``consumption``/``production``
+          output sensors, in which case the aggregate is also split and recorded there.
+
+        The ``consumption``/``production`` output schedules are returned separately
+        (already unit-converted, like ``_build_consumption_production_schedules``)
+        rather than added to ``storage_schedule``, to avoid double unit conversion.
+
+        :returns: Dict mapping each group output sensor to its power schedule.
+        """
+        group_models = getattr(self, "_group_models", None) or {}
+        group_to_devices = getattr(self, "_group_to_devices", None) or {}
+        group_output_schedules: dict = {}
+        for group_key, leaf_members in group_to_devices.items():
+            group_entry = group_models.get(group_key)
+            if group_entry is None or not leaf_members:
+                continue
+            group_aggregate = pd.concat(
+                [ems_schedule[d] for d in leaf_members],
+                axis=1,
+            ).sum(axis=1)
+
+            group_sensor = group_entry.get("sensor")
+            if group_sensor is not None:
+                if group_sensor in storage_schedule:
+                    raise ValueError(
+                        f"Sensor {group_sensor.id} is used both as a device sensor "
+                        "and as a group sensor; a sensor cannot be both."
+                    )
+                storage_schedule[group_sensor] = group_aggregate
+
+            # For both sensor-ref and asset-ref groups, also honor any consumption/
+            # production output sensors defined on the group entry itself.
+            self._split_schedule_over_output_sensors(
+                group_entry, group_aggregate, group_output_schedules
+            )
+        return group_output_schedules
+
     def compute(self, skip_validation: bool = False) -> SchedulerOutputType:
         """Schedule a battery or Charge Point based directly on the latest beliefs regarding market prices within the specified time window.
         For the resulting consumption schedule, consumption is defined as positive values.
@@ -2871,6 +3185,10 @@ class StorageScheduler(MetaStorageScheduler):
             elif sensor is not None and sensor in storage_schedule:
                 storage_schedule[sensor] += ems_schedule[d]
 
+        group_output_schedules = self._add_group_schedules(
+            storage_schedule, ems_schedule
+        )
+
         # Obtain the aggregate power schedule, too, if the flex-context states the associated sensor. Fill with the sum of schedules made here.
         # Restricted to electricity devices (flexible and inflexible), per decision.
         aggregate_power_sensor = self.flex_context.get("aggregate_power", None)
@@ -2920,6 +3238,9 @@ class StorageScheduler(MetaStorageScheduler):
 
         consumption_production_schedule = self._build_consumption_production_schedules(
             flex_model_for_soc, ems_schedule
+        )
+        self._merge_group_output_schedules(
+            consumption_production_schedule, group_output_schedules
         )
 
         # Resample each device schedule to the resolution of the device's power sensor
@@ -2998,9 +3319,11 @@ class StorageScheduler(MetaStorageScheduler):
                 for sensor, soc in soc_schedule.items()
             ]
             # Determine which sensors are consumption vs. production output sensors
+            group_models_for_output = getattr(self, "_group_models", None) or {}
             consumption_output_sensors = {
                 flex_model_d["consumption"]["sensor"]
-                for flex_model_d in flex_model_for_soc
+                for flex_model_d in list(flex_model_for_soc)
+                + list(group_models_for_output.values())
                 if isinstance(flex_model_d.get("consumption"), dict)
                 and "sensor" in flex_model_d["consumption"]
             }

@@ -1205,6 +1205,15 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "group": {
+        "default": None,
+        "description": rst_to_openapi(metadata.GROUP.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A power sensor or an asset representing a group of devices; a sensor-referenced group also records the group's scheduled aggregate power, while an asset-referenced group records it via its own consumption/production output sensors.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
     "commodity": {
         "default": "electricity",
         "description": rst_to_openapi(metadata.COMMODITY_FLEX_MODEL.description),
@@ -1567,7 +1576,11 @@ class AssetTriggerSchema(Schema):
         asset = data["asset"]
         sensors = []
         for sensor_flex_model in data.get("flex_model", []):
-            sensor = sensor_flex_model["sensor"]
+            sensor = sensor_flex_model.get("sensor")
+            if sensor is None:
+                # Asset-only entries (e.g. an asset-referenced `group` entry) carry no
+                # sensor of their own; nothing to check here.
+                continue
             if sensor in sensors:
                 raise FMValidationError(
                     f"Sensor {sensor_flex_model['sensor'].id} should not occur more than once in the flex-model"
