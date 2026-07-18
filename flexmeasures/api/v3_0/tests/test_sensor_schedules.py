@@ -351,13 +351,14 @@ def test_get_schedule_infeasible_storage_job_without_fallback(
     requesting_user,
     db,
     fallback_redirect,
+    monkeypatch,
 ):
     """
     Test that a failing StorageScheduler call reports the failure without creating a fallback job.
 
     This test is based on flexmeasures/data/models/planning/tests/test_solver.py.
     """
-    app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = fallback_redirect
+    monkeypatch.setitem(app.config, "FLEXMEASURES_FALLBACK_REDIRECT", fallback_redirect)
 
     target_soc = 9
     charging_station_name = "Test charging station"
@@ -462,8 +463,6 @@ def test_get_schedule_infeasible_storage_job_without_fallback(
             for source in charging_station.search_beliefs().sources.unique()
         ]
         assert "StorageFallbackScheduler" not in models
-
-        app.config["FLEXMEASURES_FALLBACK_REDIRECT"] = False
 
 
 @pytest.mark.parametrize(

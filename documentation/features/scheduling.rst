@@ -149,6 +149,33 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
           The flexible device can still have its own power limit defined in its flex-model.
 
 
+.. _commodity_context_defaults:
+
+Smart defaults for commodity-context grid connections
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For multi-commodity scheduling problems, each entry of the top-level ``commodities`` list is itself a flex-context (a "commodity context") describing the grid connection for that commodity.
+A commodity context that leaves out some or all of its grid-connection fields (``consumption-price``, ``production-price``, ``site-consumption-capacity``, ``site-production-capacity`` and ``site-power-capacity``) gets sensible defaults for the missing fields, rather than failing or silently leaving the grid unconstrained.
+
+As a rule of thumb, a price given for a direction (consumption or production) implies a grid connection in that direction, with an unlimited capacity unless a capacity is also given; a capacity given for a direction (without a price) implies a zero ``consumption-price`` or ``production-price`` (respectively) in that direction; and anything not implied by a given field defaults to "no connection" (a zero capacity, as a soft constraint).
+The exception is ``site-power-capacity`` given on its own, which sets a *hard* (symmetric) capacity limit instead.
+
+This leads to the following defaults, depending on which fields are explicitly given:
+
+- **Nothing given** (e.g. just ``{"commodity": "gas"}``): both ``site-consumption-capacity`` and ``site-production-capacity`` default to zero, as soft constraints (a breach is possible, but penalized). ``site-power-capacity`` stays unlimited.
+- **Only** ``consumption-price``: Then, ``site-power-capacity`` and ``site-consumption-capacity`` stay unlimited; ``site-production-capacity`` defaults to zero (soft).
+- **Only** ``production-price``: the mirror image, for production.
+- **Only** ``site-consumption-capacity``: Then, ``site-power-capacity`` stays unlimited; ``consumption-price`` defaults to zero; ``site-production-capacity`` (and, transitively, ``production-price``) default to zero.
+- **Only** ``site-production-capacity``: the mirror image, for production.
+- **Only** ``site-power-capacity``: Then, a *hard* constraint applies at that capacity, with ``site-consumption-capacity`` and ``site-production-capacity`` both set equal to it, and ``consumption-price``/``production-price`` defaulting to zero.
+
+When several fields are given, each rule only fills in the fields not already determined by a given field, per direction (consumption/production) independently.
+Giving all capacity fields is perfectly valid, too: the directional capacities then act as soft constraints, within the hard ``site-power-capacity`` limit.
+As a safety net, ``consumption-price`` still defaults to zero if it remains unset after applying the rules above, since the scheduler requires a resolvable consumption price.
+
+.. note:: Setting ``relax-constraints`` to ``False`` on a commodity context that ends up with a smart-defaulted 0 hard capacity can make the schedule infeasible; FlexMeasures logs a warning in that case.
+
+
 .. _flex_models_and_schedulers:
 
 The flex-models & corresponding schedulers
@@ -266,6 +293,8 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 .. [#minimum_overlap] In case this field defines partially overlapping time periods, the minimum value is selected. See :ref:`variable_quantities`.
 
+.. [#projecting_scheduling_constraints] Off-tick ``soc-targets``, ``soc-minima`` and ``soc-maxima`` are projected to the surrounding scheduling ticks. See :ref:`projecting_scheduling_constraints`.
+
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
 
 Usually, not the whole flexibility model is needed.
@@ -286,7 +315,8 @@ However, here are some tips to model a buffer correctly:
 If the flex model describes an infeasible problem for the storage scheduler, the failure should remain visible.
 By default, ``soc-min`` and ``soc-max`` boundaries are relaxed into soft constraints, so the scheduler can still return a useful schedule when these boundaries cannot be fully met.
 The legacy ``soc-minima`` and ``soc-maxima`` aliases follow the same behavior.
-Exact ``soc-targets`` remain hard constraints, and ``soc-min`` / ``soc-max`` can be kept hard by setting ``relax-soc-constraints`` to ``False``.
+Setting either ``relax-soc-constraints`` or ``relax-constraints`` to ``false`` in the flex-context keeps them as hard constraints.
+Exact ``soc-targets`` remain hard constraints.
 If those hard constraints make the problem infeasible, the scheduling job fails instead of producing a fallback schedule.
 
 It is important to take note of these failures. Often, misconfigured flex models are the reason.

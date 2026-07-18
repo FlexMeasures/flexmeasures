@@ -4575,7 +4575,7 @@
           },
           "default": {
             "type": "string",
-            "description": "Fallback quantity to use when the referenced sensor has missing values.",
+            "description": "Fallback quantity to use when the referenced sensor has missing values. Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained.",
             "example": "0 kWh"
           }
         },
@@ -4639,6 +4639,10 @@
         "properties": {
           "name": {
             "type": "string"
+          },
+          "commodity": {
+            "type": "string",
+            "default": "electricity"
           },
           "baseline": {},
           "up-price": {},
@@ -4767,7 +4771,7 @@
           "relax-soc-constraints": {
             "type": "boolean",
             "default": true,
-            "description": "If True (default), avoids not meeting SoC minima/maxima as relaxed constraints. Set this to False to keep SoC minima/maxima as hard constraints unless breach prices are supplied explicitly.",
+            "description": "If True (default), avoids not meeting SoC boundaries as relaxed constraints. Explicitly setting either this field or <code>relax-constraints</code> to False keeps SoC boundaries as hard constraints unless breach prices are supplied explicitly.",
             "example": true
           },
           "relax-capacity-constraints": {
@@ -6251,7 +6255,7 @@
             "example": "3.1 kWh"
           },
           "soc-min": {
-            "description": "Lower boundary for all SoC values in the schedule.\nIf omitted, no lower boundary is applied.\nThis boundary is soft in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-minima-breach-price</code>.\nWhen passed as a sensor reference or time series, it defines dynamic lower boundaries.\nSensor references may include a <code>default</code> fallback quantity for missing sensor values, for example <code>{\"sensor\": 50, \"default\": \"0 kWh\"}</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep lower boundaries as hard constraints unless <code>soc-minima-breach-price</code> is supplied explicitly.\n",
+            "description": "Lower boundary for all SoC values in the schedule.\nIf omitted, no lower boundary is applied.\nThis boundary is soft in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-minima-breach-price</code>.\nWhen passed as a sensor reference or time series, it defines dynamic lower boundaries.\nSensor references may include a <code>default</code> fallback quantity for missing sensor values, for example <code>{\"sensor\": 50, \"default\": \"0 kWh\"}</code>.\nSet <code>relax-soc-constraints</code> (or <code>relax-constraints</code>) to <code>False</code> to keep lower boundaries as hard constraints unless <code>soc-minima-breach-price</code> is supplied explicitly.\n",
             "example": {
               "sensor": 50,
               "default": "0 kWh"
@@ -6259,7 +6263,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-max": {
-            "description": "Upper boundary for all SoC values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf omitted, no upper boundary is applied.\nThis boundary is soft in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-maxima-breach-price</code>.\nWhen passed as a sensor reference or time series, it defines dynamic upper boundaries.\nSensor references may include a <code>default</code> fallback quantity for missing sensor values, for example <code>{\"sensor\": 51, \"default\": \"100 kWh\"}</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep upper boundaries as hard constraints unless <code>soc-maxima-breach-price</code> is supplied explicitly.\n",
+            "description": "Upper boundary for all SoC values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf omitted, no upper boundary is applied.\nThis boundary is soft in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-maxima-breach-price</code>.\nWhen passed as a sensor reference or time series, it defines dynamic upper boundaries.\nSensor references may include a <code>default</code> fallback quantity for missing sensor values, for example <code>{\"sensor\": 51, \"default\": \"100 kWh\"}</code>.\nSet <code>relax-soc-constraints</code> (or <code>relax-constraints</code>) to <code>False</code> to keep upper boundaries as hard constraints unless <code>soc-maxima-breach-price</code> is supplied explicitly.\n",
             "example": {
               "sensor": 51,
               "default": "100 kWh"
@@ -6296,7 +6300,7 @@
             "example": true
           },
           "soc-maxima": {
-            "description": "[Deprecated field] Use dynamic <code>soc-max</code> values instead.\nSet points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nThe <code>soc-maxima</code> legacy alias is soft in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-maxima-breach-price</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep them as hard constraints unless <code>soc-maxima-breach-price</code> is supplied explicitly.",
+            "description": "[Deprecated field] Use dynamic <code>soc-max</code> values instead.\nSet points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nThe <code>soc-maxima</code> legacy alias is soft in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-maxima-breach-price</code>.\nSet <code>relax-soc-constraints</code> (or <code>relax-constraints</code>) to <code>False</code> to keep them as hard constraints unless <code>soc-maxima-breach-price</code> is supplied explicitly.",
             "example": [
               {
                 "value": "51 kWh",
@@ -6308,7 +6312,7 @@
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
           },
           "soc-minima": {
-            "description": "[Deprecated field] Use dynamic <code>soc-min</code> values instead.\nSet points that form lower boundaries, e.g. to target a full car battery in the morning.\nThe <code>soc-minima</code> legacy alias is soft in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-minima-breach-price</code>.\nSet <code>relax-soc-constraints</code> to <code>False</code> to keep them as hard constraints unless <code>soc-minima-breach-price</code> is supplied explicitly.\nBoth single points in time and ranges are possible, see example.",
+            "description": "[Deprecated field] Use dynamic <code>soc-min</code> values instead.\nSet points that form lower boundaries, e.g. to target a full car battery in the morning.\nThe <code>soc-minima</code> legacy alias is soft in the optimization problem by default, because <code>relax-soc-constraints</code> defaults to <code>True</code> and supplies a default <code>soc-minima-breach-price</code>.\nSet <code>relax-soc-constraints</code> (or <code>relax-constraints</code>) to <code>False</code> to keep them as hard constraints unless <code>soc-minima-breach-price</code> is supplied explicitly.\nBoth single points in time and ranges are possible, see example.",
             "example": [
               {
                 "datetime": "2024-02-05T08:00:00+01:00",

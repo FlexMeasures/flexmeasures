@@ -1094,7 +1094,7 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
         required=False,
         allow_none=False,
         metadata=dict(
-            description="Fallback quantity to use when the referenced sensor has missing values.",
+            description="Fallback quantity to use when the referenced sensor has missing values. Note that every time slot the sensor leaves empty is filled with this value, so a sparse setpoint sensor becomes densely constrained.",
             example="0 kWh",
         ),
     )
