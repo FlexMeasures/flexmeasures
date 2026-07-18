@@ -7,6 +7,7 @@ import json
 from packaging.version import Version
 from flask import current_app
 
+import numpy as np
 import pandas as pd
 from sqlalchemy import exists, select
 from sqlalchemy.ext.declarative import declared_attr
@@ -858,6 +859,38 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         return self.search_data_sources()
 
 
+def _select_latest_version_and_belief_per_event(
+    bdf: tb.BeliefsDataFrame,
+) -> tb.BeliefsDataFrame:
+    """Keep, per event, the single belief with the latest source version,
+    breaking version ties by most recent belief time.
+
+    Assumes deterministic beliefs (probabilistic depth 1) and a belief_time index level.
+    """
+    source_codes, unique_sources = pd.factorize(bdf.index.get_level_values("source"))
+    versions = [
+        Version(source.version if source.version else "0.0.0")
+        for source in unique_sources
+    ]
+    version_ranks = {
+        version: rank for rank, version in enumerate(sorted(set(versions)))
+    }
+    rank_per_row = np.array([version_ranks[version] for version in versions])[
+        source_codes
+    ]
+    event_values = bdf.index.get_level_values("event_start").asi8
+    belief_values = bdf.index.get_level_values("belief_time").asi8
+    # Sort by event (ascending), then version rank and belief time (both descending)
+    order = np.lexsort((-belief_values, -rank_per_row, event_values))
+    sorted_events = event_values[order]
+    is_first_of_event = np.empty(len(order), dtype=bool)
+    is_first_of_event[:1] = True
+    is_first_of_event[1:] = sorted_events[1:] != sorted_events[:-1]
+    mask = np.zeros(len(order), dtype=bool)
+    mask[order[is_first_of_event]] = True
+    return bdf[mask]
+
+
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     """A timed belief holds a precisely timed record of a belief about an event.
 
@@ -1030,25 +1063,34 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 ):
                     # Fast track, no need to loop over beliefs
                     pass
+                elif (
+                    bdf.lineage.probabilistic_depth == 1
+                    and "belief_time" in bdf.index.names
+                ):
+                    # Deterministic beliefs: no need to take the median,
+                    # just pick the winning belief per event directly
+                    bdf = _select_latest_version_and_belief_per_event(bdf)
                 else:
                     # First make deterministic
                     bdf = bdf.for_each_belief(get_median_belief)
-                    # Then sort each event by most recent source version and most recent belief_time
+                    # Then sort each event by latest source version and most recent belief_time
+                    version_per_source = {
+                        source: Version(source.version if source.version else "0.0.0")
+                        for source in bdf.lineage.sources
+                    }
                     bdf = bdf.sort_values(
                         by=["event_start", "source", "belief_time"],
                         ascending=[True, False, False],
                         key=lambda col: (
-                            col.map(
-                                lambda s: Version(s.version if s.version else "0.0.0")
-                            )
-                            if col.name == "source"
-                            else col
+                            col.map(version_per_source) if col.name == "source" else col
                         ),
                     )
-                    # Finally, take the first belief for each event, thus preference most recent belief_time first, latest version second
-                    bdf = bdf.groupby(level=["event_start"], group_keys=False).apply(
-                        lambda x: x.head(1)
-                    )
+                    # Finally, take the first belief for each event, thus preference latest version first, most recent belief_time second
+                    bdf = bdf[
+                        ~bdf.index.get_level_values("event_start").duplicated(
+                            keep="first"
+                        )
+                    ]
             elif one_deterministic_belief_per_event_per_source:
                 if len(bdf) == 0 or bdf.lineage.probabilistic_depth == 1:
                     # Fast track, no need to loop over beliefs
