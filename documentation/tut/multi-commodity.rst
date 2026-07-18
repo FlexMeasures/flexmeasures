@@ -257,6 +257,34 @@ The commitment-cost result keeps these as separate entries — ``electricity net
 
 .. note:: This same pattern extends to more devices and more commodities. Add further entries to the ``flex-model`` list (each with its ``commodity``) and a matching entry in the ``flex-context`` ``commodities`` list. As long as all commodities share one currency, FlexMeasures optimises them together and reports each commodity's cost on its own.
 
+
+.. _tut_converters:
+
+Converters between commodities
+==============================
+
+A **converter** turns one commodity into another — a CHP unit (gas → electricity + steam), a gas boiler (gas → heat) or an electric heater (electricity → heat).
+In the ``flex-model`` a converter is not a single device but **one entry per commodity port**, tied together by a shared ``coupling`` name.
+The ``coupling-coefficient`` on each port fixes the conversion ratio relative to the shared coupling variable, so the ports always move together.
+
+For example, a CHP that turns gas into steam and electricity:
+
+.. code-block:: json
+
+    [
+      {"sensor": 6, "commodity": "gas",         "coupling": "chp", "coupling-coefficient": 1.0, "power-capacity": "20 kW", "production-capacity": "0 kW"},
+      {"sensor": 7, "commodity": "steam",       "coupling": "chp", "coupling-coefficient": 0.5, "power-capacity": "1 MW", "consumption-capacity": "0 kW"},
+      {"sensor": 8, "commodity": "electricity", "coupling": "chp", "coupling-coefficient": 0.3, "power-capacity": "1 MW", "consumption-capacity": "0 kW"}
+    ]
+
+Here each kW of gas input produces 0.5 kW of steam and 0.3 kW of electricity.
+The gas port is import-only (``production-capacity: 0 kW``) and the steam and electricity ports are export-only (``consumption-capacity: 0 kW``).
+
+**Internal nodes.** A commodity that lists no energy price in the ``flex-context`` (e.g. a steam or heat network with no grid connection) is treated as an **internal node**: its devices must balance each other at every time step, so everything converters produce into the node is consumed from it within the same step.
+Give such a commodity only an ``inflexible-device-sensors`` entry (its fixed demand), or omit it from the ``flex-context`` entirely.
+
+This is how a whole factory is scheduled end-to-end: an e-heater and a boiler feed an internal ``heat`` node, a steamer converts heat into an internal ``steam`` node, a CHP also feeds steam (while exporting electricity to the grid), and a fixed steam demand closes the balance — priced commodities (electricity, gas) at the grid, unpriced commodities (heat, steam) balanced internally.
+
 We hope this demonstration helped to illustrate multi-commodity scheduling.
 To revisit scheduling several devices that share a single commodity and stock, head back to :ref:`tut_multi_feed_storage`.
 Next, in :ref:`tut_toy_schedule_process`, we'll turn to something different: the optimal timing of processes with fixed energy work and duration.

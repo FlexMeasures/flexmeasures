@@ -43,7 +43,7 @@ For multi-commodity scheduling problems, the flex-context can be defined separat
 
 A commodity that defines no energy prices in the flex-context (e.g. a heat or steam network without a grid connection) is treated as an internal node:
 its devices must balance each other at every time step, so everything produced into the node is consumed from it within the same time step.
-Devices that convert between commodities (such as a CHP unit, gas boiler or electric heater) are described in the flex-model, one entry per commodity port, tied together by a ``coupling`` group.
+Devices that convert between commodities (such as a CHP unit, gas boiler or electric heater) are described in the flex-model, one entry per commodity port, tied together by a ``coupling`` group. See :ref:`tut_converters` for a worked example flex-model.
 
 Fields can have fixed values, but some fields can also point to sensors, so they will always represent the dynamics of the asset's environment (as long as that sensor has current data).
 The full list of flex-context fields follows below.
