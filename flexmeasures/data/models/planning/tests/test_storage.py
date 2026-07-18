@@ -13,7 +13,6 @@ from flexmeasures.data.models.planning.soc_projection import (
     project_off_tick_soc_at_start,
     project_off_tick_soc_constraints,
 )
-from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.data_sources import DataSource
@@ -2317,6 +2316,8 @@ def test_factory_chp_dispatch_through_storage_scheduler(app, db):
             atol=1e-9,
             err_msg=f"Unexpected schedule for {sensor.name}",
         )
+
+
 def test_off_tick_soc_relaxation_covers_all_devices_of_a_shared_stock(
     add_battery_assets, db
 ):
