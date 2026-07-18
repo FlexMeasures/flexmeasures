@@ -537,12 +537,22 @@ def _setup_event_start_field(
     return event_start_field_definition
 
 
-def _setup_event_value_field(sensor_type: str, unit: str) -> dict:
+def _setup_event_value_field(
+    sensor_type: str, unit: str, y_axis: str | list | dict | None = None
+) -> dict:
     """Set up the event value field definition.
 
     Args:
         sensor_type: Type of sensor
         unit: Unit for display
+        y_axis: How the y-axis domain for this sub-chart should be chosen.
+            - None (or "zero"): the axis is padded out to include zero (default behaviour).
+            - "data": the axis is fitted to the data.
+            - [min, max]: a minimum (floor) domain; the axis covers at least this range,
+              and expands (via unionWith) with the same margin as "data" mode if the
+              data goes beyond it (nothing is clipped).
+            - {"min": min, "max": max}: a strict domain; the axis never expands beyond
+              this range, and data outside it is clamped to the nearest edge.
 
     Returns:
         Field definition dictionary
@@ -554,7 +564,17 @@ def _setup_event_value_field(sensor_type: str, unit: str) -> dict:
         stack=None,
         **FIELD_DEFINITIONS["event_value"],
     )
-    if unit == "%":
+    if y_axis == "data":
+        event_value_field_definition["scale"] = dict(zero=False)
+    elif isinstance(y_axis, dict):
+        event_value_field_definition["scale"] = dict(
+            domain=[y_axis["min"], y_axis["max"]], clamp=True, nice=False
+        )
+    elif isinstance(y_axis, list):
+        # Match "data" mode's margin around out-of-range values: nice=True (the
+        # Vega-Lite default) pads the domain instead of stopping exactly at the data.
+        event_value_field_definition["scale"] = dict(domain={"unionWith": y_axis})
+    elif unit == "%":
         event_value_field_definition["scale"] = dict(
             domain={"unionWith": [0, 105]}, nice=False
         )
@@ -772,7 +792,9 @@ def _process_sensor_entry(
     unit = determine_shared_unit(row_sensors)
     sensor_type = determine_shared_sensor_type(row_sensors)
 
-    event_value_field_definition = _setup_event_value_field(sensor_type, unit)
+    event_value_field_definition = _setup_event_value_field(
+        sensor_type, unit, entry.get("y-axis")
+    )
     shared_tooltip = _setup_shared_tooltip(
         event_value_field_definition, sensor_type, sensor_title
     )
