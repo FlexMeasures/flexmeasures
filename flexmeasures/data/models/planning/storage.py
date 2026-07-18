@@ -3089,17 +3089,17 @@ class StorageScheduler(MetaStorageScheduler):
     def _add_group_schedules(
         self, storage_schedule: dict, ems_schedule: list[pd.Series]
     ) -> dict:
-        """Save each group's aggregate power schedule.
+        """Compute each group's aggregate power schedule.
 
-        - Sensor-referenced groups: the aggregate is saved under the group's own power
+        - Sensor-referenced groups: the aggregate is recorded under the group's own power
           sensor (as before), added in-place to ``storage_schedule`` (still in MW,
           native scheduler convention; unit conversion happens later, alongside other
           device sensors).
         - Asset-referenced groups: the group entry defines no power sensor of its own;
-          instead, the aggregate is saved via the group entry's own ``consumption``/
+          instead, the aggregate is recorded via the group entry's own ``consumption``/
           ``production`` output sensors, if defined.
         - Either kind of group may additionally define ``consumption``/``production``
-          output sensors, in which case the aggregate is also split/saved there.
+          output sensors, in which case the aggregate is also split and recorded there.
 
         The ``consumption``/``production`` output schedules are returned separately
         (already unit-converted, like ``_build_consumption_production_schedules``)
