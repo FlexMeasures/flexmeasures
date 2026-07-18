@@ -21,7 +21,7 @@ from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.sensors import (
     SensorIdField,
     SensorReference,
-    SensorReferenceSchema,
+    SharedSensorReferenceSchema,
     OutputSensorReferenceSchema,
     VariableQuantityField,
 )
@@ -40,11 +40,11 @@ def _validate_group_sensor_is_power_sensor(group: dict):
     if isinstance(sensor, (Sensor, SensorReference)) and not is_power_unit(sensor.unit):
         raise ValidationError(
             "The `group` field must reference a sensor with a power unit.",
-            field_name="sensor",
+            field_name="group",
         )
 
 
-class GroupReferenceSchema(SensorReferenceSchema):
+class GroupReferenceSchema(SharedSensorReferenceSchema):
     """Reference to a group of devices whose aggregate power is constrained.
 
     Accepts exactly one of:
@@ -56,7 +56,16 @@ class GroupReferenceSchema(SensorReferenceSchema):
         power sensor of its own; instead it may define ``consumption`` and/or
         ``production`` output sensors on which the group's aggregate power gets saved,
         following the usual output-sensor conventions.
+
+    Inherits from ``SharedSensorReferenceSchema`` (not ``SensorReferenceSchema``) so it
+    accepts only ``sensor``/``asset`` -- a group is a device-group identifier, not a
+    belief-query reference, so the ``source-*`` filter fields do not apply.
     """
+
+    class Meta:
+        description = (
+            "Reference to a group of devices whose aggregate power is constrained."
+        )
 
     sensor = SensorIdField(required=False)
     asset = GenericAssetIdField(required=False)

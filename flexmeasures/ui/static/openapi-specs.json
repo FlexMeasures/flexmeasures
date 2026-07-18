@@ -6210,55 +6210,11 @@
           "sensor": {
             "type": "integer"
           },
-          "source-types": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "default": null,
-            "description": "Only use beliefs from sources with these source types (e.g. 'user', 'script', 'forecaster', 'scheduler').",
-            "items": {
-              "type": "string"
-            }
-          },
-          "exclude-source-types": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "default": null,
-            "description": "Exclude beliefs from sources with these source types.",
-            "items": {
-              "type": "string"
-            }
-          },
-          "sources": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "default": null,
-            "description": "Only use beliefs from these data source IDs.",
-            "items": {
-              "type": "integer"
-            }
-          },
-          "source-account": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "default": null,
-            "description": "Only use beliefs from data sources linked to these account IDs.",
-            "items": {
-              "type": "integer"
-            }
-          },
           "asset": {
             "type": "integer"
           }
         },
-        "description": "Sensor reference from which to look up a variable quantity."
+        "description": "Reference to a group of devices whose aggregate power is constrained."
       },
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",

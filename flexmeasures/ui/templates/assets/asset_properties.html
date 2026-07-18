@@ -744,15 +744,22 @@
                     // especially when the parent already limits the group's power.
                     let groupParentHint = "";
                     if (modelKey === "group" && parentAssetId) {
+                        // Escape the (user-controlled) asset name before it goes into innerHTML.
+                        const escapeHtmlText = (s) => {
+                            const d = document.createElement("div");
+                            d.textContent = String(s);
+                            return d.innerHTML;
+                        };
+                        const parentAssetNameEsc = escapeHtmlText(parentAssetName);
                         const powerCapacityNote = parentHasPowerCapacity
-                            ? `The parent asset <b>${parentAssetName}</b> defines a <code>power-capacity</code>. Consider joining that group so this device counts toward the parent's limit.`
-                            : `Consider using the parent asset <b>${parentAssetName}</b> as the group.`;
+                            ? `The parent asset <b>${parentAssetNameEsc}</b> defines a <code>power-capacity</code>. Consider joining that group so this device counts toward the parent's limit.`
+                            : `Consider using the parent asset <b>${parentAssetNameEsc}</b> as the group.`;
                         groupParentHint = `
                             <div class="pt-2 fw-normal">
                                 <i class="fa fa-info-circle pe-1"></i>${powerCapacityNote}
                                 <div class="pt-2">
                                     <button type="button" id="useParentAsGroupBtn" class="btn btn-secondary btn-sm">
-                                        Use parent asset "${parentAssetName}" as group
+                                        Use parent asset "${parentAssetNameEsc}" as group
                                     </button>
                                 </div>
                             </div>
