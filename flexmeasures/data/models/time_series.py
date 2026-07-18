@@ -467,8 +467,6 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
 
             # Build metadata dictionaries
             sensors_metadata = {}
-            sources_metadata = {}
-            all_records = []
 
             # Build sensor metadata
             sensor_dict = self.as_dict
@@ -485,69 +483,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
                 "asset_description": sensor_dict.get("asset_description", ""),
             }
 
-            # Process each row in the dataframe
-            for _, row in df.iterrows():
-                source_obj = row.get("source")
-
-                if (
-                    source_obj
-                    and hasattr(source_obj, "id")
-                    and source_obj.id not in sources_metadata
-                ):
-
-                    source_dict = source_obj.as_dict
-                    sources_metadata[source_obj.id] = {
-                        "name": source_dict.get("name", ""),
-                        "model": source_dict.get("model", ""),
-                        "version": source_dict.get("version", ""),
-                        "type": source_dict.get("type", "other"),
-                        "raw_type": source_dict.get("raw_type", ""),
-                        "display_type": source_dict.get(
-                            "display_type", source_dict.get("type", "other")
-                        ),
-                        "description": source_dict.get("description", ""),
-                    }
-
-                # Build the data record with reference IDs instead of full objects
-                record = {
-                    "ts": int(
-                        row["event_start"].timestamp() * 1000
-                    ),  # timestamp in milliseconds for JavaScript compatibility
-                    "sid": self.id,  # sensor ID reference
-                    "val": row["event_value"],
-                }
-
-                # Add optional fields
-                if source_obj and hasattr(source_obj, "id"):
-                    record["src"] = source_obj.id  # source ID reference
-
-                if "belief_time" in row and pd.notnull(row["belief_time"]):
-                    record["bt"] = int(
-                        row["belief_time"].timestamp() * 1000
-                    )  # timestamp in milliseconds for JavaScript compatibility
-
-                if "belief_horizon" in row and pd.notnull(row["belief_horizon"]):
-                    record["bh"] = int(row["belief_horizon"].total_seconds())
-
-                if "cumulative_probability" in row and pd.notnull(
-                    row["cumulative_probability"]
-                ):
-                    record["cp"] = row["cumulative_probability"]
-
-                # Clean up any problematic types
-                for key, value in record.items():
-                    if pd.isna(value):
-                        record[key] = None
-                    elif isinstance(value, pd.Timestamp):
-                        record[key] = int(
-                            value.timestamp() * 1000
-                        )  # timestamp in milliseconds for JavaScript compatibility
-                    elif isinstance(value, (pd.Timedelta, timedelta)):
-                        record[key] = int(value.total_seconds())
-                    elif hasattr(value, "item"):  # numpy types
-                        record[key] = value.item()
-
-                all_records.append(record)
+            all_records, sources_metadata = compress_belief_records(df, self.id)
 
             # Return in the new structured format
             result = {
@@ -857,6 +793,85 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         Equivalent to ``search_data_sources()`` with no filters.
         """
         return self.search_data_sources()
+
+
+def compress_belief_records(df: pd.DataFrame, sensor_id: int) -> tuple[list, dict]:
+    """Build compact belief records and source metadata from a reset-index beliefs frame.
+
+    Records hold reference IDs instead of full objects, and timestamps in epoch
+    milliseconds for JavaScript compatibility (belief horizons in seconds).
+    Missing values (e.g. an unknown belief time) leave their key out of the record.
+    """
+    sources_metadata: dict = {}
+
+    # Build source metadata and the source id per row (in first-appearance order)
+    source_codes, unique_sources = pd.factorize(df["source"])
+    unique_source_ids: list[int | None] = []
+    for source_obj in unique_sources:
+        if source_obj and hasattr(source_obj, "id"):
+            unique_source_ids.append(source_obj.id)
+            if source_obj.id not in sources_metadata:
+                source_dict = source_obj.as_dict
+                sources_metadata[source_obj.id] = {
+                    "name": source_dict.get("name", ""),
+                    "model": source_dict.get("model", ""),
+                    "version": source_dict.get("version", ""),
+                    "type": source_dict.get("type", "other"),
+                    "raw_type": source_dict.get("raw_type", ""),
+                    "display_type": source_dict.get(
+                        "display_type", source_dict.get("type", "other")
+                    ),
+                    "description": source_dict.get("description", ""),
+                }
+        else:
+            unique_source_ids.append(None)
+    src_per_row = [
+        unique_source_ids[code] if code >= 0 else None for code in source_codes
+    ]
+
+    # Convert the timing columns to epoch values (vectorized)
+    def to_epoch_list(column: str, np_dtype: str | None, divisor: int) -> list:
+        """Integer epoch value (ns // divisor) per row, or None for missing values."""
+        if column not in df.columns:
+            return [None] * len(df)
+        values = df[column]
+        mask = values.notna().to_numpy()
+        raw = values.to_numpy(dtype=np_dtype) if np_dtype else values.to_numpy()
+        ints = raw.view("int64") // divisor
+        return [int(value) if keep else None for value, keep in zip(ints, mask)]
+
+    ts_per_row = to_epoch_list("event_start", "datetime64[ns]", 10**6)  # ms
+    bt_per_row = to_epoch_list("belief_time", "datetime64[ns]", 10**6)  # ms
+    bh_per_row = to_epoch_list("belief_horizon", None, 10**9)  # s
+    cp_per_row = (
+        [
+            None if value != value else value
+            for value in df["cumulative_probability"].tolist()
+        ]
+        if "cumulative_probability" in df.columns
+        else [None] * len(df)
+    )
+    val_per_row = df["event_value"].tolist()
+
+    all_records = []
+    for ts, val, src, bt, bh, cp in zip(
+        ts_per_row, val_per_row, src_per_row, bt_per_row, bh_per_row, cp_per_row
+    ):
+        record = {
+            "ts": ts,
+            "sid": sensor_id,  # sensor ID reference
+            "val": None if val != val else val,
+        }
+        if src is not None:
+            record["src"] = src  # source ID reference
+        if bt is not None:
+            record["bt"] = bt
+        if bh is not None:
+            record["bh"] = bh
+        if cp is not None:
+            record["cp"] = cp
+        all_records.append(record)
+    return all_records, sources_metadata
 
 
 def _select_latest_version_and_belief_per_event(
