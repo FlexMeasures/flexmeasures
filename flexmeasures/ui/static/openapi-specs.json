@@ -4771,7 +4771,7 @@
           "relax-soc-constraints": {
             "type": "boolean",
             "default": true,
-            "description": "If True (default), avoids not meeting SoC boundaries as relaxed constraints. Explicitly setting either this field or <code>relax-constraints</code> to False keeps SoC boundaries as hard constraints unless breach prices are supplied explicitly.",
+            "description": "If True (default), avoids not meeting SoC boundaries as relaxed constraints. Setting this field (or <code>relax-constraints</code>) to False keeps SoC boundaries as hard constraints unless breach prices are supplied explicitly; an explicit <code>relax-soc-constraints</code> takes precedence over <code>relax-constraints</code>.",
             "example": true
           },
           "relax-capacity-constraints": {

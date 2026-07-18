@@ -874,19 +874,20 @@ class FlexContextSchema(SharedSchema):
         ):
             return data
 
-        # An explicit False for either relaxation switch keeps SoC minima/maxima
-        # hard, even when the other switch is explicitly enabled.
-        # todo: confirm precedence for the relax-constraints=false +
-        #       relax-soc-constraints=true combo with the maintainers.
-        soc_relaxation_disabled = (
-            original_data.get("relax-soc-constraints") is False
-            or original_data.get("relax-constraints") is False
-        )
-
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
+        # Both relax-soc-constraints and relax-constraints default to True, so an
+        # explicit relax-soc-constraints wins and otherwise the umbrella
+        # relax-constraints decides: setting either flag to False keeps
+        # SoC minima/maxima as hard constraints. Note that off-tick SoC constraint
+        # projection relies on this precedence: it injects an explicit
+        # relax-soc-constraints=true, which must win over an explicit
+        # relax-constraints=false.
+        if "relax-soc-constraints" in original_data:
+            relax_soc_constraints = data["relax_soc_constraints"]
+        else:
+            relax_soc_constraints = data["relax_constraints"]
         if (
-            not soc_relaxation_disabled
-            and (data["relax_soc_constraints"] or data["relax_constraints"])
+            relax_soc_constraints
             and data.get("soc_minima_breach_price") is None
             and data.get("soc_maxima_breach_price") is None
         ):

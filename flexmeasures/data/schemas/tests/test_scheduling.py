@@ -572,11 +572,11 @@ def test_flex_context_schema_disables_default_soc_breach_prices(disabled_field):
     assert "soc_maxima_breach_price" not in loaded_flex_context
 
 
-def test_flex_context_schema_umbrella_opt_out_wins_over_explicit_soc_opt_in():
-    """Any explicit False keeps SoC constraints hard, even next to an explicit opt-in.
+def test_flex_context_schema_explicit_soc_relaxation_overrides_umbrella_opt_out():
+    """An explicit relax-soc-constraints wins over an explicit relax-constraints.
 
-    Note: the precedence for this particular combination still awaits
-    maintainer confirmation (see the discussion in PR #2267).
+    Off-tick SoC constraint projection relies on this precedence: it injects an
+    explicit relax-soc-constraints=true next to whatever the user configured.
     """
     loaded_flex_context = FlexContextSchema().load(
         {
@@ -586,8 +586,9 @@ def test_flex_context_schema_umbrella_opt_out_wins_over_explicit_soc_opt_in():
         }
     )
 
-    assert "soc_minima_breach_price" not in loaded_flex_context
-    assert "soc_maxima_breach_price" not in loaded_flex_context
+    assert loaded_flex_context["soc_minima_breach_price"].to(
+        "EUR/MWh"
+    ).magnitude == pytest.approx(1_000_000)
 
 
 def test_flex_context_schema_umbrella_opt_out_disables_capacity_relaxation():

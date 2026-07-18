@@ -1483,10 +1483,8 @@ def test_off_tick_soc_minima_are_projected_into_soft_commitments(
 
     storage_constraints = device_constraints[0].tz_convert(tz)
     assert (
-        storage_constraints["min"] == 0
-    ).all(), (
-        "with a breach price, only the global soc-min should remain a hard constraint"
-    )
+        storage_constraints["min"].isna().all()
+    ), "with a breach price, the global soc-min is folded into the soft commitments instead of staying a hard constraint"
 
     soc_minima_commitments = [
         c for c in commitments if getattr(c, "name", "") == "any soc minima"

@@ -281,9 +281,6 @@ class StorageFlexModelSchema(Schema):
                 setattr(self.fields[field], "timezone", self.timezone)
                 if default_soc_unit is not None:
                     setattr(self.fields[field], "default_src_unit", default_soc_unit)
-        for field in ("soc_min", "soc_max", "soc_minima", "soc_maxima", "soc_targets"):
-            setattr(self.fields[field], "timezone", self.timezone)
-            setattr(self.fields[field], "event_resolution", self.flooring_resolution)
 
     @validates_schema
     def check_whether_targets_exceed_max_planning_horizon(self, data: dict, **kwargs):
