@@ -22,6 +22,7 @@ New features
 * CLI support for adding/editing account attributes [see `PR #2242 <https://www.github.com/FlexMeasures/flexmeasures/pull/2242>`_]
 * Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` soft state-of-charge constraint analysis (``soc-minima``/``soc-maxima`` violations or satisfied constraints, keyed by asset ID) for scheduling jobs; both arrays are empty when no SoC constraints were defined [see `PR #2072 <https://www.github.com/FlexMeasures/flexmeasures/pull/2072>`_]
 * New storage flex-model field ``operation-modes`` confines a device's power to one of several power bands, following the S2 standard's operation modes — for example, a device that is either off or running at one fixed power [see `Issue #2113 <https://www.github.com/FlexMeasures/flexmeasures/issues/2113>`_]
+* Each ``operation-modes`` entry may now carry an optional ``fixed-cost``: a no-load / commitment cost (in the flex-context currency) incurred at every time step during which that mode is active, so that keeping a unit on at low output is correctly priced in unit-commitment scheduling [see `Issue #2113 <https://www.github.com/FlexMeasures/flexmeasures/issues/2113>`_]
 
 Infrastructure / Support
 ----------------------

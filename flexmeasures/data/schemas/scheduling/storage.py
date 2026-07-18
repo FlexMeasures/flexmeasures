@@ -27,6 +27,7 @@ from flexmeasures.utils.unit_utils import (
     ur,
     is_power_unit,
     is_energy_unit,
+    is_currency_unit,
 )
 
 ALLOWED_COMMODITIES = {"electricity", "gas"}
@@ -85,6 +86,15 @@ class OperationModeSchema(Schema):
     A device that can only be off or run at exactly 883.7 W declares:
 
         [{"power-range": ["0 W", "0 W"]}, {"power-range": ["883.7 W", "883.7 W"]}]
+
+    A mode may also carry an optional ``fixed-cost``: a no-load / commitment cost
+    (in the flex-context currency) incurred at every time step during which the
+    mode is active. This models the running cost of keeping a unit on regardless
+    of its output (e.g. a generator's full-speed-no-load fuel burn). When absent,
+    the fixed cost is 0, leaving existing behaviour unchanged:
+
+        [{"power-range": ["0 MW", "0 MW"]},
+         {"power-range": ["4 MW", "55 MW"], "fixed-cost": "1200 EUR"}]
     """
 
     power_range = fields.List(
@@ -101,6 +111,34 @@ class OperationModeSchema(Schema):
             "(positive is consumption, negative is production).",
         ),
     )
+
+    # A currency amount, kept in its native currency unit here (agnostic to the
+    # flex-context currency) and converted to the shared currency by the scheduler.
+    fixed_cost = fields.Str(
+        data_key="fixed-cost",
+        required=False,
+        metadata=dict(
+            description="Optional no-load / commitment cost (in the flex-context "
+            "currency) incurred at every time step during which this operation "
+            "mode is active. Defaults to 0.",
+        ),
+    )
+
+    @post_load
+    def parse_fixed_cost(self, data: dict, **kwargs):
+        if data.get("fixed_cost") is not None:
+            try:
+                quantity = ur.Quantity(data["fixed_cost"])
+            except Exception as e:
+                raise ValidationError(
+                    f"Could not parse an operation mode's fixed-cost as a quantity: {e}"
+                )
+            if not is_currency_unit(quantity.units):
+                raise ValidationError(
+                    "An operation mode's fixed-cost must be a currency amount, e.g. '1200 EUR'."
+                )
+            data["fixed_cost"] = quantity
+        return data
 
     @validates_schema
     def check_range_order(self, data: dict, **kwargs):

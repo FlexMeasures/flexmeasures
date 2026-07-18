@@ -398,9 +398,11 @@ Each operation mode declares a signed power range (positive is consumption, nega
 This is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).
 Terminology and semantics follow the `operation modes of the S2 standard <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/>`_.
 Declaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.
+Each operation mode may optionally declare a ``fixed-cost``: a no-load / commitment cost (in the flex-context currency) that is incurred at every time step during which that mode is active.
+This models the running cost of keeping a unit on regardless of its output (e.g. a generator's full-speed-no-load fuel burn, or a boiler's standing cost). When omitted, the fixed cost is 0.
 """,
     example=[
         {"power-range": ["0 W", "0 W"]},
-        {"power-range": ["883.7 W", "883.7 W"]},
+        {"power-range": ["883.7 W", "883.7 W"], "fixed-cost": "1200 EUR"},
     ],
 )

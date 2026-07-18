@@ -44,6 +44,7 @@ def device_scheduler(  # noqa C901
     stock_groups: dict[int, list[int]] | None = None,
     ems_constraint_groups: list[list[int]] | None = None,
     device_power_bands: list[list[tuple[float, float]] | None] | None = None,
+    device_band_fixed_costs: list[list[float] | None] | None = None,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -86,6 +87,11 @@ def device_scheduler(  # noqa C901
                                 one of its bands at every time step (see S2 operation modes); this introduces
                                 binary variables (one per device per band per time step). Use None (per device
                                 or for the whole argument) for devices without band restrictions.
+    :param device_band_fixed_costs: optional per-device list of per-band fixed costs (in the commitments'
+                                currency), incurred at every time step during which that band is active.
+                                This models a no-load / commitment cost (e.g. the running cost of keeping a
+                                unit on regardless of its output). Must align with ``device_power_bands``:
+                                one cost per band. Absent entries default to 0, leaving behaviour unchanged.
 
     Potentially deprecated arguments:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
@@ -341,6 +347,19 @@ def device_scheduler(  # noqa C901
         for d, bands in enumerate(device_power_bands)
         if bands is not None and len(bands) > 0
     }
+
+    # Look up per-band fixed costs (no-load / commitment costs) per device.
+    # Defaults to 0 for every band of every banded device, so that omitting the
+    # costs leaves the schedule and objective unchanged.
+    if device_band_fixed_costs is None:
+        device_band_fixed_costs = [None] * len(device_constraints)
+    fixed_cost_lookup: dict[int, list[float]] = {}
+    for d, bands in band_lookup.items():
+        costs = device_band_fixed_costs[d] if d < len(device_band_fixed_costs) else None
+        if costs is None:
+            fixed_cost_lookup[d] = [0.0] * len(bands)
+        else:
+            fixed_cost_lookup[d] = [float(c) if c is not None else 0.0 for c in costs]
 
     # Add indices for devices (d), datetimes (j) and commitments (c)
     model.d = RangeSet(0, len(device_constraints) - 1, doc="Set of devices")
@@ -846,6 +865,12 @@ def device_scheduler(  # noqa C901
         }
         for c in m.c:
             costs += m.commitment_costs[c]
+        # No-load / commitment costs: a fixed cost per active operation-mode band
+        # per time step (see S2 operation modes and device_band_fixed_costs).
+        for d, b in m.db:
+            fixed_cost = fixed_cost_lookup[d][b]
+            if fixed_cost:
+                costs += sum(m.device_band[d, b, j] * fixed_cost for j in m.j)
         return costs
 
     model.costs = Objective(rule=cost_function, sense=minimize)

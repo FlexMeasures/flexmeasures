@@ -991,6 +991,17 @@ class MetaStorageScheduler(Scheduler):
                     )
                     for mode in operation_modes[d]
                 ]
+                # Per-mode no-load / commitment cost, converted to the flex-context's
+                # shared currency (per time step). Absent fixed-cost defaults to 0.
+                shared_currency_unit = self.flex_context["shared_currency_unit"]
+                device_constraints[d].attrs["operation_mode_fixed_costs"] = [
+                    (
+                        float(mode["fixed_cost"].to(shared_currency_unit).magnitude)
+                        if mode.get("fixed_cost") is not None
+                        else 0.0
+                    )
+                    for mode in operation_modes[d]
+                ]
 
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_positive"
@@ -2667,6 +2678,9 @@ class StorageScheduler(MetaStorageScheduler):
             stock_groups=self.stock_groups,
             device_power_bands=[
                 dc.attrs.get("operation_modes") for dc in device_constraints
+            ],
+            device_band_fixed_costs=[
+                dc.attrs.get("operation_mode_fixed_costs") for dc in device_constraints
             ],
         )
         if "infeasible" in (tc := scheduler_results.solver.termination_condition):
