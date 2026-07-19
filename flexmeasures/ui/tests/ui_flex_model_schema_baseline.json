@@ -1,0 +1,248 @@
+{
+  "charging-efficiency": {
+    "default": null,
+    "description": "One-way conversion efficiency from the commodity (e.g. electricity) to the storage's state of charge.\nCan be a percentage, a ratio in the range [0,1], or a coefficient of performance (>1).\nDefaults to 100% (no conversion loss).\n",
+    "example-units": [
+      "%"
+    ],
+    "types": {
+      "backend": "typeThree",
+      "ui": "One fixed value or a dynamic signal (via a sensor)."
+    }
+  },
+  "commodity": {
+    "default": "electricity",
+    "description": "Commodity on which this device acts.\nDefaults to <code>\"electricity\"</code>.\n",
+    "example-units": [
+      "electricity",
+      "gas"
+    ],
+    "types": {
+      "backend": "typeOne",
+      "ui": "One fixed value only."
+    }
+  },
+  "consumption": {
+    "default": null,
+    "description": "Sensor used to record the scheduled power as seen from a consumption perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nDepending on which output sensors are defined:\n\n- <strong>Only</strong> <code>consumption</code> <strong>defined</strong>: the full power schedule is stored on this sensor using the\n  consumption-positive sign convention (consumption positive, production negative).\n- <strong>Only</strong> <code>production</code> <strong>defined</strong>: the full power schedule is stored on the production sensor\n  with the production-positive convention (production positive, consumption negative).\n- <strong>Both defined</strong>: only the non-negative part of the schedule is stored on this sensor (zero for\n  time steps with net production), and only the non-positive part (sign-flipped) is stored on the\n  production sensor.\n",
+    "example-units": [
+      "MW",
+      "kW"
+    ],
+    "types": {
+      "backend": "typeTwo",
+      "ui": "A sensor which records the scheduled consumption."
+    }
+  },
+  "consumption-capacity": {
+    "default": null,
+    "description": "Device-level power constraint on consumption. How much power can be drawn by this asset.",
+    "example-units": [
+      "MW",
+      "kW"
+    ],
+    "types": {
+      "backend": "typeThree",
+      "ui": "One fixed value or a dynamic signal (via a sensor)."
+    }
+  },
+  "discharging-efficiency": {
+    "default": null,
+    "description": "One-way conversion efficiency from the storage's state of charge to the commodity (e.g. electricity).\nDefaults to 100% (no conversion loss).",
+    "example-units": [
+      "%"
+    ],
+    "types": {
+      "backend": "typeThree",
+      "ui": "One fixed value or a dynamic signal (via a sensor)."
+    }
+  },
+  "group": {
+    "default": null,
+    "description": "Reference to a group of devices whose aggregate power is constrained, given as either a power sensor (<code>{\"sensor\": <id>}</code>) or an asset (<code>{\"asset\": <id>}</code>) - exactly one of the two.\nThe referenced sensor or asset should itself get its own flex-model entry defining the group's <code>power-capacity</code> (hard constraint) and/or <code>consumption-capacity</code>/<code>production-capacity</code> (soft constraints with default breach prices).\nWhen the group is referenced by <code>sensor</code>, the group's scheduled aggregate power is saved to that group sensor.\nWhen the group is referenced by <code>asset</code> (e.g. a sub-EMS asset in the tree), the group entry defines no power sensor of its own; the group's aggregate power is instead saved via that entry's own <code>consumption</code> and/or <code>production</code> output sensors, following the usual output-sensor conventions.\n",
+    "example-units": [
+      "MW",
+      "kW"
+    ],
+    "types": {
+      "backend": "typeTwo",
+      "ui": "A power sensor or an asset representing a group of devices; a sensor-referenced group also records the group's scheduled aggregate power, while an asset-referenced group records it via its own consumption/production output sensors."
+    }
+  },
+  "power-capacity": {
+    "default": null,
+    "description": "Symmetric device-level power constraint. How much power can be applied to this asset in either direction.\nIf omitted, the scheduler infers this limit from the greatest of <code>consumption-capacity</code> and <code>production-capacity</code> when either is configured, before falling back to <code>site-power-capacity</code>.\nWhen exactly one of <code>consumption-capacity</code> or <code>production-capacity</code> is configured to non-zero capacity, the missing opposite capacity defaults to zero.",
+    "example-units": [
+      "MW",
+      "kW"
+    ],
+    "types": {
+      "backend": "typeThree",
+      "ui": "One fixed value or a dynamic signal (via a sensor)."
+    }
+  },
+  "prefer-charging-sooner": {
+    "default": null,
+    "description": "Tie-breaking policy to apply if conditions are stable, which signals a preference to charge sooner rather than later (defaults to True).\nIt also signals a preference to discharge later.\nBoolean option only.\n",
+    "example-units": [
+      "Boolean"
+    ],
+    "types": {
+      "backend": "typeOne",
+      "ui": "Boolean option only."
+    }
+  },
+  "prefer-curtailing-later": {
+    "default": null,
+    "description": "Tie-breaking policy to apply if conditions are stable, which signals a preference to curtail both consumption and production later, whichever is applicable (defaults to True).\nBoolean option only.\n",
+    "example-units": [
+      "Boolean"
+    ],
+    "types": {
+      "backend": "typeOne",
+      "ui": "Boolean option only."
+    }
+  },
+  "production": {
+    "default": null,
+    "description": "Sensor used to record the scheduled power as seen from a production perspective.\n\nThe sign convention is determined by the key name, and is stored on the sensor itself using the <code>consumption_is_positive</code> attribute.\n\nSee the <code>consumption</code> field for the full description of the split logic when both sensors are defined.\n",
+    "example-units": [
+      "MW",
+      "kW"
+    ],
+    "types": {
+      "backend": "typeTwo",
+      "ui": "A sensor which records the scheduled production."
+    }
+  },
+  "production-capacity": {
+    "default": null,
+    "description": "Device-level power constraint on production.\nHow much power can be supplied by this asset.\nFor <abbr title=\"photovoltaic solar panels\">PV</abbr> curtailment, set this to reference your sensor containing PV power forecasts.\n",
+    "example-units": [
+      "MW",
+      "kW"
+    ],
+    "types": {
+      "backend": "typeThree",
+      "ui": "One fixed value or a dynamic signal (via a sensor)."
+    }
+  },
+  "roundtrip-efficiency": {
+    "default": null,
+    "description": "Below 100%, this represents roundtrip losses (of charging & discharging), usually used for batteries.\nCan be a percentage or a ratio in the range [0,1].\nDefaults to 100% (no roundtrip loss).\n",
+    "example-units": [
+      "%"
+    ],
+    "types": {
+      "backend": "typeFive",
+      "ui": "Fixed value only."
+    }
+  },
+  "soc-gain": {
+    "default": [],
+    "description": "SoC gain per time step, e.g. from a secondary energy source. Useful if energy is inserted by an external process (in-flow).\nThis field allows setting multiple components, either fixed or dynamic, which add up to an aggregated gain.\nThis field represents an energy flow (for instance, in kW) rather than saying something about an (allowed) energy state (for instance, in kWh).\nThe SoC gain is unaffected by the charging efficiency.\n",
+    "example-units": [
+      "MW",
+      "kW"
+    ],
+    "types": {
+      "backend": "typeFour",
+      "ui": "Multiple settings possible - either fixed values or dynamic signals (via a sensor)."
+    }
+  },
+  "soc-max": {
+    "default": null,
+    "description": "A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).\nIf omitted, no upper boundary is applied.\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-maxima</code> flex-model field instead together with the <code>soc-maxima-breach-price</code> field in the flex-context.\n",
+    "example-units": [
+      "MWh",
+      "kWh"
+    ],
+    "types": {
+      "backend": "typeThree",
+      "ui": "One fixed value or a dynamic signal (via a sensor)."
+    }
+  },
+  "soc-maxima": {
+    "default": null,
+    "description": "Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.\nIf a <code>soc-maxima-breach-price</code> is defined, the <code>soc-maxima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.",
+    "example-units": [
+      "MWh",
+      "kWh"
+    ],
+    "types": {
+      "backend": "typeTwo",
+      "ui": "A sensor which records the state of charge."
+    }
+  },
+  "soc-min": {
+    "default": null,
+    "description": "A constant and non-negotiable lower boundary for all SoC values in the schedule.\nIf omitted, no lower boundary is applied.\nIf used, this is regarded as an unsurpassable physical limitation.\nTo set softer boundaries, use the <code>soc-minima</code> flex-model field instead together with the <code>soc-minima-breach-price</code> field in the flex-context.\n",
+    "example-units": [
+      "MWh",
+      "kWh"
+    ],
+    "types": {
+      "backend": "typeThree",
+      "ui": "One fixed value or a dynamic signal (via a sensor)."
+    }
+  },
+  "soc-minima": {
+    "default": null,
+    "description": "Set points that form lower boundaries, e.g. to target a full car battery in the morning.\nIf a <code>soc-minima-breach-price</code> is defined, the <code>soc-minima</code> become soft constraints in the optimization problem.\nOtherwise, they become hard constraints.. Both single points in time and ranges are possible, see example.",
+    "example-units": [
+      "MWh",
+      "kWh"
+    ],
+    "types": {
+      "backend": "typeTwo",
+      "ui": "A sensor which records the state of charge."
+    }
+  },
+  "soc-targets": {
+    "default": null,
+    "description": "\nExact set point(s) of the storage's state of charge that the scheduler needs to realize.\nThese are hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed.\n",
+    "example-units": [
+      "MWh",
+      "kWh"
+    ],
+    "types": {
+      "backend": "typeTwo",
+      "ui": "A sensor which records the state of charge."
+    }
+  },
+  "soc-usage": {
+    "default": [],
+    "description": "SoC drain per time step, e.g. from a load or heat sink.\nUseful if energy is extracted by an external process or there are dissipating losses (out-flow).\nThis field allows setting multiple components, either fixed or dynamic, which add up to an aggregated usage.\nThis field represents an energy flow (for instance, in kW) rather than saying something about an (allowed) energy state (for instance, in kWh).\nThe SoC drain is unaffected by the discharging efficiency.\n",
+    "example-units": [
+      "MW",
+      "kW"
+    ],
+    "types": {
+      "backend": "typeFour",
+      "ui": "Multiple settings possible - either fixed values or dynamic signals (via a sensor)."
+    }
+  },
+  "state-of-charge": {
+    "default": null,
+    "description": "Sensor used to record the scheduled state of charge. If <code>soc-at-start</code> is omitted, FlexMeasures will also use this field to infer the starting state of charge. For this use case, the field may also contain a time series specification instead. When a sensor is used, its unit may be an energy unit (e.g. MWh or kWh) or a percentage (%). For sensors with a % unit, the <code>soc-max</code> flex-model field must be set to a non-zero value to allow converting between the energy-based schedule and a percentage. Also, the state-of-charge sensor's resolution should be instantaneous (i.e. `PT0M`).",
+    "example-units": [
+      "MWh",
+      "kWh"
+    ],
+    "types": {
+      "backend": "typeTwo",
+      "ui": "A sensor which records the state of charge."
+    }
+  },
+  "storage-efficiency": {
+    "default": null,
+    "description": "The efficiency of keeping the storage's state of charge at its present level, used to encode losses over time.\nAs a result, each time step the energy is held longer leads to higher losses.\nThis setting is crucial to some sorts of energy storage, e.g. thermal buffers.\nTo give an example, when this setting is at 95% (or 0.95), this means a loss of 5% per time step. Defaults to 100% (no storage loss over time).\nNote that the storage efficiency used by the scheduler is applied over each time step equal to the scheduling resolution.\nFor example, a storage efficiency of 95 percent per (absolute) day, for scheduling a 1-hour resolution sensor, should be passed as a storage efficiency of 0.95<sup>1/24</sup> = 0.997865.\nAlternatively, to let FlexMeasures handle the conversion for you, record the storage-efficiency on a dedicated sensor (in this example, with a 24-hour event resolution).\nThen reference that sensor in the storage-efficiency field.\n",
+    "example-units": [
+      "%"
+    ],
+    "types": {
+      "backend": "typeThree",
+      "ui": "One fixed value or a dynamic signal (via a sensor)."
+    }
+  }
+}

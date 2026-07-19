@@ -49,6 +49,7 @@ Infrastructure / Support
 * Stop manual runs of the Docker publishing workflow from overwriting the ``latest`` image tag, and let them opt in to it explicitly [see `PR #2316 <https://www.github.com/FlexMeasures/flexmeasures/pull/2316>`_]
 * Add a pre-commit hook that blocks image files (png, jpg, gif, bmp, tiff, webp, ico, psd) from being committed outside of ``flexmeasures/ui/static/`` and ``documentation/``, to protect the git history from binary bloat; screenshots belong in the ``FlexMeasures/screenshots`` repo instead [see `PR #2315 <https://www.github.com/FlexMeasures/flexmeasures/pull/2315>`_]
 * Schedulers track devices via a typed device inventory, which classifies every flex-model entry once and serves as the single source of truth for device roles and canonical device indices [see `PR #2321 <https://www.github.com/FlexMeasures/flexmeasures/pull/2321>`_]
+* Derive the UI flex-model schema from the storage flex-model DB schema, making the DB schema the single source of truth so that adding a flex-model field can no longer silently break DB/UI parity (a DB field without UI presentation info now fails loudly at import time) [see `PR #2330 <https://www.github.com/FlexMeasures/flexmeasures/pull/2330>`_]
 
 Bugfixes
 -----------
