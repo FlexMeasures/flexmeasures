@@ -17,6 +17,7 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.utils import save_to_db
+from flexmeasures.utils.unit_utils import ur
 
 
 def test_multi_feed_device_scheduler_shared_buffer():
@@ -1365,7 +1366,6 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             "charging-efficiency": 0.9,
             "commodity": "electricity",
             "production-capacity": "0 kW",
-            # "storage-efficiency": 0.9,  # todo: workaround does not work yet
         },
         {
             "sensor": boiler_power.id,
@@ -1374,7 +1374,6 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             "charging-efficiency": 0.9,
             "commodity": "gas",
             "production-capacity": "0 kW",
-            # "storage-efficiency": 0.9,  # todo: workaround does not work yet
         },
         {
             # "sensor": tank_power.id,
@@ -1386,7 +1385,7 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             # ],
             "state-of-charge": {"sensor": buffer_soc.id},
             "soc-usage": [{"sensor": buffer_soc_usage.id}],
-            "storage-efficiency": 0.9,  # todo: does not work yet
+            "storage-efficiency": "99%",  # the buffer leaks 1% of its stock every 15 minutes
             # todo: consider assigning this to the heat commodity, maybe we can derive some useful (costs?) KPI from it
         },
     ]
@@ -1450,7 +1449,6 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
         for schedule in schedules
         if schedule.get("sensor") == boiler_power
     )
-    # The electric heater should only be active in the cheap-electricity window.
     # In local time, electricity is cheaper from 12:00 to 16:00.
     # During this period, the dynamic electricity site capacity is only 60 kW.
     # Therefore, the electric heater is expected to run at 60 kW, not its full
@@ -1473,15 +1471,18 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
         ),
     )
 
-    # When electricity is cheaper than gas, the gas boiler should stay off.
-    # The heat demand is then supplied by the electric heater instead.
+    # When electricity is cheaper than gas, the gas boiler should stay off,
+    # with the heat demand supplied by the electric heater instead. Only near
+    # the end of the window does the boiler top up the heat buffer: the 60 kW
+    # electricity capacity cannot cover demand plus the buffer's storage losses
+    # for the whole window, and topping up as late as possible leaks the least.
     pd.testing.assert_series_equal(
-        boiler_schedule.loc["2026-04-07T11:00:00+00:00":"2026-04-07T14:45:00+00:00"],
+        boiler_schedule.loc["2026-04-07T11:00:00+00:00":"2026-04-07T13:45:00+00:00"],
         pd.Series(
             0.0,
             index=pd.date_range(
                 "2026-04-07T11:00:00+00:00",
-                "2026-04-07T14:45:00+00:00",
+                "2026-04-07T13:45:00+00:00",
                 freq="15min",
             ),
             dtype="float64",
@@ -1491,6 +1492,12 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             "gas boiler dispatch during cheap-electricity window on day 1; "
             "expected 0 kW because electricity is cheaper than gas"
         ),
+    )
+    np.testing.assert_allclose(
+        boiler_schedule.loc["2026-04-07T14:00:00+00:00":"2026-04-07T14:45:00+00:00"],
+        60.044743,
+        atol=1e-3,
+        err_msg="Gas boiler should top up the heat buffer in the final hour of the cheap-electricity window on day 1.",
     )
 
     pd.testing.assert_series_equal(
@@ -1512,12 +1519,12 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
     )
 
     pd.testing.assert_series_equal(
-        boiler_schedule.loc["2026-04-08T11:00:00+00:00":"2026-04-08T14:45:00+00:00"],
+        boiler_schedule.loc["2026-04-08T11:00:00+00:00":"2026-04-08T13:45:00+00:00"],
         pd.Series(
             0.0,
             index=pd.date_range(
                 "2026-04-08T11:00:00+00:00",
-                "2026-04-08T14:45:00+00:00",
+                "2026-04-08T13:45:00+00:00",
                 freq="15min",
             ),
             dtype="float64",
@@ -1528,32 +1535,44 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
             "expected 0 kW because electricity is cheaper than gas"
         ),
     )
+    np.testing.assert_allclose(
+        boiler_schedule.loc["2026-04-08T14:00:00+00:00":"2026-04-08T14:45:00+00:00"],
+        60.044743,
+        atol=1e-3,
+        err_msg="Gas boiler should top up the heat buffer in the final hour of the cheap-electricity window on day 2.",
+    )
 
     # Outside the cheap-electricity window, gas is cheaper than electricity.
     # Therefore, the gas boiler should become the preferred heat source and run
-    # at full 100 kW capacity, while the electric heater should remain off.
+    # at full 100 kW capacity. The pricier electric heater cannot switch off
+    # entirely, though: the buffer's storage losses push the total heat need
+    # beyond the boiler's capacity, so the heater covers the remainder.
     assert boiler_schedule.loc["2026-04-07T15:00:00+00:00"] == pytest.approx(
         100.0
     ), "Gas boiler should run at full capacity after the cheap-electricity window on day 1."
 
     assert heater_schedule.loc["2026-04-07T15:00:00+00:00"] == pytest.approx(
-        0.0
-    ), "Electric heater should be off after the cheap-electricity window because gas is cheaper."
+        20.044743, abs=1e-3
+    ), "Electric heater should only cover what the maxed-out gas boiler cannot, after the cheap-electricity window on day 1."
 
     assert boiler_schedule.loc["2026-04-08T15:00:00+00:00"] == pytest.approx(
         100.0
     ), "Gas boiler should run at full capacity after the cheap-electricity window on day 2."
 
     assert heater_schedule.loc["2026-04-08T15:00:00+00:00"] == pytest.approx(
-        0.0
-    ), "Electric heater should be off after the cheap-electricity window on day 2 because gas is cheaper."
+        20.044743, abs=1e-3
+    ), "Electric heater should only cover what the maxed-out gas boiler cannot, after the cheap-electricity window on day 2."
 
-    # Before the first cheap-electricity window, the optimizer uses a partial
-    # 80 kW electric-heater step to prepare the heat buffer. This is part of the
-    # expected optimal schedule and protects against accidental dispatch changes.
-    assert heater_schedule.loc["2026-04-07T08:00:00+00:00"] == pytest.approx(
-        80.0
-    ), "Electric heater should have one expected partial 80 kW dispatch step before the first cheap-electricity window."
+    # Before the first cheap-electricity window, the optimizer ramps up the
+    # electric heater (one partial step, then full 100 kW capacity) to prepare
+    # the heat buffer. This is part of the expected optimal schedule and
+    # protects against accidental dispatch changes.
+    assert heater_schedule.loc["2026-04-07T08:15:00+00:00"] == pytest.approx(
+        25.713284, abs=1e-3
+    ), "Electric heater should have one expected partial dispatch step before ramping up to prepare for the first cheap-electricity window."
+    assert heater_schedule.loc["2026-04-07T08:30:00+00:00"] == pytest.approx(
+        100.0
+    ), "Electric heater should charge the heat buffer at full capacity just before the first cheap-electricity window."
 
 
 def test_all_gas_flex_model_without_electricity_device(app, db):
@@ -1782,6 +1801,251 @@ def test_electricity_device_indices_exclude_other_commodities():
     assert mapping["electricity"] == [0, 2, 3, 4]
     assert mapping["gas"] == [1, 5]
     assert scheduler._electricity_device_indices() == [0, 2, 3, 4]
+
+
+def _shared_stock_scheduler(db, flex_model, label):
+    """Set up a battery with two inverter power sensors and one SoC sensor.
+
+    The passed flex_model receives the sensor references via format placeholders
+    ``power_1``, ``power_2`` and ``soc``.
+    """
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-02T00:00:00+01:00")
+    resolution = pd.Timedelta("15m")
+
+    battery_type = get_or_create_model(GenericAssetType, name="battery")
+    inverter_type = get_or_create_model(GenericAssetType, name="inverter")
+    battery = GenericAsset(
+        name=f"storage-efficiency test battery {label}", generic_asset_type=battery_type
+    )
+    inverter_1 = GenericAsset(
+        name=f"storage-efficiency test inverter 1 {label}",
+        generic_asset_type=inverter_type,
+    )
+    inverter_2 = GenericAsset(
+        name=f"storage-efficiency test inverter 2 {label}",
+        generic_asset_type=inverter_type,
+    )
+    db.session.add_all([battery, inverter_1, inverter_2])
+    power_1 = Sensor(
+        name="power", unit="kW", event_resolution=resolution, generic_asset=inverter_1
+    )
+    power_2 = Sensor(
+        name="power", unit="kW", event_resolution=resolution, generic_asset=inverter_2
+    )
+    soc = Sensor(
+        name="state-of-charge",
+        unit="kWh",
+        event_resolution=pd.Timedelta(0),
+        generic_asset=battery,
+    )
+    db.session.add_all([power_1, power_2, soc])
+    db.session.commit()
+
+    power_sensors = {"power_1": power_1.id, "power_2": power_2.id}
+    for entry in flex_model:
+        if "sensor" in entry:
+            entry["sensor"] = power_sensors[entry["sensor"]]
+        if "state-of-charge" in entry:
+            entry["state-of-charge"] = {"sensor": soc.id}
+
+    return StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "100 EUR/MWh",
+        },
+        return_multiple=True,
+    )
+
+
+def test_shared_stock_storage_efficiency_applies_to_all_members(db):
+    """A storage-efficiency defined on the stock's SoC-parameters entry applies to every member device."""
+    scheduler = _shared_stock_scheduler(
+        db,
+        [
+            {"sensor": "power_1", "state-of-charge": "soc", "power-capacity": "20 kW"},
+            {"sensor": "power_2", "state-of-charge": "soc", "power-capacity": "20 kW"},
+            {
+                "state-of-charge": "soc",
+                "soc-at-start": 20.0,
+                "soc-min": 10,
+                "soc-max": 200.0,
+                "storage-efficiency": "99%",
+            },
+        ],
+        label="propagate",
+    )
+    device_constraints = scheduler._prepare(skip_validation=True)[5]
+    assert (device_constraints[0]["efficiency"] == 0.99).all()
+    assert device_constraints[1]["efficiency"].equals(
+        device_constraints[0]["efficiency"]
+    )
+
+
+def test_shared_stock_storage_efficiency_defined_twice_fails(db):
+    """Two entries defining a storage-efficiency for the same stock are rejected."""
+    scheduler = _shared_stock_scheduler(
+        db,
+        [
+            {
+                "sensor": "power_1",
+                "state-of-charge": "soc",
+                "power-capacity": "20 kW",
+                "storage-efficiency": "99%",
+            },
+            {
+                "sensor": "power_2",
+                "state-of-charge": "soc",
+                "power-capacity": "20 kW",
+                "storage-efficiency": "99%",
+            },
+            {
+                "state-of-charge": "soc",
+                "soc-at-start": 20.0,
+                "soc-min": 10,
+                "soc-max": 200.0,
+            },
+        ],
+        label="conflict",
+    )
+    with pytest.raises(ValueError, match="define it on a single entry"):
+        scheduler._prepare(skip_validation=True)
+
+
+@pytest.mark.parametrize("named_device", [0, 1])
+def test_stock_scoped_commitment_binds_group_stock(named_device):
+    """A stock-scoped StockCommitment binds its stock group as a whole,
+    regardless of which member device index it names."""
+    start = pd.Timestamp("2026-01-01T00:00+01")
+    end = pd.Timestamp("2026-01-01T04:00+01")
+    resolution = pd.Timedelta("PT1H")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    device_constraints = [
+        pd.DataFrame(
+            {
+                "min": 0.0,
+                "max": 100.0,
+                "equals": np.nan,
+                "derivative min": 0.0,
+                "derivative max": 10.0,
+                "derivative equals": np.nan,
+                "derivative down efficiency": 1.0,
+                "derivative up efficiency": 1.0,
+            },
+            index=index,
+        )
+        for _ in range(2)
+    ]
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -100, "derivative max": 100}, index=index
+    )
+
+    # Require the shared stock to hold 20 units at the end of the horizon.
+    min_stock = pd.Series(0.0, index=index)
+    min_stock.iloc[-1] = 20.0
+
+    commitments = [
+        StockCommitment(
+            name="soc minimum",
+            index=index,
+            quantity=min_stock,
+            downwards_deviation_price=-1000,
+            device=named_device,
+            stock=7,
+        ),
+    ] + [
+        FlowCommitment(
+            name=f"energy device {d}",
+            index=index,
+            quantity=0,
+            upwards_deviation_price=10,
+            downwards_deviation_price=10,
+            device=pd.Series(d, index=index),
+        )
+        for d in (0, 1)
+    ]
+
+    planned_power, planned_costs, results, model = device_scheduler(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitments=commitments,
+        initial_stock=0,
+        stock_groups={7: [0, 1]},
+    )
+
+    assert results.solver.termination_condition == "optimal"
+    # Charging just enough to meet the stock minimum beats paying the breach price,
+    # so the group's total stock change reaches exactly 20 - no matter whether the
+    # commitment named the group's first or second device.
+    total_energy = sum(schedule.sum() for schedule in planned_power)
+    np.testing.assert_allclose(total_energy, 20.0, atol=1e-6)
+
+
+def test_commitment_commodity_does_not_bind_other_commodity_devices():
+    """A commitment
+    listed under the flex-context's `commitments` should only bind devices of its own
+    `commodity` (defaulting to "electricity", like devices do). A gas commitment
+    should therefore not create a FlowCommitment against an electricity device, and
+    vice versa.
+
+    This is a DB-free, unit-level test of StorageScheduler.convert_to_commitments.
+    """
+    scheduler = object.__new__(StorageScheduler)
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                "name": "gas commitment",
+                "commodity": "gas",
+                "baseline": ur.Quantity("1 MW"),
+            },
+            {
+                # No `commodity` given: defaults to "electricity", like devices do.
+                "name": "electricity commitment",
+                "baseline": ur.Quantity("2 MW"),
+            },
+        ],
+    }
+    # Flexible devices: 0 = electricity, 1 = gas.
+    flex_model = [
+        {"commodity": "electricity"},
+        {"commodity": "gas"},
+    ]
+
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    commitments = scheduler.convert_to_commitments(
+        flex_model=flex_model,
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=None,
+    )
+
+    assert len(commitments) == 2
+
+    gas_commitment = next(c for c in commitments if c.name == "gas commitment")
+    electricity_commitment = next(
+        c for c in commitments if c.name == "electricity commitment"
+    )
+
+    # The gas commitment binds only the gas device (index 1), not the electricity
+    # device (index 0).
+    assert (gas_commitment.device == 1).all()
+    assert set(gas_commitment.device_group.unique()) == {"gas"}
+
+    # The electricity commitment (commodity defaulting to "electricity") binds only
+    # the electricity device (index 0), not the gas device (index 1).
+    assert (electricity_commitment.device == 0).all()
+    assert set(electricity_commitment.device_group.unique()) == {"electricity"}
 
 
 def test_sensor_scoped_commitment_binds_aggregate_of_selected_devices(app, db):
