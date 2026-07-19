@@ -30,6 +30,12 @@ def test_new_asset_page(client, setup_assets, as_admin):
     asset_page = client.get(url_for("AssetCrudUI:get", id="new"), follow_redirects=True)
     assert asset_page.status_code == 200
     assert b"Creating a new asset" in asset_page.data
+    assert b'id="copySearchInput"' in asset_page.data
+    assert b'value="Template"' in asset_page.data
+    assert (
+        b"You can search for any accessible asset here. We start by showing templates."
+        in asset_page.data
+    )
 
 
 @pytest.mark.parametrize(
@@ -108,6 +114,30 @@ def test_asset_page_dates_validation(
     )
     assert error.encode() in asset_page.data
     assert "UNPROCESSABLE_ENTITY".encode() in asset_page.data
+
+
+def test_graphs_page_preserves_saved_y_axis_setting_in_editor(
+    db, client, setup_assets, as_admin
+):
+    """The graph editor keeps a saved per-graph y-axis setting when normalizing UI state."""
+    asset = setup_assets["wind-asset-1"]
+    asset.sensors_to_show = [
+        {
+            "title": "Power",
+            "y-axis": "data",
+            "plots": [{"sensor": asset.sensors[0].id}],
+        }
+    ]
+    db.session.commit()
+
+    page = client.get(
+        url_for("AssetCrudUI:graphs", id=asset.id),
+        follow_redirects=True,
+    )
+
+    assert page.status_code == 200
+    assert b'"y-axis": "data"' in page.data
+    assert b'item["y-axis"] = graph["y-axis"];' in page.data
 
 
 def test_add_asset(db, client, setup_assets, as_admin):
@@ -466,3 +496,75 @@ def test_admin_only_buttons_on_properties_page(
         assert b"Create asset" in page.data
     else:
         assert b"Create asset" not in page.data
+
+
+def test_group_field_hints_on_properties_page(
+    db, client, as_admin, setup_accounts, setup_generic_asset_types
+):
+    """The properties page should hint at using the parent asset as `group`,
+    depending on whether the (child's) parent or the asset itself defines a
+    power-capacity in its flex-model."""
+
+    # Parent with a power-capacity in its flex-model, and a child without a group set.
+    parent_with_capacity = GenericAsset(
+        name="parent-with-power-capacity",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        latitude=10,
+        longitude=100,
+        flex_model={"power-capacity": "400kW"},
+    )
+    db.session.add(parent_with_capacity)
+    db.session.flush()
+
+    child = GenericAsset(
+        name="child-of-parent-with-power-capacity",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        latitude=10,
+        longitude=100,
+        parent_asset_id=parent_with_capacity.id,
+    )
+    db.session.add(child)
+
+    # Parent without children with power-capacity and without children (no hints).
+    lone_asset = GenericAsset(
+        name="lone-asset-no-hints",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        latitude=10,
+        longitude=100,
+    )
+    db.session.add(lone_asset)
+    db.session.commit()
+
+    # (a) child whose parent has power-capacity: expect the "join parent group" hint.
+    child_page = client.get(
+        url_for("AssetCrudUI:properties", id=child.id),
+        follow_redirects=True,
+    )
+    assert child_page.status_code == 200
+    assert b"parent-with-power-capacity" in child_page.data
+    assert b"power-capacity" in child_page.data
+    assert f'group: {{"asset": {parent_with_capacity.id} }}'.encode() in child_page.data
+
+    # (b) parent with power-capacity and children: expect the "children can join" hint.
+    parent_page = client.get(
+        url_for("AssetCrudUI:properties", id=parent_with_capacity.id),
+        follow_redirects=True,
+    )
+    assert parent_page.status_code == 200
+    assert b"Child assets can" in parent_page.data
+    assert (
+        f'group: {{"asset": {parent_with_capacity.id} }}'.encode() in parent_page.data
+    )
+
+    # (c) an asset with neither a parent with power-capacity, nor children with
+    # power-capacity of its own: expect no hints.
+    lone_page = client.get(
+        url_for("AssetCrudUI:properties", id=lone_asset.id),
+        follow_redirects=True,
+    )
+    assert lone_page.status_code == 200
+    assert b"Consider setting" not in lone_page.data
+    assert b"Child assets can" not in lone_page.data

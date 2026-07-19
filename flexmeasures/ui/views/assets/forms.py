@@ -7,7 +7,7 @@ from flask import current_app
 from flask_security import current_user
 from flask_wtf import FlaskForm
 from sqlalchemy import select
-from wtforms import StringField, DecimalField, SelectField, IntegerField
+from wtforms import StringField, DecimalField, SelectField, IntegerField, TextAreaField
 from wtforms.validators import DataRequired, optional
 from marshmallow import ValidationError
 
@@ -24,6 +24,11 @@ class AssetForm(FlaskForm):
     name = StringField(
         "Name",
         validators=[DataRequired()],
+    )
+    description = TextAreaField(
+        "Description",
+        validators=[optional()],
+        description="Optional description to help users understand what this asset represents.",
     )
     latitude = DecimalField(
         "Latitude",

@@ -288,6 +288,17 @@ In the same way, you can customize the siblings that are shown as drop-down for 
 For this, the attribute is named "breadcrumb_siblings" and follows the same syntax. One use case might be to set it to empty (``[]``).
 
 
+Creating your own template assets (for scaling setups)
+-----------------------------------------------------------
+
+In FlexMeasures, you can create new assets by copying existing ones. This can be great for repeating a successful setup,
+e.g. as you are servicing the same kind of site often.
+
+- You can manually set up a well-working asset, with flex-config, sensors, child assets etc and then copy it in the UI.
+- You can also copy it via the API endpoint for asset copying, and make that part of your workflow.
+- Finally, you could script the template. Your plugin can make sure on startup that custom template assets exist, programmatically. For FlexMeasures' own initial templates, which are scripted on startups, you might find the code in ``flexmeasures/data/scripts/data_gen.py::_ensure_public_root_asset()`` useful.
+
+
 Validating arguments in your CLI commands with marshmallow
 -----------------------------------------------------------
 
