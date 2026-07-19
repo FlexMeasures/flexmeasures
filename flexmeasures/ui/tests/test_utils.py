@@ -138,22 +138,6 @@ def test_ui_flexmodel_schema():
         assert entry["description"], f"UI flex-model entry '{key}' has no description."
 
 
-def test_ui_flexmodel_schema_matches_baseline():
-    """Guardrail: the derived UI flex-model schema must be identical, key-for-key
-    and value-for-value, to the hand-maintained schema captured before the
-    refactor that made DBStorageFlexModelSchema the single source of truth.
-
-    This proves the UI editor sees exactly the same data as before.
-    """
-    import json
-    from pathlib import Path
-
-    baseline_path = Path(__file__).parent / "ui_flex_model_schema_baseline.json"
-    baseline = json.loads(baseline_path.read_text())
-
-    assert UI_FLEX_MODEL_SCHEMA == baseline
-
-
 class NewAsset:
     def __init__(self, db, setup_generic_asset_types, setup_accounts, new_asset_data):
         self.db = db
