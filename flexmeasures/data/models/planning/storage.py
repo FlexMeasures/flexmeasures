@@ -439,16 +439,19 @@ class MetaStorageScheduler(Scheduler):
             if production_price is None:
                 production_price = consumption_price
 
-            # A context without user-given price fields may still carry smart-defaulted
-            # zero prices (see CommodityFlexContextSchema.fill_grid_connection_defaults),
-            # in which case it is flagged with prices_are_defaulted.
-            has_no_user_given_prices = consumption_price is None or (
-                commodity_context.get("prices_are_defaulted", False)
+            # A context is an internal node only when the user gave no grid-connection
+            # signal at all -- neither prices nor capacity fields (see
+            # CommodityFlexContextSchema.fill_grid_connection_defaults, which flags this
+            # with is_internal_node). A commodity given a capacity but no price still
+            # carries smart-defaulted zero prices, yet it declares a grid connection, so
+            # it must not be treated as an internal node.
+            is_internal_node = consumption_price is None or (
+                commodity_context.get("is_internal_node", False)
                 and consumption_price_sensor is None
                 and production_price_sensor is None
             )
 
-            if has_no_user_given_prices:
+            if is_internal_node:
                 if commodity == "electricity":
                     # Electricity is assumed to be grid-connected, so a missing
                     # price is treated as a configuration error rather than as

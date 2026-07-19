@@ -280,8 +280,9 @@ For example, a CHP that turns gas into steam and electricity:
 Here each kW of gas input produces 0.5 kW of steam and 0.3 kW of electricity.
 The gas port is import-only (``production-capacity: 0 kW``) and the steam and electricity ports are export-only (``consumption-capacity: 0 kW``).
 
-**Internal nodes.** A commodity that lists no energy price in the ``flex-context`` (e.g. a steam or heat network with no grid connection) is treated as an **internal node**: its devices must balance each other at every time step, so everything converters produce into the node is consumed from it within the same step.
+**Internal nodes.** A *non-electricity* commodity that lists no energy price and no capacity (grid-connection) field in the ``flex-context`` (e.g. a steam or heat network with no grid connection) is treated as an **internal node**: its devices must balance each other at every time step, so everything converters produce into the node is consumed from it within the same step.
 Give such a commodity only an ``inflexible-device-sensors`` entry (its fixed demand), or omit it from the ``flex-context`` entirely.
+Electricity is the exception: it is always assumed to be grid-connected, so missing electricity prices raise an error rather than turning electricity into an internal node.
 
 This is how a whole factory is scheduled end-to-end: an e-heater and a boiler feed an internal ``heat`` node, a steamer converts heat into an internal ``steam`` node, a CHP also feeds steam (while exporting electricity to the grid), and a fixed steam demand closes the balance — priced commodities (electricity, gas) at the grid, unpriced commodities (heat, steam) balanced internally.
 
