@@ -1528,3 +1528,41 @@ def test_uncoupled_device_needs_no_directional_capacities(app):
     only applies to devices that define a `coupling` field."""
     schema = StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None)
     schema.load({"power-capacity": "20 kW"})
+
+
+@pytest.mark.parametrize("blank_name", ["", " ", "\t", "  \n "])
+def test_blank_coupling_name_is_rejected(app, blank_name):
+    """test_blank_coupling_name_is_rejected: a provided coupling name must contain at least
+    one non-whitespace character, so unrelated devices cannot be silently coupled under an
+    empty group key. This holds for both the scheduling and the db-stored schema."""
+    scheduling_flex_model = {
+        "power-capacity": "20 kW",
+        "production-capacity": "0 kW",
+        "coupling": blank_name,
+    }
+    with pytest.raises(ValidationError) as e_info:
+        StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None).load(
+            scheduling_flex_model
+        )
+    assert "non-empty" in str(e_info.value)
+
+    with pytest.raises(ValidationError) as e_info:
+        DBStorageFlexModelSchema().load({"coupling": blank_name})
+    assert "non-empty" in str(e_info.value)
+
+
+def test_db_flex_model_coupling_round_trips(app):
+    """test_db_flex_model_coupling_round_trips: a db-stored flex-model (validated via
+    DBStorageFlexModelSchema, e.g. by patch_asset) accepts `coupling`/`coupling-coefficient`
+    and round-trips them."""
+    schema = DBStorageFlexModelSchema()
+    flex_model = {
+        "coupling": "chp",
+        "coupling-coefficient": 0.5,
+    }
+    loaded = schema.load(flex_model)
+    assert loaded["coupling"] == "chp"
+    assert loaded["coupling_coefficient"] == 0.5
+    # coupling-coefficient must be strictly positive
+    with pytest.raises(ValidationError):
+        schema.load({"coupling": "chp", "coupling-coefficient": 0})

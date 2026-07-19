@@ -44,6 +44,20 @@ def _validate_group_sensor_is_power_sensor(group: dict):
         )
 
 
+def _validate_coupling_name(coupling: str | None):
+    """Reject blank/whitespace-only coupling names.
+
+    A blank coupling name would become a coupling-group key, silently coupling
+    unrelated devices under an empty group. When provided, the name must contain
+    at least one non-whitespace character.
+    """
+    if coupling is not None and not coupling.strip():
+        raise ValidationError(
+            "The `coupling` field, when provided, must be a non-empty (non-whitespace) name.",
+            field_name="coupling",
+        )
+
+
 class GroupReferenceSchema(SharedSensorReferenceSchema):
     """Reference to a group of devices whose aggregate power is constrained.
 
@@ -442,6 +456,10 @@ class StorageFlexModelSchema(Schema):
         if not isinstance(commodity, str) or not commodity.strip():
             raise ValidationError("commodity must be a non-empty string.")
 
+    @validates("coupling")
+    def validate_coupling(self, coupling: str | None, **kwargs):
+        _validate_coupling_name(coupling)
+
     @validates_schema
     def validate_coupling_direction_is_unambiguous(self, data: dict, **kwargs):
         """A coupled device must have an inferable flow direction.
@@ -638,6 +656,21 @@ class DBStorageFlexModelSchema(Schema):
         metadata=dict(description="Commodity label for this device/asset."),
     )
 
+    coupling = fields.Str(
+        data_key="coupling",
+        required=False,
+        load_default=None,
+        metadata=metadata.COUPLING.to_dict(),
+    )
+
+    coupling_coefficient = fields.Float(
+        data_key="coupling-coefficient",
+        required=False,
+        load_default=1.0,
+        validate=validate.Range(min=0, min_inclusive=False),
+        metadata=metadata.COUPLING_COEFFICIENT.to_dict(),
+    )
+
     mapped_schema_keys: dict
 
     def __init__(self, *args, **kwargs):
@@ -653,6 +686,10 @@ class DBStorageFlexModelSchema(Schema):
     @validates("group")
     def validate_group(self, group: dict, **kwargs):
         _validate_group_sensor_is_power_sensor(group)
+
+    @validates("coupling")
+    def validate_coupling(self, coupling: str | None, **kwargs):
+        _validate_coupling_name(coupling)
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):
