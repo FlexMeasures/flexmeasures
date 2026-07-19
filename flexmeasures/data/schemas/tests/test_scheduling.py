@@ -1247,6 +1247,36 @@ def test_commodity_flex_context_smart_defaults(context_input, expected):
 
 
 @pytest.mark.parametrize(
+    ["context_input", "expected_is_internal_node"],
+    [
+        # No grid-connection signal at all -> internal node.
+        ({"commodity": "gas"}, True),
+        # A price declares a grid connection -> not an internal node.
+        ({"commodity": "gas", "consumption-price": "10 EUR/MWh"}, False),
+        # A capacity field also declares a grid connection, even without any price
+        # (its prices get smart-defaulted to zero). This must NOT be flagged as an
+        # internal node -- otherwise the scheduler would skip EMS constraints and
+        # force a per-step balance for a genuinely grid-connected commodity.
+        ({"commodity": "gas", "site-consumption-capacity": "5 MW"}, False),
+        ({"commodity": "gas", "site-production-capacity": "5 MW"}, False),
+        ({"commodity": "gas", "site-power-capacity": "5 MW"}, False),
+    ],
+)
+def test_commodity_flex_context_internal_node_flag(
+    context_input, expected_is_internal_node
+):
+    """A commodity is an internal node only when the user gave neither prices nor
+    any capacity/grid-connection field. See
+    CommodityFlexContextSchema.fill_grid_connection_defaults.
+    """
+    from flexmeasures.data.schemas.scheduling import CommodityFlexContextSchema
+
+    loaded = CommodityFlexContextSchema().load(context_input)
+
+    assert loaded.get("is_internal_node", False) == expected_is_internal_node
+
+
+@pytest.mark.parametrize(
     ["flex_context_listing", "fails"],
     [
         # Test flex-context listing with mixed currencies should fail

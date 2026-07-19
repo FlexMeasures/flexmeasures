@@ -15,6 +15,7 @@ from flexmeasures.data.models.planning.soc_projection import (
 )
 from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.planning.utils import initialize_index
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.tests.utils import (
     check_constraints,
@@ -2148,6 +2149,173 @@ def test_storage_scheduler_chp_coupling(app, db):
         rtol=1e-4,
         err_msg="Power output must be -3 kW — determined by coupling (-0.3 * alpha)",
     )
+
+
+def test_factory_chp_dispatch_through_storage_scheduler(app, db):
+    """The full factory scenario (CHP + gas boiler + e-heater meeting a fixed steam
+    demand) scheduled end-to-end through ``StorageScheduler.compute()``.
+
+    Unlike the engine-level ``test_factory_chp_dispatch`` (which passes balance groups
+    to ``device_scheduler`` directly), this test only supplies a flex-model and a
+    flex-context. Each converter is described as one device per commodity port, tied
+    together by a coupling group. The heat and steam commodities have no energy prices
+    in the flex-context, so the scheduler derives internal-node balance groups for them.
+
+    Topology (flex-model device indices)::
+
+        electricity (grid) --0--> [e-heater] --1--> heat
+        gas (grid)         --2--> [boiler]   --3--> heat
+        heat               --4--> [steamer]  --5--> steam
+        gas (grid)         --6--> [CHP]      --7--> steam
+                                             --8--> electricity (grid)
+        steam              --9--> fixed 15 kW demand (inflexible sensor)
+
+    Prices: gas 20 EUR/MWh, electricity 50 EUR/MWh. Marginal cost per kW of steam:
+    CHP (20·20 − 50·6) / 10 = 10, boiler-via-steamer 20, e-heater-via-steamer 50.
+    So the CHP runs at maximum (20 kW gas → 10 kW steam + 6 kW power) and the boiler
+    covers the remaining 5 kW of steam via the steamer; the e-heater stays off.
+    """
+    factory_type = get_or_create_model(GenericAssetType, name="factory")
+    factory = GenericAsset(
+        name="Factory (end-to-end CHP dispatch)", generic_asset_type=factory_type
+    )
+    db.session.add(factory)
+    db.session.flush()
+
+    start = pd.Timestamp("2026-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2026-01-01T04:00:00+01:00")
+    resolution = timedelta(hours=1)
+
+    def make_sensor(name: str) -> Sensor:
+        sensor = Sensor(
+            name=name, generic_asset=factory, unit="MW", event_resolution=resolution
+        )
+        db.session.add(sensor)
+        return sensor
+
+    eheater_elec_in = make_sensor("e-heater electricity input")
+    eheater_heat_out = make_sensor("e-heater heat output")
+    boiler_gas_in = make_sensor("boiler gas input")
+    boiler_heat_out = make_sensor("boiler heat output")
+    steamer_heat_in = make_sensor("steamer heat input")
+    steamer_steam_out = make_sensor("steamer steam output")
+    chp_gas_in = make_sensor("CHP gas input")
+    chp_steam_out = make_sensor("CHP steam output")
+    chp_power_out = make_sensor("CHP power output")
+    steam_demand = make_sensor("steam demand")
+    db.session.flush()
+
+    # A constant 15 kW steam demand, recorded as beliefs.
+    # By default, power sensors store consumption as negative values
+    # (get_power_values flips the sign to the scheduler's consumption-positive convention).
+    index = initialize_index(start, end, resolution)
+    source = get_or_create_model(DataSource, name="test source", type="forecaster")
+    db.session.add_all(
+        TimedBelief(
+            sensor=steam_demand,
+            source=source,
+            event_start=dt,
+            belief_time=start,
+            event_value=-15e-3,  # 15 kW in MW
+        )
+        for dt in index
+    )
+    db.session.commit()
+
+    def input_port(sensor: Sensor, commodity: str, coupling: str, max_power: str):
+        return {
+            "sensor": sensor.id,
+            "commodity": commodity,
+            "coupling": coupling,
+            "coupling-coefficient": 1.0,
+            "power-capacity": max_power,
+            "production-capacity": "0 kW",
+        }
+
+    def output_port(
+        sensor: Sensor, commodity: str, coupling: str, coefficient: float = 1.0
+    ):
+        return {
+            "sensor": sensor.id,
+            "commodity": commodity,
+            "coupling": coupling,
+            "coupling-coefficient": coefficient,
+            "power-capacity": "1 MW",
+            "consumption-capacity": "0 kW",
+        }
+
+    flex_model = [
+        input_port(eheater_elec_in, "electricity", "eheater", "100 kW"),
+        output_port(eheater_heat_out, "heat", "eheater"),
+        input_port(boiler_gas_in, "gas", "boiler", "10 kW"),
+        output_port(boiler_heat_out, "heat", "boiler"),
+        input_port(steamer_heat_in, "heat", "steamer", "1 MW"),
+        output_port(steamer_steam_out, "steam", "steamer"),
+        input_port(chp_gas_in, "gas", "chp", "20 kW"),
+        output_port(chp_steam_out, "steam", "chp", coefficient=0.5),
+        output_port(chp_power_out, "electricity", "chp", coefficient=0.3),
+    ]
+
+    flex_context = [
+        {
+            "commodity": "electricity",
+            "consumption-price": "50 EUR/MWh",
+            "production-price": "50 EUR/MWh",
+        },
+        {
+            "commodity": "gas",
+            "consumption-price": "20 EUR/MWh",
+            "production-price": "20 EUR/MWh",
+        },
+        {
+            # No prices: steam is an internal node. Its fixed demand is inflexible.
+            "commodity": "steam",
+            "inflexible-device-sensors": [steam_demand.id],
+        },
+        # The heat commodity has no context at all: also an internal node.
+    ]
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=factory,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+
+    results = scheduler.compute(skip_validation=True)
+
+    # The scheduler derived one balance group per priceless commodity:
+    # heat: e-heater out (1), boiler out (3), steamer in (4)
+    # steam: steamer out (5), CHP out (7), inflexible demand (9)
+    assert scheduler.balance_groups == {"heat": [1, 3, 4], "steam": [5, 7, 9]}
+
+    schedules = {
+        r["sensor"]: r["data"] for r in results if r.get("name") == "storage_schedule"
+    }
+
+    expected_mw = {
+        eheater_elec_in: 0.0,
+        eheater_heat_out: 0.0,
+        boiler_gas_in: 0.005,
+        boiler_heat_out: -0.005,
+        steamer_heat_in: 0.005,
+        steamer_steam_out: -0.005,
+        chp_gas_in: 0.020,
+        chp_steam_out: -0.010,
+        chp_power_out: -0.006,
+    }
+    for sensor, expected_value in expected_mw.items():
+        np.testing.assert_allclose(
+            schedules[sensor],
+            expected_value,
+            rtol=1e-4,
+            atol=1e-9,
+            err_msg=f"Unexpected schedule for {sensor.name}",
+        )
 
 
 def test_off_tick_soc_relaxation_covers_all_devices_of_a_shared_stock(

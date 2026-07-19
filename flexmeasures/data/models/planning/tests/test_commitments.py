@@ -1852,8 +1852,14 @@ def test_dual_fuel_chp_coupling():
 def _run_factory_scenario(
     gas_price: float,
     elec_price: float,
+    use_balance_groups: bool = False,
 ) -> tuple:
     """Run the simplified factory scenario and return the 7 device schedules.
+
+    With ``use_balance_groups=False``, the heat and steam nodes are balanced via
+    shared stock groups whose first ("reference") device carries min=max=0 stock
+    bounds. With ``use_balance_groups=True``, the same nodes are expressed directly
+    as ``balance_groups``, needing neither stock groups nor reference-device bounds.
 
     Devices
     ~~~~~~~
@@ -1905,11 +1911,14 @@ def _run_factory_scenario(
         defaults.update(kwargs)
         return pd.DataFrame(defaults, index=index)
 
+    # With balance groups, no reference device needs min=max=0 stock bounds.
+    node_bounds = {} if use_balance_groups else {"min": 0.0, "max": 0.0}
+
     device_constraints = [
         # d=0  e-heater: heat-node reference device. The min=max=0 forces the heat
         #       node to balance at every step (zero-capacity flow node), making
         #       the per-step dispatch deterministic despite flat prices.
-        _df(min=0.0, max=0.0, **{"derivative max": HEATER_POWER_MAX}),
+        _df(**node_bounds, **{"derivative max": HEATER_POWER_MAX}),
         # d=1  gas boiler: up to 100 kW gas → 100 kW heat (efficiency 1 for clean maths in test)
         _df(**{"derivative max": BOILER_GAS_MAX, "commodity": "gas"}),
         # d=2  steamer: can only produce steam (negative ems_power).
@@ -1927,8 +1936,7 @@ def _run_factory_scenario(
         # d=4  CHP heat output: positive ems_power adds heat to the steam node.
         #      The min=max=0 forces the steam node to balance at every step.
         _df(
-            min=0.0,
-            max=0.0,
+            **node_bounds,
             **{
                 "derivative min": -CHP_GAS_MAX * ETA_HEAT,
                 "derivative max": 0.0,
@@ -1952,11 +1960,18 @@ def _run_factory_scenario(
         index=index,
     )
 
-    # stock group: all heat-buffer devices share the same stock
-    # (key 0 is an arbitrary group id, not a device index)
-    heat_group_id = 0
-    steam_group_id = 1
-    stock_groups = {heat_group_id: [0, 1, 2], steam_group_id: [2, 4, 6]}
+    # Node membership: the steamer (d=2) converts heat to steam, so it belongs
+    # to both nodes (its single flow drains heat and feeds steam).
+    heat_node = [0, 1, 2]
+    steam_node = [2, 4, 6]
+    if use_balance_groups:
+        stock_groups = None
+        balance_groups = {"heat": heat_node, "steam": steam_node}
+    else:
+        # stock group: all heat-buffer devices share the same stock
+        # (keys 0 and 1 are arbitrary group ids, not device indices)
+        stock_groups = {0: heat_node, 1: steam_node}
+        balance_groups = None
 
     # CHP coupling: coefficients are signed efficiency fractions.
     # coeff_heat  = -η_heat  = -0.5 →  P_heat = -0.5 * alpha = -0.5 * P_gas
@@ -1998,6 +2013,7 @@ def _run_factory_scenario(
         commitments=commitments,
         stock_groups=stock_groups,
         coupling_groups=coupling_groups,
+        balance_groups=balance_groups,
     )
 
     assert results.solver.termination_condition == "optimal", (
@@ -2007,10 +2023,14 @@ def _run_factory_scenario(
     return tuple(schedules)
 
 
-def test_factory_chp_dispatch():
+@pytest.mark.parametrize("use_balance_groups", [False, True])
+def test_factory_chp_dispatch(use_balance_groups):
     """Factory: CHP + gas boiler + e-heater competing to meet a fixed steam demand.
 
-    The shared heat buffer (modelled via ``stock_groups``) is drained at a
+    The heat and steam nodes are balanced either via shared stock groups with
+    a min=max=0 reference device (``use_balance_groups=False``) or via explicit
+    ``balance_groups`` (``use_balance_groups=True``) — both must yield the same
+    dispatch. The steam node is drained at a
     constant rate of 15 kW by the steam demand device. Two price scenarios
     verify that the optimizer correctly chooses the cheapest heat source.
 
@@ -2061,7 +2081,9 @@ def test_factory_chp_dispatch():
     # Scenario A: gas cheaper — CHP at max, gas boiler fills the rest    #
     # ------------------------------------------------------------------ #
     (e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand) = (
-        _run_factory_scenario(gas_price=20.0, elec_price=50.0)
+        _run_factory_scenario(
+            gas_price=20.0, elec_price=50.0, use_balance_groups=use_balance_groups
+        )
     )
 
     expected_chp_gas = pd.Series(20.0, index=e_heater.index)
@@ -2126,7 +2148,9 @@ def test_factory_chp_dispatch():
     # Scenario B: electricity cheaper — e-heater meets all demand        #
     # ------------------------------------------------------------------ #
     (e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand) = (
-        _run_factory_scenario(gas_price=100.0, elec_price=10.0)
+        _run_factory_scenario(
+            gas_price=100.0, elec_price=10.0, use_balance_groups=use_balance_groups
+        )
     )
 
     expected_eheater_b = pd.Series(15.0, index=e_heater.index)
@@ -2174,7 +2198,9 @@ def test_factory_chp_dispatch():
     # Scenario C: gas slightly cheaper — gas boiler at max, e-heater fills the rest     #
     # --------------------------------------------------------------------------------- #
     (e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand) = (
-        _run_factory_scenario(gas_price=50.0, elec_price=55.0)
+        _run_factory_scenario(
+            gas_price=50.0, elec_price=55.0, use_balance_groups=use_balance_groups
+        )
     )
 
     expected_chp_gas = pd.Series(0.0, index=e_heater.index)

@@ -529,6 +529,14 @@ class CommodityFlexContextSchema(SharedSchema):
             or has_power_capacity
         )
 
+        # Record durably whether this commodity carries no user-given grid-connection
+        # signal at all -- neither prices nor capacity fields. Only then may the
+        # scheduler treat it as an internal node (devices balancing each other).
+        # A capacity field (cases 4-6) declares a grid connection, so a commodity with
+        # a capacity but no price is NOT an internal node, even though its prices get
+        # smart-defaulted to zero here.
+        data["is_internal_node"] = not any_given
+
         currency = data.get("shared_currency_unit") or "EUR"
         zero_price = ur.Quantity(f"0 {currency}/MWh")
         zero_capacity = ur.Quantity("0 MW")

@@ -44,6 +44,7 @@ def device_scheduler(  # noqa C901
     initial_stock: float | list[float] = 0,
     stock_groups: dict[int, list[int]] | None = None,
     coupling_groups: dict[str, list[tuple[int, float]]] | None = None,
+    balance_groups: dict[str, list[int]] | None = None,
     ems_constraint_groups: list[list[int]] | None = None,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
@@ -91,6 +92,17 @@ def device_scheduler(  # noqa C901
                                 power output (d=2, coeff −0.3)::
 
                                     coupling_groups={"chp": [(0, 1.0), (1, -0.5), (2, -0.3)]}
+
+    :param balance_groups:      Flow-balance constraints for internal commodity nodes (e.g. a heat or steam network
+                                without a grid connection). Each entry maps a node name to a list of device indices
+                                whose commodity-side flows must balance at every time step:
+                                ``sum_d(ems_power[d, j]) == 0``.
+                                In other words, everything produced into the node is consumed from it within the
+                                same time step; the node itself stores nothing. Derivative efficiencies and stock
+                                deltas describe each device's own stock-side conversion and do not enter this
+                                commodity-side balance. To add storage to a node, include a storage device in the
+                                group (its flow absorbs the imbalance and its stock is bounded by its own device
+                                constraints).
 
     Potentially deprecated arguments:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
@@ -204,6 +216,13 @@ def device_scheduler(  # noqa C901
         for g_idx, (_group_name, members) in enumerate(coupling_groups.items()):
             for d_idx, coeff in members:
                 coupling_device_specs.append((g_idx, d_idx, coeff))
+
+    # Collect the device lists of the balance groups (internal commodity nodes).
+    balance_group_specs: list[list[int]] = []
+    if balance_groups:
+        balance_group_specs = [
+            list(devices) for devices in balance_groups.values() if devices
+        ]
 
     # Move commitments from old structure to new
     if commitments is None:
@@ -827,6 +846,28 @@ def device_scheduler(  # noqa C901
 
         model.flow_coupling_constraints = Constraint(
             model.coupling_device_range, model.j, rule=flow_coupling_rule
+        )
+
+    if balance_group_specs:
+        model.balance_group_range = RangeSet(0, len(balance_group_specs) - 1)
+
+        def node_balance_rule(m, b, j):
+            """Balance the power flows of an internal commodity node at every time step.
+
+            Everything produced into the node must be consumed from it within the same
+            time step. The balance sums the devices' commodity-side flows (ems_power);
+            derivative efficiencies and stock deltas describe each device's own
+            stock-side conversion (e.g. of a shared buffer) and do not enter the
+            commodity balance.
+            """
+            return (
+                0,
+                sum(m.ems_power[d, j] for d in balance_group_specs[b]),
+                0,
+            )
+
+        model.node_balance_constraints = Constraint(
+            model.balance_group_range, model.j, rule=node_balance_rule
         )
 
     # Add objective
