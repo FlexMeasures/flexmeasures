@@ -13,7 +13,6 @@ from flexmeasures.data.models.planning.soc_projection import (
     project_off_tick_soc_at_start,
     project_off_tick_soc_constraints,
 )
-from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.planning.utils import initialize_index
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
