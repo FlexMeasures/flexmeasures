@@ -464,12 +464,16 @@ class StorageFlexModelSchema(Schema):
     def validate_coupling_direction_is_unambiguous(self, data: dict, **kwargs):
         """A coupled device must have an inferable flow direction.
 
-        The sign of the coupling coefficient is inferred from directional capacities:
-        a fixed zero consumption-capacity marks an output device, a fixed zero
-        production-capacity marks an input device. When both directional capacities
-        allow flow (or are given in a form whose value cannot be checked statically,
-        such as a sensor reference), the direction is ambiguous, so we reject the
-        flex-model rather than silently treating the device as an input.
+        The flow direction is inferred from which directional capacity is given:
+        a device with (only) a consumption-capacity is an input (consuming) device,
+        and a device with (only) a production-capacity is an output (producing)
+        device. The unspecified direction is assumed to be zero, mirroring how a
+        missing directional site capacity defaults to zero, so the user does not
+        need to set the opposite direction to a fixed 0 (though doing so still works).
+
+        The direction is ambiguous only when both directions are active (each side
+        either flows itself or is marked active by a fixed zero on the opposite side)
+        or when neither is (both missing); such flex-models are rejected.
         """
         if data.get("coupling") is None:
             return
@@ -477,13 +481,23 @@ class StorageFlexModelSchema(Schema):
         def _is_fixed_zero(value) -> bool:
             return isinstance(value, ur.Quantity) and float(value.magnitude) == 0.0
 
-        consumption_blocked = _is_fixed_zero(data.get("consumption_capacity"))
-        production_blocked = _is_fixed_zero(data.get("production_capacity"))
-        if consumption_blocked == production_blocked:
+        def _flows(value) -> bool:
+            # A capacity flows when it is given and not a fixed zero.
+            # Sensor references cannot be checked statically, so they flow.
+            return value is not None and not _is_fixed_zero(value)
+
+        consumption = data.get("consumption_capacity")
+        production = data.get("production_capacity")
+        # A direction is active if it flows itself, or if the opposite direction is
+        # explicitly pinned to zero (the legacy way of marking a direction).
+        consumption_active = _flows(consumption) or _is_fixed_zero(production)
+        production_active = _flows(production) or _is_fixed_zero(consumption)
+        if consumption_active == production_active:
             raise ValidationError(
                 "A device with a 'coupling' field must have an unambiguous flow direction: "
-                "set either its consumption-capacity (for an output device) or its "
-                "production-capacity (for an input device) to a fixed 0, but not both.",
+                "provide exactly one directional capacity, either a consumption-capacity "
+                "(for an input/consuming device) or a production-capacity (for an "
+                "output/producing device). The opposite direction defaults to zero.",
                 field_name="coupling",
             )
 

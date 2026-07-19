@@ -12,7 +12,9 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.planning.devices import (
     DeviceInventory,
     DeviceRole,
+    _resolve_coupling_coefficient,
 )
+from flexmeasures.utils.unit_utils import ur
 
 
 def make_sensor(sensor_id: int, unit: str = "kW") -> Sensor:
@@ -352,3 +354,41 @@ def test_stock_constraint_device():
     device_c = inventory.devices[2]
     assert inventory.stock_constraint_device(device_c.stock_key) == 2
     assert inventory.stock_constraint_device(999) is None
+
+
+@pytest.mark.parametrize(
+    "capacities, expected_sign",
+    [
+        # Smart default: only a consumption-capacity -> input -> positive.
+        ({"consumption_capacity": ur.Quantity("5 kW")}, 1),
+        # Smart default: only a production-capacity -> output -> negative.
+        ({"production_capacity": ur.Quantity("5 kW")}, -1),
+        # Explicit zero (back-compat): input device.
+        (
+            {
+                "consumption_capacity": ur.Quantity("5 kW"),
+                "production_capacity": ur.Quantity("0 kW"),
+            },
+            1,
+        ),
+        # Explicit zero (back-compat): output device.
+        (
+            {
+                "consumption_capacity": ur.Quantity("0 kW"),
+                "production_capacity": ur.Quantity("5 kW"),
+            },
+            -1,
+        ),
+        # Only a fixed zero on the opposite side (legacy): production blocked -> input.
+        ({"production_capacity": ur.Quantity("0 kW")}, 1),
+        # Only a fixed zero on the opposite side (legacy): consumption blocked -> output.
+        ({"consumption_capacity": ur.Quantity("0 kW")}, -1),
+    ],
+)
+def test_resolve_coupling_coefficient_direction(capacities, expected_sign):
+    """The coupling coefficient's sign follows which directional capacity flows;
+    the unspecified direction defaults to zero (no explicit zero required)."""
+    coefficient = _resolve_coupling_coefficient(
+        {"coupling_coefficient": 0.5, **capacities}
+    )
+    assert coefficient == expected_sign * 0.5

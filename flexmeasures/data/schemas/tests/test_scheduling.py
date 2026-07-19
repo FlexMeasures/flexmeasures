@@ -1496,7 +1496,13 @@ def test_asset_trigger_schema_rejects_malformed_flex_context(app):
         ({"consumption-capacity": "0 kW"}, False),
         # Output device with a bounded input side still has one blocked direction
         ({"consumption-capacity": "5 kW", "production-capacity": "0 kW"}, False),
-        # Neither direction blocked: ambiguous
+        # Smart default: only a consumption-capacity given -> input device
+        # (production defaults to zero), no explicit zero needed.
+        ({"consumption-capacity": "5 kW"}, False),
+        # Smart default: only a production-capacity given -> output device
+        # (consumption defaults to zero), no explicit zero needed.
+        ({"production-capacity": "5 kW"}, False),
+        # Neither direction given: ambiguous
         ({}, True),
         # Both directions open: ambiguous
         ({"consumption-capacity": "5 kW", "production-capacity": "5 kW"}, True),
@@ -1506,8 +1512,9 @@ def test_asset_trigger_schema_rejects_malformed_flex_context(app):
 )
 def test_coupling_direction_must_be_unambiguous(app, capacity_fields, fails):
     """test_coupling_direction_must_be_unambiguous: a device with a `coupling` field must
-    have exactly one directional capacity fixed to zero, so the sign of its coupling
-    coefficient can be inferred."""
+    have an unambiguous flow direction, inferred from which directional capacity is given
+    (the opposite direction defaults to zero), so the sign of its coupling coefficient can
+    be inferred."""
     schema = StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None)
     flex_model = {
         "power-capacity": "20 kW",

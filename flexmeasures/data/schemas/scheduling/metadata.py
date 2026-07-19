@@ -235,8 +235,8 @@ Use together with ``coupling-coefficient`` to set the flow ratios.
 COUPLING_COEFFICIENT = MetaData(
     description="""Positive coupling magnitude for this device within its coupling group.
 The scheduler couples the power flows of all devices in the group: each device's power is its coupling coefficient times the group's common flow level.
-The flow direction of each device is inferred from its directional capacities: a device with ``consumption-capacity: "0 kW"`` is an output (producing) device, and a device with ``production-capacity: "0 kW"`` is an input (consuming) device.
-Exactly one of the two directional capacities must be set to a fixed zero for each coupled device.
+The flow direction of each device is inferred from which directional capacity is set: a device given only a ``production-capacity`` is an output (producing) device, and a device given only a ``consumption-capacity`` is an input (consuming) device.
+The unspecified direction is assumed to be zero (mirroring how a missing directional site capacity defaults to zero), so there is no need to set the opposite direction to a fixed 0 (though setting it explicitly still works).
 For example, a CHP unit with 50% thermal and 30% electrical efficiency uses a gas input device (coefficient 1), a heat output device (coefficient 0.5) and an electricity output device (coefficient 0.3).
 Defaults to 1.
 """,
