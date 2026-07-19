@@ -67,7 +67,7 @@ def test_api_task_run_post_no_name(client, requesting_user):
     assert task_run.json["reason"] == "No task name given."
 
 
-def test_api_task_run_get_recent_entry(client):
+def test_api_task_run_get_recent_entry(client, setup_api_test_data):
     task_run = get_task_run(client, "task-B")
     assert task_run.status_code == 200
     assert task_run.json["frequency"] == 10
