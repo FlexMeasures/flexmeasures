@@ -1223,6 +1223,24 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         },
         "example-units": EXAMPLE_UNIT_TYPES["commodity"],
     },
+    "coupling": {
+        "default": None,
+        "description": rst_to_openapi(metadata.COUPLING.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "One fixed value only (a coupling-group name shared by a converter's commodity ports).",
+        },
+        "example-units": ['a coupling-group name, e.g. "CHP"'],
+    },
+    "coupling-coefficient": {
+        "default": 1.0,
+        "description": rst_to_openapi(metadata.COUPLING_COEFFICIENT.description),
+        "types": {
+            "backend": "typeOne",
+            "ui": "One fixed value only (a positive number).",
+        },
+        "example-units": ["a number, e.g. 0.5"],
+    },
 }
 
 
