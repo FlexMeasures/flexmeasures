@@ -12,6 +12,9 @@ from sqlalchemy import inspect as sa_inspect
 from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
+from flexmeasures.data.models.forecasting.utils import (
+    apply_forecast_post_processing,
+)
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
 from flexmeasures.data.models.forecasting.pipelines.train import derive_daily_lag_steps
 from flexmeasures.data.models.generic_assets import (
@@ -193,6 +196,223 @@ def test_derive_daily_lag_steps_requires_divisible_resolution(caplog):
     assert any(
         "does not evenly divide one day" in message for message in caplog.messages
     )
+
+
+def test_forecast_post_processing_clips_and_snaps_values():
+    df = pd.DataFrame(
+        {
+            "1h": [-2.0, 2.0, 8.5, 11.5, 21.0],
+            "2h": [0.5, 3.5, 10.5, 12.5, 25.0],
+        }
+    )
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=2,
+        config={
+            "lower": "0 kW",
+            "snap": {
+                "0 kW": ["0 kW", "4 kW"],
+                "8 kW": ["8 kW", "11 kW"],
+                "12 kW": ["11 kW", "12 kW"],
+            },
+            "upper": "20 kW",
+        },
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame(
+            {
+                "1h": [0.0, 0.0, 8.0, 12.0, 20.0],
+                "2h": [0.0, 0.0, 8.0, 12.5, 20.0],
+            }
+        ),
+    )
+
+
+def test_forecast_post_processing_interprets_unitless_values_in_sensor_unit():
+    df = pd.DataFrame({"1h": [0.5, 1.3, 2.5]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={
+            "lower": 1,
+            "snap": {"1500 W": ["1.2 kW", "1.8 kW"]},
+            "upper": "2 kW",
+        },
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [1.0, 1.5, 2.0]}),
+    )
+
+
+def test_forecast_post_processing_interprets_unitless_snap_in_sensor_unit():
+    df = pd.DataFrame({"1h": [0.5, 2.5, 5.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"0": [0, 4]}},
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0, 0.0, 5.0]}),
+    )
+
+
+def test_forecast_post_processing_converts_snap_units_to_sensor_unit():
+    df = pd.DataFrame({"1h": [1.1, 1.5, 1.9]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"1200 W": ["1200 W", "1800 W"]}},
+        sensor_unit="kW",
+    )
+
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [1.1, 1.2, 1.9]}),
+    )
+
+
+def test_forecast_post_processing_snap_bounds_are_half_open():
+    """The first bound is inclusive, the second exclusive: [first, second)."""
+    df = pd.DataFrame({"1h": [0.0, 2.0, 4.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"0 kW": ["0 kW", "4 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # 0 is included and snaps to 0; 4 is excluded and is left untouched.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0, 0.0, 4.0]}),
+    )
+
+
+def test_forecast_post_processing_reversed_snap_bounds_close_the_upper_side():
+    """Listing bounds in reverse order snaps the closed side: (second, first]."""
+    df = pd.DataFrame({"1h": [4.0, 7.0, 10.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"10 kW": ["10 kW", "4 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # 4 is excluded, 10 is included; both 7 and 10 snap up to 10.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [4.0, 10.0, 10.0]}),
+    )
+
+
+def test_forecast_post_processing_adjacent_intervals_share_a_boundary_unambiguously():
+    """A value on a shared boundary belongs to the interval that opens at it."""
+    df = pd.DataFrame({"1h": [3.0, 4.0, 9.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={
+            "snap": {
+                "0 kW": ["0 kW", "4 kW"],
+                "10 kW": ["4 kW", "10 kW"],
+            }
+        },
+        sensor_unit="kW",
+    )
+
+    # 3 -> 0 ([0, 4)), 4 -> 10 ([4, 10)), 9 -> 10 ([4, 10)).
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0, 10.0, 10.0]}),
+    )
+
+
+def test_forecast_post_processing_clip_takes_precedence_over_snap():
+    """A snap target outside the clip bounds is still clipped back into range."""
+    df = pd.DataFrame({"1h": [-3.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"lower": "0 kW", "snap": {"-5 kW": ["-5 kW", "-1 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # -3 snaps to -5, which is then clipped up to the lower bound of 0.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [0.0]}),
+    )
+
+
+def test_forecast_post_processing_rejects_inconsistent_bounds():
+    df = pd.DataFrame({"1h": [1.0]})
+
+    with pytest.raises(ValueError, match="lower bound cannot be greater"):
+        apply_forecast_post_processing(
+            data=df,
+            horizon=1,
+            config={"lower": "2 kW", "upper": "1 kW"},
+            sensor_unit="kW",
+        )
+
+
+def test_forecast_post_processing_allows_snap_target_inside_the_interval():
+    """The snap target may lie inside the interval, not only on a bound."""
+    df = pd.DataFrame({"1h": [0.5, 3.9, 4.0]})
+
+    processed = apply_forecast_post_processing(
+        data=df,
+        horizon=1,
+        config={"snap": {"2 kW": ["0 kW", "4 kW"]}},
+        sensor_unit="kW",
+    )
+
+    # Everything in [0, 4) collapses to the interior target 2; 4 is excluded.
+    pd.testing.assert_frame_equal(
+        processed,
+        pd.DataFrame({"1h": [2.0, 2.0, 4.0]}),
+    )
+
+
+def test_forecast_post_processing_rejects_snap_target_outside_the_interval():
+    df = pd.DataFrame({"1h": [1.0]})
+
+    with pytest.raises(ValueError, match="snap target must lie within its interval"):
+        apply_forecast_post_processing(
+            data=df,
+            horizon=1,
+            config={"snap": {"11 kW": ["13 kW", "15 kW"]}},
+            sensor_unit="kW",
+        )
+
+
+def test_forecast_post_processing_rejects_incompatible_units():
+    df = pd.DataFrame({"1h": [1.0]})
+
+    with pytest.raises(ValueError, match="Could not convert"):
+        apply_forecast_post_processing(
+            data=df,
+            horizon=1,
+            config={"lower": "5 m"},
+            sensor_unit="kW",
+        )
 
 
 @pytest.mark.parametrize(

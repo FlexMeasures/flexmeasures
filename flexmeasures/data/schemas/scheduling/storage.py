@@ -19,7 +19,9 @@ from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.sensors import (
+    SensorIdField,
     SensorReference,
+    SharedSensorReferenceSchema,
     OutputSensorReferenceSchema,
     VariableQuantityField,
 )
@@ -30,6 +32,53 @@ from flexmeasures.utils.unit_utils import (
 )
 
 ALLOWED_COMMODITIES = {"electricity", "gas"}
+
+
+def _validate_group_sensor_is_power_sensor(group: dict):
+    """Check that the sensor referenced by the `group` field measures power."""
+    sensor = group.get("sensor")
+    if isinstance(sensor, (Sensor, SensorReference)) and not is_power_unit(sensor.unit):
+        raise ValidationError(
+            "The `group` field must reference a sensor with a power unit.",
+            field_name="group",
+        )
+
+
+class GroupReferenceSchema(SharedSensorReferenceSchema):
+    """Reference to a group of devices whose aggregate power is constrained.
+
+    Accepts exactly one of:
+      - ``{"sensor": <id>}``: the group's aggregate power is stored on this power sensor
+        (the sensor must itself carry a flex-model entry defining the group's
+        constraints).
+      - ``{"asset": <id>}``: the group is identified by the flex-model entry on this
+        asset (typically a sub-EMS/asset in the tree). Such a group entry defines no
+        power sensor of its own; instead it may define ``consumption`` and/or
+        ``production`` output sensors on which the group's aggregate power gets saved,
+        following the usual output-sensor conventions.
+
+    Inherits from ``SharedSensorReferenceSchema`` (not ``SensorReferenceSchema``) so it
+    accepts only ``sensor``/``asset`` -- a group is a device-group identifier, not a
+    belief-query reference, so the ``source-*`` filter fields do not apply.
+    """
+
+    class Meta:
+        description = (
+            "Reference to a group of devices whose aggregate power is constrained."
+        )
+
+    sensor = SensorIdField(required=False)
+    asset = GenericAssetIdField(required=False)
+
+    @validates_schema
+    def validate_exactly_one_reference(self, data: dict, **kwargs):
+        has_sensor = "sensor" in data
+        has_asset = "asset" in data
+        if has_sensor == has_asset:  # both or neither
+            raise ValidationError(
+                "The `group` field must reference exactly one of 'sensor' or 'asset'."
+            )
+
 
 #  Telling type hints what to expect after schema parsing
 SoCTarget = TypedDict(
@@ -189,6 +238,12 @@ class StorageFlexModelSchema(Schema):
         validate=validate.Length(min=1),
         metadata=metadata.OPERATION_MODES.to_dict(),
     )
+    group = fields.Nested(
+        GroupReferenceSchema,
+        data_key="group",
+        required=False,
+        metadata=metadata.GROUP.to_dict(),
+    )
 
     # Activation prices
     prefer_curtailing_later = fields.Bool(
@@ -300,14 +355,6 @@ class StorageFlexModelSchema(Schema):
         self.start = start
         self.sensor = sensor
         self.timezone = sensor.timezone if sensor is not None else None
-        self.flooring_resolution = (
-            sensor.event_resolution
-            if sensor is not None
-            and sensor.event_resolution != timedelta(0)
-            and sensor.get_attribute("floor_datetimes_to_resolution", True)
-            else None
-        )
-
         # guess default soc-unit
         if default_soc_unit is None:
             if self.sensor is not None and self.sensor.unit in ("MWh", "kWh"):
@@ -317,34 +364,17 @@ class StorageFlexModelSchema(Schema):
             else:
                 default_soc_unit = "MWh"
 
-        self.soc_maxima = VariableQuantityField(
-            to_unit="MWh",
-            default_src_unit=default_soc_unit,
-            timezone=self.timezone,
-            event_resolution=self.flooring_resolution,
-            data_key="soc-maxima",
-        )
-
-        self.soc_minima = VariableQuantityField(
-            to_unit="MWh",
-            default_src_unit=default_soc_unit,
-            timezone=self.timezone,
-            event_resolution=self.flooring_resolution,
-            data_key="soc-minima",
-            value_validator=validate.Range(min=0),
-        )
-        self.soc_targets = VariableQuantityField(
-            to_unit="MWh",
-            default_src_unit=default_soc_unit,
-            timezone=self.timezone,
-            event_resolution=self.flooring_resolution,
-            data_key="soc-targets",
-        )
-
         super().__init__(*args, **kwargs)
-        if default_soc_unit is not None:
-            for field in self.fields.keys():
-                if field.startswith("soc_"):
+        for field in self.fields.keys():
+            if field.startswith("soc_"):
+                # Override the class-level placeholders. Note that assigning new
+                # instance-level fields would be inert (marshmallow resolves fields
+                # from the class-level declared fields), so we set attributes on
+                # the bound fields instead. SoC event datetimes are deliberately
+                # not floored (no event_resolution is set): off-tick events are
+                # preserved and later projected onto the scheduling ticks.
+                setattr(self.fields[field], "timezone", self.timezone)
+                if default_soc_unit is not None:
                     setattr(self.fields[field], "default_src_unit", default_soc_unit)
 
     @validates_schema
@@ -382,6 +412,10 @@ class StorageFlexModelSchema(Schema):
             raise ValidationError(
                 "The `state-of-charge` field can only be a Sensor or a time series."
             )
+
+    @validates("group")
+    def validate_group(self, group: dict, **kwargs):
+        _validate_group_sensor_is_power_sensor(group)
 
     @validates("asset")
     def validate_asset(self, asset: Asset, **kwargs):
@@ -469,6 +503,13 @@ class DBStorageFlexModelSchema(Schema):
 
     consumption = fields.Nested(OutputSensorReferenceSchema)
     production = fields.Nested(OutputSensorReferenceSchema)
+
+    group = fields.Nested(
+        GroupReferenceSchema,
+        data_key="group",
+        required=False,
+        metadata=metadata.GROUP.to_dict(),
+    )
 
     soc_min = VariableQuantityField(
         to_unit="MWh",
@@ -609,6 +650,10 @@ class DBStorageFlexModelSchema(Schema):
             field: (self.declared_fields[field].data_key or field)
             for field in self.declared_fields
         }
+
+    @validates("group")
+    def validate_group(self, group: dict, **kwargs):
+        _validate_group_sensor_is_power_sensor(group)
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):

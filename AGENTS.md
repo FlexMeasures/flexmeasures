@@ -108,6 +108,14 @@ repeatable lesson was learned — not after every session. When you do update on
   `.github/instructions/ui-terminology.instructions.md`.
 - **Docstrings/comments**: exactly one space after punctuation — see
   `.github/instructions/docstrings.instructions.md`.
+- **The primary checkout is shared** by multiple agent sessions. Never `git checkout`/`switch`/
+  `merge`/`rebase`/`reset`/`cherry-pick`/`stash` there — it can switch the branch or rewrite
+  history out from under another agent, and `stash` pockets their uncommitted work. Do your work
+  in your own `git worktree` instead (`git worktree add --detach <scratchpad>/<name> <ref>`), and
+  target it with a **literal path**: `git -C /abs/path/to/worktree switch <branch>`. Read-only git
+  commands are fine in the primary checkout. A `PreToolUse` hook
+  (`.claude/hooks/worktree-guard.sh`) enforces this; it can't see your shell's cwd or variables,
+  so a bare `git switch` after an earlier `cd`, or a `-C "$VAR"`, is blocked on the safe side.
 
 ## Session close checklist
 
