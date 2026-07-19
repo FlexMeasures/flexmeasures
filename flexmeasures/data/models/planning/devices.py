@@ -180,17 +180,30 @@ def _resolve_coupling_coefficient(flex_model: dict) -> float:
     """Resolve a coupled device's internal signed coupling coefficient.
 
     Coupling coefficients in flex-models are user-facing positive magnitudes.
-    The internal sign is inferred from directional capacities:
+    The internal sign is inferred from which directional capacity allows flow
+    (mirroring how a missing directional site/device capacity defaults to zero):
 
-    - ``consumption_capacity == 0`` -> output device -> internally negative coefficient
-    - ``production_capacity == 0`` -> input device -> internally positive coefficient
+    - only a (non-zero) ``consumption_capacity`` flows -> input device ->
+      internally positive coefficient
+    - only a (non-zero) ``production_capacity`` flows -> output device ->
+      internally negative coefficient
 
-    If neither direction is explicitly blocked, the coefficient stays positive.
+    The unspecified direction is assumed to be zero, so the user no longer needs
+    to set the opposite direction to a fixed 0 (though doing so still works).
     """
     coefficient = abs(float(flex_model.get("coupling_coefficient", 1.0)))
-    is_output = _is_zero_capacity(flex_model.get("consumption_capacity"))
-    is_input = _is_zero_capacity(flex_model.get("production_capacity"))
-    if is_output and not is_input:
+    consumption = flex_model.get("consumption_capacity")
+    production = flex_model.get("production_capacity")
+    consumption_flows = consumption is not None and not _is_zero_capacity(consumption)
+    production_flows = production is not None and not _is_zero_capacity(production)
+    consumption_blocked = _is_zero_capacity(consumption)
+    production_blocked = _is_zero_capacity(production)
+    # A direction is active if it flows itself, or if the opposite direction is
+    # explicitly pinned to zero (the legacy way of marking a direction).
+    consumption_active = consumption_flows or production_blocked
+    production_active = production_flows or consumption_blocked
+    if production_active and not consumption_active:
+        # Output (producing) device -> internally negative coefficient.
         coefficient = -coefficient
     return coefficient
 
