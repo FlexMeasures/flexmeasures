@@ -1002,13 +1002,20 @@ class MetaStorageScheduler(Scheduler):
                     )
                     for mode in operation_modes[d]
                 ]
-                # Per-mode no-load / commitment cost, converted to the flex-context's
-                # shared currency (per time step). Absent fixed-cost defaults to 0.
+                # Per-mode running cost (S2 running_costs), converted to the
+                # flex-context's shared currency per hour. The objective scales
+                # this rate by the timestep duration, so the total cost of a
+                # given on-duration is resolution-independent. Absent
+                # running-cost defaults to 0.
                 shared_currency_unit = self.flex_context["shared_currency_unit"]
-                device_constraints[d].attrs["operation_mode_fixed_costs"] = [
+                device_constraints[d].attrs["operation_mode_running_costs"] = [
                     (
-                        float(mode["fixed_cost"].to(shared_currency_unit).magnitude)
-                        if mode.get("fixed_cost") is not None
+                        float(
+                            mode["running_cost"]
+                            .to(f"{shared_currency_unit}/h")
+                            .magnitude
+                        )
+                        if mode.get("running_cost") is not None
                         else 0.0
                     )
                     for mode in operation_modes[d]
@@ -3200,8 +3207,9 @@ class StorageScheduler(MetaStorageScheduler):
             device_power_bands=[
                 dc.attrs.get("operation_modes") for dc in device_constraints
             ],
-            device_band_fixed_costs=[
-                dc.attrs.get("operation_mode_fixed_costs") for dc in device_constraints
+            device_band_running_costs=[
+                dc.attrs.get("operation_mode_running_costs")
+                for dc in device_constraints
             ],
         )
         if "infeasible" in (tc := scheduler_results.solver.termination_condition):

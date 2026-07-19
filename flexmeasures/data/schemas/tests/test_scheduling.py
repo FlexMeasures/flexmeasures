@@ -1455,3 +1455,28 @@ def test_asset_trigger_schema_rejects_malformed_flex_context(app):
     with pytest.raises(ValidationError) as e_info:
         schema.normalize_flex_context_format({"flex-context": "not-a-dict-or-list"})
     assert "flex-context" in str(e_info.value)
+
+
+@pytest.mark.parametrize(
+    ["running_cost", "fails", "expected_per_hour"],
+    [
+        ("1200 EUR/h", False, 1200.0),
+        ("1200 EUR/hour", False, 1200.0),
+        ("0.5 kEUR/h", False, 500.0),
+        ("1200 EUR", True, None),  # a plain amount is not a rate
+        ("50 EUR/MWh", True, None),  # an energy price is not a per-time rate
+        ("not-a-quantity", True, None),
+    ],
+)
+def test_operation_mode_running_cost(running_cost, fails, expected_per_hour):
+    """OperationModeSchema.running-cost must be a currency-per-time rate."""
+    from flexmeasures.data.schemas.scheduling.storage import OperationModeSchema
+
+    schema = OperationModeSchema()
+    data = {"power-range": ["4 MW", "55 MW"], "running-cost": running_cost}
+    if fails:
+        with pytest.raises(ValidationError):
+            schema.load(data)
+    else:
+        loaded = schema.load(data)
+        assert loaded["running_cost"].to("EUR/hour").magnitude == expected_per_hour

@@ -6216,9 +6216,9 @@
               "type": "string"
             }
           },
-          "fixed-cost": {
+          "running-cost": {
             "type": "string",
-            "description": "Optional no-load / commitment cost (in the flex-context currency) incurred at every time step during which this operation mode is active. Defaults to 0."
+            "description": "Optional running cost (a rate in the flex-context currency per hour, e.g. '1200 EUR/h') incurred while this operation mode is active, excluding commodity cost (see S2 FRBC.OperationModeElement.running_costs). Defaults to 0."
           }
         },
         "required": [
@@ -6300,7 +6300,7 @@
           "operation-modes": {
             "type": "array",
             "minItems": 1,
-            "description": "Confine the device's power to one of several power ranges at every time step.\nEach operation mode declares a signed power range (positive is consumption, negative is production).\nThis is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).\nTerminology and semantics follow the `operation modes of the S2 standard <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/>`_.\nDeclaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.\nEach operation mode may optionally declare a <code>fixed-cost</code>: a no-load / commitment cost (in the flex-context currency) that is incurred at every time step during which that mode is active.\nThis models the running cost of keeping a unit on regardless of its output (e.g. a generator's full-speed-no-load fuel burn, or a boiler's standing cost). When omitted, the fixed cost is 0.\n",
+            "description": "Confine the device's power to one of several power ranges at every time step.\nEach operation mode declares a signed power range (positive is consumption, negative is production).\nThis is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).\nTerminology and semantics follow the `operation modes of the S2 standard <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/>`_.\nDeclaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.\nEach operation mode may optionally declare a <code>running-cost</code>: an additional per-time cost (a rate in the flex-context currency per hour, e.g. <code>\"1200 EUR/h\"</code>) incurred while that mode is active, excluding commodity cost, following the S2 standard's `FRBC.OperationModeElement.running_costs <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationModeElement/>`_.\nThis models the wear / O&M / standing cost of keeping a unit on regardless of its output (e.g. a boiler's standing cost). The per-timestep charge is the rate scaled by the timestep duration, so the total cost of a given on-duration is resolution-independent. When omitted, the running cost is 0.\nNote: a unit's no-load <em>fuel</em> consumption is more faithfully modelled as a commodity requirement (a fuel/gas power flow in the operation mode) than as a running cost; that is a possible follow-up.\n",
             "example": [
               {
                 "power-range": [
@@ -6313,7 +6313,7 @@
                   "883.7 W",
                   "883.7 W"
                 ],
-                "fixed-cost": "1200 EUR"
+                "running-cost": "1200 EUR/h"
               }
             ],
             "items": {

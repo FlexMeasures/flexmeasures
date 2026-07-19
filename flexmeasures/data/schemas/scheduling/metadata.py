@@ -398,12 +398,13 @@ Each operation mode declares a signed power range (positive is consumption, nega
 This is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).
 Terminology and semantics follow the `operation modes of the S2 standard <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/>`_.
 Declaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.
-Each operation mode may optionally declare a ``fixed-cost``: a no-load / commitment cost (in the flex-context currency) that is incurred at every time step during which that mode is active.
-This models the running cost of keeping a unit on regardless of its output (e.g. a generator's full-speed-no-load fuel burn, or a boiler's standing cost). When omitted, the fixed cost is 0.
+Each operation mode may optionally declare a ``running-cost``: an additional per-time cost (a rate in the flex-context currency per hour, e.g. ``"1200 EUR/h"``) incurred while that mode is active, excluding commodity cost, following the S2 standard's `FRBC.OperationModeElement.running_costs <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationModeElement/>`_.
+This models the wear / O&M / standing cost of keeping a unit on regardless of its output (e.g. a boiler's standing cost). The per-timestep charge is the rate scaled by the timestep duration, so the total cost of a given on-duration is resolution-independent. When omitted, the running cost is 0.
+Note: a unit's no-load *fuel* consumption is more faithfully modelled as a commodity requirement (a fuel/gas power flow in the operation mode) than as a running cost; that is a possible follow-up.
 """,
     example=[
         {"power-range": ["0 W", "0 W"]},
-        {"power-range": ["883.7 W", "883.7 W"], "fixed-cost": "1200 EUR"},
+        {"power-range": ["883.7 W", "883.7 W"], "running-cost": "1200 EUR/h"},
     ],
 )
 GROUP = MetaData(

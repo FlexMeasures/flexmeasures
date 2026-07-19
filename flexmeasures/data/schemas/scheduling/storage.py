@@ -136,14 +136,22 @@ class OperationModeSchema(Schema):
 
         [{"power-range": ["0 W", "0 W"]}, {"power-range": ["883.7 W", "883.7 W"]}]
 
-    A mode may also carry an optional ``fixed-cost``: a no-load / commitment cost
-    (in the flex-context currency) incurred at every time step during which the
-    mode is active. This models the running cost of keeping a unit on regardless
-    of its output (e.g. a generator's full-speed-no-load fuel burn). When absent,
-    the fixed cost is 0, leaving existing behaviour unchanged:
+    A mode may also carry an optional ``running-cost``: an additional per-time
+    cost (a rate in the flex-context currency per hour, e.g. ``"1200 EUR/h"``)
+    incurred while the mode is active, excluding commodity cost. This mirrors the
+    S2 standard's ``FRBC.OperationModeElement.running_costs`` and models the wear
+    / O&M / standing cost of keeping a unit on regardless of its output. The
+    per-timestep charge is the rate scaled by the timestep duration, so the total
+    cost of a given on-duration is resolution-independent. When absent, the
+    running cost is 0, leaving existing behaviour unchanged:
 
         [{"power-range": ["0 MW", "0 MW"]},
-         {"power-range": ["4 MW", "55 MW"], "fixed-cost": "1200 EUR"}]
+         {"power-range": ["4 MW", "55 MW"], "running-cost": "1200 EUR/h"}]
+
+    Note: a unit's no-load *fuel* consumption is more faithfully modelled as a
+    commodity requirement (a fuel/gas power flow declared in the operation mode)
+    than as a running cost; running-cost is for non-commodity costs. That is a
+    possible follow-up.
     """
 
     power_range = fields.List(
@@ -161,32 +169,39 @@ class OperationModeSchema(Schema):
         ),
     )
 
-    # A currency amount, kept in its native currency unit here (agnostic to the
-    # flex-context currency) and converted to the shared currency by the scheduler.
-    fixed_cost = fields.Str(
-        data_key="fixed-cost",
+    # A currency-per-time rate, kept in its native currency unit here (agnostic
+    # to the flex-context currency) and converted to the shared currency per hour
+    # by the scheduler.
+    running_cost = fields.Str(
+        data_key="running-cost",
         required=False,
         metadata=dict(
-            description="Optional no-load / commitment cost (in the flex-context "
-            "currency) incurred at every time step during which this operation "
-            "mode is active. Defaults to 0.",
+            description="Optional running cost (a rate in the flex-context "
+            "currency per hour, e.g. '1200 EUR/h') incurred while this operation "
+            "mode is active, excluding commodity cost (see S2 "
+            "FRBC.OperationModeElement.running_costs). Defaults to 0.",
         ),
     )
 
     @post_load
-    def parse_fixed_cost(self, data: dict, **kwargs):
-        if data.get("fixed_cost") is not None:
+    def parse_running_cost(self, data: dict, **kwargs):
+        if data.get("running_cost") is not None:
             try:
-                quantity = ur.Quantity(data["fixed_cost"])
+                quantity = ur.Quantity(data["running_cost"])
             except Exception as e:
                 raise ValidationError(
-                    f"Could not parse an operation mode's fixed-cost as a quantity: {e}"
+                    f"Could not parse an operation mode's running-cost as a quantity: {e}"
                 )
-            if not is_currency_unit(quantity.units):
+            # Require a currency-per-time rate (e.g. EUR/h), so that the cost is
+            # resolution-independent once scaled by the timestep duration. A rate
+            # times a duration reduces to a plain currency amount.
+            reduced = (quantity * ur.Quantity("1 hour")).to_reduced_units()
+            if not is_currency_unit(reduced.units):
                 raise ValidationError(
-                    "An operation mode's fixed-cost must be a currency amount, e.g. '1200 EUR'."
+                    "An operation mode's running-cost must be a currency-per-time "
+                    "rate, e.g. '1200 EUR/h'."
                 )
-            data["fixed_cost"] = quantity
+            data["running_cost"] = quantity
         return data
 
     @validates_schema
