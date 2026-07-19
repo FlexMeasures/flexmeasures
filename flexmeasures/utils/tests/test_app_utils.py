@@ -6,7 +6,11 @@ from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.transport import Transport
 from werkzeug.exceptions import InternalServerError, NotFound, SecurityError
 
-from flexmeasures.utils.app_utils import _sentry_filter_notfound
+from flexmeasures.data import _is_running_db_upgrade_command
+from flexmeasures.utils.app_utils import (
+    _sentry_filter_notfound,
+    provision_default_template_assets_on_startup,
+)
 from flexmeasures.utils.error_utils import add_basic_error_handlers
 
 
@@ -131,3 +135,38 @@ def app_logger_record(message):
         args=(),
         exc_info=None,
     )
+
+
+def test_provision_default_template_assets_on_startup_skips_old_schema(
+    app, monkeypatch, caplog
+):
+    def fail_if_called(db):
+        raise AssertionError("Template provisioning should not run.")
+
+    monkeypatch.setattr(app, "testing", False)
+    monkeypatch.setitem(app.config, "FLEXMEASURES_ENV", "production")
+    monkeypatch.setitem(
+        app.config, "FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP", True
+    )
+    monkeypatch.setattr(app, "database_schema_is_migrated_to_head", False)
+    monkeypatch.setattr(
+        "flexmeasures.data.scripts.data_gen.provision_default_template_assets",
+        fail_if_called,
+    )
+
+    with caplog.at_level(logging.INFO):
+        provision_default_template_assets_on_startup(app)
+
+    assert "Skipping startup template provisioning" in caplog.text
+
+
+def test_is_running_db_upgrade_command(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["/path/to/flexmeasures", "db", "upgrade", "--sql"])
+
+    assert _is_running_db_upgrade_command() is True
+
+
+def test_is_running_db_upgrade_command_false_for_other_db_commands(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["/path/to/flexmeasures", "db", "current"])
+
+    assert _is_running_db_upgrade_command() is False

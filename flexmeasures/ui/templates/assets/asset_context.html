@@ -28,7 +28,12 @@
                             </button>
                         </div>
                     </div>
-                    <p>Type: {{ asset.generic_asset_type.name.split('.')[-1] | title }}</p>
+                    <p>
+                        Type: {{ asset.generic_asset_type.name.split('.')[-1] | title }}
+                        {% if asset.description %}
+                        <span class="ms-3">Description: {{ asset.description }}</span>
+                        {% endif %}
+                    </p>
                 </div>
                 <div class="col-sm-3">
                     <!-- Tabs for toggling content -->

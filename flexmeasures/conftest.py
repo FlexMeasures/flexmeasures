@@ -25,7 +25,11 @@ from werkzeug.exceptions import (
 )
 
 from flexmeasures.app import create as create_app
-from flexmeasures.auth.policy import ADMIN_ROLE, ADMIN_READER_ROLE
+from flexmeasures.auth.policy import (
+    ADMIN_ROLE,
+    ADMIN_READER_ROLE,
+    CONSULTANCY_ACCOUNT_ROLE,
+)
 from flexmeasures.data.services.users import create_user
 from flexmeasures.data.models.generic_assets import GenericAssetType, GenericAsset
 from flexmeasures.data.models.data_sources import DataSource
@@ -168,12 +172,14 @@ def create_test_accounts(db) -> dict[str, Account]:
     )
     db.session.add(multi_role_account)
     consultancy_account_role = AccountRole(
-        name="Consultancy", description="A consultancy account"
+        name=CONSULTANCY_ACCOUNT_ROLE,
+        description="Consultancy account that can create own client accounts",
     )
     # Create Consultancy and ConsultancyClient account.
     # The ConsultancyClient account needs the account id of the Consultancy account so the order is important.
     consultancy_account = Account(
-        name="Test Consultancy Account", account_roles=[consultancy_account_role]
+        name="Test Consultancy Account",
+        account_roles=[consultancy_account_role, consultancy_account_role],
     )
     db.session.add(consultancy_account)
     consultancy_client_account_role = AccountRole(
@@ -1365,6 +1371,7 @@ def create_charging_station_assets(
     )
     db.session.add(bi_soc)
     db.session.add(uni_soc)
+    db.session.flush()  # assign IDs, so tests don't depend on earlier tests flushing
     return {
         "Test charging station": charging_station,
         "Test charging station (bidirectional)": bidirectional_charging_station,
@@ -2059,6 +2066,27 @@ def add_test_sensor_with_anomalous_beliefs(
     return {"anomaly-sensor": sensor}
 
 
+def _patch_server_now_in_module(module, module_name: str, value, originals: dict):
+    """Patch server_now in a single module, remembering the original only the first
+    time we patch it, so repeated freeze calls still restore the true original."""
+    try:
+        originals.setdefault(module_name, module.server_now)
+        setattr(module, "server_now", lambda: value)
+    except Exception:
+        # skip modules that cannot be inspected or modified
+        pass
+
+
+def _patch_server_now_in_loaded_modules(value, originals: dict):
+    """Patch server_now in all currently loaded FlexMeasures modules."""
+    for module in list(sys.modules.values()):  # copy to avoid RuntimeError
+        if not isinstance(module, type(sys)):  # skip placeholders
+            continue
+        name = getattr(module, "__name__", "")
+        if name.startswith("flexmeasures") and hasattr(module, "server_now"):
+            _patch_server_now_in_module(module, name, value, originals)
+
+
 @pytest.fixture
 def freeze_server_now():
     """
@@ -2068,40 +2096,24 @@ def freeze_server_now():
         def test_x(freeze_server_now):
             freeze_server_now(pd.Timestamp("2025-01-15T12:23:58+01"))
     """
-    patched_modules = set()
+    original_server_nows: dict = {}  # module name -> original server_now function
+    original_import = builtins.__import__
 
     def _freeze(value: datetime | pd.Timestamp):
         if isinstance(value, pd.Timestamp):
             value = value.to_pydatetime()
         # Patch currently loaded FlexMeasures modules
-        for module in list(sys.modules.values()):  # copy to avoid RuntimeError
-            try:
-                if not isinstance(module, type(sys)):  # skip placeholders
-                    continue
-                name = getattr(module, "__name__", "")
-                if not name.startswith("flexmeasures"):
-                    continue
-                if hasattr(module, "server_now"):
-                    setattr(module, "server_now", lambda: value)
-                    patched_modules.add(module.__name__)
-            except Exception:
-                # skip modules that cannot be inspected or modified
-                pass
+        _patch_server_now_in_loaded_modules(value, original_server_nows)
 
         # Optionally, warn if new modules are imported later
-        original_import = builtins.__import__
-
         def import_hook(name, *args, **kwargs):
             mod = original_import(name, *args, **kwargs)
-            if hasattr(mod, "server_now") and mod not in patched_modules:
+            mod_name = getattr(mod, "__name__", name)
+            if hasattr(mod, "server_now") and mod_name not in original_server_nows:
                 warnings.warn(
                     f"Module {name} imported after server_now was frozen; patching it now."
                 )
-                try:
-                    setattr(mod, "server_now", lambda: value)
-                    patched_modules.add(name)
-                except Exception:
-                    pass
+                _patch_server_now_in_module(mod, mod_name, value, original_server_nows)
             return mod
 
         builtins.__import__ = import_hook
@@ -2110,5 +2122,15 @@ def freeze_server_now():
 
     yield _freeze
 
-    # cleanup: restore the original import function
-    builtins.__import__ = builtins.__import__
+    # Cleanup: restore the original import function and unfreeze server_now in all
+    # patched modules. Without this, the frozen clock leaks into every test that runs
+    # afterwards in the same process (e.g. scheduling jobs then reuse the exact same
+    # belief_time, causing unique-key violations on saving beliefs).
+    builtins.__import__ = original_import
+    for module_name, original_server_now in original_server_nows.items():
+        module = sys.modules.get(module_name)
+        if module is not None:
+            try:
+                setattr(module, "server_now", original_server_now)
+            except Exception:
+                pass

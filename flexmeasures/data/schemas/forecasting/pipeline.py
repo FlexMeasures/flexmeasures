@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import numbers
 import os
 
 from datetime import timedelta
@@ -9,6 +10,7 @@ from isodate.duration import Duration
 from marshmallow import (
     fields,
     Schema,
+    validate,
     validates_schema,
     pre_load,
     post_load,
@@ -24,6 +26,20 @@ from flexmeasures.data.schemas.times import (
 )
 from flexmeasures.data.models.forecasting.utils import floor_to_resolution
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.unit_utils import ur
+
+
+def _is_parseable_quantity(value) -> bool:
+    """Whether a post-processing value is a number or a pint-parseable quantity string."""
+    if isinstance(value, numbers.Real):
+        return True
+    if not isinstance(value, str):
+        return False
+    try:
+        ur.Quantity(value)
+    except Exception:
+        return False
+    return True
 
 
 class TrainPredictPipelineConfigSchema(Schema):
@@ -96,6 +112,34 @@ class TrainPredictPipelineConfigSchema(Schema):
             "cli": {
                 "option": "--ensure-positive",
             },
+        },
+    )
+    lower = fields.Raw(
+        required=False,
+        allow_none=True,
+        load_default=None,
+        metadata={
+            "description": "Optional lower bound for forecast values after prediction. Unitless values are interpreted in the output sensor unit.",
+            "example": "0 kW",
+        },
+    )
+    upper = fields.Raw(
+        required=False,
+        allow_none=True,
+        load_default=None,
+        metadata={
+            "description": "Optional upper bound for forecast values after prediction. Unitless values are interpreted in the output sensor unit.",
+            "example": "20 kW",
+        },
+    )
+    snap = fields.Dict(
+        keys=fields.Raw(),
+        values=fields.List(fields.Raw(), validate=validate.Length(equal=2)),
+        required=False,
+        load_default={},
+        metadata={
+            "description": "Optional mapping from snap targets to [first, second] intervals. Values inside an interval are replaced by the snap target before storage. The target must lie within the interval (on a bound or inside it). The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead.",
+            "example": {"0 kW": ["0 kW", "4 kW"]},
         },
     )
     train_start = AwareDateTimeOrDateField(
@@ -176,6 +220,32 @@ class TrainPredictPipelineConfigSchema(Schema):
                 "(e.g. P365D, PT48H). Years and months are not supported.",
                 field_name="max_training_period",
             )
+
+    @validates_schema
+    def validate_post_processing(self, data: dict, **kwargs):
+        """Fail fast on unparseable post-processing values.
+
+        Unit compatibility with the sensor and interval semantics can only be
+        checked once the output sensor is known, so those run at forecast time.
+        """
+        errors: dict[str, list[str]] = {}
+        for field_name in ("lower", "upper"):
+            value = data.get(field_name)
+            if value is not None and not _is_parseable_quantity(value):
+                errors[field_name] = [
+                    "Must be a number or a parseable quantity string (e.g. 0 or '0 kW')."
+                ]
+
+        snap_errors = [
+            f"Snap entry '{target}' must use numbers or parseable quantity strings."
+            for target, interval in (data.get("snap") or {}).items()
+            if not all(_is_parseable_quantity(v) for v in (target, *interval))
+        ]
+        if snap_errors:
+            errors["snap"] = snap_errors
+
+        if errors:
+            raise ValidationError(errors)
 
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
