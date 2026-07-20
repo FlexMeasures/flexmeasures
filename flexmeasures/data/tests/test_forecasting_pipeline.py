@@ -1825,3 +1825,109 @@ def test_future_regressor_changes_forecasts_in_forecast_belief_time_window(
         "The future-regressor forecast is expected to be more accurate "
         "on this deterministic synthetic dataset."
     )
+
+
+def _annotation_pipeline(predict_start: datetime) -> BasePipeline:
+    """A minimal annotation-only pipeline over three hourly events."""
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+    return BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 7, 23),
+        event_ends_before=datetime(2025, 1, 8, 1),
+        predict_start=predict_start,
+        predict_end=datetime(2025, 1, 8, 1),
+        annotation_regressors=[
+            {"asset": 1, "annotation_type": "holiday", "name": "holidays"}
+        ],
+    )
+
+
+def _run_annotation_split(pipeline, annotation_belief_time, monkeypatch):
+    """Split a three-event frame and return the annotation column that reached the model."""
+    col = pipeline.annotation_regressor_names[0]
+    events = pd.to_datetime(
+        [
+            "2025-01-07T23:00:00",
+            "2025-01-08T00:00:00",
+            "2025-01-08T01:00:00",
+        ]
+    )
+    # The middle and last event are annotated; the first is not.
+    pipeline._annotation_values[col] = pd.Series([0.0, 1.0, 1.0], index=events)
+    pipeline._annotation_belief_times[col] = pd.Series(
+        [pd.NaT, annotation_belief_time, annotation_belief_time],
+        index=events,
+        dtype="datetime64[ns]",
+    )
+
+    df = pd.DataFrame(
+        [
+            {
+                "event_start": ts,
+                "belief_time": ts + timedelta(hours=1),
+                pipeline.target: value,
+                col: pipeline._annotation_values[col].loc[ts],
+            }
+            for ts, value in zip(events, [1.0, None, None])
+        ]
+    )
+
+    captured = []
+
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.annotation_regressor_names:
+            captured.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+    pipeline.split_data_all_beliefs(df, is_predict_pipeline=True)
+    assert len(captured) == 1
+    return captured[0].set_index("event_start")[col]
+
+
+def test_annotation_regressor_without_belief_time_is_always_known(monkeypatch):
+    """Annotations recording no belief time are visible whatever the vantage point.
+
+    This is the case for the holiday calendars written by `flexmeasures add holidays`,
+    which store belief_time as NULL.
+    """
+    pipeline = _annotation_pipeline(predict_start=datetime(2025, 1, 8))
+    values = _run_annotation_split(pipeline, pd.NaT, monkeypatch)
+
+    assert values.loc[pd.Timestamp("2025-01-07T23:00:00")] == 0.0
+    # Visible in the training window, which the realized-only filter would otherwise hide,
+    # and in the forecast horizon.
+    assert values.loc[pd.Timestamp("2025-01-08T00:00:00")] == 1.0
+    assert values.loc[pd.Timestamp("2025-01-08T01:00:00")] == 1.0
+
+
+def test_annotation_regressor_belief_time_before_vantage_point_is_visible(monkeypatch):
+    """An annotation believed before the forecast is made is used."""
+    pipeline = _annotation_pipeline(predict_start=datetime(2025, 1, 8))
+    values = _run_annotation_split(
+        pipeline, pd.Timestamp("2025-01-06T00:00:00"), monkeypatch
+    )
+
+    assert values.loc[pd.Timestamp("2025-01-08T00:00:00")] == 1.0
+    assert values.loc[pd.Timestamp("2025-01-08T01:00:00")] == 1.0
+
+
+def test_annotation_regressor_belief_time_after_vantage_point_is_hidden(monkeypatch):
+    """An annotation only believed later must not leak into an earlier forecast."""
+    pipeline = _annotation_pipeline(predict_start=datetime(2025, 1, 8))
+    values = _run_annotation_split(
+        pipeline, pd.Timestamp("2025-01-09T00:00:00"), monkeypatch
+    )
+
+    # Not yet known at the vantage point, so the regressor reads 0 rather than 1.
+    assert values.loc[pd.Timestamp("2025-01-08T00:00:00")] == 0.0
+    assert values.loc[pd.Timestamp("2025-01-08T01:00:00")] == 0.0
