@@ -1371,6 +1371,7 @@ def create_charging_station_assets(
     )
     db.session.add(bi_soc)
     db.session.add(uni_soc)
+    db.session.flush()  # assign IDs, so tests don't depend on earlier tests flushing
     return {
         "Test charging station": charging_station,
         "Test charging station (bidirectional)": bidirectional_charging_station,

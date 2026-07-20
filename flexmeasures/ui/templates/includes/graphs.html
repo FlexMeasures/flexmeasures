@@ -27,6 +27,7 @@
     import { subtract, computeSimulationRanges, lastNMonths, encodeUrlQuery, getOffsetBetweenTimezonesForDate, toIsoStringWithOffset } from "{{ url_for('flexmeasures_ui.static', filename='js/daterange-utils.js') }}?v={{ flexmeasures_version }}";
     import { partition, updateBeliefs, beliefTimedelta, setAbortableTimeout } from "{{ url_for('flexmeasures_ui.static', filename='js/replay-utils.js') }}?v={{ flexmeasures_version }}";
     import { decompressChartData, checkDSTTransitions, checkSourceMasking, checkStrictYAxisRanges } from "{{ url_for('flexmeasures_ui.static', filename='js/chart-data-utils.js') }}?v={{ flexmeasures_version }}";
+    import { renderFastChart, disposeFastChart, setFastChartReplayTime } from "{{ url_for('flexmeasures_ui.static', filename='js/fast-chart.js') }}?v={{ flexmeasures_version }}";
 
     // Only assets have a per-sub-chart "y-axis" config to check loaded data against.
     // Reassigned on save (see reloadChartData) since a save doesn't reload the page.
@@ -59,6 +60,17 @@
     let minRes;
     let toggle;
     let stepTriggered = false;
+    let fastMode = localStorage.getItem('fm-fast-charts') !== '0';  // canvas-based fast chart is the default; users can opt out to Vega-Lite
+    const fastChartElementId = 'fast-chart-container';
+    let fastChartGroupSpec = null;  // subplot structure (titles + sensor groupings), mirroring the Vega-Lite chart
+    // sensor id -> sensor type, seeded from the server-computed groupSpec, so we can
+    // rebuild the groupSpec client-side (with y-axis titles) after an in-browser
+    // sensors_to_show save without a page reload.
+    let sensorTypeById = new Map();
+    // The current query window as plain epoch-ms {start, end}, captured before any
+    // later mutation of the shared Date objects (getAssetKPIs bumps storeEndDate by
+    // +1 day). Used as the fast chart's fixed x-axis domain (matches Vega-Lite).
+    let fastChartWindow = null;
 
     if ('{{ active_page }}' == 'assets') {
         chartType = 'chart_for_multiple_sensors';
@@ -69,6 +81,46 @@
     dataPath = '/api/v3_0/assets/' + {{ asset.id }};
     dataDevPath = '/api/dev/asset/' + {{ asset.id }};
     datasetName = 'asset_' + {{ asset.id }};
+    // Mirror the Vega-Lite chart's subplot structure (one entry per subplot, in order).
+    // Entries from validate_sensors_to_show() hold their sensors in a "plots" list,
+    // except the default-suggestion path, which uses top-level "sensor(s)" keys.
+    fastChartGroupSpec = [
+        {% for item in asset.validate_sensors_to_show() %}
+        {% set entry = namespace(sensors=[]) %}
+        {% if item.plots is defined and item.plots %}
+        {% for plot in item.plots %}
+        {% if plot.sensors is defined and plot.sensors %}
+        {% set entry.sensors = entry.sensors + plot.sensors|list %}
+        {% elif plot.sensor is defined and plot.sensor %}
+        {% set entry.sensors = entry.sensors + [plot.sensor] %}
+        {% endif %}
+        {% endfor %}
+        {% elif item.sensors is defined and item.sensors %}
+        {% set entry.sensors = item.sensors|list %}
+        {% elif item.sensor is defined and item.sensor %}
+        {% set entry.sensors = [item.sensor] %}
+        {% endif %}
+        {# y-axis title source: shared sensor type of the real (DB-backed) sensors. #}
+        {# If they don't share one type, derive the dimension from the shared unit #}
+        {# (e.g. a group of kW sensors becomes "power"), matching the Vega-Lite charts. #}
+        {# Fixed-value sensors (negative ids) only have a name. #}
+        {% set real_sensors = entry.sensors | selectattr("id", "gt", 0) | list %}
+        {% if real_sensors %}
+        {% set entry_sensor_type = real_sensors | shared_sensor_type %}
+        {% elif entry.sensors %}
+        {% set entry_sensor_type = entry.sensors[0].name %}
+        {% else %}
+        {% set entry_sensor_type = "" %}
+        {% endif %}
+        {
+            title: {{ (item.title or "") | tojson }},
+            sensorIds: {{ entry.sensors | map(attribute="id") | list | tojson }},
+            sensorType: {{ entry_sensor_type | tojson }},
+            {# Per-sub-chart y-axis mode (PR #2244): "zero"/"data"/[min,max]/{min,max} #}
+            yAxis: {{ item.get("y-axis") | tojson }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
     {% set total_sensors = asset.sensors_to_show | map(attribute = 'sensors') | map('length') | sum %}
     {% if total_sensors > 7 %}
     {% if session.get("keep_legends_below_graphs") %}
@@ -85,7 +137,60 @@
     dataPath = '/api/dev/sensor/' + {{ sensor.id }};
     dataDevPath = '/api/dev/sensor/' + {{ sensor.id }};
     datasetName = 'sensor_' + {{ sensor.id }};
+    fastChartGroupSpec = [
+        {
+            title: "",
+            sensorIds: [{{ sensor.id }}],
+            sensorType: {{ sensor.get_attribute("sensor_type", sensor.name) | tojson }}
+        }
+    ];
     {% endif %}
+    // Seed the sensor-type lookup from the server-computed groupSpec.
+    if (fastChartGroupSpec) {
+        fastChartGroupSpec.forEach(function (g) {
+            (g.sensorIds || []).forEach(function (id) { sensorTypeById.set(id, g.sensorType); });
+        });
+    }
+
+    // Extract a sensor id from a sensors_to_show reference (a bare id or a {id: ...} object).
+    function fastChartSensorId(ref) {
+        return (ref && typeof ref === "object") ? ref.id : ref;
+    }
+
+    // Rebuild the fast chart's groupSpec from a raw sensors_to_show config, so a save
+    // in the graph editor (which changes titles, groupings and per-sub-chart y-axis)
+    // takes effect immediately. Sensor types come from sensorTypeById (a fresh sensor
+    // gets no type until the next page load, then falls back to its name in groupData).
+    function rebuildFastChartGroupSpec(sensorsToShow) {
+        return (sensorsToShow || []).map(function (item) {
+            var sensorIds = [];
+            if (Array.isArray(item.plots) && item.plots.length) {
+                item.plots.forEach(function (plot) {
+                    if (Array.isArray(plot.sensors) && plot.sensors.length) {
+                        plot.sensors.forEach(function (s) { sensorIds.push(fastChartSensorId(s)); });
+                    } else if (plot.sensor != null) {
+                        sensorIds.push(fastChartSensorId(plot.sensor));
+                    }
+                });
+            } else if (Array.isArray(item.sensors) && item.sensors.length) {
+                item.sensors.forEach(function (s) { sensorIds.push(fastChartSensorId(s)); });
+            } else if (item.sensor != null) {
+                sensorIds.push(fastChartSensorId(item.sensor));
+            }
+            sensorIds = sensorIds.filter(function (id) { return id != null; });
+            var sensorType = "";
+            for (var i = 0; i < sensorIds.length; i++) {
+                if (sensorTypeById.has(sensorIds[i])) { sensorType = sensorTypeById.get(sensorIds[i]); break; }
+            }
+            return {
+                title: item.title || "",
+                sensorIds: sensorIds,
+                sensorType: sensorType,
+                yAxis: (item["y-axis"] !== undefined ? item["y-axis"] : null),
+            };
+        });
+    }
+
     chartSpecsPath = dataPath + '/chart?';
 
     {% if event_starts_after and event_ends_before %}
@@ -108,6 +213,25 @@
         const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
         tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
 
+        // Set up the fast chart (canvas-based) toggle
+        const fastChartToggle = document.getElementById('fastChartToggle');
+        if (fastChartToggle) {
+            fastChartToggle.checked = fastMode;
+            if (fastMode) {
+                applyFastMode();
+            }
+            fastChartToggle.addEventListener('change', async function () {
+                fastMode = this.checked;
+                localStorage.setItem('fm-fast-charts', fastMode ? '1' : '0');
+                if (fastMode) {
+                    stopReplay();
+                }
+                await applyFastMode();
+            });
+        } else {
+            fastMode = false;  // no toggle on this page, so always use Vega-Lite
+        }
+
         // Set up play/pause button for replay, incl. the complete replay logic
         toggle = document.querySelector('#replay');
         toggle.addEventListener('click', function (e) {
@@ -118,6 +242,7 @@
         {% if event_starts_after and event_ends_before %}
         storeStartDate = new Date('{{ event_starts_after }}');
         storeEndDate = new Date('{{ event_ends_before }}');
+        fastChartWindow = { start: storeStartDate.getTime(), end: storeEndDate.getTime() };
         checkDSTTransitions(storeStartDate, storeEndDate);
         {% endif %}
 
@@ -154,6 +279,14 @@
                         item.classList.remove('active');
                     }
                 });
+                // Switch to the right renderer for the newly selected chart type: the
+                // fast chart if fast mode is on and this type supports it (updateFastChart),
+                // otherwise Vega-Lite (some chart types, like Charge Point sessions, are
+                // Vega-only and aren't renderable by the fast chart).
+                if (fastMode) {
+                    applyFastMode();
+                    return;
+                }
                 // Reload daterange
                 embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate)
                 if (!vegaView || !previousResult) {
@@ -297,6 +430,9 @@
         // the page's initial load, not this in-browser edit.
         if (event && event.detail && event.detail.sensorsToShow) {
             sensorsToShowForYAxisCheck = event.detail.sensorsToShow;
+            // Rebuild the fast chart's groupSpec so the just-saved titles, groupings
+            // and per-sub-chart y-axis modes take effect without a page reload.
+            fastChartGroupSpec = rebuildFastChartGroupSpec(event.detail.sensorsToShow);
         }
         {% endif %}
         $("#spinner").show();
@@ -312,12 +448,15 @@
             embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate),
         ]).then(function (result) { return result[0] }).catch(console.error);
         $("#spinner").hide();
-        vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(newData)).resize().run();
+        if (!fastRenderActive() && vegaView) {
+            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(newData)).resize().run();
+        }
         previousResult = {
             start: storeStartDate,
             end: storeEndDate,
-            data: fetchedInitialData
+            data: newData
         };
+        updateFastChart();
         {% if active_page == "assets" %}
         checkStrictYAxisRanges(newData, sensorsToShowForYAxisCheck);
         {% endif %}
@@ -361,7 +500,9 @@
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + '{{ event_starts_after }}' + '&event_ends_before=' + '{{ event_ends_before }}' + '&', elementId, datasetName, previousResult, sessionStart, sessionEnd),
     ]).then(function (result) { return result[0] }).catch(console.error);
     $("#spinner").hide();
-    vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
+    if (!fastRenderActive() && vegaView) {
+        vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(fetchedInitialData)).resize().run();
+    }
     var sessionStart = new Date('{{ event_starts_after }}');
     var sessionEnd = new Date('{{ event_ends_before }}');
     previousResult = {
@@ -369,6 +510,7 @@
         end: sessionEnd,
         data: fetchedInitialData
     };
+    updateFastChart();
     checkSourceMasking(previousResult.data);
     {% if active_page == "assets" %}
     checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
@@ -519,6 +661,8 @@
 
             storeStartDate = startDate;
             storeEndDate = endDate;
+            // Capture the window as primitives now, before getAssetKPIs mutates endDate (+1 day).
+            fastChartWindow = { start: startDate.getTime(), end: endDate.getTime() };
             var queryStartDate = (startDate != null) ? (startDate.toISOString()) : (null);
             var queryEndDate = (endDate != null) ? (endDate.toISOString()) : (null);
 
@@ -558,7 +702,9 @@
         embedAndLoad(chartSpecsPath + 'event_starts_after=' + queryStartDate + '&event_ends_before=' + queryEndDate + '&', elementId, datasetName, previousResult, startDate, endDate),
     ]).then(function (result) {
         $("#spinner").hide();
-        vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
+        if (!fastRenderActive() && vegaView) {
+            vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(result[0])).resize().run();
+        }
         previousResult = {
             start: startDate,
             end: endDate,
@@ -567,12 +713,13 @@
         {% if active_page == "sensors" %}
             previousResult["annotations"] = result[1]
         {% endif %}
+        updateFastChart();
         checkSourceMasking(previousResult.data);
         {% if active_page == "assets" %}
         checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
         {% endif %}
         playBackDataLoadedForKnownDateRange = false;
-        if (chartType === "bar_chart") {
+        if (!fastRenderActive() && vegaView && chartType === "bar_chart") {
             vegaView.change(datasetName + '_annotations', vega.changeset().remove(vega.truthy).insert(result[1])).resize().run();
         }
     }).catch(console.error);
@@ -580,7 +727,80 @@
     return picker
     }
 
+    // Every chart type available on the asset/sensor pages (including the Charge
+    // Point sessions Gantt-style view) has a fast-chart.js renderer.
+    function chartTypeSupportedInFastMode() {
+        return true;
+    }
+
+    // True when the fast (canvas) chart should actually be shown & rendered right
+    // now, i.e. the toggle is on AND the current chart type supports it.
+    function fastRenderActive() {
+        return fastMode && chartTypeSupportedInFastMode();
+    }
+
+    // Show either the fast (canvas-based) chart or the Vega-Lite chart, and render it
+    async function applyFastMode() {
+        const vegaDiv = document.getElementById(elementId);
+        const fastDiv = document.getElementById(fastChartElementId);
+        if (!fastDiv) { return; }
+        if (fastRenderActive()) {
+            vegaDiv.style.display = 'none';
+            fastDiv.style.display = 'block';
+            updateFastChart();
+        } else {
+            fastDiv.style.display = 'none';
+            vegaDiv.style.display = '';
+            disposeFastChart(fastChartElementId);
+            // Re-embed the Vega-Lite chart, which was skipped while fast mode was on
+            if (storeStartDate && storeEndDate) {
+                $("#spinner").show();
+                await embedAndLoad(chartSpecsPath + 'event_starts_after=' + storeStartDate.toISOString() + '&event_ends_before=' + storeEndDate.toISOString() + '&', elementId, datasetName, previousResult, storeStartDate, storeEndDate);
+                $("#spinner").hide();
+            }
+        }
+    }
+
+    // Options for the fast chart renderer, mirroring the Vega-Lite chart settings
+    function fastChartOptions() {
+        return {
+            groupSpec: fastChartGroupSpec,
+            // chart types (bar/histogram/heatmap) only apply on the sensor page; on
+            // the asset page it's either the Charge Point sessions chart or the
+            // default multi-sensor line chart.
+            chartType: ('{{ active_page }}' === 'sensors') ? chartType
+                : (chartType === 'chart_for_chargepoint_sessions') ? chartType
+                : 'line',
+            legendsBelow: {{ 'true' if session.get("keep_legends_below_graphs") else 'false' }},
+            // sensor page always shows legend below (single sensor, sources are the legend entries)
+            isSensorPage: ('{{ active_page }}' === 'sensors'),
+            datasetName: datasetName,
+            annotations: (previousResult && previousResult.annotations) ? previousResult.annotations : [],
+            // The requested query window, so the x-axis spans the whole selected
+            // range even when data only covers part of it (matches Vega-Lite).
+            timeWindow: fastChartWindow,
+        };
+    }
+
+    // Re-render the fast chart from the most recently fetched data
+    // (no-op outside fast mode, or when the current chart type isn't supported in fast mode)
+    function updateFastChart() {
+        if (!fastRenderActive() || !previousResult || !previousResult.data) { return; }
+        // Re-assert visibility, as other scripts (e.g. saving sensors_to_show) unhide the Vega-Lite chart
+        const vegaDiv = document.getElementById(elementId);
+        const fastDiv = document.getElementById(fastChartElementId);
+        if (vegaDiv) { vegaDiv.style.display = 'none'; }
+        if (fastDiv) { fastDiv.style.display = 'block'; }
+        renderFastChart(fastChartElementId, previousResult.data, fastChartOptions());
+        {% if active_page == "assets" %}
+        // Warn about data clamped by a strict y-axis range, as the Vega-Lite path does.
+        // (checkStrictYAxisRanges de-duplicates, so calling it here too is harmless.)
+        checkStrictYAxisRanges(previousResult.data, sensorsToShowForYAxisCheck);
+        {% endif %}
+    }
+
     async function embedAndLoad(chartSpecsPath, elementId, datasetName, previousResult, startDate, endDate) {
+        if (fastRenderActive()) { return; }  // in fast mode, data is rendered by updateFastChart instead
         const url = encodeUrlQuery(chartSpecsPath + 'dataset_name=' + datasetName + '&combine_legend=' + combineLegend + '&width=container&include_sensor_annotations=true&include_asset_annotations=true&chart_type=' + chartType);
         await vegaEmbed('#' + elementId, url, {{ chart_options | safe }})
       .then(function (result) {
@@ -663,6 +883,14 @@
         controller.abort();
         controller = new AbortController();
         signal = controller.signal;
+
+        // In fast mode: clear the replay ruler and re-render the most recent data
+        if (fastRenderActive()) {
+            setFastChartReplayTime(fastChartElementId, null);
+            updateFastChart();
+            document.getElementById('replay-time').innerHTML = '';
+            return;
+        }
 
         // Remove replay ruler and replay time
         if (!vegaView) {
@@ -748,21 +976,26 @@
                 // Update beliefs in the replayed data given the new data
                 replayedData = updateBeliefs(replayedData, newData);
 
-                if (!vegaView) {
-                    break;
-                }
+                if (fastRenderActive()) {
+                    setFastChartReplayTime(fastChartElementId, beliefTime.getTime());
+                    renderFastChart(fastChartElementId, replayedData, fastChartOptions());
+                } else {
+                    if (!vegaView) {
+                        break;
+                    }
 
-                /** When selecting a longer time period (more than a week), the replay slows down a bit. This
-                 * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
-                 * loading that data into the graph takes 30-200 ms, depending on how much data is shown in the
-                 * graph. After trying different approaches, we fell back to the original approach of telling vega
-                 * to remove all previous data and to insert a completely new dataset at each iteration. Updating
-                 * the view with removing only a few data points (representing obsolete beliefs) and inserting only
-                 * a few data points (representing the most recent new beliefs) actually made it slower.
-                 */
-                vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData));
-                vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({ 'belief_time': beliefTime }));
-                vegaView.run().finalize();
+                    /** When selecting a longer time period (more than a week), the replay slows down a bit. This
+                     * seems to be mainly from reloading the data into the graph. Slicing the data takes 10-30 ms, and
+                     * loading that data into the graph takes 30-200 ms, depending on how much data is shown in the
+                     * graph. After trying different approaches, we fell back to the original approach of telling vega
+                     * to remove all previous data and to insert a completely new dataset at each iteration. Updating
+                     * the view with removing only a few data points (representing obsolete beliefs) and inserting only
+                     * a few data points (representing the most recent new beliefs) actually made it slower.
+                     */
+                    vegaView.change(datasetName, vega.changeset().remove(vega.truthy).insert(replayedData));
+                    vegaView.change('replay', vega.changeset().remove(vega.truthy).insert({ 'belief_time': beliefTime }));
+                    vegaView.run().finalize();
+                }
 
                 document.getElementById('replay-time').innerHTML = beliefTime;
 
