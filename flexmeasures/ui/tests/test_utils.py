@@ -101,22 +101,41 @@ def test_ui_flexcontext_schema():
 
 def test_ui_flexmodel_schema():
     """
-    This test ensures that all fields in the DBStorageFlexModelSchema are also in the UI schema and vice versa.
+    UI_FLEX_MODEL_SCHEMA is now derived from DBStorageFlexModelSchema (the single
+    source of truth) by _build_ui_flex_model_schema, so DB<->UI parity is guaranteed
+    by construction: a DB field without UI presentation info raises at import time.
 
-    This is important to keep in mind when updating either schema. We want to avoid a situation
-    where a field is added to the DB schema but not to the UI schema, as that would lead to
-    inconsistencies and potential bugs in the application.
+    Here we assert the remaining property that cannot be guaranteed structurally:
+    that every derived UI entry is well-formed (has the expected keys and a
+    non-empty backend type token). If someone adds a flex-model field but leaves
+    its UI presentation info incomplete, this fails with a clear message.
     """
-    ui_flexmodel_schema_fields = [key for key, value in UI_FLEX_MODEL_SCHEMA.items()]
+    schema_keys = {
+        (value.data_key if value.data_key else value.name)
+        for value in DBStorageFlexModelSchema().fields.values()
+    }
 
-    schema_keys = []
-    for value in DBStorageFlexModelSchema().fields.values():
-        schema_keys.append(value.data_key if value.data_key else value.name)
+    # Parity is by construction: the derived schema covers exactly the DB fields.
+    assert set(UI_FLEX_MODEL_SCHEMA.keys()) == schema_keys
 
-    schema_keys = set(schema_keys)
-    ui_flexmodel_schema_fields = set(ui_flexmodel_schema_fields)
-
-    assert schema_keys == ui_flexmodel_schema_fields
+    for key, entry in UI_FLEX_MODEL_SCHEMA.items():
+        assert set(entry.keys()) == {
+            "default",
+            "description",
+            "types",
+            "example-units",
+        }, f"UI flex-model entry '{key}' has unexpected keys: {sorted(entry.keys())}"
+        assert set(entry["types"].keys()) == {
+            "backend",
+            "ui",
+        }, f"UI flex-model entry '{key}' has a malformed 'types' sub-dict."
+        assert entry["types"][
+            "backend"
+        ], f"UI flex-model entry '{key}' has an empty backend type token."
+        assert entry["types"][
+            "ui"
+        ], f"UI flex-model entry '{key}' has an empty UI help string."
+        assert entry["description"], f"UI flex-model entry '{key}' has no description."
 
 
 class NewAsset:
