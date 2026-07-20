@@ -864,6 +864,17 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
     It also records the source of the belief, and the sensor that the event pertains to.
     """
 
+    # Store these as single-precision floats (float4/REAL, 4 bytes) rather than the
+    # double-precision (float8, 8 bytes) that timely_beliefs' TimedBeliefDBMixin uses.
+    # This roughly halves the width of the two per-row value columns, cutting the size
+    # of the (typically largest) timed_belief table by ~15-20%. ~7 significant digits
+    # of single precision are plenty for sensor readings and for a cumulative
+    # probability in [0, 1]. Keep in sync with the matching Alembic migration.
+    cumulative_probability = db.Column(
+        db.Float(precision=24), nullable=False, primary_key=True, default=0.5
+    )
+    event_value = db.Column(db.Float(precision=24), nullable=False)
+
     @declared_attr
     def source_id(cls):
         return db.Column(db.Integer, db.ForeignKey("data_source.id"), primary_key=True)
