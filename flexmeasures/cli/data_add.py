@@ -1348,12 +1348,12 @@ def add_schedule(  # noqa C901
                 **MsgStyle.SUCCESS,
             )
     else:
-        success = make_schedule(
+        make_schedule(
             asset_or_sensor=get_asset_or_sensor_ref(asset_or_sensor),
             dry_run=dry_run,
             **scheduling_kwargs,
         )
-        if success and not dry_run:
+        if not dry_run:
             click.secho("New schedule is stored.", **MsgStyle.SUCCESS)
 
 

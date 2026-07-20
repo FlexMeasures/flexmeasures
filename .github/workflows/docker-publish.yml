@@ -16,6 +16,11 @@ on:
       tag:
         description: "Git tag to build/push (e.g. v1.0.0). Required when run manually."
         required: false
+      latest:
+        description: "Also push as `latest`. Only tick this when re-running a stable release; never for a pre-release."
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -42,8 +47,24 @@ jobs:
           # on the `release` webhook payload, reflecting whether the "Set as
           # a pre-release" checkbox was ticked when the GitHub Release was
           # created. We only want stable releases to also claim `:latest`.
+          #
+          # On `workflow_dispatch` there is no release payload at all, so that
+          # field renders as an empty string -- which would sail past a bare
+          # `!= "true"` check and clobber `:latest` with a manually built image.
+          # Hence the explicit event check, with an opt-in input to keep the
+          # documented "re-run a stable release" path working.
+          if [ "${{ github.event_name }}" = "release" ]; then
+            if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+              PUSH_LATEST=false
+            else
+              PUSH_LATEST=true
+            fi
+          else
+            PUSH_LATEST="${{ inputs.latest }}"
+          fi
+
           IMAGE_TAGS="lfenergy/flexmeasures:${TAG}"
-          if [ "${{ github.event.release.prerelease }}" != "true" ]; then
+          if [ "$PUSH_LATEST" = "true" ]; then
             IMAGE_TAGS="${IMAGE_TAGS}
           lfenergy/flexmeasures:latest"
           fi
