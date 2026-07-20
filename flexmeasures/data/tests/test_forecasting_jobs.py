@@ -10,7 +10,8 @@ from rq.timeouts import JobTimeoutException
 
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 from flexmeasures.data.services.forecasting import (
-    FORECASTING_JOB_TIMEOUT_LOG_MESSAGE,
+    FORECASTING_JOB_TIMEOUT_HINT,
+    FORECASTING_JOB_TIMEOUT_HOST_HINT,
     handle_forecasting_exception,
 )
 from flexmeasures.utils.job_utils import work_on_rq
@@ -107,7 +108,9 @@ def test_failed_forecasting_job_does_not_enqueue_fallback(
     assert app.queues["forecasting"].count == 0
 
 
-def test_forecasting_job_timeout_exception_logs_host_hint(app, clean_redis, caplog):
+def test_forecasting_job_timeout_exception_routes_hints_by_audience(
+    app, clean_redis, caplog
+):
     job = app.queues["forecasting"].enqueue(sum, [1, 2])
 
     with caplog.at_level(logging.WARNING):
@@ -120,10 +123,12 @@ def test_forecasting_job_timeout_exception_logs_host_hint(app, clean_redis, capl
 
     failed_job = Job.fetch(job.id, connection=app.queues["forecasting"].connection)
 
-    assert FORECASTING_JOB_TIMEOUT_LOG_MESSAGE in caplog.text
+    assert FORECASTING_JOB_TIMEOUT_HINT in caplog.text
+    assert FORECASTING_JOB_TIMEOUT_HOST_HINT in caplog.text
     assert failed_job.meta["failures"] == 1
     assert failed_job.meta["exception"]["type"] == "JobTimeoutException"
-    assert "hint" not in failed_job.meta["exception"]
+    assert failed_job.meta["exception"]["hint"] == FORECASTING_JOB_TIMEOUT_HINT
+    assert FORECASTING_JOB_TIMEOUT_HOST_HINT not in failed_job.meta["exception"]["hint"]
 
 
 def test_forecasting_job_meta_is_json_serializable(
