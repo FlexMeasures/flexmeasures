@@ -8,13 +8,14 @@ import click
 from rq.timeouts import JobTimeoutException
 
 
-FORECASTING_JOB_TIMEOUT_LOG_MESSAGE = (
-    "Forecasting job timed out. To reduce runtime per job, decrease "
-    "max-forecast-horizon or create more forecast cycles by setting "
-    "forecast-frequency to a smaller timedelta (and retrain-frequency too, if it "
-    "is larger). This splits the request into more, shorter jobs. Alternatively, "
-    "increase FLEXMEASURES_JOB_TIMEOUT for the forecasting queue."
+FORECASTING_JOB_TIMEOUT_HINT = (
+    "Forecasting job timed out. "
+    "Decrease max-forecast-horizon to reduce runtime per job. "
+    "To create more forecast cycles, set forecast-frequency to a smaller timedelta. "
+    "If retrain-frequency is larger, decrease it too. "
+    "More cycles split the request into more, shorter jobs."
 )
+FORECASTING_JOB_TIMEOUT_HOST_HINT = "Alternatively, hosts can increase FLEXMEASURES_JOB_TIMEOUT for the forecasting queue."
 
 
 # TODO: we could also monitor the failed queue and re-enqueue jobs who had missing data
@@ -44,7 +45,12 @@ def handle_forecasting_exception(job, exc_type, exc_value, traceback):
 
     if isinstance(exc_type, type) and issubclass(exc_type, JobTimeoutException):
         logger = logging.getLogger(__name__)
-        logger.warning(FORECASTING_JOB_TIMEOUT_LOG_MESSAGE)
+        logger.warning(
+            "%s %s",
+            FORECASTING_JOB_TIMEOUT_HINT,
+            FORECASTING_JOB_TIMEOUT_HOST_HINT,
+        )
+        exception["hint"] = FORECASTING_JOB_TIMEOUT_HINT
 
     job.meta["exception"] = exception
     job.save_meta()
