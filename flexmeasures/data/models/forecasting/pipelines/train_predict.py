@@ -234,6 +234,7 @@ class TrainPredictPipeline(Forecaster):
             ensure_positive=self._config["ensure_positive"],
             missing_threshold=self._config.get("missing_threshold"),
             annotation_regressors=self._config.get("annotation_regressors", []),
+            model_params=self._config.get("model_params"),
         )
         logging.info(f"Training cycle from {train_start} to {train_end} started ...")
         train_start_time = time.time()

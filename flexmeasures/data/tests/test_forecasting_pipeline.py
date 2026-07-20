@@ -1931,3 +1931,38 @@ def test_annotation_regressor_belief_time_after_vantage_point_is_hidden(monkeypa
     # Not yet known at the vantage point, so the regressor reads 0 rather than 1.
     assert values.loc[pd.Timestamp("2025-01-08T00:00:00")] == 0.0
     assert values.loc[pd.Timestamp("2025-01-08T01:00:00")] == 0.0
+
+
+def test_model_params_are_merged_over_defaults():
+    """Overrides change only the keys they name; the rest keep their defaults."""
+    default = CustomLGBM(max_forecast_horizon=1)
+    overridden = CustomLGBM(
+        max_forecast_horizon=1,
+        models_params={"max_depth": 6, "min_child_samples": 10},
+    )
+
+    assert default.models_params["max_depth"] == 3
+    assert default.models_params["min_child_samples"] == 50
+
+    assert overridden.models_params["max_depth"] == 6
+    assert overridden.models_params["min_child_samples"] == 10
+    # Untouched keys survive, so a user does not have to restate the whole config.
+    assert (
+        overridden.models_params["add_encoders"]
+        == default.models_params["add_encoders"]
+    )
+    assert overridden.models_params["random_state"] == 42
+    assert overridden.models_params["verbose"] == -1
+
+
+def test_model_params_can_reach_darts_categorical_covariates():
+    """Darts-level keys pass through, which is what a day-type covariate needs."""
+    model = CustomLGBM(
+        max_forecast_horizon=1,
+        models_params={
+            "categorical_future_covariates": ["day_type"],
+            "min_data_per_group": 20,
+        },
+    )
+    assert model.models_params["categorical_future_covariates"] == ["day_type"]
+    assert model.models_params["min_data_per_group"] == 20

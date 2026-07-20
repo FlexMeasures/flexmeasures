@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "0.33.2"
+    "version": "1.0.0"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -4896,6 +4896,19 @@
             "items": {
               "$ref": "#/components/schemas/AnnotationRegressor"
             }
+          },
+          "model-params": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "default": null,
+            "description": "LightGBM parameter overrides, merged over the defaults. Only the keys you pass are changed. These are handed to Darts' LightGBMModel, so besides LightGBM's own parameters (e.g. 'max_depth', 'min_child_samples', 'min_data_per_group') this also reaches 'add_encoders' and 'categorical_future_covariates'. Note that 'lags', 'lags_future_covariates' and 'output_chunk_shift' are derived per forecast horizon and cannot be overridden here.",
+            "example": {
+              "max_depth": 6,
+              "min_child_samples": 10
+            },
+            "additionalProperties": {}
           },
           "missing-threshold": {
             "type": "number",

@@ -163,6 +163,28 @@ class TrainPredictPipelineConfigSchema(Schema):
             },
         },
     )
+    model_params = fields.Dict(
+        keys=fields.Str(),
+        data_key="model-params",
+        load_default=None,
+        allow_none=True,
+        metadata={
+            "description": (
+                "LightGBM parameter overrides, merged over the defaults. Only the keys"
+                " you pass are changed. These are handed to Darts' LightGBMModel, so"
+                " besides LightGBM's own parameters (e.g. 'max_depth',"
+                " 'min_child_samples', 'min_data_per_group') this also reaches"
+                " 'add_encoders' and 'categorical_future_covariates'. Note that 'lags',"
+                " 'lags_future_covariates' and 'output_chunk_shift' are derived per"
+                " forecast horizon and cannot be overridden here."
+            ),
+            "example": {"max_depth": 6, "min_child_samples": 10},
+            "cli": {
+                "option": "--model-params",
+                "extra_help": "Pass as JSON, e.g. '{\"max_depth\": 6}'.",
+            },
+        },
+    )
     missing_threshold = fields.Float(
         data_key="missing-threshold",
         load_default=1.0,
