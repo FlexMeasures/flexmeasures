@@ -27,6 +27,7 @@ from flexmeasures.api.common.responses import (
     unprocessable_entity,
     fallback_schedule_redirect,
 )
+from flexmeasures.api.v3_0.deprecations import JOB_RESPONSE_FIELDS_DEPRECATION_DATE
 from flexmeasures.api.common.schemas.utils import make_openapi_compatible
 from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
     SensorDataDescriptionSchema,
@@ -84,6 +85,14 @@ from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.services.data_sources import get_data_generator
 from flexmeasures.data.schemas.forecasting.pipeline import (
     ForecastingTriggerSchema,
+)
+
+API_V3_0_DOCS_URL = "https://flexmeasures.readthedocs.io/latest/api/v3_0.html"
+SENSOR_SCHEDULE_TRIGGER_DOCS_URL = (
+    f"{API_V3_0_DOCS_URL}#post--api-v3_0-sensors-id-schedules-trigger"
+)
+SENSOR_FORECAST_TRIGGER_DOCS_URL = (
+    f"{API_V3_0_DOCS_URL}#post--api-v3_0-sensors-id-forecasts-trigger"
 )
 
 # Instantiate schemes outside of endpoint logic to minimize response time
@@ -977,12 +986,17 @@ class SensorAPI(FlaskView):
                   description: Indicates that the response contains deprecated fields.
                   schema:
                     type: string
-                    example: "true"
+                    example: "Wed, 01 Jul 2026 00:00:00 GMT"
                 Link:
                   description: Link to migration guidance for deprecated response fields.
                   schema:
                     type: string
-                    example: '<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel="deprecation"; type="text/html"'
+                    example: '<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>; rel="deprecation"; type="text/html"'
+                FlexMeasures-Deprecated-Response-Fields:
+                  description: Comma-separated response fields that are deprecated.
+                  schema:
+                    type: string
+                    example: "schedule"
               content:
                 application/json:
                   schema:
@@ -1080,6 +1094,8 @@ class SensorAPI(FlaskView):
             job_results_url=url_for(
                 "SensorAPI:get_schedule", id=sensor.id, uuid=job.id
             ),
+            deprecation_link=SENSOR_SCHEDULE_TRIGGER_DOCS_URL,
+            deprecation_date=JOB_RESPONSE_FIELDS_DEPRECATION_DATE,
         )
 
     # mark endpoint as deprecated
@@ -1979,12 +1995,17 @@ class SensorAPI(FlaskView):
                   description: Indicates that the response contains deprecated fields.
                   schema:
                     type: string
-                    example: "true"
+                    example: "Wed, 01 Jul 2026 00:00:00 GMT"
                 Link:
                   description: Link to migration guidance for deprecated response fields.
                   schema:
                     type: string
-                    example: '<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel="deprecation"; type="text/html"'
+                    example: '<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>; rel="deprecation"; type="text/html"'
+                FlexMeasures-Deprecated-Response-Fields:
+                  description: Comma-separated response fields that are deprecated.
+                  schema:
+                    type: string
+                    example: "forecast"
               content:
                 application/json:
                   schema:
@@ -2064,6 +2085,8 @@ class SensorAPI(FlaskView):
             job_results_url=url_for(
                 "SensorAPI:get_forecast", id=id, uuid=pipeline_returns["job_id"]
             ),
+            deprecation_link=SENSOR_FORECAST_TRIGGER_DOCS_URL,
+            deprecation_date=JOB_RESPONSE_FIELDS_DEPRECATION_DATE,
         )
 
     @route("/<id>/forecasts/<uuid>", methods=["GET"])

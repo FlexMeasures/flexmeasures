@@ -8,8 +8,13 @@ import pandas as pd
 from rq.job import Job
 from sqlalchemy import select
 
-from flexmeasures.api.common.responses import unknown_schedule, unrecognized_event
+from flexmeasures.api.common.responses import (
+    DEPRECATED_RESPONSE_FIELDS_HEADER,
+    unknown_schedule,
+    unrecognized_event,
+)
 from flexmeasures.api.tests.utils import check_deprecation
+from flexmeasures.api.v3_0.deprecations import JOB_RESPONSE_FIELDS_DEPRECATION_DATE
 from flexmeasures.api.v3_0.tests.utils import (
     get_sensor_by_name,
     message_for_trigger_schedule,
@@ -298,9 +303,19 @@ def test_trigger_and_get_schedule_with_unknown_prices(
     )
     print("Server responded with:\n%s" % trigger_schedule_response.json)
     assert trigger_schedule_response.status_code == 202
-    assert trigger_schedule_response.headers["Deprecation"] == "true"
+    assert (
+        trigger_schedule_response.headers["Deprecation"]
+        == JOB_RESPONSE_FIELDS_DEPRECATION_DATE
+    )
     assert 'rel="deprecation"' in trigger_schedule_response.headers["Link"]
-    assert "background-job-monitoring" in trigger_schedule_response.headers["Link"]
+    assert (
+        "post--api-v3_0-sensors-id-schedules-trigger"
+        in trigger_schedule_response.headers["Link"]
+    )
+    assert (
+        trigger_schedule_response.headers[DEPRECATED_RESPONSE_FIELDS_HEADER]
+        == "schedule"
+    )
     job_id = trigger_schedule_response.json["schedule"]
 
     # look for scheduling jobs in queue

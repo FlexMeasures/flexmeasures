@@ -10,6 +10,8 @@ from flask import url_for
 from redis.exceptions import ConnectionError as RedisConnectionError
 from rq.job import Job, JobStatus
 
+from flexmeasures.api.common.responses import DEPRECATED_RESPONSE_FIELDS_HEADER
+from flexmeasures.api.v3_0.deprecations import JOB_RESPONSE_FIELDS_DEPRECATION_DATE
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
@@ -37,9 +39,12 @@ def assert_legacy_job_status_fields(data: dict):
 
 
 def assert_deprecated_response_fields_headers(response):
-    assert response.headers["Deprecation"] == "true"
+    assert response.headers["Deprecation"] == JOB_RESPONSE_FIELDS_DEPRECATION_DATE
     assert 'rel="deprecation"' in response.headers["Link"]
-    assert "background-job-monitoring" in response.headers["Link"]
+    assert "get--api-v3_0-jobs-uuid" in response.headers["Link"]
+    assert response.headers[DEPRECATED_RESPONSE_FIELDS_HEADER] == ", ".join(
+        JOB_STATUS_DEPRECATED_FIELDS.keys()
+    )
 
 
 @pytest.mark.parametrize(

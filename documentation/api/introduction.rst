@@ -257,15 +257,16 @@ Deprecated response fields
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 In addition to deprecating entire endpoints, we sometimes deprecate individual fields in API responses while maintaining backward compatibility by including both the legacy and canonical fields.
-When this happens, responses include a ``Deprecation`` response header and a ``Link`` header pointing to migration guidance.
+When this happens, responses include a ``Deprecation`` response header with the deprecation date, a ``Link`` header pointing to migration guidance, and a ``FlexMeasures-Deprecated-Response-Fields`` header identifying the deprecated fields in that response.
 
 For example, when scheduling endpoints switched from ``schedule`` to ``job`` as the canonical field identifier for background jobs, a response that still contains the legacy ``schedule`` field also carries deprecation headers:
 
 .. code-block:: http
 
     HTTP/1.1 202 Accepted
-    Deprecation: true
-    Link: <https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel="deprecation"; type="text/html"
+    Deprecation: Wed, 01 Jul 2026 00:00:00 GMT
+    Link: <https://flexmeasures.readthedocs.io/latest/api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>; rel="deprecation"; type="text/html"
+    FlexMeasures-Deprecated-Response-Fields: schedule
     Content-Type: application/json
 
     {
@@ -277,13 +278,16 @@ For example, when scheduling endpoints switched from ``schedule`` to ``job`` as 
     }
 
 In this example, clients should treat ``job`` as the canonical field and ``schedule`` as a backward-compatible alias.
-The ``Deprecation`` header tells clients that the response includes deprecated content, and the ``Link`` header points to migration guidance.
+The ``FlexMeasures-Deprecated-Response-Fields`` header tells clients which response fields are deprecated, the ``Deprecation`` header tells clients when they were deprecated, and the ``Link`` header points to migration guidance for this endpoint.
 
 Professional API users should monitor API responses for the ``"Deprecation"`` and ``"Sunset"`` response headers [see `draft-ietf-httpapi-deprecation-header-02 <https://datatracker.ietf.org/doc/draft-ietf-httpapi-deprecation-header/>`_ and `RFC 8594 <https://www.rfc-editor.org/rfc/rfc8594>`_, respectively], so system administrators can be warned when using API endpoints that are flagged for deprecation and/or are likely to become unresponsive in the future.
+The ``Deprecation`` header may describe either the endpoint itself or specific response fields.
+Clients can tell the difference by checking for ``FlexMeasures-Deprecated-Response-Fields``: if it is present, only the named response fields are deprecated; if it is absent, the deprecation applies to the endpoint or API version as a whole.
 
 For deprecated response fields, clients should:
 
-- Monitor the ``Deprecation`` response header to detect responses that contain deprecated fields.
+- Monitor the ``Deprecation`` response header to detect deprecated API behavior.
+- Use the ``FlexMeasures-Deprecated-Response-Fields`` header to identify which response fields are deprecated.
 - Follow the ``Link`` response header to find migration guidance.
 - Migrate to use the canonical field names documented in the API schema.
 - Plan upgrades based on the deprecation guidance to avoid breakage when deprecated fields are eventually removed in a future API version.
@@ -295,14 +299,16 @@ Client code should therefore inspect both headers and body fields, for example:
     response = requests.post(trigger_url, json=payload, headers=headers)
     response.raise_for_status()
 
-    if response.headers.get("Deprecation") == "true":
-        print(f"Deprecated response fields detected; see {response.headers.get('Link')}")
+    deprecated_fields = response.headers.get("FlexMeasures-Deprecated-Response-Fields")
+    if deprecated_fields:
+        print(f"Deprecated response fields detected: {deprecated_fields}")
+        print(f"See {response.headers.get('Link')}")
 
     data = response.json()
     job_id = data["job"]
 
 For endpoint deprecations, the deprecation header field shows an `IMF-fixdate <https://www.rfc-editor.org/rfc/rfc7231#section-7.1.1.1>`_ indicating when the API endpoint was deprecated.
-For deprecated response fields, the header value can be ``true`` and the ``Link`` header points to migration guidance.
+For deprecated response fields, the deprecation header field also shows an IMF-fixdate, while the presence of the ``FlexMeasures-Deprecated-Response-Fields`` header narrows the deprecation to the named response fields.
 The sunset header field shows an `IMF-fixdate <https://www.rfc-editor.org/rfc/rfc7231#section-7.1.1.1>`_ indicating when the API endpoint is likely to become unresponsive.
 
 More information about a deprecation, sunset, and possibly recommended replacements, can be found under the ``"Link"`` response header. Relevant relations are:

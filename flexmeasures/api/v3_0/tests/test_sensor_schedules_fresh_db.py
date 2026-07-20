@@ -7,6 +7,8 @@ import pandas as pd
 from rq.job import Job
 from unittest.mock import patch
 
+from flexmeasures.api.common.responses import DEPRECATED_RESPONSE_FIELDS_HEADER
+from flexmeasures.api.v3_0.deprecations import JOB_RESPONSE_FIELDS_DEPRECATION_DATE
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.planning.utils import get_power_values
@@ -74,9 +76,19 @@ def test_trigger_and_get_schedule(
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
         assert trigger_schedule_response.status_code == 202
-        assert trigger_schedule_response.headers["Deprecation"] == "true"
+        assert (
+            trigger_schedule_response.headers["Deprecation"]
+            == JOB_RESPONSE_FIELDS_DEPRECATION_DATE
+        )
         assert 'rel="deprecation"' in trigger_schedule_response.headers["Link"]
-        assert "background-job-monitoring" in trigger_schedule_response.headers["Link"]
+        assert (
+            "post--api-v3_0-sensors-id-schedules-trigger"
+            in trigger_schedule_response.headers["Link"]
+        )
+        assert (
+            trigger_schedule_response.headers[DEPRECATED_RESPONSE_FIELDS_HEADER]
+            == "schedule"
+        )
         assert "deprecated-fields" not in trigger_schedule_response.json
         assert trigger_schedule_response.json["results-url"] == url_for(
             "SensorAPI:get_schedule",

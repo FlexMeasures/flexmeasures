@@ -14,17 +14,19 @@ p = inflect.engine()
 ResponseTuple = tuple[dict, int] | tuple[dict, int, dict]
 
 
-DEPRECATED_RESPONSE_FIELDS_LINK = (
-    "https://flexmeasures.readthedocs.io/en/latest/api/"
-    "introduction.html#background-job-monitoring"
-)
+DEPRECATED_RESPONSE_FIELDS_HEADER = "FlexMeasures-Deprecated-Response-Fields"
 
 
-def deprecated_response_fields_headers() -> dict[str, str]:
+def deprecated_response_fields_headers(
+    fields: Sequence[str],
+    deprecation_link: str,
+    deprecation_date: str,
+) -> dict[str, str]:
     """Headers used when a response contains deprecated fields."""
     return {
-        "Deprecation": "true",
-        "Link": f'<{DEPRECATED_RESPONSE_FIELDS_LINK}>; rel="deprecation"; type="text/html"',
+        "Deprecation": deprecation_date,
+        "Link": f'<{deprecation_link}>; rel="deprecation"; type="text/html"',
+        DEPRECATED_RESPONSE_FIELDS_HEADER: ", ".join(fields),
     }
 
 
@@ -401,6 +403,8 @@ def request_accepted_for_processing(
     message: str = "Request has been accepted for processing.",
     legacy_key: str | None = None,
     job_results_url: str | None = None,
+    deprecation_link: str | None = None,
+    deprecation_date: str | None = None,
 ) -> ResponseTuple:
     """
     Standard 202 response when a background job is accepted.
@@ -424,7 +428,15 @@ def request_accepted_for_processing(
     if legacy_key:
         # keep legacy key for backwards compatibility
         resp[legacy_key] = job_id
-        return resp, 202, deprecated_response_fields_headers()
+        assert deprecation_link is not None
+        assert deprecation_date is not None
+        return (
+            resp,
+            202,
+            deprecated_response_fields_headers(
+                [legacy_key], deprecation_link, deprecation_date
+            ),
+        )
 
     return resp, 202
 

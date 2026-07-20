@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.0.0"
+    "version": "0.33.2"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -1394,14 +1394,21 @@
                 "description": "Indicates that the response contains deprecated fields.",
                 "schema": {
                   "type": "string",
-                  "example": "true"
+                  "example": "Wed, 01 Jul 2026 00:00:00 GMT"
                 }
               },
               "Link": {
                 "description": "Link to migration guidance for deprecated response fields.",
                 "schema": {
                   "type": "string",
-                  "example": "<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel=\"deprecation\"; type=\"text/html\""
+                  "example": "<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              },
+              "FlexMeasures-Deprecated-Response-Fields": {
+                "description": "Comma-separated response fields that are deprecated.",
+                "schema": {
+                  "type": "string",
+                  "example": "forecast"
                 }
               }
             },
@@ -1578,14 +1585,21 @@
                 "description": "Indicates that the response contains deprecated fields.",
                 "schema": {
                   "type": "string",
-                  "example": "true"
+                  "example": "Wed, 01 Jul 2026 00:00:00 GMT"
                 }
               },
               "Link": {
                 "description": "Link to migration guidance for deprecated response fields.",
                 "schema": {
                   "type": "string",
-                  "example": "<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel=\"deprecation\"; type=\"text/html\""
+                  "example": "<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              },
+              "FlexMeasures-Deprecated-Response-Fields": {
+                "description": "Comma-separated response fields that are deprecated.",
+                "schema": {
+                  "type": "string",
+                  "example": "schedule"
                 }
               }
             },
@@ -4165,14 +4179,21 @@
                 "description": "Indicates that the response contains deprecated fields.",
                 "schema": {
                   "type": "string",
-                  "example": "true"
+                  "example": "Wed, 01 Jul 2026 00:00:00 GMT"
                 }
               },
               "Link": {
                 "description": "Link to migration guidance for deprecated response fields.",
                 "schema": {
                   "type": "string",
-                  "example": "<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel=\"deprecation\"; type=\"text/html\""
+                  "example": "<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              },
+              "FlexMeasures-Deprecated-Response-Fields": {
+                "description": "Comma-separated response fields that are deprecated.",
+                "schema": {
+                  "type": "string",
+                  "example": "schedule"
                 }
               }
             },
@@ -4431,14 +4452,21 @@
                 "description": "Indicates that the response contains deprecated fields.",
                 "schema": {
                   "type": "string",
-                  "example": "true"
+                  "example": "Wed, 01 Jul 2026 00:00:00 GMT"
                 }
               },
               "Link": {
                 "description": "Link to migration guidance for deprecated response fields.",
                 "schema": {
                   "type": "string",
-                  "example": "<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel=\"deprecation\"; type=\"text/html\""
+                  "example": "<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#get--api-v3_0-jobs-uuid>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              },
+              "FlexMeasures-Deprecated-Response-Fields": {
+                "description": "Comma-separated response fields that are deprecated.",
+                "schema": {
+                  "type": "string",
+                  "example": "func_name, enqueued_at, started_at, ended_at, exc_info"
                 }
               }
             },
@@ -4611,14 +4639,21 @@
                 "description": "Indicates that the response contains deprecated fields.",
                 "schema": {
                   "type": "string",
-                  "example": "true"
+                  "example": "Wed, 01 Jul 2026 00:00:00 GMT"
                 }
               },
               "Link": {
                 "description": "Link to migration guidance for deprecated response fields.",
                 "schema": {
                   "type": "string",
-                  "example": "<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel=\"deprecation\"; type=\"text/html\""
+                  "example": "<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#get--api-v3_0-jobs-uuid>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              },
+              "FlexMeasures-Deprecated-Response-Fields": {
+                "description": "Comma-separated response fields that are deprecated.",
+                "schema": {
+                  "type": "string",
+                  "example": "func_name, enqueued_at, started_at, ended_at, exc_info"
                 }
               }
             }
@@ -4630,14 +4665,21 @@
                 "description": "Indicates that the response contains deprecated fields.",
                 "schema": {
                   "type": "string",
-                  "example": "true"
+                  "example": "Wed, 01 Jul 2026 00:00:00 GMT"
                 }
               },
               "Link": {
                 "description": "Link to migration guidance for deprecated response fields.",
                 "schema": {
                   "type": "string",
-                  "example": "<https://flexmeasures.readthedocs.io/en/latest/api/introduction.html#background-job-monitoring>; rel=\"deprecation\"; type=\"text/html\""
+                  "example": "<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#get--api-v3_0-jobs-uuid>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              },
+              "FlexMeasures-Deprecated-Response-Fields": {
+                "description": "Comma-separated response fields that are deprecated.",
+                "schema": {
+                  "type": "string",
+                  "example": "func_name, enqueued_at, started_at, ended_at, exc_info"
                 }
               }
             }
