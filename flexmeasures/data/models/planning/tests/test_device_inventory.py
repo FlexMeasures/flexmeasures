@@ -250,6 +250,88 @@ def test_conflicting_stock_params_raise():
     assert inventory.stock_params(soc.id) is stock_only_entry
 
 
+def test_group_entry_classification():
+    """An entry whose own sensor is referenced by another entry's "group" field is
+    classified as a group entry (not as a device), and the group's member devices
+    resolve to their canonical device indices."""
+    power_a = make_sensor(1)
+    power_b = make_sensor(2)
+    group_sensor = make_sensor(10)
+
+    group_entry = {"sensor": group_sensor, "power_capacity_in_mw": 0.001}
+    inventory = DeviceInventory.from_flex_config(
+        [
+            {"sensor": power_a, "group": {"sensor": group_sensor}},
+            {"sensor": power_b, "group": {"sensor": group_sensor}},
+            group_entry,
+        ]
+    )
+
+    assert [entry.role for entry in inventory.entries] == [
+        DeviceRole.DEVICE,
+        DeviceRole.DEVICE,
+        DeviceRole.GROUP,
+    ]
+    # The group entry is not a schedulable device, so it gets no device index.
+    assert inventory.num_flexible == 2
+    assert inventory.power_sensors == [power_a, power_b]
+    assert inventory.group_entries == {("sensor", group_sensor.id): group_entry}
+    assert inventory.group_to_devices == {("sensor", group_sensor.id): [0, 1]}
+
+
+def test_nested_group_resolves_to_leaf_devices():
+    """Group membership is resolved transitively: a group entry belonging to another
+    group contributes its member devices to the outer group."""
+    power_a = make_sensor(1)
+    inner_group_sensor = make_sensor(10)
+    outer_group_sensor = make_sensor(20)
+
+    inventory = DeviceInventory.from_flex_config(
+        [
+            {"sensor": power_a, "group": {"sensor": inner_group_sensor}},
+            {
+                "sensor": inner_group_sensor,
+                "power_capacity_in_mw": 0.001,
+                "group": {"sensor": outer_group_sensor},
+            },
+            {"sensor": outer_group_sensor, "power_capacity_in_mw": 0.002},
+        ]
+    )
+
+    assert inventory.num_flexible == 1
+    assert inventory.group_to_devices == {
+        ("sensor", inner_group_sensor.id): [0],
+        ("sensor", outer_group_sensor.id): [0],
+    }
+
+
+def test_cyclic_group_reference_raises():
+    group_a_sensor = make_sensor(10)
+    group_b_sensor = make_sensor(20)
+
+    inventory = DeviceInventory.from_flex_config(
+        [
+            {"sensor": make_sensor(1), "group": {"sensor": group_a_sensor}},
+            {"sensor": group_a_sensor, "group": {"sensor": group_b_sensor}},
+            {"sensor": group_b_sensor, "group": {"sensor": group_a_sensor}},
+        ]
+    )
+
+    with pytest.raises(ValueError, match="Cyclic"):
+        inventory.group_to_devices
+
+
+def test_group_field_rejected_in_single_sensor_mode():
+    power = make_sensor(1)
+    group_sensor = make_sensor(10)
+
+    with pytest.raises(ValueError, match="multi-device"):
+        DeviceInventory.from_flex_config(
+            {"soc_at_start": 0.0, "group": {"sensor": group_sensor}},
+            sensor=power,
+        )
+
+
 def test_stock_constraint_device():
     """The first member of a stock group applies the stock's SoC constraints."""
     soc = make_sensor(100, unit="kWh")

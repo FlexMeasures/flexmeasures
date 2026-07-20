@@ -792,3 +792,320 @@ def test_asset_trigger_with_flex_context_commodity_not_used(
     assert (
         len(consumption_beliefs_heat) == 0
     ), "heat aggregate-consumption should be empty since no heat device was scheduled"
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_asset_trigger_with_group_power_constraint(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    setup_roles_users_fresh_db,
+    add_charging_station_assets_fresh_db,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    """Test that a `group` flex-model entry bounds the aggregate power of its members.
+
+    Two power sensors (fresh storage devices, siblings under the same charging hub)
+    declare membership of a group (referencing a power sensor also on the hub). A
+    third flex-model entry, for the group sensor itself, declares a hard
+    `power-capacity` that is lower than the sum of the members' individual
+    power-capacities, so it should actually bind (each device has ample state-of-charge
+    room and a cheap-price incentive to charge at full power simultaneously). We verify
+    that:
+    1. the schedule is computed successfully (200 + job success)
+    2. the beliefs saved on the group sensor equal the sum of the members' beliefs
+    3. the group's aggregate power never exceeds the group's power-capacity
+    4. (control run) without the group constraint, the same devices do jointly exceed
+       the group's power-capacity, so the test setup actually exercises the constraint
+    """
+    bidirectional_charging_station = add_charging_station_assets_fresh_db[
+        "Test charging station (bidirectional)"
+    ]
+    charging_hub = bidirectional_charging_station.parent_asset
+
+    # Two fresh storage devices (power + SoC sensor each), with plenty of SoC room
+    # relative to their power-capacity, so each wants to charge at full power
+    # whenever prices are cheap.
+    def make_device(name: str) -> tuple[Sensor, Sensor]:
+        power_sensor = Sensor(
+            name=f"{name} power",
+            generic_asset=charging_hub,
+            unit="MW",
+            event_resolution=pd.Timedelta(minutes=30),
+        )
+        soc_sensor = Sensor(
+            name=f"{name} soc",
+            generic_asset=charging_hub,
+            unit="MWh",
+            event_resolution=pd.Timedelta(minutes=0),
+        )
+        fresh_db.session.add(power_sensor)
+        fresh_db.session.add(soc_sensor)
+        return power_sensor, soc_sensor
+
+    sensor_1, soc_sensor_1 = make_device("device 1")
+    sensor_2, soc_sensor_2 = make_device("device 2")
+
+    # Group sensor: a power sensor on the (parent) charging hub
+    group_sensor = Sensor(
+        name="group aggregate power",
+        generic_asset=charging_hub,
+        unit="MW",
+        event_resolution=pd.Timedelta(minutes=30),
+    )
+    fresh_db.session.add(group_sensor)
+    fresh_db.session.flush()
+
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+
+    message = message_for_trigger_schedule(resolution="PT30M")
+    message["flex-context"] = {
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
+        "site-power-capacity": "1 TW",  # avoid infeasibilities from the site cap
+    }
+
+    def make_flex_model(sensor: Sensor, soc_sensor: Sensor, group_sensor: Sensor):
+        return {
+            "sensor": sensor.id,
+            "state-of-charge": {"sensor": soc_sensor.id},
+            "soc-at-start": 0,
+            "soc-min": 0,
+            "soc-max": 10,  # MWh: plenty of room relative to the 2 MW power-capacity
+            "soc-unit": "MWh",
+            "roundtrip-efficiency": "100%",
+            "storage-efficiency": "100%",
+            "power-capacity": "2 MW",
+            "group": {"sensor": group_sensor.id},
+        }
+
+    CP_1_flex_model = make_flex_model(sensor_1, soc_sensor_1, group_sensor)
+    CP_2_flex_model = make_flex_model(sensor_2, soc_sensor_2, group_sensor)
+
+    # The group's own entry: a hard power-capacity lower than the sum of the members'
+    # individual power-capacities (2 MW + 2 MW = 4 MW), so it should actually bind.
+    group_power_capacity = "3 MW"
+    group_flex_model = {
+        "sensor": group_sensor.id,
+        "power-capacity": group_power_capacity,
+    }
+
+    message["flex-model"] = [CP_1_flex_model, CP_2_flex_model, group_flex_model]
+
+    # Trigger the schedule
+    assert len(app.queues["scheduling"]) == 0
+    with app.test_client() as client:
+        trigger_response = client.post(
+            url_for("AssetAPI:trigger_schedule", id=charging_hub.id),
+            json=message,
+        )
+        if trigger_response.status_code != 200:
+            print(f"Error response: {trigger_response.json}")
+        assert trigger_response.status_code == 200
+        job_id = trigger_response.json["schedule"]
+
+    # Process the scheduling queue
+    scheduled_jobs = app.queues["scheduling"].jobs
+    scheduling_job = scheduled_jobs[0]
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+    assert (
+        Job.fetch(job_id, connection=app.queues["scheduling"].connection).is_finished
+        is True
+    )
+
+    # Verify scheduler data source
+    scheduling_job.refresh()
+    scheduler_source = get_data_source_for_job(scheduling_job)
+    assert scheduler_source is not None
+
+    def get_beliefs_as_series(sensor: Sensor) -> pd.Series:
+        beliefs = (
+            TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id)
+            .filter(TimedBelief.source_id == scheduler_source.id)
+            .all()
+        )
+        assert len(beliefs) > 0, f"sensor {sensor.id} should have scheduled data"
+        return pd.Series(
+            [b.event_value for b in beliefs],
+            index=pd.DatetimeIndex([b.event_start for b in beliefs]),
+        ).sort_index()
+
+    sensor_1_schedule = get_beliefs_as_series(sensor_1)
+    sensor_2_schedule = get_beliefs_as_series(sensor_2)
+    group_schedule = get_beliefs_as_series(group_sensor)
+
+    # The group's aggregate should equal the sum of its members (same unit: MW)
+    aggregate_of_members = sensor_1_schedule.add(sensor_2_schedule, fill_value=0)
+    pd.testing.assert_series_equal(
+        aggregate_of_members.sort_index(),
+        group_schedule.sort_index(),
+        check_names=False,
+        atol=1e-6,
+    )
+
+    # The group's aggregate power should respect the (hard) power-capacity
+    group_power_capacity_mw = ur.Quantity(group_power_capacity).to("MW").magnitude
+    assert (
+        group_schedule.abs() <= group_power_capacity_mw + 1e-6
+    ).all(), "the group's aggregate power should never exceed its power-capacity"
+
+    # Sanity check (control run): without the group constraint, the same two devices
+    # should be able to jointly exceed the group's power-capacity (each member alone is
+    # allowed up to 2 MW), confirming that the group constraint actually did something
+    # above rather than being vacuously satisfied.
+    control_message = message.copy()
+    control_CP_1_flex_model = dict(CP_1_flex_model)
+    control_CP_1_flex_model.pop("group")
+    control_CP_2_flex_model = dict(CP_2_flex_model)
+    control_CP_2_flex_model.pop("group")
+    control_message["flex-model"] = [control_CP_1_flex_model, control_CP_2_flex_model]
+    control_message["force-new-job-creation"] = True
+
+    assert len(app.queues["scheduling"]) == 0
+    with app.test_client() as client:
+        control_response = client.post(
+            url_for("AssetAPI:trigger_schedule", id=charging_hub.id),
+            json=control_message,
+        )
+        assert control_response.status_code == 200
+        control_job_id = control_response.json["schedule"]
+
+    work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
+    control_job = Job.fetch(
+        control_job_id, connection=app.queues["scheduling"].connection
+    )
+    assert control_job.is_finished is True, (
+        f"control job ended as '{control_job.get_status()}': "
+        f"{control_job.latest_result().exc_string if control_job.latest_result() else None}"
+    )
+    control_scheduler_source = get_data_source_for_job(
+        Job.fetch(control_job_id, connection=app.queues["scheduling"].connection)
+    )
+    assert control_scheduler_source is not None
+
+    def get_control_beliefs_as_series(sensor: Sensor) -> pd.Series:
+        beliefs = (
+            TimedBelief.query.filter(TimedBelief.sensor_id == sensor.id)
+            .filter(TimedBelief.source_id == control_scheduler_source.id)
+            .all()
+        )
+        assert len(beliefs) > 0, f"sensor {sensor.id} should have scheduled data"
+        return pd.Series(
+            [b.event_value for b in beliefs],
+            index=pd.DatetimeIndex([b.event_start for b in beliefs]),
+        ).sort_index()
+
+    control_sensor_1_schedule = get_control_beliefs_as_series(sensor_1)
+    control_sensor_2_schedule = get_control_beliefs_as_series(sensor_2)
+    control_aggregate = control_sensor_1_schedule.add(
+        control_sensor_2_schedule, fill_value=0
+    )
+    assert control_aggregate.abs().max() > group_power_capacity_mw, (
+        "test setup should actually exercise the group constraint "
+        "(members should be able to jointly exceed the cap without it)"
+    )
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_asset_trigger_with_group_referencing_sensor_outside_asset_tree(
+    app,
+    fresh_db,
+    add_market_prices_fresh_db,
+    setup_roles_users_fresh_db,
+    add_charging_station_assets_fresh_db,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    """A `group` entry referencing a sensor outside the triggered asset's tree should 422.
+
+    This is enforced by `AssetTriggerSchema.check_flex_model_sensors`, which requires
+    every sensor named in the flex-model (including group entries, since they are
+    ordinary flex-model list items) to belong to the triggered asset or one of its
+    offspring.
+    """
+    bidirectional_charging_station = add_charging_station_assets_fresh_db[
+        "Test charging station (bidirectional)"
+    ]
+    charging_station = add_charging_station_assets_fresh_db["Test charging station"]
+    charging_hub = bidirectional_charging_station.parent_asset
+
+    sensor_1 = bidirectional_charging_station.sensors[0]
+    sensor_2 = charging_station.sensors[0]
+    bi_soc_sensor = add_charging_station_assets_fresh_db["bi-soc"]
+    uni_soc_sensor = add_charging_station_assets_fresh_db["uni-soc"]
+
+    # Create a standalone asset outside of the charging hub's tree to host a sensor
+    # that does NOT belong to the charging hub's asset tree
+    from flexmeasures.data.models.generic_assets import GenericAssetType
+
+    standalone_type = GenericAssetType(name="standalone group test type")
+    fresh_db.session.add(standalone_type)
+    fresh_db.session.flush()
+    standalone_asset = GenericAsset(
+        name="Standalone asset outside hub",
+        owner=charging_hub.owner,
+        generic_asset_type=standalone_type,
+        latitude=10,
+        longitude=100,
+    )
+    fresh_db.session.add(standalone_asset)
+    fresh_db.session.flush()
+    outside_group_sensor = Sensor(
+        name="outside group sensor",
+        generic_asset=standalone_asset,
+        unit="MW",
+        event_resolution=pd.Timedelta(minutes=15),
+    )
+    fresh_db.session.add(outside_group_sensor)
+    fresh_db.session.flush()
+
+    price_sensor_id = add_market_prices_fresh_db["epex_da"].id
+
+    message = message_for_trigger_schedule(resolution="PT30M")
+    message["flex-context"] = {
+        "consumption-price": {"sensor": price_sensor_id},
+        "production-price": {"sensor": price_sensor_id},
+        "site-power-capacity": "1 TW",
+    }
+
+    CP_1_flex_model = message["flex-model"].copy()
+    CP_1_flex_model["state-of-charge"] = {"sensor": bi_soc_sensor.id}
+    CP_1_flex_model["sensor"] = sensor_1.id
+    CP_1_flex_model["group"] = {"sensor": outside_group_sensor.id}
+
+    CP_2_flex_model = message["flex-model"].copy()
+    CP_2_flex_model["state-of-charge"] = {"sensor": uni_soc_sensor.id}
+    CP_2_flex_model["sensor"] = sensor_2.id
+    CP_2_flex_model["group"] = {"sensor": outside_group_sensor.id}
+
+    group_flex_model = {
+        "sensor": outside_group_sensor.id,
+        "power-capacity": "3 MW",
+    }
+
+    message["flex-model"] = [CP_1_flex_model, CP_2_flex_model, group_flex_model]
+
+    assert len(app.queues["scheduling"]) == 0
+    with app.test_client() as client:
+        trigger_response = client.post(
+            url_for("AssetAPI:trigger_schedule", id=charging_hub.id),
+            json=message,
+        )
+        assert trigger_response.status_code == 422
+        error_json = trigger_response.json
+        print(f"Error response: {error_json}")
+        errors = error_json.get("errors", error_json)
+        error_message = str(errors)
+        assert str(outside_group_sensor.id) in error_message
+        assert (
+            "does not belong to asset" in error_message
+            or "does not belong to" in error_message
+        )
+
+    # No scheduling job should have been queued
+    assert len(app.queues["scheduling"]) == 0

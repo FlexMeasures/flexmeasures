@@ -1033,7 +1033,16 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
     },
 }
 
-UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
+# Per-field UI presentation info for the storage flex-model editor.
+#
+# This registry does NOT define which flex-model fields exist: the field/key set
+# is derived from ``DBStorageFlexModelSchema`` (the single source of truth) by
+# ``_build_ui_flex_model_schema`` below. This registry only supplies the UI
+# presentation values (default, description, editor type token + help string, and
+# example units) for each field. Adding a field to the DB schema without a matching
+# entry here therefore fails loudly at import time (see the builder), instead of
+# silently breaking DB<->UI parity and only surfacing in a full CI run.
+_UI_FLEX_MODEL_PRESENTATION: Dict[str, Dict[str, Any]] = {
     "consumption": {
         "default": None,
         "description": rst_to_openapi(metadata.CONSUMPTION.description),
@@ -1205,6 +1214,15 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         },
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
+    "group": {
+        "default": None,
+        "description": rst_to_openapi(metadata.GROUP.description),
+        "types": {
+            "backend": "typeTwo",
+            "ui": "A power sensor or an asset representing a group of devices; a sensor-referenced group also records the group's scheduled aggregate power, while an asset-referenced group records it via its own consumption/production output sensors.",
+        },
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
     "commodity": {
         "default": "electricity",
         "description": rst_to_openapi(metadata.COMMODITY_FLEX_MODEL.description),
@@ -1215,6 +1233,43 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = {
         "example-units": EXAMPLE_UNIT_TYPES["commodity"],
     },
 }
+
+
+def _build_ui_flex_model_schema() -> Dict[str, Dict[str, Any]]:
+    """Build the UI flex-model schema from the DB storage flex-model schema.
+
+    ``DBStorageFlexModelSchema`` is the single source of truth for which flex-model
+    fields exist. For each of its fields we look up the UI presentation info in
+    ``_UI_FLEX_MODEL_PRESENTATION``. If a DB field has no presentation entry, we
+    raise right here (at import time), so a newly added flex-model field can no
+    longer silently break DB<->UI parity (it fails immediately, with a clear
+    message pointing at the fix, rather than only in a full CI run).
+    """
+    # Imported lazily to avoid an import cycle at module load time.
+    from flexmeasures.data.schemas.scheduling.storage import DBStorageFlexModelSchema
+
+    schema: Dict[str, Dict[str, Any]] = {}
+    missing: list[str] = []
+    for field_name, field in DBStorageFlexModelSchema().fields.items():
+        key = field.data_key or field_name
+        entry = _UI_FLEX_MODEL_PRESENTATION.get(key)
+        if entry is None:
+            missing.append(key)
+            continue
+        schema[key] = entry
+    if missing:
+        raise ValueError(
+            "Missing UI presentation info for DBStorageFlexModelSchema field(s): "
+            f"{missing}. Add an entry for each in `_UI_FLEX_MODEL_PRESENTATION` "
+            "(flexmeasures/data/schemas/scheduling/__init__.py) so the UI flex-model "
+            "editor stays in sync with the DB flex-model schema."
+        )
+    return schema
+
+
+# Derived from the DB schema, so the DB schema is the single source of truth for
+# which flex-model fields the UI editor exposes (see _build_ui_flex_model_schema).
+UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = _build_ui_flex_model_schema()
 
 
 class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
@@ -1567,7 +1622,11 @@ class AssetTriggerSchema(Schema):
         asset = data["asset"]
         sensors = []
         for sensor_flex_model in data.get("flex_model", []):
-            sensor = sensor_flex_model["sensor"]
+            sensor = sensor_flex_model.get("sensor")
+            if sensor is None:
+                # Asset-only entries (e.g. an asset-referenced `group` entry) carry no
+                # sensor of their own; nothing to check here.
+                continue
             if sensor in sensors:
                 raise FMValidationError(
                     f"Sensor {sensor_flex_model['sensor'].id} should not occur more than once in the flex-model"

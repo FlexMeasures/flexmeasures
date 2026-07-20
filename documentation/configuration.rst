@@ -323,6 +323,25 @@ A job that is passed this time to live might get cleaned out by Redis' memory ma
 
 Default: ``timedelta(days=1)``
 
+FLEXMEASURES_DEFAULT_JOB_TIMEOUT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Default timeout for jobs (e.g. forecasting, scheduling and ingestion), expressed as a fixed ISO 8601 duration.
+Jobs that exceed this timeout are moved to RQ's failed queue.
+
+Default: ``timedelta(seconds=180)`` (``"PT180S"``)
+
+FLEXMEASURES_JOB_TIMEOUT
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Timeouts per queue, expressed as fixed ISO 8601 durations.
+Queue-specific values override ``FLEXMEASURES_DEFAULT_JOB_TIMEOUT``.
+Supported queue names are ``forecasting``, ``scheduling`` and ``ingestion``.
+
+Example: ``{"forecasting": "PT2M", "scheduling": "PT5M", "ingestion": "PT30S"}``
+
+Default: ``{}``
+
 FLEXMEASURES_PLANNING_TTL
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
