@@ -256,6 +256,11 @@ class TrainPredictPipeline(Forecaster):
             sensor_to_save=self._parameters["sensor_to_save"],
             data_source=self.data_source,
             missing_threshold=self._config.get("missing_threshold"),
+            post_processing_config={
+                "lower": self._config.get("lower"),
+                "upper": self._config.get("upper"),
+                "snap": self._config.get("snap"),
+            },
         )
         logging.info(
             f"Prediction cycle from {predict_start} to {predict_end} started ..."
@@ -434,7 +439,6 @@ class TrainPredictPipeline(Forecaster):
                         ).total_seconds()
                     ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
                     meta=job_metadata,
-                    timeout=60 * 60,  # 1 hour
                 )
 
                 # Store the job ID for this cycle

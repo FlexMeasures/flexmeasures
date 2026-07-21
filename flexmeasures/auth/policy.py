@@ -8,13 +8,16 @@ from flask import current_app
 from flask_security import current_user
 from werkzeug.exceptions import Unauthorized, Forbidden
 
-
 PERMISSIONS = ["create-children", "read", "update", "delete"]
 
+# User Roles
 ADMIN_ROLE = "admin"
 ADMIN_READER_ROLE = "admin-reader"
 ACCOUNT_ADMIN_ROLE = "account-admin"
 CONSULTANT_ROLE = "consultant"
+
+# Account Roles
+CONSULTANCY_ACCOUNT_ROLE = "Consultancy"
 
 # constants to allow access to certain groups
 EVERY_LOGGED_IN_USER = "every-logged-in-user"
@@ -80,6 +83,25 @@ class AuthModelMixin(object):
         [1] https://docs.microsoft.com/en-us/windows/security/identity-protection/access-control/security-principals#a-href-idw2k3tr-princ-whatawhat-are-security-principals
         """
         return {}
+
+
+class FlexMeasuresPlatform(AuthModelMixin):
+    """Virtual platform resource to authorize top-level creations."""
+
+    @classmethod
+    def init(cls, context: dict | None = None) -> "FlexMeasuresPlatform":
+        return cls()
+
+    def __acl__(self):
+        return {
+            "create-children": [  # this applies to accounts
+                f"role:{ADMIN_ROLE}",
+                (  # FM makes sure the new accounts are clients of the consultant account
+                    f"role:{CONSULTANT_ROLE}",
+                    f"account-role:{CONSULTANCY_ACCOUNT_ROLE}",
+                ),
+            ]
+        }
 
 
 def check_access(context: AuthModelMixin, permission: str):
@@ -266,3 +288,18 @@ def can_modify_role(  # noqa: C901
         return False
 
     return True
+
+
+def user_can_add_accounts() -> bool:
+    """Check if the current user can create new accounts.
+
+    Uses the ACL system to verify the user has permission to create
+    accounts on the FlexMeasures platform.
+
+    :return: True if user has permission, False otherwise.
+    """
+    try:
+        check_access(FlexMeasuresPlatform.init(), "create-children")
+        return True
+    except (Forbidden, Unauthorized):
+        return False

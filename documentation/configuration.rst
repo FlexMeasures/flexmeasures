@@ -337,6 +337,25 @@ A job that is passed this time to live might get cleaned out by Redis' memory ma
 
 Default: ``timedelta(days=1)``
 
+FLEXMEASURES_DEFAULT_JOB_TIMEOUT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Default timeout for jobs (e.g. forecasting, scheduling and ingestion), expressed as a fixed ISO 8601 duration.
+Jobs that exceed this timeout are moved to RQ's failed queue.
+
+Default: ``timedelta(seconds=180)`` (``"PT180S"``)
+
+FLEXMEASURES_JOB_TIMEOUT
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Timeouts per queue, expressed as fixed ISO 8601 durations.
+Queue-specific values override ``FLEXMEASURES_DEFAULT_JOB_TIMEOUT``.
+Supported queue names are ``forecasting``, ``scheduling`` and ``ingestion``.
+
+Example: ``{"forecasting": "PT2M", "scheduling": "PT5M", "ingestion": "PT30S"}``
+
+Default: ``{}``
+
 FLEXMEASURES_PLANNING_TTL
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -794,6 +813,25 @@ FLEXMEASURES_PUBLIC_DEMO_CREDENTIALS
 When ``FLEXMEASURES_MODE=demo``\ , this can hold login credentials (demo user email and password, e.g. ``("demo at seita.nl", "flexdemo")``\ ), so anyone can log in and try out the platform.
 
 Default: ``None``
+
+FLEXMEASURES_CREATE_TEMPLATE_ASSETS_ON_STARTUP
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether FlexMeasures should create its built-in starter template assets when the
+application starts.
+
+If ``True``, FlexMeasures provisions a small set of public starter templates,
+such as ``Battery Template``, ``EV Charger Template`` and ``Heat Pump Template``,
+if they do not exist yet. Together with the asset copy workflow, new users will
+find FlexMeasures to be more useful out of the box.
+
+If one of these built-in templates is deleted while this setting remains
+``True``, FlexMeasures will recreate the missing template on the next
+application startup.
+
+If ``False``, no template assets are created automatically at startup.
+
+Default: ``True``
 
 .. _sunset-config:
 
