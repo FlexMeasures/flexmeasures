@@ -1298,15 +1298,37 @@ function buildLineBarOption(elementId, groups, opts) {
         ? s.eventResolutionSec === 0
         : inferResolutionMs(s.eventStarts || []) <= 60 * 1000
     );
-    // Hover tolerance for instant annotations: one resolution bin of this
-    // subplot's finest sensor, as in the Vega-Lite annotation layers.
-    const groupResolutionsMs = group.series
-      .map((s) => (typeof s.eventResolutionSec === "number" ? s.eventResolutionSec * 1000 : NaN))
-      .filter((ms) => isFinite(ms) && ms > 0);
-    annotGrids.push({
-      seriesIndex: series.length, // the group's first series carries the annotation marks
-      toleranceMs: groupResolutionsMs.length > 0 ? Math.min(...groupResolutionsMs) : 3600 * 1000,
-    });
+    // Annotation marks (shaded bands, instant rules) and the replay ruler live
+    // on a dedicated, data-less carrier series, so they also show in subplots
+    // that (still) have no data — parity with the Vega-Lite annotation layers.
+    // The marks are silent and drawn behind the data, so the data tooltip keeps
+    // working inside annotation bands; wireAnnotationHover darkens the hovered/
+    // pinned annotation and reveals its text below the hovered subplot only.
+    if (annotations.length > 0) {
+      // Hover tolerance for instant annotations: one resolution bin of this
+      // subplot's finest sensor, as in the Vega-Lite annotation layers.
+      const groupResolutionsMs = group.series
+        .map((s) => (typeof s.eventResolutionSec === "number" ? s.eventResolutionSec * 1000 : NaN))
+        .filter((ms) => isFinite(ms) && ms > 0);
+      annotGrids.push({
+        seriesIndex: series.length,
+        toleranceMs: groupResolutionsMs.length > 0 ? Math.min(...groupResolutionsMs) : 3600 * 1000,
+      });
+      const carrier = {
+        type: "line",
+        xAxisIndex: i,
+        yAxisIndex: i,
+        data: [],
+        silent: true,
+        animation: false,
+        legendHoverLink: false, // not in any legend (legends list explicit entries only)
+        markArea: buildAnnotationMarkArea(annotations, -1, -1),
+      };
+      const markLine = buildAnnotationMarkLine(annotations, -1, -1, instance.replayTime);
+      if (markLine) carrier.markLine = markLine;
+      series.push(carrier);
+      seriesMeta.push(null); // keep series/meta aligned for the tooltip formatter
+    }
     group.series.forEach((s, j) => {
       const isBar = opts.chartType === "bar_chart";
       const entry = {
@@ -1365,17 +1387,11 @@ function buildLineBarOption(elementId, groups, opts) {
           });
         }
       }
-      // Annotation marks (shaded bands, instant rules) and the replay ruler, on
-      // the first series of each subplot. Drawn behind the data and silent, so
-      // the data tooltip keeps working inside annotation bands; wireAnnotationHover
-      // darkens the hovered/pinned annotation and reveals its text below the
-      // hovered subplot only, matching the Vega-Lite annotation layers.
-      if (j === 0) {
-        const markLine = buildAnnotationMarkLine(annotations, -1, -1, instance.replayTime);
+      // Without annotations there is no carrier series, so the replay ruler
+      // rides on the subplot's first data series (as before).
+      if (j === 0 && annotations.length === 0) {
+        const markLine = buildAnnotationMarkLine([], -1, -1, instance.replayTime);
         if (markLine) entry.markLine = markLine;
-        if (annotations.length > 0) {
-          entry.markArea = buildAnnotationMarkArea(annotations, -1, -1);
-        }
       }
       series.push(entry);
       seriesMeta.push(s);
@@ -1408,7 +1424,7 @@ function buildLineBarOption(elementId, groups, opts) {
       // "plain" (not "scroll"): the container height already grows to fit every
       // entry (see legendHeight), so all entries show without pagination
       // controls that would otherwise eat the space and hide the items.
-      data: Array.from(new Set(seriesMeta.map((s) => s.name))),
+      data: Array.from(new Set(seriesMeta.filter(Boolean).map((s) => s.name))), // null = annotation carrier
       type: "plain",
       orient: bottomLegendVertical ? "vertical" : "horizontal",
       left: GRID_LEFT,
