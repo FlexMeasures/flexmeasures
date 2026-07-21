@@ -1028,18 +1028,24 @@ function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
     data: annotations
       .map((a, idx) => {
         if (a.end <= a.start) return null; // instants are drawn by buildAnnotationMarkLine
+        const itemStyle = {
+          color: annotationColor(a),
+          opacity:
+            idx === pinIdx
+              ? ANNOTATION_SELECT_OPACITY
+              : idx === hoverIdx
+              ? ANNOTATION_HOVER_OPACITY
+              : ANNOTATION_RESTING_OPACITY,
+        };
         return [
           {
             xAxis: a.start,
-            itemStyle: {
-              color: annotationColor(a),
-              opacity:
-                idx === pinIdx
-                  ? ANNOTATION_SELECT_OPACITY
-                  : idx === hoverIdx
-                  ? ANNOTATION_HOVER_OPACITY
-                  : ANNOTATION_RESTING_OPACITY,
-            },
+            itemStyle: itemStyle,
+            // Highlighting a data series (emphasis focus "series", see syncEmphasis)
+            // puts every other series in the grid — including the annotation
+            // carrier — into the blur state, which would dim the marks to near
+            // invisibility. Pin the blur state to the normal style instead.
+            blur: { itemStyle: itemStyle },
             label: Object.assign(annotationLabelConfig(a, idx === hoverIdx || idx === pinIdx), {
               position: ["0%", "100%"], // at the band's left edge, at the bottom of the subplot
               offset: [0, ANNOTATION_LABEL_OFFSET],
@@ -1064,10 +1070,14 @@ function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
       if (a.end > a.start) return null;
       const color = annotationColor(a);
       const opacity = idx === pinIdx ? 1 : idx === hoverIdx ? 0.9 : 0.5;
+      const lineStyle = { color: color, width: 2, type: "solid", opacity: opacity };
+      const itemStyle = { color: color, opacity: opacity }; // the triangle marker
       return {
         xAxis: a.start,
-        lineStyle: { color: color, width: 2, type: "solid", opacity: opacity },
-        itemStyle: { color: color, opacity: opacity }, // the triangle marker
+        lineStyle: lineStyle,
+        itemStyle: itemStyle,
+        // Immune to the blur state, like the markArea items (see there)
+        blur: { lineStyle: lineStyle, itemStyle: itemStyle },
         label: Object.assign(annotationLabelConfig(a, idx === hoverIdx || idx === pinIdx), {
           position: "start", // at the bottom end of the rule, below the subplot
           distance: ANNOTATION_LABEL_OFFSET,
@@ -1081,6 +1091,7 @@ function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
       xAxis: replayTime,
       symbol: "none",
       lineStyle: { color: "#555", width: 1.5, type: "solid" },
+      blur: { lineStyle: { color: "#555", width: 1.5, type: "solid" } },
       label: { show: false },
     });
   }
