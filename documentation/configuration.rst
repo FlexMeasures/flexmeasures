@@ -62,6 +62,20 @@ Note that you need to install the solver, read more at :ref:`installing-a-solver
 Default: ``"appsi_highs"``
 
 
+FLEXMEASURES_LP_SOLVER_OPTIONS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Solver options passed to the scheduling solver, overriding the defaults FlexMeasures sets itself. Use this to tune the solver without patching code, for example to trade optimality for speed::
+
+    FLEXMEASURES_LP_SOLVER_OPTIONS = {"mip_rel_gap": "1e-4"}
+
+When the solver is HiGHS, FlexMeasures validates these against the installed HiGHS build and raises on an unknown option name, an invalid value, or a feature the build lacks. This matters because Pyomo's ``appsi_highs`` interface otherwise applies solver options without checking whether HiGHS accepted them, so a typo would be silently ignored.
+
+.. note:: HiGHS initializes its thread scheduler once per process. Setting ``threads`` or ``parallel`` therefore only affects the first solve in a worker process; later solves fail with ``global scheduler has already been initialized`` and return no schedule. FlexMeasures logs a warning if you set either.
+
+Default: ``{}``
+
+
 
 FLEXMEASURES_HOSTS_AND_AUTH_START
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

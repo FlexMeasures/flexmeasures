@@ -34,6 +34,45 @@ from flexmeasures.data.models.planning.utils import initialize_series, initializ
 infinity = float("inf")
 
 
+def validate_highs_options(options: dict) -> None:
+    """Raise if HiGHS would refuse any of these options.
+
+    Pyomo's appsi_highs interface applies solver options without checking HiGHS'
+    return status, so an unknown name, an invalid value, or a feature missing from
+    the installed HiGHS build is otherwise ignored without a word. That silently
+    turns a mis-typed option into a no-op, and a benchmark of it into a false
+    negative. Probing a throwaway Highs instance surfaces the rejection instead.
+    """
+    try:
+        import highspy
+    except ImportError:
+        # Solver named "*highs*" but highspy absent: let the solver interface complain.
+        return
+
+    probe = highspy.Highs()
+    probe.setOptionValue("output_flag", False)
+    rejected = [
+        f"{name}={value!r}"
+        for name, value in options.items()
+        if probe.setOptionValue(name, value) != highspy.HighsStatus.kOk
+    ]
+    if rejected:
+        raise ValueError(
+            f"HiGHS rejected these FLEXMEASURES_LP_SOLVER_OPTIONS: {', '.join(rejected)}."
+            " The option name may be unknown, the value invalid, or the feature absent"
+            " from this HiGHS build. For example, the HiPO solver (solver='hipo') needs"
+            " a HiGHS built against BLAS and METIS, which the pip-installed highspy is not."
+        )
+
+    if "threads" in options or "parallel" in options:
+        current_app.logger.warning(
+            "FLEXMEASURES_LP_SOLVER_OPTIONS sets 'threads' and/or 'parallel'. HiGHS"
+            " initializes its thread scheduler once per process, so inside a long-lived"
+            " worker only the first solve honours these; later solves fail with 'global"
+            " scheduler has already been initialized' and yield no schedule."
+        )
+
+
 def device_scheduler(  # noqa C901
     device_constraints: list[pd.DataFrame],
     ems_constraints: pd.DataFrame | list[pd.DataFrame],
@@ -820,6 +859,12 @@ def device_scheduler(  # noqa C901
         # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
         if current_app.config["LOGGING_LEVEL"] == "INFO":
             profile["output_flag"] = "false"
+
+    # Apply operator-configured options last, so they override the defaults above.
+    configured_options = current_app.config.get("FLEXMEASURES_LP_SOLVER_OPTIONS") or {}
+    if configured_options and "highs" in solver_name.lower():
+        validate_highs_options(configured_options)
+    profile.update(configured_options)
 
     for option_name, option_value in profile.items():
         solver.options[option_name] = option_value
