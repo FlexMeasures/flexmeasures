@@ -783,6 +783,7 @@ def test_soc_bounds_timeseries(db, add_battery_assets):
             end,
             resolution,
             flex_model=flex_model,
+            flex_context={"relax-soc-constraints": False},
         )
         schedule = scheduler.compute()
 
@@ -1268,6 +1269,7 @@ def test_infeasible_problem_error(db, add_battery_assets):
             end,
             resolution,
             flex_model=flex_model,
+            flex_context={"relax-soc-constraints": False},
         )
         schedule = scheduler.compute()
 
@@ -1349,6 +1351,7 @@ def test_numerical_errors(app_with_each_solver, setup_planning_test_data, db):
             ],
             "soc-unit": "MWh",
         },
+        flex_context={"relax-soc-constraints": False},
     )
 
     (
@@ -2086,6 +2089,7 @@ def test_battery_stock_delta_sensor(
         end,
         resolution,
         flex_model=flex_model,
+        flex_context={"relax-soc-constraints": False},
     )
 
     if stock_delta_sensor == "delta fails":
@@ -2443,6 +2447,7 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
                 "site-power-capacity": "100 MW",
                 "production-price": {"sensor": epex_da.id},
                 "consumption-price": {"sensor": epex_da.id},
+                "relax-soc-constraints": False,
             },
         )
         return scheduler.compute()
@@ -2466,6 +2471,17 @@ def test_soc_maxima_minima_targets(db, add_battery_assets, soc_sensors):
     # soc-maxima and soc-minima constraints are respected
     # this yields the same results as with the SOC targets
     # because soc-maxima = soc-minima = soc-targets
+    assert all(abs(soc[8:].values - expected_soc_schedule) < 1e-5)
+
+    # remove legacy soc-minima/soc-maxima and use dynamic canonical soc-min/soc-max
+    del flex_model["soc-minima"]
+    del flex_model["soc-maxima"]
+    flex_model["soc-min"] = {"sensor": soc_minima.id, "default": "0 MWh"}
+    flex_model["soc-max"] = {"sensor": soc_maxima.id, "default": "10 MWh"}
+    schedule = compute_schedule(flex_model)
+
+    soc = check_constraints(power, schedule, soc_at_start)
+
     assert all(abs(soc[8:].values - expected_soc_schedule) < 1e-5)
 
 
@@ -2553,7 +2569,7 @@ def test_battery_storage_different_units(
 
 
 @pytest.mark.parametrize(
-    "ts_field, ts_specs",
+    "ts_field, ts_specs, expected_charge, expected_discharge",
     [
         # The battery only has time to charge up to 950 kWh halfway
         (
@@ -2565,6 +2581,8 @@ def test_battery_storage_different_units(
                     "value": "850 kW",
                 }
             ],
+            0.85,
+            -0.85,
         ),
         # Same, but the event time is specified with a duration instead of an end time
         (
@@ -2576,6 +2594,8 @@ def test_battery_storage_different_units(
                     "value": "850 kW",
                 }
             ],
+            0.85,
+            -0.85,
         ),
         # Can only charge up to 950 kWh halfway
         (
@@ -2586,6 +2606,20 @@ def test_battery_storage_different_units(
                     "value": "950 kWh",
                 }
             ],
+            0.85,
+            -0.85,
+        ),
+        # Same dynamic maximum through the canonical soc-max field
+        (
+            "soc-max",
+            [
+                {
+                    "datetime": "2015-01-02T16:00+01",
+                    "value": "950 kWh",
+                }
+            ],
+            0.85,
+            -0.85,
         ),
         # Must end up at a maximum of 200 kWh, for which it is cheapest to charge to 950 and then to discharge to 200
         (
@@ -2597,6 +2631,47 @@ def test_battery_storage_different_units(
                     "value": "200 kWh",
                 }
             ],
+            0.85,
+            -0.85,
+        ),
+        # Same dynamic maximum through the canonical soc-max field
+        (
+            "soc-max",
+            [
+                {
+                    "start": "2015-01-02T16:45+01",
+                    "duration": "PT15M",
+                    "value": "200 kWh",
+                }
+            ],
+            0.85,
+            -0.85,
+        ),
+        # Must end up at a minimum of 200 kWh, so it is cheapest to fill completely and then discharge to 200
+        (
+            "soc-minima",
+            [
+                {
+                    "start": "2015-01-02T16:45+01",
+                    "duration": "PT15M",
+                    "value": "200 kWh",
+                }
+            ],
+            0.9,
+            -0.8,
+        ),
+        # Same dynamic minimum through the canonical soc-min field
+        (
+            "soc-min",
+            [
+                {
+                    "start": "2015-01-02T16:45+01",
+                    "duration": "PT15M",
+                    "value": "200 kWh",
+                }
+            ],
+            0.9,
+            -0.8,
         ),
     ],
 )
@@ -2605,6 +2680,8 @@ def test_battery_storage_with_time_series_in_flex_model(
     db,
     ts_field,
     ts_specs,
+    expected_charge,
+    expected_discharge,
 ):
     """
     Test scheduling a 1 MWh battery for 2h with a low -> high price transition with
@@ -2654,14 +2731,8 @@ def test_battery_storage_with_time_series_in_flex_model(
     soc_at_start = ur.Quantity(soc_at_start).to("MWh").magnitude
     check_constraints(battery, schedule, soc_at_start)
 
-    # charge 850 kWh in the cheap price period (100 kWh -> 950kWh)
-    assert schedule[:4].sum() * 0.25 == pytest.approx(0.85)
-
-    # discharge fully or to what's needed in the expensive price period (950 kWh -> 100 or 200 kWh)
-    if ts_field == "soc-minima":
-        assert schedule[4:].sum() * 0.25 == pytest.approx(-0.75)
-    else:
-        assert schedule[4:].sum() * 0.25 == pytest.approx(-0.85)
+    assert schedule[:4].sum() * 0.25 == pytest.approx(expected_charge)
+    assert schedule[4:].sum() * 0.25 == pytest.approx(expected_discharge)
 
 
 def test_unavoidable_capacity_breach():

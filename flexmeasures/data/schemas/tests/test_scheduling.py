@@ -14,7 +14,11 @@ from flexmeasures.data.schemas.scheduling.storage import (
     StorageFlexModelSchema,
     DBStorageFlexModelSchema,
 )
-from flexmeasures.data.schemas.sensors import TimedEventSchema, VariableQuantityField
+from flexmeasures.data.schemas.sensors import (
+    SensorReference,
+    TimedEventSchema,
+    VariableQuantityField,
+)
 from flexmeasures.utils.unit_utils import ur
 
 
@@ -552,20 +556,28 @@ def test_flex_context_schema_preserves_explicit_soc_breach_prices():
     ).magnitude == pytest.approx(7)
 
 
-def test_flex_context_schema_umbrella_opt_out_disables_soc_relaxation():
-    """Setting relax-constraints to False alone keeps SoC minima/maxima hard."""
+@pytest.mark.parametrize(
+    "disabled_field",
+    ["relax-soc-constraints", "relax-constraints"],
+)
+def test_flex_context_schema_disables_default_soc_breach_prices(disabled_field):
     loaded_flex_context = FlexContextSchema().load(
-        {"consumption-price": "1 EUR/MWh", "relax-constraints": False}
+        {
+            "consumption-price": "1 EUR/MWh",
+            disabled_field: False,
+        }
     )
 
     assert "soc_minima_breach_price" not in loaded_flex_context
     assert "soc_maxima_breach_price" not in loaded_flex_context
-    assert "consumption_breach_price" not in loaded_flex_context
-    assert "ems_consumption_breach_price" not in loaded_flex_context
 
 
 def test_flex_context_schema_explicit_soc_relaxation_overrides_umbrella_opt_out():
-    """An explicit relax-soc-constraints wins over an explicit relax-constraints."""
+    """An explicit relax-soc-constraints wins over an explicit relax-constraints.
+
+    Off-tick SoC constraint projection relies on this precedence: it injects an
+    explicit relax-soc-constraints=true next to whatever the user configured.
+    """
     loaded_flex_context = FlexContextSchema().load(
         {
             "consumption-price": "1 EUR/MWh",
@@ -578,12 +590,15 @@ def test_flex_context_schema_explicit_soc_relaxation_overrides_umbrella_opt_out(
         "EUR/MWh"
     ).magnitude == pytest.approx(1_000_000)
 
+
+def test_flex_context_schema_umbrella_opt_out_disables_capacity_relaxation():
+    """Setting relax-constraints to False also skips default capacity breach prices."""
     loaded_flex_context = FlexContextSchema().load(
-        {"consumption-price": "1 EUR/MWh", "relax-soc-constraints": False}
+        {"consumption-price": "1 EUR/MWh", "relax-constraints": False}
     )
 
-    assert "soc_minima_breach_price" not in loaded_flex_context
-    assert "soc_maxima_breach_price" not in loaded_flex_context
+    assert "consumption_breach_price" not in loaded_flex_context
+    assert "ems_consumption_breach_price" not in loaded_flex_context
 
 
 def test_db_flex_context_schema_does_not_relax_soc_constraints_by_default():
@@ -655,7 +670,7 @@ def check_schema_loads_data(schema, data, fails):
         (
             {"site-power-capacity": 100},
             {
-                "site-power-capacity": f"Unsupported value type. `{type(100)}` was provided but only dict, list and str are supported."
+                "site-power-capacity": f"Unsupported value type. `{type(100)}` was provided but only dict, list, str, pint Quantity, tuple, and numeric values with a default source unit are supported."
             },
         ),
         (
@@ -868,6 +883,84 @@ def test_flex_context_schema_rejects_filtered_aggregate_power(
     assert "cannot use source filters" in str(exc_info.value)
 
 
+def test_storage_flex_model_schema_rejects_filtered_consumption(
+    setup_dummy_sensors, setup_sources, db
+):
+    _, _, _, power_sensor = setup_dummy_sensors
+    seita_source = setup_sources["Seita"]
+    db.session.flush()
+
+    for schema in [
+        StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None),
+        DBStorageFlexModelSchema(),
+    ]:
+        with pytest.raises(ValidationError) as exc_info:
+            schema.load(
+                {
+                    "consumption": {
+                        "sensor": power_sensor.id,
+                        "sources": [seita_source.id],
+                    }
+                }
+            )
+        assert exc_info.value.messages["consumption"]["sources"] == ["Unknown field."]
+
+
+def test_storage_flex_model_schema_rejects_filtered_production(
+    setup_dummy_sensors, setup_sources, db
+):
+    _, _, _, power_sensor = setup_dummy_sensors
+    seita_source = setup_sources["Seita"]
+    db.session.flush()
+
+    for schema in [
+        StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None),
+        DBStorageFlexModelSchema(),
+    ]:
+        with pytest.raises(ValidationError) as exc_info:
+            schema.load(
+                {
+                    "production": {
+                        "sensor": power_sensor.id,
+                        "sources": [seita_source.id],
+                    }
+                }
+            )
+        assert exc_info.value.messages["production"]["sources"] == ["Unknown field."]
+
+
+def test_soc_min_sensor_reference_with_default_loads_as_dynamic_minimum(
+    setup_dummy_sensors,
+):
+    energy_sensor, _, _, _ = setup_dummy_sensors
+    schema = StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None)
+
+    loaded_flex_model = schema.load(
+        {"soc-min": {"sensor": energy_sensor.id, "default": "0 kWh"}}
+    )
+
+    assert "soc_min" not in loaded_flex_model
+    assert isinstance(loaded_flex_model["soc_minima"], SensorReference)
+    assert loaded_flex_model["soc_minima"].sensor == energy_sensor
+    assert loaded_flex_model["soc_minima"].default == ur.Quantity("0 MWh")
+
+
+def test_soc_max_sensor_reference_with_default_loads_as_dynamic_maximum(
+    setup_dummy_sensors,
+):
+    energy_sensor, _, _, _ = setup_dummy_sensors
+    schema = StorageFlexModelSchema(start=datetime(2026, 6, 1), sensor=None)
+
+    loaded_flex_model = schema.load(
+        {"soc-max": {"sensor": energy_sensor.id, "default": "1000 kWh"}}
+    )
+
+    assert "soc_max" not in loaded_flex_model
+    assert isinstance(loaded_flex_model["soc_maxima"], SensorReference)
+    assert loaded_flex_model["soc_maxima"].sensor == energy_sensor
+    assert loaded_flex_model["soc_maxima"].default == ur.Quantity("1 MWh")
+
+
 @pytest.mark.parametrize(
     ["flex_model", "fails"],
     [
@@ -878,6 +971,103 @@ def test_flex_context_schema_rejects_filtered_aggregate_power(
         (
             {"soc-min": "3500 kWh"},
             False,
+        ),
+        (
+            {"soc-max": "3500 kWh"},
+            False,
+        ),
+        (
+            {"soc-max": (1, "MWh")},
+            False,
+        ),
+        (
+            {"soc-max": (1,)},
+            [
+                False,
+                {
+                    "soc-max": "Unsupported value type. `<class 'tuple'>` was provided but only dict, list, str, pint Quantity, tuple, and numeric values with a default source unit are supported."
+                },
+            ],
+        ),
+        (
+            {"soc-max": ur.Quantity("1 MWh")},
+            False,
+        ),
+        (
+            {"soc-max": ur.Quantity("1 MWh").to_tuple()},
+            False,
+        ),
+        (
+            {"soc-min": {"sensor": "energy-sensor", "default": "0 kWh"}},
+            False,
+        ),
+        (
+            {"soc-max": {"sensor": "energy-sensor", "default": "1 MWh"}},
+            False,
+        ),
+        (
+            {"soc-min": {"sensor": "price-sensor", "default": "0 kWh"}},
+            {"soc-min": "Cannot convert EUR/MWh to MWh"},
+        ),
+        (
+            {"soc-max": {"sensor": "price-sensor", "default": "1 MWh"}},
+            {"soc-max": "Cannot convert EUR/MWh to MWh"},
+        ),
+        (
+            {
+                "soc-min": [
+                    {
+                        "datetime": "2026-06-01T12:00:00+00:00",
+                        "value": "1 MWh",
+                    }
+                ]
+            },
+            [
+                False,
+                {
+                    "soc-min": "A time series specification (listing segments) is not supported when storing flex-model fields."
+                },
+            ],
+        ),
+        (
+            {
+                "soc-max": [
+                    {
+                        "datetime": "2026-06-01T12:00:00+00:00",
+                        "value": "2 MWh",
+                    }
+                ]
+            },
+            [
+                False,
+                {
+                    "soc-max": "A time series specification (listing segments) is not supported when storing flex-model fields."
+                },
+            ],
+        ),
+        (
+            {
+                "soc-min": {"sensor": "energy-sensor", "default": "0 kWh"},
+                "soc-minima": {"sensor": "energy-sensor"},
+            },
+            [
+                {
+                    "soc-min": "Fields `soc-min` and `soc-minima` are mutually exclusive."
+                },
+                False,
+            ],
+        ),
+        (
+            {
+                "soc-max": {"sensor": "energy-sensor", "default": "1 MWh"},
+                "soc-maxima": {"sensor": "energy-sensor"},
+            },
+            [
+                {
+                    "soc-max": "Fields `soc-max` and `soc-maxima` are mutually exclusive."
+                },
+                False,
+            ],
         ),
         (
             {"soc-minima": {"sensor": "energy-sensor"}},

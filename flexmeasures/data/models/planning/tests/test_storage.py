@@ -21,6 +21,7 @@ from flexmeasures.data.models.planning.tests.utils import (
     get_sensors_from_db,
     series_to_ts_specs,
 )
+from flexmeasures.utils.unit_utils import ur
 from flexmeasures.data.services.scheduling_result import SchedulingJobResult
 
 
@@ -299,6 +300,56 @@ def test_battery_relaxation(add_battery_assets, db):
         costs["all consumption breaches device 0"],
         device_power_breach_price * consumption_capacity_in_mw * 1000 * 4,
     )  # 100 EUR/(kW*h) * 0.025 MW * 1000 kW/MW * 4 hours
+
+
+def test_percent_soc_capacity_rejects_stored_dynamic_soc_max():
+    """A raw sensor reference dict (e.g. from the DB flex-model) raises a clean error."""
+    scheduler = StorageScheduler.__new__(StorageScheduler)
+    scheduler.sensor = None
+
+    with pytest.raises(ValueError, match="sensor reference or time series"):
+        scheduler._get_soc_capacity_for_percent_conversion(
+            flex_model={
+                "soc-max": {"sensor": 51, "default": "100 kWh"},
+                "soc-unit": "%",
+            }
+        )
+
+
+def test_scalar_soc_minimum_moves_to_relaxed_minimum():
+    soc_min, soc_minima = StorageScheduler._relax_scalar_soc_minimum(
+        soc_min=0.2,
+        soc_minima=None,
+    )
+
+    assert soc_min is None
+    assert soc_minima == 0.2 * ur.Quantity("MWh")
+
+
+def test_scalar_soc_bounds_tighten_legacy_dynamic_bounds():
+    index = pd.date_range(
+        "2015-01-01T00:00:00+01:00",
+        periods=2,
+        freq="15min",
+    )
+    timing_kwargs = {
+        "query_window": (index[0], index[-1] + timedelta(minutes=15)),
+        "resolution": timedelta(minutes=15),
+    }
+
+    _, soc_minima = StorageScheduler._relax_scalar_soc_minimum(
+        soc_min=0.4,
+        soc_minima=pd.Series([0.1, 0.5], index=index),
+        **timing_kwargs,
+    )
+    _, soc_maxima = StorageScheduler._relax_scalar_soc_maximum(
+        soc_max=0.8,
+        soc_maxima=pd.Series([0.7, 0.9], index=index),
+        **timing_kwargs,
+    )
+
+    assert list(soc_minima) == pytest.approx([0.4, 0.5])
+    assert list(soc_maxima) == pytest.approx([0.7, 0.8])
 
 
 def test_unresolved_targets_soc_minima(add_battery_assets, db):
@@ -1432,10 +1483,8 @@ def test_off_tick_soc_minima_are_projected_into_soft_commitments(
 
     storage_constraints = device_constraints[0].tz_convert(tz)
     assert (
-        storage_constraints["min"] == 0
-    ).all(), (
-        "with a breach price, only the global soc-min should remain a hard constraint"
-    )
+        storage_constraints["min"].isna().all()
+    ), "with a breach price, the global soc-min is folded into the soft commitments instead of staying a hard constraint"
 
     soc_minima_commitments = [
         c for c in commitments if getattr(c, "name", "") == "any soc minima"

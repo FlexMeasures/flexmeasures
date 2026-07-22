@@ -940,9 +940,9 @@ class SensorAPI(FlaskView):
                         soc-targets:
                           - value: "25 kWh"
                             datetime: "2015-06-02T16:00:00+00:00"
-                        soc-minima:
+                        soc-min:
                           sensor: 300
-                        soc-min: "10 kWh"
+                          default: "10 kWh"
                         soc-max: "25 kWh"
                         charging-efficiency: "120%"
                         discharging-efficiency:

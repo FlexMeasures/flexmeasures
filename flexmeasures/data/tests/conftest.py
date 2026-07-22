@@ -413,6 +413,8 @@ def flex_description_sequential(
         ],
         "site-production-capacity": "2kW",
         "site-consumption-capacity": "5kW",
+        # These tests exercise the scheduling pipeline with hard physical SoC bounds.
+        "relax-soc-constraints": False,
         # Cheap commitments that are not expected to affect the resulting schedule
         # todo: CommitmentSchema should have a commodity field that defaults to electricity
         "commitments": [

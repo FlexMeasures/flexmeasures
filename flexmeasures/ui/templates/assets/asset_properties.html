@@ -607,14 +607,18 @@
                 const card = activeCard();
                 const name = card.id.replace('-control', '');
                 const flexModel = getFlexModel()
+                const sensorReference = { "sensor": sensorId };
+                const defaultInput = document.getElementById('flexSensorDefaultInput');
+                if (defaultInput && defaultInput.value.trim()) {
+                    sensorReference.default = defaultInput.value.trim();
+                }
                 if (FlexModelFieldValidTypes[name].includes(Array)) {
                     const valueIndex = selectedIndex()
                     const fieldValues = flexModel[name];
-                    fieldValues[valueIndex] = { "sensor": sensorId };
+                    fieldValues[valueIndex] = sensorReference;
                     flexModel[name] = fieldValues;
                 } else {
-                    const value = flexModel[name];
-                    flexModel[name] = { "sensor": sensorId };
+                    flexModel[name] = sensorReference;
                 }
 
                 setFlexModel(flexModel);
@@ -1120,6 +1124,7 @@
                     tabContent.querySelector('.flex-input-group').appendChild(boolTabContentSaveBtn);
                 } else if (dataType == Object) { // Object/Senosr Tab =================
                     btn.textContent = 'A sensor';
+                    const supportsSensorDefault = FlexModelFieldValidTypes[name].includes(Object);
 
                     tabContent.innerHTML = `
                         <div class="flex-input-group mb-1 p-2">
@@ -1154,8 +1159,54 @@
                                     </select>
                                 </div>
                             </div>
+                            ${supportsSensorDefault ? `
+                                <label for="flexSensorDefaultInput" class="form-label mt-2">
+                                    Default fallback (optional)
+                                    <i class="fa fa-info-circle ps-2"
+                                        data-bs-toggle="tooltip"
+                                        data-bs-placement="bottom"
+                                        title="Use this quantity when the selected sensor has no value for a time slot."
+                                    ></i>
+                                </label>
+                                <input
+                                    type="text"
+                                    id="flexSensorDefaultInput"
+                                    class="form-control"
+                                    placeholder="For example, 0 kWh"
+                                />
+                            ` : ''}
                         </div>
                     `;
+                    if (supportsSensorDefault) {
+                        const defaultInput = tabContent.querySelector('#flexSensorDefaultInput');
+                        defaultInput.value = value && typeof value === 'object' && value.default
+                            ? value.default
+                            : '';
+
+                        const saveDefaultButton = document.createElement('button');
+                        saveDefaultButton.className = 'btn btn-secondary btn-sm me-2 mt-2';
+                        saveDefaultButton.textContent = 'Use fallback';
+                        saveDefaultButton.onclick = function () {
+                            const currentFlexModel = getFlexModel();
+                            let sensorReference = currentFlexModel[name];
+                            if (Array.isArray(sensorReference)) {
+                                sensorReference = sensorReference[selectedIndex()];
+                            }
+                            if (!sensorReference || typeof sensorReference !== 'object' || !sensorReference.sensor) {
+                                showToast("Select a sensor before setting a fallback", "info");
+                                return;
+                            }
+
+                            const fallback = defaultInput.value.trim();
+                            if (fallback) {
+                                sensorReference.default = fallback;
+                            } else {
+                                delete sensorReference.default;
+                            }
+                            setFlexModel(currentFlexModel);
+                        };
+                        tabContent.querySelector('.flex-input-group').appendChild(saveDefaultButton);
+                    }
                 } else if (dataType == String) { // String Tab =================
                     btn.textContent = 'Fixed value';
 

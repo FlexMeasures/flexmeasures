@@ -8,6 +8,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.data.models.planning.utils import get_series_from_quantity_or_sensor
+from flexmeasures.utils.unit_utils import ur
 
 
 def test_get_series_from_sensor_reference_source_filter_integration(fresh_db):
@@ -84,6 +85,48 @@ def test_get_series_from_sensor_reference_source_filter_integration(fresh_db):
     )
     assert isinstance(result_forecaster, pd.Series)
     assert result_forecaster.iloc[0] == pytest.approx(200.0)
+
+
+def test_get_series_from_sensor_reference_default_fills_missing_values(fresh_db):
+    """A SensorReference default fills query slots with no matching sensor belief."""
+    query_window = (
+        pd.Timestamp("2025-06-01 08:00:00+02:00"),
+        pd.Timestamp("2025-06-01 08:30:00+02:00"),
+    )
+    source = DataSource(name="test-default-source", type="scheduler")
+    fresh_db.session.add(source)
+    asset_type = GenericAssetType(name="test-asset-type-default")
+    fresh_db.session.add(asset_type)
+    asset = GenericAsset(name="test-asset-default", generic_asset_type=asset_type)
+    fresh_db.session.add(asset)
+    sensor = Sensor(
+        name="test-sensor-default",
+        generic_asset=asset,
+        event_resolution=timedelta(minutes=15),
+        unit="MW",
+    )
+    fresh_db.session.add(sensor)
+    fresh_db.session.flush()
+    fresh_db.session.add(
+        TimedBelief(
+            event_start=query_window[0],
+            belief_horizon=timedelta(0),
+            event_value=0.1,
+            source=source,
+            sensor=sensor,
+        )
+    )
+    fresh_db.session.commit()
+
+    result = get_series_from_quantity_or_sensor(
+        variable_quantity=SensorReference(sensor=sensor, default=ur.Quantity("1 MW")),
+        query_window=query_window,
+        resolution=sensor.event_resolution,
+        unit="kW",
+        as_instantaneous_events=False,
+    )
+
+    assert list(result) == pytest.approx([100.0, 1000.0])
 
 
 def test_get_series_from_sensor_reference_sources_filter_integration(fresh_db):

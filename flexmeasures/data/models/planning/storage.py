@@ -1209,6 +1209,24 @@ class MetaStorageScheduler(Scheduler):
                     discharging_efficiency=discharging_efficiency[d],
                 )
 
+            # Fold a fixed soc-min into the relaxed minima path (after off-tick
+            # projection, which needs the scalar bound), so it is softened along
+            # with any dynamic minima instead of staying behind as a hard bound.
+            # When relaxation was auto-enabled purely for off-tick projection
+            # (the user explicitly opted out), the scalar bound stays hard.
+            if (
+                self.flex_context.get("soc_minima_breach_price") is not None
+                and soc_at_start[d] is not None
+                and not getattr(self, "scope_soc_relaxation_to_off_tick_devices", False)
+                and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
+            ):
+                soc_min[d], soc_minima[d] = self._relax_scalar_soc_minimum(
+                    soc_min=soc_min[d],
+                    soc_minima=soc_minima[d],
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                )
             if (
                 self.flex_context.get("soc_minima_breach_price") is not None
                 and soc_minima[d] is not None
@@ -1276,6 +1294,24 @@ class MetaStorageScheduler(Scheduler):
                 # soc-minima will become a soft constraint (modelled as stock commitments), so remove hard constraint
                 soc_minima[d] = None
 
+            # Fold a fixed soc-max into the relaxed maxima path (after off-tick
+            # projection, which needs the scalar bound), so it is softened along
+            # with any dynamic maxima instead of staying behind as a hard bound.
+            # When relaxation was auto-enabled purely for off-tick projection
+            # (the user explicitly opted out), the scalar bound stays hard.
+            if (
+                self.flex_context.get("soc_maxima_breach_price") is not None
+                and soc_at_start[d] is not None
+                and not getattr(self, "scope_soc_relaxation_to_off_tick_devices", False)
+                and self._soc_relaxation_applies_to(device_stock_key.get(d), sensor_d)
+            ):
+                soc_max[d], soc_maxima[d] = self._relax_scalar_soc_maximum(
+                    soc_max=soc_max[d],
+                    soc_maxima=soc_maxima[d],
+                    query_window=(start + resolution, end + resolution),
+                    resolution=resolution,
+                    beliefs_before=belief_time,
+                )
             if (
                 self.flex_context.get("soc_maxima_breach_price") is not None
                 and soc_maxima[d] is not None
@@ -1591,6 +1627,62 @@ class MetaStorageScheduler(Scheduler):
                 )
 
         return commitments
+
+    @staticmethod
+    def _relax_scalar_soc_minimum(
+        soc_min: float | None,
+        soc_minima: (
+            Sensor | SensorReference | list[dict] | ur.Quantity | pd.Series | None
+        ),
+        **timing_kwargs,
+    ) -> tuple[
+        None, Sensor | SensorReference | list[dict] | ur.Quantity | pd.Series | None
+    ]:
+        """Move a fixed SoC minimum into the relaxed minima path.
+
+        If legacy dynamic minima are also configured, the fixed minimum still tightens
+        them, but no longer stays behind as a hard constraint.
+        """
+        if soc_min is None:
+            return None, soc_minima
+        if soc_minima is None:
+            return None, soc_min * ur.Quantity("MWh")
+        soc_minima = get_continuous_series_sensor_or_quantity(
+            variable_quantity=soc_minima,
+            unit="MWh",
+            as_instantaneous_events=True,
+            resolve_overlaps="max",
+            **timing_kwargs,
+        )
+        return None, soc_minima.clip(lower=soc_min)
+
+    @staticmethod
+    def _relax_scalar_soc_maximum(
+        soc_max: float | None,
+        soc_maxima: (
+            Sensor | SensorReference | list[dict] | ur.Quantity | pd.Series | None
+        ),
+        **timing_kwargs,
+    ) -> tuple[
+        None, Sensor | SensorReference | list[dict] | ur.Quantity | pd.Series | None
+    ]:
+        """Move a fixed SoC maximum into the relaxed maxima path.
+
+        If legacy dynamic maxima are also configured, the fixed maximum still tightens
+        them, but no longer stays behind as a hard constraint.
+        """
+        if soc_max is None:
+            return None, soc_maxima
+        if soc_maxima is None:
+            return None, soc_max * ur.Quantity("MWh")
+        soc_maxima = get_continuous_series_sensor_or_quantity(
+            variable_quantity=soc_maxima,
+            unit="MWh",
+            as_instantaneous_events=True,
+            resolve_overlaps="min",
+            **timing_kwargs,
+        )
+        return None, soc_maxima.clip(upper=soc_max)
 
     def persist_flex_model(self):
         """Store new soc info as GenericAsset attributes
@@ -1954,9 +2046,11 @@ class MetaStorageScheduler(Scheduler):
             raise ValueError(
                 "Cannot derive state of charge from a `state-of-charge` sensor with '%' unit without `soc-max`."
             )
-        if isinstance(soc_max, (Sensor, SensorReference)):
+        # A dict or list can arrive from the raw DB flex-model (e.g. a stored
+        # sensor reference or time series spec), so guard against those as well.
+        if isinstance(soc_max, (Sensor, SensorReference, dict, list)):
             raise ValueError(
-                "Cannot derive state of charge from a `state-of-charge` sensor with '%' unit when `soc-max` is a sensor reference."
+                "Cannot derive state of charge from a `state-of-charge` sensor with '%' unit when `soc-max` is a sensor reference or time series."
             )
         if isinstance(soc_max, (int, float)):
             return str(ur.Quantity(soc_max, soc_unit).to("MWh"))
@@ -2456,9 +2550,9 @@ class StorageScheduler(MetaStorageScheduler):
         For '%' sensors, the soc-max flex-model field is used as capacity.
         If soc-max is missing or zero for a '%' sensor, the schedule is skipped with a warning.
 
-        Note: soc-max is a QuantityField (not a VariableQuantityField), so it is always a float
-        after deserialization and cannot be a sensor reference.
-        The isinstance guard below is therefore a defensive check for forward-compatibility.
+        Note: dynamic soc-max values are routed to soc_maxima during deserialization, so
+        soc_max is still a fixed float after deserialization. The isinstance guard below
+        is therefore a defensive check for malformed data.
 
         :returns: Tuple of (soc_schedule keyed by SoC sensor in sensor unit,
                             soc_schedule_mwh keyed by device index in MWh).
@@ -2551,11 +2645,14 @@ class StorageScheduler(MetaStorageScheduler):
                 capacity = None
                 if soc_unit == "%":
                     soc_max = flex_model_d0.get("soc_max")
-                    if isinstance(soc_max, (Sensor, SensorReference)):
+                    # A dict or list can arrive from the raw DB flex-model (e.g. a
+                    # stored sensor reference or time series spec), so guard against
+                    # those as well.
+                    if isinstance(soc_max, (Sensor, SensorReference, dict, list)):
                         raise ValueError(
                             f"Cannot convert state-of-charge schedule to '%' unit for sensor "
-                            f"{state_of_charge_sensor.id}: soc-max as a sensor reference is "
-                            "not supported for '%' unit conversion."
+                            f"{state_of_charge_sensor.id}: soc-max as a sensor reference or "
+                            "time series is not supported for '%' unit conversion."
                         )
                     if not soc_max:
                         raise ValueError(

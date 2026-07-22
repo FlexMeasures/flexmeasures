@@ -161,19 +161,20 @@ class StorageFlexModelSchema(Schema):
         metadata=metadata.SOC_AT_START.to_dict(),
     )
 
-    soc_min = QuantityField(
-        validate=validate.Range(min=ur.Quantity("0 MWh")),
+    soc_min = VariableQuantityField(
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
-        return_magnitude=False,
+        timezone="placeholder",
         data_key="soc-min",
+        value_validator=validate.Range(min=0),
         metadata=metadata.SOC_MIN.to_dict(),
     )
-    soc_max = QuantityField(
+    soc_max = VariableQuantityField(
         to_unit="MWh",
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
-        return_magnitude=False,
+        timezone="placeholder",
         data_key="soc-max",
+        value_validator=validate.Range(min=0),
         metadata=metadata.SOC_MAX.to_dict(),
     )
 
@@ -222,7 +223,8 @@ class StorageFlexModelSchema(Schema):
         default_src_unit="dimensionless",  # placeholder, overridden in __init__
         timezone="placeholder",
         data_key="soc-maxima",
-        metadata=metadata.SOC_MAXIMA.to_dict(),
+        value_validator=validate.Range(min=0),
+        metadata={**metadata.SOC_MAXIMA.to_dict(), "deprecated": True},
     )
 
     soc_minima = VariableQuantityField(
@@ -231,7 +233,7 @@ class StorageFlexModelSchema(Schema):
         timezone="placeholder",
         data_key="soc-minima",
         value_validator=validate.Range(min=0),
-        metadata=metadata.SOC_MINIMA.to_dict(),
+        metadata={**metadata.SOC_MINIMA.to_dict(), "deprecated": True},
     )
 
     soc_targets = VariableQuantityField(
@@ -445,11 +447,29 @@ class StorageFlexModelSchema(Schema):
         if data.get("soc_at_start") is not None:
             data["soc_at_start"] = (data["soc_at_start"] / ur.Quantity("MWh")).magnitude
 
+        # Canonical dynamic bounds reuse the scheduler's existing minima/maxima path internally.
+        dynamic_types = (Sensor, SensorReference, list)
+        if isinstance(data.get("soc_min"), dynamic_types):
+            if data.get("soc_minima") is not None:
+                raise ValidationError(
+                    "Fields `soc-min` and `soc-minima` are mutually exclusive.",
+                    field_name="soc-min",
+                )
+            data["soc_minima"] = data.pop("soc_min")
+
+        if isinstance(data.get("soc_max"), dynamic_types):
+            if data.get("soc_maxima") is not None:
+                raise ValidationError(
+                    "Fields `soc-max` and `soc-maxima` are mutually exclusive.",
+                    field_name="soc-max",
+                )
+            data["soc_maxima"] = data.pop("soc_max")
+
         # Convert soc_min to dimensionless
-        if data.get("soc_min") is not None:
+        if isinstance(data.get("soc_min"), ur.Quantity):
             data["soc_min"] = (data["soc_min"] / ur.Quantity("MWh")).magnitude
         # Convert soc_max to dimensionless
-        if data.get("soc_max") is not None:
+        if isinstance(data.get("soc_max"), ur.Quantity):
             data["soc_max"] = (data["soc_max"] / ur.Quantity("MWh")).magnitude
 
         return data
@@ -491,6 +511,7 @@ class DBStorageFlexModelSchema(Schema):
         data_key="soc-minima",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata={"deprecated": True},
     )
 
     soc_maxima = VariableQuantityField(
@@ -498,6 +519,7 @@ class DBStorageFlexModelSchema(Schema):
         data_key="soc-maxima",
         required=False,
         value_validator=validate.Range(min=0),
+        metadata={"deprecated": True},
     )
 
     soc_targets = VariableQuantityField(

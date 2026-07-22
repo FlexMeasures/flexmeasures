@@ -138,20 +138,20 @@ For large connections, this price is usually stated explicitly on the tariff she
     example="260 EUR/MW",
 )
 SOC_MINIMA_BREACH_PRICE = MetaData(
-    description="""This **penalty value** is used to discourage the violation of ``soc-minima`` constraints in the flex-model, which the scheduler will attempt to minimize.
+    description="""This **penalty value** is used to discourage the violation of dynamic lower SoC boundary constraints in the flex-model, which the scheduler will attempt to minimize.
 It must use the same currency as the other price settings and cannot be negative.
 While it's an internal nudge to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.
 If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.
-Without this value, the soc-minima become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed. [#penalty_field]_ [#breach_field]_
+Without this value, dynamic ``soc-min`` boundaries and legacy ``soc-minima`` boundaries become hard constraints, which means that any infeasible state-of-charge minima would prevent a complete schedule from being computed. [#penalty_field]_ [#breach_field]_
 """,
     example="120 EUR/kWh",
 )
 SOC_MAXIMA_BREACH_PRICE = MetaData(
-    description="""This **penalty value** is used to discourage the violation of ``soc-maxima`` constraints in the flex-model, which the scheduler will attempt to minimize.
+    description="""This **penalty value** is used to discourage the violation of dynamic upper SoC boundary constraints in the flex-model, which the scheduler will attempt to minimize.
 It must use the same currency as the other price settings and cannot be negative.
 While it's an **internal nudge** to steer the scheduler—and doesn't represent a real-life cost—it should still be chosen in proportion to the actual energy prices at your site.
 If it's too high, it will overly dominate other constraints; if it's too low, it will have no effect.
-Without this value, the soc-maxima become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed. [#penalty_field]_ [#breach_field]_
+Without this value, dynamic ``soc-max`` boundaries and legacy ``soc-maxima`` boundaries become hard constraints, which means that any infeasible state-of-charge maxima would prevent a complete schedule from being computed. [#penalty_field]_ [#breach_field]_
 """,
     example="120 EUR/kWh",
 )
@@ -185,7 +185,7 @@ For tighter control over prices and priorities, the breach prices can also be se
     example=True,
 )
 RELAX_SOC_CONSTRAINTS = MetaData(
-    description="If True (default), avoids not meeting SoC minima/maxima as relaxed constraints. Setting this field (or ``relax-constraints``) to False keeps SoC minima/maxima as hard constraints unless breach prices are supplied explicitly; an explicit ``relax-soc-constraints`` takes precedence over ``relax-constraints``.",
+    description="If True (default), avoids not meeting SoC boundaries as relaxed constraints. Setting this field (or ``relax-constraints``) to False keeps SoC boundaries as hard constraints unless breach prices are supplied explicitly; an explicit ``relax-soc-constraints`` takes precedence over ``relax-constraints``.",
     example=True,
 )
 RELAX_CAPACITY_CONSTRAINTS = MetaData(
@@ -268,24 +268,29 @@ Only kWh and MWh are allowed.
     example="kWh",
 )
 SOC_MIN = MetaData(
-    description="""A constant and non-negotiable lower boundary for all SoC values in the schedule.
+    description="""Lower boundary for all SoC values in the schedule.
 If omitted, no lower boundary is applied.
-If used, this is regarded as an unsurpassable physical limitation.
-To set softer boundaries, use the ``soc-minima`` flex-model field instead together with the ``soc-minima-breach-price`` field in the flex-context. [#quantity_field]_
+This boundary is soft in the optimization problem by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-minima-breach-price``.
+When passed as a sensor reference or time series, it defines dynamic lower boundaries.
+Sensor references may include a ``default`` fallback quantity for missing sensor values, for example ``{"sensor": 50, "default": "0 kWh"}``.
+Set ``relax-soc-constraints`` (or ``relax-constraints``) to ``False`` to keep lower boundaries as hard constraints unless ``soc-minima-breach-price`` is supplied explicitly. [#maximum_overlap]_ [#projecting_scheduling_constraints]_
 """,
-    example="2.5 kWh",
+    example={"sensor": 50, "default": "0 kWh"},
 )
 SOC_MAX = MetaData(
-    description="""A constant and non-negotiable upper boundary for all values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).
+    description="""Upper boundary for all SoC values in the schedule (for storage devices, this defaults to max soc-target, if that is provided).
 If omitted, no upper boundary is applied.
-If used, this is regarded as an unsurpassable physical limitation.
-To set softer boundaries, use the ``soc-maxima`` flex-model field instead together with the ``soc-maxima-breach-price`` field in the flex-context. [#quantity_field]_
+This boundary is soft in the optimization problem by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-maxima-breach-price``.
+When passed as a sensor reference or time series, it defines dynamic upper boundaries.
+Sensor references may include a ``default`` fallback quantity for missing sensor values, for example ``{"sensor": 51, "default": "100 kWh"}``.
+Set ``relax-soc-constraints`` (or ``relax-constraints``) to ``False`` to keep upper boundaries as hard constraints unless ``soc-maxima-breach-price`` is supplied explicitly. [#minimum_overlap]_ [#projecting_scheduling_constraints]_
 """,
-    example="7 kWh",
+    example={"sensor": 51, "default": "100 kWh"},
 )
 SOC_MINIMA = MetaData(
-    description="""Set points that form lower boundaries, e.g. to target a full car battery in the morning.
-The ``soc-minima`` are soft constraints in the optimization problem by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-minima-breach-price``.
+    description="""[Deprecated field] Use dynamic ``soc-min`` values instead.
+Set points that form lower boundaries, e.g. to target a full car battery in the morning.
+The ``soc-minima`` legacy alias is soft in the optimization problem by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-minima-breach-price``.
 Set ``relax-soc-constraints`` (or ``relax-constraints``) to ``False`` to keep them as hard constraints unless ``soc-minima-breach-price`` is supplied explicitly [#maximum_overlap]_.
 Both single points in time and ranges are possible, see example. [#projecting_scheduling_constraints]_""",
     example=[
@@ -298,8 +303,9 @@ Both single points in time and ranges are possible, see example. [#projecting_sc
     ],
 )
 SOC_MAXIMA = MetaData(
-    description="""Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.
-The ``soc-maxima`` are soft constraints in the optimization problem by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-maxima-breach-price``.
+    description="""[Deprecated field] Use dynamic ``soc-max`` values instead.
+Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.
+The ``soc-maxima`` legacy alias is soft in the optimization problem by default, because ``relax-soc-constraints`` defaults to ``True`` and supplies a default ``soc-maxima-breach-price``.
 Set ``relax-soc-constraints`` (or ``relax-constraints``) to ``False`` to keep them as hard constraints unless ``soc-maxima-breach-price`` is supplied explicitly. [#minimum_overlap]_ [#projecting_scheduling_constraints]_""",
     example=[
         {

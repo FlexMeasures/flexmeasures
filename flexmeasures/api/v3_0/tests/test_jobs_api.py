@@ -380,6 +380,8 @@ def test_get_job_status_failed_infeasible_schedule_includes_exc_info(
 ):
     charging_station = add_charging_station_assets["Test charging station"].sensors[0]
     message = message_for_trigger_schedule(with_targets=True, realistic_targets=False)
+    message["flex-model"]["soc-targets"][0]["value"] = 250000
+    message["flex-context"] = {"relax-soc-constraints": False}
 
     with app.test_client() as client:
         trigger_response = client.post(
@@ -400,7 +402,7 @@ def test_get_job_status_failed_infeasible_schedule_includes_exc_info(
     assert response.status_code == 200
     data = response.json
     assert data["status"] == "FAILED"
-    assert "infeasible problem" in data["message"].lower()
+    assert "infeasible" in data["message"].lower()
     assert (
         "ValueError: The input data yields an infeasible problem." in data["exc_info"]
     )

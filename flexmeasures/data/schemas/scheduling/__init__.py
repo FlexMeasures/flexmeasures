@@ -878,7 +878,10 @@ class FlexContextSchema(SharedSchema):
         # Both relax-soc-constraints and relax-constraints default to True, so an
         # explicit relax-soc-constraints wins and otherwise the umbrella
         # relax-constraints decides: setting either flag to False keeps
-        # SoC minima/maxima as hard constraints.
+        # SoC minima/maxima as hard constraints. Note that off-tick SoC constraint
+        # projection relies on this precedence: it injects an explicit
+        # relax-soc-constraints=true, which must win over an explicit
+        # relax-constraints=false.
         if "relax-soc-constraints" in original_data:
             relax_soc_constraints = data["relax_soc_constraints"]
         else:
@@ -1071,7 +1074,7 @@ _UI_FLEX_MODEL_PRESENTATION: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.SOC_MIN.description),
         "types": {
             "backend": "typeThree",
-            "ui": "One fixed value or a dynamic signal (via a sensor).",
+            "ui": "A fixed lower boundary or a dynamic lower boundary with an optional default fallback.",
         },
         "example-units": EXAMPLE_UNIT_TYPES["energy"],
     },
@@ -1080,7 +1083,7 @@ _UI_FLEX_MODEL_PRESENTATION: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.SOC_MAX.description),
         "types": {
             "backend": "typeThree",
-            "ui": "One fixed value or a dynamic signal (via a sensor).",
+            "ui": "A fixed upper boundary or a dynamic upper boundary with an optional default fallback.",
         },
         "example-units": EXAMPLE_UNIT_TYPES["energy"],
     },
@@ -1089,7 +1092,7 @@ _UI_FLEX_MODEL_PRESENTATION: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.SOC_MINIMA.description),
         "types": {
             "backend": "typeTwo",
-            "ui": "A sensor which records the state of charge.",
+            "ui": "Deprecated alias for dynamic soc-min values.",
         },
         "example-units": EXAMPLE_UNIT_TYPES["energy"],
     },
@@ -1098,7 +1101,7 @@ _UI_FLEX_MODEL_PRESENTATION: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.SOC_MAXIMA.description),
         "types": {
             "backend": "typeTwo",
-            "ui": "A sensor which records the state of charge.",
+            "ui": "Deprecated alias for dynamic soc-max values.",
         },
         "example-units": EXAMPLE_UNIT_TYPES["energy"],
     },

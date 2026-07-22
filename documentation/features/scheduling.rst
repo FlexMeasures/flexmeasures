@@ -345,16 +345,17 @@ If you model devices that *buffer* energy (e.g. thermal energy storage systems c
 However, here are some tips to model a buffer correctly:
 
    - Describe the thermal energy content in kWh or MWh.
-   - Set ``soc-minima`` to the accumulative usage forecast.
+   - Set dynamic ``soc-min`` values to the accumulative usage forecast.
    - Set ``charging-efficiency`` to the sensor describing the :abbr:`COP (coefficient of performance)` values.
    - Set ``storage-efficiency`` to a value below 100% to model (heat) loss.
 
    For a hands-on example of a heat buffer fed by multiple devices, see :ref:`tut_multi_feed_storage`.
 
 If the flex model describes an infeasible problem for the storage scheduler, the failure should remain visible.
-By default, ``soc-minima`` and ``soc-maxima`` are relaxed into soft constraints, so the scheduler can still return a useful schedule when these boundaries cannot be fully met.
+By default, ``soc-min`` and ``soc-max`` boundaries are relaxed into soft constraints, so the scheduler can still return a useful schedule when these boundaries cannot be fully met.
+The legacy ``soc-minima`` and ``soc-maxima`` aliases follow the same behavior.
 Setting either ``relax-soc-constraints`` or ``relax-constraints`` to ``false`` in the flex-context keeps them as hard constraints.
-Exact ``soc-targets``, physical ``soc-min`` / ``soc-max`` bounds, and ``power-capacity`` (in the flex-model) and ``site-power-capacity`` (in the flex-context) remain hard constraints.
+Exact ``soc-targets``, ``power-capacity`` (in the flex-model), and ``site-power-capacity`` (in the flex-context) remain hard constraints.
 If those hard constraints make the problem infeasible, the scheduling job fails instead of producing a fallback schedule.
 
 It is important to take note of these failures. Often, misconfigured flex models are the reason.
