@@ -6408,6 +6408,18 @@
             "description": "Positive coupling magnitude for this device within its coupling group.\nThe scheduler couples the power flows of all devices in the group: each device's power is its coupling coefficient times the group's common flow level.\nThe flow direction of each device is inferred from which directional capacity is set: a device given only a <code>production-capacity</code> is an output (producing) device, and a device given only a <code>consumption-capacity</code> is an input (consuming) device.\nThe unspecified direction is assumed to be zero (mirroring how a missing directional site capacity defaults to zero), so there is no need to set the opposite direction to a fixed 0 (though setting it explicitly still works).\nFor example, a CHP unit with 50% thermal and 30% electrical efficiency uses a gas input device (coefficient 1), a heat output device (coefficient 0.5) and an electricity output device (coefficient 0.3).\nDefaults to 1.\n",
             "example": 0.5
           },
+          "coupling-base": {
+            "type": "string",
+            "x-minimum": "0 MW",
+            "description": "Per-port no-load base power for a unit-committed coupling group.\nGive a positive power magnitude; its direction follows the port's flow direction (the same way <code>coupling-coefficient</code> does).\nWhen the coupling group is unit-committed, each port's power equals its coupling coefficient times the group's marginal level <em>plus</em> this base, all gated by the group's on/off binary: <code>P = coefficient * level + base</code> when on, and <code>0</code> when off.\nUse it to model a no-load offset, such as a cogeneration unit's no-load fuel consumption that is burned only while the unit runs.\nSetting a non-zero base (on any port) makes the coupling group unit-committed.\nDefaults to 0.\n",
+            "example": "3 kW"
+          },
+          "coupling-min": {
+            "type": "string",
+            "x-minimum": "0 MW",
+            "description": "Minimum marginal level of a coupling group, declared on its reference port (the port with <code>coupling-coefficient</code> 1).\nSetting it makes the coupling group unit-committed: a per-time-step on/off binary is introduced, and when the group runs its marginal level stays between this minimum and the reference port's <code>power-capacity</code> (the maximum); when it is off, all ports are exactly 0.\nUse it to model a minimum load, such as a cogeneration unit that must run at or above a minimum output when on and be fully off otherwise.\n",
+            "example": "4 kW"
+          },
           "sensor": {
             "type": "integer",
             "description": "ID of the device's power sensor."

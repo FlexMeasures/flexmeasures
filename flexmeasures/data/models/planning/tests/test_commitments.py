@@ -2236,6 +2236,198 @@ def test_factory_chp_dispatch():
     )
 
 
+def _run_unit_committed_cogeneration_scenario(elec_price: float, gas_price: float):
+    """Run a 1-step unit-committed cogeneration dispatch and return (schedules, cost).
+
+    A single cogeneration unit is modelled as an affine, unit-committed coupling group
+    with the electrical output as its driving variable (the reference port, coefficient 1):
+
+        P_power = -alpha                     (electricity produced, coeff -1, no base)
+        P_gas   =  SLOPE_GAS * alpha + BASE_GAS  (gas consumed,  coeff +2, base +3 kW)
+        P_heat  = -SLOPE_HEAT * alpha - BASE_HEAT (heat produced, coeff -1.5, base -1 kW)
+
+    with the unit either off (alpha = 0, u = 0, so every port is exactly 0 and no
+    no-load fuel is burned) or on (alpha = P in [PMIN, PMAX], u = 1). PMIN comes from
+    ``coupling_uc`` and PMAX from the reference port's power capacity.
+
+    The economics: producing electricity earns ``elec_price`` per kW, consuming gas
+    costs ``gas_price`` per kW. Both are modelled as two-sided soft flow commitments at
+    quantity 0, so an upward deviation (consumption) costs and a downward deviation
+    (production) earns.
+    """
+    PMIN, PMAX = 4.0, 10.0  # kW electrical output when running
+    SLOPE_GAS, BASE_GAS = 2.0, 3.0  # gas = 2 * P_elec + 3 (no-load fuel)
+    SLOPE_HEAT, BASE_HEAT = 1.5, 1.0  # heat = 1.5 * P_elec + 1 (no-load heat)
+
+    start = pd.Timestamp("2026-01-01T00:00+01:00")
+    end = pd.Timestamp("2026-01-01T01:00+01:00")
+    resolution = pd.Timedelta("1h")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    def _df(**kwargs) -> pd.DataFrame:
+        defaults = {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": 0.0,
+            "derivative max": 0.0,
+            "derivative equals": np.nan,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+            "stock delta": 0.0,
+        }
+        defaults.update(kwargs)
+        return pd.DataFrame(defaults, index=index)
+
+    # d=0 electrical output (reference port): production only, P in [-PMAX, 0].
+    # d=1 gas input: consumption only, P in {0} U [SLOPE_GAS*PMIN+BASE_GAS, SLOPE_GAS*PMAX+BASE_GAS].
+    # d=2 heat output: production only; wide enough to hold the affine value.
+    device_constraints = [
+        _df(**{"derivative min": -PMAX, "derivative max": 0.0}),
+        _df(**{"derivative min": 0.0, "derivative max": SLOPE_GAS * PMAX + BASE_GAS}),
+        _df(
+            **{
+                "derivative min": -(SLOPE_HEAT * PMAX + BASE_HEAT),
+                "derivative max": 0.0,
+            }
+        ),
+    ]
+
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -1000.0, "derivative max": 1000.0}, index=index
+    )
+
+    # Coupling: electrical output is the reference port (coeff -1, |coeff| == 1).
+    coupling_groups = {
+        "cogen": [(0, -1.0), (1, SLOPE_GAS), (2, -SLOPE_HEAT)],
+    }
+    # Unit commitment: marginal level (alpha = electrical output) bounded to [PMIN, PMAX]
+    # when on, forced to 0 when off.
+    coupling_uc = {"cogen": (PMIN, PMAX)}
+    # Signed no-load bases (same sign convention as the coefficients).
+    coupling_bases = {
+        "cogen": [(0, 0.0), (1, BASE_GAS), (2, -BASE_HEAT)],
+    }
+
+    elec_p = pd.Series(elec_price, index=index)
+    gas_p = pd.Series(gas_price, index=index)
+    commitments = [
+        FlowCommitment(
+            name="electricity",
+            index=index,
+            quantity=pd.Series(0.0, index=index),
+            upwards_deviation_price=elec_p,
+            downwards_deviation_price=elec_p,
+            device=pd.Series(0, index=index),
+        ),
+        FlowCommitment(
+            name="gas",
+            index=index,
+            quantity=pd.Series(0.0, index=index),
+            upwards_deviation_price=gas_p,
+            downwards_deviation_price=gas_p,
+            device=pd.Series(1, index=index),
+        ),
+    ]
+
+    schedules, costs, results, _model = device_scheduler(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitments=commitments,
+        coupling_groups=coupling_groups,
+        coupling_uc=coupling_uc,
+        coupling_bases=coupling_bases,
+    )
+    assert results.solver.termination_condition == "optimal", (
+        f"Solver did not find an optimal solution "
+        f"(elec_price={elec_price}, gas_price={gas_price})"
+    )
+    return schedules, costs
+
+
+def test_factory_unit_committed_cogeneration_dispatch(app, db):
+    """Factory: a unit-committed cogeneration unit idles or runs at/above its minimum.
+
+    The unit's driving variable is its electrical output P, with P in {0} U [PMIN, PMAX]:
+
+        P_power = -P,   P_gas = 2*P + 3 (kW),   P_heat = -(1.5*P + 1) (kW)
+
+    PMIN = 4 kW, PMAX = 10 kW, no-load fuel = 3 kW, no-load heat = 1 kW.
+
+    Profitable step (elec 50, gas 10)
+    ---------------------------------
+    Marginal profit per kW of electricity = elec - gas*slope_gas = 50 - 10*2 = 30 > 0,
+    so the unit runs at its maximum P = PMAX = 10 kW (higher output is always better,
+    and the no-load fuel is comfortably paid for):
+
+        P_power = -10 kW,  P_gas = 2*10 + 3 = 23 kW,  P_heat = -(1.5*10 + 1) = -16 kW
+
+    Cost = gas*P_gas - elec*|P_power| = 10*23 - 50*10 = 230 - 500 = -270 (a profit).
+    Running at PMIN instead would earn only 4*30 - 30 = 90, so PMAX is optimal.
+
+    Unprofitable step (elec 10, gas 20)
+    -----------------------------------
+    Marginal profit per kW = 10 - 20*2 = -30 < 0, so every kW loses money and there is
+    a fixed no-load fuel cost on top. Even at PMIN the unit would lose
+    20*(2*4 + 3) - 10*4 = 220 - 40 = 180. Idling costs 0, so the unit fully idles:
+    ALL ports are exactly 0 and NO no-load fuel is burned (base is gated by u).
+
+    The objective equals the hand-computed profit of the running step.
+    """
+    # ----- unprofitable step: the unit fully idles -----
+    idle_schedules, idle_cost = _run_unit_committed_cogeneration_scenario(
+        elec_price=10.0, gas_price=20.0
+    )
+    power_idle, gas_idle, heat_idle = idle_schedules
+
+    # Every port is exactly 0 — in particular no no-load fuel is burned.
+    np.testing.assert_allclose(
+        power_idle.iloc[0], 0.0, atol=1e-6, err_msg="Idle: electrical output must be 0"
+    )
+    np.testing.assert_allclose(
+        gas_idle.iloc[0],
+        0.0,
+        atol=1e-6,
+        err_msg="Idle: gas input must be 0 (no-load fuel gated by the on/off binary)",
+    )
+    np.testing.assert_allclose(
+        heat_idle.iloc[0], 0.0, atol=1e-6, err_msg="Idle: heat output must be 0"
+    )
+    np.testing.assert_allclose(
+        idle_cost, 0.0, atol=1e-6, err_msg="Idle: objective must be 0"
+    )
+
+    # ----- profitable step: the unit runs at its maximum (>= PMIN) -----
+    run_schedules, run_cost = _run_unit_committed_cogeneration_scenario(
+        elec_price=50.0, gas_price=10.0
+    )
+    power_run, gas_run, heat_run = run_schedules
+
+    # P = PMAX = 10 kW; the affine relations (including the no-load bases) hold.
+    np.testing.assert_allclose(
+        power_run.iloc[0],
+        -10.0,
+        rtol=1e-4,
+        err_msg="Run: electrical output must be -10 kW (at PMAX, never between 0 and PMIN)",
+    )
+    np.testing.assert_allclose(
+        gas_run.iloc[0],
+        23.0,  # 2 * 10 + 3
+        rtol=1e-4,
+        err_msg="Run: gas input must be 2*P + 3 = 23 kW (affine with no-load base)",
+    )
+    np.testing.assert_allclose(
+        heat_run.iloc[0],
+        -16.0,  # -(1.5 * 10 + 1)
+        rtol=1e-4,
+        err_msg="Run: heat output must be -(1.5*P + 1) = -16 kW (affine with no-load base)",
+    )
+    # Objective: 10*23 - 50*10 = -270.
+    np.testing.assert_allclose(
+        run_cost, -270.0, rtol=1e-4, err_msg="Run: objective must equal -270"
+    )
+
+
 def test_all_gas_flex_model_without_electricity_device(app, db):
     """test_all_gas_flex_model_without_electricity_device: a flex-model with only gas
     devices (no electricity device at all) should not raise a KeyError, now that

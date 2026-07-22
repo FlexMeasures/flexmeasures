@@ -44,6 +44,8 @@ def device_scheduler(  # noqa C901
     initial_stock: float | list[float] = 0,
     stock_groups: dict[int, list[int]] | None = None,
     coupling_groups: dict[str, list[tuple[int, float]]] | None = None,
+    coupling_uc: dict[str, tuple[float, float]] | None = None,
+    coupling_bases: dict[str, list[tuple[int, float]]] | None = None,
     ems_constraint_groups: list[list[int]] | None = None,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
@@ -91,6 +93,16 @@ def device_scheduler(  # noqa C901
                                 power output (d=2, coeff −0.3)::
 
                                     coupling_groups={"chp": [(0, 1.0), (1, -0.5), (2, -0.3)]}
+
+    :param coupling_uc:         Optional unit-commitment bounds per coupling group, marking that group unit-committed.
+                                Each entry maps a group name to a ``(min, max)`` pair for the group's marginal level ``alpha``.
+                                A per-time-step binary ``u`` is introduced and ``min * u <= alpha[group, j] <= max * u``,
+                                so ``alpha`` is zero when the group is off and at least ``min`` when on.
+    :param coupling_bases:      Optional per-port no-load base per coupling group. Each entry maps a group name to a list of
+                                ``(device_index, base)`` tuples. For a unit-committed group, every port ``d`` is then
+                                constrained by ``P[d, j] == coeff_d * alpha[group, j] + base_d * u[group, j]``, so the
+                                (signed) no-load base is gated by the on/off binary (e.g. a cogeneration unit's no-load fuel).
+                                Ignored for groups not present in ``coupling_uc``.
 
     Potentially deprecated arguments:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
@@ -807,6 +819,9 @@ def device_scheduler(  # noqa C901
     )
 
     if coupling_device_specs:
+        # coupling_device_specs is only populated when coupling_groups is given.
+        assert coupling_groups is not None
+        group_names = list(coupling_groups.keys())
         n_coupling_groups = len(coupling_groups)
 
         # One free variable per group per time step: the common normalised flow.
@@ -815,14 +830,61 @@ def device_scheduler(  # noqa C901
 
         model.coupling_device_range = RangeSet(0, len(coupling_device_specs) - 1)
 
-        def flow_coupling_rule(m, c, j):
-            """Enforce P[d, j] == coeff * alpha[group, j] for each coupled device.
+        # Unit-commitment: a group listed in ``coupling_uc`` gains a per-time-step
+        # on/off binary. Its marginal level ``alpha`` is then gated by that binary
+        # (min * u <= alpha <= max * u), and every port picks up a no-load base
+        # (base * u) on top of the proportional term. Groups without UC keep their
+        # purely proportional behaviour (the model stays an LP unless some group is
+        # unit-committed).
+        coupling_uc = coupling_uc or {}
+        coupling_bases = coupling_bases or {}
+        uc_bounds_by_gidx: dict[int, tuple[float, float]] = {}
+        base_by_group_device: dict[tuple[int, int], float] = {}
+        for g_idx, name in enumerate(group_names):
+            if name in coupling_uc:
+                uc_bounds_by_gidx[g_idx] = coupling_uc[name]
+                for d_idx, base in coupling_bases.get(name, []):
+                    base_by_group_device[(g_idx, d_idx)] = base
 
-            This pins every device's flow to the same normalised level ``alpha``,
-            scaled by its coupling coefficient. The coefficient sign indicates direction:
-            positive for inputs (consuming), negative for outputs (producing).
+        if uc_bounds_by_gidx:
+            model.coupling_uc_range = Set(initialize=sorted(uc_bounds_by_gidx))
+            model.coupling_on = Var(
+                model.coupling_uc_range, model.j, domain=Binary, initialize=0
+            )
+
+            def coupling_alpha_lower_rule(m, g, j):
+                """alpha is at least the group minimum when the group is on, else zero."""
+                min_level, _ = uc_bounds_by_gidx[g]
+                return m.coupling_alpha[g, j] >= min_level * m.coupling_on[g, j]
+
+            def coupling_alpha_upper_rule(m, g, j):
+                """alpha is at most the group maximum when on, and forced to zero when off."""
+                _, max_level = uc_bounds_by_gidx[g]
+                return m.coupling_alpha[g, j] <= max_level * m.coupling_on[g, j]
+
+            model.coupling_alpha_lower_bounds = Constraint(
+                model.coupling_uc_range, model.j, rule=coupling_alpha_lower_rule
+            )
+            model.coupling_alpha_upper_bounds = Constraint(
+                model.coupling_uc_range, model.j, rule=coupling_alpha_upper_rule
+            )
+
+        def flow_coupling_rule(m, c, j):
+            """Enforce the (affine) coupling of each port to its group's level.
+
+            For a purely proportional group: ``P[d, j] == coeff * alpha[group, j]``.
+            For a unit-committed group: ``P[d, j] == coeff * alpha[group, j] + base * u[group, j]``,
+            so the (signed) no-load base is gated by the on/off binary.
+            The coefficient sign indicates direction: positive for inputs (consuming),
+            negative for outputs (producing); the base follows the same sign convention.
             """
             g, d, coeff = coupling_device_specs[c]
+            if g in uc_bounds_by_gidx:
+                base = base_by_group_device.get((g, d), 0.0)
+                return (
+                    m.ems_power[d, j]
+                    == coeff * m.coupling_alpha[g, j] + base * m.coupling_on[g, j]
+                )
             return m.ems_power[d, j] == coeff * m.coupling_alpha[g, j]
 
         model.flow_coupling_constraints = Constraint(
