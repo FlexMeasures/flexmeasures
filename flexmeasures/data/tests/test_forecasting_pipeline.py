@@ -7,7 +7,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 from marshmallow import ValidationError
-from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import inspect as sa_inspect, select
 
 from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.data_sources import DataSource
@@ -31,7 +31,9 @@ from flexmeasures.data.models.forecasting.pipelines.train_predict import (
 )
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
+from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.utils.job_utils import work_on_rq
+from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 
 
@@ -95,6 +97,129 @@ def test_train_predict_job_config_payload_preserves_plain_fields(
     assert restored_config["past_regressors"] == [past_regressor]
     assert restored_config["annotation_regressors"] == payload["annotation_regressors"]
     assert restored_config["plain_future_option"] == config["plain_future_option"]
+
+
+def test_train_predict_job_config_payload_round_trips_sensor_references(
+    app,
+    clean_redis,
+    setup_fresh_test_forecast_data,
+    setup_accounts_fresh_db,
+    fresh_db,
+):
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    account = setup_accounts_fresh_db["Prosumer"]
+    pipeline = TrainPredictPipeline(
+        config={
+            "train-start": "2025-01-01T00:00:00+00:00",
+            "future-regressors": [
+                {
+                    "sensor": regressor_sensor.id,
+                    "sources": [source.id],
+                    "source-types": ["demo script"],
+                    "exclude-source-types": ["forecaster"],
+                    "source-account": [account.id],
+                }
+            ],
+        }
+    )
+    config = pipeline._config
+
+    payload = _make_job_config_payload(config)
+
+    assert payload["future_regressor_ids"] == [
+        {
+            "sensor": regressor_sensor.id,
+            "sources": [source.id],
+            "source-types": ["demo script"],
+            "exclude-source-types": ["forecaster"],
+            "source-account": [account.id],
+        }
+    ]
+    assert not _contains_orm_instance(payload)
+
+    restored_config = _load_job_config_payload(payload)
+    restored_regressor = restored_config["future_regressors"][0]
+    assert isinstance(restored_regressor, SensorReference)
+    assert restored_regressor.sensor == regressor_sensor
+    assert restored_regressor.sources == [source]
+    assert restored_regressor.source_types == ["demo script"]
+    assert restored_regressor.exclude_source_types == ["forecaster"]
+    assert restored_regressor.source_account == [account]
+
+    queued_result = pipeline.compute(
+        as_job=True,
+        parameters={
+            "sensor": target_sensor.id,
+            "start": "2025-01-08T00:00:00+00:00",
+            "end": "2025-01-08T02:00:00+00:00",
+            "max-forecast-horizon": "PT1H",
+            "forecast-frequency": "PT1H",
+        },
+    )
+    queued_job = app.queues["forecasting"].fetch_job(queued_result["job_id"])
+    assert queued_job is not None
+    queued_config = queued_job.kwargs["config"]
+    assert queued_config["future_regressor_ids"] == payload["future_regressor_ids"]
+    assert not _contains_orm_instance(queued_config)
+    queued_regressor = _load_job_config_payload(queued_config)["future_regressors"][0]
+    assert isinstance(queued_regressor, SensorReference)
+    assert queued_regressor.sources == [source]
+    assert queued_regressor.source_account == [account]
+
+
+def test_load_data_all_beliefs_applies_regressor_source_filters(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    selected_source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    excluded_source = DataSource(name="excluded-regressor-source", type="forecaster")
+    excluded_value = -999.0
+    fresh_db.session.add_all(
+        [
+            excluded_source,
+            TimedBelief(
+                sensor=regressor_sensor,
+                event_start=as_server_time(datetime(2025, 1, 2)),
+                event_value=excluded_value,
+                belief_horizon=timedelta(hours=6),
+                source=excluded_source,
+            ),
+        ]
+    )
+    fresh_db.session.commit()
+    regressor_reference = SensorReference(
+        sensor=regressor_sensor,
+        sources=[selected_source],
+    )
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[regressor_reference],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=as_server_time(datetime(2025, 1, 1)),
+        event_ends_before=as_server_time(datetime(2025, 1, 3)),
+    )
+
+    loaded_data = pipeline.load_data_all_beliefs()
+
+    assert (
+        excluded_value
+        in regressor_sensor.search_beliefs(
+            source=[excluded_source], most_recent_beliefs_only=False
+        )["event_value"].values
+    )
+    assert excluded_value not in loaded_data[pipeline.future_regressors[0]].values
+    assert loaded_data[pipeline.future_regressors[0]].notna().any()
 
 
 def test_train_predict_job_parameters_payload_preserves_plain_fields(
