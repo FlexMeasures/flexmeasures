@@ -255,6 +255,55 @@ def test_delete_child_asset_redirects_to_parent(
     assert url_for("AssetCrudUI:context", id=parent.id) in response.location
 
 
+def test_resolved_flex_context_on_context_page(
+    client, db, as_admin, setup_accounts, setup_generic_asset_types
+):
+    """The context page shows the resolved flex-context, saying which fields are inherited from which ancestor."""
+    parent = GenericAsset(
+        name="parent-for-flex-context-test",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        flex_context={
+            "site-power-capacity": "2 MVA",
+            "consumption-price": "100 EUR/MWh",
+        },
+    )
+    db.session.add(parent)
+    db.session.flush()
+
+    child = GenericAsset(
+        name="child-for-flex-context-test",
+        generic_asset_type=setup_generic_asset_types["battery"],
+        owner=setup_accounts["Prosumer"],
+        parent_asset_id=parent.id,
+        flex_context={"site-power-capacity": "1 MVA"},
+    )
+    db.session.add(child)
+    db.session.commit()
+
+    child_page = client.get(
+        url_for("AssetCrudUI:context", id=child.id), follow_redirects=True
+    )
+    assert child_page.status_code == 200
+    assert b"Flex-context used for scheduling" in child_page.data
+    # The child's own field shadows the parent's value.
+    assert b"1 MVA" in child_page.data
+    assert b"2 MVA" not in child_page.data
+    # The consumption price is inherited from the parent, with a link to its context page.
+    assert b"100 EUR/MWh" in child_page.data
+    assert b"inherited" in child_page.data
+    assert b"parent-for-flex-context-test" in child_page.data
+    assert url_for("AssetCrudUI:context", id=parent.id).encode() in child_page.data
+
+    parent_page = client.get(
+        url_for("AssetCrudUI:context", id=parent.id), follow_redirects=True
+    )
+    assert parent_page.status_code == 200
+    # All of the parent's fields are its own, so nothing shows as inherited.
+    assert b"this asset" in parent_page.data
+    assert b"inherited" not in parent_page.data
+
+
 def test_breadcrumb_cross_account_parent(
     db, client, setup_accounts, setup_generic_asset_types, as_prosumer_user1
 ):
