@@ -1744,6 +1744,92 @@ def test_explicit_zero_directional_capacity_stays_hard_under_relax_constraints(
     )
 
 
+@pytest.mark.parametrize(
+    "direction, capacity_field, expected_derivative_col",
+    [
+        ("production", "production-capacity", "derivative min"),
+        ("consumption", "consumption-capacity", "derivative max"),
+    ],
+)
+def test_non_zero_directional_capacity_still_softens_under_breach_price(
+    db,
+    add_battery_assets,
+    direction,
+    capacity_field,
+    expected_derivative_col,
+):
+    """Non-zero directional capacity remains soft when breach prices are set (#2323).
+
+    Companion to ``test_explicit_zero_directional_capacity_stays_hard_under_relax_constraints``:
+    only the all-zero case stays hard; economic (non-zero) limits must still create soft
+    breach commitments and must not pin the hard derivative bound to that capacity.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    start = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 2))
+    end = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+
+    opposite_field = (
+        "consumption-capacity" if direction == "production" else "production-capacity"
+    )
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": "1 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "2 MWh",
+            "power-capacity": "2 MW",
+            capacity_field: "0.1 MW",  # non-zero economic limit
+            opposite_field: "2 MW",
+        },
+        flex_context={
+            "consumption-price": "1 EUR/MWh",
+            "production-price": "1 EUR/MWh",
+            "production-breach-price": "100 EUR/kW",
+            "consumption-breach-price": "100 EUR/kW",
+            "site-power-capacity": "2 MW",
+        },
+    )
+    scheduler.deserialize_config()
+
+    (
+        _sensors,
+        _start,
+        _end,
+        _resolution,
+        _soc_at_start,
+        device_constraints,
+        _ems_constraints,
+        commitments,
+    ) = scheduler._prepare(skip_validation=True)
+
+    soft_breach_names = [
+        c.name
+        for c in commitments
+        if c.name is not None and f"{direction} breach device" in c.name
+    ]
+    assert soft_breach_names, (
+        f"non-zero {capacity_field} must still create soft "
+        f"{direction} breach commitments under breach prices"
+    )
+
+    # Hard bound should stay at power-capacity (±2 MW), not be pinned to the soft 0.1 MW.
+    if expected_derivative_col == "derivative min":
+        assert np.allclose(device_constraints[0][expected_derivative_col], -2.0), (
+            f"hard {expected_derivative_col} should remain power-capacity when "
+            f"non-zero {capacity_field} is softened"
+        )
+    else:
+        assert np.allclose(device_constraints[0][expected_derivative_col], 2.0), (
+            f"hard {expected_derivative_col} should remain power-capacity when "
+            f"non-zero {capacity_field} is softened"
+        )
+
+
 def test_explicit_zero_production_capacity_not_breached_in_schedule(
     db, add_battery_assets
 ):
