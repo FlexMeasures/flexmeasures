@@ -2244,6 +2244,8 @@ def test_multiple_sessions_same_sensor_accumulate_overlapping_windows(db, buildi
     np.testing.assert_allclose(schedule.values, [1.0, 1.0, 1.0, 1.0], atol=1e-3)
     # Overwrite would keep only the last session (~2 kWh at 0.5 kW).
     np.testing.assert_allclose(schedule.sum(), 4.0, atol=1e-3)
-    assert (schedule.values > 0.75).all(), (
+    assert (
+        schedule.values > 0.75
+    ).all(), (
         "overlapping sessions must both contribute; overwrite would stay near 0.5 kW"
     )
