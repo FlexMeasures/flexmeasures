@@ -6,7 +6,7 @@ Toy example II: Adding solar production, and a limit on the grid connection
 ============================================================================
 
 
-So far we haven't taken into account any other devices that consume or produce electricity. The battery was free to use all available capacity (which was 500 kVA, both its own maximum charge/discharge rate, and the maximum grid capacity). 
+So far we haven't taken into account any other devices that consume or produce electricity. The battery was free to use all available capacity (which was 500 kVA, both its own maximum charge/discharge rate, and the maximum grid capacity).
 
 What if other devices will be using some of that capacity? Our schedules need to reflect that, so we stay within given limits.
 
@@ -24,36 +24,36 @@ How does it work?
 Adding PV production forecasts
 ------------------------------
 
-First, we'll create a new CSV file with solar forecasts (MW, see the setup for sensor 3 in part I of this tutorial) for tomorrow.
+First, we'll create a new CSV file with solar forecasts (kW, see the setup for sensor 9 in part I of this tutorial) for tomorrow.
 
 .. code-block:: bash
 
     $ TOMORROW=$(date --date="next day" '+%Y-%m-%d')
     $ echo "Hour,Price
-    $ ${TOMORROW}T00:00:00,0.0
-    $ ${TOMORROW}T01:00:00,0.0
-    $ ${TOMORROW}T02:00:00,0.0
-    $ ${TOMORROW}T03:00:00,0.0
-    $ ${TOMORROW}T04:00:00,0.01
-    $ ${TOMORROW}T05:00:00,0.03
-    $ ${TOMORROW}T06:00:00,0.06
-    $ ${TOMORROW}T07:00:00,0.1
-    $ ${TOMORROW}T08:00:00,0.14
-    $ ${TOMORROW}T09:00:00,0.17
-    $ ${TOMORROW}T10:00:00,0.19
-    $ ${TOMORROW}T11:00:00,0.21
-    $ ${TOMORROW}T12:00:00,0.22
-    $ ${TOMORROW}T13:00:00,0.21
-    $ ${TOMORROW}T14:00:00,0.19
-    $ ${TOMORROW}T15:00:00,0.17
-    $ ${TOMORROW}T16:00:00,0.14
-    $ ${TOMORROW}T17:00:00,0.1
-    $ ${TOMORROW}T18:00:00,0.06
-    $ ${TOMORROW}T19:00:00,0.03
-    $ ${TOMORROW}T20:00:00,0.01
-    $ ${TOMORROW}T21:00:00,0.0
-    $ ${TOMORROW}T22:00:00,0.0
-    $ ${TOMORROW}T23:00:00,0.0" > solar-tomorrow.csv
+    $ ${TOMORROW}T00:00:00,0
+    $ ${TOMORROW}T01:00:00,0
+    $ ${TOMORROW}T02:00:00,0
+    $ ${TOMORROW}T03:00:00,0
+    $ ${TOMORROW}T04:00:00,10
+    $ ${TOMORROW}T05:00:00,30
+    $ ${TOMORROW}T06:00:00,60
+    $ ${TOMORROW}T07:00:00,100
+    $ ${TOMORROW}T08:00:00,140
+    $ ${TOMORROW}T09:00:00,170
+    $ ${TOMORROW}T10:00:00,190
+    $ ${TOMORROW}T11:00:00,210
+    $ ${TOMORROW}T12:00:00,220
+    $ ${TOMORROW}T13:00:00,210
+    $ ${TOMORROW}T14:00:00,190
+    $ ${TOMORROW}T15:00:00,170
+    $ ${TOMORROW}T16:00:00,140
+    $ ${TOMORROW}T17:00:00,100
+    $ ${TOMORROW}T18:00:00,60
+    $ ${TOMORROW}T19:00:00,30
+    $ ${TOMORROW}T20:00:00,10
+    $ ${TOMORROW}T21:00:00,0
+    $ ${TOMORROW}T22:00:00,0
+    $ ${TOMORROW}T23:00:00,0" > solar-tomorrow.csv
 
 Then, we read in the created CSV file as beliefs data.
 This time, different to above, we want to use a new data source (not the user) ― it represents whoever is making these solar production forecasts.
@@ -65,11 +65,11 @@ Setting the data source type to "forecaster" helps FlexMeasures to visually dist
 .. code-block:: bash
 
     $ flexmeasures add source --name "toy-forecaster" --type forecaster
-    Added source <Data source 4 (toy-forecaster)>
-    $ flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 4 solar-tomorrow.csv --timezone Europe/Amsterdam
+    Added source <Data source 2 (toy-forecaster)>
+    $ flexmeasures add beliefs --sensor ${FM_TOY_SOLAR_SENSOR_ID} --source 2 solar-tomorrow.csv --timezone Europe/Amsterdam
     Successfully created beliefs
 
-The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/3>`_:
+The one-hour CSV data is automatically resampled to the 15-minute resolution of the sensor that is recording solar production. We can see solar production in the `FlexMeasures UI <http://localhost:5000/sensors/9>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-production.png
     :align: center
@@ -96,13 +96,13 @@ This will have an effect on the available headroom for the battery, given the ``
                 --start ${TOMORROW}T07:00+01:00 \
                 --duration PT12H \
                 --soc-at-start 50% \
-                --flex-context '{"inflexible-device-sensors": [3]}'
+                --flex-context '{"inflexible-device-sensors": [9]}'
                 --flex-model '{"soc-min": "50 kWh"}' \
             New schedule is stored.
         
     .. tab:: API
 
-        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/2/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ (update the start date to tomorrow):
+        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/8/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
             :emphasize-lines: 8-10
@@ -141,7 +141,7 @@ This will have an effect on the available headroom for the battery, given the ``
                     host="localhost:5000",
                 )
                 schedule = await client.trigger_and_get_schedule(
-                    sensor_id=2,  # Battery power (sensor ID)
+                    sensor_id=8,  # Battery power (sensor ID)
                     start=f"{(date.today() + timedelta(days=1)).isoformat()}T07:00+01:00",
                     duration="PT12H",
                     flex_model={
@@ -149,7 +149,7 @@ This will have an effect on the available headroom for the battery, given the ``
                         "soc-min": "50 kWh",
                     },
                     flex_context={
-                        "inflexible-device-sensors": [3],  # solar production (sensor ID)
+                        "inflexible-device-sensors": [9],  # solar production (sensor ID)
                     },
                 )
                 print(schedule)
@@ -158,13 +158,13 @@ This will have an effect on the available headroom for the battery, given the ``
             asyncio.run(client_script())
 
 
-We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_:
+We can see the updated scheduling in the `FlexMeasures UI <http://localhost:5000/sensors/8>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging-with-solar.png
     :align: center
 |
 
-The `graphs page for the battery <http://localhost:5000/assets/3/graphs>`_ now shows the solar data, too:
+The `graphs page for the battery <http://localhost:5000/assets/6/graphs>`_ now shows the solar data, too:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-with-solar.png
     :align: center
@@ -190,7 +190,7 @@ In the case of the scheduler that we ran in the previous tutorial, which did not
 
 .. note:: You can add arbitrary sensors to a chart using the asset UI or the attribute ``sensors_to_show``. See :ref:`view_asset-data` for more.
 
-A nice feature is that you can check the data connectivity status of your building asset. Now that we have made the schedule, both lamps are green. You can also view it in `FlexMeasures UI <http://localhost:5000/assets/2/status>`_:
+A nice feature is that you can check the data connectivity status of your building asset. Now that we have made the schedule, both lamps are green. You can also view it in `FlexMeasures UI <http://localhost:5000/assets/5/status>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/screenshot_building_status.png
     :align: center

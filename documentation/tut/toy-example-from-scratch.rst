@@ -75,7 +75,7 @@ There is more information being used by the scheduler, such as the battery's cap
 
     .. tab:: API
 
-        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/3/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ (update the start date to tomorrow):
+        Example call: `[POST] http://localhost:5000/api/v3_0/sensors/8/schedules/trigger <../api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>`_ (update the start date to tomorrow):
 
         .. code-block:: json
 
@@ -83,7 +83,7 @@ There is more information being used by the scheduler, such as the battery's cap
                 "start": "2025-11-11T07:00+01:00",
                 "duration": "PT12H",
                 "flex-model": [
-                    "sensor": 2,
+                    "sensor": 8,
                     "soc-at-start": "225kWh",
                     "soc-min": "50 kWh"
                 ]
@@ -113,7 +113,7 @@ There is more information being used by the scheduler, such as the battery's cap
                     host="localhost:5000",
                 )
                 schedule = await client.trigger_and_get_schedule(
-                    sensor_id=2,  # battery discharging power sensor
+                    sensor_id=8,  # battery discharging power sensor
                     start=f"{(date.today() + timedelta(days=1)).isoformat()}T07:00+01:00",
                     duration="PT12H",
                     flex_model={
@@ -135,11 +135,11 @@ Great. Let's see what we made:
 
 .. code-block:: bash
 
-    Beliefs for Sensor 'discharging' (ID 2).
+    Beliefs for Sensor 'discharging' (ID 8).
     Data spans 12 hours and starts at 2025-11-29 07:00:00+01:00.
     The time resolution (x-axis) is 15 minutes.
     ┌────────────────────────────────────────────────────────────┐
-    │     ▛▀▜            ▞▀▀▌                               ▐▀▀▚ │ 0.5MW
+    │     ▛▀▜            ▞▀▀▌                               ▐▀▀▚ │ 500kW
     │     ▌  ▌           ▌  ▌                               ▐  ▐ │
     │    ▗▘  ▌           ▌  ▌                               ▐  ▐ │
     │    ▐   ▌           ▌  ▐                               ▌  ▐ │
@@ -147,7 +147,7 @@ Great. Let's see what we made:
     │▌   ▐   ▐          ▐   ▐                               ▌   ▌│
     │▐   ▌   ▐          ▐    ▌                             ▐    ▌│
     │ ▌  ▌    ▌         ▐    ▌                             ▐    ▐│
-    │─▚▄▄▌────▀▙▄▄▄▖────▐────▀▚▄▄▄▄▄▄▄▄▖─────▗▄▄▄▄▄▄▄▄▄▄▄▄▄▟────▝│ 0.0MW
+    │─▚▄▄▌────▀▙▄▄▄▖────▐────▀▚▄▄▄▄▄▄▄▄▖─────▗▄▄▄▄▄▄▄▄▄▄▄▄▄▟────▝│ 0kW
     │              ▌    ▞              ▐     ▌                   │
     │              ▚    ▌              ▐    ▗▘                   │
     │              ▐    ▌              ▐    ▞                    │
@@ -155,7 +155,7 @@ Great. Let's see what we made:
     │              ▝▖  ▐                ▌  ▗▘                    │
     │               ▌  ▞                ▌  ▐                     │
     │               ▌  ▌                ▚  ▞                     │
-    │               ▙▄▄▘                ▐▄▄▌                     │ -0.5MW
+    │               ▙▄▄▘                ▐▄▄▌                     │ -500kW
     └────────────────────────────────────────────────────────────┘
     06:00         09:00          12:00          15:00
                     ██ discharging (toy-battery)
@@ -163,7 +163,7 @@ Great. Let's see what we made:
 
 Here, negative values denote output from the grid, so that's when the battery gets charged.
 
-We can also look at the charging schedule in the `FlexMeasures UI <http://localhost:5000/sensors/2>`_ (reachable via the asset page for the battery):
+We can also look at the charging schedule in the `FlexMeasures UI <http://localhost:5000/sensors/8>`_ (reachable via the asset page for the battery):
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-charging.png
     :align: center
@@ -173,7 +173,7 @@ Recall that we only asked for a 12 hour schedule here. We started our schedule *
 
 Our scheduler didn't have many opportunities to optimize, but it found some. This battery can fully charge in around an hour, and therefore, it runs two cycles. For instance, in the second cycle it buys at the lowest price (at 2pm) and sells it off at the highest price within the given 12 hours (at 6pm).
 
-The `battery's graph dashboard <http://localhost:5000/assets/3/graphs>`_ shows both prices and the schedule.
+The `battery's graph dashboard <http://localhost:5000/assets/6/graphs>`_ shows both prices and the schedule.
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/asset-view-without-solar.png
     :align: center

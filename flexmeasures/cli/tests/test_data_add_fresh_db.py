@@ -433,6 +433,60 @@ def test_add_account(
         assert result.exit_code == 1
 
 
+def test_add_toy_account_battery_uses_kw_sensors_and_kva_capacities(app, fresh_db):
+    from flexmeasures.cli.data_add import add_toy_account
+
+    result = app.test_cli_runner().invoke(add_toy_account, ["--kind", "battery"])
+
+    check_command_ran_without_error(result)
+
+    toy_account = fresh_db.session.execute(
+        select(Account).filter_by(name="Toy Account")
+    ).scalar_one()
+    building = fresh_db.session.execute(
+        select(Asset).filter_by(name="toy-building", owner=toy_account)
+    ).scalar_one()
+    battery = fresh_db.session.execute(
+        select(Asset).filter_by(name="toy-battery", owner=toy_account)
+    ).scalar_one()
+    solar = fresh_db.session.execute(
+        select(Asset).filter_by(name="toy-solar", owner=toy_account)
+    ).scalar_one()
+    day_ahead_sensor = fresh_db.session.execute(
+        select(Sensor).filter_by(name="day-ahead prices")
+    ).scalar_one()
+
+    assert day_ahead_sensor.unit == "EUR/kWh"
+    assert building.flex_context["site-power-capacity"] == "500 kVA"
+    assert battery.flex_model["power-capacity"] == "500 kVA"
+    assert battery.flex_model["soc-max"] == "450 kWh"
+    assert battery.sensors[0].unit == "kW"
+    assert solar.sensors[0].unit == "kW"
+
+
+def test_add_toy_account_reporter_uses_kw_scale_units(app, fresh_db):
+    from flexmeasures.cli.data_add import add_toy_account
+
+    result = app.test_cli_runner().invoke(add_toy_account, ["--kind", "reporter"])
+
+    check_command_ran_without_error(result)
+
+    day_ahead_sensor = fresh_db.session.execute(
+        select(Sensor).filter_by(name="day-ahead prices")
+    ).scalar_one()
+    grid_connection_capacity = fresh_db.session.execute(
+        select(Sensor).filter_by(name="grid connection capacity")
+    ).scalar_one()
+    headroom = fresh_db.session.execute(
+        select(Sensor).filter_by(name="headroom")
+    ).scalar_one()
+
+    assert day_ahead_sensor.unit == "EUR/kWh"
+    assert grid_connection_capacity.unit == "kW"
+    assert headroom.unit == "kW"
+    assert grid_connection_capacity.search_beliefs().values.flatten().tolist() == [500]
+
+
 def test_add_process_toy_account_reuses_existing_root_assets(app, fresh_db):
     from flexmeasures.cli.data_add import add_toy_account
 
@@ -591,7 +645,14 @@ def test_add_storage_schedule(
     result = runner.invoke(add_schedule, cli_input)
 
     check_command_ran_without_error(result)
-    assert len(power_sensor.search_beliefs()) == 48
+    schedule = power_sensor.search_beliefs()
+    max_power = schedule.event_value.abs().max()
+    assert len(schedule) == 48
+    assert power_sensor.unit == "kW"
+    # The 700 kW quantity override is the highest cap used by this parametrized test.
+    # The lower bound catches accidentally storing MW-scale values on the kW sensor.
+    assert max_power > 1
+    assert max_power <= 700
 
 
 def test_add_storage_schedule_uses_state_of_charge_sensor_for_soc_at_start(

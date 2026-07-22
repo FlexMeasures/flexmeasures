@@ -20,7 +20,7 @@ Below are the ``flexmeasures`` CLI commands we'll run, and which we'll explain s
     # setup an account with a user, assets for battery & solar and an energy market
     $ eval "$(flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
     # load prices to optimize schedules against
-    $ flexmeasures add beliefs --sensor ${FM_TOY_PRICE_SENSOR_ID} --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+    $ flexmeasures add beliefs --sensor ${FM_TOY_PRICE_SENSOR_ID} --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam --unit EUR/MWh
 
 
 Okay, let's get started!
@@ -141,11 +141,11 @@ The data we need for our example is both structural (e.g. a company account, a u
 
 Let's create the structural data first.
 
-FlexMeasures offers a command to create a toy account with a battery and expose the relevant IDs as shell variables:
+FlexMeasures offers a command to create a toy account with a battery:
 
 .. code-block:: bash
 
-    $ eval "$(flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
+    $ flexmeasures add toy-account --kind battery
 
     Generic asset type `solar` created successfully.
     Generic asset type `wind` created successfully.
@@ -154,20 +154,27 @@ FlexMeasures offers a command to create a toy account with a battery and expose 
     Generic asset type `battery` created successfully.
     Generic asset type `building` created successfully.
     Generic asset type `process` created successfully.
+    Generic asset type `heat-storage` created successfully.
     Creating account Toy Account ...
     Toy account Toy Account with user toy-user@flexmeasures.io created successfully. You might want to run `flexmeasures show account --id 1`
     Adding transmission zone type ...
     Adding NL transmission zone ...
-    Created day-ahead prices
-    The sensor recording day-ahead prices is day-ahead prices (ID: 1).
-    Created <GenericAsset None: 'toy-battery' (battery)>
-    Created discharging
-    Created <GenericAsset None: 'toy-solar' (solar)>
-    Created production
-    The sensor recording battery discharging is discharging (ID: 2).
-    The sensor recording solar forecasts is production (ID: 3).
+    Created <Sensor 7: day-ahead prices, unit: EUR/kWh res.: 1:00:00>
+    The sensor recording day-ahead prices is day-ahead prices (ID: 7).
+    Created <GenericAsset 5: 'toy-building' (building)>
+    Created <GenericAsset 6: 'toy-battery' (battery)>
+    Created <Sensor 8: discharging, unit: kW res.: 0:15:00>
+    Created <GenericAsset 7: 'toy-solar' (solar)>
+    Created <Sensor 9: production, unit: kW res.: 0:15:00>
+    The sensor recording battery discharging is discharging (ID: 8).
+    The sensor recording solar forecasts is production (ID: 9).
 
 
+Now expose the relevant IDs as shell variables for the commands below:
+
+.. code-block:: bash
+
+    $ eval "$(flexmeasures add toy-account --kind battery --shell-vars | grep '^FM_TOY_')"
 
 This sets variables such as ``FM_TOY_PRICE_SENSOR_ID``, ``FM_TOY_BATTERY_SENSOR_ID``, ``FM_TOY_SOLAR_SENSOR_ID`` and ``FM_TOY_BUILDING_ASSET_ID`` in your current shell.
 
@@ -195,70 +202,70 @@ If you want, you can inspect what you created in the CLI (we'll also show the UI
     
       ID  Name          Type        Parent ID  Location
     ----  ------------  --------  -----------  -----------------
-       2  toy-building  building            2  (52.374, 4.88969)
-       3  toy-battery   battery             2  (52.374, 4.88969)
-       4  toy-solar     solar               2  (52.374, 4.88969)
+       6  toy-battery   battery             5  (52.374, 4.88969)
+       5  toy-building  building               (52.374, 4.88969)
+       7  toy-solar     solar               5  (52.374, 4.88969)
 
 .. code-block:: bash
     :emphasize-lines: 9-10
 
-    $ flexmeasures show asset --id 2
+    $ flexmeasures show asset --id 5
 
-    =========================
-    Asset toy-building (ID: 2)
-    =========================
+    ==========================
+    Asset toy-building (ID: 5)
+    ==========================
 
-    Type      Location           Sensors to show      Attributes
-    --------  -----------------  -------------------  ------------
-    building  (52.374, 4.88969)  Prices: [1]
-                                 Power flows: [3, 2]
+    Type      Location           Sensors to show                                    Attributes    External ID
+    --------  -----------------  -------------------------------------------------  ------------  -------------
+    building  (52.374, 4.88969)  Prices: asset=5 (flex-context=consumption-price)
+                                 Power flows: [9, 8]
     
     Flex-Context                      Flex-Model
     --------------------------------  ------------
+    consumption-price: {'sensor': 7}
     site-power-capacity: 500 kVA
-    consumption-price: {'sensor': 1}
 
-    ====================================
-    Child assets of toy-building (ID: 2)
-    ====================================
+    =====================================
+    Child assets of toy-building (ID: 5)
+    =====================================
 
-    ID       Name               Type
-    -------  -----------------  ----------------------------
-    3        toy-battery        battery
-    4        toy-solar          solar
+      ID  Name         Type
+    ----  -----------  -------
+       7  toy-solar    solar
+       6  toy-battery  battery
 
     No sensors in asset ...
 
 You can see that this building asset has some meta information about how FlexMeasures needs to schedule:
 
-- Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 1, which stores day-ahead prices). 
-- Also, the building has a grid connection capacity of 500 kVA, meaning that the total power flowing into or out of the building cannot exceed this value.
+- Within :ref:`flex_context`, we noted where to find the relevant optimization signal for electricity consumption (Sensor 7, which stores day-ahead prices).
+- Also, the building has a grid connection capacity of 500 kVA, meaning that the total power flowing into or out of the building cannot exceed this physical limit.
 
 Now let's look at the battery asset, as well:
 
 .. code-block:: bash
     :emphasize-lines: 10-12
 
-    $ flexmeasures show asset --id 3
+    $ flexmeasures show asset --id 6
 
     ===================================
-    Asset toy-battery (ID: 3)
-    Child of asset toy-building (ID: 2)
+    Asset toy-battery (ID: 6)
+    Child of asset toy-building (ID: 5)
     ===================================
 
-    Type     Location           Sensors to show      Attributes
-    -------  -----------------  -------------------  ------------
-    battery  (52.374, 4.88969)  Prices: [1]
-                                Power flows: [3, 2]
+    Type     Location           Sensors to show      Attributes    External ID
+    -------  -----------------  -------------------  ------------  -------------
+    battery  (52.374, 4.88969)  Prices: 7
+                                Power flows: [9, 8]
     
     Flex-Context    Flex-Model
     --------------  -------------------------
+                    soc-max: 450 kWh
                     power-capacity: 500 kVA
                     roundtrip-efficiency: 90%
-                    soc-max: 450 kWh
 
     ====================================
-    Child assets of toy-battery (ID: 3)
+    Child assets of toy-battery (ID: 6)
     ====================================
 
     No child assets ...
@@ -267,7 +274,7 @@ Now let's look at the battery asset, as well:
     
       ID  Name         Unit    Resolution    Timezone          Attributes
     ----  -----------  ------  ------------  ----------------  ------------
-       2  discharging  MW      15 minutes    Europe/Amsterdam
+       8  discharging  kW      15 minutes    Europe/Amsterdam
     
 
     
@@ -315,7 +322,7 @@ And on the flex-model of the battery can be seen on its properties page (and is 
 Add some price data
 ---------------------------------------
 
-Now to add price data. First, we'll create the CSV file with prices (EUR/MWh, see the setup for sensor 1 above) for tomorrow.
+Now to add price data. First, we'll create the CSV file with prices in EUR/MWh for tomorrow. The price sensor stores data in EUR/kWh, and we'll ask FlexMeasures to convert the CSV values while loading them.
 
 .. code-block:: bash
 
@@ -350,12 +357,12 @@ This is time series data, in FlexMeasures we call *"beliefs"*. Beliefs can also 
 
 .. code-block:: bash
 
-    $ flexmeasures add beliefs --sensor ${FM_TOY_PRICE_SENSOR_ID} --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam
+    $ flexmeasures add beliefs --sensor ${FM_TOY_PRICE_SENSOR_ID} --source toy-user prices-tomorrow.csv --timezone Europe/Amsterdam --unit EUR/MWh
     Successfully created beliefs
 
 In FlexMeasures, all beliefs have a data source. Here, we use the username of the user we created earlier. We could also pass a user ID, or the name of a new data source we want to use for CLI scripts.
 
-.. note:: Attention: We created and imported prices where the times have no time zone component! That happens a lot. FlexMeasures can localize them for you to a given timezone. Here, we localized the data to the timezone of the price sensor - ``Europe/Amsterdam`` - so the start time for the first price is `2022-03-03 00:00:00+01:00` (midnight in Amsterdam).
+.. note:: Attention: We created and imported prices where the times have no time zone component! That happens a lot. FlexMeasures can localize them for you to a given timezone. Here, we localized the data to the timezone of the price sensor - ``Europe/Amsterdam`` - so the start time for the first price is `2025-11-11 00:00:00+01:00` (midnight in Amsterdam).
 
 Let's look at the price data we just loaded:
 
@@ -363,34 +370,34 @@ Let's look at the price data we just loaded:
 
     $ flexmeasures show beliefs --sensor ${FM_TOY_PRICE_SENSOR_ID} --start ${TOMORROW}T00:00:00+01:00 --duration PT24H
     
-    Beliefs for Sensor 'day-ahead prices' (ID 1).
+    Beliefs for Sensor 'day-ahead prices' (ID 7).
     Data spans a day and starts at 2025-11-11 00:00:00+01:00.
     The time resolution (x-axis) is an hour.
     ┌────────────────────────────────────────────────────────────┐
-    │       ▗▀▚▖                                                 │
-    │      ▗▘  ▝▖                                                │
-    │      ▞    ▌                                                │
-    │     ▟     ▐                                                │ 15EUR/MWh
-    │    ▗▘     ▝▖                                      ▗        │
-    │   ▗▘       ▚                                    ▄▞▘▚▖      │
-    │   ▞        ▐                                  ▄▀▘   ▝▄     │
-    │ ▄▞          ▌                                ▛        ▖    │
-    │▀            ▚                               ▐         ▝▖   │
-    │             ▝▚            ▖                ▗▘          ▝▖  │ 10EUR/MWh
-    │               ▀▄▄▞▀▄▄   ▗▀▝▖               ▞            ▐  │
-    │                      ▀▀▜▘  ▝▚             ▗▘             ▚ │
-    │                              ▌            ▞               ▌│
-    │                              ▝▖          ▞                ▝│
-    │                               ▐         ▞                  │
-    │                                ▚      ▗▞                   │ 5EUR/MWh
-    │                                 ▀▚▄▄▄▄▘                    │
+    │          ▞▄                                                │
+    │         ▐  ▀▌                                              │
+    │        ▗▘   ▚                                              │
+    │        ▌    ▐                                              │ 0.015EUR/kWh
+    │       ▞      ▌                                    ▗        │
+    │      ▐       ▐                                  ▗▄▀▚▖      │
+    │     ▗▘       ▝▖                               ▗▞▘   ▝▄     │
+    │    ▄▀         ▌                              ▐▘      ▝▖    │
+    │  ▄▀           ▐                             ▗▘        ▝▖   │
+    │▞▀             ▝▚           ▄                ▞          ▝▖  │ 0.010EUR/kWh
+    │                 ▀▄▄▀▀▄▄   ▞ ▚              ▗▘           ▐  │
+    │                        ▀▀▀   ▚▖            ▞             ▚ │
+    │                               ▚           ▗▘             ▝▖│
+    │                                ▚         ▗▘               ▝│
+    │                                ▝▖       ▗▘                 │
+    │                                 ▐▄     ▄▘                  │ 0.005EUR/kWh
+    │                                   ▀▄▄▄▞                    │
     └────────────────────────────────────────────────────────────┘
-               5            10            15           20
-                         ██ day-ahead prices
+                     06:00          12:00           18:00
+              ██ day-ahead prices (NL transmission zone)
 
 
 
-Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5000/sensors/1>`_:
+Again, we can also view these prices in the `FlexMeasures UI <http://localhost:5000/sensors/7>`_:
 
 .. image:: https://github.com/FlexMeasures/screenshots/raw/main/tut/toy-schedule/sensor-data-prices.png
     :align: center
