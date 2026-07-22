@@ -1877,6 +1877,9 @@ def test_explicit_zero_directional_capacity_not_breached_in_schedule(
     A soft interpretation of an all-zero directional capacity (via breach prices
     that ``relax-constraints`` would inject) would allow power in a physically
     impossible direction. Zero must stay hard for both production and consumption.
+
+    Same failure mode as EV chargers scheduled to discharge despite
+    ``production-capacity: 0 W`` in #2329.
     """
     _, battery = get_sensors_from_db(db, add_battery_assets)
 
