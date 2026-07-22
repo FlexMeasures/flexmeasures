@@ -2426,11 +2426,14 @@ class StorageScheduler(MetaStorageScheduler):
                 capacity = None
                 if soc_unit == "%":
                     soc_max = flex_model_d0.get("soc_max")
-                    if isinstance(soc_max, (Sensor, SensorReference)):
+                    # A dict or list can arrive from the raw DB flex-model (e.g. a
+                    # stored sensor reference or time series spec), so guard against
+                    # those as well.
+                    if isinstance(soc_max, (Sensor, SensorReference, dict, list)):
                         raise ValueError(
                             f"Cannot convert state-of-charge schedule to '%' unit for sensor "
-                            f"{state_of_charge_sensor.id}: soc-max as a sensor reference is "
-                            "not supported for '%' unit conversion."
+                            f"{state_of_charge_sensor.id}: soc-max as a sensor reference or "
+                            "time series is not supported for '%' unit conversion."
                         )
                     if not soc_max:
                         raise ValueError(

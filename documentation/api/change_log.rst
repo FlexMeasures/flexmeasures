@@ -9,6 +9,7 @@ v3.0-32 | July XX, 2026
 """"""""""""""""""""""""
 
 - Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` arrays, each keyed by asset ID. For scheduling jobs, this surfaces soft state-of-charge constraint analysis: ``soc-minima`` and ``soc-maxima`` violations (with a ``violation`` magnitude) or satisfied constraints (with a ``margin`` headroom). Both arrays are empty when no SoC constraints were defined.
+- ``soc-min`` and ``soc-max`` in the storage flex-model are now canonical: besides a fixed quantity, they also accept a sensor reference or time series, making them dynamic storage SoC boundaries. Sensor references (on any field that accepts them) may now include a ``default`` fallback quantity to fill time slots where the referenced sensor has no value. ``soc-minima`` and ``soc-maxima`` remain supported as deprecated legacy aliases, and a fixed ``soc-min``/``soc-max`` now follows the default SoC relaxation behavior instead of always being a hard constraint.
 
 v3.0-31 | 2026-06-01
 """"""""""""""""""""

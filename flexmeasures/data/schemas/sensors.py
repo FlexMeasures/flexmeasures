@@ -649,7 +649,14 @@ class VariableQuantityField(MarshmallowClickMixin, fields.Field):
                     account.id for account in value.source_account
                 ]
             if value.default is not None:
-                sensor_reference["default"] = str(value.default.to(self.to_unit))
+                # `default` was already resolved to a concrete, compatible unit at
+                # deserialization time (see _deserialize_default), so for a
+                # denominator-only to_unit (e.g. "/MWh", not a valid pint unit on
+                # its own) there is nothing left to convert to.
+                if self.to_unit.startswith("/"):
+                    sensor_reference["default"] = str(value.default)
+                else:
+                    sensor_reference["default"] = str(value.default.to(self.to_unit))
             return sensor_reference
         elif isinstance(value, Sensor):
             return dict(sensor=value.id)
