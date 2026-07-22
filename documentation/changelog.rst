@@ -36,6 +36,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Document ``SECURITY_TWO_FACTOR`` and related 2FA configuration settings [see `PR #2340 <https://www.github.com/FlexMeasures/flexmeasures/pull/2340>`_]
 * ``flexmeasures db upgrade`` now runs ``VACUUM ANALYZE`` after upgrading by default, so Postgres has fresh planner statistics right after a migration; opt out with ``--no-vacuum`` [see `PR #2333 <https://www.github.com/FlexMeasures/flexmeasures/pull/2333>`_]
 * Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_, `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_ and `PR #2243 <https://www.github.com/FlexMeasures/flexmeasures/pull/2243>`_]
 * Prepare the ``device_scheduler`` to deal with commitments per device group [see `PR #1934 <https://www.github.com/FlexMeasures/flexmeasures/pull/1934>`_]
