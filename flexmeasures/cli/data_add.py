@@ -96,6 +96,25 @@ from flexmeasures.data.services.utils import get_asset_or_sensor_ref
 from flexmeasures.data.models.reporting.profit import ProfitOrLossReporter
 
 
+def _parse_regressor_cli_values(values: tuple | list) -> list:
+    """Parse repeated IDs or JSON arrays/objects passed to a regressor option."""
+    parsed_values = []
+    for value in values:
+        if not isinstance(value, str):
+            parsed_values.append(value)
+            continue
+        try:
+            parsed_value = json.loads(value)
+        except json.JSONDecodeError:
+            parsed_values.append(value)
+            continue
+        if isinstance(parsed_value, list):
+            parsed_values.extend(parsed_value)
+        else:
+            parsed_values.append(parsed_value)
+    return parsed_values
+
+
 @click.group("add")
 def fm_add_data():
     """FlexMeasures: Add data."""
@@ -1367,6 +1386,12 @@ def add_forecast(  # noqa: C901
         config = yaml.safe_load(config_file)
     for field_name, field in TrainPredictPipelineConfigSchema._declared_fields.items():
         if field_value := kwargs.pop(field_name, None):
+            if field_name in {
+                "future_regressors",
+                "past_regressors",
+                "regressors",
+            }:
+                field_value = _parse_regressor_cli_values(field_value)
             config[field.data_key] = field_value
 
     if edit_config:
