@@ -432,3 +432,90 @@ def test_sensor_data_sources_and_data_source_sensors_load_fast(db, app):
         f"DataSource.sensors took {elapsed_data_source_sensors * 1000:.1f} ms "
         f"(limit {THRESHOLD_S * 1000:.0f} ms) — use the two-step subquery property"
     )
+
+
+def test_keep_latest_version_equivalence():
+    """Compare keep_latest_version against a naive per-row reference implementation."""
+    from packaging.version import Version
+
+    def naive_keep_latest_version(
+        bdf: tb.BeliefsDataFrame, one_deterministic_belief_per_event: bool
+    ) -> tb.BeliefsDataFrame:
+        bdf = bdf.loc[~bdf.index.duplicated(keep="first"), :]
+        names = list(bdf.index.names)
+        event_level = names.index("event_start")
+        belief_level = names.index("belief_time")
+        source_level = names.index("source")
+
+        def group_key(index_tuple):
+            source = index_tuple[source_level]
+            key = (index_tuple[event_level], source.name, source.type, source.model)
+            if not one_deterministic_belief_per_event:
+                key += (index_tuple[belief_level],)
+            return key
+
+        winners: dict = {}
+        for index_tuple in bdf.index:
+            source = index_tuple[source_level]
+            key = group_key(index_tuple)
+            incumbent = winners.get(key)
+            if incumbent is None or (
+                Version(source.version or "0.0.0"),
+                source.id if source.id is not None else -1,
+            ) > (
+                Version(incumbent.version or "0.0.0"),
+                incumbent.id if incumbent.id is not None else -1,
+            ):
+                winners[key] = source
+        mask = [
+            index_tuple[source_level] is winners[group_key(index_tuple)]
+            for index_tuple in bdf.index
+        ]
+        return bdf[mask]
+
+    rng = np.random.default_rng(42)
+    sensor = tb.Sensor("equivalence sensor", event_resolution=timedelta(hours=1))
+    sources = [
+        DataSource(
+            id=i + 1 if rng.random() > 0.2 else None,
+            name=rng.choice(["s1", "s2"]),
+            model=rng.choice(["model 1", "model 2"]),
+            type=rng.choice(["forecaster", "scheduler"]),
+            version=rng.choice([None, "0.1.0", "0.2.0", "1.0.0"]),
+        )
+        for i in range(6)
+    ]
+    event_starts = pd.date_range("2025-01-01", periods=5, freq="1h", tz="UTC")
+    belief_times = pd.date_range("2024-12-31", periods=3, freq="1h", tz="UTC")
+
+    for trial in range(10):
+        beliefs = []
+        for _ in range(rng.integers(2, 20)):
+            source = sources[rng.integers(len(sources))]
+            cps = [(0.5, float(rng.random()))]
+            if rng.random() > 0.7:
+                cps = [(0.3, float(rng.random())), (0.7, float(rng.random()))]
+            event_start = event_starts[rng.integers(len(event_starts))]
+            belief_time = belief_times[rng.integers(len(belief_times))]
+            beliefs.extend(
+                tb.TimedBelief(
+                    sensor=sensor,
+                    source=source,
+                    event_start=event_start,
+                    belief_time=belief_time,
+                    cumulative_probability=cp,
+                    event_value=value,
+                )
+                for cp, value in cps
+            )
+        bdf = tb.BeliefsDataFrame(beliefs)
+        for one_deterministic in (False, True):
+            result = keep_latest_version(
+                bdf, one_deterministic_belief_per_event=one_deterministic
+            )
+            expected = naive_keep_latest_version(
+                bdf, one_deterministic_belief_per_event=one_deterministic
+            )
+            pd.testing.assert_frame_equal(
+                pd.DataFrame(result), pd.DataFrame(expected), check_like=False
+            )
