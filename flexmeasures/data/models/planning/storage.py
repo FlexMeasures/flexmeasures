@@ -69,6 +69,32 @@ storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"
 SCHEDULING_RESULT_KEY = "scheduling_result"
 
 
+def _operation_mode_signed_band(mode: dict) -> tuple[float, float]:
+    """Convert one operation mode's consumption-/production-range into a signed
+    ``(min, max)`` band in MW (positive is consumption) for the device scheduler.
+
+    ``consumption-range`` maps to the positive side, ``production-range`` to the
+    negative side; combining both (each validated to start at 0) yields one band
+    through zero ``[-production_max, +consumption_max]``.
+    """
+    cons = mode.get("consumption_range")
+    prod = mode.get("production_range")
+    if cons and prod:
+        return (
+            -float(prod[1].to("MW").magnitude),
+            float(cons[1].to("MW").magnitude),
+        )
+    if cons:
+        return (
+            float(cons[0].to("MW").magnitude),
+            float(cons[1].to("MW").magnitude),
+        )
+    return (
+        -float(prod[1].to("MW").magnitude),
+        -float(prod[0].to("MW").magnitude),
+    )
+
+
 class MetaStorageScheduler(Scheduler):
     """This class defines the constraints of a schedule for a storage device from the
     flex-model, flex-context, and sensor and asset attributes"""
@@ -994,13 +1020,12 @@ class MetaStorageScheduler(Scheduler):
 
             # Power bands (S2 operation modes): carried on the constraints frame,
             # in signed MW (positive is consumption), for the device scheduler.
+            # A mode's consumption-range maps to the positive side, its
+            # production-range to the negative side; combining both (each starting
+            # at 0) forms one band through zero [-production_max, +consumption_max].
             if operation_modes[d]:
                 device_constraints[d].attrs["operation_modes"] = [
-                    (
-                        float(mode["power_range"][0].to("MW").magnitude),
-                        float(mode["power_range"][1].to("MW").magnitude),
-                    )
-                    for mode in operation_modes[d]
+                    _operation_mode_signed_band(mode) for mode in operation_modes[d]
                 ]
                 # Per-mode running cost (S2 running_costs), converted to the
                 # flex-context's shared currency per hour. The objective scales

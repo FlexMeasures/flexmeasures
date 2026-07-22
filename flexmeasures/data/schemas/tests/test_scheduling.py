@@ -1473,7 +1473,7 @@ def test_operation_mode_running_cost(running_cost, fails, expected_per_hour):
     from flexmeasures.data.schemas.scheduling.storage import OperationModeSchema
 
     schema = OperationModeSchema()
-    data = {"power-range": ["4 MW", "55 MW"], "running-cost": running_cost}
+    data = {"consumption-range": ["4 MW", "55 MW"], "running-cost": running_cost}
     if fails:
         with pytest.raises(ValidationError):
             schema.load(data)
