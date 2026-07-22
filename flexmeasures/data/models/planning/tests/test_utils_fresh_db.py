@@ -1,5 +1,6 @@
 import pandas as pd
-from datetime import timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -7,6 +8,7 @@ from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetTy
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.schemas.sensors import SensorReference
+from flexmeasures.data.models.planning.storage import StorageScheduler
 from flexmeasures.data.models.planning.utils import get_series_from_quantity_or_sensor
 
 
@@ -224,13 +226,6 @@ def test_collect_flex_config_missing_sensor_raises(fresh_db):
     attribute 'asset_id'``. Flex-context already validates via marshmallow;
     flex-model path should match that clarity.
     """
-    from datetime import datetime, timedelta
-    from zoneinfo import ZoneInfo
-
-    import pytest
-
-    from flexmeasures.data.models.planning.storage import StorageScheduler
-
     asset_type = GenericAssetType(name="test-asset-type-missing-sensor")
     fresh_db.session.add(asset_type)
     asset = GenericAsset(
