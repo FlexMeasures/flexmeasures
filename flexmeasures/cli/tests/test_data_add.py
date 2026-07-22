@@ -1,3 +1,5 @@
+import json
+
 from sqlalchemy import select, func
 
 from flexmeasures.cli.tests.utils import to_flags
@@ -94,6 +96,60 @@ def test_cli_help(app):
         result = runner.invoke(cmd, ["--help"])
         check_command_ran_without_error(result)
         assert "Usage" in result.output
+
+
+def test_add_forecast_cli_accepts_regressor_ids_and_json_reference_lists(
+    app,
+    fresh_db,
+    setup_fresh_test_forecast_data,
+    monkeypatch,
+):
+    from flexmeasures.cli import data_add
+    from flexmeasures.data.schemas.forecasting.pipeline import (
+        TrainPredictPipelineConfigSchema,
+    )
+    from flexmeasures.data.schemas.sensors import SensorReference
+
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    captured_configs = []
+
+    class StubForecaster:
+        def compute(self, **kwargs):
+            return {"n_jobs": 1}
+
+    def capture_forecaster_config(**kwargs):
+        captured_configs.append(
+            TrainPredictPipelineConfigSchema().load(kwargs["config"])
+        )
+        return StubForecaster()
+
+    monkeypatch.setattr(data_add, "get_data_generator", capture_forecaster_config)
+    runner = app.test_cli_runner()
+    common_args = ["--sensor", str(target_sensor.id), "--as-job", "--regressors"]
+
+    reference_result = runner.invoke(
+        data_add.add_forecast,
+        common_args
+        + [json.dumps([{"sensor": regressor_sensor.id, "sources": [source.id]}])],
+    )
+    plain_id_result = runner.invoke(
+        data_add.add_forecast,
+        common_args + [str(regressor_sensor.id)],
+    )
+
+    check_command_ran_without_error(reference_result)
+    check_command_ran_without_error(plain_id_result)
+    filtered_regressor = captured_configs[0]["future_regressors"][0]
+    assert isinstance(filtered_regressor, SensorReference)
+    assert filtered_regressor.sensor == regressor_sensor
+    assert filtered_regressor.sources == [source]
+    assert captured_configs[0]["past_regressors"] == [filtered_regressor]
+    assert captured_configs[1]["future_regressors"] == [regressor_sensor]
+    assert captured_configs[1]["past_regressors"] == [regressor_sensor]
 
 
 def test_add_holidays_with_timezone(app, fresh_db, setup_roles_users_fresh_db):
