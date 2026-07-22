@@ -1455,3 +1455,37 @@ def test_asset_trigger_schema_rejects_malformed_flex_context(app):
     with pytest.raises(ValidationError) as e_info:
         schema.normalize_flex_context_format({"flex-context": "not-a-dict-or-list"})
     assert "flex-context" in str(e_info.value)
+
+
+def test_operation_mode_schema_with_commodity_power_ranges(app):
+    """A multi-commodity operation mode loads its per-commodity power ranges (S2 shape)."""
+    from flexmeasures.data.schemas.scheduling.storage import OperationModeSchema
+
+    mode = OperationModeSchema().load(
+        {
+            "power-range": ["0.4 MW", "0.5 MW"],
+            "commodity-power-ranges": [
+                {"commodity": "gas", "power-range": ["0.6 MW", "0.7 MW"]},
+                {"commodity": "heat", "power-range": ["0.3 MW", "0.35 MW"]},
+            ],
+        }
+    )
+    assert len(mode["commodity_power_ranges"]) == 2
+    assert mode["commodity_power_ranges"][0]["commodity"] == "gas"
+    assert mode["commodity_power_ranges"][0]["power_range"][0].to("MW").magnitude == 0.6
+
+
+def test_operation_mode_schema_rejects_duplicate_commodities(app):
+    """A commodity may appear at most once in an operation mode's commodity-power-ranges."""
+    from flexmeasures.data.schemas.scheduling.storage import OperationModeSchema
+
+    with pytest.raises(ValidationError):
+        OperationModeSchema().load(
+            {
+                "power-range": ["0 MW", "1 MW"],
+                "commodity-power-ranges": [
+                    {"commodity": "gas", "power-range": ["0 MW", "1 MW"]},
+                    {"commodity": "gas", "power-range": ["0 MW", "2 MW"]},
+                ],
+            }
+        )
