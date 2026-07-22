@@ -5,6 +5,7 @@ from flask import url_for
 import pytest
 import json
 import copy
+import re
 
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.generic_assets import GenericAsset
@@ -258,10 +259,14 @@ def test_delete_child_asset_redirects_to_parent(
     assert url_for("AssetCrudUI:context", id=parent.id) in response.location
 
 
-def test_resolved_flex_context_on_context_page(
+def test_inherited_flex_context_in_editor(
     client, db, as_admin, setup_accounts, setup_generic_asset_types
 ):
-    """The context page shows the resolved flex-context, saying which fields are inherited from which ancestor."""
+    """The context page embeds the ancestor-defined flex-context fields for the editor.
+
+    The editor renders these as uneditable cards for the fields not shadowed by a local field,
+    so we assert on the embedded data rather than on rendered markup.
+    """
     parent = GenericAsset(
         name="parent-for-flex-context-test",
         generic_asset_type=setup_generic_asset_types["battery"],
@@ -296,35 +301,31 @@ def test_resolved_flex_context_on_context_page(
         url_for("AssetCrudUI:context", id=child.id), follow_redirects=True
     )
     assert child_page.status_code == 200
-    assert b"Flex-context used for scheduling" in child_page.data
-    # The child's own field shadows the parent's value.
-    assert b"1 MVA" in child_page.data
-    assert b"2 MVA" not in child_page.data
-    # The consumption price is inherited from the parent, with a link to its context page,
-    # and its sensor reference renders as a link to the sensor.
-    assert b"inherited" in child_page.data
-    assert b"parent-for-flex-context-test" in child_page.data
-    assert url_for("AssetCrudUI:context", id=parent.id).encode() in child_page.data
+    inherited = _extract_inherited_flex_context(child_page.data)
+    # All ancestor-defined fields are embedded, each with its defining asset;
+    # the editor decides at render time which are shadowed by local fields.
+    assert inherited["site-power-capacity"]["value"] == "2 MVA"
+    assert inherited["site-power-capacity"]["asset_id"] == parent.id
     assert (
-        f"grid-price-for-flex-context-test (sensor {price_sensor.id})".encode()
-        in child_page.data
+        inherited["site-power-capacity"]["asset_name"] == "parent-for-flex-context-test"
     )
-    assert url_for("SensorUI:get", id=price_sensor.id).encode() in child_page.data
+    assert inherited["consumption-price"]["value"] == {"sensor": price_sensor.id}
+    # The child's own (shadowing) field is in the editor's local flex-context.
+    assert b"1 MVA" in child_page.data
 
+    # A top-level asset inherits nothing.
     parent_page = client.get(
         url_for("AssetCrudUI:context", id=parent.id), follow_redirects=True
     )
     assert parent_page.status_code == 200
-    # All of the parent's fields are its own, so nothing shows as inherited.
-    assert b"this asset" in parent_page.data
-    assert b"inherited" not in parent_page.data
+    assert _extract_inherited_flex_context(parent_page.data) == {}
 
-    # The fragment endpoint serves the same table, for refreshing without a page reload.
-    fragment = client.get(url_for("AssetCrudUI:resolved_flex_context", id=child.id))
-    assert fragment.status_code == 200
-    assert b"1 MVA" in fragment.data
-    assert b"inherited" in fragment.data
-    assert url_for("SensorUI:get", id=price_sensor.id).encode() in fragment.data
+
+def _extract_inherited_flex_context(page_data: bytes) -> dict:
+    """Parse the inherited flex-context JSON embedded in the context page for the editor."""
+    match = re.search(rb"const inheritedFlexContext = (\{.*?\});", page_data)
+    assert match, "inheritedFlexContext not found on the context page"
+    return json.loads(match.group(1))
 
 
 def test_breadcrumb_cross_account_parent(
