@@ -12,7 +12,7 @@ from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required, current_user
-from marshmallow import fields, pre_load, Schema, ValidationError, validates_schema
+from marshmallow import fields, Schema, ValidationError, validates_schema
 import marshmallow.validate as validate
 from rq.job import Job, JobStatus, NoSuchJobError
 from webargs.flaskparser import use_args, use_kwargs
@@ -26,7 +26,10 @@ from flexmeasures.api.common.responses import (
     unprocessable_entity,
     fallback_schedule_redirect,
 )
-from flexmeasures.api.common.schemas.utils import make_openapi_compatible
+from flexmeasures.api.common.schemas.utils import (
+    make_openapi_compatible,
+    SupportsLegacyFieldAliases,
+)
 from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
     SensorDataDescriptionSchema,
     GetSensorDataSchema,
@@ -220,14 +223,23 @@ class DeleteSensorDataSchema(Schema):
                 )
 
 
-class SensorKwargsSchema(Schema):
-    account = AccountIdField(data_key="account_id", required=False)
-    asset = AssetIdField(data_key="asset_id", required=False)
+class SensorKwargsSchema(SupportsLegacyFieldAliases, Schema):
+    legacy_field_aliases = {
+        "account_id": "account",
+        "asset_id": "asset",
+        "per_page": "per-page",
+    }
+
+    account = AccountIdField(data_key="account", required=False)
+    asset = AssetIdField(data_key="asset", required=False)
     include_consultancy_clients = fields.Boolean(required=False, load_default=False)
     include_public_assets = fields.Boolean(required=False, load_default=False)
     page = fields.Int(required=False, validate=validate.Range(min=1))
     per_page = fields.Int(
-        required=False, validate=validate.Range(min=1), load_default=10
+        data_key="per-page",
+        required=False,
+        validate=validate.Range(min=1),
+        load_default=10,
     )
     filter = SearchFilterField(
         required=False,
@@ -238,7 +250,11 @@ class SensorKwargsSchema(Schema):
     unit = UnitField(required=False)
 
 
-class TriggerScheduleKwargsSchema(Schema):
+class TriggerScheduleKwargsSchema(SupportsLegacyFieldAliases, Schema):
+    legacy_field_aliases = {
+        "force_new_job_creation": "force-new-job-creation",
+    }
+
     start_of_schedule = AwareDateTimeField(
         data_key="start",
         format="iso",
@@ -294,14 +310,6 @@ class TriggerScheduleKwargsSchema(Schema):
             description="If True, this bypasses the cache that the server keeps for results of scheduling jobs. This cache helps prevents redundant computation when schedules with the exact same request parameters are triggered.",
         ),
     )
-
-    @pre_load
-    def support_legacy_field_name(self, data, **kwargs):
-        """Accept old snake_case input for backwards compatibility."""
-        if "force_new_job_creation" in data and "force-new-job-creation" not in data:
-            data["force-new-job-creation"] = data.pop("force_new_job_creation")
-
-        return data
 
 
 class SensorAPI(FlaskView):

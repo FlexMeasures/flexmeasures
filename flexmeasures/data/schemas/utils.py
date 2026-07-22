@@ -134,3 +134,31 @@ def snake_to_kebab(key: str) -> str:
 def kebab_to_snake(key: str) -> str:
     """Convert kebab-case to snake_case."""
     return key.replace("-", "_")
+
+
+class SupportsLegacyFieldAliases:
+    """Mixin that lets a request schema accept legacy field names as aliases for their canonical replacements.
+
+    Subclasses set `legacy_field_aliases`, a dict mapping a legacy incoming
+    key (as sent by an older client) to the schema's current, canonical
+    `data_key`. This lets us rename a public request field without breaking
+    clients that still send the old name: both are accepted, and only the
+    canonical field ends up being deserialized.
+
+    This is for request fields only. Response fields can't "accept either"
+    key on the way out, so backward compatibility there means including both
+    keys in the response body instead (see e.g. `job`/`schedule` in the
+    scheduling trigger response).
+    """
+
+    legacy_field_aliases: dict[str, str] = {}
+
+    @ma.pre_load
+    def _apply_legacy_field_aliases(self, data, **kwargs):
+        if not hasattr(data, "items") or not self.legacy_field_aliases:
+            return data
+        aliased = dict(data)
+        for legacy_key, canonical_key in self.legacy_field_aliases.items():
+            if legacy_key in aliased and canonical_key not in aliased:
+                aliased[canonical_key] = aliased.pop(legacy_key)
+        return aliased

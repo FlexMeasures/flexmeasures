@@ -153,6 +153,7 @@ class AssetChartDataKwargsSchema(Schema):
 
 class AssetAuditLogPaginationSchema(PaginationSchema):
     sort_by = fields.Str(
+        data_key="sort-by",
         required=False,
         validate=validate.OneOf(["event_datetime"]),
     )

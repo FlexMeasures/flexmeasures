@@ -73,6 +73,7 @@ class UserIdField(MarshmallowClickMixin, fields.Integer):
 
 class AccountAPIQuerySchema(PaginationSchema):
     sort_by = fields.Str(
+        data_key="sort-by",
         required=False,
         validate=validate.OneOf(["id", "name", "assets", "users"]),
     )

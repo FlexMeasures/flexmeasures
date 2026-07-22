@@ -53,6 +53,7 @@ class AuthRequestSchema(Schema):
 
 class UserAuditlogSchema(PaginationSchema):
     sort_by = fields.Str(
+        data_key="sort-by",
         required=False,
         validate=validate.OneOf(
             ["username", "email", "event_datetime", "lastLogin", "lastSeen"]
@@ -61,11 +62,17 @@ class UserAuditlogSchema(PaginationSchema):
 
 
 class UserAPIQuerySchema(PaginationSchema):
+    legacy_field_aliases = {
+        **PaginationSchema.legacy_field_aliases,
+        "account_id": "account",
+    }
+
     sort_by = fields.Str(
+        data_key="sort-by",
         required=False,
         validate=validate.OneOf(["username", "email", "lastLogin", "lastSeen"]),
     )
-    account = AccountIdField(data_key="account_id", required=False)
+    account = AccountIdField(data_key="account", required=False)
     include_inactive = fields.Bool(load_default=False)
 
 
