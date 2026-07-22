@@ -20,6 +20,7 @@ from flexmeasures.data.schemas.account import AccountSchema
 from flexmeasures.data.schemas.users import UserSchema
 from flexmeasures.data.services.users import (
     reset_password,
+    reset_token_access,
     remove_cookie_and_token_access,
     set_random_password,
 )
@@ -538,6 +539,50 @@ class UserAPI(FlaskView):
         """
         reset_password(user)
         # commit only if sending instructions worked, as well
+        db.session.commit()
+
+    @route("/<id>/reset-auth-token", methods=["PATCH"])
+    @use_kwargs(UserId, location="path")
+    @permission_required_for_context("update", ctx_arg_name="user")
+    @as_json
+    def reset_user_auth_token(self, id: int, user: UserModel):
+        """
+        .. :quickref: Users; Reset auth token
+        ---
+        patch:
+          summary: Reset the user's auth token
+          description: |
+            Rotate the user's API auth token, invalidating all outstanding tokens without
+            affecting existing browser sessions.
+            This is useful when you suspect a token has been leaked or compromised.
+
+            Users can reset their own tokens. Admins and account-admins can reset tokens of
+            users in their account.
+          parameters:
+            - in: path
+              name: id
+              required: true
+              schema: UserId
+              description: ID of the user whose auth token to reset.
+          responses:
+            200:
+              description: PROCESSED
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Users
+        """
+        reset_token_access(user)
+        user_audit_log = create_user_audit_log(
+            f"Auth token reset for user {user.username}", user
+        )
+        db.session.add(user_audit_log)
         db.session.commit()
 
     @route("/<id>/auditlog")
