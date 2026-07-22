@@ -12,6 +12,8 @@ v1.0.0 | July XX, 2026
 
 New features
 -------------
+
+* Show asset annotations in asset charts: a lightly shaded time band across all subcharts, darkening with a tooltip (showing the annotation text and source) when hovered in a subchart; alerts get a warning hue, and instant annotations render as a vertical rule with a top marker; also adds a ``GET /api/v3_0/assets/<id>/chart_annotations`` endpoint [see `PR #2312 <https://www.github.com/FlexMeasures/flexmeasures/pull/2312>`_]
 * Floor off-clock API datetimes to a non-instantaneous sensor's resolution by default when ingesting sensor data, uploading sensor data, and handling scheduler flex-model timed events; configurable with the ``floor_datetimes_to_resolution`` sensor attribute [see `PR #2146 <https://www.github.com/FlexMeasures/flexmeasures/pull/2146>`_ and `PR #2194 <https://www.github.com/FlexMeasures/flexmeasures/pull/2194>`_]
 * In the UI, asset and sensor charts now render with Apache ECharts (canvas) by default, for much faster drawing and interaction on dense time series, while staying visually and functionally equivalent to the previous Vega-Lite charts, which remain available as a fallback via a toggle [see `PR #2234 <https://www.github.com/FlexMeasures/flexmeasures/pull/2234>`_]
 * Breaking behaviour change: the top-level flex-context's ``relax-constraints`` field now defaults to ``True`` (matching the default already used within each ``commodities`` entry), so constraint violations are softly penalized by default instead of being hard constraints, unless explicitly set to ``False`` [see `PR #2172 <https://www.github.com/FlexMeasures/flexmeasures/pull/2172>`_]
