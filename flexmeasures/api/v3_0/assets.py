@@ -69,7 +69,6 @@ from flexmeasures.api.common.responses import (
     unprocessable_entity,
     request_accepted_for_processing,
 )
-from flexmeasures.api.v3_0.deprecations import JOB_RESPONSE_FIELDS_DEPRECATION_DATE
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.api.common.schemas.assets import default_response_fields
 from flexmeasures.ui.utils.view_utils import clear_session, set_session_variables
@@ -81,11 +80,6 @@ from flexmeasures.data.schemas.sensors import (
 )
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.utils import get_downsample_function_and_value
-
-API_V3_0_DOCS_URL = "https://flexmeasures.readthedocs.io/latest/api/v3_0.html"
-ASSET_SCHEDULE_TRIGGER_DOCS_URL = (
-    f"{API_V3_0_DOCS_URL}#post--api-v3_0-assets-id-schedules-trigger"
-)
 
 asset_type_schema = AssetTypeSchema()
 asset_schema = AssetSchema()
@@ -1495,22 +1489,6 @@ class AssetAPI(FlaskView):
           responses:
               202:
                 description: ACCEPTED (Scheduling job queued for processing)
-                headers:
-                  Deprecation:
-                    description: Indicates that the response contains deprecated fields.
-                    schema:
-                      type: string
-                      example: "Wed, 01 Jul 2026 00:00:00 GMT"
-                  Link:
-                    description: Link to migration guidance for deprecated response fields.
-                    schema:
-                      type: string
-                      example: '<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>; rel="deprecation"; type="text/html"'
-                  FlexMeasures-Deprecated-Response-Fields:
-                    description: Comma-separated response fields that are deprecated.
-                    schema:
-                      type: string
-                      example: "schedule"
                 content:
                   application/json:
                     schema:
@@ -1522,8 +1500,8 @@ class AssetAPI(FlaskView):
                           A scheduling job has been created with some Universally Unique Identifier (UUID),
                           which will be picked up by a worker.
                           The given UUID is returned in the canonical `job` field.
-                          For backward-compatibility, the legacy `schedule` field is also included but is deprecated;
-                          use `job` instead.
+                          For backward-compatibility, the legacy `schedule` field is also included; it is not (yet)
+                          formally deprecated, but new clients should prefer `job`.
                           The given UUID may be used to obtain the resulting schedule for each flexible device via [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
                         value:
                           status: ACCEPTED
@@ -1575,8 +1553,6 @@ class AssetAPI(FlaskView):
         return request_accepted_for_processing(
             job.id,
             legacy_key="schedule",
-            deprecation_link=ASSET_SCHEDULE_TRIGGER_DOCS_URL,
-            deprecation_date=JOB_RESPONSE_FIELDS_DEPRECATION_DATE,
         )
 
     @route("/<id>/kpis", methods=["GET"])

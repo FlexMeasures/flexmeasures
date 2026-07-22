@@ -10,8 +10,6 @@ from flask import url_for
 from redis.exceptions import ConnectionError as RedisConnectionError
 from rq.job import Job, JobStatus
 
-from flexmeasures.api.common.responses import DEPRECATED_RESPONSE_FIELDS_HEADER
-from flexmeasures.api.v3_0.deprecations import JOB_RESPONSE_FIELDS_DEPRECATION_DATE
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
@@ -36,15 +34,6 @@ def assert_legacy_job_status_fields(data: dict):
     for legacy_key, canonical_key in JOB_STATUS_DEPRECATED_FIELDS.items():
         assert data[legacy_key] == data[canonical_key]
     assert "deprecated-fields" not in data
-
-
-def assert_deprecated_response_fields_headers(response):
-    assert response.headers["Deprecation"] == JOB_RESPONSE_FIELDS_DEPRECATION_DATE
-    assert 'rel="deprecation"' in response.headers["Link"]
-    assert "get--api-v3_0-jobs-uuid" in response.headers["Link"]
-    assert response.headers[DEPRECATED_RESPONSE_FIELDS_HEADER] == ", ".join(
-        JOB_STATUS_DEPRECATED_FIELDS.keys()
-    )
 
 
 @pytest.mark.parametrize(
@@ -112,7 +101,6 @@ def test_get_job_status_requires_read_access(
     assert response.status_code == expected_status_code
     if expected_status_code == 202:
         assert response.json["status"] == "QUEUED"
-        assert_deprecated_response_fields_headers(response)
     else:
         assert response.json["status"] == "INVALID_SENDER"
 
@@ -163,8 +151,6 @@ def test_get_job_status_queued(
     assert data["result"] is None
     assert data["exc-info"] is None
     assert_legacy_job_status_fields(data)
-    assert_deprecated_response_fields_headers(response)
-    assert_deprecated_response_fields_headers(response)
 
 
 @pytest.mark.parametrize(
@@ -213,7 +199,6 @@ def test_get_job_status_started(
     assert data["result"] is None
     assert data["exc-info"] is None
     assert_legacy_job_status_fields(data)
-    assert_deprecated_response_fields_headers(response)
 
 
 @pytest.mark.parametrize(
@@ -400,7 +385,6 @@ def test_get_job_status_failed_custom_scheduler_includes_exc_info(
     assert "assert 1 == 2" in data["message"]
     assert "AssertionError: assert 1 == 2" in data["exc-info"]
     assert_legacy_job_status_fields(data)
-    assert_deprecated_response_fields_headers(response)
 
 
 @pytest.mark.parametrize(
@@ -440,7 +424,6 @@ def test_get_job_status_failed_infeasible_schedule_includes_exc_info(
         "ValueError: The input data yields an infeasible problem." in data["exc-info"]
     )
     assert_legacy_job_status_fields(data)
-    assert_deprecated_response_fields_headers(response)
 
 
 def test_get_job_status_unauthenticated(
