@@ -214,3 +214,61 @@ def test_get_series_from_sensor_reference_source_account_filter_integration(fres
     )
     assert isinstance(result, pd.Series)
     assert result.iloc[0] == pytest.approx(33.0)
+
+
+def test_collect_flex_config_missing_sensor_raises(fresh_db):
+    """Missing flex-model sensor IDs should raise a clear ValueError (GH-2250).
+
+    Previously ``collect_flex_config`` did ``sensor.asset_id`` on a ``None``
+    lookup result and raised ``AttributeError: 'NoneType' object has no
+    attribute 'asset_id'``. Flex-context already validates via marshmallow;
+    flex-model path should match that clarity.
+    """
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    import pytest
+
+    from flexmeasures.data.models.planning.storage import StorageScheduler
+
+    asset_type = GenericAssetType(name="test-asset-type-missing-sensor")
+    fresh_db.session.add(asset_type)
+    asset = GenericAsset(
+        name="test-asset-missing-sensor", generic_asset_type=asset_type
+    )
+    fresh_db.session.add(asset)
+    fresh_db.session.commit()
+
+    start = datetime(2023, 1, 1, tzinfo=ZoneInfo("UTC"))
+    end = start + timedelta(hours=1)
+    missing_id = 44207999
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=asset,
+        start=start,
+        end=end,
+        resolution=timedelta(hours=1),
+        flex_model=[
+            {
+                "sensor": missing_id,
+                "soc-at-start": "4 kWh",
+                "roundtrip-efficiency": 0.9,
+                "soc-min": "2 kWh",
+            }
+        ],
+        flex_context={},
+    )
+    with pytest.raises(ValueError, match=f"No sensor found with ID {missing_id}"):
+        scheduler.collect_flex_config()
+
+    # Same clarity when resolving asset via state-of-charge sensor reference
+    scheduler_soc = StorageScheduler(
+        asset_or_sensor=asset,
+        start=start,
+        end=end,
+        resolution=timedelta(hours=1),
+        flex_model=[{"state-of-charge": {"sensor": missing_id}}],
+        flex_context={},
+    )
+    with pytest.raises(ValueError, match=f"No sensor found with ID {missing_id}"):
+        scheduler_soc.collect_flex_config()

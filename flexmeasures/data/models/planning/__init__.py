@@ -265,11 +265,18 @@ class Scheduler:
                 sensor_id = flex_model_d.get("sensor")
                 if sensor_id is not None:
                     sensor = db.session.get(Sensor, sensor_id)
+                    if sensor is None:
+                        raise ValueError(f"No sensor found with ID {sensor_id}.")
                     asset_id = sensor.asset_id
                 else:
                     soc_sensor_ref = flex_model_d.get("state-of-charge")
                     if soc_sensor_ref is not None:
-                        soc_sensor = db.session.get(Sensor, soc_sensor_ref["sensor"])
+                        soc_sensor_id = soc_sensor_ref["sensor"]
+                        soc_sensor = db.session.get(Sensor, soc_sensor_id)
+                        if soc_sensor is None:
+                            raise ValueError(
+                                f"No sensor found with ID {soc_sensor_id}."
+                            )
                         asset_id = soc_sensor.asset_id
             if asset_id in db_flex_model:
                 flex_model_d = {**db_flex_model[asset_id], **flex_model_d}
