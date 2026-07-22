@@ -2078,6 +2078,30 @@ def test_off_tick_soc_relaxation_covers_all_devices_of_a_shared_stock(
     ), "the on-tick device's soc-minima should remain a hard constraint"
 
 
+def _shared_evse_power_sensor(db, building, resolution, name="shared EVSE power"):
+    power_sensor = Sensor(
+        name=name,
+        generic_asset=building,
+        event_resolution=resolution,
+        unit="kW",
+    )
+    db.session.add(power_sensor)
+    db.session.commit()
+    return power_sensor
+
+
+def _storage_schedule_for_sensor(results, power_sensor):
+    storage_for_sensor = [
+        r
+        for r in results
+        if r.get("name") == "storage_schedule" and r.get("sensor") is power_sensor
+    ]
+    assert (
+        len(storage_for_sensor) == 1
+    ), "expected exactly one combined storage_schedule for the shared sensor"
+    return storage_for_sensor[0]["data"]
+
+
 def test_multiple_sessions_same_sensor_accumulate_schedules(db, building):
     """Two flex-model sessions on one power sensor must sum schedules (not overwrite).
 
@@ -2087,22 +2111,18 @@ def test_multiple_sessions_same_sensor_accumulate_schedules(db, building):
     accumulated into a single sensor schedule.
 
     Setup: two non-overlapping sessions, each needing 2 kWh at 1 kW over a 2-hour
-    window. Overwrite behaviour would keep only the second session (~2 kWh total);
-    correct accumulation yields ~4 kWh with power in both halves of the horizon.
+    window. Overwrite behaviour would keep only the second session (~2 kWh total,
+    zeros in the first half); correct accumulation yields ~4 kWh with power in
+    both halves of the horizon.
     """
     resolution = timedelta(hours=1)
     start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
     end = start + 4 * resolution
     mid = start + 2 * resolution
 
-    power_sensor = Sensor(
-        name="shared EVSE power",
-        generic_asset=building,
-        event_resolution=resolution,
-        unit="kW",
+    power_sensor = _shared_evse_power_sensor(
+        db, building, resolution, name="shared EVSE power non-overlap"
     )
-    db.session.add(power_sensor)
-    db.session.commit()
 
     index = initialize_index(start=start, end=end, resolution=resolution)
     # Pre-allocate capacity per session (required when sessions would otherwise
@@ -2148,18 +2168,82 @@ def test_multiple_sessions_same_sensor_accumulate_schedules(db, building):
         return_multiple=True,
     )
     results = scheduler.compute()
-
-    storage_for_sensor = [
-        r
-        for r in results
-        if r.get("name") == "storage_schedule" and r.get("sensor") is power_sensor
-    ]
-    assert (
-        len(storage_for_sensor) == 1
-    ), "expected exactly one combined storage_schedule for the shared sensor"
-    schedule = storage_for_sensor[0]["data"]
+    schedule = _storage_schedule_for_sensor(results, power_sensor)
 
     # Each session charges 2 kWh at 1 kW over its half window → [1, 1, 1, 1] kW.
     np.testing.assert_allclose(schedule.values, [1.0, 1.0, 1.0, 1.0], atol=1e-3)
-    # Overwrite would leave only the second session (~2 kWh total energy).
+    # Overwrite would leave only the second session (zeros first half, ~2 kWh total).
+    np.testing.assert_allclose(schedule.iloc[:2].values, [1.0, 1.0], atol=1e-3)
+    np.testing.assert_allclose(schedule.iloc[2:].values, [1.0, 1.0], atol=1e-3)
     np.testing.assert_allclose(schedule.sum(), 4.0, atol=1e-3)
+
+
+def test_multiple_sessions_same_sensor_accumulate_overlapping_windows(db, building):
+    """Overlapping same-sensor sessions still sum after pre-allocating capacity.
+
+    Companion to ``test_multiple_sessions_same_sensor_accumulate_schedules``: when
+    two sessions share hours, power capacity must be pre-split in the flex-models
+    (Flix6x on #1947). The returned sensor schedule must still be the sum of both
+    device schedules, not the last session alone.
+
+    Setup: both sessions active all 4 hours at 0.5 kW each, each needing 2 kWh.
+    Sum → [1, 1, 1, 1] kW (~4 kWh). Overwrite would keep only one session at
+    0.5 kW (~2 kWh).
+    """
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    power_sensor = _shared_evse_power_sensor(
+        db, building, resolution, name="shared EVSE power overlap"
+    )
+
+    # Equal pre-allocation while both sessions are connected (Flix6x #1947).
+    shared_half_capacity = "0.5 kW"
+    flex_model = [
+        {
+            "sensor": power_sensor.id,
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-minima": [{"datetime": end.isoformat(), "value": "2 kWh"}],
+            "power-capacity": shared_half_capacity,
+            "consumption-capacity": shared_half_capacity,
+            "production-capacity": "0 kW",
+        },
+        {
+            "sensor": power_sensor.id,
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-minima": [{"datetime": end.isoformat(), "value": "2 kWh"}],
+            "power-capacity": shared_half_capacity,
+            "consumption-capacity": shared_half_capacity,
+            "production-capacity": "0 kW",
+        },
+    ]
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=building,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "10 kW",
+            "soc-minima-breach-price": "6000 EUR/kWh",
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+    schedule = _storage_schedule_for_sensor(results, power_sensor)
+
+    # Two sessions at 0.5 kW each, full horizon → [1, 1, 1, 1] kW.
+    np.testing.assert_allclose(schedule.values, [1.0, 1.0, 1.0, 1.0], atol=1e-3)
+    # Overwrite would keep only the last session (~2 kWh at 0.5 kW).
+    np.testing.assert_allclose(schedule.sum(), 4.0, atol=1e-3)
+    assert (schedule.values > 0.75).all(), (
+        "overlapping sessions must both contribute; overwrite would stay near 0.5 kW"
+    )
