@@ -825,7 +825,7 @@
         if (inheritedToShow.length > 0) {
             const divider = document.createElement('div');
             divider.className = 'text-muted small mt-3 mb-1';
-            divider.textContent = 'Inherited from ancestor assets (these apply when scheduling this asset):';
+            divider.textContent = 'Inherited from parent assets (these apply when scheduling this asset):';
             flexContextFormEle.appendChild(divider);
             for (const key of inheritedToShow) {
                 flexContextFormEle.appendChild(await renderInheritedFlexContextCard(key));
