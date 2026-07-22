@@ -220,6 +220,14 @@ class Scheduler:
         """
         pass
 
+    @staticmethod
+    def _get_sensor_or_raise(sensor_id: int) -> Sensor:
+        """Look up a sensor by ID; raise ValueError if missing (SensorIdField style)."""
+        sensor = db.session.get(Sensor, sensor_id)
+        if sensor is None:
+            raise ValueError(f"No sensor found with ID {sensor_id}.")
+        return sensor
+
     def collect_flex_config(self):
         """Merge the flex-config from the db (from the asset and its ancestors) with the initialization flex-config.
 
@@ -264,20 +272,13 @@ class Scheduler:
             if asset_id is None:
                 sensor_id = flex_model_d.get("sensor")
                 if sensor_id is not None:
-                    sensor = db.session.get(Sensor, sensor_id)
-                    if sensor is None:
-                        raise ValueError(f"No sensor found with ID {sensor_id}.")
-                    asset_id = sensor.asset_id
+                    asset_id = self._get_sensor_or_raise(sensor_id).asset_id
                 else:
                     soc_sensor_ref = flex_model_d.get("state-of-charge")
                     if soc_sensor_ref is not None:
-                        soc_sensor_id = soc_sensor_ref["sensor"]
-                        soc_sensor = db.session.get(Sensor, soc_sensor_id)
-                        if soc_sensor is None:
-                            raise ValueError(
-                                f"No sensor found with ID {soc_sensor_id}."
-                            )
-                        asset_id = soc_sensor.asset_id
+                        asset_id = self._get_sensor_or_raise(
+                            soc_sensor_ref["sensor"]
+                        ).asset_id
             if asset_id in db_flex_model:
                 flex_model_d = {**db_flex_model[asset_id], **flex_model_d}
             amended_flex_model.append(flex_model_d)
