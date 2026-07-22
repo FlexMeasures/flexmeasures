@@ -40,7 +40,12 @@ def test_scheduling_a_battery(
     - success is logged once (not before compute) — regression for #2049
     """
 
-    battery = add_battery_assets_fresh_db["Test battery"].sensors[0]
+    # Pin by name: sensors relationship has no guaranteed order
+    battery = next(
+        s
+        for s in add_battery_assets_fresh_db["Test battery"].sensors
+        if s.name == "power"
+    )
     tz = pytz.timezone("Europe/Amsterdam")
     # the start time does *not* match soc_datetime attribute from conftest, soc at start will be 0
     # TODO: stop using attributes in conftest
@@ -89,9 +94,10 @@ def test_scheduling_a_battery(
         sum(v.event_value for v in power_values) < -0.5
     ), "some cycling should have occurred to make a profit, resulting in overall consumption due to losses"
 
-    # Regression #2049: success message only after compute, not the pre-compute copy-paste echo
+    # Regression #2049: success message only after compute, not the pre-compute copy-paste echo.
+    # Count only this job's message — the RQ worker may also process other queued jobs.
     out = capsys.readouterr().out
-    assert out.count("made schedule") == 1, out
+    assert out.count(f"Job {job.id} made schedule.") == 1, out
 
 
 scheduler_specs = {
