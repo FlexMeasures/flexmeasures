@@ -44,6 +44,20 @@ def _validate_group_sensor_is_power_sensor(group: dict):
         )
 
 
+def _validate_coupling_name(coupling: str | None):
+    """Reject blank/whitespace-only coupling names.
+
+    A blank coupling name would become a coupling-group key, silently coupling
+    unrelated devices under an empty group. When provided, the name must contain
+    at least one non-whitespace character.
+    """
+    if coupling is not None and not coupling.strip():
+        raise ValidationError(
+            "The `coupling` field, when provided, must be a non-empty (non-whitespace) name.",
+            field_name="coupling",
+        )
+
+
 class GroupReferenceSchema(SharedSensorReferenceSchema):
     """Reference to a group of devices whose aggregate power is constrained.
 
@@ -301,6 +315,19 @@ class StorageFlexModelSchema(Schema):
         validate=validate.Length(min=1),
         metadata=metadata.SOC_USAGE.to_dict(),
     )
+    coupling = fields.Str(
+        data_key="coupling",
+        required=False,
+        load_default=None,
+        metadata=metadata.COUPLING.to_dict(),
+    )
+    coupling_coefficient = fields.Float(
+        data_key="coupling-coefficient",
+        required=False,
+        load_default=1.0,
+        validate=validate.Range(min=0, min_inclusive=False),
+        metadata=metadata.COUPLING_COEFFICIENT.to_dict(),
+    )
 
     def __init__(
         self,
@@ -428,6 +455,51 @@ class StorageFlexModelSchema(Schema):
     def validate_commodity(self, commodity: str, **kwargs):
         if not isinstance(commodity, str) or not commodity.strip():
             raise ValidationError("commodity must be a non-empty string.")
+
+    @validates("coupling")
+    def validate_coupling(self, coupling: str | None, **kwargs):
+        _validate_coupling_name(coupling)
+
+    @validates_schema
+    def validate_coupling_direction_is_unambiguous(self, data: dict, **kwargs):
+        """A coupled device must have an inferable flow direction.
+
+        The flow direction is inferred from which directional capacity is given:
+        a device with (only) a consumption-capacity is an input (consuming) device,
+        and a device with (only) a production-capacity is an output (producing)
+        device. The unspecified direction is assumed to be zero, mirroring how a
+        missing directional site capacity defaults to zero, so the user does not
+        need to set the opposite direction to a fixed 0 (though doing so still works).
+
+        The direction is ambiguous only when both directions are active (each side
+        either flows itself or is marked active by a fixed zero on the opposite side)
+        or when neither is (both missing); such flex-models are rejected.
+        """
+        if data.get("coupling") is None:
+            return
+
+        def _is_fixed_zero(value) -> bool:
+            return isinstance(value, ur.Quantity) and float(value.magnitude) == 0.0
+
+        def _flows(value) -> bool:
+            # A capacity flows when it is given and not a fixed zero.
+            # Sensor references cannot be checked statically, so they flow.
+            return value is not None and not _is_fixed_zero(value)
+
+        consumption = data.get("consumption_capacity")
+        production = data.get("production_capacity")
+        # A direction is active if it flows itself, or if the opposite direction is
+        # explicitly pinned to zero (the legacy way of marking a direction).
+        consumption_active = _flows(consumption) or _is_fixed_zero(production)
+        production_active = _flows(production) or _is_fixed_zero(consumption)
+        if consumption_active == production_active:
+            raise ValidationError(
+                "A device with a 'coupling' field must have an unambiguous flow direction: "
+                "provide exactly one directional capacity, either a consumption-capacity "
+                "(for an input/consuming device) or a production-capacity (for an "
+                "output/producing device). The opposite direction defaults to zero.",
+                field_name="coupling",
+            )
 
     @post_load
     def post_load_sequence(self, data: dict, **kwargs) -> dict:
@@ -598,6 +670,21 @@ class DBStorageFlexModelSchema(Schema):
         metadata=dict(description="Commodity label for this device/asset."),
     )
 
+    coupling = fields.Str(
+        data_key="coupling",
+        required=False,
+        load_default=None,
+        metadata=metadata.COUPLING.to_dict(),
+    )
+
+    coupling_coefficient = fields.Float(
+        data_key="coupling-coefficient",
+        required=False,
+        load_default=1.0,
+        validate=validate.Range(min=0, min_inclusive=False),
+        metadata=metadata.COUPLING_COEFFICIENT.to_dict(),
+    )
+
     mapped_schema_keys: dict
 
     def __init__(self, *args, **kwargs):
@@ -613,6 +700,10 @@ class DBStorageFlexModelSchema(Schema):
     @validates("group")
     def validate_group(self, group: dict, **kwargs):
         _validate_group_sensor_is_power_sensor(group)
+
+    @validates("coupling")
+    def validate_coupling(self, coupling: str | None, **kwargs):
+        _validate_coupling_name(coupling)
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):

@@ -172,6 +172,10 @@ class MetaStorageScheduler(Scheduler):
             for d in group_devices
         }
 
+        # The coupling groups (converter ports sharing a coupling name) also derive from the inventory,
+        # with signed coefficients per canonical device index.
+        self.coupling_groups = inventory.coupling_groups
+
         # Group entries (intermediate power constraints on groups of devices, e.g. a
         # sub-EMS) come classified from the inventory, together with the resolved
         # (leaf) group membership. Accessing `group_to_devices` also detects cyclic
@@ -3172,6 +3176,7 @@ class StorageScheduler(MetaStorageScheduler):
             commitments=commitments,
             initial_stock=initial_stock,
             stock_groups=self.stock_groups,
+            coupling_groups=self.coupling_groups if self.coupling_groups else None,
         )
         if "infeasible" in (tc := scheduler_results.solver.termination_condition):
             raise InfeasibleProblemException(tc)

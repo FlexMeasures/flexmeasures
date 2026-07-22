@@ -223,6 +223,25 @@ Defaults to ``"electricity"``.
 """,
     examples=["electricity", "gas"],
 )
+COUPLING = MetaData(
+    description="""Name of the coupling group this device belongs to.
+Devices sharing the same coupling name are constrained to have proportionally related power flows, via a hard equality constraint.
+Use this to model a device that converts one commodity into another, by describing each of its commodity ports as a separate device.
+For example, a combined heat and power (CHP) unit is described as a gas input device, a heat output device and an electricity output device, all sharing one coupling name.
+Use together with ``coupling-coefficient`` to set the flow ratios.
+""",
+    example="chp",
+)
+COUPLING_COEFFICIENT = MetaData(
+    description="""Positive coupling magnitude for this device within its coupling group.
+The scheduler couples the power flows of all devices in the group: each device's power is its coupling coefficient times the group's common flow level.
+The flow direction of each device is inferred from which directional capacity is set: a device given only a ``production-capacity`` is an output (producing) device, and a device given only a ``consumption-capacity`` is an input (consuming) device.
+The unspecified direction is assumed to be zero (mirroring how a missing directional site capacity defaults to zero), so there is no need to set the opposite direction to a fixed 0 (though setting it explicitly still works).
+For example, a CHP unit with 50% thermal and 30% electrical efficiency uses a gas input device (coefficient 1), a heat output device (coefficient 0.5) and an electricity output device (coefficient 0.3).
+Defaults to 1.
+""",
+    example=0.5,
+)
 CONSUMPTION = MetaData(
     description="""Sensor used to record the scheduled power as seen from a consumption perspective.
 

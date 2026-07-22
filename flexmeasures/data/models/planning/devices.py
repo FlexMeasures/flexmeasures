@@ -22,6 +22,7 @@ so downstream code and new flex-model fields need no dataclass changes.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import cached_property
@@ -36,8 +37,10 @@ from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 class DeviceRole(Enum):
     """The role a flex-model (or flex-context) entry plays in the scheduling problem.
 
-    Extension point (not yet implemented): CONVERTER_PORT (a commodity port of a
-    multi-commodity converter).
+    Converter ports (the commodity ports of a multi-commodity converter,
+    such as a CHP unit) are DEVICE entries carrying a ``coupling`` field;
+    see :attr:`DeviceInventory.coupling_groups`.
+    GROUP entries constrain the aggregate power of a set of member devices.
     """
 
     #: A schedulable flexible device (usually with a power sensor).
@@ -72,6 +75,12 @@ class FlexDevice:
     #: Key of the stock this device draws from: the id of its state-of-charge sensor, or a unique negative synthetic key for devices without one.
     #: None for inflexible devices.
     stock_key: int | None = None
+    #: Name of the coupling group this device belongs to (converter ports of one converter share a coupling name).
+    #: None for uncoupled devices.
+    coupling: str | None = None
+    #: Signed internal coupling coefficient: positive for input (consuming) ports, negative for output (producing) ports.
+    #: Meaningless (1.0) for uncoupled devices.
+    coupling_coefficient: float = 1.0
 
     @property
     def sensor_id(self) -> int | None:
@@ -153,6 +162,50 @@ def _resolve_stock_key(state_of_charge: Any) -> int | None:
     except TypeError:
         return None
     return key
+
+
+def _is_zero_capacity(value: Any) -> bool:
+    """Return True if the capacity value is numerically zero."""
+    if value is None:
+        return False
+    # Pint quantities expose ``magnitude``.
+    magnitude = getattr(value, "magnitude", value)
+    try:
+        return math.isclose(float(magnitude), 0.0, abs_tol=1e-08)
+    except (TypeError, ValueError):
+        return False
+
+
+def _resolve_coupling_coefficient(flex_model: dict) -> float:
+    """Resolve a coupled device's internal signed coupling coefficient.
+
+    Coupling coefficients in flex-models are user-facing positive magnitudes.
+    The internal sign is inferred from which directional capacity allows flow
+    (mirroring how a missing directional site/device capacity defaults to zero):
+
+    - only a (non-zero) ``consumption_capacity`` flows -> input device ->
+      internally positive coefficient
+    - only a (non-zero) ``production_capacity`` flows -> output device ->
+      internally negative coefficient
+
+    The unspecified direction is assumed to be zero, so the user no longer needs
+    to set the opposite direction to a fixed 0 (though doing so still works).
+    """
+    coefficient = abs(float(flex_model.get("coupling_coefficient", 1.0)))
+    consumption = flex_model.get("consumption_capacity")
+    production = flex_model.get("production_capacity")
+    consumption_flows = consumption is not None and not _is_zero_capacity(consumption)
+    production_flows = production is not None and not _is_zero_capacity(production)
+    consumption_blocked = _is_zero_capacity(consumption)
+    production_blocked = _is_zero_capacity(production)
+    # A direction is active if it flows itself, or if the opposite direction is
+    # explicitly pinned to zero (the legacy way of marking a direction).
+    consumption_active = consumption_flows or production_blocked
+    production_active = production_flows or consumption_blocked
+    if production_active and not consumption_active:
+        # Output (producing) device -> internally negative coefficient.
+        coefficient = -coefficient
+    return coefficient
 
 
 def _ref_id(value: Any) -> int | None:
@@ -399,6 +452,8 @@ class DeviceInventory:
                 ),
                 commodity=fm.get("commodity", "electricity"),
                 stock_key=stock_key,
+                coupling=fm.get("coupling"),
+                coupling_coefficient=_resolve_coupling_coefficient(fm),
             )
             inventory.entries.append(device)
             inventory.devices.append(device)
@@ -485,6 +540,27 @@ class DeviceInventory:
         """
         group_devices = self.stock_groups.get(stock_key)
         return group_devices[0] if group_devices else None
+
+    @cached_property
+    def coupling_groups(self) -> dict[str, list[tuple[int, float]]]:
+        """Map each coupling-group name to its ports' (device index, signed coefficient) pairs.
+
+        Devices sharing a coupling name are the commodity ports of one converter (e.g. a CHP unit's gas input, heat output and electricity output).
+        The optimization model introduces a decision variable ``alpha`` per group per time step,
+        and constrains every port by ``P[d] == coeff_d * alpha``.
+        The coefficient signs follow the internal convention (see :func:`_resolve_coupling_coefficient`):
+        positive for inputs, negative for outputs.
+        The result is suitable for passing to ``device_scheduler(coupling_groups=...)``;
+        it is empty when no device defines a ``coupling`` field.
+        """
+        groups: dict[str, list[tuple[int, float]]] = {}
+        for device in self.devices:
+            if device.coupling is None:
+                continue
+            groups.setdefault(device.coupling, []).append(
+                (device.index, device.coupling_coefficient)
+            )
+        return groups
 
     @cached_property
     def group_to_devices(self) -> dict[tuple[str, int], list[int]]:

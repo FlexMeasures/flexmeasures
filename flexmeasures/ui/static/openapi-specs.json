@@ -6541,6 +6541,22 @@
             ],
             "items": {}
           },
+          "coupling": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "Name of the coupling group this device belongs to.\nDevices sharing the same coupling name are constrained to have proportionally related power flows, via a hard equality constraint.\nUse this to model a device that converts one commodity into another, by describing each of its commodity ports as a separate device.\nFor example, a combined heat and power (CHP) unit is described as a gas input device, a heat output device and an electricity output device, all sharing one coupling name.\nUse together with <code>coupling-coefficient</code> to set the flow ratios.\n",
+            "example": "chp"
+          },
+          "coupling-coefficient": {
+            "type": "number",
+            "default": 1.0,
+            "minimum": 0.0,
+            "description": "Positive coupling magnitude for this device within its coupling group.\nThe scheduler couples the power flows of all devices in the group: each device's power is its coupling coefficient times the group's common flow level.\nThe flow direction of each device is inferred from which directional capacity is set: a device given only a <code>production-capacity</code> is an output (producing) device, and a device given only a <code>consumption-capacity</code> is an input (consuming) device.\nThe unspecified direction is assumed to be zero (mirroring how a missing directional site capacity defaults to zero), so there is no need to set the opposite direction to a fixed 0 (though setting it explicitly still works).\nFor example, a CHP unit with 50% thermal and 30% electrical efficiency uses a gas input device (coefficient 1), a heat output device (coefficient 0.5) and an electricity output device (coefficient 0.3).\nDefaults to 1.\n",
+            "example": 0.5
+          },
           "sensor": {
             "type": "integer",
             "description": "ID of the device's power sensor."

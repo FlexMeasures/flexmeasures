@@ -1575,6 +1575,667 @@ def test_simulation_with_dynamic_consumption_capacity(app, db):
     ), "Electric heater should charge the heat buffer at full capacity just before the first cheap-electricity window."
 
 
+def test_chp_coupling():
+    """Test that coupling_groups enforces fixed flow ratios between CHP devices.
+
+    Models a Combined Heat and Power unit with three pure flow devices:
+
+    - d=0  gas input:    can only consume gas          (derivative_min=0)
+    - d=1  heat output:  can only produce heat          (derivative_max=0)
+    - d=2  power output: can only produce electricity   (derivative_max=0)
+
+    The coupling group ``"chp"`` is specified with coefficients
+    ``[(0, 1.0), (1, -0.5), (2, -0.3)]``, introducing a decision variable ``alpha``
+    and enforcing ``P[d] == coeff * alpha`` for each device:
+
+        P_gas   =  1.0 * alpha   (input,  coeff =  1.0)
+        P_heat  = -0.5 * alpha   (output, coeff = -0.5, heat efficiency 50%)
+        P_power = -0.3 * alpha   (output, coeff = -0.3, power efficiency 30%)
+
+    Heat production is forced to exactly 10 kW via ``derivative equals = -10``
+    on device 1. Substituting ``P_heat = -10`` gives ``alpha = 20``, so:
+
+        P_gas   =  20 kW         (gas consumed)
+        P_heat  = -10 kW         (heat produced, forced)
+        P_power =  20 kW * -0.3
+                ≈  -6 kW         (electricity produced)
+
+    """
+    start = pd.Timestamp("2026-01-01T00:00+01:00")
+    end = pd.Timestamp("2026-01-01T04:00+01:00")
+    resolution = pd.Timedelta("1h")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    # d=0: gas input — can only consume (derivative_min=0), capacity 100 kW.
+    # NaN stock bounds mean no cumulative-stock constraint (pure flow device).
+    gas_constraints = pd.DataFrame(
+        {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": 0.0,
+            "derivative max": 100.0,
+            "derivative equals": np.nan,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+        },
+        index=index,
+    )
+
+    # d=1: heat output — can only produce (derivative_max=0).
+    # Forced to exactly -10 kW via derivative equals.
+    heat_constraints = pd.DataFrame(
+        {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": -100.0,
+            "derivative max": 0.0,
+            "derivative equals": -10.0,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+        },
+        index=index,
+    )
+
+    # d=2: power output — can only produce (derivative_max=0), capacity 100 kW.
+    # Flow is free; the coupling constraint will determine its value.
+    power_constraints = pd.DataFrame(
+        {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": -100.0,
+            "derivative max": 0.0,
+            "derivative equals": np.nan,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+        },
+        index=index,
+    )
+
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -200.0, "derivative max": 200.0},
+        index=index,
+    )
+
+    # Coupling group: one reference device (gas, coeff 1.0) and two coupled
+    # devices (heat with coeff -0.5, power with coeff -0.3).
+    coupling_groups = {"chp": [(0, 1.0), (1, -0.5), (2, -0.3)]}
+
+    # Gas-price commitment gives the objective a finite value and models the
+    # cost of consuming gas. With quantity=0 and both prices set the
+    # commitment acts as a two-sided soft equality: any upward deviation
+    # (gas consumption) incurs a cost of 1 EUR/kW.
+    gas_price_commitment = FlowCommitment(
+        name="gas cost",
+        index=index,
+        quantity=pd.Series(0.0, index=index),
+        upwards_deviation_price=pd.Series(1.0, index=index),
+        downwards_deviation_price=pd.Series(0.0, index=index),
+        device=pd.Series(0, index=index),
+    )
+
+    schedules, planned_costs, results, model = device_scheduler(
+        device_constraints=[gas_constraints, heat_constraints, power_constraints],
+        ems_constraints=ems_constraints,
+        commitments=[gas_price_commitment],
+        coupling_groups=coupling_groups,
+    )
+
+    assert (
+        results.solver.termination_condition == "optimal"
+    ), "Solver did not find an optimal solution."
+
+    # Heat is fixed to -10 kW by derivative_equals.
+    pd.testing.assert_series_equal(
+        schedules[1],
+        pd.Series(-10.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="heat output forced to -10 kW by derivative_equals",
+    )
+
+    # Coupling: P_gas / 1.0 == P_heat / -0.5  →  P_gas = -10 / -0.5 = 20 kW
+    pd.testing.assert_series_equal(
+        schedules[0],
+        pd.Series(20.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="gas consumption determined by coupling (20 kW from 10 kW heat at coeff -0.5)",
+    )
+
+    # Coupling: P_gas / 1.0 == P_power / -0.3  →  P_power = 20 / -0.3 = -6 kW
+    pd.testing.assert_series_equal(
+        schedules[2],
+        pd.Series(-6.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="power output determined by coupling (-0.3 * alpha = -0.3 * 20 = -6 kW)",
+    )
+
+
+def test_dual_fuel_chp_coupling():
+    """Test coupling_groups with two input devices (dual-fuel CHP).
+
+    Models a CHP unit that consumes equal parts natural gas and hydrogen,
+    producing heat and electricity:
+
+    - d=0  gas input:      can only consume gas           (derivative_min=0)
+    - d=1  hydrogen input: can only consume hydrogen      (derivative_min=0)
+    - d=2  heat output:    can only produce heat          (derivative_max=0)
+    - d=3  power output:   can only produce electricity   (derivative_max=0)
+
+    Coupling group ``"chp"`` with coefficients
+    ``[(0, 0.5), (1, 0.5), (2, -0.5), (3, -0.3)]`` introduces a free variable
+    ``alpha`` and enforces ``P[d] == coeff * alpha``:
+
+        P_gas      =  0.5 * alpha   (50% of total fuel from gas)
+        P_hydrogen =  0.5 * alpha   (50% of total fuel from hydrogen)
+        P_heat     = -0.5 * alpha   (heat efficiency 50% of total fuel)
+        P_power    = -0.3 * alpha   (power efficiency 30% of total fuel)
+
+    Because gas and hydrogen share the same coefficient the two fuel flows are
+    always equal, confirming that device order does not affect the result.
+
+    Heat production is forced to exactly 10 kW via ``derivative equals = -10`` on device 2.
+    Substituting ``P_heat = -10`` gives ``alpha = 20``, so:
+
+        P_gas      =  10 kW   (equal gas input)
+        P_hydrogen =  10 kW   (equal hydrogen input)
+        P_heat     = -10 kW   (heat produced, forced)
+        P_power    =  -6 kW   (electricity produced)
+    """
+    start = pd.Timestamp("2026-01-01T00:00+01:00")
+    end = pd.Timestamp("2026-01-01T04:00+01:00")
+    resolution = pd.Timedelta("1h")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    def _flow_df(**kwargs) -> pd.DataFrame:
+        defaults = {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": 0.0,
+            "derivative max": 0.0,
+            "derivative equals": np.nan,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+        }
+        defaults.update(kwargs)
+        return pd.DataFrame(defaults, index=index)
+
+    # d=0: gas input — can only consume, capacity 100 kW
+    gas_constraints = _flow_df(**{"derivative max": 100.0})
+    # d=1: hydrogen input — can only consume, capacity 100 kW
+    hydrogen_constraints = _flow_df(**{"derivative max": 100.0})
+    # d=2: heat output — can only produce, forced to -10 kW
+    heat_constraints = _flow_df(
+        **{"derivative min": -100.0, "derivative equals": -10.0}
+    )
+    # d=3: power output — can only produce, free (coupling determines value)
+    power_constraints = _flow_df(**{"derivative min": -100.0})
+
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -200.0, "derivative max": 200.0},
+        index=index,
+    )
+
+    # Both fuel inputs share coefficient 0.5, so they receive identical flows.
+    # Outputs have negative coefficients equal to their efficiency fractions.
+    coupling_groups = {"chp": [(0, 0.5), (1, 0.5), (2, -0.5), (3, -0.3)]}
+
+    # Gas-price commitment for device 0 just to give the objective a finite value
+    # Even though hydrogen is free, it will still be used because its consumption is coupled to gas.
+    fuel_cost_commitment = FlowCommitment(
+        name="fuel cost",
+        index=index,
+        quantity=pd.Series(0.0, index=index),
+        upwards_deviation_price=pd.Series(1.0, index=index),
+        downwards_deviation_price=pd.Series(0.0, index=index),
+        device=pd.Series(0, index=index),
+    )
+
+    schedules, _costs, results, _model = device_scheduler(
+        device_constraints=[
+            gas_constraints,
+            hydrogen_constraints,
+            heat_constraints,
+            power_constraints,
+        ],
+        ems_constraints=ems_constraints,
+        commitments=[fuel_cost_commitment],
+        coupling_groups=coupling_groups,
+    )
+
+    assert (
+        results.solver.termination_condition == "optimal"
+    ), "Solver did not find an optimal solution."
+
+    # Heat is fixed to -10 kW; alpha = -10 / -0.5 = 20.
+    pd.testing.assert_series_equal(
+        schedules[2],
+        pd.Series(-10.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="heat output forced to -10 kW by derivative_equals",
+    )
+
+    # Coupling: P_gas = 0.5 * alpha = 0.5 * 20 = 10 kW
+    pd.testing.assert_series_equal(
+        schedules[0],
+        pd.Series(10.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="gas input = 0.5 * alpha = 10 kW",
+    )
+
+    # Coupling: P_hydrogen = 0.5 * alpha = 10 kW (equal to gas)
+    pd.testing.assert_series_equal(
+        schedules[1],
+        pd.Series(10.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="hydrogen input = 0.5 * alpha = 10 kW (equal to gas input)",
+    )
+
+    # Coupling: P_power = -0.3 * alpha = -0.3 * 20 = -6 kW
+    pd.testing.assert_series_equal(
+        schedules[3],
+        pd.Series(-6.0, index=index),
+        check_names=False,
+        rtol=1e-4,
+        obj="power output = -0.3 * alpha = -6 kW",
+    )
+
+
+def _run_factory_scenario(
+    gas_price: float,
+    elec_price: float,
+) -> tuple:
+    """Run the simplified factory scenario and return the 7 device schedules.
+
+    Devices
+    ~~~~~~~
+    d=0  e-heater       electricity   → heat coupling (ems_power ≥ 0, i.e. consumes electricity)
+    d=1  gas boiler     gas           → heat coupling (ems_power ≥ 0, i.e. consumes gas)
+    d=2  steamer        heat coupling → steam         (ems_power ≤ 0, i.e. produces steam)
+    d=3  CHP gas input  gas           → chp coupling  (ems_power ≥ 0, i.e. consumes gas, coupling member = alpha)
+    d=4  CHP heat out   chp coupling  → steam         (ems_power ≤ 0, i.e. produces steam, coupling member = -0.5 alpha)
+    d=5  CHP power out  chp coupling  → electricity   (ems_power ≤ 0, i.e. produces electricity, coupling member = -0.3 alpha)
+    d=6  steam demand   steam         → fixed flow    (ems_power = 15, i.e. consumes steam)
+
+    CHP coupling coefficients
+    ~~~~~~~~~~~~~~~~~~~~~~~~~
+    The coupling constraint introduces a free variable ``alpha`` (the normalised gas flow)
+    and enforces ``P[d_i] == coeff_i * alpha`` for every device in the group.
+    Choosing thermal efficiency η_heat = 0.5 and power efficiency η_power = 0.3,
+    the coefficients simply become the signed efficiency fractions::
+
+        P_gas   =  1.0   * alpha   (input,  coeff = 1.0)
+        P_heat  = -0.5   * alpha   (output, coeff = η_heat  = -0.5)
+        P_power = -0.3   * alpha   (output, coeff = η_power = −0.3)
+
+    """
+    ETA_HEAT = 0.5  # fraction of CHP gas input that becomes heat
+    ETA_POWER = 0.3  # fraction of CHP gas input that becomes power
+    STEAM_DEMAND = 15.0  # kW, constant heat drain representing steam production
+    CHP_GAS_MAX = 20.0  # kW, maximum gas input to CHP
+    BOILER_GAS_MAX = 10.0  # kW, maximum gas input to gas boiler
+    HEATER_POWER_MAX = 100.0  # kW, maximum electricity input to e-heater
+
+    start = pd.Timestamp("2026-01-01T00:00+01:00")
+    end = pd.Timestamp("2026-01-01T04:00+01:00")
+    resolution = pd.Timedelta("1h")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    def _df(**kwargs) -> pd.DataFrame:
+        """Build a device-constraints DataFrame with defaults for unused columns."""
+        defaults = {
+            "min": np.nan,
+            "max": np.nan,
+            "equals": np.nan,
+            "derivative min": 0.0,
+            "derivative max": 0.0,
+            "derivative equals": np.nan,
+            "derivative down efficiency": 1.0,
+            "derivative up efficiency": 1.0,
+            "stock delta": 0.0,
+        }
+        defaults.update(kwargs)
+        return pd.DataFrame(defaults, index=index)
+
+    device_constraints = [
+        # d=0  e-heater: heat-node reference device. The min=max=0 forces the heat
+        #       node to balance at every step (zero-capacity flow node), making
+        #       the per-step dispatch deterministic despite flat prices.
+        _df(min=0.0, max=0.0, **{"derivative max": HEATER_POWER_MAX}),
+        # d=1  gas boiler: up to 100 kW gas → 100 kW heat (efficiency 1 for clean maths in test)
+        _df(**{"derivative max": BOILER_GAS_MAX, "commodity": "gas"}),
+        # d=2  steamer: can only produce steam (negative ems_power).
+        # The lower bound is finite to avoid unbounded model messages while still
+        # being looser than the upstream heat-supply limits.
+        _df(
+            **{
+                "derivative min": -(HEATER_POWER_MAX + BOILER_GAS_MAX),
+                "derivative max": 0.0,
+                "commodity": "steam",
+            }
+        ),
+        # d=3  CHP gas input: up to CHP_GAS_MAX kW gas
+        _df(**{"derivative max": CHP_GAS_MAX, "commodity": "gas"}),
+        # d=4  CHP heat output: positive ems_power adds heat to the steam node.
+        #      The min=max=0 forces the steam node to balance at every step.
+        _df(
+            min=0.0,
+            max=0.0,
+            **{
+                "derivative min": -CHP_GAS_MAX * ETA_HEAT,
+                "derivative max": 0.0,
+                "commodity": "steam",
+            },
+        ),
+        # d=5  CHP power output: negative ems_power only (production)
+        _df(**{"derivative min": -CHP_GAS_MAX * ETA_POWER, "derivative max": 0.0}),
+        # d=6  steam demand: fixed steam consumption at STEAM_DEMAND kW.
+        _df(
+            **{
+                "derivative min": STEAM_DEMAND,
+                "derivative max": STEAM_DEMAND,
+                "commodity": "steam",
+            }
+        ),
+    ]
+
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -300.0, "derivative max": 300.0},
+        index=index,
+    )
+
+    # stock group: all heat-buffer devices share the same stock
+    # (key 0 is an arbitrary group id, not a device index)
+    heat_group_id = 0
+    steam_group_id = 1
+    stock_groups = {heat_group_id: [0, 1, 2], steam_group_id: [2, 4, 6]}
+
+    # CHP coupling: coefficients are signed efficiency fractions.
+    # coeff_heat  = -η_heat  = -0.5 →  P_heat = -0.5 * alpha = -0.5 * P_gas
+    # coeff_power = -η_power = -0.3 → P_power = -0.3 * alpha = -0.3 * P_gas
+    coupling_groups = {
+        "chp": [
+            (3, 1.0),
+            (4, -ETA_HEAT),  # = -0.5
+            (5, -ETA_POWER),  # = -0.3
+        ]
+    }
+
+    # --- energy-price commitments -------------------------------------------
+    # Gas price applies to gas boiler (d=1) and CHP gas input (d=3).
+    # Electricity price applies to e-heater (d=0) and CHP power output (d=5).
+    # Using both upwards and downwards prices makes each commitment a two-sided
+    # soft equality (quantity = 0):
+    #   • upward deviation  = consuming more than 0  → positive cost
+    #   • downward deviation = producing (negative flow) → negative cost (revenue)
+    gas_p = pd.Series(gas_price, index=index)
+    elec_p = pd.Series(elec_price, index=index)
+
+    commitments = []
+    for d, price in [(1, gas_p), (3, gas_p), (0, elec_p), (5, elec_p)]:
+        commitments.append(
+            FlowCommitment(
+                name="gas cost" if d in (1, 3) else "electricity cost",
+                index=index,
+                quantity=pd.Series(0.0, index=index),
+                upwards_deviation_price=price,
+                downwards_deviation_price=price,
+                device=pd.Series(d, index=index),
+            )
+        )
+
+    schedules, _costs, results, _model = device_scheduler(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitments=commitments,
+        stock_groups=stock_groups,
+        coupling_groups=coupling_groups,
+    )
+
+    assert results.solver.termination_condition == "optimal", (
+        f"Solver did not find an optimal solution "
+        f"(gas_price={gas_price}, elec_price={elec_price})"
+    )
+    return tuple(schedules)
+
+
+def test_factory_chp_dispatch():
+    """Factory: CHP + gas boiler + e-heater competing to meet a fixed steam demand.
+
+    The shared heat buffer (modelled via ``stock_groups``) is drained at a
+    constant rate of 15 kW by the steam demand device. Two price scenarios
+    verify that the optimizer correctly chooses the cheapest heat source.
+
+    Scenario A — gas cheaper than electricity
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Prices: gas = 20 EUR/kW, electricity = 50 EUR/kW.
+
+    Effective cost per kW of heat delivered:
+    - CHP:       gas_cost − power_revenue  = (20·20 − 50·6) / 10 = 10 EUR/kW
+    - gas boiler: 20 EUR/kW  (efficiency = 1)
+    - e-heater:   50 EUR/kW  (efficiency = 1)
+
+    Merit order: CHP ≪ gas boiler ≪ e-heater.
+
+    With CHP at maximum (20 kW gas → 10 kW heat + 6 kW power):
+    - remaining heat demand = 15 − 10 = 5 kW → gas boiler
+    - e-heater not needed
+
+    Scenario B — electricity cheaper than gas
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Prices: gas = 100 EUR/kW, electricity = 10 EUR/kW.
+
+    Effective cost per kW of heat:
+    - CHP:       (100·20 − 10·6) / 10 = 194 EUR/kW
+    - gas boiler: 100 EUR/kW
+    - e-heater:   10 EUR/kW
+
+    Merit order: e-heater ≪ gas boiler ≪ CHP.
+
+    All 15 kW steam demand is met by the e-heater; CHP and gas boiler are off.
+
+    Scenario C — gas slightly cheaper
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Prices: gas = 50 EUR/kW, electricity = 55 EUR/kW.
+
+    Effective cost per kW of heat delivered:
+    - CHP:       gas_cost − power_revenue  = (50·20 − 55·6) / 10 = 67 EUR/kW
+    - gas boiler: 50 EUR/kW
+    - e-heater:   55 EUR/kW
+
+    Merit order: gas boiler ≪ e-heater ≪ CHP.
+
+    With gas boiler at maximum (10 kW gas → 10 kW heat):
+    - remaining heat demand = 15 − 10 = 5 kW → e-heater
+    - CHP not needed
+    """
+    # ------------------------------------------------------------------ #
+    # Scenario A: gas cheaper — CHP at max, gas boiler fills the rest    #
+    # ------------------------------------------------------------------ #
+    (e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand) = (
+        _run_factory_scenario(gas_price=20.0, elec_price=50.0)
+    )
+
+    expected_chp_gas = pd.Series(20.0, index=e_heater.index)
+    expected_chp_heat = pd.Series(-10.0, index=e_heater.index)  # -0.5 * 20
+    expected_chp_power = pd.Series(-6.0, index=e_heater.index)  # -0.3 * 20
+    expected_boiler = pd.Series(5.0, index=e_heater.index)  # fills 15-10 kW gap
+    expected_steamer = pd.Series(-5.0, index=e_heater.index)
+    expected_demand = pd.Series(15.0, index=e_heater.index)
+    expected_eheater = pd.Series(0.0, index=e_heater.index)
+
+    pd.testing.assert_series_equal(
+        chp_gas,
+        expected_chp_gas,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario A: CHP gas input at maximum (20 kW)",
+    )
+    pd.testing.assert_series_equal(
+        chp_heat,
+        expected_chp_heat,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario A: CHP heat output = 0.5 × gas input (10 kW)",
+    )
+    pd.testing.assert_series_equal(
+        chp_power,
+        expected_chp_power,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario A: CHP power output = −0.3 × gas input (−6 kW)",
+    )
+    pd.testing.assert_series_equal(
+        gas_boiler,
+        expected_boiler,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario A: gas boiler fills remaining 5 kW heat demand",
+    )
+    pd.testing.assert_series_equal(
+        steamer,
+        expected_steamer,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario A: steamer supplies remaining 5 kW steam",
+    )
+    pd.testing.assert_series_equal(
+        demand,
+        expected_demand,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario A: steam demand fixed at 15 kW",
+    )
+    pd.testing.assert_series_equal(
+        e_heater,
+        expected_eheater,
+        check_names=False,
+        atol=1e-4,
+        obj="Scenario A: e-heater not used (gas is cheapest)",
+    )
+
+    # ------------------------------------------------------------------ #
+    # Scenario B: electricity cheaper — e-heater meets all demand        #
+    # ------------------------------------------------------------------ #
+    (e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand) = (
+        _run_factory_scenario(gas_price=100.0, elec_price=10.0)
+    )
+
+    expected_eheater_b = pd.Series(15.0, index=e_heater.index)
+    expected_zero = pd.Series(0.0, index=e_heater.index)
+    expected_steamer_b = pd.Series(-15.0, index=e_heater.index)
+    expected_demand_b = pd.Series(15.0, index=e_heater.index)
+
+    pd.testing.assert_series_equal(
+        e_heater,
+        expected_eheater_b,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario B: e-heater meets all 15 kW steam demand",
+    )
+    pd.testing.assert_series_equal(
+        chp_gas,
+        expected_zero,
+        check_names=False,
+        atol=1e-4,
+        obj="Scenario B: CHP not used (electricity is cheapest)",
+    )
+    pd.testing.assert_series_equal(
+        gas_boiler,
+        expected_zero,
+        check_names=False,
+        atol=1e-4,
+        obj="Scenario B: gas boiler not used (electricity is cheapest)",
+    )
+    pd.testing.assert_series_equal(
+        steamer,
+        expected_steamer_b,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario B: steamer supplies all 15 kW steam",
+    )
+    pd.testing.assert_series_equal(
+        demand,
+        expected_demand_b,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario B: steam demand fixed at 15 kW",
+    )
+
+    # --------------------------------------------------------------------------------- #
+    # Scenario C: gas slightly cheaper — gas boiler at max, e-heater fills the rest     #
+    # --------------------------------------------------------------------------------- #
+    (e_heater, gas_boiler, steamer, chp_gas, chp_heat, chp_power, demand) = (
+        _run_factory_scenario(gas_price=50.0, elec_price=55.0)
+    )
+
+    expected_chp_gas = pd.Series(0.0, index=e_heater.index)
+    expected_chp_heat = pd.Series(0.0, index=e_heater.index)
+    expected_chp_power = pd.Series(0.0, index=e_heater.index)
+    expected_boiler = pd.Series(10.0, index=e_heater.index)
+    expected_steamer = pd.Series(-15.0, index=e_heater.index)
+    expected_demand = pd.Series(15.0, index=e_heater.index)
+    expected_eheater = pd.Series(5.0, index=e_heater.index)  # fills 15-10 kW gap
+
+    pd.testing.assert_series_equal(
+        chp_gas,
+        expected_chp_gas,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: CHP not used",
+    )
+    pd.testing.assert_series_equal(
+        chp_heat,
+        expected_chp_heat,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: CHP not used",
+    )
+    pd.testing.assert_series_equal(
+        chp_power,
+        expected_chp_power,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: CHP not used",
+    )
+    pd.testing.assert_series_equal(
+        gas_boiler,
+        expected_boiler,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: gas boiler at maximum (10 kW)",
+    )
+    pd.testing.assert_series_equal(
+        steamer,
+        expected_steamer,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: steamer supplies all 15 kW steam",
+    )
+    pd.testing.assert_series_equal(
+        demand,
+        expected_demand,
+        check_names=False,
+        rtol=1e-4,
+        obj="Scenario C: steam demand fixed at 15 kW",
+    )
+    pd.testing.assert_series_equal(
+        e_heater,
+        expected_eheater,
+        check_names=False,
+        atol=1e-4,
+        obj="Scenario C: e-heater fills remaining 5 kW heat demand",
+    )
+
+
 def test_all_gas_flex_model_without_electricity_device(app, db):
     """test_all_gas_flex_model_without_electricity_device: a flex-model with only gas
     devices (no electricity device at all) should not raise a KeyError, now that

@@ -10,11 +10,11 @@ DOC_PATH = Path("documentation/features/scheduling.rst")
 
 # Metadata constants that intentionally do not appear in the documentation
 EXCLUDED_METADATA = {
+    "COMMODITY_FLEX_CONTEXT",  # appears as `commodity` in the flex-context listing in scheduling.rst
+    "COMMODITY_FLEX_MODEL",  # appears as `commodity` in the flex-model listing in scheduling.rst
     "RELAX_CAPACITY_CONSTRAINTS",
     "RELAX_SITE_CAPACITY_CONSTRAINTS",
     "RELAX_SOC_CONSTRAINTS",
-    "COMMODITY_FLEX_CONTEXT",  # Documented as "commodity" in flex-context section
-    "COMMODITY_FLEX_MODEL",  # Documented as "commodity" in flex-model section
 }
 
 

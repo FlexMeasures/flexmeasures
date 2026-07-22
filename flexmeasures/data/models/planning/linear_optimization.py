@@ -82,6 +82,7 @@ def device_scheduler(  # noqa C901
     commitments: list[pd.DataFrame] | list[Commitment] | None = None,
     initial_stock: float | list[float] = 0,
     stock_groups: dict[int, list[int]] | None = None,
+    coupling_groups: dict[str, list[tuple[int, float]]] | None = None,
     ems_constraint_groups: list[list[int]] | None = None,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
@@ -120,6 +121,15 @@ def device_scheduler(  # noqa C901
                                     device:                     0 (corresponds to device d; if not set, commitment is on an EMS level)
     :param initial_stock:       initial stock for each device. Use a list with the same number of devices as device_constraints,
                                 or use a single value to set the initial stock to be the same for all devices.
+    :param coupling_groups:     Hard flow-coupling constraints between devices. Each entry maps a group name to a list of
+                                ``(device_index, coefficient)`` tuples. A decision variable ``alpha`` is introduced per group
+                                per time step and every device ``d`` in the group is constrained by ``P[d, j] == coeff_d * alpha[group, j]``.
+                                Sign convention: positive coefficient for input devices (consuming, positive ``ems_power``),
+                                negative coefficient for output devices (producing, negative ``ems_power``).
+                                Example — a CHP with gas input (d=0, coeff 1.0), heat output (d=1, coeff −0.5) and
+                                power output (d=2, coeff −0.3)::
+
+                                    coupling_groups={"chp": [(0, 1.0), (1, -0.5), (2, -0.3)]}
 
     Potentially deprecated arguments:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
@@ -171,22 +181,29 @@ def device_scheduler(  # noqa C901
     # map device -> primary stock group (used for per-device stock bounds)
     # and map stock group -> all member devices (used for stock accumulation).
     device_to_group = {}
+    group_to_devices: dict[str, list[int]] = {}
 
     # Group keys are namespaced strings: a declared stock group's key (a state-of-charge
     # sensor id) could otherwise collide with the device index of an ungrouped device,
     # silently merging that device into the stock group.
+    #
+    # A device may belong to more than one stock group — a commodity converter (e.g. a
+    # steamer bridging a heat node and a steam node) participates in every node it
+    # touches, so ``group_to_devices`` keeps the full (possibly overlapping) membership.
+    # ``device_to_group`` records only the primary group (first assignment wins), used
+    # where a single owning group is needed (per-device stock bounds).
     if stock_groups:
         for g, devices in stock_groups.items():
+            gkey = f"stock:{g}"
+            group_to_devices[gkey] = list(devices)
             for d in devices:
-                device_to_group[d] = f"stock:{g}"
+                device_to_group.setdefault(d, gkey)
     # Devices not in any stock group (e.g. inflexible devices) form individual groups.
     for d in range(len(device_constraints)):
         if d not in device_to_group:
-            device_to_group[d] = f"device:{d}"
-
-    group_to_devices: dict[int, list[int]] = {}
-    for d, g in device_to_group.items():
-        group_to_devices.setdefault(g, []).append(d)
+            gkey = f"device:{d}"
+            device_to_group[d] = gkey
+            group_to_devices[gkey] = [d]
 
     # The stock recursion is modelled once per stock group, using the group's shared
     # storage efficiency, so devices sharing a stock may not declare different ones.
@@ -217,6 +234,15 @@ def device_scheduler(  # noqa C901
                         " initial stocks. The initial stock is a property of the shared"
                         " stock, so define it once per stock group."
                     )
+
+    # Collect (group_index, device_index, coefficient) triples for coupling constraints.
+    # Each device in each group will be constrained: P[d, j] == coeff * alpha[group, j]
+    # where alpha is a free variable representing the common normalised flow.
+    coupling_device_specs: list[tuple[int, int, float]] = []
+    if coupling_groups:
+        for g_idx, (_group_name, members) in enumerate(coupling_groups.items()):
+            for d_idx, coeff in members:
+                coupling_device_specs.append((g_idx, d_idx, coeff))
 
     # Move commitments from old structure to new
     if commitments is None:
@@ -818,6 +844,29 @@ def device_scheduler(  # noqa C901
     model.device_power_equalities = Constraint(
         model.d, model.j, rule=device_derivative_equalities
     )
+
+    if coupling_device_specs:
+        n_coupling_groups = len(coupling_groups)
+
+        # One free variable per group per time step: the common normalised flow.
+        model.coupling_group_range = RangeSet(0, n_coupling_groups - 1)
+        model.coupling_alpha = Var(model.coupling_group_range, model.j, domain=Reals)
+
+        model.coupling_device_range = RangeSet(0, len(coupling_device_specs) - 1)
+
+        def flow_coupling_rule(m, c, j):
+            """Enforce P[d, j] == coeff * alpha[group, j] for each coupled device.
+
+            This pins every device's flow to the same normalised level ``alpha``,
+            scaled by its coupling coefficient. The coefficient sign indicates direction:
+            positive for inputs (consuming), negative for outputs (producing).
+            """
+            g, d, coeff = coupling_device_specs[c]
+            return m.ems_power[d, j] == coeff * m.coupling_alpha[g, j]
+
+        model.flow_coupling_constraints = Constraint(
+            model.coupling_device_range, model.j, rule=flow_coupling_rule
+        )
 
     # Add objective
     def cost_function(m):
