@@ -32,6 +32,7 @@ from flexmeasures.utils.entity_address_utils import (
     EntityAddressException,
     build_entity_address,
 )
+from flexmeasures.utils.time_utils import truncated_integer_epochs
 from flexmeasures.utils.unit_utils import (
     is_energy_unit,
     is_power_unit,
@@ -831,13 +832,14 @@ def compress_belief_records(df: pd.DataFrame, sensor_id: int) -> tuple[list, dic
 
     # Convert the timing columns to epoch values (vectorized)
     def to_epoch_list(column: str, np_dtype: str | None, divisor: int) -> list:
-        """Integer epoch value (ns // divisor) per row, or None for missing values."""
+        """Integer epoch value (ns / divisor, truncated toward zero) per row,
+        or None for missing values."""
         if column not in df.columns:
             return [None] * len(df)
         values = df[column]
         mask = values.notna().to_numpy()
         raw = values.to_numpy(dtype=np_dtype) if np_dtype else values.to_numpy()
-        ints = raw.view("int64") // divisor
+        ints = truncated_integer_epochs(raw.view("int64"), divisor)
         return [int(value) if keep else None for value, keep in zip(ints, mask)]
 
     ts_per_row = to_epoch_list("event_start", "datetime64[ns]", 10**6)  # ms

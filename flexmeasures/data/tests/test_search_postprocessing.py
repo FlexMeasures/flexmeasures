@@ -135,19 +135,24 @@ def test_compress_belief_records_equivalence():
     ]
     sensor = tb.Sensor("compress sensor", event_resolution=timedelta(hours=1))
     event_starts = pd.date_range("2025-01-01", periods=6, freq="1h", tz="UTC")
-    belief_times = pd.date_range("2024-12-31", periods=3, freq="1h", tz="UTC")
+    # Belief times both before and after the events (i.e. positive and negative
+    # belief horizons), with sub-second components (like real recording times)
+    belief_times = pd.date_range("2024-12-31", periods=60, freq="1h", tz="UTC")
     beliefs = []
     for i in range(30):
         cps = [(0.5, float(rng.random()))]
         if rng.random() > 0.7:
             cps = [(0.3, float(rng.random())), (0.7, float(rng.random()))]
+        belief_time = belief_times[rng.integers(len(belief_times))] + pd.Timedelta(
+            microseconds=int(rng.integers(0, 1_000_000))
+        )
         for cp, value in cps:
             beliefs.append(
                 tb.TimedBelief(
                     sensor=sensor,
                     source=sources[rng.integers(len(sources))],
                     event_start=event_starts[rng.integers(len(event_starts))],
-                    belief_time=belief_times[rng.integers(len(belief_times))],
+                    belief_time=belief_time,
                     cumulative_probability=cp,
                     event_value=np.nan if rng.random() > 0.8 else value,
                 )

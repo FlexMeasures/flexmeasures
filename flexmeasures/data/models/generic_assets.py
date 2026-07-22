@@ -30,7 +30,10 @@ from flexmeasures.auth.policy import (
     CONSULTANT_ROLE,
 )
 from flexmeasures.utils import geo_utils
-from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
+from flexmeasures.utils.time_utils import (
+    determine_minimum_resampling_resolution,
+    truncated_integer_epochs,
+)
 from flexmeasures.utils.unit_utils import find_smallest_common_unit
 
 
@@ -1363,7 +1366,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                     if "belief_horizon" in df.columns:
                         bh_values = df["belief_horizon"]
                         bh_mask = bh_values.notna().to_numpy()
-                        bh_ms = bh_values.to_numpy().view("int64") // 1_000_000
+                        bh_ms = truncated_integer_epochs(
+                            bh_values.to_numpy().view("int64"), 1_000_000
+                        )
                         base_records["bh"] = [
                             int(value) if keep else None
                             for value, keep in zip(bh_ms, bh_mask)
@@ -1373,9 +1378,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                     if not most_recent_beliefs_only and "belief_time" in df.columns:
                         bt_values = df["belief_time"]
                         bt_mask = bt_values.notna().to_numpy()
-                        bt_ms = (
-                            bt_values.to_numpy(dtype="datetime64[ns]").view("int64")
-                            // 1_000_000
+                        bt_ms = truncated_integer_epochs(
+                            bt_values.to_numpy(dtype="datetime64[ns]").view("int64"),
+                            1_000_000,
                         )
                         base_records["bt"] = [
                             int(value) if keep else None
