@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from flexmeasures import Asset
 from flexmeasures.cli.tests.utils import to_flags
-from flexmeasures.data.models.user import Account
+from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 from flexmeasures.cli.tests.utils import check_command_ran_without_error
@@ -431,6 +431,62 @@ def test_add_account(
     else:
         # fail because "Test ConsultancyClient Account" already exists
         assert result.exit_code == 1
+
+
+@pytest.mark.parametrize(
+    "roles_args, expected_roles",
+    [
+        (["--roles", "consultant,account-admin"], {"consultant", "account-admin"}),
+        (
+            ["--roles", "consultant", "--roles", "account-admin"],
+            {"consultant", "account-admin"},
+        ),
+        (
+            ["--roles", "consultant,account-admin", "--roles", "admin"],
+            {"consultant", "account-admin", "admin"},
+        ),
+        ([], set()),
+    ],
+)
+def test_add_user_roles(
+    app,
+    fresh_db,
+    setup_accounts_fresh_db,
+    monkeypatch,
+    roles_args,
+    expected_roles,
+):
+    """``--roles`` accepts a comma-separated list and/or repeated options (see issue #1237)."""
+    from flexmeasures.cli.data_add import new_user
+
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": "testtest")
+
+    account = setup_accounts_fresh_db["Prosumer"]
+    username = f"cli-user-{'-'.join(sorted(expected_roles)) or 'noroles'}"
+    email = f"{username}@example.com"
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        new_user,
+        [
+            "--username",
+            username,
+            "--email",
+            email,
+            "--account",
+            str(account.id),
+            "--timezone",
+            "UTC",
+            *roles_args,
+        ],
+    )
+    check_command_ran_without_error(result)
+    assert "Successfully created user" in result.output
+
+    user = fresh_db.session.execute(
+        select(User).filter_by(username=username)
+    ).scalar_one()
+    assert {role.name for role in user.roles} == expected_roles
 
 
 def test_add_process_toy_account_reuses_existing_root_assets(app, fresh_db):
