@@ -1830,15 +1830,53 @@ def test_non_zero_directional_capacity_still_softens_under_breach_price(
         )
 
 
-def test_explicit_zero_production_capacity_not_breached_in_schedule(
-    db, add_battery_assets
+@pytest.mark.parametrize(
+    [
+        "capacity_field",
+        "open_field",
+        "breach_price_field",
+        "prices",
+        "forbidden_direction",
+    ],
+    [
+        (
+            "production-capacity",
+            "consumption-capacity",
+            "production-breach-price",
+            {
+                # Strong incentive to discharge (produce) if allowed.
+                "consumption-price": "1 EUR/MWh",
+                "production-price": "1000 EUR/MWh",
+            },
+            "produce",
+        ),
+        (
+            "consumption-capacity",
+            "production-capacity",
+            "consumption-breach-price",
+            {
+                # Paid to consume — strong incentive to charge if allowed.
+                "consumption-price": "-1000 EUR/MWh",
+                "production-price": "1 EUR/MWh",
+            },
+            "consume",
+        ),
+    ],
+)
+def test_explicit_zero_directional_capacity_not_breached_in_schedule(
+    db,
+    add_battery_assets,
+    capacity_field,
+    open_field,
+    breach_price_field,
+    prices,
+    forbidden_direction,
 ):
-    """Regression for #2323: never schedule production when production-capacity is 0.
+    """Regression for #2323: never schedule in a direction with explicit capacity 0.
 
-    High production price makes discharging highly attractive. With an explicit
-    ``production-breach-price`` (as ``relax-constraints`` would inject), a soft
-    interpretation of ``production-capacity: 0`` would allow negative power.
-    Zero must stay hard, so the schedule never produces.
+    A soft interpretation of an all-zero directional capacity (via breach prices
+    that ``relax-constraints`` would inject) would allow power in a physically
+    impossible direction. Zero must stay hard for both production and consumption.
     """
     _, battery = get_sensors_from_db(db, add_battery_assets)
 
@@ -1856,26 +1894,30 @@ def test_explicit_zero_production_capacity_not_breached_in_schedule(
             "soc-min": "0 MWh",
             "soc-max": "2 MWh",
             "power-capacity": "0.1 MW",
-            "production-capacity": "0 kW",
-            "consumption-capacity": "0.1 MW",
+            capacity_field: "0 kW",
+            open_field: "0.1 MW",
             "prefer-charging-sooner": False,
         },
         flex_context={
-            # Strong incentive to discharge (produce) if allowed.
-            "consumption-price": "1 EUR/MWh",
-            "production-price": "1000 EUR/MWh",
-            # Breach price that would soften non-zero production limits; must not
-            # soften an explicit zero. Keep other constraints hard for a simple LP.
-            "production-breach-price": "100 EUR/kW",
+            **prices,
+            # Breach price that would soften non-zero limits; must not soften
+            # an explicit zero. Keep other constraints hard for a simple LP.
+            breach_price_field: "100 EUR/kW",
             "site-power-capacity": "2 MW",
             "relax-constraints": False,
         },
     )
     schedule = scheduler.compute()
-    assert (schedule >= -TOLERANCE).all(), (
-        "production-capacity: 0 must forbid negative (production) power even when "
-        f"production-breach-price is set; min scheduled power was {schedule.min()}"
-    )
+    if forbidden_direction == "produce":
+        assert (schedule >= -TOLERANCE).all(), (
+            f"{capacity_field}: 0 must forbid negative (production) power even when "
+            f"{breach_price_field} is set; min scheduled power was {schedule.min()}"
+        )
+    else:
+        assert (schedule <= TOLERANCE).all(), (
+            f"{capacity_field}: 0 must forbid positive (consumption) power even when "
+            f"{breach_price_field} is set; max scheduled power was {schedule.max()}"
+        )
 
 
 @pytest.mark.parametrize(
