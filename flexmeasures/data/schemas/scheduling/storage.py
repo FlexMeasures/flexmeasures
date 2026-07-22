@@ -126,15 +126,19 @@ class EfficiencyField(QuantityField):
 
 
 class CommodityPowerRangeSchema(Schema):
-    """A single commodity's signed power range within one operation mode.
+    """A single commodity's power range within one operation mode.
 
     This mirrors one entry of an S2 ``FRBC.OperationModeElement.power_ranges`` list: the
-    signed power range that this commodity's flow takes as the mode's operation-mode factor
-    sweeps from 0 to 1. The two endpoints therefore correspond to the low and high ends of
-    the mode's own ``power-range`` (they need not be ordered): the endpoint at factor 0 is
-    the commodity's fixed no-load flow, and the difference to the factor-1 endpoint is its
-    proportional (marginal) part. Sharing one factor across commodities ties them affinely,
-    which lets a unit-committed affine cogeneration unit be expressed natively.
+    power range that this commodity's flow spans as the mode's operation-mode factor sweeps
+    from 0 to 1. As on the mode itself, the sign is given explicitly via ``consumption-range``
+    (non-negative, positive means consumption) and/or ``production-range`` (non-negative,
+    positive means production). The factor sweeps all commodities in lockstep with the mode's
+    own power, so the endpoints are magnitude-ordered like the mode's own range (the device
+    scheduler resolves which endpoint pairs with which extreme of the mode's power); the
+    lower-magnitude endpoint is the commodity's fixed no-load flow and the difference to the
+    other endpoint is its proportional (marginal) part. Sharing one factor across commodities
+    ties them affinely, which lets a unit-committed affine cogeneration unit be expressed
+    natively.
     """
 
     commodity = fields.Str(
@@ -144,54 +148,98 @@ class CommodityPowerRangeSchema(Schema):
             "(e.g. 'gas' or 'heat')."
         ),
     )
-    power_range = fields.List(
-        QuantityField(
-            to_unit="MW",
-            default_src_unit="MW",
-            return_magnitude=False,
-        ),
-        data_key="power-range",
-        required=True,
+    consumption_range = fields.List(
+        QuantityField(to_unit="MW", default_src_unit="MW", return_magnitude=False),
+        data_key="consumption-range",
+        required=False,
         validate=validate.Length(equal=2),
         metadata=dict(
-            description="Signed power range of this commodity across the mode's "
-            "operation-mode factor (factor 0 endpoint first). Positive is consumption, "
-            "negative is production."
+            description="Consumption power range [min, max] of this commodity within the "
+            "mode (non-negative; positive is consumption)."
         ),
     )
+    production_range = fields.List(
+        QuantityField(to_unit="MW", default_src_unit="MW", return_magnitude=False),
+        data_key="production-range",
+        required=False,
+        validate=validate.Length(equal=2),
+        metadata=dict(
+            description="Production power range [min, max] of this commodity within the "
+            "mode (non-negative; positive is production)."
+        ),
+    )
+
+    @validates_schema
+    def check_ranges(self, data: dict, **kwargs):
+        cons = data.get("consumption_range")
+        prod = data.get("production_range")
+        if cons is None and prod is None:
+            raise ValidationError(
+                "A commodity power range must declare a consumption-range and/or a "
+                "production-range."
+            )
+        for name, rng in (("consumption-range", cons), ("production-range", prod)):
+            if rng is None:
+                continue
+            if rng[0].to("MW").magnitude < 0:
+                raise ValidationError(f"A commodity's {name} must be non-negative.")
+            if rng[0] > rng[1]:
+                raise ValidationError(
+                    f"The minimum of a commodity's {name} cannot exceed its maximum."
+                )
+        if (
+            cons is not None
+            and prod is not None
+            and (cons[0].to("MW").magnitude != 0 or prod[0].to("MW").magnitude != 0)
+        ):
+            raise ValidationError(
+                "When a commodity combines consumption-range and production-range, both "
+                "must start at 0 (so they form one contiguous band through zero)."
+            )
 
 
 class OperationModeSchema(Schema):
     """One operation mode of a device, in the sense of the S2 standard.
 
-    A device with operation modes can only run at a power within one of the
-    declared modes' power ranges at any given time. The power range is signed:
-    positive values denote consumption and negative values denote production.
-    A device that can only be off or run at exactly 883.7 W declares:
+    A device with operation modes can only run within one of the declared modes'
+    power ranges at any given time. Each range is given with an explicit sign
+    convention: ``consumption-range`` (non-negative, positive means consumption)
+    and/or ``production-range`` (non-negative, positive means production). A mode
+    may use either or both; using both forms a single band through zero (so both
+    must then start at 0). The S2 standard's signed power-range maps to the FM
+    ``consumption-range`` (S2 fixes one sign convention for power, whereas FM
+    leaves it to the user). A device that can only be off or run at exactly
+    883.7 W of consumption declares:
 
-        [{"power-range": ["0 W", "0 W"]}, {"power-range": ["883.7 W", "883.7 W"]}]
+        [{"consumption-range": ["0 W", "0 W"]}, {"consumption-range": ["883.7 W", "883.7 W"]}]
 
     An operation mode may additionally carry per-commodity power ranges
     (``commodity-power-ranges``), generalising it across commodities in the sense of
     S2's ``FRBC.OperationModeElement.power_ranges``. A single operation-mode factor then
     interpolates the device's own power and every listed commodity's power in lockstep,
     tying them affinely. For example, a cogeneration unit's "on" mode carries electricity
-    as its own ``power-range`` and gas and heat as ``commodity-power-ranges``, each with
-    a no-load base (the factor-0 endpoint) plus a proportional part.
+    as its own (production) ``consumption-range``/``production-range`` and gas and heat as
+    ``commodity-power-ranges``, each with a no-load base plus a proportional part.
     """
 
-    power_range = fields.List(
-        QuantityField(
-            to_unit="MW",
-            default_src_unit="MW",
-            return_magnitude=False,
-        ),
-        data_key="power-range",
-        required=True,
+    consumption_range = fields.List(
+        QuantityField(to_unit="MW", default_src_unit="MW", return_magnitude=False),
+        data_key="consumption-range",
+        required=False,
         validate=validate.Length(equal=2),
         metadata=dict(
-            description="Signed power range [min, max] of this operation mode "
-            "(positive is consumption, negative is production).",
+            description="Consumption power range [min, max] of this operation mode "
+            "(non-negative; positive is consumption). The S2 power-range maps to this field.",
+        ),
+    )
+    production_range = fields.List(
+        QuantityField(to_unit="MW", default_src_unit="MW", return_magnitude=False),
+        data_key="production-range",
+        required=False,
+        validate=validate.Length(equal=2),
+        metadata=dict(
+            description="Production power range [min, max] of this operation mode "
+            "(non-negative; positive is production).",
         ),
     )
     commodity_power_ranges = fields.List(
@@ -205,10 +253,32 @@ class OperationModeSchema(Schema):
     )
 
     @validates_schema
-    def check_range_order(self, data: dict, **kwargs):
-        if data["power_range"][0] > data["power_range"][1]:
+    def check_ranges(self, data: dict, **kwargs):
+        cons = data.get("consumption_range")
+        prod = data.get("production_range")
+        if cons is None and prod is None:
             raise ValidationError(
-                "The minimum of an operation mode's power-range cannot exceed its maximum."
+                "An operation mode must declare a consumption-range and/or a production-range."
+            )
+        for name, rng in (("consumption-range", cons), ("production-range", prod)):
+            if rng is None:
+                continue
+            if rng[0].to("MW").magnitude < 0:
+                raise ValidationError(
+                    f"An operation mode's {name} must be non-negative."
+                )
+            if rng[0] > rng[1]:
+                raise ValidationError(
+                    f"The minimum of an operation mode's {name} cannot exceed its maximum."
+                )
+        if (
+            cons is not None
+            and prod is not None
+            and (cons[0].to("MW").magnitude != 0 or prod[0].to("MW").magnitude != 0)
+        ):
+            raise ValidationError(
+                "When an operation mode combines consumption-range and production-range, "
+                "both must start at 0 (so they form one contiguous band through zero)."
             )
 
     @validates("commodity_power_ranges")

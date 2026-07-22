@@ -69,6 +69,76 @@ storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"
 SCHEDULING_RESULT_KEY = "scheduling_result"
 
 
+def _signed_range_endpoints(cons, prod) -> tuple[float, float]:
+    """Signed ``(low-running, high-running)`` power endpoints in MW for one range spec.
+
+    Applies the sign convention shared by an operation mode's own band and each of its
+    per-commodity ranges: ``consumption-range`` maps to the positive side and
+    ``production-range`` to the negative side. The two endpoints are returned ordered by
+    the mode's *running level* (the operation-mode factor): the first is the flow when the
+    device runs least (lowest magnitude), the second when it runs most.
+
+    - consumption only ``[a, b]`` (0 <= a <= b): ``(+a, +b)`` — more consumption is more running.
+    - production only ``[a, b]``: ``(-a, -b)`` — more production (more negative) is more running.
+    - both (each validated to start at 0): a band through zero, returned as
+      ``(-production_max, +consumption_max)`` (used for a device's own band, not for coupling).
+    """
+    if cons and prod:
+        return (
+            -float(prod[1].to("MW").magnitude),
+            float(cons[1].to("MW").magnitude),
+        )
+    if cons:
+        return (
+            float(cons[0].to("MW").magnitude),
+            float(cons[1].to("MW").magnitude),
+        )
+    return (
+        -float(prod[0].to("MW").magnitude),
+        -float(prod[1].to("MW").magnitude),
+    )
+
+
+def _operation_mode_signed_band(mode: dict) -> tuple[float, float]:
+    """Convert one operation mode's consumption-/production-range into a signed
+    ``(min, max)`` band in MW (positive is consumption) for the device scheduler.
+    """
+    lo, hi = _signed_range_endpoints(
+        mode.get("consumption_range"), mode.get("production_range")
+    )
+    return (min(lo, hi), max(lo, hi))
+
+
+def _operation_mode_commodity_bands(mode: dict) -> dict[str, tuple[float, float]]:
+    """Per-commodity signed power endpoints for one operation mode, keyed by commodity.
+
+    Each value is ``(value_at_factor_0, value_at_factor_1)`` in signed MW, aligned with the
+    device scheduler's operation-mode factor: factor 0 sits at the device's own band minimum
+    and factor 1 at its band maximum (see ``device_mode_commodity_ranges`` in
+    ``device_scheduler``). We derive the alignment from the shared running-level ordering of
+    ``_signed_range_endpoints``: if the mode's own band minimum is its low-running endpoint
+    (a consumption-led device) factor 0 is low running, otherwise (a production-led device)
+    factor 0 is high running, and each commodity's endpoints are ordered to match. This ties
+    every commodity affinely to the device's own power through the single shared factor.
+    """
+    ranges = mode.get("commodity_power_ranges")
+    if not ranges:
+        return {}
+    p_low, p_high = _signed_range_endpoints(
+        mode.get("consumption_range"), mode.get("production_range")
+    )
+    factor_0_is_low_running = p_low <= p_high
+    bands: dict[str, tuple[float, float]] = {}
+    for entry in ranges:
+        c_low, c_high = _signed_range_endpoints(
+            entry.get("consumption_range"), entry.get("production_range")
+        )
+        bands[entry["commodity"]] = (
+            (c_low, c_high) if factor_0_is_low_running else (c_high, c_low)
+        )
+    return bands
+
+
 class MetaStorageScheduler(Scheduler):
     """This class defines the constraints of a schedule for a storage device from the
     flex-model, flex-context, and sensor and asset attributes"""
@@ -994,13 +1064,12 @@ class MetaStorageScheduler(Scheduler):
 
             # Power bands (S2 operation modes): carried on the constraints frame,
             # in signed MW (positive is consumption), for the device scheduler.
+            # A mode's consumption-range maps to the positive side, its
+            # production-range to the negative side; combining both (each starting
+            # at 0) forms one band through zero [-production_max, +consumption_max].
             if operation_modes[d]:
                 device_constraints[d].attrs["operation_modes"] = [
-                    (
-                        float(mode["power_range"][0].to("MW").magnitude),
-                        float(mode["power_range"][1].to("MW").magnitude),
-                    )
-                    for mode in operation_modes[d]
+                    _operation_mode_signed_band(mode) for mode in operation_modes[d]
                 ]
 
             if sensor_d is not None and sensor_d.get_attribute(

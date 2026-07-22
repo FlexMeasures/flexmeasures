@@ -1458,21 +1458,31 @@ def test_asset_trigger_schema_rejects_malformed_flex_context(app):
 
 
 def test_operation_mode_schema_with_commodity_power_ranges(app):
-    """A multi-commodity operation mode loads its per-commodity power ranges (S2 shape)."""
+    """A multi-commodity operation mode loads sign-explicit per-commodity ranges (S2 shape)."""
     from flexmeasures.data.schemas.scheduling.storage import OperationModeSchema
+    from flexmeasures.data.models.planning.storage import (
+        _operation_mode_signed_band,
+        _operation_mode_commodity_bands,
+    )
 
     mode = OperationModeSchema().load(
         {
-            "power-range": ["0.4 MW", "0.5 MW"],
+            "production-range": ["0.4 MW", "0.5 MW"],
             "commodity-power-ranges": [
-                {"commodity": "gas", "power-range": ["0.6 MW", "0.7 MW"]},
-                {"commodity": "heat", "power-range": ["0.3 MW", "0.35 MW"]},
+                {"commodity": "gas", "consumption-range": ["0.6 MW", "0.7 MW"]},
+                {"commodity": "heat", "production-range": ["0.3 MW", "0.35 MW"]},
             ],
         }
     )
     assert len(mode["commodity_power_ranges"]) == 2
     assert mode["commodity_power_ranges"][0]["commodity"] == "gas"
-    assert mode["commodity_power_ranges"][0]["power_range"][0].to("MW").magnitude == 0.6
+    # The electricity device produces, so its band is negative and factor 0 is at full output.
+    assert _operation_mode_signed_band(mode) == (-0.5, -0.4)
+    bands = _operation_mode_commodity_bands(mode)
+    # gas consumed: 0.7 at factor 0 (0.5 MW output), 0.6 at factor 1 (0.4 MW output)
+    assert bands["gas"] == (0.7, 0.6)
+    # heat produced (negative): -0.35 at factor 0, -0.3 at factor 1
+    assert bands["heat"] == (-0.35, -0.3)
 
 
 def test_operation_mode_schema_rejects_duplicate_commodities(app):
@@ -1482,10 +1492,23 @@ def test_operation_mode_schema_rejects_duplicate_commodities(app):
     with pytest.raises(ValidationError):
         OperationModeSchema().load(
             {
-                "power-range": ["0 MW", "1 MW"],
+                "consumption-range": ["0 MW", "1 MW"],
                 "commodity-power-ranges": [
-                    {"commodity": "gas", "power-range": ["0 MW", "1 MW"]},
-                    {"commodity": "gas", "power-range": ["0 MW", "2 MW"]},
+                    {"commodity": "gas", "consumption-range": ["0 MW", "1 MW"]},
+                    {"commodity": "gas", "consumption-range": ["0 MW", "2 MW"]},
                 ],
+            }
+        )
+
+
+def test_commodity_power_range_requires_a_sign_explicit_range(app):
+    """A commodity range must declare a consumption-range and/or production-range."""
+    from flexmeasures.data.schemas.scheduling.storage import OperationModeSchema
+
+    with pytest.raises(ValidationError):
+        OperationModeSchema().load(
+            {
+                "consumption-range": ["0 MW", "1 MW"],
+                "commodity-power-ranges": [{"commodity": "gas"}],
             }
         )

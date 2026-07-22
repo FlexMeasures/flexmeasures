@@ -135,15 +135,20 @@ def device_scheduler(  # noqa C901
                                 For a device ``d`` that carries operation modes, this is a list parallel
                                 to ``device_power_bands[d]`` (one entry per mode/band). Each entry maps
                                 *other* device indices (the coupled commodities, e.g. the fuel and heat
-                                flows of a cogeneration unit) to a signed power range ``(min, max)`` in
-                                flow units. When mode ``b`` is active, a single operation-mode factor
-                                ``lambda in [0, 1]`` (shared across all commodities of that mode) sets the
-                                banded device's own power to ``pmin_b + lambda * (pmax_b - pmin_b)`` and each
-                                coupled commodity's power to ``cmin + lambda * (cmax - cmin)``. This ties the
-                                commodities affinely: the range minima are the per-commodity fixed no-load
-                                flows (gated by the mode's binary), and the shared factor makes the marginal
-                                (proportional) part move in lockstep. Use None (per device or for the whole
-                                argument) for single-commodity operation modes, which behave exactly as before.
+                                flows of a cogeneration unit) to a signed pair ``(c0, c1)`` in flow units,
+                                giving that commodity's flow at the mode's two factor extremes: ``c0`` at
+                                factor 0 (the banded device's own band minimum) and ``c1`` at factor 1 (its
+                                band maximum). Sign is resolved upstream from the mode's
+                                ``consumption-range``/``production-range`` keys, so these values are already
+                                signed and need not be ordered. When mode ``b`` is active, a single
+                                operation-mode factor ``lambda in [0, 1]`` (shared across all commodities of
+                                that mode) sets the banded device's own power to
+                                ``pmin_b + lambda * (pmax_b - pmin_b)`` and each coupled commodity's power to
+                                ``c0 + lambda * (c1 - c0)``. This ties the commodities affinely: the factor-0
+                                endpoints are the per-commodity fixed no-load flows (gated by the mode's
+                                binary), and the shared factor makes the marginal (proportional) part move in
+                                lockstep. Use None (per device or for the whole argument) for single-commodity
+                                operation modes, which behave exactly as before.
 
     Potentially deprecated arguments:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
