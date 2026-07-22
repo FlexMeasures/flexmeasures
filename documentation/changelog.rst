@@ -36,6 +36,7 @@ New features
 
 Infrastructure / Support
 ----------------------
+* Document ``SECURITY_TWO_FACTOR`` and related 2FA configuration settings [see `PR #2340 <https://www.github.com/FlexMeasures/flexmeasures/pull/2340>`_]
 * ``flexmeasures db upgrade`` now runs ``VACUUM ANALYZE`` after upgrading by default, so Postgres has fresh planner statistics right after a migration; opt out with ``--no-vacuum`` [see `PR #2333 <https://www.github.com/FlexMeasures/flexmeasures/pull/2333>`_]
 * Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_, `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_ and `PR #2243 <https://www.github.com/FlexMeasures/flexmeasures/pull/2243>`_]
 * Speed up post-processing of sensor data searches: latest-version filtering, deterministic-belief selection per event and chart-data serialization are now vectorized (up to three orders of magnitude faster on large search results) [see `PR #2328 <https://www.github.com/FlexMeasures/flexmeasures/pull/2328>`_]
