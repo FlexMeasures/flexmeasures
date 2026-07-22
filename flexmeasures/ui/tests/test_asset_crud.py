@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from flask import url_for
 
 import pytest
@@ -6,6 +8,7 @@ import copy
 
 from flexmeasures.data.services.users import find_user_by_email
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.ui.tests.utils import (
     mock_asset_data,
     mock_asset_data_with_kpis,
@@ -263,13 +266,21 @@ def test_resolved_flex_context_on_context_page(
         name="parent-for-flex-context-test",
         generic_asset_type=setup_generic_asset_types["battery"],
         owner=setup_accounts["Prosumer"],
-        flex_context={
-            "site-power-capacity": "2 MVA",
-            "consumption-price": "100 EUR/MWh",
-        },
     )
     db.session.add(parent)
     db.session.flush()
+    price_sensor = Sensor(
+        name="grid-price-for-flex-context-test",
+        generic_asset=parent,
+        event_resolution=timedelta(hours=1),
+        unit="EUR/MWh",
+    )
+    db.session.add(price_sensor)
+    db.session.flush()
+    parent.flex_context = {
+        "site-power-capacity": "2 MVA",
+        "consumption-price": {"sensor": price_sensor.id},
+    }
 
     child = GenericAsset(
         name="child-for-flex-context-test",
@@ -289,11 +300,16 @@ def test_resolved_flex_context_on_context_page(
     # The child's own field shadows the parent's value.
     assert b"1 MVA" in child_page.data
     assert b"2 MVA" not in child_page.data
-    # The consumption price is inherited from the parent, with a link to its context page.
-    assert b"100 EUR/MWh" in child_page.data
+    # The consumption price is inherited from the parent, with a link to its context page,
+    # and its sensor reference renders as a link to the sensor.
     assert b"inherited" in child_page.data
     assert b"parent-for-flex-context-test" in child_page.data
     assert url_for("AssetCrudUI:context", id=parent.id).encode() in child_page.data
+    assert (
+        f"grid-price-for-flex-context-test (sensor {price_sensor.id})".encode()
+        in child_page.data
+    )
+    assert url_for("SensorUI:get", id=price_sensor.id).encode() in child_page.data
 
     parent_page = client.get(
         url_for("AssetCrudUI:context", id=parent.id), follow_redirects=True
@@ -302,6 +318,13 @@ def test_resolved_flex_context_on_context_page(
     # All of the parent's fields are its own, so nothing shows as inherited.
     assert b"this asset" in parent_page.data
     assert b"inherited" not in parent_page.data
+
+    # The fragment endpoint serves the same table, for refreshing without a page reload.
+    fragment = client.get(url_for("AssetCrudUI:resolved_flex_context", id=child.id))
+    assert fragment.status_code == 200
+    assert b"1 MVA" in fragment.data
+    assert b"inherited" in fragment.data
+    assert url_for("SensorUI:get", id=price_sensor.id).encode() in fragment.data
 
 
 def test_breadcrumb_cross_account_parent(
