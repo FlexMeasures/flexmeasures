@@ -99,3 +99,55 @@ def test_device_scheduler_with_min_power_band():
     assert np.isclose(values.sum(), 1.2)
     assert np.isclose(sorted(values), [0, 0.4, 0.4, 0.4]).all()
     assert np.isclose(costs, 4.8)
+
+
+# --- schema: consumption-range / production-range -> signed band -----------------
+
+import pytest  # noqa: E402
+from marshmallow import ValidationError  # noqa: E402
+
+from flexmeasures.data.schemas.scheduling.storage import (  # noqa: E402
+    OperationModeSchema,
+)
+from flexmeasures.data.models.planning.storage import (  # noqa: E402
+    _operation_mode_signed_band,
+)
+
+
+def _band(payload):
+    return _operation_mode_signed_band(OperationModeSchema().load(payload))
+
+
+def test_consumption_range_maps_to_positive_band():
+    # The S2 signed power-range maps to the FM consumption-range.
+    assert _band({"consumption-range": ["0 MW", "10 MW"]}) == (0.0, 10.0)
+
+
+def test_production_range_maps_to_negative_band():
+    assert _band({"production-range": ["4 MW", "55 MW"]}) == (-55.0, -4.0)
+
+
+def test_combined_ranges_form_a_band_through_zero():
+    assert _band(
+        {"consumption-range": ["0 MW", "20 MW"], "production-range": ["0 MW", "55 MW"]}
+    ) == (-55.0, 20.0)
+
+
+def test_operation_mode_requires_at_least_one_range():
+    with pytest.raises(ValidationError):
+        OperationModeSchema().load({})
+
+
+def test_combined_ranges_must_start_at_zero():
+    with pytest.raises(ValidationError, match="contiguous band"):
+        OperationModeSchema().load(
+            {
+                "consumption-range": ["1 MW", "20 MW"],
+                "production-range": ["0 MW", "55 MW"],
+            }
+        )
+
+
+def test_range_min_cannot_exceed_max():
+    with pytest.raises(ValidationError):
+        OperationModeSchema().load({"consumption-range": ["10 MW", "5 MW"]})
