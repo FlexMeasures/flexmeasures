@@ -2076,3 +2076,90 @@ def test_off_tick_soc_relaxation_covers_all_devices_of_a_shared_stock(
     assert constraints_2.loc[start, "min"] == pytest.approx(
         4
     ), "the on-tick device's soc-minima should remain a hard constraint"
+
+
+def test_multiple_sessions_same_sensor_accumulate_schedules(db, building):
+    """Two flex-model sessions on one power sensor must sum schedules (not overwrite).
+
+    Regression for https://github.com/FlexMeasures/flexmeasures/issues/1947
+    (core fix in #1948). Multiple independent storage entries may share a power
+    sensor (e.g. EV sessions on one charge point). Their device schedules must be
+    accumulated into a single sensor schedule.
+
+    Setup: two non-overlapping sessions, each needing 2 kWh at 1 kW over a 2-hour
+    window. Overwrite behaviour would keep only the second session (~2 kWh total);
+    correct accumulation yields ~4 kWh with power in both halves of the horizon.
+    """
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-01-01T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+    mid = start + 2 * resolution
+
+    power_sensor = Sensor(
+        name="shared EVSE power",
+        generic_asset=building,
+        event_resolution=resolution,
+        unit="kW",
+    )
+    db.session.add(power_sensor)
+    db.session.commit()
+
+    index = initialize_index(start=start, end=end, resolution=resolution)
+    # Pre-allocate capacity per session (required when sessions would otherwise
+    # compete for the same charger capacity; here they are non-overlapping).
+    session1_capacity = pd.Series([1.0, 1.0, 0.0, 0.0], index=index)
+    session2_capacity = pd.Series([0.0, 0.0, 1.0, 1.0], index=index)
+
+    flex_model = [
+        {
+            "sensor": power_sensor.id,
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-minima": [{"datetime": mid.isoformat(), "value": "2 kWh"}],
+            "power-capacity": "1 kW",
+            "consumption-capacity": series_to_ts_specs(session1_capacity, unit="kW"),
+            "production-capacity": "0 kW",
+        },
+        {
+            "sensor": power_sensor.id,
+            "soc-at-start": "0 kWh",
+            "soc-min": "0 kWh",
+            "soc-max": "100 kWh",
+            "soc-minima": [{"datetime": end.isoformat(), "value": "2 kWh"}],
+            "power-capacity": "1 kW",
+            "consumption-capacity": series_to_ts_specs(session2_capacity, unit="kW"),
+            "production-capacity": "0 kW",
+        },
+    ]
+
+    scheduler: Scheduler = StorageScheduler(
+        asset_or_sensor=building,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": "100 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "10 kW",
+            "soc-minima-breach-price": "6000 EUR/kWh",
+        },
+        return_multiple=True,
+    )
+    results = scheduler.compute()
+
+    storage_for_sensor = [
+        r
+        for r in results
+        if r.get("name") == "storage_schedule" and r.get("sensor") is power_sensor
+    ]
+    assert (
+        len(storage_for_sensor) == 1
+    ), "expected exactly one combined storage_schedule for the shared sensor"
+    schedule = storage_for_sensor[0]["data"]
+
+    # Each session charges 2 kWh at 1 kW over its half window → [1, 1, 1, 1] kW.
+    np.testing.assert_allclose(schedule.values, [1.0, 1.0, 1.0, 1.0], atol=1e-3)
+    # Overwrite would leave only the second session (~2 kWh total energy).
+    np.testing.assert_allclose(schedule.sum(), 4.0, atol=1e-3)
