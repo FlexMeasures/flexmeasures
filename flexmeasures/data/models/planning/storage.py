@@ -1571,6 +1571,40 @@ class MetaStorageScheduler(Scheduler):
                 start, end, timing_kwargs["resolution"]
             )
             commitment_commodity = commitment_spec.get("commodity", "electricity")
+
+            # A commitment scoped to specific sensors binds the *aggregate* flow
+            # of those devices as one commitment, rather than each device separately.
+            scoped_sensors = commitment_spec.pop("sensors", None)
+            if scoped_sensors is not None:
+                scoped_sensor_ids = {
+                    sensor.id if hasattr(sensor, "id") else sensor
+                    for sensor in scoped_sensors
+                }
+                # Canonical solver device indices come from the device inventory
+                # (never from re-enumerating raw flex-model entry lists).
+                scoped_devices = sorted(
+                    device.index
+                    for sensor_id in scoped_sensor_ids
+                    for device in self.device_inventory.by_sensor_id(sensor_id)
+                )
+                if not scoped_devices:
+                    current_app.logger.warning(
+                        f"Commitment '{commitment_spec.get('name')}' is scoped to"
+                        f" sensors {sorted(scoped_sensor_ids)}, none of which appear"
+                        " in the flex-model. This commitment will not bind any device."
+                    )
+                    continue
+                index = commitment_spec["index"]
+                group_label = commitment_spec.get("name", "scoped commitment")
+                commitment = FlowCommitment(
+                    device=pd.Series([scoped_devices] * len(index), index=index),
+                    # device_group maps device index -> group label; one shared
+                    # label makes the engine bind the aggregate flow.
+                    device_group=pd.Series({d: group_label for d in scoped_devices}),
+                    **commitment_spec,
+                )
+                commitments.append(commitment)
+                continue
             bound_device_count = 0
             for d, flex_model_d in enumerate(flex_model):
                 device_commodity = flex_model_d.get("commodity", "electricity")

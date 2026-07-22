@@ -73,6 +73,15 @@ class NoTimeSeriesSpecs(Schema):
 
 class CommitmentSchema(Schema):
     name = fields.Str(required=True, data_key="name")
+    # Optional scoping: bind this commitment to the aggregate flow of the
+    # devices whose power sensors are listed, rather than binding each device
+    # separately. Useful to commit a band on a subset of devices (e.g. an
+    # aFRR band on a site's e-heaters).
+    sensors = fields.List(
+        SensorIdField(),
+        required=False,
+        data_key="sensors",
+    )
     # Undocumented for now (not part of UI_FLEX_CONTEXT_SCHEMA, OpenAPI or Sphinx docs).
     # Internal bookkeeping only: not the documented way to associate a commitment
     # with a commodity. API users should instead place the commitment under the

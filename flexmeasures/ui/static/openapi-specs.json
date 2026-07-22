@@ -4715,6 +4715,12 @@
           "name": {
             "type": "string"
           },
+          "sensors": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
           "commodity": {
             "type": "string",
             "default": "electricity"
