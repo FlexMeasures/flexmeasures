@@ -6204,6 +6204,37 @@
         ],
         "additionalProperties": false
       },
+      "CommodityPowerRange": {
+        "type": "object",
+        "properties": {
+          "commodity": {
+            "type": "string",
+            "description": "Name of the commodity this power range applies to (e.g. 'gas' or 'heat')."
+          },
+          "consumption-range": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Consumption power range [min, max] of this commodity within the mode (non-negative; positive is consumption).",
+            "items": {
+              "type": "string"
+            }
+          },
+          "production-range": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Production power range [min, max] of this commodity within the mode (non-negative; positive is production).",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "commodity"
+        ],
+        "additionalProperties": false
+      },
       "OperationMode": {
         "type": "object",
         "properties": {
@@ -6223,6 +6254,13 @@
             "description": "Production power range [min, max] of this operation mode (non-negative; positive is production).",
             "items": {
               "type": "string"
+            }
+          },
+          "commodity-power-ranges": {
+            "type": "array",
+            "description": "Optional per-commodity signed power ranges tied to this mode's operation-mode factor (S2 FRBC.OperationModeElement.power_ranges).",
+            "items": {
+              "$ref": "#/components/schemas/CommodityPowerRange"
             }
           }
         },

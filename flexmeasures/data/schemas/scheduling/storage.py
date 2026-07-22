@@ -125,6 +125,79 @@ class EfficiencyField(QuantityField):
         )
 
 
+class CommodityPowerRangeSchema(Schema):
+    """A single commodity's power range within one operation mode.
+
+    This mirrors one entry of an S2 ``FRBC.OperationModeElement.power_ranges`` list: the
+    power range that this commodity's flow spans as the mode's operation-mode factor sweeps
+    from 0 to 1. As on the mode itself, the sign is given explicitly via ``consumption-range``
+    (non-negative, positive means consumption) and/or ``production-range`` (non-negative,
+    positive means production). The factor sweeps all commodities in lockstep with the mode's
+    own power, so the endpoints are magnitude-ordered like the mode's own range (the device
+    scheduler resolves which endpoint pairs with which extreme of the mode's power); the
+    lower-magnitude endpoint is the commodity's fixed no-load flow and the difference to the
+    other endpoint is its proportional (marginal) part. Sharing one factor across commodities
+    ties them affinely, which lets a unit-committed affine cogeneration unit be expressed
+    natively.
+    """
+
+    commodity = fields.Str(
+        required=True,
+        metadata=dict(
+            description="Name of the commodity this power range applies to "
+            "(e.g. 'gas' or 'heat')."
+        ),
+    )
+    consumption_range = fields.List(
+        QuantityField(to_unit="MW", default_src_unit="MW", return_magnitude=False),
+        data_key="consumption-range",
+        required=False,
+        validate=validate.Length(equal=2),
+        metadata=dict(
+            description="Consumption power range [min, max] of this commodity within the "
+            "mode (non-negative; positive is consumption)."
+        ),
+    )
+    production_range = fields.List(
+        QuantityField(to_unit="MW", default_src_unit="MW", return_magnitude=False),
+        data_key="production-range",
+        required=False,
+        validate=validate.Length(equal=2),
+        metadata=dict(
+            description="Production power range [min, max] of this commodity within the "
+            "mode (non-negative; positive is production)."
+        ),
+    )
+
+    @validates_schema
+    def check_ranges(self, data: dict, **kwargs):
+        cons = data.get("consumption_range")
+        prod = data.get("production_range")
+        if cons is None and prod is None:
+            raise ValidationError(
+                "A commodity power range must declare a consumption-range and/or a "
+                "production-range."
+            )
+        for name, rng in (("consumption-range", cons), ("production-range", prod)):
+            if rng is None:
+                continue
+            if rng[0].to("MW").magnitude < 0:
+                raise ValidationError(f"A commodity's {name} must be non-negative.")
+            if rng[0] > rng[1]:
+                raise ValidationError(
+                    f"The minimum of a commodity's {name} cannot exceed its maximum."
+                )
+        if (
+            cons is not None
+            and prod is not None
+            and (cons[0].to("MW").magnitude != 0 or prod[0].to("MW").magnitude != 0)
+        ):
+            raise ValidationError(
+                "When a commodity combines consumption-range and production-range, both "
+                "must start at 0 (so they form one contiguous band through zero)."
+            )
+
+
 class OperationModeSchema(Schema):
     """One operation mode of a device, in the sense of the S2 standard.
 
@@ -139,6 +212,14 @@ class OperationModeSchema(Schema):
     883.7 W of consumption declares:
 
         [{"consumption-range": ["0 W", "0 W"]}, {"consumption-range": ["883.7 W", "883.7 W"]}]
+
+    An operation mode may additionally carry per-commodity power ranges
+    (``commodity-power-ranges``), generalising it across commodities in the sense of
+    S2's ``FRBC.OperationModeElement.power_ranges``. A single operation-mode factor then
+    interpolates the device's own power and every listed commodity's power in lockstep,
+    tying them affinely. For example, a cogeneration unit's "on" mode carries electricity
+    as its own (production) ``consumption-range``/``production-range`` and gas and heat as
+    ``commodity-power-ranges``, each with a no-load base plus a proportional part.
     """
 
     consumption_range = fields.List(
@@ -159,6 +240,15 @@ class OperationModeSchema(Schema):
         metadata=dict(
             description="Production power range [min, max] of this operation mode "
             "(non-negative; positive is production).",
+        ),
+    )
+    commodity_power_ranges = fields.List(
+        fields.Nested(CommodityPowerRangeSchema()),
+        data_key="commodity-power-ranges",
+        required=False,
+        metadata=dict(
+            description="Optional per-commodity signed power ranges tied to this mode's "
+            "operation-mode factor (S2 FRBC.OperationModeElement.power_ranges)."
         ),
     )
 
@@ -189,6 +279,15 @@ class OperationModeSchema(Schema):
             raise ValidationError(
                 "When an operation mode combines consumption-range and production-range, "
                 "both must start at 0 (so they form one contiguous band through zero)."
+            )
+
+    @validates("commodity_power_ranges")
+    def check_unique_commodities(self, value: list, **kwargs):
+        commodities = [entry["commodity"] for entry in value]
+        if len(commodities) != len(set(commodities)):
+            raise ValidationError(
+                "Each commodity may appear at most once in an operation mode's "
+                "commodity-power-ranges."
             )
 
 

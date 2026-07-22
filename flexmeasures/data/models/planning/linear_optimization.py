@@ -84,6 +84,9 @@ def device_scheduler(  # noqa C901
     stock_groups: dict[int, list[int]] | None = None,
     ems_constraint_groups: list[list[int]] | None = None,
     device_power_bands: list[list[tuple[float, float]] | None] | None = None,
+    device_mode_commodity_ranges: (
+        list[list[dict[int, tuple[float, float]]] | None] | None
+    ) = None,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -126,6 +129,26 @@ def device_scheduler(  # noqa C901
                                 one of its bands at every time step (see S2 operation modes); this introduces
                                 binary variables (one per device per band per time step). Use None (per device
                                 or for the whole argument) for devices without band restrictions.
+    :param device_mode_commodity_ranges:
+                                optional per-device generalisation of ``device_power_bands`` to
+                                *multiple commodities* (S2 ``FRBC.OperationModeElement.power_ranges``).
+                                For a device ``d`` that carries operation modes, this is a list parallel
+                                to ``device_power_bands[d]`` (one entry per mode/band). Each entry maps
+                                *other* device indices (the coupled commodities, e.g. the fuel and heat
+                                flows of a cogeneration unit) to a signed pair ``(c0, c1)`` in flow units,
+                                giving that commodity's flow at the mode's two factor extremes: ``c0`` at
+                                factor 0 (the banded device's own band minimum) and ``c1`` at factor 1 (its
+                                band maximum). Sign is resolved upstream from the mode's
+                                ``consumption-range``/``production-range`` keys, so these values are already
+                                signed and need not be ordered. When mode ``b`` is active, a single
+                                operation-mode factor ``lambda in [0, 1]`` (shared across all commodities of
+                                that mode) sets the banded device's own power to
+                                ``pmin_b + lambda * (pmax_b - pmin_b)`` and each coupled commodity's power to
+                                ``c0 + lambda * (c1 - c0)``. This ties the commodities affinely: the factor-0
+                                endpoints are the per-commodity fixed no-load flows (gated by the mode's
+                                binary), and the shared factor makes the marginal (proportional) part move in
+                                lockstep. Use None (per device or for the whole argument) for single-commodity
+                                operation modes, which behave exactly as before.
 
     Potentially deprecated arguments:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
@@ -426,6 +449,35 @@ def device_scheduler(  # noqa C901
         for d, bands in enumerate(device_power_bands)
         if bands is not None and len(bands) > 0
     }
+
+    # Multi-commodity operation modes (S2 FRBC.OperationModeElement.power_ranges):
+    # per banded device, per band, a mapping of coupled device (commodity) -> (min, max).
+    # Only kept for banded devices, and only for bands that actually declare coupled
+    # commodity ranges, so single-commodity operation modes stay untouched.
+    if device_mode_commodity_ranges is None:
+        device_mode_commodity_ranges = [None] * len(device_constraints)
+    mode_commodity_lookup: dict[int, list[dict[int, tuple[float, float]]]] = {}
+    for d, per_band in enumerate(device_mode_commodity_ranges):
+        if per_band is None or d not in band_lookup:
+            continue
+        if len(per_band) != len(band_lookup[d]):
+            raise ValueError(
+                "device_mode_commodity_ranges[%d] must have one entry per power band"
+                " (got %d entries for %d bands)."
+                % (d, len(per_band), len(band_lookup[d]))
+            )
+        cleaned = [dict(entry) if entry else {} for entry in per_band]
+        if any(cleaned):
+            mode_commodity_lookup[d] = cleaned
+    # (device, coupled-commodity-device) pairs whose flow is set by an operation-mode factor.
+    mode_commodity_pairs = sorted(
+        {
+            (d, dc)
+            for d, per_band in mode_commodity_lookup.items()
+            for entry in per_band
+            for dc in entry
+        }
+    )
 
     # Add indices for devices (d), datetimes (j) and commitments (c)
     model.d = RangeSet(0, len(device_constraints) - 1, doc="Set of devices")
@@ -876,6 +928,73 @@ def device_scheduler(  # noqa C901
     model.device_band_power_upper = Constraint(
         model.db, model.j, rule=device_band_power_upper
     )
+
+    # Multi-commodity operation modes: a single, continuous operation-mode factor per
+    # (banded device, band, time step) interpolates every commodity of that mode at once.
+    # The factor is gated by the band's binary (0 <= factor <= device_band), so it is
+    # zero for any band that is not selected, leaving only the selected band's factor free
+    # in [0, 1]. Summed over bands it interpolates the banded device's own power between
+    # its band minimum and maximum, and each coupled commodity between its own (min, max).
+    # This is the affine tie between commodities (S2's operation_mode_factor).
+    model.dbf = Set(
+        dimen=2,
+        initialize=lambda m: (
+            (d, b) for d in mode_commodity_lookup for b in range(len(band_lookup[d]))
+        ),
+        doc="(device, band) pairs carrying a multi-commodity operation-mode factor",
+    )
+    model.device_mode_factor = Var(
+        model.dbf, model.j, domain=NonNegativeReals, bounds=(0, 1), initialize=0
+    )
+
+    def device_mode_factor_gate(m, d, b, j):
+        """The operation-mode factor is only non-zero for the selected band."""
+        return m.device_mode_factor[d, b, j] <= m.device_band[d, b, j]
+
+    def device_mode_primary_power(m, d, b, j):
+        """Tie the banded device's own power to its bands via the shared factor.
+
+        Only added once per (device, time step), anchored on band 0. Combined with the
+        gate and the exactly-one-band choice, this both fixes the power to the selected
+        band's interpolation and makes the band-power lower/upper bounds redundant-but-safe.
+        """
+        if b != 0:
+            return Constraint.Skip
+        return m.device_power_down[d, j] + m.device_power_up[d, j] == sum(
+            m.device_band[d, b_, j] * band_lookup[d][b_][0]
+            + m.device_mode_factor[d, b_, j]
+            * (band_lookup[d][b_][1] - band_lookup[d][b_][0])
+            for b_ in range(len(band_lookup[d]))
+        )
+
+    def device_mode_commodity_power(m, d, dc, j):
+        """Tie each coupled commodity's flow to the same shared operation-mode factor.
+
+        cmin is the commodity's fixed no-load flow (gated by the mode binary); the factor
+        term adds the proportional part, in lockstep with the banded device's own power.
+        """
+        return m.device_power_down[dc, j] + m.device_power_up[dc, j] == sum(
+            m.device_band[d, b_, j]
+            * mode_commodity_lookup[d][b_].get(dc, (0.0, 0.0))[0]
+            + m.device_mode_factor[d, b_, j]
+            * (
+                mode_commodity_lookup[d][b_].get(dc, (0.0, 0.0))[1]
+                - mode_commodity_lookup[d][b_].get(dc, (0.0, 0.0))[0]
+            )
+            for b_ in range(len(band_lookup[d]))
+        )
+
+    model.device_mode_factor_gate = Constraint(
+        model.dbf, model.j, rule=device_mode_factor_gate
+    )
+    model.device_mode_primary_power = Constraint(
+        model.dbf, model.j, rule=device_mode_primary_power
+    )
+    if mode_commodity_pairs:
+        model.dc_pairs = Set(dimen=2, initialize=mode_commodity_pairs)
+        model.device_mode_commodity_power = Constraint(
+            model.dc_pairs, model.j, rule=device_mode_commodity_power
+        )
 
     # Add objective
     def cost_function(m):
