@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from sqlalchemy import select
-from flask import redirect, render_template, url_for, current_app, request, session
+from flask import redirect, url_for, current_app, request, session
 from flask_classful import FlaskView, route
 from flask_security import login_required, current_user
 from webargs.flaskparser import use_kwargs
@@ -40,8 +40,8 @@ from flexmeasures.ui.utils.auth_utils import (
     user_can_update,
 )
 from flexmeasures.ui.views.assets.utils import (
-    build_resolved_flex_context,
     get_asset_by_id_or_raise_notfound,
+    get_inherited_flex_context,
     get_list_assets_chart,
     add_child_asset,
 )
@@ -202,14 +202,12 @@ class AssetCrudUI(FlaskView):
 
         from flexmeasures.data.schemas.scheduling import UI_FLEX_CONTEXT_SCHEMA
 
-        resolved_flex_context = build_resolved_flex_context(asset)
-
         return render_flexmeasures_template(
             "assets/asset_context.html",
             assets=assets,
             asset=asset,
             flex_context_schema=UI_FLEX_CONTEXT_SCHEMA,
-            resolved_flex_context=resolved_flex_context,
+            inherited_flex_context=get_inherited_flex_context(asset),
             current_asset_sensors=current_asset_sensors,
             site_asset=site_asset,
             user_can_create_children=user_can_create_children(asset),
@@ -217,21 +215,6 @@ class AssetCrudUI(FlaskView):
             current_page="Context",
             available_units=available_units(),
             toast_msg=session.pop("toast_msg", None),
-        )
-
-    @login_required
-    @route("/<id>/context/resolved-flex-context")
-    def resolved_flex_context(self, id: str):
-        """GET /assets/<id>/context/resolved-flex-context
-
-        Returns the resolved flex-context table as an HTML fragment,
-        so the context page can refresh it without a full page reload.
-        """
-        asset = get_asset_by_id_or_raise_notfound(id)
-        check_access(asset, "read")
-        return render_template(
-            "assets/_resolved_flex_context.html",
-            resolved_flex_context=build_resolved_flex_context(asset),
         )
 
     @login_required
