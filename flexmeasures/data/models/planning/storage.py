@@ -1007,11 +1007,16 @@ class MetaStorageScheduler(Scheduler):
                     min_value=0,  # capacities are positive by definition
                     resolve_overlaps="min",
                 )
+                # Explicit zero production capacity is a physical impossibility (e.g.
+                # a heat pump), not an economic limit — keep it hard even when
+                # relax-constraints injects production-breach-price. Non-zero
+                # production capacities may still be softened. See issue #2323.
                 if (
                     self.flex_context.get("production_breach_price") is not None
                     and production_capacity[d] is not None
+                    and production_capacity_d.max() > 0
                 ):
-                    # consumption-capacity will become a soft constraint
+                    # production-capacity will become a soft constraint
                     production_breach_price = self.flex_context[
                         "production_breach_price"
                     ]
@@ -1058,7 +1063,7 @@ class MetaStorageScheduler(Scheduler):
                     )
                     commitments.append(commitment)
                 else:
-                    # consumption-capacity will become a hard constraint
+                    # production-capacity will become a hard constraint
                     device_constraints[d]["derivative min"] = -production_capacity_d
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_negative"
@@ -1078,9 +1083,14 @@ class MetaStorageScheduler(Scheduler):
                     max_value=power_capacity_in_mw[d],
                     resolve_overlaps="min",
                 )
+                # Explicit zero consumption capacity is a physical impossibility
+                # (e.g. a pure generator), not an economic limit — keep it hard
+                # even when relax-constraints injects consumption-breach-price.
+                # Non-zero consumption capacities may still be softened. See #2323.
                 if (
                     self.flex_context.get("consumption_breach_price") is not None
                     and consumption_capacity[d] is not None
+                    and consumption_capacity_d.max() > 0
                 ):
                     # consumption-capacity will become a soft constraint
                     consumption_breach_price = self.flex_context[

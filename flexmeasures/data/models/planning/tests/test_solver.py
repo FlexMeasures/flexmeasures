@@ -1654,6 +1654,145 @@ def test_device_power_capacity_uses_directional_capacity_before_site_fallback(
 
 
 @pytest.mark.parametrize(
+    "direction, capacity_field, expected_derivative_col, expected_bound",
+    [
+        ("production", "production-capacity", "derivative min", 0.0),
+        ("consumption", "consumption-capacity", "derivative max", 0.0),
+    ],
+)
+def test_explicit_zero_directional_capacity_stays_hard_under_relax_constraints(
+    db,
+    add_battery_assets,
+    direction,
+    capacity_field,
+    expected_derivative_col,
+    expected_bound,
+):
+    """Explicit zero directional capacity is physical, not economic (#2323).
+
+    With ``relax-constraints`` defaulting to True, non-zero capacity limits may be
+    softened via breach prices. An explicit ``production-capacity: 0`` (or
+    consumption-capacity: 0) must remain a hard bound — otherwise a consumption-only
+    device (e.g. heat pump) can be scheduled to produce when site breaches are
+    more expensive than device breaches.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    start = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 2))
+    end = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 3))
+    resolution = timedelta(minutes=15)
+
+    # Opposite direction stays open so the symmetric power-capacity fallback is not zero.
+    opposite_field = (
+        "consumption-capacity" if direction == "production" else "production-capacity"
+    )
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": "1 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "2 MWh",
+            "power-capacity": "2 MW",
+            capacity_field: "0 kW",
+            opposite_field: "2 MW",
+        },
+        # Default relax-constraints=True injects device breach prices.
+        flex_context={
+            "consumption-price": "1 EUR/MWh",
+            "production-price": "1000 EUR/MWh",  # strong incentive to produce
+            # Cheap device breaches vs expensive site breaches — the incentive that
+            # previously made soft zero-capacity look rational to the LP.
+            "production-breach-price": "100 EUR/kW",
+            "consumption-breach-price": "100 EUR/kW",
+            "site-production-breach-price": "10000 EUR/kW",
+            "site-consumption-breach-price": "10000 EUR/kW",
+            "site-power-capacity": "1 kW",
+        },
+    )
+    scheduler.deserialize_config()
+
+    (
+        _sensors,
+        _start,
+        _end,
+        _resolution,
+        _soc_at_start,
+        device_constraints,
+        _ems_constraints,
+        commitments,
+    ) = scheduler._prepare(skip_validation=True)
+
+    assert np.allclose(
+        device_constraints[0][expected_derivative_col], expected_bound
+    ), (
+        f"explicit zero {capacity_field} must stay a hard {expected_derivative_col} "
+        f"bound under relax-constraints, got "
+        f"{device_constraints[0][expected_derivative_col].unique()}"
+    )
+
+    soft_breach_names = [
+        c.name
+        for c in commitments
+        if c.name is not None and f"{direction} breach device" in c.name
+    ]
+    assert soft_breach_names == [], (
+        f"explicit zero {capacity_field} must not create soft "
+        f"{direction} breach commitments, got {soft_breach_names}"
+    )
+
+
+def test_explicit_zero_production_capacity_not_breached_in_schedule(
+    db, add_battery_assets
+):
+    """Regression for #2323: never schedule production when production-capacity is 0.
+
+    High production price makes discharging highly attractive. With an explicit
+    ``production-breach-price`` (as ``relax-constraints`` would inject), a soft
+    interpretation of ``production-capacity: 0`` would allow negative power.
+    Zero must stay hard, so the schedule never produces.
+    """
+    _, battery = get_sensors_from_db(db, add_battery_assets)
+
+    start = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 1))
+    end = pytz.timezone("Europe/Amsterdam").localize(datetime(2015, 1, 2))
+    resolution = timedelta(minutes=15)
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=battery,
+        start=start,
+        end=end,
+        resolution=resolution,
+        flex_model={
+            "soc-at-start": "1 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "2 MWh",
+            "power-capacity": "0.1 MW",
+            "production-capacity": "0 kW",
+            "consumption-capacity": "0.1 MW",
+            "prefer-charging-sooner": False,
+        },
+        flex_context={
+            # Strong incentive to discharge (produce) if allowed.
+            "consumption-price": "1 EUR/MWh",
+            "production-price": "1000 EUR/MWh",
+            # Breach price that would soften non-zero production limits; must not
+            # soften an explicit zero. Keep other constraints hard for a simple LP.
+            "production-breach-price": "100 EUR/kW",
+            "site-power-capacity": "2 MW",
+            "relax-constraints": False,
+        },
+    )
+    schedule = scheduler.compute()
+    assert (schedule >= -TOLERANCE).all(), (
+        "production-capacity: 0 must forbid negative (production) power even when "
+        f"production-breach-price is set; min scheduled power was {schedule.min()}"
+    )
+
+
+@pytest.mark.parametrize(
     ["soc_values", "log_message", "expected_num_targets"],
     [
         (
