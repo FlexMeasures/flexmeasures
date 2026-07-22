@@ -6224,6 +6224,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "running-cost": {
+            "type": "string",
+            "description": "Optional running cost (a rate in the flex-context currency per hour, e.g. '1200 EUR/h') incurred while this operation mode is active, excluding commodity cost (see S2 FRBC.OperationModeElement.running_costs). Defaults to 0."
           }
         },
         "additionalProperties": false
@@ -6302,7 +6306,7 @@
           "operation-modes": {
             "type": "array",
             "minItems": 1,
-            "description": "Confine the device's power to one of several power ranges at every time step.\nEach operation mode declares a <code>consumption-range</code> (non-negative, positive is consumption) and/or a <code>production-range</code> (non-negative, positive is production); a mode may use either or both, and combining both (each starting at 0) forms a single band through zero.\nThis is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).\nTerminology and semantics follow the `operation modes of the S2 standard <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/>`_; the S2 signed power-range maps to the FM <code>consumption-range</code> (S2 fixes one sign convention for power, whereas FM leaves it to the user).\nDeclaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.\n",
+            "description": "Confine the device's power to one of several power ranges at every time step.\nEach operation mode declares a <code>consumption-range</code> (non-negative, positive is consumption) and/or a <code>production-range</code> (non-negative, positive is production); a mode may use either or both, and combining both (each starting at 0) forms a single band through zero.\nThis is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).\nTerminology and semantics follow the `operation modes of the S2 standard <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/>`_; the S2 signed power-range maps to the FM <code>consumption-range</code> (S2 fixes one sign convention for power, whereas FM leaves it to the user).\nDeclaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.\nEach operation mode may optionally declare a <code>running-cost</code>: an additional per-time cost (a rate in the flex-context currency per hour, e.g. <code>\"1200 EUR/h\"</code>) incurred while that mode is active, excluding commodity cost, following the S2 standard's `FRBC.OperationModeElement.running_costs <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationModeElement/>`_.\nThis models the wear / O&M / standing cost of keeping a unit on regardless of its output (e.g. a boiler's standing cost). The per-timestep charge is the rate scaled by the timestep duration, so the total cost of a given on-duration is resolution-independent. When omitted, the running cost is 0.\nNote: a unit's no-load <em>fuel</em> consumption is more faithfully modelled as a commodity requirement (a fuel/gas power flow in the operation mode) than as a running cost; that is a possible follow-up.\n",
             "example": [
               {
                 "consumption-range": [
@@ -6314,7 +6318,8 @@
                 "consumption-range": [
                   "883.7 W",
                   "883.7 W"
-                ]
+                ],
+                "running-cost": "1200 EUR/h"
               }
             ],
             "items": {
