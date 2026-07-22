@@ -9,6 +9,7 @@ v3.0-32 | July XX, 2026
 """"""""""""""""""""""""
 
 - Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` arrays, each keyed by asset ID. For scheduling jobs, this surfaces soft state-of-charge constraint analysis: ``soc-minima`` and ``soc-maxima`` violations (with a ``violation`` magnitude) or satisfied constraints (with a ``margin`` headroom). Both arrays are empty when no SoC constraints were defined.
+- Breaking: ``relax-soc-constraints`` now defaults to ``True`` (set it or ``relax-constraints`` to ``False`` to keep ``soc-minima``/``soc-maxima`` hard), and the built-in storage fallback scheduler has been retired. ``GET /api/v3_0/sensors/<id>/schedules/<uuid>`` now returns ``400`` with the failure reason for an infeasible storage schedule instead of a ``303`` redirect to (or an automatic follow of) a fallback schedule. ``FLEXMEASURES_FALLBACK_REDIRECT`` remains relevant only for custom schedulers that still define a fallback scheduler.
 
 v3.0-31 | 2026-06-01
 """"""""""""""""""""

@@ -1230,12 +1230,30 @@ class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
     relax_constraints = fields.Bool(
         data_key="relax-constraints",
         load_default=False,
-        metadata=metadata.RELAX_CONSTRAINTS.to_dict(),
+        metadata={
+            **metadata.RELAX_CONSTRAINTS.to_dict(),
+            "description": (
+                "Defaults to False when stored on an asset (unlike the True default "
+                "used when scheduling): a stored flex-context should not silently bake "
+                "in default breach prices. The scheduling-time default of True is "
+                "applied after this stored flex-context is merged with the one passed "
+                "in the scheduling request."
+            ),
+        },
     )
     relax_soc_constraints = fields.Bool(
         data_key="relax-soc-constraints",
         load_default=False,
-        metadata=metadata.RELAX_SOC_CONSTRAINTS.to_dict(),
+        metadata={
+            **metadata.RELAX_SOC_CONSTRAINTS.to_dict(),
+            "description": (
+                "Defaults to False when stored on an asset (unlike the True default "
+                "used when scheduling): a stored flex-context should not silently bake "
+                "in default breach prices. The scheduling-time default of True is "
+                "applied after this stored flex-context is merged with the one passed "
+                "in the scheduling request."
+            ),
+        },
     )
 
     commitments = fields.Nested(

@@ -378,12 +378,6 @@ def test_get_schedule_infeasible_storage_job_without_fallback(
     assert capacity == 2
     assert charging_station.get_attribute("consumption-price") == {"sensor": epex_da.id}
 
-    # check that no storage fallback schedule has been saved before
-    models = [
-        source.model for source in charging_station.search_beliefs().sources.unique()
-    ]
-    assert "StorageFallbackScheduler" not in models
-
     # create a scenario that yields an infeasible problem (unreachable target SOC at 2am)
     message = {
         "start": start,
@@ -457,12 +451,6 @@ def test_get_schedule_infeasible_storage_job_without_fallback(
         assert "StorageScheduler was used." in get_schedule_response.json["message"]
         assert get_schedule_response.json["status"] == "UNKNOWN_SCHEDULE"
         assert get_schedule_response.json["result"] == "Rejected"
-
-        models = [
-            source.model
-            for source in charging_station.search_beliefs().sources.unique()
-        ]
-        assert "StorageFallbackScheduler" not in models
 
 
 @pytest.mark.parametrize(

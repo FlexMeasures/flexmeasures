@@ -172,7 +172,7 @@ It must use the same currency as the other price settings and cannot be negative
     example="10 EUR/kW",
 )
 RELAX_CONSTRAINTS = MetaData(
-    description="""If True (default is ``False``), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:
+    description="""If True (default), several constraints are relaxed by setting default breach prices within the optimization problem, leading to the default priority:
 
 1. Avoid breaching the site consumption/production capacity.
 2. Avoid not meeting SoC minima/maxima.
