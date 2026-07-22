@@ -157,6 +157,13 @@ class SupportsLegacyFieldAliases:
     def _apply_legacy_field_aliases(self, data, **kwargs):
         if not hasattr(data, "items") or not self.legacy_field_aliases:
             return data
+        # Only rebuild `data` into a plain dict if a legacy key is actually
+        # present. Some incoming `data` objects are a MultiDict (e.g. when
+        # webargs represents a JSON list as repeated keys) and other pre_load
+        # hooks may rely on that (e.g. `getlist`); leave those untouched when
+        # there's nothing for us to alias.
+        if not any(legacy_key in data for legacy_key in self.legacy_field_aliases):
+            return data
         aliased = dict(data)
         for legacy_key, canonical_key in self.legacy_field_aliases.items():
             if legacy_key in aliased and canonical_key not in aliased:
