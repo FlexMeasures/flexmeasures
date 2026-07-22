@@ -184,6 +184,18 @@ def _drop_unchanged_beliefs_compared_to_db(
         "cumulative_probability",
         "event_value",
     ]
+    # timed_belief stores cumulative_probability and event_value as single-precision
+    # floats (float4). The beliefs already in the database (b_df) are therefore rounded
+    # to float4, while the incoming candidate (a_df) still carries the full double
+    # precision it was submitted/computed with. Round the candidate to the same
+    # precision before comparing, so re-submitting already-stored data is recognised as
+    # unchanged instead of looking like a (rejected) replacement. See the matching
+    # float4 columns on flexmeasures.data.models.time_series.TimedBelief.
+    for compare_df in (a_df, b_df):
+        for float4_field in ("cumulative_probability", "event_value"):
+            compare_df[float4_field] = (
+                compare_df[float4_field].astype("float32").astype("float64")
+            )
     a = a_df.set_index(compare_fields)
     b = b_df.set_index(compare_fields)
     dropped = a.drop(b.index, errors="ignore", axis=0)
