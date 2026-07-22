@@ -201,11 +201,23 @@ class AssetCrudUI(FlaskView):
 
         from flexmeasures.data.schemas.scheduling import UI_FLEX_CONTEXT_SCHEMA
 
+        resolved_flex_context = [
+            {
+                "field": field,
+                "value": entry["value"],
+                "asset_id": entry["asset"].id,
+                "asset_name": entry["asset"].name,
+                "inherited": entry["asset"].id != asset.id,
+            }
+            for field, entry in sorted(asset.get_flex_context_with_provenance().items())
+        ]
+
         return render_flexmeasures_template(
             "assets/asset_context.html",
             assets=assets,
             asset=asset,
             flex_context_schema=UI_FLEX_CONTEXT_SCHEMA,
+            resolved_flex_context=resolved_flex_context,
             current_asset_sensors=current_asset_sensors,
             site_asset=site_asset,
             user_can_create_children=user_can_create_children(asset),

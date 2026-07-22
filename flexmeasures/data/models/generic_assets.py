@@ -744,26 +744,42 @@ class GenericAsset(db.Model, AuthModelMixin):
         if self.has_attribute(attribute):
             self.attributes[attribute] = value
 
+    def get_flex_context_with_provenance(self) -> dict[str, dict]:
+        """Reconstitutes the asset's serialized flex-context, tracking each field's origin in the asset tree.
+
+        Flex-context fields of ancestors that are nearer have priority.
+        We return once we collect all flex-context fields or reach the top asset.
+
+        :returns: Dictionary mapping each flex-context field name to a dictionary with
+                  the field's ``value`` and the ``asset`` (self or the nearest ancestor) that defines it.
+        """
+        from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
+
+        flex_context_field_names = set(DBFlexContextSchema.mapped_schema_keys.values())
+        flex_context = {
+            field: dict(value=value, asset=self)
+            for field, value in (self.flex_context or {}).items()
+        }
+        parent_asset = self.parent_asset
+        while set(flex_context.keys()) != flex_context_field_names and parent_asset:
+            # An ancestor's flex_context may still be None (e.g. a pending asset
+            # created without one, before its column default is applied on flush).
+            for field, value in (parent_asset.flex_context or {}).items():
+                if field not in flex_context:
+                    flex_context[field] = dict(value=value, asset=parent_asset)
+            parent_asset = parent_asset.parent_asset
+        return flex_context
+
     def get_flex_context(self) -> dict:
         """Reconstitutes the asset's serialized flex-context by gathering flex-contexts upwards in the asset tree.
 
         Flex-context fields of ancestors that are nearer have priority.
         We return once we collect all flex-context fields or reach the top asset.
         """
-        from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
-
-        flex_context_field_names = set(DBFlexContextSchema.mapped_schema_keys.values())
-        if self.flex_context:
-            flex_context = self.flex_context.copy()
-        else:
-            flex_context = {}
-        parent_asset = self.parent_asset
-        while set(flex_context.keys()) != flex_context_field_names and parent_asset:
-            # An ancestor's flex_context may still be None (e.g. a pending asset
-            # created without one, before its column default is applied on flush).
-            flex_context = {**(parent_asset.flex_context or {}), **flex_context}
-            parent_asset = parent_asset.parent_asset
-        return flex_context
+        return {
+            field: entry["value"]
+            for field, entry in self.get_flex_context_with_provenance().items()
+        }
 
     def get_flex_model(self) -> dict[int, dict]:
         """Reconstitutes the asset's serialized flex-model by gathering flex-models downwards in the asset tree.
