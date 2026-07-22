@@ -3211,6 +3211,22 @@
           },
           {
             "in": "query",
+            "name": "include_asset_annotations",
+            "schema": {
+              "type": "boolean"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "include_account_annotations",
+            "schema": {
+              "type": "boolean"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
             "name": "dataset_name",
             "schema": {
               "type": "string"
@@ -3245,6 +3261,84 @@
         "responses": {
           "200": {
             "description": "PROCESSED"
+          },
+          "400": {
+            "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
+          },
+          "401": {
+            "description": "UNAUTHORIZED"
+          },
+          "403": {
+            "description": "INVALID_SENDER"
+          },
+          "422": {
+            "description": "UNPROCESSABLE_ENTITY"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v3_0/assets/{id}/chart_annotations": {
+      "get": {
+        "summary": "Download annotations for use in charts",
+        "description": "Get annotations for use in charts (in case you have the chart specs already).\nAnnotations on the asset and on the asset's account are returned.\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "ID of the asset to download annotations for.",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "event_starts_after",
+            "description": "Only return annotations that end after this datetime.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event_ends_before",
+            "description": "Only return annotations that start before this datetime.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "clip",
+            "description": "If true (default), clip annotations to the requested time window.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROCESSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS"
@@ -4803,6 +4897,46 @@
         },
         "additionalProperties": false
       },
+      "AnnotationRegressor": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Account ID whose annotations to use."
+          },
+          "asset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Asset ID whose annotations to use."
+          },
+          "sensor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Sensor ID whose annotations to use."
+          },
+          "annotation-type": {
+            "type": "string",
+            "default": "holiday",
+            "description": "Type of annotation to use (e.g. 'holiday', 'label', 'alert'). Defaults to 'holiday'."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "Human-readable column name for this regressor. Defaults to 'annotation_regressor_<index>'."
+          }
+        },
+        "additionalProperties": false
+      },
       "TrainPredictPipelineConfigSchemaOpenAPI": {
         "type": "object",
         "properties": {
@@ -4844,6 +4978,21 @@
             ],
             "items": {
               "type": "integer"
+            }
+          },
+          "annotation-regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Annotation sources to use as binary future regressors. Each entry must specify 'account', 'asset', or 'sensor' (ID), and optionally 'annotation-type' (default: 'holiday') and 'name' (default: auto-generated). Annotations are converted to a binary 0/1 time series: 1 during annotated periods.",
+            "example": [
+              {
+                "account": 1,
+                "annotation-type": "holiday",
+                "name": "holidays"
+              }
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AnnotationRegressor"
             }
           },
           "missing-threshold": {
@@ -6204,6 +6353,18 @@
         ],
         "additionalProperties": false
       },
+      "GroupReference": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer"
+          },
+          "asset": {
+            "type": "integer"
+          }
+        },
+        "description": "Reference to a group of devices whose aggregate power is constrained."
+      },
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",
         "properties": {
@@ -6262,6 +6423,13 @@
             "description": "Device-level power constraint on production.\nHow much power can be supplied by this asset.\nFor <abbr title=\"photovoltaic solar panels\">PV</abbr> curtailment, set this to reference your sensor containing PV power forecasts.\n",
             "example": "0 kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+          },
+          "group": {
+            "description": "Reference to a group of devices whose aggregate power is constrained, given as either a power sensor (<code>{\"sensor\": <id>}</code>) or an asset (<code>{\"asset\": <id>}</code>) - exactly one of the two.\nThe referenced sensor or asset should itself get its own flex-model entry defining the group's <code>power-capacity</code> (hard constraint) and/or <code>consumption-capacity</code>/<code>production-capacity</code> (soft constraints with default breach prices).\nWhen the group is referenced by <code>sensor</code>, the group's scheduled aggregate power is saved to that group sensor.\nWhen the group is referenced by <code>asset</code> (e.g. a sub-EMS asset in the tree), the group entry defines no power sensor of its own; the group's aggregate power is instead saved via that entry's own <code>consumption</code> and/or <code>production</code> output sensors, following the usual output-sensor conventions.\n",
+            "example": {
+              "sensor": 5
+            },
+            "$ref": "#/components/schemas/GroupReference"
           },
           "prefer-curtailing-later": {
             "type": "boolean",

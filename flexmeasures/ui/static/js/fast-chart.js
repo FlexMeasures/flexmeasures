@@ -972,8 +972,20 @@ function seriesTooltipFormatter(seriesMeta, instance) {
 
 /* ============================== annotations ============================== */
 
-// Parse the annotation records (start, end, content) fetched for the sensor page
-// into sorted {start, end, label} entries with epoch-ms bounds.
+// Warm warning hue for 'alert' annotations, matching the Vega-Lite charts'
+// ANNOTATION_ALERT_COLOR; other types use the neutral --gray.
+const ANNOTATION_ALERT_COLOR = "#d9822b";
+const ANNOTATION_RESTING_OPACITY = 0.2;
+const ANNOTATION_HOVER_OPACITY = 0.55;
+const ANNOTATION_SELECT_OPACITY = 0.65;
+// Extra strip below each subplot's x-axis labels where the hovered annotation's
+// text appears, so revealing it never changes the chart layout.
+const ANNOTATION_STRIP = 28;
+const ANNOTATION_LABEL_OFFSET = 34; // text sits this far below the subplot, clear of the two-line x-axis labels
+
+// Parse the annotation records (start, end, content, type) into sorted
+// {start, end, label, type} entries with epoch-ms bounds. Zero-duration
+// entries (start == end) are "instant" annotations, drawn as a rule.
 function normalizeAnnotations(raw) {
   if (!Array.isArray(raw) || raw.length === 0) return [];
   return raw
@@ -981,42 +993,116 @@ function normalizeAnnotations(raw) {
       start: new Date(a.start).getTime(),
       end: new Date(a.end).getTime(),
       label: Array.isArray(a.content) ? a.content.join("\n") : (a.content || ""),
+      type: a.type,
     }))
     .filter((a) => isFinite(a.start) && isFinite(a.end))
     .sort((a, b) => a.start - b.start);
 }
 
-// Build the markArea config for the annotation shades. The band at hoverIdx is
-// highlighted (secondary-hover color, label shown); the rest are gray at 0.3 opacity,
-// matching Vega-Lite's SHADE_LAYER (default --gray) and TEXT_LAYER (label on hover).
-function buildAnnotationMarkArea(annotations, hoverIdx) {
+function annotationColor(a) {
+  if (a.type === "alert") return ANNOTATION_ALERT_COLOR;
   const cs = getComputedStyle(document.documentElement);
-  const grayColor = cs.getPropertyValue("--gray").trim() || "#bbb";
-  const hoverColor = cs.getPropertyValue("--secondary-hover-color").trim() || "#f5a623";
+  return cs.getPropertyValue("--gray").trim() || "#bbb";
+}
+
+// The annotation text below the hovered/pinned subplot, colored like its
+// annotation, mirroring the Vega-Lite text layer.
+function annotationLabelConfig(a, show) {
   return {
-    silent: true, // hover is handled via the updateAxisPointer listener instead
+    show: show,
+    fontSize: FONT_SIZE,
+    fontStyle: "italic",
+    color: annotationColor(a),
+    formatter: () => a.label,
+  };
+}
+
+// Build the markArea config for one subplot's annotation bands (annotations
+// with a non-zero duration). The band at hoverIdx/pinIdx darkens and its text
+// shows below the subplot; the rest stay lightly shaded. Indices refer to the
+// full annotations array (instants are skipped but keep their index).
+function buildAnnotationMarkArea(annotations, hoverIdx, pinIdx) {
+  return {
+    silent: true, // hover is handled via the zrender mouse listeners instead (wireAnnotationHover)
     animation: false,
-    data: annotations.map((a, idx) => {
-      const hovered = idx === hoverIdx;
-      return [
-        {
-          xAxis: a.start,
-          itemStyle: { color: hovered ? hoverColor : grayColor, opacity: hovered ? 0.7 : 0.3 },
-          label: {
-            show: hovered,
-            position: ["50%", "100%"], // centered, at the bottom of the band
-            offset: [0, 34], // push below the x-axis labels, like Vega's text layer
-            align: "center",
-            verticalAlign: "top",
-            fontSize: FONT_SIZE,
-            fontStyle: "italic",
-            color: "#333",
-            formatter: () => a.label,
+    data: annotations
+      .map((a, idx) => {
+        if (a.end <= a.start) return null; // instants are drawn by buildAnnotationMarkLine
+        const itemStyle = {
+          color: annotationColor(a),
+          opacity:
+            idx === pinIdx
+              ? ANNOTATION_SELECT_OPACITY
+              : idx === hoverIdx
+              ? ANNOTATION_HOVER_OPACITY
+              : ANNOTATION_RESTING_OPACITY,
+        };
+        return [
+          {
+            xAxis: a.start,
+            itemStyle: itemStyle,
+            // Highlighting a data series (emphasis focus "series", see syncEmphasis)
+            // puts every other series in the grid — including the annotation
+            // carrier — into the blur state, which would dim the marks to near
+            // invisibility. Pin the blur state to the normal style instead.
+            blur: { itemStyle: itemStyle },
+            label: Object.assign(annotationLabelConfig(a, idx === hoverIdx || idx === pinIdx), {
+              position: ["0%", "100%"], // at the band's left edge, at the bottom of the subplot
+              offset: [0, ANNOTATION_LABEL_OFFSET],
+              align: "left",
+              verticalAlign: "top",
+            }),
           },
-        },
-        { xAxis: a.end },
-      ];
-    }),
+          { xAxis: a.end },
+        ];
+      })
+      .filter(Boolean),
+  };
+}
+
+// Build the markLine config for one subplot: instant (zero-duration) annotations
+// as a thin vertical rule with an enlarged triangle marker at the top, plus the
+// replay ruler at the current belief time (when replaying). Returns null when
+// there is nothing to draw.
+function buildAnnotationMarkLine(annotations, hoverIdx, pinIdx, replayTime) {
+  const data = annotations
+    .map((a, idx) => {
+      if (a.end > a.start) return null;
+      const color = annotationColor(a);
+      const opacity = idx === pinIdx ? 1 : idx === hoverIdx ? 0.9 : 0.5;
+      const lineStyle = { color: color, width: 2, type: "solid", opacity: opacity };
+      const itemStyle = { color: color, opacity: opacity }; // the triangle marker
+      return {
+        xAxis: a.start,
+        lineStyle: lineStyle,
+        itemStyle: itemStyle,
+        // Immune to the blur state, like the markArea items (see there)
+        blur: { lineStyle: lineStyle, itemStyle: itemStyle },
+        label: Object.assign(annotationLabelConfig(a, idx === hoverIdx || idx === pinIdx), {
+          position: "start", // at the bottom end of the rule, below the subplot
+          distance: ANNOTATION_LABEL_OFFSET,
+        }),
+      };
+    })
+    .filter(Boolean);
+  if (replayTime != null) {
+    // Replay ruler: a vertical line at the current belief time
+    data.push({
+      xAxis: replayTime,
+      symbol: "none",
+      lineStyle: { color: "#555", width: 1.5, type: "solid" },
+      blur: { lineStyle: { color: "#555", width: 1.5, type: "solid" } },
+      label: { show: false },
+    });
+  }
+  if (data.length === 0) return null;
+  return {
+    silent: true,
+    animation: false,
+    // Downward triangle at the top of each rule (the replay ruler opts out per item)
+    symbol: ["none", "path://M-6,-5 L6,-5 L0,5 Z"],
+    symbolSize: 13,
+    data: data,
   };
 }
 
@@ -1028,7 +1114,10 @@ function buildLineBarOption(elementId, groups, opts) {
   const annotations = normalizeAnnotations(opts.annotations);
   // Sensor page: legend always below (single sensor, sources are the legend entries)
   const legendsBelow = !!opts.legendsBelow || opts.isSensorPage;
-  const gridGap = SIDE_GRID_GAP;
+  // Reserve a strip below every subplot for the hovered annotation's text, so
+  // revealing it on hover never changes the chart layout.
+  const annotGap = annotations.length > 0 ? ANNOTATION_STRIP : 0;
+  const gridGap = SIDE_GRID_GAP + annotGap;
   const gridRight = legendsBelow ? 30 : LEGEND_WIDTH + 40;
   const containerWidth = container.clientWidth || 800;
   const plotCenter = (GRID_LEFT + containerWidth - gridRight) / 2;
@@ -1056,8 +1145,7 @@ function buildLineBarOption(elementId, groups, opts) {
   const legendHeight = bottomLegendVertical
     ? numLegendEntries * 24 + 8
     : Math.ceil(numLegendEntries / itemsPerRow) * 24 + 8;
-  // Reserve a strip below the x-axis labels for the hovered annotation's name.
-  const annotGap = annotations.length > 0 ? 28 : 0;
+  // The last subplot's annotation text strip sits between its x-axis labels and the legend zone.
   const legendZoneTop = lastGridBottom + 36 + annotGap;
   const bottomLegendTitleTop = legendZoneTop + 14; // "Source"/"Sensor" heading
   const legendTitleHeight = 24;
@@ -1094,6 +1182,7 @@ function buildLineBarOption(elementId, groups, opts) {
   const titles = [];
   const legends = [];
   const roundedList = []; // stepped series to re-round in pixel space (see refreshRoundedSteps)
+  const annotGrids = []; // per subplot: which series carries the annotation marks, and the instant-hover tolerance
   const series = [];
   const seriesMeta = [];
   const sensorColor = new Map();
@@ -1220,6 +1309,37 @@ function buildLineBarOption(elementId, groups, opts) {
         ? s.eventResolutionSec === 0
         : inferResolutionMs(s.eventStarts || []) <= 60 * 1000
     );
+    // Annotation marks (shaded bands, instant rules) and the replay ruler live
+    // on a dedicated, data-less carrier series, so they also show in subplots
+    // that (still) have no data — parity with the Vega-Lite annotation layers.
+    // The marks are silent and drawn behind the data, so the data tooltip keeps
+    // working inside annotation bands; wireAnnotationHover darkens the hovered/
+    // pinned annotation and reveals its text below the hovered subplot only.
+    if (annotations.length > 0) {
+      // Hover tolerance for instant annotations: one resolution bin of this
+      // subplot's finest sensor, as in the Vega-Lite annotation layers.
+      const groupResolutionsMs = group.series
+        .map((s) => (typeof s.eventResolutionSec === "number" ? s.eventResolutionSec * 1000 : NaN))
+        .filter((ms) => isFinite(ms) && ms > 0);
+      annotGrids.push({
+        seriesIndex: series.length,
+        toleranceMs: groupResolutionsMs.length > 0 ? Math.min(...groupResolutionsMs) : 3600 * 1000,
+      });
+      const carrier = {
+        type: "line",
+        xAxisIndex: i,
+        yAxisIndex: i,
+        data: [],
+        silent: true,
+        animation: false,
+        legendHoverLink: false, // not in any legend (legends list explicit entries only)
+        markArea: buildAnnotationMarkArea(annotations, -1, -1),
+      };
+      const markLine = buildAnnotationMarkLine(annotations, -1, -1, instance.replayTime);
+      if (markLine) carrier.markLine = markLine;
+      series.push(carrier);
+      seriesMeta.push(null); // keep series/meta aligned for the tooltip formatter
+    }
     group.series.forEach((s, j) => {
       const isBar = opts.chartType === "bar_chart";
       const entry = {
@@ -1278,22 +1398,11 @@ function buildLineBarOption(elementId, groups, opts) {
           });
         }
       }
-      // Replay ruler: a vertical line at the current belief time
-      if (instance.replayTime != null && j === 0) {
-        entry.markLine = {
-          silent: true,
-          symbol: "none",
-          animation: false,
-          data: [{ xAxis: instance.replayTime }],
-          lineStyle: { color: "#555", width: 1.5, type: "solid" },
-          label: { show: false },
-        };
-      }
-      // Annotation shades on the first series of each subplot. Gray at 0.3 opacity by
-      // default; the zrender mousemove handler in renderFastChart recolors the hovered
-      // band and reveals its label, matching Vega-Lite's SHADE_LAYER/TEXT_LAYER.
-      if (j === 0 && annotations.length > 0) {
-        entry.markArea = buildAnnotationMarkArea(annotations, -1);
+      // Without annotations there is no carrier series, so the replay ruler
+      // rides on the subplot's first data series (as before).
+      if (j === 0 && annotations.length === 0) {
+        const markLine = buildAnnotationMarkLine([], -1, -1, instance.replayTime);
+        if (markLine) entry.markLine = markLine;
       }
       series.push(entry);
       seriesMeta.push(s);
@@ -1326,7 +1435,7 @@ function buildLineBarOption(elementId, groups, opts) {
       // "plain" (not "scroll"): the container height already grows to fit every
       // entry (see legendHeight), so all entries show without pagination
       // controls that would otherwise eat the space and hide the items.
-      data: Array.from(new Set(seriesMeta.map((s) => s.name))),
+      data: Array.from(new Set(seriesMeta.filter(Boolean).map((s) => s.name))), // null = annotation carrier
       type: "plain",
       orient: bottomLegendVertical ? "vertical" : "horizontal",
       left: GRID_LEFT,
@@ -1358,6 +1467,8 @@ function buildLineBarOption(elementId, groups, opts) {
       typeof sharedXDomain.min === "number" && typeof sharedXDomain.max === "number"
         ? sharedXDomain.max - sharedXDomain.min
         : 0;
+    // Context for the per-subplot annotation hover/pin handling (see wireAnnotationHover).
+    instance._annotCtx = annotations.length > 0 ? { annotations: annotations, grids: annotGrids } : null;
   }
 
   return {
@@ -2055,6 +2166,7 @@ export function renderFastChart(elementId, data, options) {
 
   instance._roundedSeries = []; // rebuilt by buildLineBarOption for line charts with rounded steps
   instance._xDomainSpan = 0; // set by buildLineBarOption for time-axis charts (equidistant ticks)
+  instance._annotCtx = null; // rebuilt by buildLineBarOption when annotations are shown
 
   let option;
   if (opts.chartType === "histogram") {
@@ -2075,7 +2187,7 @@ export function renderFastChart(elementId, data, options) {
   instance.chart.resize(); // pick up container size changes before drawing
   instance.chart.setOption(option, { notMerge: true });
 
-  wireAnnotationHover(instance, opts);
+  wireAnnotationHover(instance);
   wireSessionTooltipRedirect(instance, opts);
   wirePointerTracking(instance);
   wireZoomInteractions(instance, opts);
@@ -2280,59 +2392,93 @@ function wireSessionTooltipRedirect(instance, opts) {
   chart.on("mouseover", instance.onSessionHitHover);
 }
 
-// Highlight the annotation band under the cursor (color + label), matching Vega-Lite.
-// markArea.emphasis does not fire because axisPointer intercepts mouse events, so we
-// react to ECharts' updateAxisPointer event (which provides the x-axis value directly)
-// and recolor the band that contains it. globalout on the canvas clears the highlight.
-function wireAnnotationHover(instance, opts) {
-  const annotations = normalizeAnnotations(opts.annotations);
+// Highlight the annotation band/rule under the cursor and show its text below the
+// hovered subplot ONLY (the other subplots keep the light shading), matching the
+// Vega-Lite annotation layers. Clicking (or tapping, on touch) pins the highlight;
+// clicking it again, or clicking outside any annotation, releases it. markArea
+// emphasis does not fire because the axisPointer intercepts mouse events, so we
+// react to zrender mouse events directly: the pointer's pixel position tells us
+// which subplot (grid) is hovered, and converting it to the time domain tells us
+// which annotation it is on. The regular data tooltip is untouched throughout
+// (the annotation marks are silent and sit behind the data).
+function wireAnnotationHover(instance) {
   const chart = instance.chart;
   const zr = chart.getZr();
 
   // Drop any handlers from a previous render before deciding whether to add new ones.
-  if (instance.onAnnotPointer) {
-    chart.off("updateAxisPointer", instance.onAnnotPointer);
+  if (instance.onAnnotMove) {
+    zr.off("mousemove", instance.onAnnotMove);
     zr.off("globalout", instance.onAnnotOut);
-    instance.onAnnotPointer = null;
+    zr.off("click", instance.onAnnotClick);
+    instance.onAnnotMove = null;
     instance.onAnnotOut = null;
+    instance.onAnnotClick = null;
   }
-  if (annotations.length === 0) return;
+  const ctx = instance._annotCtx;
+  if (!ctx) return;
+  const annotations = ctx.annotations;
 
-  // The markArea lives on the first series of each subplot; collect their indices.
-  const seriesList = chart.getOption().series || [];
-  const markAreaSeriesIdx = seriesList.reduce((acc, s, idx) => {
-    if (s.markArea) acc.push(idx);
-    return acc;
-  }, []);
-  if (markAreaSeriesIdx.length === 0) return;
+  let hover = { grid: -1, idx: -1 };
+  let pin = { grid: -1, idx: -1 };
 
-  let activeIdx = -1;
-  const lastSeriesIdx = markAreaSeriesIdx[markAreaSeriesIdx.length - 1];
-  const setHover = (newIdx) => {
-    if (newIdx === activeIdx) return;
-    activeIdx = newIdx;
-    // setOption merges series by position, so build an array up to the last
-    // markArea-bearing series; only those carry a new markArea, the rest pass through.
-    const seriesPatch = [];
-    for (let i = 0; i <= lastSeriesIdx; i++) {
-      seriesPatch.push(
-        markAreaSeriesIdx.includes(i)
-          ? { markArea: buildAnnotationMarkArea(annotations, newIdx) }
-          : {}
+  // Which annotation is at the given pixel position, and in which subplot?
+  // Bands match when the time under the cursor falls inside their window;
+  // instants match within one resolution bin of the subplot's finest sensor.
+  const locate = (px) => {
+    for (let g = 0; g < ctx.grids.length; g++) {
+      if (!chart.containPixel({ gridIndex: g }, px)) continue;
+      const xVal = chart.convertFromPixel({ xAxisIndex: g }, px[0]);
+      const idx = annotations.findIndex((a) =>
+        a.start === a.end
+          ? Math.abs(xVal - a.start) <= ctx.grids[g].toleranceMs
+          : xVal >= a.start && xVal < a.end
       );
+      return { grid: g, idx: idx };
+    }
+    return { grid: -1, idx: -1 };
+  };
+
+  const stateFor = (g, hv, pn) => ({
+    h: hv.grid === g ? hv.idx : -1,
+    p: pn.grid === g ? pn.idx : -1,
+  });
+
+  // Re-shade the subplots whose highlight state changed. setOption merges series
+  // by position, so build a patch array up to the last changed annotation-bearing
+  // series; only those carry new marks, the rest pass through untouched.
+  const apply = (newHover, newPin) => {
+    const patches = new Map();
+    let maxSeriesIdx = -1;
+    ctx.grids.forEach((info, g) => {
+      const before = stateFor(g, hover, pin);
+      const after = stateFor(g, newHover, newPin);
+      if (before.h === after.h && before.p === after.p) return;
+      const marks = { markArea: buildAnnotationMarkArea(annotations, after.h, after.p) };
+      const markLine = buildAnnotationMarkLine(annotations, after.h, after.p, instance.replayTime);
+      if (markLine) marks.markLine = markLine;
+      patches.set(info.seriesIndex, marks);
+      if (info.seriesIndex > maxSeriesIdx) maxSeriesIdx = info.seriesIndex;
+    });
+    hover = newHover;
+    pin = newPin;
+    if (maxSeriesIdx < 0) return;
+    const seriesPatch = [];
+    for (let i = 0; i <= maxSeriesIdx; i++) {
+      seriesPatch.push(patches.get(i) || {});
     }
     chart.setOption({ series: seriesPatch });
   };
 
-  instance.onAnnotPointer = (ev) => {
-    const axisInfo = (ev.axesInfo || []).find((a) => a.axisDim === "x") || (ev.axesInfo || [])[0];
-    if (!axisInfo) { setHover(-1); return; }
-    const xVal = axisInfo.value;
-    setHover(annotations.findIndex((a) => xVal >= a.start && xVal <= a.end));
+  instance.onAnnotMove = (e) => apply(locate([e.offsetX, e.offsetY]), pin);
+  instance.onAnnotOut = () => apply({ grid: -1, idx: -1 }, pin);
+  instance.onAnnotClick = (e) => {
+    const at = locate([e.offsetX, e.offsetY]);
+    const samePin = at.grid === pin.grid && at.idx === pin.idx;
+    apply(hover, samePin || at.idx < 0 ? { grid: -1, idx: -1 } : at);
   };
-  instance.onAnnotOut = () => setHover(-1);
-  chart.on("updateAxisPointer", instance.onAnnotPointer);
+  zr.on("mousemove", instance.onAnnotMove);
   zr.on("globalout", instance.onAnnotOut);
+  zr.on("click", instance.onAnnotClick);
 }
 
 /**
