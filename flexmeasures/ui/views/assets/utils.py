@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from flask import url_for
-from werkzeug.exceptions import NotFound
+import json
 
-from flexmeasures import Asset
+from flask import url_for
+from werkzeug.exceptions import Forbidden, NotFound, Unauthorized
+
+from flexmeasures import Asset, Sensor
+from flexmeasures.auth.policy import check_access
 from flexmeasures.data import db
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.ui.utils.view_utils import svg_asset_icon_name
@@ -17,6 +20,63 @@ def get_asset_by_id_or_raise_notfound(asset_id: str) -> GenericAsset:
     if asset is None:
         raise NotFound
     return asset
+
+
+def build_resolved_flex_context(asset: GenericAsset) -> list[dict]:
+    """Build a display-friendly list of the asset's resolved flex-context fields.
+
+    Each entry records the field, the asset that defines it (the asset itself or an ancestor),
+    and the field's value as a list of segments,
+    so that sensor references can be rendered as links to sensors the user is allowed to read.
+    """
+    return [
+        {
+            "field": field,
+            "value_segments": _flex_context_value_segments(field, entry["value"]),
+            "asset_id": entry["asset"].id,
+            "asset_name": entry["asset"].name,
+            "inherited": entry["asset"].id != asset.id,
+        }
+        for field, entry in sorted(asset.get_flex_context_with_provenance().items())
+    ]
+
+
+def _sensor_segment(sensor_id) -> dict:
+    """Render a sensor reference as a link segment, or as plain text if the user cannot read the sensor."""
+    sensor = db.session.get(Sensor, sensor_id)
+    if sensor is not None:
+        try:
+            check_access(sensor, "read")
+        except (Forbidden, Unauthorized):
+            pass
+        else:
+            return {
+                "type": "sensor",
+                "text": f"{sensor.name} (sensor {sensor.id})",
+                "url": url_for("SensorUI:get", id=sensor.id),
+            }
+    return {"type": "text", "text": json.dumps({"sensor": sensor_id})}
+
+
+def _flex_context_value_segments(field: str, value) -> list[dict]:
+    """Split a flex-context field value into text and sensor-link segments.
+
+    Sensor references appear as ``{"sensor": id}`` dicts,
+    or as bare sensor IDs in the ``inflexible-device-sensors`` list.
+    """
+    if isinstance(value, dict) and set(value.keys()) == {"sensor"}:
+        return [_sensor_segment(value["sensor"])]
+    if isinstance(value, list):
+        segments = []
+        for item in value:
+            if isinstance(item, dict) and set(item.keys()) == {"sensor"}:
+                segments.append(_sensor_segment(item["sensor"]))
+            elif isinstance(item, int) and field == "inflexible-device-sensors":
+                segments.append(_sensor_segment(item))
+            else:
+                segments.append({"type": "text", "text": json.dumps(item)})
+        return segments
+    return [{"type": "text", "text": json.dumps(value)}]
 
 
 def serialize_asset(asset: Asset, is_head=False) -> dict:
