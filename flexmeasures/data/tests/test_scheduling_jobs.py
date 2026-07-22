@@ -32,10 +32,12 @@ def test_scheduling_a_battery(
     add_battery_assets_fresh_db,
     setup_fresh_test_data,
     add_market_prices_fresh_db,
+    capsys,
 ):
     """Test one clean run of one scheduling job:
     - data source was made,
     - schedule has been made
+    - success is logged once (not before compute) — regression for #2049
     """
 
     battery = add_battery_assets_fresh_db["Test battery"].sensors[0]
@@ -86,6 +88,10 @@ def test_scheduling_a_battery(
     assert (
         sum(v.event_value for v in power_values) < -0.5
     ), "some cycling should have occurred to make a profit, resulting in overall consumption due to losses"
+
+    # Regression #2049: success message only after compute, not the pre-compute copy-paste echo
+    out = capsys.readouterr().out
+    assert out.count("made schedule") == 1, out
 
 
 scheduler_specs = {
