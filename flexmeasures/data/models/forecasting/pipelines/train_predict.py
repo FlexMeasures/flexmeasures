@@ -439,7 +439,6 @@ class TrainPredictPipeline(Forecaster):
                         ).total_seconds()
                     ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
                     meta=job_metadata,
-                    timeout=60 * 60,  # 1 hour
                 )
 
                 # Store the job ID for this cycle
