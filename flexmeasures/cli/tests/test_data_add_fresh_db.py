@@ -13,6 +13,7 @@ from flexmeasures.data.models.user import Account
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 from flexmeasures.cli.tests.utils import check_command_ran_without_error
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.tests.utils import get_test_sensor
 
@@ -26,6 +27,60 @@ def test_add_forecast(app, setup_dummy_data):
     runner = app.test_cli_runner()
     result = runner.invoke(add_forecast, to_flags(cli_input))
     assert result.exit_code == 0, result.output
+
+
+def test_add_forecast_reports_invalid_annotation_regressor(app, setup_dummy_data):
+    from flexmeasures.cli.data_add import add_forecast
+
+    sensor_id, *_ = setup_dummy_data
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_forecast,
+        [
+            "--sensor",
+            str(sensor_id),
+            "--annotation-regressors",
+            '{"annotation-type": "label"}',
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "Invalid forecasting configuration" in result.output
+    assert "Specify exactly one of account, asset, or sensor." in result.output
+    assert "Traceback" not in result.output
+
+
+def test_add_forecast_rejects_config_with_existing_source(
+    app, fresh_db, setup_dummy_data
+):
+    from flexmeasures.cli.data_add import add_forecast
+
+    sensor_id, *_ = setup_dummy_data
+    source = DataSource(
+        name="stored forecaster",
+        type="forecaster",
+        model="TrainPredictPipeline",
+    )
+    fresh_db.session.add(source)
+    fresh_db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_forecast,
+        [
+            "--source",
+            str(source.id),
+            "--sensor",
+            str(sensor_id),
+            "--annotation-regressors",
+            '{"account": 1, "annotation-type": "holiday"}',
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "--source uses the forecaster configuration stored with that source" in (
+        result.output
+    )
 
 
 def test_add_reporter(app, fresh_db, setup_dummy_data, caplog):

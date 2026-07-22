@@ -184,6 +184,7 @@ In :ref:`getting_started`, we have some helpful tips how to dive into this docum
     tut/toy-example-from-scratch
     tut/toy-example-expanded
     tut/toy-example-multiasset-curtailment
+    tut/toy-example-group-constraints
     tut/flex-model-v2g
     tut/multi-feed-storage
     tut/multi-commodity

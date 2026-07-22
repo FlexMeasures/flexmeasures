@@ -50,6 +50,7 @@ from flexmeasures.data.queries.generic_assets import (
 from flexmeasures.data.queries.utils import id_prefix_filter
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.annotations import AnnotationSchema
+from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
@@ -133,6 +134,8 @@ class AssetChartKwargsSchema(Schema):
     beliefs_before = AwareDateTimeField(format="iso", required=False)
     include_data = fields.Boolean(required=False)
     combine_legend = fields.Boolean(required=False, load_default=True)
+    include_asset_annotations = fields.Boolean(required=False)
+    include_account_annotations = fields.Boolean(required=False)
     dataset_name = fields.Str(required=False)
     height = fields.Str(required=False)
     width = fields.Str(required=False)
@@ -1004,6 +1007,98 @@ class AssetAPI(FlaskView):
         """
         sensors = SensorsToShowSchema.flatten(asset.validate_sensors_to_show())
         return asset.chart_data_json(sensors=sensors, **kwargs)
+
+    @route("/<id>/chart_annotations", strict_slashes=False)
+    @use_kwargs(
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
+    @use_kwargs(
+        {
+            "event_starts_after": AwareDateTimeField(format="iso", required=False),
+            "event_ends_before": AwareDateTimeField(format="iso", required=False),
+            "clip": fields.Boolean(load_default=True),
+        },
+        location="query",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    def get_chart_annotations(self, id: int, asset: GenericAsset, **kwargs):
+        """
+        .. :quickref: Charts; Download annotations for use in charts
+        ---
+        get:
+          summary: Download annotations for use in charts
+          description: |
+            Get annotations for use in charts (in case you have the chart specs already).
+            Annotations on the asset and on the asset's account are returned.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              description: ID of the asset to download annotations for.
+              schema:
+                type: integer
+            - in: query
+              name: event_starts_after
+              description: Only return annotations that end after this datetime.
+              schema:
+                type: string
+                format: date-time
+            - in: query
+              name: event_ends_before
+              description: Only return annotations that start before this datetime.
+              schema:
+                type: string
+                format: date-time
+            - in: query
+              name: clip
+              description: If true (default), clip annotations to the requested time window.
+              schema:
+                type: boolean
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  schema:
+                    type: array
+                    items:
+                      type: object
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        event_starts_after = kwargs.get("event_starts_after", None)
+        event_ends_before = kwargs.get("event_ends_before", None)
+        df = asset.search_annotations(
+            annotations_after=event_starts_after,
+            annotations_before=event_ends_before,
+            include_account_annotations=True,
+            as_frame=True,
+        )
+        if kwargs["clip"]:
+            df["start"] = df["start"].clip(lower=event_starts_after)
+            df["end"] = df["end"].clip(upper=event_ends_before)
+
+        # Wrap and stack annotations
+        df = prepare_annotations_for_chart(df)
+
+        # Return JSON records
+        df = df.reset_index()
+        df["source"] = df["source"].astype(str)
+        return df.to_json(orient="records")
 
     @route("/<id>/auditlog")
     @use_kwargs(

@@ -1124,6 +1124,15 @@ def test_soc_max_sensor_reference_with_default_loads_as_dynamic_maximum(
             },
             False,
         ),
+        # group must reference a power sensor
+        (
+            {"group": {"sensor": "power-sensor"}},
+            False,
+        ),
+        (
+            {"group": {"sensor": "energy-sensor"}},
+            {"group": "The `group` field must reference a sensor with a power unit."},
+        ),
     ],
 )
 def test_flex_model_schemas(
@@ -1177,6 +1186,42 @@ def test_flex_model_schemas(
         if fail:
             with pytest.raises(ValidationError) as e_info:  # noqa: F841
                 schema.load(flex_model)
+
+
+def test_storage_flex_model_group_field(db, app, setup_dummy_sensors, dummy_asset):
+    """The `group` field should load a `{"sensor": <id>}` reference to a power Sensor,
+    reject non-power sensors, and reject unknown sensor IDs."""
+    energy_sensor, _, _, power_sensor = setup_dummy_sensors
+
+    for schema in (
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.UTC), sensor=None
+        ),
+        DBStorageFlexModelSchema(),
+    ):
+        # Valid group reference loads to a Sensor
+        flex_model = schema.load({"group": {"sensor": power_sensor.id}})
+        assert flex_model["group"]["sensor"] == power_sensor
+
+        # A non-power sensor is rejected
+        with pytest.raises(ValidationError, match="power unit"):
+            schema.load({"group": {"sensor": energy_sensor.id}})
+
+        # An unknown sensor ID is rejected (by SensorIdField)
+        with pytest.raises(ValidationError, match="No sensor found"):
+            schema.load({"group": {"sensor": -1}})
+
+        # A valid asset reference loads to a GenericAsset
+        flex_model = schema.load({"group": {"asset": dummy_asset.id}})
+        assert flex_model["group"]["asset"] == dummy_asset
+
+        # Both sensor and asset given: rejected
+        with pytest.raises(ValidationError, match="exactly one"):
+            schema.load({"group": {"sensor": power_sensor.id, "asset": dummy_asset.id}})
+
+        # Neither sensor nor asset given: rejected
+        with pytest.raises(ValidationError, match="exactly one"):
+            schema.load({"group": {}})
 
 
 @pytest.mark.parametrize(
