@@ -43,6 +43,7 @@ class PredictPipeline(BasePipeline):
         predict_end: datetime | None = None,
         data_source: Source = None,
         missing_threshold: float = 1.0,
+        annotation_regressors: list[dict] | None = None,
         post_processing_config: dict | None = None,
     ) -> None:
         """
@@ -83,6 +84,7 @@ class PredictPipeline(BasePipeline):
             missing_threshold=missing_threshold,
             save_belief_time=save_belief_time,
             beliefs_before=beliefs_before,
+            annotation_regressors=annotation_regressors,
         )
         self.model_path = model_path
         self.output_path = output_path

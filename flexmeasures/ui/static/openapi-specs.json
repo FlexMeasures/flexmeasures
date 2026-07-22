@@ -4803,6 +4803,46 @@
         },
         "additionalProperties": false
       },
+      "AnnotationRegressor": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Account ID whose annotations to use."
+          },
+          "asset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Asset ID whose annotations to use."
+          },
+          "sensor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Sensor ID whose annotations to use."
+          },
+          "annotation-type": {
+            "type": "string",
+            "default": "holiday",
+            "description": "Type of annotation to use (e.g. 'holiday', 'label', 'alert'). Defaults to 'holiday'."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "Human-readable column name for this regressor. Defaults to 'annotation_regressor_<index>'."
+          }
+        },
+        "additionalProperties": false
+      },
       "TrainPredictPipelineConfigSchemaOpenAPI": {
         "type": "object",
         "properties": {
@@ -4844,6 +4884,21 @@
             ],
             "items": {
               "type": "integer"
+            }
+          },
+          "annotation-regressors": {
+            "type": "array",
+            "default": [],
+            "description": "Annotation sources to use as binary future regressors. Each entry must specify 'account', 'asset', or 'sensor' (ID), and optionally 'annotation-type' (default: 'holiday') and 'name' (default: auto-generated). Annotations are converted to a binary 0/1 time series: 1 during annotated periods.",
+            "example": [
+              {
+                "account": 1,
+                "annotation-type": "holiday",
+                "name": "holidays"
+              }
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AnnotationRegressor"
             }
           },
           "missing-threshold": {

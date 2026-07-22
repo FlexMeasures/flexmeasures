@@ -109,6 +109,8 @@ New features
 * Add support for filtering sensor data GET requests by ``source-type`` on ``/api/v3_0/sensors/<id>/data`` [see `PR #2127 <https://www.github.com/FlexMeasures/flexmeasures/pull/2127>`_]
 * Making monitoring alerts more flexible: allow ``flexmeasures monitor`` alerts to target one or more user IDs or email addresses with ``--recipient``; ``flexmeasures monitor last-seen`` can now narrow monitored users to one or more accounts with ``--account`` or to client accounts with ``--consultancy`` [see `PR #2158 <https://www.github.com/FlexMeasures/flexmeasures/pull/2158>`_]
 * Improve LightGBM daily seasonal lag handling for sub-hourly forecasting sensors [see `PR #2157 <https://www.github.com/FlexMeasures/flexmeasures/pull/2157>`_]
+* Extend ``flexmeasures add holidays`` with timezone-aware local-midnight storage, ``holidays`` package subdivisions and categories, and specific ``workalendar`` calendar classes [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
+* Add ``annotation-regressors`` to the forecasting pipeline config schema for using stored annotations as binary regressors [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
 
 Infrastructure / Support
 ----------------------
