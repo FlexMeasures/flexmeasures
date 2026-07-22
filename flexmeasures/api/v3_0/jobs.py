@@ -13,23 +13,9 @@ from marshmallow import fields
 
 from flexmeasures.data.services.utils import failed_job_exc_info, job_status_description
 from flexmeasures.auth.policy import check_access
-from flexmeasures.api.common.responses import deprecated_response_fields_headers
-from flexmeasures.api.v3_0.deprecations import JOB_RESPONSE_FIELDS_DEPRECATION_DATE
 from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.utils import get_asset_or_sensor_from_ref
-
-JOBS_API_DOCS_URL = (
-    "https://flexmeasures.readthedocs.io/latest/api/v3_0.html"
-    "#get--api-v3_0-jobs-uuid"
-)
-JOB_STATUS_DEPRECATED_RESPONSE_FIELDS = (
-    "func_name",
-    "enqueued_at",
-    "started_at",
-    "ended_at",
-    "exc_info",
-)
 
 
 def _isoformat_or_none(dt: datetime | None) -> str | None:
@@ -126,22 +112,6 @@ class JobAPI(FlaskView):
           responses:
             200:
               description: Finished job status retrieved successfully.
-              headers:
-                Deprecation:
-                  description: Indicates that the response contains deprecated fields.
-                  schema:
-                    type: string
-                    example: "Wed, 01 Jul 2026 00:00:00 GMT"
-                Link:
-                  description: Link to migration guidance for deprecated response fields.
-                  schema:
-                    type: string
-                    example: '<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#get--api-v3_0-jobs-uuid>; rel="deprecation"; type="text/html"'
-                FlexMeasures-Deprecated-Response-Fields:
-                  description: Comma-separated response fields that are deprecated.
-                  schema:
-                    type: string
-                    example: "func_name, enqueued_at, started_at, ended_at, exc_info"
               content:
                 application/json:
                   schema:
@@ -201,31 +171,26 @@ class JobAPI(FlaskView):
                         description: Traceback information for failed jobs, or null otherwise.
                       func_name:
                         type: string
-                        deprecated: true
-                        description: (DEPRECATED) Fully-qualified name of the function executed by this job. Use `func-name` instead.
+                        description: Legacy alias of `func-name`, kept for backward compatibility. Prefer `func-name`.
                       enqueued_at:
                         type: string
                         format: date-time
                         nullable: true
-                        deprecated: true
-                        description: (DEPRECATED) ISO-8601 timestamp of when the job was enqueued. Use `enqueued-at` instead.
+                        description: Legacy alias of `enqueued-at`, kept for backward compatibility. Prefer `enqueued-at`.
                       started_at:
                         type: string
                         format: date-time
                         nullable: true
-                        deprecated: true
-                        description: (DEPRECATED) ISO-8601 timestamp of when the job started executing. Use `started-at` instead.
+                        description: Legacy alias of `started-at`, kept for backward compatibility. Prefer `started-at`.
                       ended_at:
                         type: string
                         format: date-time
                         nullable: true
-                        deprecated: true
-                        description: (DEPRECATED) ISO-8601 timestamp of when the job finished executing. Use `ended-at` instead.
+                        description: Legacy alias of `ended-at`, kept for backward compatibility. Prefer `ended-at`.
                       exc_info:
                         type: string
                         nullable: true
-                        deprecated: true
-                        description: (DEPRECATED) Traceback information for failed jobs, or null otherwise. Use `exc-info` instead.
+                        description: Legacy alias of `exc-info`, kept for backward compatibility. Prefer `exc-info`.
                   examples:
                     queued:
                       summary: Queued job
@@ -279,40 +244,8 @@ class JobAPI(FlaskView):
                         exc-info: "Traceback (most recent call last): ..."
             202:
               description: Job is still queued, scheduled, deferred, or running.
-              headers:
-                Deprecation:
-                  description: Indicates that the response contains deprecated fields.
-                  schema:
-                    type: string
-                    example: "Wed, 01 Jul 2026 00:00:00 GMT"
-                Link:
-                  description: Link to migration guidance for deprecated response fields.
-                  schema:
-                    type: string
-                    example: '<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#get--api-v3_0-jobs-uuid>; rel="deprecation"; type="text/html"'
-                FlexMeasures-Deprecated-Response-Fields:
-                  description: Comma-separated response fields that are deprecated.
-                  schema:
-                    type: string
-                    example: "func_name, enqueued_at, started_at, ended_at, exc_info"
             422:
               description: Job has failed.
-              headers:
-                Deprecation:
-                  description: Indicates that the response contains deprecated fields.
-                  schema:
-                    type: string
-                    example: "Wed, 01 Jul 2026 00:00:00 GMT"
-                Link:
-                  description: Link to migration guidance for deprecated response fields.
-                  schema:
-                    type: string
-                    example: '<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#get--api-v3_0-jobs-uuid>; rel="deprecation"; type="text/html"'
-                FlexMeasures-Deprecated-Response-Fields:
-                  description: Comma-separated response fields that are deprecated.
-                  schema:
-                    type: string
-                    example: "func_name, enqueued_at, started_at, ended_at, exc_info"
             404:
               description: NOT_FOUND
             401:
@@ -382,12 +315,4 @@ class JobAPI(FlaskView):
         else:
             status_code = 202
 
-        return (
-            response,
-            status_code,
-            deprecated_response_fields_headers(
-                JOB_STATUS_DEPRECATED_RESPONSE_FIELDS,
-                JOBS_API_DOCS_URL,
-                JOB_RESPONSE_FIELDS_DEPRECATION_DATE,
-            ),
-        )
+        return response, status_code

@@ -14,22 +14,6 @@ p = inflect.engine()
 ResponseTuple = tuple[dict, int] | tuple[dict, int, dict]
 
 
-DEPRECATED_RESPONSE_FIELDS_HEADER = "FlexMeasures-Deprecated-Response-Fields"
-
-
-def deprecated_response_fields_headers(
-    fields: Sequence[str],
-    deprecation_link: str,
-    deprecation_date: str,
-) -> dict[str, str]:
-    """Headers used when a response contains deprecated fields."""
-    return {
-        "Deprecation": deprecation_date,
-        "Link": f'<{deprecation_link}>; rel="deprecation"; type="text/html"',
-        DEPRECATED_RESPONSE_FIELDS_HEADER: ", ".join(fields),
-    }
-
-
 def is_response_tuple(value) -> bool:
     """Check if an object qualifies as a ResponseTuple"""
     if not isinstance(value, tuple):
@@ -403,15 +387,16 @@ def request_accepted_for_processing(
     message: str = "Request has been accepted for processing.",
     legacy_key: str | None = None,
     job_results_url: str | None = None,
-    deprecation_link: str | None = None,
-    deprecation_date: str | None = None,
 ) -> ResponseTuple:
     """
     Standard 202 response when a background job is accepted.
 
-    Optional backwards-compatibility: if `legacy_key` is provided the response
-    will include the job id under that legacy key (e.g. `schedule` or
-    `forecast`) and response headers marking the field deprecation.
+    `job` is the canonical field identifying the job. Optional
+    backwards-compatibility: if `legacy_key` is provided the response will
+    also include the job id under that legacy key (e.g. `schedule` or
+    `forecast`). Legacy keys are kept around indefinitely within API version
+    v3_0 (no per-field deprecation signal is sent for them); they are only
+    planned for removal in a future major API version.
 
     Optional `job_results_url` may be supplied to provide a direct link to the
     sensor-specific job results endpoint, e.g. `/api/v3_0/sensors/<id>/schedules/<uuid>`.
@@ -426,17 +411,8 @@ def request_accepted_for_processing(
         resp["results-url"] = job_results_url
 
     if legacy_key:
-        # keep legacy key for backwards compatibility
+        # keep legacy key for backwards compatibility; not (yet) deprecated, see docstring
         resp[legacy_key] = job_id
-        assert deprecation_link is not None
-        assert deprecation_date is not None
-        return (
-            resp,
-            202,
-            deprecated_response_fields_headers(
-                [legacy_key], deprecation_link, deprecation_date
-            ),
-        )
 
     return resp, 202
 
