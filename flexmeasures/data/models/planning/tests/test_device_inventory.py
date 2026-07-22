@@ -392,3 +392,71 @@ def test_resolve_coupling_coefficient_direction(capacities, expected_sign):
         {"coupling_coefficient": 0.5, **capacities}
     )
     assert coefficient == expected_sign * 0.5
+
+
+def _cogeneration_flex_model(with_unit_commitment: bool) -> list[dict]:
+    """A cogeneration unit as three coupled ports (deserialized flex-model entries).
+
+    The electrical output is the reference port (|coefficient| == 1, output -> -1); the
+    gas input and heat output are affine in the electrical output. When
+    ``with_unit_commitment`` is set, the reference port carries a ``coupling-min`` and
+    the gas/heat ports carry a signed ``coupling-base`` (their no-load offset).
+    """
+    power_port = {
+        "sensor": make_sensor(1),
+        "commodity": "electricity",
+        "coupling": "cogen",
+        "coupling_coefficient": 1.0,
+        "production_capacity": ur.Quantity("10 kW"),  # output -> coeff -1
+        "power_capacity_in_mw": ur.Quantity("10 kW"),  # bounds the group's max level
+    }
+    gas_port = {
+        "sensor": make_sensor(2),
+        "commodity": "gas",
+        "coupling": "cogen",
+        "coupling_coefficient": 2.0,
+        "consumption_capacity": ur.Quantity("30 kW"),  # input -> coeff +2
+    }
+    heat_port = {
+        "sensor": make_sensor(3),
+        "commodity": "heat",
+        "coupling": "cogen",
+        "coupling_coefficient": 1.5,
+        "production_capacity": ur.Quantity("20 kW"),  # output -> coeff -1.5
+    }
+    if with_unit_commitment:
+        power_port["coupling_min"] = ur.Quantity("4 kW")
+        gas_port["coupling_base"] = ur.Quantity("3 kW")
+        heat_port["coupling_base"] = ur.Quantity("1 kW")
+    return [power_port, gas_port, heat_port]
+
+
+def test_coupling_unit_commitment_plumbing():
+    """A unit-committed coupling group resolves to signed bases and (min, max) bounds in MW."""
+    inventory = DeviceInventory.from_flex_config(
+        _cogeneration_flex_model(with_unit_commitment=True)
+    )
+    # Proportional coefficients are unchanged (signed by flow direction).
+    assert inventory.coupling_groups == {"cogen": [(0, -1.0), (1, 2.0), (2, -1.5)]}
+    # Group bounds come from the reference port: min from coupling-min (4 kW),
+    # max from its power-capacity (10 kW), both converted to MW.
+    assert set(inventory.coupling_uc) == {"cogen"}
+    min_level, max_level = inventory.coupling_uc["cogen"]
+    assert min_level == pytest.approx(0.004)
+    assert max_level == pytest.approx(0.010)
+    # Per-port no-load bases are signed by flow direction and expressed in MW.
+    assert inventory.coupling_bases["cogen"] == [
+        (0, pytest.approx(0.0)),  # electrical output: no base
+        (1, pytest.approx(0.003)),  # gas input: +3 kW no-load fuel
+        (2, pytest.approx(-0.001)),  # heat output: -1 kW no-load heat
+    ]
+
+
+def test_coupling_without_unit_commitment_stays_proportional():
+    """Without coupling-min or coupling-base, a coupling group is purely proportional (no UC)."""
+    inventory = DeviceInventory.from_flex_config(
+        _cogeneration_flex_model(with_unit_commitment=False)
+    )
+    assert inventory.coupling_groups == {"cogen": [(0, -1.0), (1, 2.0), (2, -1.5)]}
+    assert inventory.coupling_uc == {}
+    assert inventory.coupling_bases == {}

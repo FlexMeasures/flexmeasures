@@ -81,6 +81,13 @@ class FlexDevice:
     #: Signed internal coupling coefficient: positive for input (consuming) ports, negative for output (producing) ports.
     #: Meaningless (1.0) for uncoupled devices.
     coupling_coefficient: float = 1.0
+    #: Signed per-port no-load base (in MW), gated by the group's on/off binary when the group is unit-committed.
+    #: Follows the same sign convention as the coefficient; 0.0 when no ``coupling-base`` is given.
+    coupling_base: float = 0.0
+    #: Group minimum marginal level (in MW), declared on the reference port (|coefficient| == 1). None when not set.
+    coupling_min: float | None = None
+    #: The reference port's power capacity (in MW), used as the group's maximum marginal level. None when not resolvable.
+    coupling_max: float | None = None
 
     @property
     def sensor_id(self) -> int | None:
@@ -206,6 +213,39 @@ def _resolve_coupling_coefficient(flex_model: dict) -> float:
         # Output (producing) device -> internally negative coefficient.
         coefficient = -coefficient
     return coefficient
+
+
+def _quantity_to_mw(value: Any) -> float | None:
+    """Convert a fixed power quantity to a magnitude in MW; None if it is not a fixed scalar quantity.
+
+    Sensor references and time series (used for time-varying capacities) return None:
+    a unit-committed coupling group needs scalar bounds, so those are handled by the caller.
+    """
+    if value is None:
+        return None
+    if hasattr(value, "to") and hasattr(value, "magnitude"):
+        try:
+            return float(value.to("MW").magnitude)
+        except Exception:
+            return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_coupling_base(base_value: Any, coefficient: float) -> float:
+    """Resolve a coupled port's signed no-load base (in MW) from its raw ``coupling-base`` value.
+
+    The ``coupling-base`` field is a user-facing positive power magnitude; its internal
+    sign follows the port's flow direction, i.e. the sign of the port's coupling
+    coefficient (mirroring :func:`_resolve_coupling_coefficient`). Returns 0.0 when no
+    base is given (proportional, non-unit-committed behaviour).
+    """
+    magnitude = _quantity_to_mw(base_value)
+    if magnitude is None:
+        return 0.0
+    return math.copysign(abs(magnitude), coefficient)
 
 
 def _ref_id(value: Any) -> int | None:
@@ -394,6 +434,8 @@ class DeviceInventory:
             inventory.stock_entries[stock_key] = fm
 
         for fm in flex_model_list:
+            # Each flex-model entry is a deserialized dict.
+            assert isinstance(fm, dict)
             # Group entry (multi-device mode only): this entry's own sensor/asset is
             # the aggregate sensor/asset referenced by another entry's "group" field.
             if _classify_group_entry(inventory, fm):
@@ -453,7 +495,14 @@ class DeviceInventory:
                 commodity=fm.get("commodity", "electricity"),
                 stock_key=stock_key,
                 coupling=fm.get("coupling"),
-                coupling_coefficient=_resolve_coupling_coefficient(fm),
+                coupling_coefficient=(
+                    coupling_coefficient := _resolve_coupling_coefficient(fm)
+                ),
+                coupling_base=_resolve_coupling_base(
+                    fm.get("coupling_base"), coupling_coefficient
+                ),
+                coupling_min=_quantity_to_mw(fm.get("coupling_min")),
+                coupling_max=_quantity_to_mw(fm.get("power_capacity_in_mw")),
             )
             inventory.entries.append(device)
             inventory.devices.append(device)
@@ -561,6 +610,75 @@ class DeviceInventory:
                 (device.index, device.coupling_coefficient)
             )
         return groups
+
+    def _coupling_reference_port(self, members: list[tuple[int, float]]) -> FlexDevice:
+        """Return a coupling group's reference port: the port with |coefficient| == 1.
+
+        The reference port is the driving variable of the group; it carries the group's
+        ``coupling-min`` and the ``power-capacity`` that bounds the group's marginal level.
+
+        :raises ValueError: When no member has a unit coefficient.
+        """
+        for d_idx, coeff in members:
+            if math.isclose(abs(coeff), 1.0, abs_tol=1e-9):
+                return self.devices[d_idx]
+        raise ValueError(
+            "A unit-committed coupling group must have a reference port with"
+            " coupling-coefficient 1 (the driving variable). None was found."
+        )
+
+    @cached_property
+    def coupling_uc(self) -> dict[str, tuple[float, float]]:
+        """Map each unit-committed coupling group to its ``(min, max)`` marginal-level bounds (in MW).
+
+        A coupling group is unit-committed when its reference port declares a
+        ``coupling-min``, or any of its ports declares a non-zero ``coupling-base``.
+        The minimum comes from the reference port's ``coupling-min`` (0 when only a base
+        is given); the maximum from the reference port's ``power-capacity``.
+        Empty for purely proportional coupling (leaving the problem an LP).
+
+        :raises ValueError: When a unit-committed group lacks a resolvable power-capacity
+                            on its reference port.
+        """
+        result: dict[str, tuple[float, float]] = {}
+        for name, members in self.coupling_groups.items():
+            group_devices = [self.devices[d_idx] for d_idx, _ in members]
+            declared_mins = [
+                dev.coupling_min
+                for dev in group_devices
+                if dev.coupling_min is not None
+            ]
+            has_base = any(abs(dev.coupling_base) > 1e-12 for dev in group_devices)
+            if not declared_mins and not has_base:
+                continue
+            reference = self._coupling_reference_port(members)
+            min_level = declared_mins[0] if declared_mins else 0.0
+            max_level = reference.coupling_max
+            if max_level is None:
+                raise ValueError(
+                    f"Unit-committed coupling group '{name}' needs a fixed power-capacity"
+                    " on its reference port (the port with coupling-coefficient 1) to bound"
+                    " its marginal level."
+                )
+            result[name] = (min_level, max_level)
+        return result
+
+    @cached_property
+    def coupling_bases(self) -> dict[str, list[tuple[int, float]]]:
+        """Map each unit-committed coupling group to its ports' (device index, signed base) pairs (in MW).
+
+        Restricted to the groups in :attr:`coupling_uc`; suitable for passing to
+        ``device_scheduler(coupling_bases=...)`` alongside ``coupling_groups``.
+        """
+        uc_groups = self.coupling_uc
+        result: dict[str, list[tuple[int, float]]] = {}
+        for name, members in self.coupling_groups.items():
+            if name not in uc_groups:
+                continue
+            result[name] = [
+                (d_idx, self.devices[d_idx].coupling_base) for d_idx, _ in members
+            ]
+        return result
 
     @cached_property
     def group_to_devices(self) -> dict[tuple[str, int], list[int]]:

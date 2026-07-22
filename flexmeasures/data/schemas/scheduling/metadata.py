@@ -242,6 +242,23 @@ Defaults to 1.
 """,
     example=0.5,
 )
+COUPLING_BASE = MetaData(
+    description="""Per-port no-load base power for a unit-committed coupling group.
+Give a positive power magnitude; its direction follows the port's flow direction (the same way ``coupling-coefficient`` does).
+When the coupling group is unit-committed, each port's power equals its coupling coefficient times the group's marginal level *plus* this base, all gated by the group's on/off binary: ``P = coefficient * level + base`` when on, and ``0`` when off.
+Use it to model a no-load offset, such as a cogeneration unit's no-load fuel consumption that is burned only while the unit runs.
+Setting a non-zero base (on any port) makes the coupling group unit-committed.
+Defaults to 0.
+""",
+    example="3 kW",
+)
+COUPLING_MIN = MetaData(
+    description="""Minimum marginal level of a coupling group, declared on its reference port (the port with ``coupling-coefficient`` 1).
+Setting it makes the coupling group unit-committed: a per-time-step on/off binary is introduced, and when the group runs its marginal level stays between this minimum and the reference port's ``power-capacity`` (the maximum); when it is off, all ports are exactly 0.
+Use it to model a minimum load, such as a cogeneration unit that must run at or above a minimum output when on and be fully off otherwise.
+""",
+    example="4 kW",
+)
 CONSUMPTION = MetaData(
     description="""Sensor used to record the scheduled power as seen from a consumption perspective.
 

@@ -328,6 +328,20 @@ class StorageFlexModelSchema(Schema):
         validate=validate.Range(min=0, min_inclusive=False),
         metadata=metadata.COUPLING_COEFFICIENT.to_dict(),
     )
+    coupling_base = QuantityField(
+        "MW",
+        data_key="coupling-base",
+        required=False,
+        validate=validate.Range(min=ur.Quantity("0 MW")),
+        metadata=metadata.COUPLING_BASE.to_dict(),
+    )
+    coupling_min = QuantityField(
+        "MW",
+        data_key="coupling-min",
+        required=False,
+        validate=validate.Range(min=ur.Quantity("0 MW")),
+        metadata=metadata.COUPLING_MIN.to_dict(),
+    )
 
     def __init__(
         self,
@@ -683,6 +697,22 @@ class DBStorageFlexModelSchema(Schema):
         load_default=1.0,
         validate=validate.Range(min=0, min_inclusive=False),
         metadata=metadata.COUPLING_COEFFICIENT.to_dict(),
+    )
+
+    coupling_base = QuantityField(
+        "MW",
+        data_key="coupling-base",
+        required=False,
+        validate=validate.Range(min=ur.Quantity("0 MW")),
+        metadata=metadata.COUPLING_BASE.to_dict(),
+    )
+
+    coupling_min = QuantityField(
+        "MW",
+        data_key="coupling-min",
+        required=False,
+        validate=validate.Range(min=ur.Quantity("0 MW")),
+        metadata=metadata.COUPLING_MIN.to_dict(),
     )
 
     mapped_schema_keys: dict
