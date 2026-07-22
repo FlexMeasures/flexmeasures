@@ -212,16 +212,23 @@ def read_custom_config(
     return path_to_config
 
 
+def parse_bool_env(value: str) -> bool:
+    return value.lower() in ("true", "1", "yes", "on")
+
+
 def read_env_vars(app: Flask):
     """
     Read in what we support as environment settings.
     At the moment, these are:
     - All required and warnable variables
-    - Logging settings
+    - Logging and debugging settings
     - access tokens
     - plugins (handled in plugin utils)
     - json compactness
     - two-factor authentication (SECURITY_TOTP_SECRETS is handled in app_utils.set_totp_secrets)
+
+    Settings whose default is a boolean are parsed as booleans
+    (env values are strings, and e.g. "False" is truthy).
     """
     for var in (
         required
@@ -232,15 +239,16 @@ def read_env_vars(app: Flask):
             "SENTRY_SDN",
             "FLEXMEASURES_PLUGINS",
             "FLEXMEASURES_JSON_COMPACT",
+            "SECURITY_TWO_FACTOR",
+            "DEBUG",
         ]
     ):
-        app.config[var] = os.getenv(var, app.config.get(var, None))
-    # DEBUG in env can come in as a string ("True") so make sure we don't trip here
-    app.config["DEBUG"] = int(bool(os.getenv("DEBUG", app.config.get("DEBUG", False))))
-    # boolean settings come in as strings like "True", so parse them explicitly
-    two_factor = os.getenv("SECURITY_TWO_FACTOR", None)
-    if two_factor is not None:
-        app.config["SECURITY_TWO_FACTOR"] = two_factor.lower() in ("true", "1", "yes")
+        value = os.getenv(var, None)
+        if value is None:
+            continue
+        if isinstance(app.config.get(var), bool):
+            value = parse_bool_env(value)
+        app.config[var] = value
 
 
 def are_required_settings_complete(app) -> bool:
