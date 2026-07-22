@@ -182,6 +182,7 @@ class TrainPredictPipelineConfigSchema(Schema):
             "cli": {
                 "option": "--model-params",
                 "extra_help": "Pass as JSON, e.g. '{\"max_depth\": 6}'.",
+                "cli-exclusive": True,
             },
         },
     )

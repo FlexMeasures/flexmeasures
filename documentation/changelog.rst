@@ -104,7 +104,6 @@ New features
 * Improve LightGBM daily seasonal lag handling for sub-hourly forecasting sensors [see `PR #2157 <https://www.github.com/FlexMeasures/flexmeasures/pull/2157>`_]
 * Extend ``flexmeasures add holidays`` with timezone-aware local-midnight storage, ``holidays`` package subdivisions and categories, and specific ``workalendar`` calendar classes [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
 * Add ``annotation-regressors`` to the forecasting pipeline config schema for using stored annotations as binary regressors [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
-* Add ``model-params`` to the forecasting pipeline config schema, for overriding individual LightGBM parameters without restating the whole model configuration [see `PR #2178 <https://www.github.com/FlexMeasures/flexmeasures/pull/2178>`_]
 
 Infrastructure / Support
 ----------------------
