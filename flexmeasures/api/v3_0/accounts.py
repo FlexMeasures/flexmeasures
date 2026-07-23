@@ -161,7 +161,7 @@ class AccountAPI(FlaskView):
                 query, per_page=per_page, page=page
             )
 
-            accounts_reponse: list = []
+            accounts_response: list = []
             for account in select_pagination.items:
                 user_count_query = select(func.count(User.id)).where(
                     User.account_id == account.id
@@ -171,7 +171,7 @@ class AccountAPI(FlaskView):
                 )
                 user_count = db.session.execute(user_count_query).scalar()
                 asset_count = db.session.execute(asset_count_query).scalar()
-                accounts_reponse.append(
+                accounts_response.append(
                     {
                         **account_schema.dump(account),
                         "user_count": user_count,
@@ -180,7 +180,7 @@ class AccountAPI(FlaskView):
                 )
 
             response = {
-                "data": accounts_reponse,
+                "data": accounts_response,
                 "num-records": select_pagination.total,
                 "filtered-records": select_pagination.total,
             }
