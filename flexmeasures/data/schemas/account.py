@@ -33,6 +33,25 @@ class AccountRoleSchema(ma.SQLAlchemySchema):
     accounts = fields.Nested("AccountSchema", exclude=("account_roles",), many=True)
 
 
+class AccountRoleField(MarshmallowClickMixin, fields.Str):
+    """Field that deserializes to an AccountRole and serializes to its name."""
+
+    @with_appcontext_if_needed()
+    def _deserialize(self, value: Any, attr, data, **kwargs) -> AccountRole:
+        """Turn an account role name into an AccountRole."""
+        role_name: str = super()._deserialize(value, attr, data, **kwargs)
+        role = db.session.execute(
+            db.select(AccountRole).filter_by(name=role_name)
+        ).scalar_one_or_none()
+        if role is None:
+            raise FMValidationError(f"No account role found with name {role_name}.")
+        return role
+
+    def _serialize(self, value: AccountRole, attr, obj, **kwargs) -> str:
+        """Turn an AccountRole into its name."""
+        return value.name
+
+
 class AccountSchema(ma.SQLAlchemySchema):
     """Account schema, with validations."""
 

@@ -100,6 +100,29 @@ def test_accounts_index_create_account_button_visibility(
         assert b"Create account" not in account_page.data
 
 
+def test_accounts_index_role_filter_lists_accessible_roles(db, client, as_admin):
+    account_page = client.get(url_for("AccountCrudUI:index"), follow_redirects=True)
+
+    assert account_page.status_code == 200
+    assert b'id="accountRoleFilter"' in account_page.data
+    assert b"Organisation role" in account_page.data
+    assert b'<option value="">All roles</option>' in account_page.data
+    assert b'<option value="Prosumer">Prosumer</option>' in account_page.data
+    assert b'<option value="Supplier">Supplier</option>' in account_page.data
+    assert b"role=${encodeURIComponent(selectedRole)}" in account_page.data
+    assert b"table.api().ajax.reload()" in account_page.data
+
+
+def test_accounts_index_role_filter_hides_inaccessible_roles(
+    db, client, as_prosumer_user1
+):
+    account_page = client.get(url_for("AccountCrudUI:index"), follow_redirects=True)
+
+    assert account_page.status_code == 200
+    assert b'<option value="Prosumer">Prosumer</option>' in account_page.data
+    assert b'<option value="Supplier">Supplier</option>' not in account_page.data
+
+
 @pytest.mark.parametrize(
     "login_fixture, consultant_account_role_enabled, expected_status_code",
     [

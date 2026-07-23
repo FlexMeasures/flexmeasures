@@ -1946,6 +1946,16 @@
               ]
             },
             "required": false
+          },
+          {
+            "in": "query",
+            "name": "role",
+            "description": "Filter organisations by account role.",
+            "schema": {
+              "type": "string",
+              "example": "Prosumer"
+            },
+            "required": false
           }
         ],
         "responses": {
@@ -5627,6 +5637,11 @@
               "desc"
             ],
             "description": "Sort direction for the results. Ascending ('asc') or descending ('desc')."
+          },
+          "role": {
+            "type": "string",
+            "description": "Filter organisations by account role.",
+            "example": "Prosumer"
           }
         },
         "additionalProperties": false
