@@ -129,6 +129,10 @@ def test_get_accounts_filters_by_role_before_pagination(
     setup_api_test_data,
     requesting_user,
 ):
+    unfiltered_response = client.get(
+        url_for("AccountAPI:index"),
+        query_string={"page": 1, "per_page": 10},
+    )
     response = client.get(
         url_for("AccountAPI:index"),
         query_string={"role": "Dummy", "page": 1, "per_page": 10},
@@ -139,7 +143,9 @@ def test_get_accounts_filters_by_role_before_pagination(
         "Test Dummy Account",
         "Multi Role Account",
     }
-    assert response.json["num-records"] == 2
+    # num-records counts all accessible accounts, before the role filter
+    assert response.json["num-records"] == unfiltered_response.json["num-records"]
+    assert response.json["num-records"] > 2
     assert response.json["filtered-records"] == 2
 
 

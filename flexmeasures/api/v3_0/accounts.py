@@ -181,7 +181,7 @@ class AccountAPI(FlaskView):
 
             response = {
                 "data": accounts_response,
-                "num-records": select_pagination.total,
+                "num-records": len(accounts),
                 "filtered-records": select_pagination.total,
             }
         else:
