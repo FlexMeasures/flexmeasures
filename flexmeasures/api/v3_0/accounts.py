@@ -15,7 +15,7 @@ from flexmeasures.auth.policy import (
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import Account, User
+from flexmeasures.data.models.user import Account, AccountRole, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -55,6 +55,7 @@ class AccountAPI(FlaskView):
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
+        role: AccountRole | None = None,
         sort_by: str | None = None,
         sort_dir: str | None = None,
     ):
@@ -130,6 +131,9 @@ class AccountAPI(FlaskView):
         query = db.session.query(Account).filter(
             Account.id.in_([a.id for a in accounts])
         )
+
+        if role is not None:
+            query = query.filter(Account.account_roles.contains(role))
 
         if filter:
             search_terms = filter[0].split(" ")

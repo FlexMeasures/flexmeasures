@@ -9,6 +9,7 @@ from werkzeug.exceptions import NotFound
 
 from flexmeasures.data import db
 from flexmeasures.data.models.user import User, Account
+from flexmeasures.data.schemas.account import AccountRoleField
 from flexmeasures.data.schemas.utils import MarshmallowClickMixin
 from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
 
@@ -72,6 +73,13 @@ class UserIdField(MarshmallowClickMixin, fields.Integer):
 
 
 class AccountAPIQuerySchema(PaginationSchema):
+    role = AccountRoleField(
+        required=False,
+        metadata=dict(
+            description="Filter organisations by account role.",
+            example="Prosumer",
+        ),
+    )
     sort_by = fields.Str(
         required=False,
         validate=validate.OneOf(["id", "name", "assets", "users"]),
