@@ -8,8 +8,13 @@ import pandas as pd
 from rq.job import Job
 from sqlalchemy import select
 
-from flexmeasures.api.common.responses import unknown_schedule, unrecognized_event
+from flexmeasures.api.common.responses import (
+    DEPRECATED_RESPONSE_FIELDS_HEADER,
+    unknown_schedule,
+    unrecognized_event,
+)
 from flexmeasures.api.tests.utils import check_deprecation
+from flexmeasures.api.v3_0.deprecations import JOB_RESPONSE_FIELDS_DEPRECATION_DATE
 from flexmeasures.api.v3_0.tests.utils import (
     get_sensor_by_name,
     message_for_trigger_schedule,
@@ -143,7 +148,7 @@ def test_trigger_schedule_preserves_flex_model_datetimes_in_job_kwargs(
             json=message,
         )
 
-    assert trigger_schedule_response.status_code == 200
+    assert trigger_schedule_response.status_code == 202
     assert len(app.queues["scheduling"]) == 1
 
     job = app.queues["scheduling"].jobs[0]
@@ -184,7 +189,7 @@ def test_trigger_schedule_preserves_flex_model_datetimes_when_flooring_disabled(
         )
     sensor.attributes = original_attributes
 
-    assert trigger_schedule_response.status_code == 200
+    assert trigger_schedule_response.status_code == 202
     assert len(app.queues["scheduling"]) == 1
 
     job = app.queues["scheduling"].jobs[0]
@@ -297,8 +302,20 @@ def test_trigger_and_get_schedule_with_unknown_prices(
         json=message,
     )
     print("Server responded with:\n%s" % trigger_schedule_response.json)
-    check_deprecation(trigger_schedule_response, deprecation=None, sunset=None)
-    assert trigger_schedule_response.status_code == 200
+    assert trigger_schedule_response.status_code == 202
+    assert (
+        trigger_schedule_response.headers["Deprecation"]
+        == JOB_RESPONSE_FIELDS_DEPRECATION_DATE
+    )
+    assert 'rel="deprecation"' in trigger_schedule_response.headers["Link"]
+    assert (
+        "post--api-v3_0-sensors-id-schedules-trigger"
+        in trigger_schedule_response.headers["Link"]
+    )
+    assert (
+        trigger_schedule_response.headers[DEPRECATED_RESPONSE_FIELDS_HEADER]
+        == "schedule"
+    )
     job_id = trigger_schedule_response.json["schedule"]
 
     # look for scheduling jobs in queue
@@ -335,6 +352,47 @@ def test_trigger_and_get_schedule_with_unknown_prices(
     assert get_schedule_response.status_code == 400
     assert get_schedule_response.json["status"] == unknown_schedule()[0]["status"]
     assert "prices unknown" in get_schedule_response.json["message"].lower()
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
+def test_get_schedule_unfinished_job_returns_202_when_sunset_active(
+    app,
+    add_battery_assets,
+    keep_scheduling_queue_empty,
+    requesting_user,
+):
+    sensor = add_battery_assets["Test battery"].sensors[0]
+    original_sunset_active = app.config.get("FLEXMEASURES_API_SUNSET_ACTIVE")
+    app.config["FLEXMEASURES_API_SUNSET_ACTIVE"] = True
+
+    with app.test_client() as client:
+        trigger_schedule_response = client.post(
+            url_for("SensorAPI:trigger_schedule", id=sensor.id),
+            json=message_for_trigger_schedule(),
+        )
+        assert trigger_schedule_response.status_code == 202
+        job_id = trigger_schedule_response.json["schedule"]
+
+        get_schedule_response = client.get(
+            url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+        )
+
+    assert get_schedule_response.status_code == 202
+    assert get_schedule_response.json["status"] in {"QUEUED", "STARTED", "DEFERRED"}
+    assert "message" in get_schedule_response.json
+
+    app.config["FLEXMEASURES_API_SUNSET_ACTIVE"] = False
+    with app.test_client() as client:
+        get_schedule_response_old = client.get(
+            url_for("SensorAPI:get_schedule", id=sensor.id, uuid=job_id),
+        )
+
+    app.config["FLEXMEASURES_API_SUNSET_ACTIVE"] = original_sunset_active
+
+    assert get_schedule_response_old.status_code == 400
+    assert get_schedule_response_old.json["status"] == unknown_schedule()[0]["status"]
 
 
 @pytest.mark.parametrize(
@@ -410,7 +468,7 @@ def test_get_schedule_fallback(
         )
 
         # check that the call is successful
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
         job_id = trigger_schedule_response.json["schedule"]
 
         # look for scheduling jobs in queue
@@ -567,7 +625,7 @@ def test_get_schedule_fallback_not_redirect(
         )
 
         # check that the call is successful
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
         job_id = trigger_schedule_response.json["schedule"]
 
         # look for scheduling jobs in queue
@@ -655,7 +713,7 @@ def test_get_schedule_with_unit(
         url_for("SensorAPI:trigger_schedule", id=sensor.id),
         json=message,
     )
-    assert trigger_schedule_response.status_code == 200, trigger_schedule_response.json
+    assert trigger_schedule_response.status_code == 202, trigger_schedule_response.json
     job_id = trigger_schedule_response.json["schedule"]
 
     # process the scheduling queue

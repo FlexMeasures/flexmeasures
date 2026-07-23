@@ -19,6 +19,7 @@ from webargs.flaskparser import use_args, use_kwargs
 from sqlalchemy import delete, select, or_
 
 from flexmeasures.api.common.responses import (
+    request_accepted_for_processing,
     request_processed,
     unrecognized_event,
     unknown_forecast,
@@ -26,6 +27,7 @@ from flexmeasures.api.common.responses import (
     unprocessable_entity,
     fallback_schedule_redirect,
 )
+from flexmeasures.api.v3_0.deprecations import JOB_RESPONSE_FIELDS_DEPRECATION_DATE
 from flexmeasures.api.common.schemas.utils import make_openapi_compatible
 from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
     SensorDataDescriptionSchema,
@@ -83,6 +85,14 @@ from flexmeasures.data.models.forecasting import Forecaster
 from flexmeasures.data.services.data_sources import get_data_generator
 from flexmeasures.data.schemas.forecasting.pipeline import (
     ForecastingTriggerSchema,
+)
+
+API_V3_0_DOCS_URL = "https://flexmeasures.readthedocs.io/latest/api/v3_0.html"
+SENSOR_SCHEDULE_TRIGGER_DOCS_URL = (
+    f"{API_V3_0_DOCS_URL}#post--api-v3_0-sensors-id-schedules-trigger"
+)
+SENSOR_FORECAST_TRIGGER_DOCS_URL = (
+    f"{API_V3_0_DOCS_URL}#post--api-v3_0-sensors-id-forecasts-trigger"
 )
 
 # Instantiate schemes outside of endpoint logic to minimize response time
@@ -969,24 +979,67 @@ class SensorAPI(FlaskView):
                         site-peak-consumption-price: "260 EUR/MW"
                         site-peak-production-price: "260 EUR/MW"
           responses:
-            200:
-              description: PROCESSED
+            202:
+              description: ACCEPTED (Scheduling job queued for processing)
+              headers:
+                Deprecation:
+                  description: Indicates that the response contains deprecated fields.
+                  schema:
+                    type: string
+                    example: "Wed, 01 Jul 2026 00:00:00 GMT"
+                Link:
+                  description: Link to migration guidance for deprecated response fields.
+                  schema:
+                    type: string
+                    example: '<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>; rel="deprecation"; type="text/html"'
+                FlexMeasures-Deprecated-Response-Fields:
+                  description: Comma-separated response fields that are deprecated.
+                  schema:
+                    type: string
+                    example: "schedule"
               content:
                 application/json:
                   schema:
                     type: object
+                    properties:
+                      job:
+                        type: string
+                        description: UUID of the queued scheduling job (canonical field; use this).
+                      status:
+                        type: string
+                        enum: ["ACCEPTED"]
+                      message:
+                        type: string
+                      job-url:
+                        type: string
+                        format: uri
+                        description: URL to query the generic job status API.
+                      results-url:
+                        type: string
+                        format: uri
+                        description: URL to fetch the schedule results for this job once it is complete.
+                      schedule:
+                        type: string
+                        deprecated: true
+                        description: (DEPRECATED) UUID of the queued scheduling job. Use `job` instead.
                   examples:
                     schedule_created:
                       summary: Schedule response
                       description: |
-                        This message indicates that the scheduling request has been processed without any error.
+                        This message indicates that the scheduling request has been accepted for processing (202 Accepted).
                         A scheduling job has been created with some Universally Unique Identifier (UUID),
                         which will be picked up by a worker.
+                        The given UUID is returned in the canonical `job` field.
+                        For backward-compatibility, the legacy `schedule` field is also included but is deprecated;
+                        use `job` instead.
                         The given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.
                       value:
-                        status: "PROCESSED"
+                        status: "ACCEPTED"
+                        job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
                         schedule: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
-                        message: "Request has been processed."
+                        job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        results-url: "/api/v3_0/sensors/3/schedules/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                        message: "Request has been accepted for processing."
             400:
               description: INVALID_DATA
             401:
@@ -1034,9 +1087,16 @@ class SensorAPI(FlaskView):
 
         db.session.commit()
 
-        response = dict(schedule=job.id)
-        d, s = request_processed()
-        return dict(**response, **d), s
+        # Keep legacy `schedule` key for backward compatibility; prefer `job`.
+        return request_accepted_for_processing(
+            job.id,
+            legacy_key="schedule",
+            job_results_url=url_for(
+                "SensorAPI:get_schedule", id=sensor.id, uuid=job.id
+            ),
+            deprecation_link=SENSOR_SCHEDULE_TRIGGER_DOCS_URL,
+            deprecation_date=JOB_RESPONSE_FIELDS_DEPRECATION_DATE,
+        )
 
     # mark endpoint as deprecated
     trigger_schedule.after_request = lambda response: add_deprecation_header(response)
@@ -1192,6 +1252,27 @@ class SensorAPI(FlaskView):
                         start: "2015-06-02T10:00:00+00:00"
                         duration: "PT45M"
                         unit: "MW"
+            202:
+              description: Scheduling job status while the job is still running
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: ["QUEUED", "STARTED", "DEFERRED"]
+                        description: Processing status of the scheduling job.
+
+                      message:
+                        type: string
+                        description: Human-readable message about current job processing.
+                  examples:
+                    started:
+                      summary: Scheduling job is still running
+                      value:
+                        status: "STARTED"
+                        message: "The scheduling job is currently running."
             400:
               description: INVALID_TIMEZONE, INVALID_DOMAIN, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP
             401:
@@ -1248,7 +1329,23 @@ class SensorAPI(FlaskView):
                     _external=True,
                 ),
             )
+        elif job.is_failed:
+            return unknown_schedule(job_status_description(job, scheduler_info_msg))
         else:
+            if current_app.config.get("FLEXMEASURES_API_SUNSET_ACTIVE"):
+                job_status = job.get_status()
+                job_status_name = (
+                    job_status.upper()
+                    if isinstance(job_status, str)
+                    else job_status.name
+                )
+                return (
+                    dict(
+                        status=job_status_name,
+                        message=job_status_description(job, scheduler_info_msg),
+                    ),
+                    202,
+                )
             return unknown_schedule(job_status_description(job, scheduler_info_msg))
         schedule_start = job.kwargs["start"]
 
@@ -1891,25 +1988,56 @@ class SensorAPI(FlaskView):
                   start: "2026-01-15T00:00:00+01:00"
                   duration: "P2D"
           responses:
-            200:
-              description: PROCESSED
+            202:
+              description: ACCEPTED (Forecasting job queued for processing)
+              headers:
+                Deprecation:
+                  description: Indicates that the response contains deprecated fields.
+                  schema:
+                    type: string
+                    example: "Wed, 01 Jul 2026 00:00:00 GMT"
+                Link:
+                  description: Link to migration guidance for deprecated response fields.
+                  schema:
+                    type: string
+                    example: '<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>; rel="deprecation"; type="text/html"'
+                FlexMeasures-Deprecated-Response-Fields:
+                  description: Comma-separated response fields that are deprecated.
+                  schema:
+                    type: string
+                    example: "forecast"
               content:
                 application/json:
                   schema:
                     type: object
                     properties:
-                      forecast:
+                      job:
                         type: string
-                        description: UUID of the queued forecasting job.
+                        description: UUID of the queued forecasting job (canonical field; use this).
                       status:
                         type: string
-                        enum: ["PROCESSED"]
+                        enum: ["ACCEPTED"]
                       message:
                         type: string
+                      job-url:
+                        type: string
+                        format: uri
+                        description: URL to query the generic job status API.
+                      results-url:
+                        type: string
+                        format: uri
+                        description: URL to fetch the forecast results for this job once it is complete.
+                      forecast:
+                        type: string
+                        deprecated: true
+                        description: (DEPRECATED) UUID of the queued forecasting job. Use `job` instead.
                   example:
-                    forecast: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
-                    status: "PROCESSED"
+                    status: "ACCEPTED"
+                    job: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
                     message: "Forecasting job has been queued."
+                    job-url: "/api/v3_0/jobs/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
+                    results-url: "/api/v3_0/sensors/3/forecasts/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
+                    forecast: "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
             401:
               description: UNAUTHORIZED
             403:
@@ -1950,8 +2078,16 @@ class SensorAPI(FlaskView):
             current_app.logger.exception("Forecast job failed to enqueue.")
             return unprocessable_entity(str(e))
 
-        d, s = request_processed()
-        return dict(forecast=pipeline_returns["job_id"], **d), s
+        # Keep legacy `forecast` key for backward compatibility; prefer `job`.
+        return request_accepted_for_processing(
+            pipeline_returns["job_id"],
+            legacy_key="forecast",
+            job_results_url=url_for(
+                "SensorAPI:get_forecast", id=id, uuid=pipeline_returns["job_id"]
+            ),
+            deprecation_link=SENSOR_FORECAST_TRIGGER_DOCS_URL,
+            deprecation_date=JOB_RESPONSE_FIELDS_DEPRECATION_DATE,
+        )
 
     @route("/<id>/forecasts/<uuid>", methods=["GET"])
     @use_kwargs(

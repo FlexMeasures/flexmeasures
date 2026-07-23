@@ -319,10 +319,10 @@ def test_post_sensor_data_returns_accepted_job(
 
     assert response.status_code == 202
     assert response.json["status"] == "ACCEPTED"
-    assert response.json["job_monitor_url"] == url_for(
-        "JobAPI:get_job_status", uuid=response.json["job_id"]
+    assert response.json["job-url"] == url_for(
+        "JobAPI:get_job_status", uuid=response.json["job"]
     )
-    job = current_app.queues["ingestion"].fetch_job(response.json["job_id"])
+    job = current_app.queues["ingestion"].fetch_job(response.json["job"])
     assert job.kwargs["sensor_id"] == sensor.id
     assert job.kwargs["sensor_data"] == post_data
     assert "data" not in job.kwargs

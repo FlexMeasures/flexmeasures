@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.0.0"
+    "version": "0.33.2"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -821,6 +821,40 @@
               }
             }
           },
+          "202": {
+            "description": "Scheduling job status while the job is still running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "QUEUED",
+                        "STARTED",
+                        "DEFERRED"
+                      ],
+                      "description": "Processing status of the scheduling job."
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable message about current job processing."
+                    }
+                  }
+                },
+                "examples": {
+                  "started": {
+                    "summary": "Scheduling job is still running",
+                    "value": {
+                      "status": "STARTED",
+                      "message": "The scheduling job is currently running."
+                    }
+                  }
+                }
+              }
+            }
+          },
           "400": {
             "description": "INVALID_TIMEZONE, INVALID_DOMAIN, UNKNOWN_SCHEDULE, UNRECOGNIZED_CONNECTION_GROUP"
           },
@@ -1353,32 +1387,73 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "PROCESSED",
+          "202": {
+            "description": "ACCEPTED (Forecasting job queued for processing)",
+            "headers": {
+              "Deprecation": {
+                "description": "Indicates that the response contains deprecated fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "Wed, 01 Jul 2026 00:00:00 GMT"
+                }
+              },
+              "Link": {
+                "description": "Link to migration guidance for deprecated response fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#post--api-v3_0-sensors-id-forecasts-trigger>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              },
+              "FlexMeasures-Deprecated-Response-Fields": {
+                "description": "Comma-separated response fields that are deprecated.",
+                "schema": {
+                  "type": "string",
+                  "example": "forecast"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "forecast": {
+                    "job": {
                       "type": "string",
-                      "description": "UUID of the queued forecasting job."
+                      "description": "UUID of the queued forecasting job (canonical field; use this)."
                     },
                     "status": {
                       "type": "string",
                       "enum": [
-                        "PROCESSED"
+                        "ACCEPTED"
                       ]
                     },
                     "message": {
                       "type": "string"
+                    },
+                    "job-url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to query the generic job status API."
+                    },
+                    "results-url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to fetch the forecast results for this job once it is complete."
+                    },
+                    "forecast": {
+                      "type": "string",
+                      "deprecated": true,
+                      "description": "(DEPRECATED) UUID of the queued forecasting job. Use `job` instead."
                     }
                   }
                 },
                 "example": {
-                  "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
-                  "status": "PROCESSED",
-                  "message": "Forecasting job has been queued."
+                  "status": "ACCEPTED",
+                  "job": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "message": "Forecasting job has been queued.",
+                  "job-url": "/api/v3_0/jobs/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "results-url": "/api/v3_0/sensors/3/forecasts/b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b",
+                  "forecast": "b3d26a8a-7a43-4a9f-93e1-fc2a869ea97b"
                 }
               }
             }
@@ -1503,21 +1578,77 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "PROCESSED",
+          "202": {
+            "description": "ACCEPTED (Scheduling job queued for processing)",
+            "headers": {
+              "Deprecation": {
+                "description": "Indicates that the response contains deprecated fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "Wed, 01 Jul 2026 00:00:00 GMT"
+                }
+              },
+              "Link": {
+                "description": "Link to migration guidance for deprecated response fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              },
+              "FlexMeasures-Deprecated-Response-Fields": {
+                "description": "Comma-separated response fields that are deprecated.",
+                "schema": {
+                  "type": "string",
+                  "example": "schedule"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "job": {
+                      "type": "string",
+                      "description": "UUID of the queued scheduling job (canonical field; use this)."
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ACCEPTED"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "job-url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to query the generic job status API."
+                    },
+                    "results-url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL to fetch the schedule results for this job once it is complete."
+                    },
+                    "schedule": {
+                      "type": "string",
+                      "deprecated": true,
+                      "description": "(DEPRECATED) UUID of the queued scheduling job. Use `job` instead."
+                    }
+                  }
                 },
                 "examples": {
                   "schedule_created": {
                     "summary": "Schedule response",
-                    "description": "This message indicates that the scheduling request has been processed without any error.\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.\n",
+                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job` field.\nFor backward-compatibility, the legacy `schedule` field is also included but is deprecated;\nuse `job` instead.\nThe given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.\n",
                     "value": {
-                      "status": "PROCESSED",
+                      "status": "ACCEPTED",
+                      "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                      "message": "Request has been processed."
+                      "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "results-url": "/api/v3_0/sensors/3/schedules/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "message": "Request has been accepted for processing."
                     }
                   }
                 }
@@ -4145,8 +4276,31 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "PROCESSED",
+          "202": {
+            "description": "ACCEPTED (Scheduling job queued for processing)",
+            "headers": {
+              "Deprecation": {
+                "description": "Indicates that the response contains deprecated fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "Wed, 01 Jul 2026 00:00:00 GMT"
+                }
+              },
+              "Link": {
+                "description": "Link to migration guidance for deprecated response fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              },
+              "FlexMeasures-Deprecated-Response-Fields": {
+                "description": "Comma-separated response fields that are deprecated.",
+                "schema": {
+                  "type": "string",
+                  "example": "schedule"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4154,11 +4308,13 @@
                 },
                 "examples": {
                   "successful_response": {
-                    "description": "This message indicates that the scheduling request has been processed without any error.\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID may be used to obtain the resulting schedule for each flexible device: see [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
+                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job` field.\nFor backward-compatibility, the legacy `schedule` field is also included but is deprecated;\nuse `job` instead.\nThe given UUID may be used to obtain the resulting schedule for each flexible device via [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
                     "value": {
-                      "status": "PROCESSED",
+                      "status": "ACCEPTED",
+                      "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
                       "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
-                      "message": "Request has been processed."
+                      "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+                      "message": "Request has been accepted for processing."
                     }
                   }
                 }
@@ -4394,7 +4550,30 @@
         ],
         "responses": {
           "200": {
-            "description": "Job status retrieved successfully.",
+            "description": "Finished job status retrieved successfully.",
+            "headers": {
+              "Deprecation": {
+                "description": "Indicates that the response contains deprecated fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "Wed, 01 Jul 2026 00:00:00 GMT"
+                }
+              },
+              "Link": {
+                "description": "Link to migration guidance for deprecated response fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#get--api-v3_0-jobs-uuid>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              },
+              "FlexMeasures-Deprecated-Response-Fields": {
+                "description": "Comma-separated response fields that are deprecated.",
+                "schema": {
+                  "type": "string",
+                  "example": "func_name, enqueued_at, started_at, ended_at, exc_info"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4422,7 +4601,7 @@
                       "description": "Return value of the job function, or null when not yet available. For a finished scheduling job, this is an object; a <code>StorageScheduler</code> job populates it with <code>unresolved</code>/<code>resolved</code> soft state-of-charge constraint analysis (empty arrays when the flex model defines no <code>soc-minima</code>/<code>soc-maxima</code>, or when a scheduler other than <code>StorageScheduler</code> was used). The <code>num-beliefs</code> field holds the total number of beliefs (scheduled values) saved to the database.\n",
                       "nullable": true
                     },
-                    "func_name": {
+                    "func-name": {
                       "type": "string",
                       "description": "Fully-qualified name of the function executed by this job."
                     },
@@ -4430,28 +4609,60 @@
                       "type": "string",
                       "description": "Name of the queue the job was placed on."
                     },
-                    "enqueued_at": {
+                    "enqueued-at": {
                       "type": "string",
                       "format": "date-time",
                       "nullable": true,
                       "description": "ISO-8601 timestamp of when the job was enqueued."
                     },
-                    "started_at": {
+                    "started-at": {
                       "type": "string",
                       "format": "date-time",
                       "nullable": true,
                       "description": "ISO-8601 timestamp of when the job started executing."
                     },
-                    "ended_at": {
+                    "ended-at": {
                       "type": "string",
                       "format": "date-time",
                       "nullable": true,
                       "description": "ISO-8601 timestamp of when the job finished executing."
                     },
-                    "exc_info": {
+                    "exc-info": {
                       "type": "string",
                       "nullable": true,
                       "description": "Traceback information for failed jobs, or null otherwise."
+                    },
+                    "func_name": {
+                      "type": "string",
+                      "deprecated": true,
+                      "description": "(DEPRECATED) Fully-qualified name of the function executed by this job. Use `func-name` instead."
+                    },
+                    "enqueued_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "deprecated": true,
+                      "description": "(DEPRECATED) ISO-8601 timestamp of when the job was enqueued. Use `enqueued-at` instead."
+                    },
+                    "started_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "deprecated": true,
+                      "description": "(DEPRECATED) ISO-8601 timestamp of when the job started executing. Use `started-at` instead."
+                    },
+                    "ended_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true,
+                      "deprecated": true,
+                      "description": "(DEPRECATED) ISO-8601 timestamp of when the job finished executing. Use `ended-at` instead."
+                    },
+                    "exc_info": {
+                      "type": "string",
+                      "nullable": true,
+                      "deprecated": true,
+                      "description": "(DEPRECATED) Traceback information for failed jobs, or null otherwise. Use `exc-info` instead."
                     }
                   }
                 },
@@ -4462,8 +4673,13 @@
                       "status": "QUEUED",
                       "message": "Scheduling job waiting to be processed.",
                       "result": null,
-                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "func-name": "flexmeasures.data.services.scheduling.create_schedule",
                       "origin": "scheduling",
+                      "enqueued-at": "2026-04-28T10:00:00+00:00",
+                      "started-at": null,
+                      "ended-at": null,
+                      "exc-info": null,
+                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
                       "enqueued_at": "2026-04-28T10:00:00+00:00",
                       "started_at": null,
                       "ended_at": null,
@@ -4494,12 +4710,12 @@
                         "resolved": [],
                         "num-beliefs": 96
                       },
-                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "func-name": "flexmeasures.data.services.scheduling.create_schedule",
                       "origin": "scheduling",
-                      "enqueued_at": "2026-04-28T10:00:00+00:00",
-                      "started_at": "2026-04-28T10:00:01+00:00",
-                      "ended_at": "2026-04-28T10:00:05+00:00",
-                      "exc_info": null
+                      "enqueued-at": "2026-04-28T10:00:00+00:00",
+                      "started-at": "2026-04-28T10:00:01+00:00",
+                      "ended-at": "2026-04-28T10:00:05+00:00",
+                      "exc-info": null
                     }
                   },
                   "failed": {
@@ -4508,14 +4724,66 @@
                       "status": "FAILED",
                       "message": "Scheduling job failed with ValueError: ...",
                       "result": null,
-                      "func_name": "flexmeasures.data.services.scheduling.create_schedule",
+                      "func-name": "flexmeasures.data.services.scheduling.create_schedule",
                       "origin": "scheduling",
-                      "enqueued_at": "2026-04-28T10:00:00+00:00",
-                      "started_at": "2026-04-28T10:00:01+00:00",
-                      "ended_at": "2026-04-28T10:00:02+00:00",
-                      "exc_info": "Traceback (most recent call last): ..."
+                      "enqueued-at": "2026-04-28T10:00:00+00:00",
+                      "started-at": "2026-04-28T10:00:01+00:00",
+                      "ended-at": "2026-04-28T10:00:02+00:00",
+                      "exc-info": "Traceback (most recent call last): ..."
                     }
                   }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Job is still queued, scheduled, deferred, or running.",
+            "headers": {
+              "Deprecation": {
+                "description": "Indicates that the response contains deprecated fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "Wed, 01 Jul 2026 00:00:00 GMT"
+                }
+              },
+              "Link": {
+                "description": "Link to migration guidance for deprecated response fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#get--api-v3_0-jobs-uuid>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              },
+              "FlexMeasures-Deprecated-Response-Fields": {
+                "description": "Comma-separated response fields that are deprecated.",
+                "schema": {
+                  "type": "string",
+                  "example": "func_name, enqueued_at, started_at, ended_at, exc_info"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Job has failed.",
+            "headers": {
+              "Deprecation": {
+                "description": "Indicates that the response contains deprecated fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "Wed, 01 Jul 2026 00:00:00 GMT"
+                }
+              },
+              "Link": {
+                "description": "Link to migration guidance for deprecated response fields.",
+                "schema": {
+                  "type": "string",
+                  "example": "<https://flexmeasures.readthedocs.io/latest/api/v3_0.html#get--api-v3_0-jobs-uuid>; rel=\"deprecation\"; type=\"text/html\""
+                }
+              },
+              "FlexMeasures-Deprecated-Response-Fields": {
+                "description": "Comma-separated response fields that are deprecated.",
+                "schema": {
+                  "type": "string",
+                  "example": "func_name, enqueued_at, started_at, ended_at, exc_info"
                 }
               }
             }

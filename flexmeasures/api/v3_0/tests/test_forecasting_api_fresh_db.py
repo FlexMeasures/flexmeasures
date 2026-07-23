@@ -5,6 +5,8 @@ from flask import url_for
 
 from rq.job import Job
 
+from flexmeasures.api.common.responses import DEPRECATED_RESPONSE_FIELDS_HEADER
+from flexmeasures.api.v3_0.deprecations import JOB_RESPONSE_FIELDS_DEPRECATION_DATE
 from flexmeasures.api.tests.utils import get_auth_token
 from flexmeasures.data.models.forecasting.pipelines import TrainPredictPipeline
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
@@ -48,7 +50,15 @@ def test_trigger_and_fetch_forecasts(
     trigger_res = client.post(
         trigger_url, json=payload, headers={"Authorization": token}
     )
-    assert trigger_res.status_code == 200, trigger_res.json
+    assert trigger_res.status_code == 202, trigger_res.json
+    assert trigger_res.headers["Deprecation"] == JOB_RESPONSE_FIELDS_DEPRECATION_DATE
+    assert 'rel="deprecation"' in trigger_res.headers["Link"]
+    assert "post--api-v3_0-sensors-id-forecasts-trigger" in trigger_res.headers["Link"]
+    assert trigger_res.headers[DEPRECATED_RESPONSE_FIELDS_HEADER] == "forecast"
+    assert "deprecated-fields" not in trigger_res.json
+    assert trigger_res.json["results-url"] == url_for(
+        "SensorAPI:get_forecast", id=sensor_0.id, uuid=trigger_res.json["forecast"]
+    )
 
     trigger_json = trigger_res.get_json()
     wrap_up_job = app.queues["forecasting"].fetch_job(trigger_json["forecast"])

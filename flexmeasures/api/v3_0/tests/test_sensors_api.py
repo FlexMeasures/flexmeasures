@@ -366,10 +366,10 @@ def test_upload_csv_file_returns_accepted_job(
 
     assert response.status_code == 202
     assert response.json["status"] == "ACCEPTED"
-    assert response.json["job_monitor_url"] == url_for(
-        "JobAPI:get_job_status", uuid=response.json["job_id"]
+    assert response.json["job-url"] == url_for(
+        "JobAPI:get_job_status", uuid=response.json["job"]
     )
-    job = current_app.queues["ingestion"].fetch_job(response.json["job_id"])
+    job = current_app.queues["ingestion"].fetch_job(response.json["job"])
     assert job.kwargs["sensor_id"] == sensor.id
     assert job.kwargs["uploaded_files"][0]["filename"] == "test.csv"
     assert job.kwargs["uploaded_files"][0]["content"] == csv_content.encode("utf-8")

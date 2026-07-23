@@ -10,6 +10,8 @@ from flask import url_for
 from redis.exceptions import ConnectionError as RedisConnectionError
 from rq.job import Job, JobStatus
 
+from flexmeasures.api.common.responses import DEPRECATED_RESPONSE_FIELDS_HEADER
+from flexmeasures.api.v3_0.deprecations import JOB_RESPONSE_FIELDS_DEPRECATION_DATE
 from flexmeasures.api.v3_0.tests.utils import message_for_trigger_schedule
 from flexmeasures.data.services.scheduling import (
     create_scheduling_job,
@@ -19,6 +21,30 @@ from flexmeasures.data.tests.test_scheduling_repeated_jobs_fresh_db import (
     FailingScheduler,
 )
 from flexmeasures.utils.job_utils import work_on_rq
+
+
+JOB_STATUS_DEPRECATED_FIELDS = {
+    "func_name": "func-name",
+    "enqueued_at": "enqueued-at",
+    "started_at": "started-at",
+    "ended_at": "ended-at",
+    "exc_info": "exc-info",
+}
+
+
+def assert_legacy_job_status_fields(data: dict):
+    for legacy_key, canonical_key in JOB_STATUS_DEPRECATED_FIELDS.items():
+        assert data[legacy_key] == data[canonical_key]
+    assert "deprecated-fields" not in data
+
+
+def assert_deprecated_response_fields_headers(response):
+    assert response.headers["Deprecation"] == JOB_RESPONSE_FIELDS_DEPRECATION_DATE
+    assert 'rel="deprecation"' in response.headers["Link"]
+    assert "get--api-v3_0-jobs-uuid" in response.headers["Link"]
+    assert response.headers[DEPRECATED_RESPONSE_FIELDS_HEADER] == ", ".join(
+        JOB_STATUS_DEPRECATED_FIELDS.keys()
+    )
 
 
 @pytest.mark.parametrize(
@@ -43,7 +69,7 @@ def test_get_job_status_unknown_uuid(
 @pytest.mark.parametrize(
     "requesting_user, expected_status_code",
     [
-        ("test_prosumer_user@seita.nl", 200),
+        ("test_prosumer_user@seita.nl", 202),
         ("test_dummy_user_3@seita.nl", 403),
     ],
     indirect=["requesting_user"],
@@ -84,8 +110,9 @@ def test_get_job_status_requires_read_access(
         )
 
     assert response.status_code == expected_status_code
-    if expected_status_code == 200:
+    if expected_status_code == 202:
         assert response.json["status"] == "QUEUED"
+        assert_deprecated_response_fields_headers(response)
     else:
         assert response.json["status"] == "INVALID_SENDER"
 
@@ -111,7 +138,7 @@ def test_get_job_status_queued(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
         # immediately query the generic job endpoint – job is still queued
@@ -120,21 +147,24 @@ def test_get_job_status_queued(
         )
 
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 200
+    assert response.status_code == 202
     data = response.json
     assert data["status"] == "QUEUED"
     assert "waiting" in data["message"].lower()
     # metadata fields present
-    assert "func_name" in data
+    assert "func-name" in data
     assert "origin" in data
     assert data["origin"] == "scheduling"
-    # enqueued_at is set when a job is queued; started_at and ended_at are not yet
-    assert data["enqueued_at"] is not None
-    assert data["started_at"] is None
-    assert data["ended_at"] is None
+    # enqueued-at is set when a job is queued; started-at and ended-at are not yet
+    assert data["enqueued-at"] is not None
+    assert data["started-at"] is None
+    assert data["ended-at"] is None
     # result is not yet available
     assert data["result"] is None
-    assert data["exc_info"] is None
+    assert data["exc-info"] is None
+    assert_legacy_job_status_fields(data)
+    assert_deprecated_response_fields_headers(response)
+    assert_deprecated_response_fields_headers(response)
 
 
 @pytest.mark.parametrize(
@@ -157,7 +187,7 @@ def test_get_job_status_started(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
         # simulate the job being picked up by a worker
@@ -169,19 +199,21 @@ def test_get_job_status_started(
         )
 
     print("Server responded with:\n%s" % response.json)
-    assert response.status_code == 200
+    assert response.status_code == 202
     data = response.json
     assert data["status"] == "STARTED"
     assert "in progress" in data["message"].lower()
     # metadata fields present
-    assert "func_name" in data
+    assert "func-name" in data
     assert data["origin"] == "scheduling"
-    # enqueued_at is set; ended_at is not yet available
-    assert data["enqueued_at"] is not None
-    assert data["ended_at"] is None
+    # enqueued-at is set; ended-at is not yet available
+    assert data["enqueued-at"] is not None
+    assert data["ended-at"] is None
     # result is not yet available
     assert data["result"] is None
-    assert data["exc_info"] is None
+    assert data["exc-info"] is None
+    assert_legacy_job_status_fields(data)
+    assert_deprecated_response_fields_headers(response)
 
 
 @pytest.mark.parametrize(
@@ -206,7 +238,7 @@ def test_get_job_status_finished(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
         # run the scheduling job
@@ -225,12 +257,12 @@ def test_get_job_status_finished(
     assert data["status"] == "FINISHED"
     assert "finished" in data["message"].lower()
     # metadata fields present
-    assert "func_name" in data
+    assert "func-name" in data
     assert data["origin"] == "scheduling"
     # timing fields
-    assert data["enqueued_at"] is not None
-    assert data["started_at"] is not None
-    assert data["ended_at"] is not None
+    assert data["enqueued-at"] is not None
+    assert data["started-at"] is not None
+    assert data["ended-at"] is not None
     # every finished scheduling job now returns an object (not the boolean
     # True it used to return unconditionally); this is a StorageScheduler
     # job, so `result` is the soft SoC constraint analysis dict, and since
@@ -241,7 +273,8 @@ def test_get_job_status_finished(
     assert result["unresolved"] == []
     assert result["resolved"] == []
     assert result["num-beliefs"] == 96
-    assert data["exc_info"] is None
+    assert data["exc-info"] is None
+    assert_legacy_job_status_fields(data)
 
 
 @pytest.mark.parametrize(
@@ -279,7 +312,7 @@ def test_get_job_status_finished_with_unresolved_soc_minima(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
         # run the scheduling job
@@ -350,7 +383,7 @@ def test_get_job_status_failed_custom_scheduler_includes_exc_info(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message_for_trigger_schedule(),
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
         work_on_rq(
@@ -361,11 +394,13 @@ def test_get_job_status_failed_custom_scheduler_includes_exc_info(
 
         response = client.get(url_for("JobAPI:get_job_status", uuid=job_id))
 
-    assert response.status_code == 200
+    assert response.status_code == 422
     data = response.json
     assert data["status"] == "FAILED"
     assert "assert 1 == 2" in data["message"]
-    assert "AssertionError: assert 1 == 2" in data["exc_info"]
+    assert "AssertionError: assert 1 == 2" in data["exc-info"]
+    assert_legacy_job_status_fields(data)
+    assert_deprecated_response_fields_headers(response)
 
 
 @pytest.mark.parametrize(
@@ -386,7 +421,7 @@ def test_get_job_status_failed_infeasible_schedule_includes_exc_info(
             url_for("SensorAPI:trigger_schedule", id=charging_station.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
         work_on_rq(
@@ -397,13 +432,15 @@ def test_get_job_status_failed_infeasible_schedule_includes_exc_info(
 
         response = client.get(url_for("JobAPI:get_job_status", uuid=job_id))
 
-    assert response.status_code == 200
+    assert response.status_code == 422
     data = response.json
     assert data["status"] == "FAILED"
     assert "infeasible problem" in data["message"].lower()
     assert (
-        "ValueError: The input data yields an infeasible problem." in data["exc_info"]
+        "ValueError: The input data yields an infeasible problem." in data["exc-info"]
     )
+    assert_legacy_job_status_fields(data)
+    assert_deprecated_response_fields_headers(response)
 
 
 def test_get_job_status_unauthenticated(

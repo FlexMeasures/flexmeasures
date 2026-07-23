@@ -155,6 +155,93 @@ Here is a client-side code example in Python for handling 303 redirects (this me
                 print(f"Failed to fetch fallback schedule: {response.status_code} {response.text}")
         return response
 
+.. _api_background_jobs:
+
+Background job monitoring
+--------------------------
+
+Several API endpoints queue background jobs for asynchronous processing (scheduling, forecasting, data ingestion) and return a ``202 Accepted`` response.
+These responses include a ``job`` field (the canonical identifier) that clients can use to monitor job progress and retrieve results.
+They also include both ``job-url`` for generic status monitoring and (if applicable) ``results-url`` for the sensor-specific results endpoint.
+
+**Example 202 Accepted response from a scheduling endpoint:**
+
+.. code-block:: json
+
+    {
+        "status": "ACCEPTED",
+        "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+        "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+        "results-url": "/api/v3_0/sensors/3/schedules/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+        "message": "Request has been accepted for processing."
+    }
+
+**Monitoring job status:**
+
+Clients should use the ``job.id`` to query the unified job status endpoint:
+
+.. code-block:: bash
+
+    GET /api/v3_0/jobs/<job-id>
+
+This returns the current execution status and a human-readable result message. For example:
+
+.. code-block:: python
+
+    import requests
+    import time
+
+    def wait_for_job(job_id, job_url, timeout=300, poll_interval=5):
+        """Wait for a background job to complete and return the result.
+
+        Parameters
+        ----------
+        job_id : str
+            The UUID of the background job, we use it for logging here..
+        job_url : str
+            The URL to query for job status (e.g., "/api/v3_0/jobs/<uuid>").
+        timeout : int
+            Maximum seconds to wait for job completion.
+        poll_interval : int
+            Seconds between status checks.
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            response = requests.get(job_url)
+            if response.status_code not in (200, 202, 422):
+                raise RuntimeError(
+                    f"Failed to query job status: {response.status_code} {response.text}"
+                )
+
+            job_data = response.json()
+            status = job_data.get("status")
+
+            if response.status_code == 202:
+                print(f"Job {job_id} is still {status.lower()}...")
+                time.sleep(poll_interval)
+            elif status == "FINISHED":
+                return job_data.get("result")
+            else:  # Failed, error, etc.
+                raise RuntimeError(f"Job failed with status {status}: {job_data.get('message')}")
+
+        raise TimeoutError(f"Job {job_id} did not complete within {timeout} seconds")
+
+.. note::
+
+    For **schedules**, after the job completes successfully, use the job ID (same value as the legacy ``schedule`` field) to retrieve the actual schedule or follow the returned ``results-url``:
+    
+    .. code-block:: bash
+    
+        GET /api/v3_0/sensors/<sensor_id>/schedules/<job-id>
+    
+    For **forecasts**, after the job completes successfully, use the job ID to retrieve the forecast or follow the returned ``results-url``:
+    
+    .. code-block:: bash
+    
+        GET /api/v3_0/sensors/<sensor_id>/forecasts/<job-id>
+
+    Both of these endpoints will also return `202 Accepted` if the job is still being computed, so clients can continue to poll them directly if they prefer.
+
 .. _api_deprecation:
 
 Deprecation and sunset
@@ -166,12 +253,62 @@ For more information on our multi-stage deprecation approach and available optio
 
 .. _api_deprecation_clients:
 
-Clients
-^^^^^^^
+Deprecated response fields
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In addition to deprecating entire endpoints, we sometimes deprecate individual fields in API responses while maintaining backward compatibility by including both the legacy and canonical fields.
+When this happens, responses include a ``Deprecation`` response header with the deprecation date, a ``Link`` header pointing to migration guidance, and a ``FlexMeasures-Deprecated-Response-Fields`` header identifying the deprecated fields in that response.
+
+For example, when scheduling endpoints switched from ``schedule`` to ``job`` as the canonical field identifier for background jobs, a response that still contains the legacy ``schedule`` field also carries deprecation headers:
+
+.. code-block:: http
+
+    HTTP/1.1 202 Accepted
+    Deprecation: Wed, 01 Jul 2026 00:00:00 GMT
+    Link: <https://flexmeasures.readthedocs.io/latest/api/v3_0.html#post--api-v3_0-sensors-id-schedules-trigger>; rel="deprecation"; type="text/html"
+    FlexMeasures-Deprecated-Response-Fields: schedule
+    Content-Type: application/json
+
+    {
+        "status": "ACCEPTED",
+        "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+        "schedule": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
+        "job-url": "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb",
+        "results-url": "/api/v3_0/sensors/3/schedules/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+    }
+
+In this example, clients should treat ``job`` as the canonical field and ``schedule`` as a backward-compatible alias.
+The ``FlexMeasures-Deprecated-Response-Fields`` header tells clients which response fields are deprecated, the ``Deprecation`` header tells clients when they were deprecated, and the ``Link`` header points to migration guidance for this endpoint.
 
 Professional API users should monitor API responses for the ``"Deprecation"`` and ``"Sunset"`` response headers [see `draft-ietf-httpapi-deprecation-header-02 <https://datatracker.ietf.org/doc/draft-ietf-httpapi-deprecation-header/>`_ and `RFC 8594 <https://www.rfc-editor.org/rfc/rfc8594>`_, respectively], so system administrators can be warned when using API endpoints that are flagged for deprecation and/or are likely to become unresponsive in the future.
+The ``Deprecation`` header may describe either the endpoint itself or specific response fields.
+Clients can tell the difference by checking for ``FlexMeasures-Deprecated-Response-Fields``: if it is present, only the named response fields are deprecated; if it is absent, the deprecation applies to the endpoint or API version as a whole.
 
-The deprecation header field shows an `IMF-fixdate <https://www.rfc-editor.org/rfc/rfc7231#section-7.1.1.1>`_ indicating when the API endpoint was deprecated.
+For deprecated response fields, clients should:
+
+- Monitor the ``Deprecation`` response header to detect deprecated API behavior.
+- Use the ``FlexMeasures-Deprecated-Response-Fields`` header to identify which response fields are deprecated.
+- Follow the ``Link`` response header to find migration guidance.
+- Migrate to use the canonical field names documented in the API schema.
+- Plan upgrades based on the deprecation guidance to avoid breakage when deprecated fields are eventually removed in a future API version.
+
+Client code should therefore inspect both headers and body fields, for example:
+
+.. code-block:: python
+
+    response = requests.post(trigger_url, json=payload, headers=headers)
+    response.raise_for_status()
+
+    deprecated_fields = response.headers.get("FlexMeasures-Deprecated-Response-Fields")
+    if deprecated_fields:
+        print(f"Deprecated response fields detected: {deprecated_fields}")
+        print(f"See {response.headers.get('Link')}")
+
+    data = response.json()
+    job_id = data["job"]
+
+For endpoint deprecations, the deprecation header field shows an `IMF-fixdate <https://www.rfc-editor.org/rfc/rfc7231#section-7.1.1.1>`_ indicating when the API endpoint was deprecated.
+For deprecated response fields, the deprecation header field also shows an IMF-fixdate, while the presence of the ``FlexMeasures-Deprecated-Response-Fields`` header narrows the deprecation to the named response fields.
 The sunset header field shows an `IMF-fixdate <https://www.rfc-editor.org/rfc/rfc7231#section-7.1.1.1>`_ indicating when the API endpoint is likely to become unresponsive.
 
 More information about a deprecation, sunset, and possibly recommended replacements, can be found under the ``"Link"`` response header. Relevant relations are:

@@ -14,15 +14,33 @@ p = inflect.engine()
 ResponseTuple = tuple[dict, int] | tuple[dict, int, dict]
 
 
+DEPRECATED_RESPONSE_FIELDS_HEADER = "FlexMeasures-Deprecated-Response-Fields"
+
+
+def deprecated_response_fields_headers(
+    fields: Sequence[str],
+    deprecation_link: str,
+    deprecation_date: str,
+) -> dict[str, str]:
+    """Headers used when a response contains deprecated fields."""
+    return {
+        "Deprecation": deprecation_date,
+        "Link": f'<{deprecation_link}>; rel="deprecation"; type="text/html"',
+        DEPRECATED_RESPONSE_FIELDS_HEADER: ", ".join(fields),
+    }
+
+
 def is_response_tuple(value) -> bool:
     """Check if an object qualifies as a ResponseTuple"""
     if not isinstance(value, tuple):
         return False
-    if not len(value) == 2:
+    if len(value) not in (2, 3):
         return False
     if not isinstance(value[0], dict):
         return False
     if not isinstance(value[1], int):
+        return False
+    if len(value) == 3 and not isinstance(value[2], dict):
         return False
     return True
 
@@ -383,16 +401,44 @@ def request_processed(message: str) -> ResponseTuple:
 def request_accepted_for_processing(
     job_id: str,
     message: str = "Request has been accepted for processing.",
+    legacy_key: str | None = None,
+    job_results_url: str | None = None,
+    deprecation_link: str | None = None,
+    deprecation_date: str | None = None,
 ) -> ResponseTuple:
-    return (
-        dict(
-            status="ACCEPTED",
-            message=message,
-            job_monitor_url=url_for("JobAPI:get_job_status", uuid=job_id),
-            job_id=job_id,
-        ),
-        202,
+    """
+    Standard 202 response when a background job is accepted.
+
+    Optional backwards-compatibility: if `legacy_key` is provided the response
+    will include the job id under that legacy key (e.g. `schedule` or
+    `forecast`) and response headers marking the field deprecation.
+
+    Optional `job_results_url` may be supplied to provide a direct link to the
+    sensor-specific job results endpoint, e.g. `/api/v3_0/sensors/<id>/schedules/<uuid>`.
+    """
+    resp: dict[str, object] = dict(
+        status="ACCEPTED",
+        message=message,
+        job=job_id,
     )
+    resp["job-url"] = url_for("JobAPI:get_job_status", uuid=job_id)
+    if job_results_url:
+        resp["results-url"] = job_results_url
+
+    if legacy_key:
+        # keep legacy key for backwards compatibility
+        resp[legacy_key] = job_id
+        assert deprecation_link is not None
+        assert deprecation_date is not None
+        return (
+            resp,
+            202,
+            deprecated_response_fields_headers(
+                [legacy_key], deprecation_link, deprecation_date
+            ),
+        )
+
+    return resp, 202
 
 
 def request_too_large(message: str) -> ResponseTuple:
