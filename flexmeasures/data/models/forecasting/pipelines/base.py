@@ -10,6 +10,7 @@ from darts import TimeSeries
 from darts.dataprocessing.transformers import MissingValuesFiller
 from timely_beliefs import utils as tb_utils
 
+from flexmeasures.data.models.data_sources import source_priorities
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.data.schemas.sensors import SensorReference
@@ -52,6 +53,51 @@ def _regressor_sensor_and_source_filters(
     return regressor.sensor, {
         key: value for key, value in source_filters.items() if value is not None
     }
+
+
+def _resolve_source_collisions(
+    df: pd.DataFrame,
+    regressor: Sensor | SensorReference,
+) -> pd.DataFrame:
+    """Keep a single belief per (event_start, belief_time) pair.
+
+    Several selected sources may record a belief about the same event at the same
+    belief time. Which belief is kept is decided as follows:
+
+    - If the regressor reference lists explicit ``sources``, their list order decides:
+      the first listed source wins.
+    - Otherwise, the source ranked highest by
+      :func:`~flexmeasures.data.models.data_sources.source_priorities` wins,
+      i.e. the latest source version, with the highest source ID as the final tie-break.
+
+    Deduplicating here, before the source column is dropped, also prevents duplicated
+    (event_start, belief_time) keys from multiplying rows through the outer join over
+    regressors in ``load_data_all_beliefs``.
+    """
+    if not df.duplicated(subset=["event_start", "belief_time"]).any():
+        return df
+    explicit_sources = (
+        regressor.sources if isinstance(regressor, SensorReference) else None
+    )
+    if explicit_sources:
+        rank = {source.id: position for position, source in enumerate(explicit_sources)}
+        precedence = df["source"].map(lambda s: (rank.get(s.id, len(rank)), s.id))
+        first_wins = True
+    else:
+        precedence = df["source"].map(source_priorities(df["source"].unique()))
+        first_wins = False  # sort descending: a higher priority means a more recent source version
+    return (
+        df.assign(_precedence=precedence)
+        .sort_values(
+            by=["event_start", "belief_time", "_precedence"],
+            ascending=[True, True, first_wins],
+            kind="mergesort",
+        )
+        .drop_duplicates(subset=["event_start", "belief_time"], keep="first")
+        .drop(columns=["_precedence"])
+        .sort_values(by=["event_start", "belief_time"], kind="mergesort")
+        .reset_index(drop=True)
+    )
 
 
 class BasePipeline:
@@ -260,6 +306,7 @@ class BasePipeline:
                 logging.warning(f"Error during custom resample for {name}: {e}")
 
             df = df.reset_index()
+            df = _resolve_source_collisions(df, regressor_or_sensor)
             df_filtered = df[["event_start", "belief_time", "event_value"]].copy()
             df_filtered.rename(columns={"event_value": name}, inplace=True)
 
