@@ -127,7 +127,7 @@ class TrainPredictPipelineConfigSchema(Schema):
                 "Sensor IDs or source-filtered sensor references to be treated only as past regressors."
                 " Use this if only realizations recorded on this sensor matter as a regressor."
             ),
-            "example": [{"sensor": 2095, "exclude-source-types": ["user"]}],
+            "example": [{"sensor": 2095, "exclude-source-types": ["forecaster"]}],
             "cli": {
                 "option": "--past-regressors",
             },

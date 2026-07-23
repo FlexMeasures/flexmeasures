@@ -7,7 +7,7 @@
     },
     "termsOfService": null,
     "title": "FlexMeasures",
-    "version": "1.0.0"
+    "version": "0.33.2"
   },
   "externalDocs": {
     "description": "FlexMeasures runs on the open source FlexMeasures technology. Read the docs here.",
@@ -4992,7 +4992,7 @@
               {
                 "sensor": 2095,
                 "exclude-source-types": [
-                  "user"
+                  "forecaster"
                 ]
               }
             ],
