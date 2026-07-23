@@ -87,6 +87,84 @@ def test_get_accounts(
 
 
 @pytest.mark.parametrize(
+    "requesting_user, role, expected_names",
+    [
+        (
+            "test_admin_user@seita.nl",
+            "Dummy",
+            {"Test Dummy Account", "Multi Role Account"},
+        ),
+        (
+            "test_admin_user@seita.nl",
+            "Prosumer",
+            {"Test Prosumer Account", "Multi Role Account"},
+        ),
+        ("test_prosumer_user@seita.nl", "Supplier", set()),
+    ],
+    indirect=["requesting_user"],
+)
+def test_get_accounts_filters_by_role_within_accessible_accounts(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    role,
+    expected_names,
+):
+    response = client.get(
+        url_for("AccountAPI:index"),
+        query_string={"role": role},
+    )
+
+    assert response.status_code == 200
+    assert {account["name"] for account in response.json} == expected_names
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_admin_user@seita.nl"],
+    indirect=True,
+)
+def test_get_accounts_filters_by_role_before_pagination(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    response = client.get(
+        url_for("AccountAPI:index"),
+        query_string={"role": "Dummy", "page": 1, "per_page": 10},
+    )
+
+    assert response.status_code == 200
+    assert {account["name"] for account in response.json["data"]} == {
+        "Test Dummy Account",
+        "Multi Role Account",
+    }
+    assert response.json["num-records"] == 2
+    assert response.json["filtered-records"] == 2
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_admin_user@seita.nl"],
+    indirect=True,
+)
+def test_get_accounts_rejects_unknown_role(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    response = client.get(
+        url_for("AccountAPI:index"),
+        query_string={"role": "Unknown role"},
+    )
+
+    assert response.status_code == 422
+    assert response.json["message"]["query"]["role"] == [
+        "No account role found with name Unknown role."
+    ]
+
+
+@pytest.mark.parametrize(
     "requesting_user, status_code",
     [
         (None, 401),  # no auth is not allowed
