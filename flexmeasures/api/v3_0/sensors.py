@@ -1745,7 +1745,7 @@ class SensorAPI(FlaskView):
                 type: string
                 format: date-time
             - in: query
-              name: sort_keys
+              name: sort
               description: Whether to sort the stats by keys (defaults to true).
               schema:
                 type: boolean

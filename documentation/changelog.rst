@@ -14,6 +14,8 @@ New features
 -------------
 
 * Forecasting regressors can filter their input beliefs by data source, source type, excluded source type, or source organisation [see `PR #2347 <https://github.com/FlexMeasures/flexmeasures/pull/2347>`_]
+* Filter organisations by account role in the Accounts API and organisation list UI [see `PR #2353 <https://www.github.com/FlexMeasures/flexmeasures/pull/2353>`_]
+* The flex-context editor now also shows the fields that scheduling the asset would inherit from parent assets — uneditable, with buttons to jump to the editor of the defining parent asset or to override the field on the asset itself [see `PR #2346 <https://www.github.com/FlexMeasures/flexmeasures/pull/2346>`_]
 * Show asset annotations in asset charts: a lightly shaded time band across all subcharts, darkening with a tooltip (showing the annotation text and source) when hovered in a subchart; alerts get a warning hue, and instant annotations render as a vertical rule with a top marker; also adds a ``GET /api/v3_0/assets/<id>/chart_annotations`` endpoint [see `PR #2312 <https://www.github.com/FlexMeasures/flexmeasures/pull/2312>`_]
 * Floor off-clock API datetimes to a non-instantaneous sensor's resolution by default when ingesting sensor data, uploading sensor data, and handling scheduler flex-model timed events; configurable with the ``floor_datetimes_to_resolution`` sensor attribute [see `PR #2146 <https://www.github.com/FlexMeasures/flexmeasures/pull/2146>`_ and `PR #2194 <https://www.github.com/FlexMeasures/flexmeasures/pull/2194>`_]
 * In the UI, asset and sensor charts now render with Apache ECharts (canvas) by default, for much faster drawing and interaction on dense time series, while staying visually and functionally equivalent to the previous Vega-Lite charts, which remain available as a fallback via a toggle [see `PR #2234 <https://www.github.com/FlexMeasures/flexmeasures/pull/2234>`_]
@@ -39,7 +41,7 @@ Infrastructure / Support
 ----------------------
 * Document ``SECURITY_TWO_FACTOR`` and related 2FA configuration settings [see `PR #2340 <https://www.github.com/FlexMeasures/flexmeasures/pull/2340>`_]
 * ``flexmeasures db upgrade`` now runs ``VACUUM ANALYZE`` after upgrading by default, so Postgres has fresh planner statistics right after a migration; opt out with ``--no-vacuum`` [see `PR #2333 <https://www.github.com/FlexMeasures/flexmeasures/pull/2333>`_]
-* Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_, `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_ and `PR #2243 <https://www.github.com/FlexMeasures/flexmeasures/pull/2243>`_]
+* Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_, `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_, `PR #2243 <https://www.github.com/FlexMeasures/flexmeasures/pull/2243>`_ and `PR #2348 <https://www.github.com/FlexMeasures/flexmeasures/pull/2348>`_]
 * Speed up post-processing of sensor data searches: latest-version filtering, deterministic-belief selection per event and chart-data serialization are now vectorized (up to three orders of magnitude faster on large search results) [see `PR #2328 <https://www.github.com/FlexMeasures/flexmeasures/pull/2328>`_]
 * Prepare the ``device_scheduler`` to deal with commitments per device group [see `PR #1934 <https://www.github.com/FlexMeasures/flexmeasures/pull/1934>`_]
 * Speed up scheduling on longer horizons using a recursive stock model, making the solve time linear with the horizon instead of quadratic (about 10x faster solves at the 2-day default horizon, 23x at 3 days) [see `PR #2282 <https://www.github.com/FlexMeasures/flexmeasures/pull/2282>`_]
@@ -60,6 +62,9 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Scheduling jobs no longer print ``Job ... made schedule.`` before ``scheduler.compute()`` runs (only after a successful schedule) [see `PR #2342 <https://www.github.com/FlexMeasures/flexmeasures/pull/2342>`_]
+* ``flexmeasures add user --roles`` now correctly accepts a comma-separated list of roles (and repeated ``--roles`` options) instead of creating one role whose name contains commas [see `PR #2339 <https://www.github.com/FlexMeasures/flexmeasures/pull/2339>`_]
+* Raise a clear ``ValueError`` when a flex-model references a missing sensor ID instead of ``AttributeError: 'NoneType' object has no attribute 'asset_id'`` [see `PR #2343 <https://www.github.com/FlexMeasures/flexmeasures/pull/2343>`_]
 * Fix column sorting on the assets page, including when combined with the search filter [see `PR #2314 <https://www.github.com/FlexMeasures/flexmeasures/pull/2314>`_]
 * Fix forecasting with past or future regressors, which raised a ``TypeError`` on pandas 2.2 and higher [see `PR #2303 <https://www.github.com/FlexMeasures/flexmeasures/pull/2303>`_]
 * Show why a CLI option was rejected (e.g. "No account found with id 9999") instead of only echoing the offending value [see `PR #2303 <https://www.github.com/FlexMeasures/flexmeasures/pull/2303>`_]

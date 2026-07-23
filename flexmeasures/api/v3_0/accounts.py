@@ -15,7 +15,7 @@ from flexmeasures.auth.policy import (
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import Account, User
+from flexmeasures.data.models.user import Account, AccountRole, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -55,6 +55,7 @@ class AccountAPI(FlaskView):
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
+        role: AccountRole | None = None,
         sort_by: str | None = None,
         sort_dir: str | None = None,
     ):
@@ -131,6 +132,9 @@ class AccountAPI(FlaskView):
             Account.id.in_([a.id for a in accounts])
         )
 
+        if role is not None:
+            query = query.filter(Account.account_roles.contains(role))
+
         if filter:
             search_terms = filter[0].split(" ")
             query = query.filter(
@@ -157,7 +161,7 @@ class AccountAPI(FlaskView):
                 query, per_page=per_page, page=page
             )
 
-            accounts_reponse: list = []
+            accounts_response: list = []
             for account in select_pagination.items:
                 user_count_query = select(func.count(User.id)).where(
                     User.account_id == account.id
@@ -167,7 +171,7 @@ class AccountAPI(FlaskView):
                 )
                 user_count = db.session.execute(user_count_query).scalar()
                 asset_count = db.session.execute(asset_count_query).scalar()
-                accounts_reponse.append(
+                accounts_response.append(
                     {
                         **account_schema.dump(account),
                         "user_count": user_count,
@@ -176,8 +180,8 @@ class AccountAPI(FlaskView):
                 )
 
             response = {
-                "data": accounts_reponse,
-                "num-records": select_pagination.total,
+                "data": accounts_response,
+                "num-records": len(accounts),
                 "filtered-records": select_pagination.total,
             }
         else:

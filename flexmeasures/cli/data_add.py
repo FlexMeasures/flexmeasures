@@ -40,6 +40,7 @@ from flexmeasures.cli.utils import (
     DeprecatedOption,
     DeprecatedOptionsCommand,
     add_cli_options_from_schema,
+    split_commas,
 )
 from flexmeasures.data import db
 from flexmeasures.data.scripts.data_gen import (
@@ -296,7 +297,12 @@ def new_account(
     preferred="--account",
     help="Add user to this account. Follow up with the account's ID.",
 )
-@click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
+@click.option(
+    "--roles",
+    multiple=True,
+    callback=split_commas,
+    help="User roles, e.g. anonymous, account-admin. Pass a comma-separated list and/or use this option multiple times.",
+)
 @click.option(
     "--timezone",
     "timezone_optional",
