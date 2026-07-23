@@ -13,6 +13,7 @@ v1.0.0 | July XX, 2026
 New features
 -------------
 
+* Filter organisations by account role in the Accounts API and organisation list UI [see `PR #2353 <https://www.github.com/FlexMeasures/flexmeasures/pull/2353>`_]
 * The flex-context editor now also shows the fields that scheduling the asset would inherit from parent assets — uneditable, with buttons to jump to the editor of the defining parent asset or to override the field on the asset itself [see `PR #2346 <https://www.github.com/FlexMeasures/flexmeasures/pull/2346>`_]
 * Show asset annotations in asset charts: a lightly shaded time band across all subcharts, darkening with a tooltip (showing the annotation text and source) when hovered in a subchart; alerts get a warning hue, and instant annotations render as a vertical rule with a top marker; also adds a ``GET /api/v3_0/assets/<id>/chart_annotations`` endpoint [see `PR #2312 <https://www.github.com/FlexMeasures/flexmeasures/pull/2312>`_]
 * Floor off-clock API datetimes to a non-instantaneous sensor's resolution by default when ingesting sensor data, uploading sensor data, and handling scheduler flex-model timed events; configurable with the ``floor_datetimes_to_resolution`` sensor attribute [see `PR #2146 <https://www.github.com/FlexMeasures/flexmeasures/pull/2146>`_ and `PR #2194 <https://www.github.com/FlexMeasures/flexmeasures/pull/2194>`_]
