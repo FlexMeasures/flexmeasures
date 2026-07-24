@@ -495,7 +495,7 @@
         }
         const assetFlexContext = getFlexContext();
         // Commitments open with one (zero-valued) commitment ready to edit.
-        getActiveContext(assetFlexContext)[fieldName] = fieldName === "commitments" ? [newCommitment()] : "";
+        getActiveContext(assetFlexContext)[fieldName] = fieldName === "commitments" ? [await newCommitment()] : "";
         flexOptionsContainer.innerHTML = "";
         setFlexContext(assetFlexContext);
 
@@ -1170,24 +1170,41 @@ Make sure that the sensor data will be available consistently, though, so schedu
     // needs a (non-empty) name before it can be saved.
     // The scheduler requires all prices to share one currency, so derive the
     // default from price fields already in the flex-context (falling back to EUR).
-    function activeCurrency() {
+    async function activeCurrency() {
         const assetFlexContext = getFlexContext();
         const contexts = [assetFlexContext, ...(assetFlexContext["commodities"] || [])];
+        const priceSensorIds = [];
         for (const context of contexts) {
-            for (const value of Object.values(context || {})) {
+            for (const [key, value] of Object.entries(context || {})) {
                 if (typeof value === "string") {
                     const currencyMatch = value.match(/([A-Z]{3})\/[kMG]?W/);
                     if (currencyMatch) {
                         return currencyMatch[1];
                     }
                 }
+                if (key.includes("price") && value !== null && typeof value === "object" && value["sensor"]) {
+                    priceSensorIds.push(value["sensor"]);
+                }
+            }
+        }
+        // No fixed price values found: best effort, look up the unit of
+        // sensor-referenced price fields (getSensor caches in localStorage).
+        for (const sensorId of priceSensorIds) {
+            try {
+                const sensor = await getSensor(sensorId);
+                const currencyMatch = (sensor["unit"] || "").match(/([A-Z]{3})\/[kMG]?W/);
+                if (currencyMatch) {
+                    return currencyMatch[1];
+                }
+            } catch (error) {
+                // Ignore lookup failures; worst case we fall back to EUR.
             }
         }
         return "EUR";
     }
 
-    function commitmentZeroDefault(key) {
-        return key === "baseline" ? "0 kW" : `0 ${activeCurrency()}/MWh`;
+    async function commitmentZeroDefault(key) {
+        return key === "baseline" ? "0 kW" : `0 ${await activeCurrency()}/MWh`;
     }
 
     function activeCommodityName() {
@@ -1198,20 +1215,26 @@ Make sure that the sensor data will be available consistently, though, so schedu
         return assetFlexContext["commodities"][activeCommodityIndex]["commodity"] || "electricity";
     }
 
-    function newCommitment() {
+    async function newCommitment() {
         return {
             "name": "",
             "commodity": activeCommodityName(),
-            "baseline": commitmentZeroDefault("baseline"),
-            "up-price": commitmentZeroDefault("up-price"),
-            "down-price": commitmentZeroDefault("down-price"),
+            "baseline": await commitmentZeroDefault("baseline"),
+            "up-price": await commitmentZeroDefault("up-price"),
+            "down-price": await commitmentZeroDefault("down-price"),
         };
     }
 
     function setCommitmentField(commitmentIndex, key, value) {
         const assetFlexContext = getFlexContext();
         const activeContext = getActiveContext(assetFlexContext);
-        activeContext["commitments"][commitmentIndex][key] = value;
+        const commitments = activeContext["commitments"];
+        if (!Array.isArray(commitments) || !commitments[commitmentIndex]) {
+            // The commitment may have been removed in the meantime (e.g. while a sensor pick was pending).
+            showToast("This commitment no longer exists", "error");
+            return;
+        }
+        commitments[commitmentIndex][key] = value;
         localStorage.setItem('activeCard', 'commitments');
         setFlexContext(assetFlexContext);
     }
@@ -1339,9 +1362,9 @@ Make sure that the sensor data will be available consistently, though, so schedu
                 } else if (currentValue !== undefined && currentValue !== null) {
                     input.value = String(currentValue);
                 }
-                const commitInput = () => {
+                const commitInput = async () => {
                     // Clearing the input unsets the value, i.e. resets it to zero.
-                    const value = input.value.trim() === "" ? commitmentZeroDefault(key) : parseCommitmentValue(input.value);
+                    const value = input.value.trim() === "" ? await commitmentZeroDefault(key) : parseCommitmentValue(input.value);
                     setCommitmentField(index, key, value);
                 };
                 input.onkeydown = (event) => {
@@ -1360,7 +1383,7 @@ Make sure that the sensor data will be available consistently, though, so schedu
                 unsetBtn.className = "btn btn-sm btn-outline-secondary me-1";
                 unsetBtn.textContent = "Unset";
                 unsetBtn.title = "Reset this value to zero";
-                unsetBtn.onclick = () => setCommitmentField(index, key, commitmentZeroDefault(key));
+                unsetBtn.onclick = async () => setCommitmentField(index, key, await commitmentZeroDefault(key));
                 buttonsCol.appendChild(unsetBtn);
                 const sensorBtn = document.createElement("button");
                 sensorBtn.className = "btn btn-sm btn-outline-secondary";
@@ -1385,11 +1408,11 @@ Make sure that the sensor data will be available consistently, though, so schedu
         const addBtn = document.createElement("button");
         addBtn.className = "btn btn-secondary btn-sm";
         addBtn.textContent = "Add commitment";
-        addBtn.onclick = () => {
+        addBtn.onclick = async () => {
             const assetFlexContext = getFlexContext();
             const context = getActiveContext(assetFlexContext);
             const existing = Array.isArray(context["commitments"]) ? context["commitments"] : [];
-            context["commitments"] = [...existing, newCommitment()];
+            context["commitments"] = [...existing, await newCommitment()];
             localStorage.setItem('activeCard', 'commitments');
             setFlexContext(assetFlexContext);
         };

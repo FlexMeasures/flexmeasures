@@ -1550,8 +1550,11 @@ class MetaStorageScheduler(Scheduler):
         price_unit = self.flex_context["shared_currency_unit"] + "/MW"
         commitments = []
         for commitment_spec in commitment_specs:
+            # Work on a copy, so converting (which pops fields) does not mutate
+            # self.flex_context and repeated conversions see the original specs.
+            commitment_spec = dict(commitment_spec)
             # Namespace the user-given name (guarding against double prefixing,
-            # in case the specs are converted more than once).
+            # in case a caller passes an already-namespaced spec).
             if not commitment_spec["name"].startswith("custom:"):
                 commitment_spec["name"] = f"custom:{commitment_spec['name']}"
 
