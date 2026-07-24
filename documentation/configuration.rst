@@ -449,11 +449,9 @@ Default: ``None``
 SENTRY_SDN
 ^^^^^^^^^^^^
 
-Deprecated misspelling of ``SENTRY_DSN`` (see below), still accepted as a fallback for backward compatibility.
+Deprecated misspelling of ``SENTRY_DSN`` (see below). Only the environment variable is still accepted as a fallback for backward compatibility; config files should use ``SENTRY_DSN``.
 
 Default: ``None``
-
-.. note:: This setting is also recognized as environment variable.
 
 
 SQLAlchemy

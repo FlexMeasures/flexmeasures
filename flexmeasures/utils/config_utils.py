@@ -252,7 +252,7 @@ def read_env_vars(app: Flask):
         value = os.getenv(var, None)
         if value is None:
             continue
-        if isinstance(app.config.get(var), bool):
+        if isinstance(getattr(DefaultConfig, var, None), bool):
             value = parse_bool_env(value)
         app.config[var] = value
 
