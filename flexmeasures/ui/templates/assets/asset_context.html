@@ -518,9 +518,13 @@
         let data = getFlexContext();
 
         function cleanContext(context, isCommodityContext) {
-            // Take out keys that are not in the specs
+            // Take out keys that are not in the specs, sparing structural keys
+            // (the commodities list itself is not part of the UI schema).
             for (const key in context) {
                 if (isCommodityContext && key === "commodity") {
+                    continue;
+                }
+                if (!isCommodityContext && key === "commodities") {
                     continue;
                 }
                 if (!assetFlexContextSchema.hasOwnProperty(key)) {
