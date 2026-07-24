@@ -125,6 +125,73 @@ class EfficiencyField(QuantityField):
         )
 
 
+class OperationModeSchema(Schema):
+    """One operation mode of a device, in the sense of the S2 standard.
+
+    A device with operation modes can only run within one of the declared modes'
+    power ranges at any given time. Each range is given with an explicit sign
+    convention: ``consumption-range`` (non-negative, positive means consumption)
+    and/or ``production-range`` (non-negative, positive means production). A mode
+    may use either or both; using both forms a single band through zero (so both
+    must then start at 0). The S2 standard's signed power-range maps to the FM
+    ``consumption-range`` (S2 fixes one sign convention for power, whereas FM
+    leaves it to the user). A device that can only be off or run at exactly
+    883.7 W of consumption declares:
+
+        [{"consumption-range": ["0 W", "0 W"]}, {"consumption-range": ["883.7 W", "883.7 W"]}]
+    """
+
+    consumption_range = fields.List(
+        QuantityField(to_unit="MW", default_src_unit="MW", return_magnitude=False),
+        data_key="consumption-range",
+        required=False,
+        validate=validate.Length(equal=2),
+        metadata=dict(
+            description="Consumption power range [min, max] of this operation mode "
+            "(non-negative; positive is consumption). The S2 power-range maps to this field.",
+        ),
+    )
+    production_range = fields.List(
+        QuantityField(to_unit="MW", default_src_unit="MW", return_magnitude=False),
+        data_key="production-range",
+        required=False,
+        validate=validate.Length(equal=2),
+        metadata=dict(
+            description="Production power range [min, max] of this operation mode "
+            "(non-negative; positive is production).",
+        ),
+    )
+
+    @validates_schema
+    def check_ranges(self, data: dict, **kwargs):
+        cons = data.get("consumption_range")
+        prod = data.get("production_range")
+        if cons is None and prod is None:
+            raise ValidationError(
+                "An operation mode must declare a consumption-range and/or a production-range."
+            )
+        for name, rng in (("consumption-range", cons), ("production-range", prod)):
+            if rng is None:
+                continue
+            if rng[0].to("MW").magnitude < 0:
+                raise ValidationError(
+                    f"An operation mode's {name} must be non-negative."
+                )
+            if rng[0] > rng[1]:
+                raise ValidationError(
+                    f"The minimum of an operation mode's {name} cannot exceed its maximum."
+                )
+        if (
+            cons is not None
+            and prod is not None
+            and (cons[0].to("MW").magnitude != 0 or prod[0].to("MW").magnitude != 0)
+        ):
+            raise ValidationError(
+                "When an operation mode combines consumption-range and production-range, "
+                "both must start at 0 (so they form one contiguous band through zero)."
+            )
+
+
 class StorageFlexModelSchema(Schema):
     """
     This schema lists fields we require when scheduling storage assets.
@@ -197,6 +264,13 @@ class StorageFlexModelSchema(Schema):
         metadata=metadata.PRODUCTION_CAPACITY.to_dict(),
     )
 
+    operation_modes = fields.List(
+        fields.Nested(OperationModeSchema()),
+        data_key="operation-modes",
+        required=False,
+        validate=validate.Length(min=1),
+        metadata=metadata.OPERATION_MODES.to_dict(),
+    )
     group = fields.Nested(
         GroupReferenceSchema,
         data_key="group",
