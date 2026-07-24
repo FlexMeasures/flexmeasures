@@ -58,6 +58,7 @@ from flexmeasures.data.schemas.generic_assets import (
     SensorsToShowSchema,
 )
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+from flexmeasures.data.schemas.utils import SupportsLegacyFieldAliases
 from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
     create_simultaneous_scheduling_job,
@@ -97,6 +98,22 @@ def sensor_term_filter(term: str):
     if term.isdecimal():
         filters.append(id_prefix_filter(Sensor.id, term))
     return or_(*filters)
+
+
+class AssetTriggerSchemaV3(SupportsLegacyFieldAliases, AssetTriggerSchema):
+    """v3_0-only wrapper around the shared `AssetTriggerSchema`.
+
+    `AssetTriggerSchema` itself stays canonical (no legacy field-name
+    aliasing) since it's also used outside the versioned API, e.g. by the
+    CLI. This subclass adds v3_0's backward compatibility for the legacy
+    `force_new_job_creation` field name, so it can be deleted in one place,
+    along with the rest of `flexmeasures/api/v3_0/`, once this API version is
+    sunset -- without needing to touch the shared domain schema.
+    """
+
+    legacy_field_aliases = {
+        "force_new_job_creation": "force-new-job-creation",
+    }
 
 
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
@@ -1428,7 +1445,7 @@ class AssetAPI(FlaskView):
         }, 200
 
     @route("/<id>/schedules/trigger", methods=["POST"])
-    @use_args(AssetTriggerSchema(), location="args_and_json", as_kwargs=True)
+    @use_args(AssetTriggerSchemaV3(), location="args_and_json", as_kwargs=True)
     # Simplification of checking for create-children access on each of the flexible sensors,
     # which assumes each of the flexible sensors belongs to the given asset.
     @permission_required_for_context("create-children", ctx_arg_name="asset")

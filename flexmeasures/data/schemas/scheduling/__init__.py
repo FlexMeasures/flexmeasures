@@ -29,7 +29,6 @@ from flexmeasures.data.schemas.sensors import (
 )
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.units import UnitField
-from flexmeasures.data.schemas.utils import SupportsLegacyFieldAliases
 from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.times import (
     AwareDateTimeField,
@@ -1499,7 +1498,7 @@ class MultiSensorFlexModelSchema(Schema):
         return dict(**data, **sensor_flex_model)
 
 
-class AssetTriggerSchema(SupportsLegacyFieldAliases, Schema):
+class AssetTriggerSchema(Schema):
     """
     {
         "start": "2025-01-21T15:00+01",
@@ -1514,11 +1513,15 @@ class AssetTriggerSchema(SupportsLegacyFieldAliases, Schema):
             },
         ]
     }
-    """
 
-    legacy_field_aliases = {
-        "force_new_job_creation": "force-new-job-creation",
-    }
+    This schema is also used outside of the (versioned) API, e.g. by the CLI,
+    so it stays canonical (no legacy field-name aliasing here). API-version-
+    specific backward compatibility, such as accepting the legacy
+    `force_new_job_creation` field name, is layered on top in
+    `flexmeasures/api/v3_0/assets.py` (`AssetTriggerSchemaV3`), so it can be
+    deleted in one place once v3_0 is sunset, without touching this shared
+    domain schema.
+    """
 
     asset = GenericAssetIdField(
         data_key="id",
