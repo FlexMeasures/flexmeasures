@@ -357,8 +357,9 @@ class SensorAPI(FlaskView):
             The `filter` parameter allows you to search for sensors by name, account name, asset name, or sensor ID prefix.
             The `unit` parameter allows you to filter by unit.
 
-            For the pagination of the sensor list, you can use the `page` and `per-page` query parameters (legacy alias: `per_page`), the `page` parameter is used to trigger
-            pagination, and the `per-page` parameter is used to specify the number of records per page. The default value for `page` is 1 and for `per-page` is 10.
+            For the pagination of the sensor list, you can use the `page` and `per-page` query parameters (legacy alias: `per_page`). If `page` is omitted,
+            all accessible sensors are returned, without pagination. If `page` is provided, the response is paginated, using `per-page` (default 10) to
+            specify the number of records per page.
 
           security:
             - ApiKeyAuth: []
