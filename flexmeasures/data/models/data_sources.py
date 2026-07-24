@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.dialects.postgresql import JSONB
 
+import numpy as np
 import pandas as pd
 import timely_beliefs as tb
 
@@ -514,19 +515,30 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
         self.attributes[attribute] = value
 
 
+def source_priorities(sources) -> dict:
+    """Rank sources by version (then by id), with a higher rank meaning a more recent version.
+
+    Sources without a version are assumed to have version 0.0.0.
+    """
+    priority_order = sorted(
+        sources,
+        key=lambda s: (
+            Version(s.version or "0.0.0"),
+            s.id if s.id is not None else -1,
+        ),
+    )
+    return {source: rank for rank, source in enumerate(priority_order)}
+
+
 def keep_latest_version(
     bdf: tb.BeliefsDataFrame,
     one_deterministic_belief_per_event: bool = False,
 ) -> tb.BeliefsDataFrame:
     """Filters the BeliefsDataFrame to keep the latest version of each source per event or per belief.
 
-    The function performs the following steps:
-
-    1. Adds columns for the source's name, type, model, version and id.
-    2. Sorts the rows by `source.version` and `source.id`, both in descending order.
-    3. Removes duplicates based on `source.name`, `source.type`, and `source.model`,
-       keeping the latest version for each `event_start` (and `belief_time`).
-    4. Drops the temporary columns added for source attributes.
+    Sources are grouped by (name, type, model); within each group, only data from
+    the latest version (breaking ties by highest id) is kept, per event or per belief.
+    Probabilistic beliefs are kept intact.
 
     :param bdf: The input `BeliefsDataFrame` containing `event_start` and source information.
     :param one_deterministic_belief_per_event:
@@ -541,70 +553,38 @@ def keep_latest_version(
     # Sanitize BeliefsDataFrame by removing duplicate indices
     bdf = bdf.loc[~bdf.index.duplicated(keep="first"), :]
 
-    # Get the event column and belief column names
+    # Group unique sources by (name, type, model)
+    source_codes, unique_sources = pd.factorize(bdf.index.get_level_values("source"))
+    group_keys: dict = {}
+    group_per_source = np.empty(len(unique_sources), dtype=np.int64)
+    for i, source in enumerate(unique_sources):
+        key = (source.name, source.type, source.model)
+        group_per_source[i] = group_keys.setdefault(key, len(group_keys))
+    if len(group_keys) == len(unique_sources):
+        # Every source is the sole member of its group, so nothing can be dropped
+        return bdf
+
+    # Prioritize each unique source within its group by version, then by id
+    priorities = source_priorities(unique_sources)
+    priority_per_source = np.array(
+        [priorities[source] for source in unique_sources], dtype=np.int64
+    )
+
+    # Keep, per event (and belief) and source group, only the rows of the
+    # highest-priority source, retaining probabilistic rows and row order
     index_levels = bdf.index.names
-    belief_column = "belief_time"
-    if belief_column not in index_levels:
-        belief_column = "belief_horizon"
-    event_column = "event_start"
-    if event_column not in index_levels:
-        event_column = "event_end"
-
-    # Add source-related columns using vectorized operations for clarity
-    source_values = set(bdf.index.get_level_values("source").values)
-    source_to_fields = {
-        s: {
-            "source.name": s.name,
-            "source.type": s.type,
-            "source.model": s.model,
-            "source.version": Version(s.version or "0.0.0"),
-            "source.id": s.id,
-        }
-        for s in source_values
-    }
-    source_expanded = bdf.index.get_level_values("source").map(source_to_fields)
-
-    bdf[
-        ["source.name", "source.type", "source.model", "source.version", "source.id"]
-    ] = pd.DataFrame(source_expanded.tolist(), index=bdf.index)
-    bdf["_" + event_column] = bdf.index.get_level_values(event_column)
-    if not one_deterministic_belief_per_event:
-        bdf["_" + belief_column] = bdf.index.get_level_values(belief_column)
-    # Sort by event_start (belief_time), version and ID, keeping only the latest version and highest ID
-    if one_deterministic_belief_per_event:
-        sort_by = ["_" + event_column, "source.version", "source.id"]
-        ascending = [True, False, False]
-    else:
-        sort_by = [
-            "_" + event_column,
-            "_" + belief_column,
-            "source.version",
-            "source.id",
-        ]
-        ascending = [
-            True,
-            True if belief_column == "belief_time" else False,
-            False,
-            False,
-        ]
-    bdf_sorted = bdf.sort_values(by=sort_by, ascending=ascending)
-
-    # Drop duplicates based on event_start and source identifiers, keeping the latest version
-    unique_columns = [
-        "_" + event_column,
-        "source.name",
-        "source.type",
-        "source.model",
+    event_column = "event_start" if "event_start" in index_levels else "event_end"
+    group_keys_per_row = [
+        bdf.index.get_level_values(event_column).asi8,
+        group_per_source[source_codes],
     ]
     if not one_deterministic_belief_per_event:
-        unique_columns += ["_" + belief_column]
-    # Keep probabilistic beliefs intact
-    unique_keys = (
-        bdf_sorted[unique_columns].drop_duplicates().droplevel("cumulative_probability")
+        belief_column = (
+            "belief_time" if "belief_time" in index_levels else "belief_horizon"
+        )
+        group_keys_per_row.append(bdf.index.get_level_values(belief_column).asi8)
+    priority_per_row = pd.Series(priority_per_source[source_codes])
+    winning_priority = (
+        priority_per_row.groupby(group_keys_per_row).transform("max").to_numpy()
     )
-    bdf = bdf.loc[bdf.index.droplevel("cumulative_probability").isin(unique_keys.index)]
-
-    # Remove temporary columns
-    bdf = bdf.drop(columns=unique_columns + ["source.version", "source.id"])
-
-    return bdf
+    return bdf[priority_per_row.to_numpy() == winning_priority]

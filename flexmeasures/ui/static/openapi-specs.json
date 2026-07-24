@@ -880,7 +880,7 @@
           },
           {
             "in": "query",
-            "name": "sort_keys",
+            "name": "sort",
             "description": "Whether to sort the stats by keys (defaults to true).",
             "schema": {
               "type": "boolean"
@@ -1944,6 +1944,16 @@
                 "asc",
                 "desc"
               ]
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "role",
+            "description": "Filter organisations by account role.",
+            "schema": {
+              "type": "string",
+              "example": "Prosumer"
             },
             "required": false
           }
@@ -5627,6 +5637,11 @@
               "desc"
             ],
             "description": "Sort direction for the results. Ascending ('asc') or descending ('desc')."
+          },
+          "role": {
+            "type": "string",
+            "description": "Filter organisations by account role.",
+            "example": "Prosumer"
           }
         },
         "additionalProperties": false
