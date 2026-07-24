@@ -1075,7 +1075,11 @@
         const label = document.createElement("label");
         label.htmlFor = "sensor";
         label.className = "form-label";
-        label.innerHTML = `Look up Sensor for <b>${targetLabel}</b> `;
+        label.appendChild(document.createTextNode("Look up Sensor for "));
+        const targetLabelEle = document.createElement("b");
+        targetLabelEle.textContent = targetLabel;  // may contain user-given names, so no innerHTML
+        label.appendChild(targetLabelEle);
+        label.appendChild(document.createTextNode(" "));
         label.appendChild(createTooltipIcon(
             `Search for sensor(s) to add here. All sensors on the same site as this asset (including parent- and sibling assets) are included by default.
 Make sure that the sensor data will be available consistently, though, so scheduling will work.`
@@ -1161,8 +1165,9 @@ Make sure that the sensor data will be available consistently, though, so schedu
     // written into that commitment's field instead of replacing the whole card value.
     let pendingCommitmentTarget = null;
 
-    // Commitments start out with (and are unset back to) zero quantities,
-    // so a freshly added commitment is already valid and has no effect until edited.
+    // Commitments start out with (and are unset back to) zero quantities, so a
+    // freshly added commitment has no effect until edited. Note that it still
+    // needs a (non-empty) name before it can be saved.
     const commitmentZeroDefaults = { "baseline": "0 kW", "up-price": "0 EUR/MWh", "down-price": "0 EUR/MWh" };
 
     function activeCommodityName() {
@@ -1195,9 +1200,10 @@ Make sure that the sensor data will be available consistently, though, so schedu
         return raw.trim();
     }
 
+    // Returns a plain-text description, or null when the value is not set.
     function describeCommitmentValue(value) {
         if (value === undefined || value === null || value === "") {
-            return "<i>not set</i>";
+            return null;
         }
         if (typeof value === "object" && value["sensor"]) {
             return `sensor ${value["sensor"]}`;
@@ -1277,7 +1283,21 @@ Make sure that the sensor data will be available consistently, though, so schedu
 
                 const labelCol = document.createElement("div");
                 labelCol.className = "col-3";
-                labelCol.innerHTML = `<label class="form-label mb-0">${key}</label><div class="small text-black-50">${describeCommitmentValue(commitment[key])}</div>`;
+                const keyLabel = document.createElement("label");
+                keyLabel.className = "form-label mb-0";
+                keyLabel.textContent = key;
+                const valueSummary = document.createElement("div");
+                valueSummary.className = "small text-black-50";
+                const description = describeCommitmentValue(commitment[key]);
+                if (description === null) {
+                    const notSet = document.createElement("i");
+                    notSet.textContent = "not set";
+                    valueSummary.appendChild(notSet);
+                } else {
+                    valueSummary.textContent = description;  // may contain user-entered text, so no innerHTML
+                }
+                labelCol.appendChild(keyLabel);
+                labelCol.appendChild(valueSummary);
                 row.appendChild(labelCol);
 
                 const inputCol = document.createElement("div");

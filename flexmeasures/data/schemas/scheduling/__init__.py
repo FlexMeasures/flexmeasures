@@ -73,7 +73,8 @@ class NoTimeSeriesSpecs(Schema):
 
 class CommitmentSchema(Schema):
     name = fields.Str(required=True, data_key="name", validate=validate.Length(min=1))
-    # Undocumented for now (not part of UI_FLEX_CONTEXT_SCHEMA, OpenAPI or Sphinx docs).
+    # Not described in UI_FLEX_CONTEXT_SCHEMA or the Sphinx docs (it does show up
+    # in the generated OpenAPI schema, without being promoted in field descriptions).
     # Internal bookkeeping only: not the documented way to associate a commitment
     # with a commodity. API users should instead place the commitment under the
     # relevant entry of the multi-commodity `commodities` list (one flex-context
