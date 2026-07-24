@@ -1168,7 +1168,27 @@ Make sure that the sensor data will be available consistently, though, so schedu
     // Commitments start out with (and are unset back to) zero quantities, so a
     // freshly added commitment has no effect until edited. Note that it still
     // needs a (non-empty) name before it can be saved.
-    const commitmentZeroDefaults = { "baseline": "0 kW", "up-price": "0 EUR/MWh", "down-price": "0 EUR/MWh" };
+    // The scheduler requires all prices to share one currency, so derive the
+    // default from price fields already in the flex-context (falling back to EUR).
+    function activeCurrency() {
+        const assetFlexContext = getFlexContext();
+        const contexts = [assetFlexContext, ...(assetFlexContext["commodities"] || [])];
+        for (const context of contexts) {
+            for (const value of Object.values(context || {})) {
+                if (typeof value === "string") {
+                    const currencyMatch = value.match(/([A-Z]{3})\/[kMG]?W/);
+                    if (currencyMatch) {
+                        return currencyMatch[1];
+                    }
+                }
+            }
+        }
+        return "EUR";
+    }
+
+    function commitmentZeroDefault(key) {
+        return key === "baseline" ? "0 kW" : `0 ${activeCurrency()}/MWh`;
+    }
 
     function activeCommodityName() {
         const assetFlexContext = getFlexContext();
@@ -1179,7 +1199,13 @@ Make sure that the sensor data will be available consistently, though, so schedu
     }
 
     function newCommitment() {
-        return { "name": "", "commodity": activeCommodityName(), ...commitmentZeroDefaults };
+        return {
+            "name": "",
+            "commodity": activeCommodityName(),
+            "baseline": commitmentZeroDefault("baseline"),
+            "up-price": commitmentZeroDefault("up-price"),
+            "down-price": commitmentZeroDefault("down-price"),
+        };
     }
 
     function setCommitmentField(commitmentIndex, key, value) {
@@ -1315,7 +1341,7 @@ Make sure that the sensor data will be available consistently, though, so schedu
                 }
                 const commitInput = () => {
                     // Clearing the input unsets the value, i.e. resets it to zero.
-                    const value = input.value.trim() === "" ? commitmentZeroDefaults[key] : parseCommitmentValue(input.value);
+                    const value = input.value.trim() === "" ? commitmentZeroDefault(key) : parseCommitmentValue(input.value);
                     setCommitmentField(index, key, value);
                 };
                 input.onkeydown = (event) => {
@@ -1334,7 +1360,7 @@ Make sure that the sensor data will be available consistently, though, so schedu
                 unsetBtn.className = "btn btn-sm btn-outline-secondary me-1";
                 unsetBtn.textContent = "Unset";
                 unsetBtn.title = "Reset this value to zero";
-                unsetBtn.onclick = () => setCommitmentField(index, key, commitmentZeroDefaults[key]);
+                unsetBtn.onclick = () => setCommitmentField(index, key, commitmentZeroDefault(key));
                 buttonsCol.appendChild(unsetBtn);
                 const sensorBtn = document.createElement("button");
                 sensorBtn.className = "btn btn-sm btn-outline-secondary";
