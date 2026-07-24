@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from flask import current_app
 import pandas as pd
 import numpy as np
@@ -873,6 +875,15 @@ def device_scheduler(  # noqa C901
             "dual_feasibility_tolerance": "1e-9",
             "mip_feasibility_tolerance": "1e-9",
         }
+        # Bound the solve: with binary variables (e.g. operation-mode power
+        # bands) and a nearly-degenerate objective, proving a 0-gap optimum
+        # can take unboundedly long; return the best incumbent instead.
+        time_limit_s = current_app.config.get(
+            "FLEXMEASURES_SOLVER_TIME_LIMIT",
+            os.getenv("FLEXMEASURES_SOLVER_TIME_LIMIT"),
+        )
+        if time_limit_s is not None:
+            profile["time_limit"] = str(time_limit_s)
         # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
         if current_app.config["LOGGING_LEVEL"] == "INFO":
             profile["output_flag"] = "false"
