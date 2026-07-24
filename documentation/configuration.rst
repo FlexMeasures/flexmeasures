@@ -62,6 +62,20 @@ Note that you need to install the solver, read more at :ref:`installing-a-solver
 Default: ``"appsi_highs"``
 
 
+FLEXMEASURES_LP_SOLVER_OPTIONS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Solver options passed to the scheduling solver, overriding the defaults FlexMeasures sets itself. Use this to tune the solver without patching code, for example to trade optimality for speed::
+
+    FLEXMEASURES_LP_SOLVER_OPTIONS = {"mip_rel_gap": "1e-4"}
+
+When the solver is HiGHS, FlexMeasures validates these against the installed HiGHS build and raises on an unknown option name, an invalid value, or a feature the build lacks. This matters because Pyomo's ``appsi_highs`` interface otherwise applies solver options without checking whether HiGHS accepted them, so a typo would be silently ignored.
+
+.. note:: HiGHS initializes its thread scheduler once per process. Setting ``threads`` or ``parallel`` therefore only affects the first solve in a worker process; later solves fail with ``global scheduler has already been initialized`` and return no schedule. FlexMeasures logs a warning if you set either.
+
+Default: ``{}``
+
+
 
 FLEXMEASURES_HOSTS_AND_AUTH_START
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -323,6 +337,25 @@ A job that is passed this time to live might get cleaned out by Redis' memory ma
 
 Default: ``timedelta(days=1)``
 
+FLEXMEASURES_DEFAULT_JOB_TIMEOUT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Default timeout for jobs (e.g. forecasting, scheduling and ingestion), expressed as a fixed ISO 8601 duration.
+Jobs that exceed this timeout are moved to RQ's failed queue.
+
+Default: ``timedelta(seconds=180)`` (``"PT180S"``)
+
+FLEXMEASURES_JOB_TIMEOUT
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Timeouts per queue, expressed as fixed ISO 8601 durations.
+Queue-specific values override ``FLEXMEASURES_DEFAULT_JOB_TIMEOUT``.
+Supported queue names are ``forecasting``, ``scheduling`` and ``ingestion``.
+
+Example: ``{"forecasting": "PT2M", "scheduling": "PT5M", "ingestion": "PT30S"}``
+
+Default: ``{}``
+
 FLEXMEASURES_PLANNING_TTL
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -416,12 +449,9 @@ Default: ``None``
 SENTRY_SDN
 ^^^^^^^^^^^^
 
-Set tokenized URL, so errors will be sent to Sentry when ``app.env`` is not in `debug` or `testing` mode.
-E.g.: ``https://<examplePublicKey>@o<something>.ingest.sentry.io/<project-Id>``
+Deprecated misspelling of ``SENTRY_DSN`` (see below). Only the environment variable is still accepted as a fallback for backward compatibility; config files should use ``SENTRY_DSN``.
 
 Default: ``None``
-
-.. note:: This setting is also recognized as environment variable.
 
 
 SQLAlchemy
@@ -488,6 +518,62 @@ You can also set this in a file (which some Flask tutorials advise).
 Default: ``None``
 
 
+.. _security_two_factor:
+
+SECURITY_TWO_FACTOR
+^^^^^^^^^^^^^^^^^^^
+
+Whether to require :abbr:`2FA (two-factor authentication)` when users log in to the UI.
+When enabled, FlexMeasures uses :abbr:`TOTP (time-based one-time password)` codes (currently via email).
+
+Strongly recommended for production. FlexMeasures logs a warning on startup if this is left ``False`` in a production environment.
+See :ref:`installation_two_factor` for a short setup walkthrough, and set ``SECURITY_TOTP_SECRETS`` when enabling 2FA.
+
+This setting is also recognized as an environment variable.
+
+Default: ``False``
+
+SECURITY_TWO_FACTOR_ENABLED_METHODS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Which 2FA methods are enabled. FlexMeasures currently supports ``email``; authenticator-app support may be added later.
+
+Default: ``["email"]``
+
+SECURITY_TWO_FACTOR_ALWAYS_VALIDATE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When ``True``, users must complete 2FA on every login.
+Set to ``False`` (together with ``SECURITY_TWO_FACTOR_LOGIN_VALIDITY``) if you want to skip re-validation for a limited time after a successful 2FA check (useful for testing or lower-friction deployments).
+
+Default: ``True``
+
+SECURITY_TWO_FACTOR_LOGIN_VALIDITY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+How long a successful 2FA validation remains valid when ``SECURITY_TWO_FACTOR_ALWAYS_VALIDATE`` is ``False``.
+Uses a human-readable duration string (as understood by Flask-Security).
+
+Default: ``"1 week"``
+
+SECURITY_TWO_FACTOR_RESCUE_MAIL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Email address users can contact when they cannot complete the second authentication step
+(for example, if they lost access to their email inbox used for TOTP codes).
+
+By default this falls back to the address part of ``MAIL_DEFAULT_SENDER``, which is often a no-reply address — set an address where hosts can actually help users.
+
+Default: address from ``MAIL_DEFAULT_SENDER`` (if configured as a ``(name, email)`` tuple), otherwise ``None``
+
+SECURITY_TOTP_ISSUER
+^^^^^^^^^^^^^^^^^^^^
+
+Issuer label shown in authenticator apps and related TOTP metadata.
+
+Default: ``"FlexMeasures"``
+
+
 .. _security_totp_secrets:
 
 SECURITY_TOTP_SECRETS
@@ -495,6 +581,7 @@ SECURITY_TOTP_SECRETS
 
 A dictionary with secrets used to sign :abbr:`TOTP (time-based one-time password)` tokens.
 For example, ``{"1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}``.
+Required when ``SECURITY_TWO_FACTOR`` is enabled.
 
 Default: ``None``
 
@@ -688,6 +775,8 @@ Set tokenized URL, so errors will be sent to Sentry when ``app.env`` is not in `
 E.g.: ``https://<examplePublicKey>@o<something>.ingest.sentry.io/<project-Id>``
 
 Default: ``None``
+
+.. note:: This setting is also recognized as environment variable.
 
 
 FLEXMEASURES_SENTRY_CONFIG

@@ -81,6 +81,59 @@ class NewAssetWithSensors:
         self.db.session.commit()
 
 
+def test_get_flex_context_with_provenance(
+    fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
+):
+    """Fields set on the asset itself win, and missing fields come from the nearest ancestor that sets them."""
+    db = fresh_db
+    asset_type = setup_generic_asset_types_fresh_db["battery"]
+    owner = setup_accounts_fresh_db["Prosumer"]
+    site = GenericAsset(
+        name="provenance site",
+        generic_asset_type=asset_type,
+        owner=owner,
+        flex_context={
+            "site-power-capacity": "2 MVA",
+            "consumption-price": {"sensor": 1},
+        },
+    )
+    db.session.add(site)
+    db.session.flush()
+    intermediate = GenericAsset(
+        name="provenance inverter",
+        generic_asset_type=asset_type,
+        owner=owner,
+        parent_asset_id=site.id,
+        flex_context={"site-power-capacity": "1 MVA"},
+    )
+    db.session.add(intermediate)
+    db.session.flush()
+    leaf = GenericAsset(
+        name="provenance battery",
+        generic_asset_type=asset_type,
+        owner=owner,
+        parent_asset_id=intermediate.id,
+    )
+    db.session.add(leaf)
+    db.session.flush()
+
+    provenance = leaf.get_flex_context_with_provenance()
+    # The nearest ancestor defining a field wins: the intermediate's tighter capacity shadows the site's.
+    assert provenance["site-power-capacity"] == dict(value="1 MVA", asset=intermediate)
+    assert provenance["consumption-price"] == dict(value={"sensor": 1}, asset=site)
+
+    # An asset's own fields take precedence over any ancestor's.
+    provenance = intermediate.get_flex_context_with_provenance()
+    assert provenance["site-power-capacity"] == dict(value="1 MVA", asset=intermediate)
+    assert provenance["consumption-price"] == dict(value={"sensor": 1}, asset=site)
+
+    # get_flex_context returns the same fields, with the provenance stripped.
+    assert leaf.get_flex_context() == {
+        "site-power-capacity": "1 MVA",
+        "consumption-price": {"sensor": 1},
+    }
+
+
 def test_duplicate_public_root_asset_names_are_rejected(
     fresh_db, setup_generic_asset_types_fresh_db
 ):

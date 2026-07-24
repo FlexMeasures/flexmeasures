@@ -41,6 +41,7 @@ from flexmeasures.ui.utils.auth_utils import (
 )
 from flexmeasures.ui.views.assets.utils import (
     get_asset_by_id_or_raise_notfound,
+    get_inherited_flex_context,
     get_list_assets_chart,
     add_child_asset,
 )
@@ -206,6 +207,7 @@ class AssetCrudUI(FlaskView):
             assets=assets,
             asset=asset,
             flex_context_schema=UI_FLEX_CONTEXT_SCHEMA,
+            inherited_flex_context=get_inherited_flex_context(asset),
             current_asset_sensors=current_asset_sensors,
             site_asset=site_asset,
             user_can_create_children=user_can_create_children(asset),

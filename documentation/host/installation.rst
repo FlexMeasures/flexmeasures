@@ -392,6 +392,8 @@ You can go to `http://localhost:5000/tasks/` and see the state of job queues and
 You need to set ``FLEXMEASURES_REDIS_PASSWORD="fm-redis-pass"`` in your `~/.flexmeasures.cfg` config file for this to work. 
 
 
+.. _installation_two_factor:
+
 Two-factor authentication
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
