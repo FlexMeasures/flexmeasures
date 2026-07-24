@@ -922,7 +922,9 @@ Default: ``None`` (defaults are set internally for each sunset API version, e.g.
 FLEXMEASURES_FALLBACK_REDIRECT
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Control how the API handles a failed scheduling job when a fallback schedule has been computed.
+Control how the API handles a failed scheduling job when a custom scheduler has computed a fallback schedule.
+
+FlexMeasures' built-in storage scheduler no longer computes fallback schedules, but custom schedulers may still define fallback schedulers.
 
 If ``True``, the API returns ``HTTP status 303 (See Other)`` with a ``Location`` header pointing to the fallback schedule endpoint.
 Clients must follow this redirect themselves to obtain the fallback schedule (see :ref:`api_see_other`).

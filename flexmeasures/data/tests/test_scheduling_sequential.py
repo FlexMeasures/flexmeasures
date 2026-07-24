@@ -156,13 +156,13 @@ def test_create_sequential_jobs(db, app, flex_description_sequential, smart_buil
     # )
 
 
-def test_create_sequential_jobs_fallback(
+def test_create_sequential_jobs_without_storage_fallback(
     db, app, flex_description_sequential, smart_building
 ):
-    """Test fallback scheduler in a chain of sequential scheduling (sub)jobs.
+    """Test an infeasible first subjob in a chain of sequential scheduling jobs.
 
-    Checks execution of a sequential scheduling job, where 1 of the subjobs is set up to fail and trigger its fallback.
-    The deferred subjobs should still succeed after the fallback succeeds, even though the first subjob fails.
+    Checks that no storage fallback job is created. The deferred subjobs should remain
+    deferred because the first subjob failed.
     """
     assets, sensors, _ = smart_building
     queue = app.queues["scheduling"]
@@ -181,53 +181,51 @@ def test_create_sequential_jobs_fallback(
     storage_module = "flexmeasures.data.models.planning.storage"
 
     with patch(f"{storage_module}.StorageScheduler.persist_flex_model"):
-        with patch(f"{storage_module}.StorageFallbackScheduler.persist_flex_model"):
-            with patch(
-                f"{storage_module}.StorageScheduler.compute",
-                side_effect=iter([InfeasibleProblemException(), [], []]),
-            ):
-                create_sequential_scheduling_job(
-                    asset=assets["Test Site"],
-                    scheduler_specs=scheduler_specs,
-                    enqueue=True,
-                    force_new_job_creation=True,  # otherwise the cache might kick in due to sub-jobs already created in other tests
-                    **flex_description_sequential,
-                )
+        with patch(
+            f"{storage_module}.StorageScheduler.compute",
+            side_effect=InfeasibleProblemException(),
+        ):
+            create_sequential_scheduling_job(
+                asset=assets["Test Site"],
+                scheduler_specs=scheduler_specs,
+                enqueue=True,
+                force_new_job_creation=True,  # otherwise the cache might kick in due to sub-jobs already created in other tests
+                **flex_description_sequential,
+            )
 
-                # There should be 3 jobs:
-                # 2 jobs scheduling the 2 flexible devices in the flex-model, plus 1 'done job' to wrap things up
-                queued_jobs = app.queues["scheduling"].jobs
-                deferred_jobs = [
-                    Job.fetch(job_id, connection=queue.connection)
-                    for job_id in app.queues[
-                        "scheduling"
-                    ].deferred_job_registry.get_job_ids()
-                ]
-                # Sort deferred_jobs by their created_at attribute
-                deferred_jobs = sorted(deferred_jobs, key=lambda job: job.created_at)
-                assert (
-                    len(queued_jobs) == 1
-                ), "Only the job for scheduling the first device sequentially should be queued."
-                assert (
-                    len(deferred_jobs) == 2
-                ), "The job for scheduling the second device, and the wrap-up job, should be deferred."
+            # There should be 3 jobs:
+            # 2 jobs scheduling the 2 flexible devices in the flex-model, plus 1 'done job' to wrap things up
+            queued_jobs = app.queues["scheduling"].jobs
+            deferred_jobs = [
+                Job.fetch(job_id, connection=queue.connection)
+                for job_id in app.queues[
+                    "scheduling"
+                ].deferred_job_registry.get_job_ids()
+            ]
+            # Sort deferred_jobs by their created_at attribute
+            deferred_jobs = sorted(deferred_jobs, key=lambda job: job.created_at)
+            assert (
+                len(queued_jobs) == 1
+            ), "Only the job for scheduling the first device sequentially should be queued."
+            assert (
+                len(deferred_jobs) == 2
+            ), "The job for scheduling the second device, and the wrap-up job, should be deferred."
 
-                # Work on jobs
-                work_on_rq(queue, exc_handler=handle_scheduling_exception)
+            # Work on jobs
+            work_on_rq(queue, exc_handler=handle_scheduling_exception)
 
-                # Refresh jobs so that the fallback_job_id (which should be set by now) can be read
-                for job in queued_jobs:
-                    job.refresh()
+            for job in queued_jobs:
+                job.refresh()
+            for job in deferred_jobs:
+                job.refresh()
 
-                finished_jobs = queue.finished_job_registry.get_job_ids()
-                failed_jobs = queue.failed_job_registry.get_job_ids()
+            finished_jobs = queue.finished_job_registry.get_job_ids()
+            failed_jobs = queue.failed_job_registry.get_job_ids()
 
-                # Original job failed
-                assert queued_jobs[0].id in failed_jobs
+            # Original job failed and no fallback job was created
+            assert queued_jobs[0].id in failed_jobs
+            assert queued_jobs[0].meta.get("fallback_job_id") is None
 
-                # The fallback job ran successfully
-                assert queued_jobs[0].meta["fallback_job_id"] in finished_jobs
-
-                # The deferred jobs ran successfully
-                assert deferred_jobs[0].id in finished_jobs
-                assert deferred_jobs[1].id in finished_jobs
+            # The deferred jobs should not run when their dependency fails without fallback
+            assert deferred_jobs[0].id not in finished_jobs
+            assert deferred_jobs[1].id not in finished_jobs

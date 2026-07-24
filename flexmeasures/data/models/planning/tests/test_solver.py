@@ -501,22 +501,18 @@ def test_charging_station_solver_day_2(
         (15, "Test charging station (bidirectional)"),
     ],
 )
-def test_fallback_to_unsolvable_problem(
+def test_storage_scheduler_reports_unsolvable_problem_without_fallback(
     target_soc, charging_station_name, setup_planning_test_data, db
 ):
     """Starting with a state of charge 10 kWh, within 2 hours we should be able to reach
     any state of charge in the range [10, 14] kWh for a unidirectional station,
     or [6, 14] for a bidirectional station, given a charging capacity of 2 kW.
-    Here we test target states of charge outside that range, ones that we should be able
-    to get as close to as 1 kWh difference.
-    We want our scheduler to handle unsolvable problems like these with a sensible fallback policy.
-
-    The StorageScheduler raises an Exception which triggers the creation of a new job to compute a fallback
-    schedule.
+    Here we test target states of charge outside that range.
+    The StorageScheduler should report this infeasible problem without hiding it behind
+    a fallback schedule.
     """
     soc_at_start = 10
     duration_until_target = timedelta(hours=2)
-    expected_gap = 1
 
     epex_da = get_test_sensor(db)
     charging_station = setup_planning_test_data[charging_station_name].sensors[0]
@@ -581,26 +577,8 @@ def test_fallback_to_unsolvable_problem(
 
     # calling the scheduler with an infeasible problem raises an Exception
     with pytest.raises(InfeasibleProblemException):
-        consumption_schedule = scheduler.compute(skip_validation=True)
-
-    # check that the fallback scheduler provides a sensible fallback policy
-    fallback_scheduler = scheduler.fallback_scheduler_class(**kwargs)
-    fallback_scheduler.config_deserialized = True
-    consumption_schedule = fallback_scheduler.compute(skip_validation=True)
-
-    soc_schedule = integrate_time_series(
-        consumption_schedule, soc_at_start, decimal_precision=6
-    )
-
-    # Check if constraints were met
-    assert min(consumption_schedule.values) >= capacity * -1
-    assert max(consumption_schedule.values) <= capacity
-    print(consumption_schedule.head(12))
-    print(soc_schedule.head(12))
-    assert (
-        abs(abs(soc_schedule.loc[target_soc_datetime] - target_soc) - expected_gap)
-        < TOLERANCE
-    )
+        scheduler.compute(skip_validation=True)
+    assert scheduler.fallback_scheduler_class is None
 
 
 @pytest.mark.parametrize(

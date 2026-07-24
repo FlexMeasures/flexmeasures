@@ -1,6 +1,6 @@
 .. _scheduling:
 
-Scheduling 
+Scheduling
 ===========
 
 Scheduling is the main value-drive of FlexMeasures. We have two major types of schedulers built-in, for storage devices (usually batteries or hot water storage) and processes (usually in industry).
@@ -351,13 +351,13 @@ However, here are some tips to model a buffer correctly:
 
    For a hands-on example of a heat buffer fed by multiple devices, see :ref:`tut_multi_feed_storage`.
 
-What happens if the flex model describes an infeasible problem for the storage scheduler? Excellent question!
-It is highly important for a robust operation that these situations still lead to a somewhat good outcome.
-From our practical experience, we derived a ``StorageFallbackScheduler``.
-It simplifies an infeasible situation by just starting to charge, discharge, or do neither,
-depending on the first target state of charge and the capabilities of the asset.
+If the flex model describes an infeasible problem for the storage scheduler, the failure should remain visible.
+By default, ``soc-minima`` and ``soc-maxima`` are relaxed into soft constraints, so the scheduler can still return a useful schedule when these boundaries cannot be fully met.
+Setting either ``relax-soc-constraints`` or ``relax-constraints`` to ``false`` in the flex-context keeps them as hard constraints.
+Exact ``soc-targets``, physical ``soc-min`` / ``soc-max`` bounds, and ``power-capacity`` (in the flex-model) and ``site-power-capacity`` (in the flex-context) remain hard constraints.
+If those hard constraints make the problem infeasible, the scheduling job fails instead of producing a fallback schedule.
 
-Of course, we also log a failure in the scheduling job, so it's important to take note of these failures. Often, mis-configured flex models are the reason.
+It is important to take note of these failures. Often, misconfigured flex models are the reason.
 
 For a hands-on tutorial on using some of the storage flex-model fields, head over to :ref:`tut_v2g` use case and `the API documentation for triggering schedules <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_.
 For further hands-on examples, see :ref:`tut_multi_feed_storage` (multiple devices feeding one shared storage) and :ref:`tut_multi_commodity` (devices on different commodities scheduled together).
@@ -375,15 +375,15 @@ Some examples from practice (usually industry) could be:
 
 - A centrifuge's daily work of combing through sludge water. Depends on amount of sludge present.
 - Production processes with a target amount of output until the end of the current shift. The target usually comes out of production planning.
-- Application of coating under hot temperature, with fixed number of times it needs to happen before some deadline.   
-   
+- Application of coating under hot temperature, with fixed number of times it needs to happen before some deadline.
+
 .. list-table::
    :header-rows: 1
    :widths: 20 25 90
 
    * - Field
      - Example value
-     - Description 
+     - Description
    * - ``power``
      - ``"15kW"``
      - Nominal power of the load.
@@ -394,7 +394,7 @@ Some examples from practice (usually industry) could be:
      - ``"MAX"``
      - Objective of the scheduler, to maximize (``"MAX"``) or minimize (``"MIN"``).
    * - ``time_restrictions``
-     - ``[{"start": "2015-01-02T08:00:00+01:00", "duration": "PT2H"}]`` 
+     - ``[{"start": "2015-01-02T08:00:00+01:00", "duration": "PT2H"}]``
      - Time periods in which the load cannot be scheduled to run.
    * - ``process_type``
      - ``"INFLEXIBLE"``, ``"SHIFTABLE"`` or ``"BREAKABLE"``
@@ -644,5 +644,3 @@ Here are some thoughts on further innovation:
   This is ongoing architecture design work, and therefore happens in development settings, until we are happy with the outcomes.
   Thoughts welcome :)
 - Aggregating flexibility of a group of assets (e.g. a neighborhood) and optimizing its aggregated usage (e.g. for grid congestion support) is also an exciting direction for expansion.
-
-

@@ -116,18 +116,19 @@ See Other (303)
 ---------------
 
 Some API responses return ``HTTP status 303 (See Other)`` to redirect the client to a different resource.
-This happens, for example, when a scheduling job fails and a fallback schedule has been computed instead.
+This can happen when a custom scheduler defines a fallback scheduler, the original scheduling job fails, and the fallback schedule has been computed instead.
 In that case, the response includes a ``Location`` header pointing to the fallback schedule endpoint, so clients can automatically retrieve the fallback result.
 
 The response body will contain a JSON message with a ``status`` field set to ``"UNKNOWN_SCHEDULE"`` and a ``message`` field explaining the reason for the redirect.
 
 .. note::
 
-    The fallback schedule mechanism activates when the main scheduler encounters an infeasible problem (i.e. when constraints cannot be satisfied).
-    This is less likely to happen when ``"relax-constraints": true`` is set in the ``flex-context``, as constraint relaxation softens most infeasibility-causing constraints.
+    FlexMeasures' built-in storage scheduler no longer computes a fallback schedule for infeasible problems.
+    Instead, ``soc-minima`` and ``soc-maxima`` are relaxed by default through ``"relax-soc-constraints": true`` (setting either it or ``"relax-constraints"`` to ``false`` keeps them hard).
     The hard constraints that remain even after constraint relaxation are ``soc-min``, ``soc-max``, ``soc-targets`` and ``power-capacity`` in the ``flex-model``, and ``site-power-capacity`` in the ``flex-context``.
+    If hard constraints cannot be satisfied, the scheduling job fails and clients receive the failure reason when requesting the schedule.
 
-    Server administrators can configure whether clients receive a 303 redirect (``FLEXMEASURES_FALLBACK_REDIRECT = True``) or whether FlexMeasures follows the fallback automatically and returns the fallback schedule directly (``FLEXMEASURES_FALLBACK_REDIRECT = False``, the default).
+    For custom schedulers that still define a fallback scheduler, server administrators can configure whether clients receive a 303 redirect (``FLEXMEASURES_FALLBACK_REDIRECT = True``) or whether FlexMeasures follows the fallback automatically and returns the fallback schedule directly (``FLEXMEASURES_FALLBACK_REDIRECT = False``, the default).
 
 Here is a client-side code example in Python for handling 303 redirects (this merely follows the redirect and should be revised to make use of the client's monitoring tools):
 

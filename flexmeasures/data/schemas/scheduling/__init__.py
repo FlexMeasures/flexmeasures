@@ -289,7 +289,7 @@ class SharedSchema(Schema):
     )
     relax_soc_constraints = fields.Bool(
         data_key="relax-soc-constraints",
-        load_default=False,
+        load_default=True,
         metadata=metadata.RELAX_SOC_CONSTRAINTS.to_dict(),
     )
     relax_capacity_constraints = fields.Bool(
@@ -875,11 +875,18 @@ class FlexContextSchema(SharedSchema):
             return data
 
         # Fill in default soc breach prices when asked to relax SoC constraints, unless already set explicitly.
+        # Both relax-soc-constraints and relax-constraints default to True, so an
+        # explicit relax-soc-constraints wins and otherwise the umbrella
+        # relax-constraints decides: setting either flag to False keeps
+        # SoC minima/maxima as hard constraints.
+        if "relax-soc-constraints" in original_data:
+            relax_soc_constraints = data["relax_soc_constraints"]
+        else:
+            relax_soc_constraints = data["relax_constraints"]
         if (
-            data["relax_soc_constraints"]
-            or data["relax_constraints"]
-            and not data.get("soc_minima_breach_price")
-            and not data.get("soc_maxima_breach_price")
+            relax_soc_constraints
+            and data.get("soc_minima_breach_price") is None
+            and data.get("soc_maxima_breach_price") is None
         ):
             self.set_default_breach_prices(
                 data,
@@ -889,10 +896,9 @@ class FlexContextSchema(SharedSchema):
 
         # Fill in default capacity breach prices when asked to relax capacity constraints, unless already set explicitly.
         if (
-            data["relax_capacity_constraints"]
-            or data["relax_constraints"]
-            and not data.get("consumption_breach_price")
-            and not data.get("production_breach_price")
+            (data["relax_capacity_constraints"] or data["relax_constraints"])
+            and data.get("consumption_breach_price") is None
+            and data.get("production_breach_price") is None
         ):
             self.set_default_breach_prices(
                 data,
@@ -902,10 +908,9 @@ class FlexContextSchema(SharedSchema):
 
         # Fill in default site capacity breach prices when asked to relax site capacity constraints, unless already set explicitly.
         if (
-            data["relax_site_capacity_constraints"]
-            or data["relax_constraints"]
-            and not data.get("ems_consumption_breach_price")
-            and not data.get("ems_production_breach_price")
+            (data["relax_site_capacity_constraints"] or data["relax_constraints"])
+            and data.get("ems_consumption_breach_price") is None
+            and data.get("ems_production_breach_price") is None
         ):
             self.set_default_breach_prices(
                 data,
@@ -1273,6 +1278,38 @@ UI_FLEX_MODEL_SCHEMA: Dict[str, Dict[str, Any]] = _build_ui_flex_model_schema()
 
 
 class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
+    # The relaxation defaults are turned off here, so validating a stored asset
+    # flex-context does not fill in default breach prices. The API-side defaults
+    # (which are True) are applied at scheduling time instead, after the stored
+    # flex-context is merged with the one passed in the scheduling request.
+    relax_constraints = fields.Bool(
+        data_key="relax-constraints",
+        load_default=False,
+        metadata={
+            **metadata.RELAX_CONSTRAINTS.to_dict(),
+            "description": (
+                "Defaults to False when stored on an asset (unlike the True default "
+                "used when scheduling): a stored flex-context should not silently bake "
+                "in default breach prices. The scheduling-time default of True is "
+                "applied after this stored flex-context is merged with the one passed "
+                "in the scheduling request."
+            ),
+        },
+    )
+    relax_soc_constraints = fields.Bool(
+        data_key="relax-soc-constraints",
+        load_default=False,
+        metadata={
+            **metadata.RELAX_SOC_CONSTRAINTS.to_dict(),
+            "description": (
+                "Defaults to False when stored on an asset (unlike the True default "
+                "used when scheduling): a stored flex-context should not silently bake "
+                "in default breach prices. The scheduling-time default of True is "
+                "applied after this stored flex-context is merged with the one passed "
+                "in the scheduling request."
+            ),
+        },
+    )
 
     commitments = fields.Nested(
         DBCommitmentSchema, data_key="commitments", required=False, many=True
