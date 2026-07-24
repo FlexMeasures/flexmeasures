@@ -4735,6 +4735,7 @@
           "down-price": {}
         },
         "required": [
+          "baseline",
           "name"
         ],
         "additionalProperties": false

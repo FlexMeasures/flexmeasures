@@ -86,7 +86,12 @@ class CommitmentSchema(Schema):
         load_default="electricity",
         data_key="commodity",
     )
-    baseline = VariableQuantityField("MW", required=False, data_key="baseline")
+    baseline = VariableQuantityField(
+        "MW",
+        required=True,
+        data_key="baseline",
+        error_messages={"required": "A commitment requires a baseline."},
+    )
     up_price = VariableQuantityField("/MW", required=False, data_key="up-price")
     down_price = VariableQuantityField(
         "/MW",
@@ -95,12 +100,13 @@ class CommitmentSchema(Schema):
     )
 
     @validates_schema
-    def require_baseline_and_a_price(self, commitment, **kwargs):
-        """A commitment is worthless without a baseline and at least one deviation price."""
-        if "baseline" not in commitment:
-            raise ValidationError(
-                "A commitment requires a baseline.", field_name="baseline"
-            )
+    def require_a_price(self, commitment, **kwargs):
+        """A commitment is worthless without at least one deviation price.
+
+        The baseline requirement is enforced at the field level (required=True),
+        so it also shows up in the generated OpenAPI schema; the either/or price
+        requirement cannot be expressed per field.
+        """
         if "up_price" not in commitment and "down_price" not in commitment:
             raise ValidationError(
                 "A commitment requires at least one deviation price (up-price and/or down-price).",

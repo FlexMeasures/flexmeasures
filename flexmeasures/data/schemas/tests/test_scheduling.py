@@ -515,6 +515,19 @@ def test_efficiency_pair(
             },
             {"commitments.0.baseline": "A commitment requires a baseline."},
         ),
+        # Commitment with an empty name
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MWh",
+                    }
+                ]
+            },
+            {"commitments.0.name": "Shorter than minimum length 1."},
+        ),
         # Commitment without any deviation price
         (
             {
