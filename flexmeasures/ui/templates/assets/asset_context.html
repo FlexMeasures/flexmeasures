@@ -165,6 +165,7 @@
                     <div class="row">
                         <!-- Left Column -->
                         <div class="col-5">
+                            <ul class="nav nav-pills mb-2" id="commodityTabs"></ul>
                             <form id="flexContextForm">
                             </form>
                         </div>
@@ -352,6 +353,111 @@
         const backendType = schemaSpecs[fieldName]?.["types"]?.["backend"];
         return backendType === "typeTwo" || backendType === "typeFour";
     }
+
+    // ============== Commodity scope BEGIN ============== //
+    // The editor either works on the top-level flex-context (the electricity
+    // commodity; activeCommodityIndex === null) or on one entry of the
+    // "commodities" list (activeCommodityIndex is that entry's index).
+    let activeCommodityIndex = null;
+
+    // Fields managed by the commodity tab bar rather than as cards.
+    const structuralFields = ["commodities", "commodity"];
+
+    function getActiveContext(assetFlexContext) {
+        if (activeCommodityIndex === null) {
+            return assetFlexContext;
+        }
+        return assetFlexContext["commodities"][activeCommodityIndex];
+    }
+
+    function isFieldAvailableInScope(fieldName) {
+        if (structuralFields.includes(fieldName)) {
+            return false;
+        }
+        if (activeCommodityIndex === null) {
+            return true;
+        }
+        return schemaSpecs[fieldName]?.["per-commodity"] === true;
+    }
+
+    function switchCommodityScope(newIndex) {
+        activeCommodityIndex = newIndex;
+        setActiveCard(null);
+        localStorage.removeItem('activeCard');
+        flexOptionsContainer.innerHTML = "";
+        senSearchResEle.innerHTML = "";
+        handleFlexSelectChange(null);
+        renderFlexContextForm();
+    }
+
+    function renderCommodityTabs() {
+        const commodityTabsEle = document.getElementById("commodityTabs");
+        commodityTabsEle.innerHTML = "";
+        const assetFlexContext = getFlexContext();
+        const commodityContexts = assetFlexContext["commodities"] || [];
+
+        function addPill(label, isActive, onClick, removeHandler = null) {
+            const li = document.createElement("li");
+            li.className = "nav-item";
+            const a = document.createElement("a");
+            a.className = `nav-link py-1 px-2 ${isActive ? "active" : ""}`;
+            a.role = "button";
+            a.textContent = label;
+            a.onclick = onClick;
+            if (removeHandler) {
+                const closeIcon = document.createElement('i');
+                closeIcon.className = 'fa fa-times ps-2';
+                closeIcon.setAttribute('data-bs-toggle', 'tooltip');
+                closeIcon.setAttribute('title', 'Remove this commodity');
+                closeIcon.style.cursor = 'pointer';
+                closeIcon.onclick = (event) => {
+                    event.stopPropagation();
+                    removeHandler();
+                };
+                a.appendChild(closeIcon);
+            }
+            li.appendChild(a);
+            commodityTabsEle.appendChild(li);
+        }
+
+        // The top-level flex-context describes the electricity commodity.
+        addPill("electricity", activeCommodityIndex === null, () => switchCommodityScope(null));
+
+        commodityContexts.forEach((commodityContext, index) => {
+            addPill(
+                commodityContext["commodity"] || `commodity ${index + 1}`,
+                activeCommodityIndex === index,
+                () => switchCommodityScope(index),
+                () => {
+                    const flexContext = getFlexContext();
+                    flexContext["commodities"].splice(index, 1);
+                    if (flexContext["commodities"].length === 0) {
+                        flexContext["commodities"] = null;
+                    }
+                    switchCommodityScope(null);
+                    setFlexContext(flexContext);
+                },
+            );
+        });
+
+        addPill("+ commodity", false, () => {
+            const name = window.prompt("Name of the commodity to add (e.g. gas, heat):");
+            if (!name || !name.trim()) {
+                return;
+            }
+            const commodityName = name.trim().toLowerCase();
+            const flexContext = getFlexContext();
+            const existingContexts = flexContext["commodities"] || [];
+            if (commodityName === "electricity" || existingContexts.some(c => c["commodity"] === commodityName)) {
+                showToast(`A flex-context for '${commodityName}' already exists`, "error");
+                return;
+            }
+            flexContext["commodities"] = [...existingContexts, { "commodity": commodityName }];
+            switchCommodityScope(flexContext["commodities"].length - 1);
+            setFlexContext(flexContext);
+        });
+    }
+    // ============== Commodity scope END ============== //
     const [assetFlexContextRawJSON, extraFields] = processResourceRawJSON({ ...assetFlexContextSchema }, "{{ asset.flex_context | safe }}", true);
 
     const spinnerElement = document.getElementById('spinnerElement');
@@ -388,7 +494,7 @@
             return;
         }
         const assetFlexContext = getFlexContext();
-        assetFlexContext[fieldName] = "";
+        getActiveContext(assetFlexContext)[fieldName] = "";
         flexOptionsContainer.innerHTML = "";
         setFlexContext(assetFlexContext);
 
@@ -411,22 +517,37 @@
         const apiURL = apiBasePath + "/api/v3_0/assets/{{ asset.id }}";
         let data = getFlexContext();
 
-        // Take out keys thats are not in the specs
-        for (const key in data) {
-            if (!assetFlexContextSchema.hasOwnProperty(key)) {
-                delete data[key];
+        function cleanContext(context, isCommodityContext) {
+            // Take out keys that are not in the specs, sparing structural keys
+            // (the commodities list itself is not part of the UI schema).
+            for (const key in context) {
+                if (isCommodityContext && key === "commodity") {
+                    continue;
+                }
+                if (!isCommodityContext && key === "commodities") {
+                    continue;
+                }
+                if (!assetFlexContextSchema.hasOwnProperty(key)) {
+                    delete context[key];
+                }
+            }
+
+            // Clean null values
+            for (const [key, value] of Object.entries(context)) {
+                if (
+                    value === null ||
+                    value === "" ||
+                    (Array.isArray(value) && value.length === 0)
+                ) {
+                    delete context[key];
+                }
             }
         }
 
-        // Clean null values
-        for (const [key, value] of Object.entries(data)) {
-
-            if (
-                value === null ||
-                value === "" ||
-                (Array.isArray(value) && value.length === 0)
-            ) {
-                delete data[key];
+        cleanContext(data, false);
+        if (data["commodities"]) {
+            for (const commodityContext of data["commodities"]) {
+                cleanContext(commodityContext, true);
             }
         }
 
@@ -503,35 +624,35 @@
 
     async function removeFlexContextField(fieldName) {
         const assetFlexContext = getFlexContext();
-        getFlexContext()[fieldName] = null;
+        getActiveContext(assetFlexContext)[fieldName] = null;
         setFlexContext(assetFlexContext);
         console.log(`Removed field ${fieldName} from flex context`);
     }
 
     async function removeFlexContextSensorValue(fieldName, sensorId) {
-        const assetFlexContext = getFlexContext();
+        const activeContext = getActiveContext(getFlexContext());
         if (sensorId) {
-            const fieldValue = assetFlexContext[fieldName];
+            const fieldValue = activeContext[fieldName];
             const isArray = Array.isArray(fieldValue);
             const isKeyValueObject = typeof fieldValue === "object" &&
                 fieldValue !== null &&
                 !Array.isArray(fieldValue) && // Exclude arrays
                 Object.keys(fieldValue).length > 0;
             if (isArray) {
-                const sensorIndex = assetFlexContext[fieldName].indexOf(sensorId);
-                assetFlexContext[fieldName].splice(sensorIndex, 1);
+                const sensorIndex = activeContext[fieldName].indexOf(sensorId);
+                activeContext[fieldName].splice(sensorIndex, 1);
             } else if (isKeyValueObject) {
-                assetFlexContext[fieldName] = "";
+                activeContext[fieldName] = "";
             }
         } else {
-            assetFlexContext[fieldName] = null;
+            activeContext[fieldName] = null;
         }
     }
 
     async function renderFlexContextCard(fieldName) {
-        const assetFlexContext = getFlexContext();
+        const activeContext = getActiveContext(getFlexContext());
         senSearchResEle.innerHTML = "";
-        let fieldValue = assetFlexContext[fieldName]
+        let fieldValue = activeContext[fieldName]
         let newFieldValue;
         let isSensorValue = false;
         const sensorsContent = [];
@@ -647,7 +768,8 @@
         closeIcon.onclick = (event) => {
             event.stopPropagation(); // prevent click from reaching the card
 
-            assetFlexContext[fieldName] = null;
+            const assetFlexContext = getFlexContext();
+            getActiveContext(assetFlexContext)[fieldName] = null;
             card.remove();
             if (activeCard() && activeCard().id === card.id) {
                 flexOptionsContainer.innerHTML = "";
@@ -809,9 +931,11 @@
         const storedActiveCard = localStorage.getItem("activeCard")
         const assetFlexContext = getFlexContext();
 
+        renderCommodityTabs();
+        const activeContext = getActiveContext(assetFlexContext);
 
-        for (const [key, value] of Object.entries(assetFlexContext)) {
-            if (value !== null) {
+        for (const [key, value] of Object.entries(activeContext)) {
+            if (value !== null && !structuralFields.includes(key)) {
                 const fieldCard = await renderFlexContextCard(key);
                 flexContextFormEle.appendChild(fieldCard);
             }
@@ -834,7 +958,7 @@
 
         if (storedActiveCard && activeCard()) {
             const flexId = (activeCard() ? activeCard().id : null).slice(0, -8);
-            if (assetFlexContext[storedActiveCard]) {
+            if (activeContext[storedActiveCard]) {
                 setTimeout(() => {
                     flexOptionsContainer.innerHTML = "";
                     flexOptionsContainer.appendChild(renderFlexInputOptions(flexId, isSensorOnlyField(flexId)));
@@ -869,6 +993,7 @@
         // get card id and remove '-control' at the end
         const cardId = highlightedCard.id;
         const flexId = cardId.slice(0, -8);
+        const activeContext = getActiveContext(assetFlexContext);
         if (dataType === "fixedValue") {
             const powerCapacityInputValue = document.getElementById("fixed-value").value;
             // check if value is valid
@@ -876,16 +1001,16 @@
                 showToast("Please enter a value", "error");
                 return;
             }
-            assetFlexContext[flexId] = powerCapacityInputValue;
+            activeContext[flexId] = powerCapacityInputValue;
         } else if (dataType === "sensor" && sensorId) {
             if (flexId === "inflexible-device-sensors") {
-                if (assetFlexContext[flexId]) {
-                    assetFlexContext[flexId].push(sensorId);
+                if (activeContext[flexId]) {
+                    activeContext[flexId].push(sensorId);
                 } else {
-                    assetFlexContext[flexId] = [sensorId];
+                    activeContext[flexId] = [sensorId];
                 }
             } else {
-                assetFlexContext[flexId] = { sensor: sensorId };
+                activeContext[flexId] = { sensor: sensorId };
             }
         }
 
@@ -898,11 +1023,11 @@
     }
 
     function renderFlexSelectOptions() {
-        // comapare the assetFlexContext with the template and get the fields that are not set
-        const assetFlexContextTemplate = Object.assign({}, assetFlexContextSchema, getFlexContext());
+        // compare the active context with the template and get the fields that are not set
+        const assetFlexContextTemplate = Object.assign({}, assetFlexContextSchema, getActiveContext(getFlexContext()));
         flexSelect.innerHTML = `<option value="blank">Select an option</option>`;
         for (const [key, value] of Object.entries(assetFlexContextTemplate)) {
-            if (value === null || value.length === 0) {
+            if ((value === null || value.length === 0) && isFieldAvailableInScope(key)) {
                 flexSelect.innerHTML += `<option value="${key}">${getFlexFieldTitle(key)}</option>`;
             }
         }
@@ -1125,7 +1250,7 @@ Make sure that the sensor data will be available consistently, though, so schedu
             fixedInput.type = "text";
             fixedInput.id = "fixed-value";
             fixedInput.className = "form-control";
-            fixedInput.value = (typeof getFlexContext()[contextKey] === "string") ? getFlexContext()[contextKey] : "";
+            fixedInput.value = (typeof getActiveContext(getFlexContext())[contextKey] === "string") ? getActiveContext(getFlexContext())[contextKey] : "";
             fixedInput.placeholder = "e.g. 15000 kW";
             fixedInput.onkeydown = function (event) {
                 if (event.key === 'Enter') {
@@ -1198,6 +1323,7 @@ Make sure that the sensor data will be available consistently, though, so schedu
 
     flexContexFormModal.addEventListener('hidden.bs.modal', function () {
         localStorage.removeItem('activeCard');
+        activeCommodityIndex = null;
         flexOptionsContainer.innerHTML = "";
         handleFlexSelectChange(null);
     });
