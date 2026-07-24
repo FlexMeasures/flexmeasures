@@ -1537,10 +1537,9 @@ class MetaStorageScheduler(Scheduler):
     ) -> list[FlowCommitment | StockCommitment]:
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments.
 
-        User-given commitment names are namespaced with a "custom:" prefix, so users can
-        pick any name without colliding with the commitments the scheduler sets up
-        internally (e.g. "electricity net energy" or "any soc minima"). The prefixed
-        name is what shows up in the commitment costs of the scheduling results.
+        User-given commitment names are kept as is, but the resulting commitments are
+        tagged with provenance "custom", so cost reporting can tell them apart from the
+        commitments the scheduler sets up internally (e.g. "electricity net energy").
         """
         commitment_specs = self.flex_context.get("commitments", [])
         if len(commitment_specs) == 0:
@@ -1553,10 +1552,6 @@ class MetaStorageScheduler(Scheduler):
             # Work on a copy, so converting (which pops fields) does not mutate
             # self.flex_context and repeated conversions see the original specs.
             commitment_spec = dict(commitment_spec)
-            # Namespace the user-given name (guarding against double prefixing,
-            # in case a caller passes an already-namespaced spec).
-            if not commitment_spec["name"].startswith("custom:"):
-                commitment_spec["name"] = f"custom:{commitment_spec['name']}"
 
             # Convert baseline, up_price and down_price to pd.Series, then create FlowCommitment
             if "up_price" in commitment_spec:
@@ -1593,6 +1588,7 @@ class MetaStorageScheduler(Scheduler):
                 commitment = FlowCommitment(
                     device=d,
                     device_group=device_commodity,
+                    provenance="custom",
                     **commitment_spec,
                 )
                 commitments.append(commitment)
@@ -3314,12 +3310,9 @@ class StorageScheduler(MetaStorageScheduler):
             commitment_costs = [
                 {
                     "name": "commitment_costs",
-                    "data": {
-                        c.name: costs
-                        for c, costs in zip(
-                            commitments, model.commitment_costs.values()
-                        )
-                    },
+                    "data": report_commitment_costs_by_name(
+                        commitments, model.commitment_costs.values()
+                    ),
                     "unit": self.flex_context["shared_currency_unit"],
                 },
             ]
@@ -3602,6 +3595,31 @@ def add_storage_constraints(
     )
 
     return storage_device_constraints
+
+
+def report_commitment_costs_by_name(commitments, costs) -> dict[str, float]:
+    """Key commitment costs by commitment name.
+
+    Costs of same-named commitments of the same provenance are summed (e.g. one
+    custom commitment bound per device). A custom commitment whose name collides
+    with a scheduler-internal one is reported under "<name> (custom)" instead,
+    to keep both cost entries readable.
+    """
+    scheduler_commitment_names = {
+        c.name for c in commitments if c.provenance == "scheduler"
+    }
+    costs_by_name: dict[str, float] = {}
+    for c, cost in zip(commitments, costs):
+        key = c.name
+        if c.provenance == "custom" and key in scheduler_commitment_names:
+            key = f"{c.name} (custom)"
+            current_app.logger.warning(
+                f"Custom commitment '{c.name}' shares its name with a commitment"
+                f" the scheduler sets up internally; reporting its costs as '{key}'."
+                " Consider renaming the commitment."
+            )
+        costs_by_name[key] = costs_by_name.get(key, 0) + cost
+    return costs_by_name
 
 
 def validate_storage_constraints(

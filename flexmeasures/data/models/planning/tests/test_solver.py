@@ -3525,7 +3525,7 @@ def test_flex_context_commitments_target_devices_not_stock_only_entries(
     )
     *_, commitments = scheduler._prepare(skip_validation=True)
 
-    test_commitments = [c for c in commitments if c.name == "custom:test commitment"]
+    test_commitments = [c for c in commitments if c.name == "test commitment"]
     num_devices = 2
     assert len(test_commitments) == num_devices, (
         f"Expected one commitment per scheduled device ({num_devices}), "

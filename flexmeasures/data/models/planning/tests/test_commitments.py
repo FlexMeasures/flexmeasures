@@ -1803,10 +1803,10 @@ def test_electricity_device_indices_exclude_other_commodities():
     assert scheduler._electricity_device_indices() == [0, 2, 3, 4]
 
 
-def test_user_commitment_names_are_namespaced(app):
-    """User-given commitment names get a "custom:" prefix, so they cannot shadow
-    the commitments the scheduler sets up internally (e.g. "electricity net energy"),
-    whose costs are reported in the same name-keyed dict.
+def test_user_commitment_names_and_provenance(app):
+    """User-given commitment names are kept as is, and the resulting commitments are
+    tagged with provenance "custom" (used to disambiguate the name-keyed cost report
+    when a user name collides with a scheduler-internal commitment name).
     """
     scheduler = object.__new__(StorageScheduler)
     start = pd.Timestamp("2024-01-01T00:00:00+01:00")
@@ -1832,16 +1832,12 @@ def test_user_commitment_names_are_namespaced(app):
         beliefs_before=start,
     )
     assert len(commitments) == 1
-    assert commitments[0].name == "custom:electricity net energy"
+    assert commitments[0].name == "electricity net energy"
+    assert commitments[0].provenance == "custom"
 
-    # Converting the same specs again must not double the prefix.
-    commitments = scheduler.convert_to_commitments(
-        flex_model,
-        query_window=(start, end),
-        resolution=resolution,
-        beliefs_before=start,
-    )
-    assert commitments[0].name == "custom:electricity net energy"
+    # Converting must not mutate the original specs (e.g. on repeated conversions).
+    assert scheduler.flex_context["commitments"][0]["name"] == "electricity net energy"
+    assert "baseline" in scheduler.flex_context["commitments"][0]
 
 
 def _shared_stock_scheduler(db, flex_model, label):
@@ -2073,9 +2069,9 @@ def test_commitment_commodity_does_not_bind_other_commodity_devices():
 
     assert len(commitments) == 2
 
-    gas_commitment = next(c for c in commitments if c.name == "custom:gas commitment")
+    gas_commitment = next(c for c in commitments if c.name == "gas commitment")
     electricity_commitment = next(
-        c for c in commitments if c.name == "custom:electricity commitment"
+        c for c in commitments if c.name == "electricity commitment"
     )
 
     # The gas commitment binds only the gas device (index 1), not the electricity
