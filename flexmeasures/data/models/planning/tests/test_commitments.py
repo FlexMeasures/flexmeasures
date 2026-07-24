@@ -1988,6 +1988,55 @@ def test_stock_scoped_commitment_binds_group_stock(named_device):
     np.testing.assert_allclose(total_energy, 20.0, atol=1e-6)
 
 
+def test_ems_flow_commitment_binds_all_devices():
+    start = pd.Timestamp("2026-01-01T00:00+01")
+    end = pd.Timestamp("2026-01-01T01:00+01")
+    resolution = pd.Timedelta("PT1H")
+    index = initialize_index(start=start, end=end, resolution=resolution)
+
+    device_constraints = [
+        pd.DataFrame(
+            {
+                "min": -100.0,
+                "max": 100.0,
+                "equals": np.nan,
+                "derivative min": -10.0,
+                "derivative max": 10.0,
+                "derivative equals": np.nan,
+                "derivative down efficiency": 1.0,
+                "derivative up efficiency": 1.0,
+            },
+            index=index,
+        )
+        for _ in range(2)
+    ]
+    ems_constraints = pd.DataFrame(
+        {"derivative min": -100.0, "derivative max": 100.0}, index=index
+    )
+    commitments = [
+        FlowCommitment(
+            name="EMS target",
+            index=index,
+            quantity=5,
+            upwards_deviation_price=10,
+            downwards_deviation_price=-10,
+        )
+    ]
+
+    planned_power, planned_costs, results, _ = device_scheduler(
+        device_constraints=device_constraints,
+        ems_constraints=ems_constraints,
+        commitments=commitments,
+        initial_stock=0,
+    )
+
+    assert results.solver.termination_condition == "optimal"
+    np.testing.assert_allclose(
+        sum(schedule.iloc[0] for schedule in planned_power), 5.0, atol=1e-6
+    )
+    assert planned_costs == pytest.approx(0)
+
+
 def test_commitment_commodity_does_not_bind_other_commodity_devices():
     """A commitment
     listed under the flex-context's `commitments` should only bind devices of its own
