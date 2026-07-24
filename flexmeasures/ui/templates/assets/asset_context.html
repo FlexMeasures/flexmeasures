@@ -977,8 +977,12 @@
                     renderedActiveCard.classList.add('border-on-click'); // Add border to the clicked card
                     setActiveCard(renderedActiveCard);
                 }, 300);
-
-                renderSelectInfoCards();
+            } else {
+                // The active field is gone from the context (e.g. its last
+                // commitment was removed), so clear its editor widget too.
+                flexOptionsContainer.innerHTML = "";
+                handleFlexSelectChange(null);
+                setActiveCard(null);
             }
         }
         localStorage.removeItem('activeCard');
