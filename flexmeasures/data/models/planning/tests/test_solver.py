@@ -3515,6 +3515,7 @@ def test_flex_context_commitments_target_devices_not_stock_only_entries(
             "commitments": [
                 {
                     "name": "test commitment",
+                    "baseline": "0 kW",  # the commitment schema requires an explicit baseline
                     "up-price": "1 EUR/MWh",
                     "down-price": "-1 EUR/MWh",
                 }

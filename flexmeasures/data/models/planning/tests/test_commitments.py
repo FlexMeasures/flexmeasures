@@ -3,6 +3,7 @@ import pytest
 import numpy as np
 
 from flexmeasures.data.services.utils import get_or_create_model
+from flexmeasures.utils.unit_utils import ur
 from flexmeasures.data.models.planning import (
     Commitment,
     StockCommitment,
@@ -17,7 +18,6 @@ from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.planning.linear_optimization import device_scheduler
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.utils import save_to_db
-from flexmeasures.utils.unit_utils import ur
 
 
 def test_multi_feed_device_scheduler_shared_buffer():
@@ -1803,6 +1803,43 @@ def test_electricity_device_indices_exclude_other_commodities():
     assert scheduler._electricity_device_indices() == [0, 2, 3, 4]
 
 
+def test_user_commitment_names_and_provenance(app):
+    """User-given commitment names are kept as is, and the resulting commitments are
+    tagged with provenance "custom" (used to disambiguate the name-keyed cost report
+    when a user name collides with a scheduler-internal commitment name).
+    """
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T04:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                # Deliberately shadowing an internal commitment name
+                "name": "electricity net energy",
+                "baseline": ur.Quantity("0 MW"),
+                "up_price": ur.Quantity("100 EUR/MWh"),
+            },
+        ],
+    }
+    flex_model = [{"commodity": "electricity"}]
+
+    commitments = scheduler.convert_to_commitments(
+        flex_model,
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=start,
+    )
+    assert len(commitments) == 1
+    assert commitments[0].name == "electricity net energy"
+    assert commitments[0].provenance == "custom"
+
+    # Converting must not mutate the original specs (e.g. on repeated conversions).
+    assert scheduler.flex_context["commitments"][0]["name"] == "electricity net energy"
+    assert "baseline" in scheduler.flex_context["commitments"][0]
+
+
 def _shared_stock_scheduler(db, flex_model, label):
     """Set up a battery with two inverter power sensors and one SoC sensor.
 
@@ -2046,3 +2083,56 @@ def test_commitment_commodity_does_not_bind_other_commodity_devices():
     # the electricity device (index 0), not the gas device (index 1).
     assert (electricity_commitment.device == 0).all()
     assert set(electricity_commitment.device_group.unique()) == {"electricity"}
+
+
+def test_commitments_in_commodity_contexts_are_converted(app):
+    """Commitments saved within a commodity context (as the UI editor does per
+    commodity tab) are picked up by the scheduler and bind that context's commodity.
+    """
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                "name": "top-level commitment",
+                "baseline": ur.Quantity("0 MW"),
+                "up_price": ur.Quantity("1 EUR/MWh"),
+            },
+        ],
+        "commodity_contexts": [
+            {
+                "commodity": "gas",
+                "commitments": [
+                    {
+                        "name": "gas context commitment",
+                        # Even the schema's electricity default gets overridden
+                        # by the surrounding context's commodity.
+                        "commodity": "electricity",
+                        "baseline": ur.Quantity("1 MW"),
+                        "up_price": ur.Quantity("2 EUR/MWh"),
+                    },
+                ],
+            },
+        ],
+    }
+    # Flexible devices: 0 = electricity, 1 = gas.
+    flex_model = [{"commodity": "electricity"}, {"commodity": "gas"}]
+
+    commitments = scheduler.convert_to_commitments(
+        flex_model,
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=start,
+    )
+    assert len(commitments) == 2
+    gas_commitment = next(c for c in commitments if c.name == "gas context commitment")
+    assert (gas_commitment.device == 1).all()
+    assert set(gas_commitment.device_group.unique()) == {"gas"}
+
+    # The original specs (including the nested ones) are not mutated.
+    nested_spec = scheduler.flex_context["commodity_contexts"][0]["commitments"][0]
+    assert "baseline" in nested_spec
+    assert nested_spec["commodity"] == "electricity"

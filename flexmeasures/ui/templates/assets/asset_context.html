@@ -494,7 +494,8 @@
             return;
         }
         const assetFlexContext = getFlexContext();
-        getActiveContext(assetFlexContext)[fieldName] = "";
+        // Commitments open with one (zero-valued) commitment ready to edit.
+        getActiveContext(assetFlexContext)[fieldName] = fieldName === "commitments" ? [await newCommitment()] : "";
         flexOptionsContainer.innerHTML = "";
         setFlexContext(assetFlexContext);
 
@@ -678,7 +679,15 @@
             !Array.isArray(fieldValue) && // Exclude arrays
             Object.keys(fieldValue).length > 0;
 
-        if (isKeyValueObject) {
+        if (fieldName === "commitments" && isArray) {
+            // Commitments are structured entries; summarize them by name.
+            fieldValue.forEach((commitment) => {
+                const item = document.createElement('div');
+                item.className = 'pb-1 fw-light';
+                item.textContent = `${commitment["name"] || "(unnamed)"} (${commitment["commodity"] || "electricity"})`;
+                sensorsContent.push(item);
+            });
+        } else if (isKeyValueObject) {
             const item = convertHtmlToElement(await renderSensor(fieldValue["sensor"]));
             sensorsContent.push(item);
         } else if (isArray) {
@@ -727,7 +736,7 @@
 
         card.onclick = function () {
             if (activeCard() && activeCard().id === card.id) {
-                if (fieldName !== "inflexible-device-sensors") {
+                if (fieldName !== "inflexible-device-sensors" && fieldName !== "commitments") {
                     setActiveCard(null); // Deselect if the same card is clicked again
                     // remove active card from localstorage
                     localStorage.removeItem('activeCard');
@@ -968,8 +977,12 @@
                     renderedActiveCard.classList.add('border-on-click'); // Add border to the clicked card
                     setActiveCard(renderedActiveCard);
                 }, 300);
-
-                renderSelectInfoCards();
+            } else {
+                // The active field is gone from the context (e.g. its last
+                // commitment was removed), so clear its editor widget too.
+                flexOptionsContainer.innerHTML = "";
+                handleFlexSelectChange(null);
+                setActiveCard(null);
             }
         }
         localStorage.removeItem('activeCard');
@@ -1003,6 +1016,15 @@
             }
             activeContext[flexId] = powerCapacityInputValue;
         } else if (dataType === "sensor" && sensorId) {
+            if (flexId === "commitments" && pendingCommitmentTarget) {
+                setCommitmentField(
+                    pendingCommitmentTarget.index,
+                    pendingCommitmentTarget.key,
+                    { sensor: sensorId },
+                );
+                pendingCommitmentTarget = null;
+                return;
+            }
             if (flexId === "inflexible-device-sensors") {
                 if (activeContext[flexId]) {
                     activeContext[flexId].push(sensorId);
@@ -1033,11 +1055,384 @@
         }
     }
 
+    function createTooltipIcon(title) {
+        const icon = document.createElement("i");
+        icon.className = "fa fa-info-circle ps-2";
+        icon.setAttribute("data-bs-toggle", "tooltip");
+        icon.setAttribute("data-bs-placement", "bottom");
+        icon.title = title;
+        return icon;
+    }
+
+    // Build the sensor search block (search input, units filter, public-assets
+    // checkbox), labeled for the given target.
+    function createSensorSearchBlockFor(targetLabel) {
+        const group = document.createElement("div");
+        group.id = "select-sensor-input";
+        group.className = "flex-input-group p-2";
+
+        // Label
+        const label = document.createElement("label");
+        label.htmlFor = "flexContextSensorSearch";
+        label.className = "form-label";
+        label.appendChild(document.createTextNode("Look up Sensor for "));
+        const targetLabelEle = document.createElement("b");
+        targetLabelEle.textContent = targetLabel;  // may contain user-given names, so no innerHTML
+        label.appendChild(targetLabelEle);
+        label.appendChild(document.createTextNode(" "));
+        label.appendChild(createTooltipIcon(
+            `Search for sensor(s) to add here. All sensors on the same site as this asset (including parent- and sibling assets) are included by default.
+Make sure that the sensor data will be available consistently, though, so scheduling will work.`
+        ));
+        group.appendChild(label);
+
+        // Checkbox group
+        const formCheck = document.createElement("div");
+        formCheck.className = "form-check";
+
+        const checkbox = document.createElement("input");
+        checkbox.className = "form-check-input";
+        checkbox.type = "checkbox";
+        checkbox.value = "";
+        checkbox.id = "flexCheckBox";
+        checkbox.onchange = searchSensorsFlexContextForm;
+
+
+        const checkLabel = document.createElement("label");
+        checkLabel.className = "form-check-label";
+        checkLabel.htmlFor = "flexCheckBox";
+        checkLabel.textContent = "Include public assets";
+
+        formCheck.appendChild(checkbox);
+        formCheck.appendChild(checkLabel);
+        group.appendChild(formCheck);
+
+        // Row with search + units
+        const row = document.createElement("div");
+        row.className = "row";
+
+        const col8 = document.createElement("div");
+        col8.className = "col-8 pe-1";
+        const searchInput = document.createElement("input");
+        searchInput.type = "text";
+        searchInput.id = "flexContextSensorSearch";
+        searchInput.className = "form-control";
+        searchInput.placeholder = "Search sensors...";
+        searchInput.oninput = searchSensorsFlexContextForm;
+        searchInput.onkeydown = function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Prevent form submission
+                searchSensorsFlexContextForm();
+            }
+        };
+
+        col8.appendChild(searchInput);
+
+        const col4 = document.createElement("div");
+        col4.className = "col-4 ps-0";
+
+        // Units select - START
+        const select = document.createElement("select");
+        select.id = "flexUnitsSelect";
+        select.className = "form-select";
+        select.onchange = searchSensorsFlexContextForm;
+
+        const defaultOption = document.createElement("option");
+        defaultOption.value = null;
+        defaultOption.selected = true;
+        defaultOption.textContent = "Units";
+        select.appendChild(defaultOption);
+
+        availableUnits.forEach(unit => {
+            const option = document.createElement("option");
+            option.value = unit;
+            option.textContent = unit;
+            select.appendChild(option);
+        });
+        col4.appendChild(select);
+        // Units select - END
+
+
+        row.appendChild(col8);
+        row.appendChild(col4);
+        group.appendChild(row);
+
+        return group;
+    }
+
+    // ============== Commitments editor BEGIN ============== //
+    // When a sensor is picked while this target is set, the sensor reference is
+    // written into that commitment's field instead of replacing the whole card value.
+    let pendingCommitmentTarget = null;
+
+    // Commitments start out with (and are unset back to) zero quantities, so a
+    // freshly added commitment has no effect until edited. Note that it still
+    // needs a (non-empty) name before it can be saved.
+    // The scheduler requires all prices to share one currency, so derive the
+    // default from price fields already in the flex-context (falling back to EUR).
+    async function activeCurrency() {
+        const assetFlexContext = getFlexContext();
+        const contexts = [assetFlexContext, ...(assetFlexContext["commodities"] || [])];
+        const priceSensorIds = [];
+        for (const context of contexts) {
+            for (const [key, value] of Object.entries(context || {})) {
+                if (typeof value === "string") {
+                    const currencyMatch = value.match(/([A-Z]{3})\/[kMG]?W/);
+                    if (currencyMatch) {
+                        return currencyMatch[1];
+                    }
+                }
+                if (key.includes("price") && value !== null && typeof value === "object" && value["sensor"]) {
+                    priceSensorIds.push(value["sensor"]);
+                }
+            }
+        }
+        // No fixed price values found: best effort, look up the unit of
+        // sensor-referenced price fields (getSensor caches in localStorage).
+        for (const sensorId of priceSensorIds) {
+            try {
+                const sensor = await getSensor(sensorId);
+                const currencyMatch = (sensor["unit"] || "").match(/([A-Z]{3})\/[kMG]?W/);
+                if (currencyMatch) {
+                    return currencyMatch[1];
+                }
+            } catch (error) {
+                // Ignore lookup failures; worst case we fall back to EUR.
+            }
+        }
+        return "EUR";
+    }
+
+    async function commitmentZeroDefault(key) {
+        return key === "baseline" ? "0 kW" : `0 ${await activeCurrency()}/MWh`;
+    }
+
+    function activeCommodityName() {
+        const assetFlexContext = getFlexContext();
+        if (activeCommodityIndex === null) {
+            return "electricity";
+        }
+        return assetFlexContext["commodities"][activeCommodityIndex]["commodity"] || "electricity";
+    }
+
+    async function newCommitment() {
+        return {
+            "name": "",
+            "commodity": activeCommodityName(),
+            "baseline": await commitmentZeroDefault("baseline"),
+            "up-price": await commitmentZeroDefault("up-price"),
+            "down-price": await commitmentZeroDefault("down-price"),
+        };
+    }
+
+    function setCommitmentField(commitmentIndex, key, value) {
+        const assetFlexContext = getFlexContext();
+        const activeContext = getActiveContext(assetFlexContext);
+        const commitments = activeContext["commitments"];
+        if (!Array.isArray(commitments) || !commitments[commitmentIndex]) {
+            // The commitment may have been removed in the meantime (e.g. while a sensor pick was pending).
+            showToast("This commitment no longer exists", "error");
+            return;
+        }
+        commitments[commitmentIndex][key] = value;
+        localStorage.setItem('activeCard', 'commitments');
+        setFlexContext(assetFlexContext);
+    }
+
+    // Turn free text into a commitment value: "sensor 536" (any casing) becomes
+    // a sensor reference, anything else is kept as a fixed quantity string.
+    function parseCommitmentValue(raw) {
+        const sensorMatch = raw.trim().toLowerCase().match(/^sensor\s+(\d+)$/);
+        if (sensorMatch) {
+            return { "sensor": parseInt(sensorMatch[1], 10) };
+        }
+        return raw.trim();
+    }
+
+    // Returns a plain-text description, or null when the value is not set.
+    function describeCommitmentValue(value) {
+        if (value === undefined || value === null || value === "") {
+            return null;
+        }
+        if (typeof value === "object" && value["sensor"]) {
+            return `sensor ${value["sensor"]}`;
+        }
+        return String(value);
+    }
+
+    function renderCommitmentsEditor() {
+        const container = document.createElement("div");
+        container.id = "flex-input-options";
+        container.className = "card-header";
+
+        const activeContext = getActiveContext(getFlexContext());
+        const commitments = Array.isArray(activeContext["commitments"]) ? activeContext["commitments"] : [];
+
+        const intro = document.createElement("p");
+        intro.className = "form-label";
+        intro.innerHTML = "Each commitment needs a <b>name</b> and a <b>baseline</b>, plus at least one deviation price. " +
+            "Values can be fixed quantities (e.g. '100 kW', '35 EUR/MWh'), a sensor picked below, or a sensor reference typed directly (e.g. 'sensor 536'). " +
+            "New commitments start at zero; unsetting a value also resets it to zero. Further checks happen on save.";
+        container.appendChild(intro);
+
+        commitments.forEach((commitment, index) => {
+            const group = document.createElement("div");
+            group.className = "card p-2 mb-2";
+
+            // Header row: name + commodity + remove
+            const headerRow = document.createElement("div");
+            headerRow.className = "row g-2 align-items-end pb-2";
+
+            function textInput(labelText, key, placeholder, colClass, disabled = false) {
+                const col = document.createElement("div");
+                col.className = colClass;
+                const label = document.createElement("label");
+                label.className = "form-label mb-0";
+                label.textContent = labelText;
+                const input = document.createElement("input");
+                input.type = "text";
+                input.className = "form-control form-control-sm";
+                input.placeholder = placeholder;
+                input.value = commitment[key] || "";
+                input.disabled = disabled;
+                input.onchange = () => setCommitmentField(index, key, input.value);
+                col.appendChild(label);
+                col.appendChild(input);
+                return col;
+            }
+
+            headerRow.appendChild(textInput("Name", "name", "e.g. capacity contract", "col-5"));
+            // The commodity is bound to the commodity tab being edited, not chosen per commitment.
+            commitment["commodity"] = activeCommodityName();
+            headerRow.appendChild(textInput("Commodity", "commodity", "electricity", "col-4", true));
+
+            const removeCol = document.createElement("div");
+            removeCol.className = "col-3 text-end";
+            const removeBtn = document.createElement("button");
+            removeBtn.className = "btn btn-sm btn-outline-danger";
+            removeBtn.textContent = "Remove";
+            removeBtn.onclick = () => {
+                const assetFlexContext = getFlexContext();
+                const context = getActiveContext(assetFlexContext);
+                context["commitments"].splice(index, 1);
+                if (context["commitments"].length === 0) {
+                    context["commitments"] = null;
+                }
+                localStorage.setItem('activeCard', 'commitments');
+                setFlexContext(assetFlexContext);
+            };
+            removeCol.appendChild(removeBtn);
+            headerRow.appendChild(removeCol);
+            group.appendChild(headerRow);
+
+            // Quantity fields: fixed value or sensor
+            ["baseline", "up-price", "down-price"].forEach((key) => {
+                const row = document.createElement("div");
+                row.className = "row g-2 align-items-center pb-1";
+
+                const labelCol = document.createElement("div");
+                labelCol.className = "col-3";
+                const keyLabel = document.createElement("label");
+                keyLabel.className = "form-label mb-0";
+                keyLabel.textContent = key;
+                const valueSummary = document.createElement("div");
+                valueSummary.className = "small text-black-50";
+                const description = describeCommitmentValue(commitment[key]);
+                if (description === null) {
+                    const notSet = document.createElement("i");
+                    notSet.textContent = "not set";
+                    valueSummary.appendChild(notSet);
+                } else {
+                    valueSummary.textContent = description;  // may contain user-entered text, so no innerHTML
+                }
+                labelCol.appendChild(keyLabel);
+                labelCol.appendChild(valueSummary);
+                row.appendChild(labelCol);
+
+                const inputCol = document.createElement("div");
+                inputCol.className = "col-4";
+                const input = document.createElement("input");
+                input.type = "text";
+                input.className = "form-control form-control-sm";
+                input.placeholder = key === "baseline" ? "e.g. 100 kW" : "e.g. 35 EUR/MWh";
+                // Prefill with the current value, so it can be corrected in place.
+                const currentValue = commitment[key];
+                if (typeof currentValue === "object" && currentValue !== null && currentValue["sensor"]) {
+                    input.value = `sensor ${currentValue["sensor"]}`;
+                } else if (currentValue !== undefined && currentValue !== null) {
+                    input.value = String(currentValue);
+                }
+                const commitInput = async () => {
+                    // Clearing the input unsets the value, i.e. resets it to zero.
+                    const value = input.value.trim() === "" ? await commitmentZeroDefault(key) : parseCommitmentValue(input.value);
+                    setCommitmentField(index, key, value);
+                };
+                input.onkeydown = (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        commitInput();
+                    }
+                };
+                input.onchange = commitInput;
+                inputCol.appendChild(input);
+                row.appendChild(inputCol);
+
+                const buttonsCol = document.createElement("div");
+                buttonsCol.className = "col-5";
+                const unsetBtn = document.createElement("button");
+                unsetBtn.className = "btn btn-sm btn-outline-secondary me-1";
+                unsetBtn.textContent = "Unset";
+                unsetBtn.title = "Reset this value to zero";
+                unsetBtn.onclick = async () => setCommitmentField(index, key, await commitmentZeroDefault(key));
+                buttonsCol.appendChild(unsetBtn);
+                const sensorBtn = document.createElement("button");
+                sensorBtn.className = "btn btn-sm btn-outline-secondary";
+                sensorBtn.textContent = "Pick sensor";
+                sensorBtn.onclick = () => {
+                    pendingCommitmentTarget = { index: index, key: key };
+                    const existingSearch = document.getElementById("select-sensor-input");
+                    if (existingSearch) {
+                        existingSearch.remove();
+                    }
+                    container.appendChild(createSensorSearchBlockFor(`commitment '${commitment["name"] || index}' ${key}`));
+                };
+                buttonsCol.appendChild(sensorBtn);
+                row.appendChild(buttonsCol);
+
+                group.appendChild(row);
+            });
+
+            container.appendChild(group);
+        });
+
+        const addBtn = document.createElement("button");
+        addBtn.className = "btn btn-secondary btn-sm";
+        addBtn.textContent = "Add commitment";
+        addBtn.onclick = async () => {
+            const assetFlexContext = getFlexContext();
+            const context = getActiveContext(assetFlexContext);
+            const existing = Array.isArray(context["commitments"]) ? context["commitments"] : [];
+            context["commitments"] = [...existing, await newCommitment()];
+            localStorage.setItem('activeCard', 'commitments');
+            setFlexContext(assetFlexContext);
+        };
+        container.appendChild(addBtn);
+
+        return container;
+    }
+    // ============== Commitments editor END ============== //
+
     function renderFlexInputOptions(contextKey, sensorsOnly = false) {
         if (!contextKey) {
             flexInfoContainer.innerHTML = "";
             return;
         }
+
+        if (contextKey === "commitments") {
+            pendingCommitmentTarget = null;
+            return renderCommitmentsEditor();
+        }
+        pendingCommitmentTarget = null;
 
         const tabsContainer = document.createElement("div");
         tabsContainer.id = "flex-input-options"
@@ -1047,15 +1442,6 @@
         ul.className = "nav nav-tabs card-header-tabs";
         ul.id = "pills-tab";
         ul.setAttribute("role", "tablist");
-
-        function createTooltipIcon(title) {
-            const icon = document.createElement("i");
-            icon.className = "fa fa-info-circle ps-2";
-            icon.setAttribute("data-bs-toggle", "tooltip");
-            icon.setAttribute("data-bs-placement", "bottom");
-            icon.title = title;
-            return icon;
-        }
 
         if (sensorsOnly) {
             // Only the dynamic value tab
@@ -1118,95 +1504,9 @@
 
         tabsContainer.appendChild(ul);
 
-        // A helper function to create the sensor search block
+        // A helper function to create the sensor search block for this field
         function createSensorSearchBlock() {
-            const group = document.createElement("div");
-            group.id = "select-sensor-input";
-            group.className = "flex-input-group p-2";
-
-            // Label
-            const label = document.createElement("label");
-            label.htmlFor = "sensor";
-            label.className = "form-label";
-            label.innerHTML = `Look up Sensor for <b>${getFlexFieldTitle(contextKey)}</b> `;
-            label.appendChild(createTooltipIcon(
-                `Search for sensor(s) to add here. All sensors on the same site as this asset (including parent- and sibling assets) are included by default. 
-Make sure that the sensor data will be available consistently, though, so scheduling will work.`
-            ));
-            group.appendChild(label);
-
-            // Checkbox group
-            const formCheck = document.createElement("div");
-            formCheck.className = "form-check";
-
-            const checkbox = document.createElement("input");
-            checkbox.className = "form-check-input";
-            checkbox.type = "checkbox";
-            checkbox.value = "";
-            checkbox.id = "flexCheckBox";
-            checkbox.onchange = searchSensorsFlexContextForm;
-
-
-            const checkLabel = document.createElement("label");
-            checkLabel.className = "form-check-label";
-            checkLabel.htmlFor = "flexCheckBox";
-            checkLabel.textContent = "Include public assets";
-
-            formCheck.appendChild(checkbox);
-            formCheck.appendChild(checkLabel);
-            group.appendChild(formCheck);
-
-            // Row with search + units
-            const row = document.createElement("div");
-            row.className = "row";
-
-            const col8 = document.createElement("div");
-            col8.className = "col-8 pe-1";
-            const searchInput = document.createElement("input");
-            searchInput.type = "text";
-            searchInput.id = "flexContextSensorSearch";
-            searchInput.className = "form-control";
-            searchInput.placeholder = "Search sensors...";
-            searchInput.oninput = searchSensorsFlexContextForm;
-            searchInput.onkeydown = function (event) {
-                if (event.key === 'Enter') {
-                    event.preventDefault(); // Prevent form submission
-                    searchSensorsFlexContextForm();
-                }
-            };
-
-            col8.appendChild(searchInput);
-
-            const col4 = document.createElement("div");
-            col4.className = "col-4 ps-0";
-
-            // Units select - START
-            const select = document.createElement("select");
-            select.id = "flexUnitsSelect";
-            select.className = "form-select";
-            select.onchange = searchSensorsFlexContextForm;
-
-            const defaultOption = document.createElement("option");
-            defaultOption.value = null;
-            defaultOption.selected = true;
-            defaultOption.textContent = "Units";
-            select.appendChild(defaultOption);
-
-            availableUnits.forEach(unit => {
-                const option = document.createElement("option");
-                option.value = unit;
-                option.textContent = unit;
-                select.appendChild(option);
-            });
-            col4.appendChild(select);
-            // Units select - END
-
-
-            row.appendChild(col8);
-            row.appendChild(col4);
-            group.appendChild(row);
-
-            return group;
+            return createSensorSearchBlockFor(getFlexFieldTitle(contextKey));
         }
 
         // Create the main tab-content wrapper

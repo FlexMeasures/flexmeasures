@@ -364,6 +364,10 @@ class Commitment:
     #: When set, the solver couples the commitment to the stock group as a whole,
     #: rather than to the device index named by ``device``.
     stock: int | None = None
+    #: Who defined the commitment: "scheduler" for commitments the scheduler sets up
+    #: internally, "custom" for user-given commitments (from the flex-context).
+    #: Used to disambiguate cost reporting when names collide.
+    provenance: str = "scheduler"
 
     def __post_init__(self):
         # device_group is a device→label lookup table, not a time series;

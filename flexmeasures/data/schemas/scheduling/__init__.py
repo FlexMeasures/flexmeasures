@@ -72,8 +72,9 @@ class NoTimeSeriesSpecs(Schema):
 
 
 class CommitmentSchema(Schema):
-    name = fields.Str(required=True, data_key="name")
-    # Undocumented for now (not part of UI_FLEX_CONTEXT_SCHEMA, OpenAPI or Sphinx docs).
+    name = fields.Str(required=True, data_key="name", validate=validate.Length(min=1))
+    # Not described in UI_FLEX_CONTEXT_SCHEMA or the Sphinx docs (it does show up
+    # in the generated OpenAPI schema, without being promoted in field descriptions).
     # Internal bookkeeping only: not the documented way to associate a commitment
     # with a commodity. API users should instead place the commitment under the
     # relevant entry of the multi-commodity `commodities` list (one flex-context
@@ -85,13 +86,32 @@ class CommitmentSchema(Schema):
         load_default="electricity",
         data_key="commodity",
     )
-    baseline = VariableQuantityField("MW", required=False, data_key="baseline")
+    baseline = VariableQuantityField(
+        "MW",
+        required=True,
+        data_key="baseline",
+        error_messages={"required": "A commitment requires a baseline."},
+    )
     up_price = VariableQuantityField("/MW", required=False, data_key="up-price")
     down_price = VariableQuantityField(
         "/MW",
         required=False,
         data_key="down-price",
     )
+
+    @validates_schema
+    def require_a_price(self, commitment, **kwargs):
+        """A commitment is worthless without at least one deviation price.
+
+        The baseline requirement is enforced at the field level (required=True),
+        so it also shows up in the generated OpenAPI schema; the either/or price
+        requirement cannot be expressed per field.
+        """
+        if "up_price" not in commitment and "down_price" not in commitment:
+            raise ValidationError(
+                "A commitment requires at least one deviation price (up-price and/or down-price).",
+                field_name="up-price",
+            )
 
     @validates_schema
     def check_units(self, commitment, **kwargs):
