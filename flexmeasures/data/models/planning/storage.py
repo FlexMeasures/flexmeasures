@@ -3609,16 +3609,20 @@ def report_commitment_costs_by_name(commitments, costs) -> dict[str, float]:
         c.name for c in commitments if c.provenance == "scheduler"
     }
     costs_by_name: dict[str, float] = {}
+    colliding_names = set()
     for c, cost in zip(commitments, costs):
         key = c.name
         if c.provenance == "custom" and key in scheduler_commitment_names:
             key = f"{c.name} (custom)"
-            current_app.logger.warning(
-                f"Custom commitment '{c.name}' shares its name with a commitment"
-                f" the scheduler sets up internally; reporting its costs as '{key}'."
-                " Consider renaming the commitment."
-            )
+            colliding_names.add(c.name)
         costs_by_name[key] = costs_by_name.get(key, 0) + cost
+    # Warn once per colliding name (custom commitments are bound per device).
+    for name in sorted(colliding_names):
+        current_app.logger.warning(
+            f"Custom commitment '{name}' shares its name with a commitment"
+            f" the scheduler sets up internally; reporting its costs as"
+            f" '{name} (custom)'. Consider renaming the commitment."
+        )
     return costs_by_name
 
 
