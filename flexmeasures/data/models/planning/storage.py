@@ -1537,21 +1537,34 @@ class MetaStorageScheduler(Scheduler):
     ) -> list[FlowCommitment | StockCommitment]:
         """Convert list of commitment specifications (dicts) to a list of FlowCommitments.
 
+        Commitments are collected from the top-level flex-context and from each
+        commodity context; a commitment within a commodity context always binds that
+        context's commodity (matching how the UI editor scopes commitments per
+        commodity tab).
+
         User-given commitment names are kept as is, but the resulting commitments are
         tagged with provenance "custom", so cost reporting can tell them apart from the
         commitments the scheduler sets up internally (e.g. "electricity net energy").
         """
-        commitment_specs = self.flex_context.get("commitments", [])
+        commitment_specs = [
+            dict(spec) for spec in self.flex_context.get("commitments", []) or []
+        ]
+        for commodity_context in self.flex_context.get("commodity_contexts", []):
+            for spec in commodity_context.get("commitments", []) or []:
+                spec = dict(spec)
+                # A commitment in a commodity context binds that commodity
+                # (overriding the schema's electricity default on the field).
+                spec["commodity"] = commodity_context.get("commodity", "electricity")
+                commitment_specs.append(spec)
         if len(commitment_specs) == 0:
             return []
 
         start, end = timing_kwargs["query_window"]
         price_unit = self.flex_context["shared_currency_unit"] + "/MW"
         commitments = []
+        # The specs were copied above, so converting (which pops fields) does not
+        # mutate self.flex_context and repeated conversions see the original specs.
         for commitment_spec in commitment_specs:
-            # Work on a copy, so converting (which pops fields) does not mutate
-            # self.flex_context and repeated conversions see the original specs.
-            commitment_spec = dict(commitment_spec)
 
             # Convert baseline, up_price and down_price to pd.Series, then create FlowCommitment
             if "up_price" in commitment_spec:
