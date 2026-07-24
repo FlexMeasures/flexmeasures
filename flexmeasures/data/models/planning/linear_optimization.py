@@ -874,6 +874,10 @@ def device_scheduler(  # noqa C901
             "primal_feasibility_tolerance": "1e-9",
             "dual_feasibility_tolerance": "1e-9",
             "mip_feasibility_tolerance": "1e-9",
+            # One thread per solve: with many concurrent scheduling jobs (one
+            # per house in community co-simulation), multithreaded HiGHS
+            # oversubscribes the host and starves the co-sim's event loops.
+            "threads": "1",
         }
         # Bound the solve: with binary variables (e.g. operation-mode power
         # bands) and a nearly-degenerate objective, proving a 0-gap optimum
