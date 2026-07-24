@@ -213,7 +213,13 @@ def read_custom_config(
 
 
 def parse_bool_env(value: str) -> bool:
-    return value.lower() in ("true", "1", "yes", "on")
+    """
+    Parse a boolean setting from a (case-insensitive) environment variable string.
+
+    "true", "1", "yes" and "on" count as True; anything else is False.
+    Surrounding whitespace is ignored.
+    """
+    return value.strip().lower() in ("true", "1", "yes", "on")
 
 
 def read_env_vars(app: Flask):
@@ -236,7 +242,7 @@ def read_env_vars(app: Flask):
         + [
             "LOGGING_LEVEL",
             "MAPBOX_ACCESS_TOKEN",
-            "SENTRY_SDN",
+            "SENTRY_DSN",
             "FLEXMEASURES_PLUGINS",
             "FLEXMEASURES_JSON_COMPACT",
             "SECURITY_TWO_FACTOR",
@@ -249,6 +255,11 @@ def read_env_vars(app: Flask):
         if isinstance(app.config.get(var), bool):
             value = parse_bool_env(value)
         app.config[var] = value
+
+    # Sentry is initialized from SENTRY_DSN, but we long documented the typo SENTRY_SDN,
+    # so keep accepting that as a fallback.
+    if app.config.get("SENTRY_DSN") is None and os.getenv("SENTRY_SDN") is not None:
+        app.config["SENTRY_DSN"] = os.getenv("SENTRY_SDN")
 
 
 def are_required_settings_complete(app) -> bool:
