@@ -106,12 +106,12 @@ class UserAPI(FlaskView):
           description: |
             This endpoint returns all accessible users.
             By default, only active users are returned.
-            The `account_id` query parameter can be used to filter the users of
+            The `account` query parameter (legacy alias: `account_id`) can be used to filter the users of
             a given account.
             The `include_inactive` query parameter can be used to also fetch
             inactive users.
             Accessible users are users in the same account as the current user.
-            Only admins can use this endpoint to fetch users from a different account (by using the `account_id` query parameter).
+            Only admins can use this endpoint to fetch users from a different account (by using the `account` query parameter).
           security:
             - ApiKeyAuth: []
           parameters:
@@ -574,9 +574,9 @@ class UserAPI(FlaskView):
           summary: Get history of user actions.
           description: |
             The endpoint is paginated and supports search filters.
-              - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
-              - If a `page` parameter is provided, the response will be paginated, showing a specific number of audit logs per page as defined by `per_page` (default is 10).
-              - If `sort_by` (field name) and `sort_dir` ("asc" or "desc") are provided, the list will be sorted.
+              - If the `page` parameter is not provided, all audit logs are returned paginated by `per-page` (legacy alias: `per_page`, default is 10).
+              - If a `page` parameter is provided, the response will be paginated, showing a specific number of audit logs per page as defined by `per-page` (default is 10).
+              - If `sort-by` (field name, legacy alias: `sort_by`) and `sort-dir` ("asc" or "desc", legacy alias: `sort_dir`) are provided, the list will be sorted.
               - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.
                 The response schema for pagination is inspired by https://datatables.net/manual/server-side
           parameters:

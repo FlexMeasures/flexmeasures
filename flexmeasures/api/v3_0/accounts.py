@@ -67,9 +67,9 @@ class AccountAPI(FlaskView):
             This endpoint returns all accounts the current user has access to.
             Accessible accounts include the user's own account, accounts for which the user is a consultant, and all accounts if the user has admin privileges.
 
-            The endpoint supports pagination of the account list using the `page` and `per_page` query parameters.
+            The endpoint supports pagination of the account list using the `page` and `per-page` (legacy alias: `per_page`) query parameters.
               - If the `page` parameter is not provided, all accounts are returned, without pagination information. The result will be a list of accounts.
-              - If a `page` parameter is provided, the response will be paginated, showing a specific number of accounts per page as defined by `per_page` (default is 10).
+              - If a `page` parameter is provided, the response will be paginated, showing a specific number of accounts per page as defined by `per-page` (default is 10).
               - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will filter out accounts where each search term is either present in their name.
               The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)
 

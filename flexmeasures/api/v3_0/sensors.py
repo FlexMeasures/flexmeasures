@@ -352,13 +352,13 @@ class SensorAPI(FlaskView):
             Finally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.
             This is only possible if the user has the role of a consultant.
 
-            Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
+            Only admins can use this endpoint to fetch sensors from a different account (by using the `account` query parameter, legacy alias: `account_id`).
 
             The `filter` parameter allows you to search for sensors by name, account name, asset name, or sensor ID prefix.
             The `unit` parameter allows you to filter by unit.
 
-            For the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger
-            pagination, and the `per_page` parameter is used to specify the number of records per page. The default value for `page` is 1 and for `per_page` is 10.
+            For the pagination of the sensor list, you can use the `page` and `per-page` query parameters (legacy alias: `per_page`), the `page` parameter is used to trigger
+            pagination, and the `per-page` parameter is used to specify the number of records per page. The default value for `page` is 1 and for `per-page` is 10.
 
           security:
             - ApiKeyAuth: []

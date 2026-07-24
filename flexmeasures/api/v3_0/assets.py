@@ -316,16 +316,16 @@ class AssetAPI(FlaskView):
           description: |
             This endpoint returns all assets that are accessible by the user after applying optional filters.
 
-              - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
+              - The `account` query parameter (legacy alias: `account_id`) can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
               - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
               - The `asset_type` query parameter can be used to filter by generic asset type ID.
               - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).
               - The `depth` query parameter can be used to search only a max number of descendant generations from the root.
 
-            The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
+            The endpoint supports pagination of the asset list using the `page` and `per-page` (legacy alias: `per_page`) query parameters.
               - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
-              - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+              - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per-page` (default is 10).
               - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will return only assets where each search term is either present in their name or account name, or is a prefix of their ID.
               The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)
 
@@ -473,10 +473,10 @@ class AssetAPI(FlaskView):
           description: |
             This endpoint returns all sensors under an asset.
 
-            The endpoint supports pagination of the sensor list using the `page` and `per_page` query parameters.
+            The endpoint supports pagination of the sensor list using the `page` and `per-page` (legacy alias: `per_page`) query parameters.
 
             - If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.
-            - If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).
+            - If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per-page` (default is 10).
             - If a search 'filter' is provided, the response will return only sensors where a search term is either present in their name or is a prefix of their ID.
             The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
           security:
@@ -1143,9 +1143,9 @@ class AssetAPI(FlaskView):
           summary: Get history of asset related actions.
           description: |
             The endpoint is paginated and supports search filters.
-              - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
-              - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
-              - If `sort_by` (field name) and `sort_dir` ("asc" or "desc") are provided, the list will be sorted.
+              - If the `page` parameter is not provided, all audit logs are returned paginated by `per-page` (legacy alias: `per_page`, default is 10).
+              - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per-page` (default is 10).
+              - If `sort-by` (field name, legacy alias: `sort_by`) and `sort-dir` ("asc" or "desc", legacy alias: `sort_dir`) are provided, the list will be sorted.
               - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.
                 The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side)
           security:
