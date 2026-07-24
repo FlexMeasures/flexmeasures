@@ -449,12 +449,9 @@ Default: ``None``
 SENTRY_SDN
 ^^^^^^^^^^^^
 
-Set tokenized URL, so errors will be sent to Sentry when ``app.env`` is not in `debug` or `testing` mode.
-E.g.: ``https://<examplePublicKey>@o<something>.ingest.sentry.io/<project-Id>``
+Deprecated misspelling of ``SENTRY_DSN`` (see below). Only the environment variable is still accepted as a fallback for backward compatibility; config files should use ``SENTRY_DSN``.
 
 Default: ``None``
-
-.. note:: This setting is also recognized as environment variable.
 
 
 SQLAlchemy
@@ -778,6 +775,8 @@ Set tokenized URL, so errors will be sent to Sentry when ``app.env`` is not in `
 E.g.: ``https://<examplePublicKey>@o<something>.ingest.sentry.io/<project-Id>``
 
 Default: ``None``
+
+.. note:: This setting is also recognized as environment variable.
 
 
 FLEXMEASURES_SENTRY_CONFIG
