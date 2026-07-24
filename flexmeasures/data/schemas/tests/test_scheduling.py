@@ -1473,6 +1473,43 @@ def test_asset_trigger_schema_accepts_legacy_force_new_job_creation_field(app):
     assert normalized == {"force-new-job-creation": True}
 
 
+def test_asset_trigger_schema_load_accepts_legacy_force_new_job_creation_field(db, app):
+    """test_asset_trigger_schema_load_accepts_legacy_force_new_job_creation_field:
+
+    Same regression as above, but exercised through the real `schema.load(...)`
+    deserialization path (not by calling the `@pre_load` helper directly), so
+    this fails if the hook ever stops being registered/applied by Marshmallow
+    (e.g. decorator removed, or an MRO change means the hook is no longer
+    picked up).
+
+    Uses a nonexistent asset id, so `load()` is expected to still raise -- but
+    only about the asset, never about `force_new_job_creation` being an
+    unrecognized field. If the legacy alias stopped working, Marshmallow's
+    default `unknown` handling would additionally report `force_new_job_creation`
+    as an unknown field.
+    """
+    from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+
+    schema = AssetTriggerSchema()
+    with pytest.raises(ValidationError) as e_info:
+        schema.load(
+            {
+                "id": 2**31 - 1,  # some asset id that doesn't exist
+                "start": "2026-01-15T10:00:00+01:00",
+                "force_new_job_creation": True,  # legacy spelling
+            }
+        )
+    messages = e_info.value.messages
+    assert "force_new_job_creation" not in messages, (
+        "the legacy field name should have been aliased to "
+        "`force-new-job-creation` before validation, not rejected as an "
+        f"unknown field; got: {messages}"
+    )
+    assert (
+        "id" in messages
+    ), f"expected the (nonexistent) asset id to fail; got: {messages}"
+
+
 def test_asset_trigger_schema_preserves_multidict_when_aliasing(app):
     """test_asset_trigger_schema_preserves_multidict_when_aliasing:
 
