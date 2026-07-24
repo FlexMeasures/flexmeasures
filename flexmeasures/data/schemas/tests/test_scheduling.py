@@ -1455,3 +1455,11 @@ def test_asset_trigger_schema_rejects_malformed_flex_context(app):
     with pytest.raises(ValidationError) as e_info:
         schema.normalize_flex_context_format({"flex-context": "not-a-dict-or-list"})
     assert "flex-context" in str(e_info.value)
+
+
+# Note: AssetTriggerSchema itself no longer aliases legacy field names (e.g.
+# force_new_job_creation) -- that's v3_0-specific backward compatibility,
+# layered on top by AssetTriggerSchemaV3 in flexmeasures/api/v3_0/assets.py,
+# and tested there (flexmeasures/api/v3_0/tests/test_asset_trigger_schema_v3.py).
+# This schema stays canonical since it's also used outside the API, e.g. by
+# the CLI.

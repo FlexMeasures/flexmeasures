@@ -1523,6 +1523,14 @@ class AssetTriggerSchema(Schema):
             },
         ]
     }
+
+    This schema is also used outside of the (versioned) API, e.g. by the CLI,
+    so it stays canonical (no legacy field-name aliasing here). API-version-
+    specific backward compatibility, such as accepting the legacy
+    `force_new_job_creation` field name, is layered on top in
+    `flexmeasures/api/v3_0/assets.py` (`AssetTriggerSchemaV3`), so it can be
+    deleted in one place once v3_0 is sunset, without touching this shared
+    domain schema.
     """
 
     asset = GenericAssetIdField(

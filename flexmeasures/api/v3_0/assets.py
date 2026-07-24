@@ -58,6 +58,7 @@ from flexmeasures.data.schemas.generic_assets import (
     SensorsToShowSchema,
 )
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+from flexmeasures.data.schemas.utils import SupportsLegacyFieldAliases
 from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
     create_simultaneous_scheduling_job,
@@ -97,6 +98,22 @@ def sensor_term_filter(term: str):
     if term.isdecimal():
         filters.append(id_prefix_filter(Sensor.id, term))
     return or_(*filters)
+
+
+class AssetTriggerSchemaV3(SupportsLegacyFieldAliases, AssetTriggerSchema):
+    """v3_0-only wrapper around the shared `AssetTriggerSchema`.
+
+    `AssetTriggerSchema` itself stays canonical (no legacy field-name
+    aliasing) since it's also used outside the versioned API, e.g. by the
+    CLI. This subclass adds v3_0's backward compatibility for the legacy
+    `force_new_job_creation` field name, so it can be deleted in one place,
+    along with the rest of `flexmeasures/api/v3_0/`, once this API version is
+    sunset -- without needing to touch the shared domain schema.
+    """
+
+    legacy_field_aliases = {
+        "force_new_job_creation": "force-new-job-creation",
+    }
 
 
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
@@ -153,6 +170,7 @@ class AssetChartDataKwargsSchema(Schema):
 
 class AssetAuditLogPaginationSchema(PaginationSchema):
     sort_by = fields.Str(
+        data_key="sort-by",
         required=False,
         validate=validate.OneOf(["event_datetime"]),
     )
@@ -298,16 +316,16 @@ class AssetAPI(FlaskView):
           description: |
             This endpoint returns all assets that are accessible by the user after applying optional filters.
 
-              - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
+              - The `account` query parameter (legacy alias: `account_id`) can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
               - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
               - The `asset_type` query parameter can be used to filter by generic asset type ID.
               - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).
               - The `depth` query parameter can be used to search only a max number of descendant generations from the root.
 
-            The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
+            The endpoint supports pagination of the asset list using the `page` and `per-page` (legacy alias: `per_page`) query parameters.
               - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
-              - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+              - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per-page` (default is 10).
               - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will return only assets where each search term is either present in their name or account name, or is a prefix of their ID.
               The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)
 
@@ -455,10 +473,10 @@ class AssetAPI(FlaskView):
           description: |
             This endpoint returns all sensors under an asset.
 
-            The endpoint supports pagination of the sensor list using the `page` and `per_page` query parameters.
+            The endpoint supports pagination of the sensor list using the `page` and `per-page` (legacy alias: `per_page`) query parameters.
 
             - If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.
-            - If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).
+            - If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per-page` (default is 10).
             - If a search 'filter' is provided, the response will return only sensors where a search term is either present in their name or is a prefix of their ID.
             The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
           security:
@@ -1125,9 +1143,9 @@ class AssetAPI(FlaskView):
           summary: Get history of asset related actions.
           description: |
             The endpoint is paginated and supports search filters.
-              - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
-              - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
-              - If `sort_by` (field name) and `sort_dir` ("asc" or "desc") are provided, the list will be sorted.
+              - If the `page` parameter is not provided, all audit logs are returned paginated by `per-page` (legacy alias: `per_page`, default is 10).
+              - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per-page` (default is 10).
+              - If `sort-by` (field name, legacy alias: `sort_by`) and `sort-dir` ("asc" or "desc", legacy alias: `sort_dir`) are provided, the list will be sorted.
               - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.
                 The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side)
           security:
@@ -1427,7 +1445,7 @@ class AssetAPI(FlaskView):
         }, 200
 
     @route("/<id>/schedules/trigger", methods=["POST"])
-    @use_args(AssetTriggerSchema(), location="args_and_json", as_kwargs=True)
+    @use_args(AssetTriggerSchemaV3(), location="args_and_json", as_kwargs=True)
     # Simplification of checking for create-children access on each of the flexible sensors,
     # which assumes each of the flexible sensors belongs to the given asset.
     @permission_required_for_context("create-children", ctx_arg_name="asset")

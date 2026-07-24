@@ -12,7 +12,7 @@ from flask import current_app, url_for, request
 from flask_classful import FlaskView, route
 from flask_json import as_json
 from flask_security import auth_required, current_user
-from marshmallow import fields, pre_load, Schema, ValidationError, validates_schema
+from marshmallow import fields, Schema, ValidationError, validates_schema
 import marshmallow.validate as validate
 from rq.job import Job, JobStatus, NoSuchJobError
 from webargs.flaskparser import use_args, use_kwargs
@@ -26,7 +26,10 @@ from flexmeasures.api.common.responses import (
     unprocessable_entity,
     fallback_schedule_redirect,
 )
-from flexmeasures.api.common.schemas.utils import make_openapi_compatible
+from flexmeasures.api.common.schemas.utils import (
+    make_openapi_compatible,
+    SupportsLegacyFieldAliases,
+)
 from flexmeasures.api.common.schemas.sensor_data import (  # noqa F401
     SensorDataDescriptionSchema,
     GetSensorDataSchema,
@@ -220,14 +223,23 @@ class DeleteSensorDataSchema(Schema):
                 )
 
 
-class SensorKwargsSchema(Schema):
-    account = AccountIdField(data_key="account_id", required=False)
-    asset = AssetIdField(data_key="asset_id", required=False)
+class SensorKwargsSchema(SupportsLegacyFieldAliases, Schema):
+    legacy_field_aliases = {
+        "account_id": "account",
+        "asset_id": "asset",
+        "per_page": "per-page",
+    }
+
+    account = AccountIdField(data_key="account", required=False)
+    asset = AssetIdField(data_key="asset", required=False)
     include_consultancy_clients = fields.Boolean(required=False, load_default=False)
     include_public_assets = fields.Boolean(required=False, load_default=False)
     page = fields.Int(required=False, validate=validate.Range(min=1))
     per_page = fields.Int(
-        required=False, validate=validate.Range(min=1), load_default=10
+        data_key="per-page",
+        required=False,
+        validate=validate.Range(min=1),
+        load_default=10,
     )
     filter = SearchFilterField(
         required=False,
@@ -238,7 +250,11 @@ class SensorKwargsSchema(Schema):
     unit = UnitField(required=False)
 
 
-class TriggerScheduleKwargsSchema(Schema):
+class TriggerScheduleKwargsSchema(SupportsLegacyFieldAliases, Schema):
+    legacy_field_aliases = {
+        "force_new_job_creation": "force-new-job-creation",
+    }
+
     start_of_schedule = AwareDateTimeField(
         data_key="start",
         format="iso",
@@ -295,14 +311,6 @@ class TriggerScheduleKwargsSchema(Schema):
         ),
     )
 
-    @pre_load
-    def support_legacy_field_name(self, data, **kwargs):
-        """Accept old snake_case input for backwards compatibility."""
-        if "force_new_job_creation" in data and "force-new-job-creation" not in data:
-            data["force-new-job-creation"] = data.pop("force_new_job_creation")
-
-        return data
-
 
 class SensorAPI(FlaskView):
     route_base = "/sensors"
@@ -344,13 +352,14 @@ class SensorAPI(FlaskView):
             Finally, you can use the `include_consultancy_clients` parameter to include sensors from accounts for which the current user account is a consultant.
             This is only possible if the user has the role of a consultant.
 
-            Only admins can use this endpoint to fetch sensors from a different account (by using the `account_id` query parameter).
+            Only admins can use this endpoint to fetch sensors from a different account (by using the `account` query parameter, legacy alias: `account_id`).
 
             The `filter` parameter allows you to search for sensors by name, account name, asset name, or sensor ID prefix.
             The `unit` parameter allows you to filter by unit.
 
-            For the pagination of the sensor list, you can use the `page` and `per_page` query parameters, the `page` parameter is used to trigger
-            pagination, and the `per_page` parameter is used to specify the number of records per page. The default value for `page` is 1 and for `per_page` is 10.
+            For the pagination of the sensor list, you can use the `page` and `per-page` query parameters (legacy alias: `per_page`). If `page` is omitted,
+            all accessible sensors are returned, without pagination. If `page` is provided, the response is paginated, using `per-page` (default 10) to
+            specify the number of records per page.
 
           security:
             - ApiKeyAuth: []

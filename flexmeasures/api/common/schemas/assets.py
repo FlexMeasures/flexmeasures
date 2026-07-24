@@ -39,7 +39,13 @@ class PipedAssetFieldListField(fields.Str):
 
 
 class AssetAPIQuerySchema(PaginationSchema):
+    legacy_field_aliases = {
+        **PaginationSchema.legacy_field_aliases,
+        "account_id": "account",
+    }
+
     sort_by = fields.Str(
+        data_key="sort-by",
         required=False,
         validate=validate.OneOf(["id", "name", "owner"]),
         metadata=dict(
@@ -55,7 +61,7 @@ class AssetAPIQuerySchema(PaginationSchema):
         ),
     )
     account = AccountIdField(
-        data_key="account_id",
+        data_key="account",
         required=False,
         metadata=dict(
             description="Select assets from a given account (requires read access to that account). Per default, the user's own account is used.",
@@ -118,10 +124,12 @@ class PublicAssetAPISchema(Schema):
 
 class AssetPaginationSchema(PaginationSchema):
     sort_by = fields.Str(
+        data_key="sort-by",
         required=False,
         validate=validate.OneOf(["id", "name", "resolution"]),
     )
     sort_dir = fields.Str(
+        data_key="sort-dir",
         required=False,
         validate=validate.OneOf(["asc", "desc"]),
     )
