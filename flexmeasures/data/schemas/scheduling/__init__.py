@@ -1031,13 +1031,6 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.AGGREGATE_POWER.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
-    # The commodities list is not offered as an addable field in the editor;
-    # the UI manages it through a commodity tab bar instead.
-    "commodities": {
-        "default": None,
-        "description": rst_to_openapi(metadata.COMMODITIES.description),
-        "example-units": EXAMPLE_UNIT_TYPES["commodity"],
-    },
 }
 
 # Mark which flex-context fields can also be set within each entry of the

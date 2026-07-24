@@ -80,6 +80,7 @@ def test_ui_flexcontext_schema():
         "consumption-price-sensor",
         "production-price-sensor",
         "commodity",  # single-dict form is electricity-only; not exposed in the UI
+        "commodities",  # internal field; the UI manages it through the commodity tab bar
     ]
 
     schema_keys = []
@@ -112,9 +113,6 @@ def test_ui_flexcontext_schema_per_commodity_flags():
             f"UI schema entry '{field_name}' has a per-commodity flag that contradicts "
             "CommodityFlexContextSchema."
         )
-    # The commodities list itself cannot be nested inside a commodity context,
-    # and the editor manages it through the commodity tab bar.
-    assert UI_FLEX_CONTEXT_SCHEMA["commodities"]["per-commodity"] is False
 
 
 def test_ui_flexmodel_schema():
