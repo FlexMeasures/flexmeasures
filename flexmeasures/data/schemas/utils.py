@@ -157,14 +157,17 @@ class SupportsLegacyFieldAliases:
     def _apply_legacy_field_aliases(self, data, **kwargs):
         if not hasattr(data, "items") or not self.legacy_field_aliases:
             return data
-        # Only rebuild `data` into a plain dict if a legacy key is actually
-        # present. Some incoming `data` objects are a MultiDict (e.g. when
-        # webargs represents a JSON list as repeated keys) and other pre_load
-        # hooks may rely on that (e.g. `getlist`); leave those untouched when
-        # there's nothing for us to alias.
+        # Skip entirely when nothing to alias, so schemas that don't touch
+        # this hook's keys never pay for a copy.
         if not any(legacy_key in data for legacy_key in self.legacy_field_aliases):
             return data
-        aliased = dict(data)
+        # Some incoming `data` objects are a MultiDict (e.g. when webargs
+        # represents a JSON list as repeated keys), and other `@pre_load`
+        # hooks may rely on MultiDict methods like `getlist` for keys we
+        # don't touch here (e.g. `AssetTriggerSchema.normalize_flex_context_format`).
+        # `.copy()` preserves the original mapping type; plain dict-item
+        # assignment/pop on it is safe for our single-valued legacy keys.
+        aliased = data.copy() if hasattr(data, "copy") else dict(data)
         for legacy_key, canonical_key in self.legacy_field_aliases.items():
             if legacy_key in aliased and canonical_key not in aliased:
                 aliased[canonical_key] = aliased.pop(legacy_key)
