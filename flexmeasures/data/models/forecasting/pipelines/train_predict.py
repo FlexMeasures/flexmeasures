@@ -22,6 +22,7 @@ from flexmeasures.data.schemas.forecasting.pipeline import (
     ForecasterParametersSchema,
     TrainPredictPipelineConfigSchema,
 )
+from flexmeasures.data.schemas.sensors import SensorReference, SensorReferenceSchema
 from flexmeasures.utils.flexmeasures_inflection import p
 
 
@@ -66,6 +67,26 @@ def _get_attached_data_source(data_source_id: int | None) -> DataSource | None:
     return attached_source
 
 
+def _make_regressor_payload(
+    regressor: Sensor | SensorReference,
+) -> int | dict[str, Any]:
+    """Serialize a regressor and its optional source filters to database IDs."""
+    if isinstance(regressor, SensorReference):
+        return SensorReferenceSchema().dump(regressor)
+    return regressor.id
+
+
+def _load_regressor_payload(
+    payload: int | dict[str, Any],
+) -> Sensor | SensorReference:
+    """Restore a worker-local regressor from a primitive queued-job payload."""
+    if isinstance(payload, dict):
+        return SensorReference(**SensorReferenceSchema().load(payload))
+    sensor = _get_attached_sensor(payload)
+    assert sensor is not None
+    return sensor
+
+
 def _assert_no_orm_objects(value: Any, path: str = "payload") -> None:
     """Reject ORM objects before they can be pickled into an RQ job."""
     inspection = sa_inspect(value, raiseerr=False)
@@ -88,14 +109,16 @@ def _make_job_config_payload(config: dict[str, Any]) -> dict[str, Any]:
 
     ORM-backed fields are replaced by IDs, while plain config fields are preserved.
     """
-    # Preserve plain config fields, but replace ORM-backed regressors by IDs.
+    # Preserve plain config fields, but replace ORM-backed regressors by primitive payloads.
     payload = dict(config)
     future_regressors = payload.pop("future_regressors", [])
     past_regressors = payload.pop("past_regressors", [])
     payload["future_regressor_ids"] = [
-        _sensor_id(sensor) for sensor in future_regressors
+        _make_regressor_payload(regressor) for regressor in future_regressors
     ]
-    payload["past_regressor_ids"] = [_sensor_id(sensor) for sensor in past_regressors]
+    payload["past_regressor_ids"] = [
+        _make_regressor_payload(regressor) for regressor in past_regressors
+    ]
     payload["annotation_regressors"] = [
         _make_annotation_regressor_payload(spec)
         for spec in payload.get("annotation_regressors", [])
@@ -108,12 +131,12 @@ def _load_job_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Restore worker config and reload regressors in the worker session."""
     config = dict(payload)
     config["future_regressors"] = [
-        _get_attached_sensor(sensor_id)
-        for sensor_id in config.pop("future_regressor_ids", [])
+        _load_regressor_payload(regressor)
+        for regressor in config.pop("future_regressor_ids", [])
     ]
     config["past_regressors"] = [
-        _get_attached_sensor(sensor_id)
-        for sensor_id in config.pop("past_regressor_ids", [])
+        _load_regressor_payload(regressor)
+        for regressor in config.pop("past_regressor_ids", [])
     ]
     return config
 

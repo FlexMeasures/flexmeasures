@@ -53,6 +53,7 @@ from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import id_prefix_filter, simplify_index
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.sensors import (  # noqa F401
+    SensorReference,
     SensorSchema,
     SensorIdField,
     SensorDataFileSchema,
@@ -119,6 +120,11 @@ REGRESSOR_CONFIG_FIELDS = {
 }
 
 
+def _regressor_sensor(regressor: Sensor | SensorReference) -> Sensor:
+    """Return the sensor wrapped by a forecasting regressor reference."""
+    return regressor.sensor if isinstance(regressor, SensorReference) else regressor
+
+
 def regressors_loader(config: dict | None) -> dict[str, list[Sensor]]:
     """Extract regressor sensors from the forecasting config for permission checking.
 
@@ -136,21 +142,27 @@ def regressors_loader(config: dict | None) -> dict[str, list[Sensor]]:
             config.get("future_regressors", []),
             config.get("past_regressors", []),
         ]
-        for sensor in regressor_list
+        for sensor in [_regressor_sensor(regressor) for regressor in regressor_list]
     }
     request_config = (request.get_json(silent=True) or {}).get("config", {})
 
     regressors_by_field = {}
     for request_field_name, field_info in REGRESSOR_CONFIG_FIELDS.items():
         if request_config:
-            field_sensor_ids = request_config.get(request_field_name, [])
+            field_sensor_ids = [
+                regressor.get("sensor") if isinstance(regressor, dict) else regressor
+                for regressor in request_config.get(request_field_name, [])
+            ]
             field_sensors = [
                 sensors_by_id[sensor_id]
                 for sensor_id in field_sensor_ids
                 if sensor_id in sensors_by_id
             ]
         else:
-            field_sensors = config.get(field_info["schema_field_name"], [])
+            field_sensors = [
+                _regressor_sensor(regressor)
+                for regressor in config.get(field_info["schema_field_name"], [])
+            ]
         if field_sensors:
             regressors_by_field[field_info["label"]] = field_sensors
     return regressors_by_field

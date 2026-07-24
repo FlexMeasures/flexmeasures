@@ -13,6 +13,7 @@ v1.0.0 | July XX, 2026
 New features
 -------------
 
+* Forecasting regressors can filter their input beliefs by data source, source type, excluded source type, or source organisation [see `PR #2347 <https://github.com/FlexMeasures/flexmeasures/pull/2347>`_]
 * Filter organisations by account role in the Accounts API and organisation list UI [see `PR #2353 <https://www.github.com/FlexMeasures/flexmeasures/pull/2353>`_]
 * The flex-context editor now also shows the fields that scheduling the asset would inherit from parent assets — uneditable, with buttons to jump to the editor of the defining parent asset or to override the field on the asset itself [see `PR #2346 <https://www.github.com/FlexMeasures/flexmeasures/pull/2346>`_]
 * Show asset annotations in asset charts: a lightly shaded time band across all subcharts, darkening with a tooltip (showing the annotation text and source) when hovered in a subchart; alerts get a warning hue, and instant annotations render as a vertical rule with a top marker; also adds a ``GET /api/v3_0/assets/<id>/chart_annotations`` endpoint [see `PR #2312 <https://www.github.com/FlexMeasures/flexmeasures/pull/2312>`_]
