@@ -766,12 +766,12 @@ def device_scheduler(  # noqa C901
                     return Constraint.Skip
 
         return (
-            None,
+            0 if "upwards deviation price" in commitments[c].columns else None,
             m.commitment_quantity[c, j]
             + m.commitment_downwards_deviation[c]
             + m.commitment_upwards_deviation[c]
             - sum(m.ems_power[d, j] for d in devices),
-            None,
+            0 if "downwards deviation price" in commitments[c].columns else None,
         )
 
     def device_derivative_equalities(m, d, j):
