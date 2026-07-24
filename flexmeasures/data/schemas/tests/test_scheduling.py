@@ -503,6 +503,32 @@ def test_efficiency_pair(
                 "commitments.0.up-price": "Commitment up-price must have a power or energy unit in its denominator."
             },
         ),
+        # Commitment without a baseline
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "up-price": "100 EUR/MWh",
+                    }
+                ]
+            },
+            {"commitments.0.baseline": "A commitment requires a baseline."},
+        ),
+        # Commitment without any deviation price
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                    }
+                ]
+            },
+            {
+                "commitments.0.up-price": "A commitment requires at least one deviation price (up-price and/or down-price)."
+            },
+        ),
     ],
 )
 def test_flex_context_schema(

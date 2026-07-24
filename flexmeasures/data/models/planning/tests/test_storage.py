@@ -106,7 +106,7 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
                 },
                 {
                     "name": "a sample commitment penalizing demand/supply",
-                    # "baseline": "0 kW",  # commented out to check defaulting to 0 also works
+                    "baseline": "0 kW",  # an explicit baseline is required since PR #2287
                     "up-price": "1 EUR/MWh",
                     "down-price": "-1 EUR/MWh",
                 },

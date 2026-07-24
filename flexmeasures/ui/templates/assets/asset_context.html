@@ -494,7 +494,8 @@
             return;
         }
         const assetFlexContext = getFlexContext();
-        getActiveContext(assetFlexContext)[fieldName] = "";
+        // Commitments open with one (zero-valued) commitment ready to edit.
+        getActiveContext(assetFlexContext)[fieldName] = fieldName === "commitments" ? [newCommitment()] : "";
         flexOptionsContainer.innerHTML = "";
         setFlexContext(assetFlexContext);
 
@@ -1156,12 +1157,38 @@ Make sure that the sensor data will be available consistently, though, so schedu
     // written into that commitment's field instead of replacing the whole card value.
     let pendingCommitmentTarget = null;
 
+    // Commitments start out with (and are unset back to) zero quantities,
+    // so a freshly added commitment is already valid and has no effect until edited.
+    const commitmentZeroDefaults = { "baseline": "0 kW", "up-price": "0 EUR/MWh", "down-price": "0 EUR/MWh" };
+
+    function activeCommodityName() {
+        const assetFlexContext = getFlexContext();
+        if (activeCommodityIndex === null) {
+            return "electricity";
+        }
+        return assetFlexContext["commodities"][activeCommodityIndex]["commodity"] || "electricity";
+    }
+
+    function newCommitment() {
+        return { "name": "", "commodity": activeCommodityName(), ...commitmentZeroDefaults };
+    }
+
     function setCommitmentField(commitmentIndex, key, value) {
         const assetFlexContext = getFlexContext();
         const activeContext = getActiveContext(assetFlexContext);
         activeContext["commitments"][commitmentIndex][key] = value;
         localStorage.setItem('activeCard', 'commitments');
         setFlexContext(assetFlexContext);
+    }
+
+    // Turn free text into a commitment value: "sensor 536" (any casing) becomes
+    // a sensor reference, anything else is kept as a fixed quantity string.
+    function parseCommitmentValue(raw) {
+        const sensorMatch = raw.trim().toLowerCase().match(/^sensor\s+(\d+)$/);
+        if (sensorMatch) {
+            return { "sensor": parseInt(sensorMatch[1], 10) };
+        }
+        return raw.trim();
     }
 
     function describeCommitmentValue(value) {
@@ -1185,7 +1212,8 @@ Make sure that the sensor data will be available consistently, though, so schedu
         const intro = document.createElement("p");
         intro.className = "form-label";
         intro.innerHTML = "Each commitment needs a <b>name</b> and a <b>baseline</b>, plus at least one deviation price. " +
-            "Values can be fixed quantities (e.g. '100 kW', '35 EUR/MWh') or a sensor. Further checks happen on save.";
+            "Values can be fixed quantities (e.g. '100 kW', '35 EUR/MWh'), a sensor picked below, or a sensor reference typed directly (e.g. 'sensor 536'). " +
+            "New commitments start at zero; unsetting a value also resets it to zero. Further checks happen on save.";
         container.appendChild(intro);
 
         commitments.forEach((commitment, index) => {
@@ -1196,7 +1224,7 @@ Make sure that the sensor data will be available consistently, though, so schedu
             const headerRow = document.createElement("div");
             headerRow.className = "row g-2 align-items-end pb-2";
 
-            function textInput(labelText, key, placeholder, colClass) {
+            function textInput(labelText, key, placeholder, colClass, disabled = false) {
                 const col = document.createElement("div");
                 col.className = colClass;
                 const label = document.createElement("label");
@@ -1207,6 +1235,7 @@ Make sure that the sensor data will be available consistently, though, so schedu
                 input.className = "form-control form-control-sm";
                 input.placeholder = placeholder;
                 input.value = commitment[key] || "";
+                input.disabled = disabled;
                 input.onchange = () => setCommitmentField(index, key, input.value);
                 col.appendChild(label);
                 col.appendChild(input);
@@ -1214,7 +1243,9 @@ Make sure that the sensor data will be available consistently, though, so schedu
             }
 
             headerRow.appendChild(textInput("Name", "name", "e.g. capacity contract", "col-5"));
-            headerRow.appendChild(textInput("Commodity", "commodity", "electricity", "col-4"));
+            // The commodity is bound to the commodity tab being edited, not chosen per commitment.
+            commitment["commodity"] = activeCommodityName();
+            headerRow.appendChild(textInput("Commodity", "commodity", "electricity", "col-4", true));
 
             const removeCol = document.createElement("div");
             removeCol.className = "col-3 text-end";
@@ -1251,30 +1282,36 @@ Make sure that the sensor data will be available consistently, though, so schedu
                 input.type = "text";
                 input.className = "form-control form-control-sm";
                 input.placeholder = key === "baseline" ? "e.g. 100 kW" : "e.g. 35 EUR/MWh";
+                // Prefill with the current value, so it can be corrected in place.
+                const currentValue = commitment[key];
+                if (typeof currentValue === "object" && currentValue !== null && currentValue["sensor"]) {
+                    input.value = `sensor ${currentValue["sensor"]}`;
+                } else if (currentValue !== undefined && currentValue !== null) {
+                    input.value = String(currentValue);
+                }
+                const commitInput = () => {
+                    // Clearing the input unsets the value, i.e. resets it to zero.
+                    const value = input.value.trim() === "" ? commitmentZeroDefaults[key] : parseCommitmentValue(input.value);
+                    setCommitmentField(index, key, value);
+                };
                 input.onkeydown = (event) => {
                     if (event.key === 'Enter') {
                         event.preventDefault();
-                        if (input.value !== "") setCommitmentField(index, key, input.value);
+                        commitInput();
                     }
                 };
-                input.onchange = () => {
-                    if (input.value !== "") setCommitmentField(index, key, input.value);
-                };
+                input.onchange = commitInput;
                 inputCol.appendChild(input);
                 row.appendChild(inputCol);
 
                 const buttonsCol = document.createElement("div");
                 buttonsCol.className = "col-5";
-                const useBtn = document.createElement("button");
-                useBtn.className = "btn btn-sm btn-secondary me-1";
-                useBtn.textContent = "Use value";
-                useBtn.onclick = () => {
-                    if (input.value === "") {
-                        showToast("Please enter a value", "error");
-                        return;
-                    }
-                    setCommitmentField(index, key, input.value);
-                };
+                const unsetBtn = document.createElement("button");
+                unsetBtn.className = "btn btn-sm btn-outline-secondary me-1";
+                unsetBtn.textContent = "Unset";
+                unsetBtn.title = "Reset this value to zero";
+                unsetBtn.onclick = () => setCommitmentField(index, key, commitmentZeroDefaults[key]);
+                buttonsCol.appendChild(unsetBtn);
                 const sensorBtn = document.createElement("button");
                 sensorBtn.className = "btn btn-sm btn-outline-secondary";
                 sensorBtn.textContent = "Pick sensor";
@@ -1286,7 +1323,6 @@ Make sure that the sensor data will be available consistently, though, so schedu
                     }
                     container.appendChild(createSensorSearchBlockFor(`commitment '${commitment["name"] || index}' ${key}`));
                 };
-                buttonsCol.appendChild(useBtn);
                 buttonsCol.appendChild(sensorBtn);
                 row.appendChild(buttonsCol);
 
@@ -1303,7 +1339,7 @@ Make sure that the sensor data will be available consistently, though, so schedu
             const assetFlexContext = getFlexContext();
             const context = getActiveContext(assetFlexContext);
             const existing = Array.isArray(context["commitments"]) ? context["commitments"] : [];
-            context["commitments"] = [...existing, { "name": "", "commodity": "electricity" }];
+            context["commitments"] = [...existing, newCommitment()];
             localStorage.setItem('activeCard', 'commitments');
             setFlexContext(assetFlexContext);
         };

@@ -94,6 +94,19 @@ class CommitmentSchema(Schema):
     )
 
     @validates_schema
+    def require_baseline_and_a_price(self, commitment, **kwargs):
+        """A commitment is worthless without a baseline and at least one deviation price."""
+        if "baseline" not in commitment:
+            raise ValidationError(
+                "A commitment requires a baseline.", field_name="baseline"
+            )
+        if "up_price" not in commitment and "down_price" not in commitment:
+            raise ValidationError(
+                "A commitment requires at least one deviation price (up-price and/or down-price).",
+                field_name="up-price",
+            )
+
+    @validates_schema
     def check_units(self, commitment, **kwargs):
         baseline_field = self.declared_fields["baseline"]
         if "baseline" in commitment:
