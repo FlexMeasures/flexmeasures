@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from unittest import mock
 import pytest
 import pytz
 import logging
@@ -4215,3 +4216,135 @@ def test_multi_device_battery_fails_on_unresolvable_soc_sensor(
     )
     with pytest.raises(ValueError, match="No recent state-of-charge value"):
         scheduler.compute()
+
+
+def test_battery_solver_respects_operation_mode_bands(db, add_battery_assets):
+    """StorageScheduler.compute() must actually wire "operation-modes" from the
+    flex-model through to the LP's device power bands.
+
+    The device is confined to a discrete power band {0 MW} U [0.4 MW, 0.5 MW], and
+    priced/targeted such that, without the bands, the cost-optimal schedule would use
+    an intermediate power value (0.2 MW) outside of that band (as demonstrated at the
+    LP level in test_operation_modes.py::test_device_scheduler_without_bands_uses_fractional_power
+    and test_device_scheduler_with_min_power_band). If StorageScheduler stopped reading
+    "operation-modes" from the flex-model and passing device_power_bands into
+    device_scheduler(), this test would start seeing schedule values like 0.2 MW,
+    which lie outside the allowed band.
+    """
+    _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
+
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-03-02T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    # Cheap in steps 1 and 3, expensive in steps 0 and 2 (mirrors the LP-level fixture).
+    consumption_prices = pd.Series(
+        [10, 1, 10, 1],
+        index=pd.date_range(start, end, freq=resolution, inclusive="left"),
+    )
+
+    flex_model = {
+        "soc-at-start": "0 MWh",
+        "soc-min": "0 MWh",
+        "soc-max": "5 MWh",
+        "soc-targets": [{"datetime": end.isoformat(), "value": "1.2 MWh"}],
+        "power-capacity": "0.5 MW",
+        "production-capacity": "0 MW",
+        "consumption-capacity": "0.5 MW",
+        "operation-modes": [
+            {"consumption-range": ["0 MW", "0 MW"]},
+            {"consumption-range": ["0.4 MW", "0.5 MW"]},
+        ],
+    }
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": series_to_ts_specs(consumption_prices, unit="EUR/MWh"),
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "2 MW",
+        },
+    )
+    schedule = scheduler.compute()
+
+    atol = 1e-3
+    for v in schedule.values:
+        if np.isnan(v):
+            continue
+        assert np.isclose(v, 0, atol=atol) or (
+            0.4 - atol <= v <= 0.5 + atol
+        ), f"Scheduled power {v} MW violates the operation-mode band {{0}} U [0.4, 0.5] MW"
+
+    # Sanity: the target is still met, and at least one step actually lands in the
+    # non-zero band (i.e. the constraint was exercised, not just trivially satisfied).
+    assert np.isclose(
+        schedule.sum() * (resolution / timedelta(hours=1)), 1.2, atol=atol
+    )
+    assert any(
+        0.4 - atol <= v <= 0.5 + atol for v in schedule.values if not np.isnan(v)
+    )
+
+
+def test_battery_solver_passes_device_power_bands_to_device_scheduler(
+    db, add_battery_assets
+):
+    """Regression guard for severed operation-modes wiring.
+
+    Spies on ``device_scheduler`` (as imported into
+    ``flexmeasures.data.models.planning.storage``) to assert that, when the flex-model
+    declares "operation-modes" for a device, StorageScheduler.compute() actually
+    forwards a non-empty ``device_power_bands`` entry for that device. This is a
+    direct trap for the specific regression where StorageScheduler stops reading
+    "operation-modes" from the flex-model and/or stops passing device_power_bands
+    into device_scheduler(), even if such a change happened to not alter the schedule
+    values in a particular test's price/target scenario.
+    """
+    _epex_da, battery = get_sensors_from_db(db, add_battery_assets)
+
+    resolution = timedelta(hours=1)
+    start = pd.Timestamp("2020-03-03T00:00:00", tz="Europe/Amsterdam")
+    end = start + 4 * resolution
+
+    flex_model = {
+        "soc-at-start": "0 MWh",
+        "soc-min": "0 MWh",
+        "soc-max": "5 MWh",
+        "power-capacity": "0.5 MW",
+        "operation-modes": [
+            {"consumption-range": ["0 MW", "0 MW"]},
+            {"consumption-range": ["0.5 MW", "0.5 MW"]},
+        ],
+    }
+
+    scheduler: Scheduler = StorageScheduler(
+        battery,
+        start,
+        end,
+        resolution,
+        flex_model=flex_model,
+        flex_context={
+            "consumption-price": "10 EUR/MWh",
+            "production-price": "0 EUR/MWh",
+            "site-power-capacity": "2 MW",
+        },
+    )
+
+    with mock.patch(
+        "flexmeasures.data.models.planning.storage.device_scheduler",
+        wraps=device_scheduler,
+    ) as mocked_device_scheduler:
+        scheduler.compute()
+
+    assert mocked_device_scheduler.called
+    _, call_kwargs = mocked_device_scheduler.call_args
+    device_power_bands = call_kwargs.get("device_power_bands")
+    assert device_power_bands is not None
+    assert any(band for band in device_power_bands), (
+        "device_scheduler() was called without any device_power_bands, even though "
+        "the flex-model declared operation-modes. This indicates the operation-modes "
+        "wiring inside StorageScheduler has been severed."
+    )
