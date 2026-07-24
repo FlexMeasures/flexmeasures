@@ -4,7 +4,10 @@ import json
 
 from flask import url_for
 import pytest
+from sqlalchemy import select
 
+from flexmeasures.data.models.user import Account, AccountRole
+from flexmeasures.auth.policy import CONSULTANCY_ACCOUNT_ROLE
 from flexmeasures.data.services.users import find_user_by_email
 
 
@@ -81,6 +84,90 @@ def test_get_accounts(
 
     if sort_by:
         assert accounts[0]["name"] == expected_name_of_first_account
+
+
+@pytest.mark.parametrize(
+    "requesting_user, role, expected_names",
+    [
+        (
+            "test_admin_user@seita.nl",
+            "Dummy",
+            {"Test Dummy Account", "Multi Role Account"},
+        ),
+        (
+            "test_admin_user@seita.nl",
+            "Prosumer",
+            {"Test Prosumer Account", "Multi Role Account"},
+        ),
+        ("test_prosumer_user@seita.nl", "Supplier", set()),
+    ],
+    indirect=["requesting_user"],
+)
+def test_get_accounts_filters_by_role_within_accessible_accounts(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    role,
+    expected_names,
+):
+    response = client.get(
+        url_for("AccountAPI:index"),
+        query_string={"role": role},
+    )
+
+    assert response.status_code == 200
+    assert {account["name"] for account in response.json} == expected_names
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_admin_user@seita.nl"],
+    indirect=True,
+)
+def test_get_accounts_filters_by_role_before_pagination(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    unfiltered_response = client.get(
+        url_for("AccountAPI:index"),
+        query_string={"page": 1, "per_page": 10},
+    )
+    response = client.get(
+        url_for("AccountAPI:index"),
+        query_string={"role": "Dummy", "page": 1, "per_page": 10},
+    )
+
+    assert response.status_code == 200
+    assert {account["name"] for account in response.json["data"]} == {
+        "Test Dummy Account",
+        "Multi Role Account",
+    }
+    # num-records counts all accessible accounts, before the role filter
+    assert response.json["num-records"] == unfiltered_response.json["num-records"]
+    assert response.json["num-records"] > 2
+    assert response.json["filtered-records"] == 2
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_admin_user@seita.nl"],
+    indirect=True,
+)
+def test_get_accounts_rejects_unknown_role(
+    client,
+    setup_api_test_data,
+    requesting_user,
+):
+    response = client.get(
+        url_for("AccountAPI:index"),
+        query_string={"role": "Unknown role"},
+    )
+
+    assert response.status_code == 422
+    assert response.json["message"]["query"]["role"] == [
+        "No account role found with name Unknown role."
+    ]
 
 
 @pytest.mark.parametrize(
@@ -178,7 +265,7 @@ def test_get_one_user_audit_log_consultant(
 @pytest.mark.parametrize(
     "requesting_user, expected_status_code",
     [
-        ("test_consultant@seita.nl", 401),
+        ("test_consultant@seita.nl", 403),
     ],
     indirect=["requesting_user"],
 )
@@ -189,6 +276,7 @@ def test_consultant_cannot_update_account_consultant(
     requesting_user,
     expected_status_code,
 ):
+    """Test that consultant cannot change consultancy_account_id to a different account."""
     client_accounts = requesting_user.account.consultancy_client_accounts
     test_user_account_id = client_accounts[0].id if client_accounts else None
 
@@ -200,6 +288,26 @@ def test_consultant_cannot_update_account_consultant(
     print("Server responded with:\n%s" % patch_account_response.data)
     print("Status code: %s" % patch_account_response.status_code)
     assert patch_account_response.status_code == expected_status_code
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_consultant@seita.nl"],
+    indirect=["requesting_user"],
+)
+def test_consultant_can_set_own_account_as_consultancy_account(
+    client, setup_api_test_data, requesting_user
+):
+    """consultancy_account_id PATCH validation is handled by AccountPatchSchema."""
+    client_account = requesting_user.account.consultancy_client_accounts[0]
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=client_account.id),
+        json={"consultancy_account_id": requesting_user.account.id},
+    )
+
+    assert response.status_code == 200
+    assert response.json["consultancy_account_id"] == requesting_user.account.id
 
 
 @pytest.mark.parametrize(
@@ -283,3 +391,174 @@ def test_patch_account_attributes_with_consultancy(
         response.json["consultancy_account_id"]
         == consultancy_client_account.consultancy_account_id
     )
+
+
+@pytest.mark.parametrize(
+    "requesting_user, status_code",
+    [
+        (None, 401),
+        ("test_prosumer_user@seita.nl", 403),
+        ("test_admin_user@seita.nl", 201),
+        ("test_consultant@seita.nl", 201),
+        ("test_consultancy_user_without_consultant_access@seita.nl", 403),
+    ],
+    indirect=["requesting_user"],
+)
+def test_post_account(client, setup_api_test_data, requesting_user, status_code, db):
+    payload = {
+        "name": f"Created Account {requesting_user.id if requesting_user else 'anon'}",
+    }
+
+    response = client.post(url_for("AccountAPI:post"), json=payload)
+    assert response.status_code == status_code
+
+    if status_code == 201:
+        created = db.session.execute(
+            select(Account).filter_by(name=payload["name"])
+        ).scalar_one_or_none()
+        assert created is not None
+
+        if requesting_user.has_role("consultant"):
+            assert created.consultancy_account_id == requesting_user.account.id
+        else:
+            assert created.consultancy_account_id is None
+
+
+@pytest.mark.parametrize(
+    "requesting_user",
+    ["test_consultant@seita.nl"],
+    indirect=["requesting_user"],
+)
+def test_post_account_consultant_without_required_account_role_forbidden(
+    client, setup_api_test_data, requesting_user, db
+):
+
+    role = db.session.execute(
+        select(AccountRole).filter_by(name=CONSULTANCY_ACCOUNT_ROLE)
+    ).scalar_one_or_none()
+    assert role is not None
+
+    # Save original roles to restore later
+    original_roles = list(requesting_user.account.account_roles)
+
+    # Remove Consultancy role temporarily
+    requesting_user.account.account_roles = [
+        r
+        for r in requesting_user.account.account_roles
+        if r.name != CONSULTANCY_ACCOUNT_ROLE
+    ]
+    db.session.commit()
+
+    payload = {
+        "name": "Consultant Forbidden Account",
+    }
+    response = client.post(url_for("AccountAPI:post"), json=payload)
+    assert response.status_code == 403
+
+    # Restore original roles to avoid polluting other tests
+    requesting_user.account.account_roles = original_roles
+    db.session.commit()
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_account_roles(client, setup_api_test_data, requesting_user, db):
+    target_account = find_user_by_email("test_prosumer_user_2@seita.nl").account
+    prosumer_role = db.session.execute(
+        select(AccountRole).filter_by(name="Prosumer")
+    ).scalar_one()
+    supplier_role = db.session.execute(
+        select(AccountRole).filter_by(name="Supplier")
+    ).scalar_one()
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=target_account.id),
+        json={"account_roles": [prosumer_role.id, supplier_role.id]},
+    )
+
+    assert response.status_code == 200
+    role_names = {role["name"] for role in response.json["account_roles"]}
+    assert role_names == {"Prosumer", "Supplier"}
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_account_roles_invalid_role_id(
+    client, setup_api_test_data, requesting_user
+):
+    target_account = find_user_by_email("test_prosumer_user_2@seita.nl").account
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=target_account.id),
+        json={"account_roles": [999999]},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "requesting_user, consultancy_account_id_type, status_code, error_message",
+    [
+        # Consultant explicitly setting their own account ID - success
+        ("test_consultant@seita.nl", "own", 201, None),
+        # Consultant trying to set another account ID - forbidden (authorization error)
+        (
+            "test_consultant@seita.nl",
+            "other",
+            403,
+            "You can only set consultancy_account_id to your own account",
+        ),
+        # Consultant setting non-existent account ID - validation error
+        ("test_consultant@seita.nl", 999999, 422, "No account found with id 999999"),
+        # Admin setting any account ID - success
+        ("test_admin_user@seita.nl", "other", 201, None),
+        # User without consultant role - forbidden
+        ("test_consultancy_user_without_consultant_access@seita.nl", None, 403, None),
+    ],
+    indirect=["requesting_user"],
+)
+def test_post_account_with_consultancy_account_id(
+    client,
+    setup_api_test_data,
+    requesting_user,
+    consultancy_account_id_type,
+    status_code,
+    error_message,
+    db,
+):
+    """Test creating accounts with various consultancy_account_id scenarios."""
+    # Build payload with appropriate consultancy_account_id
+    payload = {
+        "name": f"Test Account {requesting_user.id if requesting_user else 'anon'}"
+    }
+
+    if consultancy_account_id_type == "own":
+        payload["consultancy_account_id"] = requesting_user.account.id
+    elif consultancy_account_id_type == "other":
+        other_account = db.session.execute(
+            select(Account).filter_by(name="Test Prosumer Account")
+        ).scalar_one()
+        payload["consultancy_account_id"] = other_account.id
+    elif isinstance(consultancy_account_id_type, int):
+        payload["consultancy_account_id"] = consultancy_account_id_type
+    # else: None, don't add to payload
+
+    response = client.post(url_for("AccountAPI:post"), json=payload)
+    assert response.status_code == status_code
+
+    # For 422 validation errors, check the specific error message
+    # For 403 authorization errors, Flask uses a generic message
+    if error_message and status_code == 422:
+        assert error_message in str(response.json)
+
+    if status_code == 201:
+        created = db.session.execute(
+            select(Account).filter_by(name=payload["name"])
+        ).scalar_one_or_none()
+        assert created is not None
+
+        if consultancy_account_id_type == "own":
+            assert created.consultancy_account_id == requesting_user.account.id
+        elif consultancy_account_id_type == "other":
+            other_account = db.session.execute(
+                select(Account).filter_by(name="Test Prosumer Account")
+            ).scalar_one()
+            assert created.consultancy_account_id == other_account.id

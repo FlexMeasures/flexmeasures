@@ -9,10 +9,11 @@ from sqlalchemy import select
 
 from flexmeasures import Asset
 from flexmeasures.cli.tests.utils import to_flags
-from flexmeasures.data.models.user import Account
+from flexmeasures.data.models.user import Account, User
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 
 from flexmeasures.cli.tests.utils import check_command_ran_without_error
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.tests.utils import get_test_sensor
 
@@ -26,6 +27,60 @@ def test_add_forecast(app, setup_dummy_data):
     runner = app.test_cli_runner()
     result = runner.invoke(add_forecast, to_flags(cli_input))
     assert result.exit_code == 0, result.output
+
+
+def test_add_forecast_reports_invalid_annotation_regressor(app, setup_dummy_data):
+    from flexmeasures.cli.data_add import add_forecast
+
+    sensor_id, *_ = setup_dummy_data
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_forecast,
+        [
+            "--sensor",
+            str(sensor_id),
+            "--annotation-regressors",
+            '{"annotation-type": "label"}',
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "Invalid forecasting configuration" in result.output
+    assert "Specify exactly one of account, asset, or sensor." in result.output
+    assert "Traceback" not in result.output
+
+
+def test_add_forecast_rejects_config_with_existing_source(
+    app, fresh_db, setup_dummy_data
+):
+    from flexmeasures.cli.data_add import add_forecast
+
+    sensor_id, *_ = setup_dummy_data
+    source = DataSource(
+        name="stored forecaster",
+        type="forecaster",
+        model="TrainPredictPipeline",
+    )
+    fresh_db.session.add(source)
+    fresh_db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        add_forecast,
+        [
+            "--source",
+            str(source.id),
+            "--sensor",
+            str(sensor_id),
+            "--annotation-regressors",
+            '{"account": 1, "annotation-type": "holiday"}',
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "--source uses the forecaster configuration stored with that source" in (
+        result.output
+    )
 
 
 def test_add_reporter(app, fresh_db, setup_dummy_data, caplog):
@@ -378,6 +433,62 @@ def test_add_account(
         assert result.exit_code == 1
 
 
+@pytest.mark.parametrize(
+    "roles_args, expected_roles",
+    [
+        (["--roles", "consultant,account-admin"], {"consultant", "account-admin"}),
+        (
+            ["--roles", "consultant", "--roles", "account-admin"],
+            {"consultant", "account-admin"},
+        ),
+        (
+            ["--roles", "consultant,account-admin", "--roles", "admin"],
+            {"consultant", "account-admin", "admin"},
+        ),
+        ([], set()),
+    ],
+)
+def test_add_user_roles(
+    app,
+    fresh_db,
+    setup_accounts_fresh_db,
+    monkeypatch,
+    roles_args,
+    expected_roles,
+):
+    """``--roles`` accepts a comma-separated list and/or repeated options (see issue #1237)."""
+    from flexmeasures.cli.data_add import new_user
+
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": "testtest")
+
+    account = setup_accounts_fresh_db["Prosumer"]
+    username = f"cli-user-{'-'.join(sorted(expected_roles)) or 'noroles'}"
+    email = f"{username}@example.com"
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        new_user,
+        [
+            "--username",
+            username,
+            "--email",
+            email,
+            "--account",
+            str(account.id),
+            "--timezone",
+            "UTC",
+            *roles_args,
+        ],
+    )
+    check_command_ran_without_error(result)
+    assert "Successfully created user" in result.output
+
+    user = fresh_db.session.execute(
+        select(User).filter_by(username=username)
+    ).scalar_one()
+    assert {role.name for role in user.roles} == expected_roles
+
+
 def test_add_process_toy_account_reuses_existing_root_assets(app, fresh_db):
     from flexmeasures.cli.data_add import add_toy_account
 
@@ -421,6 +532,31 @@ def test_add_process_toy_account_reuses_existing_root_assets(app, fresh_db):
         "Power (Breakable)",
         "Power (Shiftable)",
     }
+
+
+def test_add_toy_account_shell_vars_output(app, fresh_db):
+    from flexmeasures.cli.data_add import add_toy_account
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(add_toy_account, ["--shell-vars"])
+
+    check_command_ran_without_error(result)
+
+    shell_vars = dict(
+        line.split("=", 1)
+        for line in result.output.splitlines()
+        if line.startswith("FM_TOY_")
+    )
+
+    assert {
+        "FM_TOY_ACCOUNT_ID",
+        "FM_TOY_PRICE_SENSOR_ID",
+        "FM_TOY_BUILDING_ASSET_ID",
+        "FM_TOY_BATTERY_ASSET_ID",
+        "FM_TOY_BATTERY_SENSOR_ID",
+        "FM_TOY_SOLAR_ASSET_ID",
+        "FM_TOY_SOLAR_SENSOR_ID",
+    }.issubset(shell_vars.keys())
 
 
 @pytest.mark.parametrize("storage_power_capacity", ["sensor", "quantity", None])

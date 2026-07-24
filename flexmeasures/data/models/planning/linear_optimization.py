@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from flask import current_app
 import pandas as pd
 import numpy as np
@@ -28,9 +30,47 @@ from flexmeasures.data.models.planning import (
     StockCommitment,
 )
 from flexmeasures.data.models.planning.utils import initialize_series, initialize_df
-from flexmeasures.utils.calculations import apply_stock_changes_and_losses
 
 infinity = float("inf")
+
+
+def validate_highs_options(options: dict) -> None:
+    """Raise if HiGHS would refuse any of these options.
+
+    Pyomo's appsi_highs interface applies solver options without checking HiGHS'
+    return status, so an unknown name, an invalid value, or a feature missing from
+    the installed HiGHS build is otherwise ignored without a word. That silently
+    turns a mis-typed option into a no-op, and a benchmark of it into a false
+    negative. Probing a throwaway Highs instance surfaces the rejection instead.
+    """
+    try:
+        import highspy
+    except ImportError:
+        # Solver named "*highs*" but highspy absent: let the solver interface complain.
+        return
+
+    probe = highspy.Highs()
+    probe.setOptionValue("output_flag", False)
+    rejected = [
+        f"{name}={value!r}"
+        for name, value in options.items()
+        if probe.setOptionValue(name, value) != highspy.HighsStatus.kOk
+    ]
+    if rejected:
+        raise ValueError(
+            f"HiGHS rejected these FLEXMEASURES_LP_SOLVER_OPTIONS: {', '.join(rejected)}."
+            " The option name may be unknown, the value invalid, or the feature absent"
+            " from this HiGHS build. For example, the HiPO solver (solver='hipo') needs"
+            " a HiGHS built against BLAS and METIS, which the pip-installed highspy is not."
+        )
+
+    if "threads" in options or "parallel" in options:
+        current_app.logger.warning(
+            "FLEXMEASURES_LP_SOLVER_OPTIONS sets 'threads' and/or 'parallel'. HiGHS"
+            " initializes its thread scheduler once per process, so inside a long-lived"
+            " worker only the first solve honours these; later solves fail with 'global"
+            " scheduler has already been initialized' and yield no schedule."
+        )
 
 
 def device_scheduler(  # noqa C901
@@ -132,18 +172,51 @@ def device_scheduler(  # noqa C901
     # and map stock group -> all member devices (used for stock accumulation).
     device_to_group = {}
 
+    # Group keys are namespaced strings: a declared stock group's key (a state-of-charge
+    # sensor id) could otherwise collide with the device index of an ungrouped device,
+    # silently merging that device into the stock group.
     if stock_groups:
         for g, devices in stock_groups.items():
             for d in devices:
-                device_to_group[d] = g
-        # For devices not in any stock group (e.g., inflexible devices),
-        # map them to themselves so they're treated as individual groups
-        for d in range(len(device_constraints)):
-            if d not in device_to_group:
-                device_to_group[d] = d
-    else:
-        for d in range(len(device_constraints)):
-            device_to_group[d] = d
+                device_to_group[d] = f"stock:{g}"
+    # Devices not in any stock group (e.g. inflexible devices) form individual groups.
+    for d in range(len(device_constraints)):
+        if d not in device_to_group:
+            device_to_group[d] = f"device:{d}"
+
+    group_to_devices: dict[int, list[int]] = {}
+    for d, g in device_to_group.items():
+        group_to_devices.setdefault(g, []).append(d)
+
+    # The stock recursion is modelled once per stock group, using the group's shared
+    # storage efficiency, so devices sharing a stock may not declare different ones.
+    for g, group_devices in group_to_devices.items():
+        if len(group_devices) > 1:
+            # A missing efficiency column means the default (no losses) applies.
+            group_efficiency = device_constraints[group_devices[0]].get("efficiency")
+            for d in group_devices[1:]:
+                efficiency = device_constraints[d].get("efficiency")
+                if (
+                    (efficiency is None) != (group_efficiency is None)
+                    or efficiency is not None
+                    and not efficiency.equals(group_efficiency)
+                ):
+                    raise ValueError(
+                        f"Devices {group_devices} share stock group {g} but have different"
+                        " storage efficiencies. The storage efficiency is a property of the"
+                        " shared stock, so define it once per stock group."
+                    )
+            if isinstance(initial_stock, list):
+                group_initial_stocks = {
+                    initial_stock[d] if d < len(initial_stock) else 0
+                    for d in group_devices
+                }
+                if len(group_initial_stocks) > 1:
+                    raise ValueError(
+                        f"Devices {group_devices} share stock group {g} but have different"
+                        " initial stocks. The initial stock is a property of the shared"
+                        " stock, so define it once per stock group."
+                    )
 
     # Move commitments from old structure to new
     if commitments is None:
@@ -269,6 +342,18 @@ def device_scheduler(  # noqa C901
     device_group_lookup = {}
 
     for c, df in enumerate(commitments):
+        # Stock-scoped commitments couple to their stock group as a whole, regardless
+        # of which device index they name: the group's first device carries the group's
+        # stock, so a single-member group suffices (also avoiding double-counting the
+        # shared stock when the commitment names multiple members).
+        if "stock" in df.columns and pd.notna(df["stock"].iloc[0]):
+            stock_group_key = f"stock:{int(df['stock'].iloc[0])}"
+            if stock_group_key in group_to_devices:
+                device_group_lookup[c] = {
+                    stock_group_key: {group_to_devices[stock_group_key][0]}
+                }
+                continue
+
         if "device" not in df.columns:
             # EMS-level commitment: no device grouping needed here;
             # handled by ems_flow_commitment_equalities.
@@ -536,6 +621,13 @@ def device_scheduler(  # noqa C901
     )
     model.device_power_up = Var(model.d, model.j, domain=NonNegativeReals, initialize=0)
     model.device_power_sign = Var(model.d, model.j, domain=Binary, initialize=0)
+    # Stock per stock group per time step, coupled recursively by group_stock_balance.
+    # Having it as a variable (rather than a running sum expression) keeps the number
+    # of model nonzeros linear, rather than quadratic, in the scheduling horizon, and
+    # indexing it by stock group (rather than by device) avoids duplicating the
+    # recursion for each device sharing a stock.
+    model.sg = Set(initialize=sorted(group_to_devices), doc="Set of stock groups")
+    model.group_stock = Var(model.sg, model.j, domain=Reals, initialize=0)
     model.commitment_downwards_deviation = Var(
         model.c,
         domain=NonPositiveReals,
@@ -550,76 +642,52 @@ def device_scheduler(  # noqa C901
     )
     model.commitment_sign = Var(model.c, domain=Binary, initialize=0)
 
-    def _get_stock_change(m, d, j):
-        """Determine final stock change of the stock group of device d until time j.
-
-        Apply conversion efficiencies to conversion from flow to stock change and vice versa,
-        and apply storage efficiencies to stock levels from one datetime to the next.
-        """
-        #     if isinstance(initial_stock, list):
-        #         # No initial stock defined for inflexible device
-        #         initial_stock_d = initial_stock[d] if d < len(initial_stock) else 0
-        #     else:
-        #         initial_stock_d = initial_stock
-        #
-        #     stock_changes = [
-        #         (
-        #             m.device_power_down[d, k] / m.device_derivative_down_efficiency[d, k]
-        #             + m.device_power_up[d, k] * m.device_derivative_up_efficiency[d, k]
-        #             + m.stock_delta[d, k]
-        #         )
-        #         for k in range(0, j + 1)
-        #     ]
-        #     efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
-        #     final_stock_change = [
-        #         stock - initial_stock_d
-        #         for stock in apply_stock_changes_and_losses(
-        #             initial_stock_d, stock_changes, efficiencies
-        #         )
-        #     ][-1]
-        #     return final_stock_change
-
-        # determine the stock group of this device
-        group = device_to_group[d]
-
-        # all devices belonging to this stock
-        devices = [dev for dev, g in device_to_group.items() if g == group]
-
-        # initial stock
+    def _initial_stock_of(d):
         if isinstance(initial_stock, list):
-            initial_stock_g = initial_stock[d] if d < len(initial_stock) else 0
-        else:
-            initial_stock_g = initial_stock
+            # No initial stock defined for inflexible device
+            return initial_stock[d] if d < len(initial_stock) else 0
+        return initial_stock
 
-        stock_changes = []
+    def _stock_change_at(m, g, j):
+        """Stock change of stock group g during time step j (before losses)."""
+        return sum(
+            m.device_power_down[dev, j] / m.device_derivative_down_efficiency[dev, j]
+            + m.device_power_up[dev, j] * m.device_derivative_up_efficiency[dev, j]
+            + m.stock_delta[dev, j]
+            for dev in group_to_devices[g]
+        )
 
-        for k in range(0, j + 1):
+    def _loss_coefficients(efficiency: float) -> tuple[float, float]:
+        """Coefficients (a, b) of one step of the stock recursion, for `how="linear"`.
 
-            change = 0
+        stock[j] = a * stock[j-1] + b * change[j]
 
-            for dev in devices:
-                change += (
-                    m.device_power_down[dev, k]
-                    / m.device_derivative_down_efficiency[dev, k]
-                    + m.device_power_up[dev, k]
-                    * m.device_derivative_up_efficiency[dev, k]
-                    + m.stock_delta[dev, k]
-                )
+        Mirrors :func:`apply_stock_changes_and_losses`, which we cannot call here
+        because it expects numbers, while `change[j]` is a Pyomo expression. The
+        storage efficiency is a Param, so `a` and `b` are plain floats.
+        """
+        if efficiency == 1:
+            return 1.0, 1.0
+        return efficiency, (efficiency - 1) / math.log(efficiency)
 
-            stock_changes.append(change)
+    def group_stock_balance(m, g, j):
+        """Recursively couple a stock group's stock to the previous step's stock.
 
-        efficiencies = [m.device_efficiency[d, k] for k in range(0, j + 1)]
+        Expressing stock[j] as a running sum over all k <= j (as this once did) makes
+        the number of nonzeros grow quadratically with the scheduling horizon. The
+        recursion below is equivalent and keeps it linear.
 
-        final_stock_change = [
-            stock - initial_stock_g
-            for stock in apply_stock_changes_and_losses(
-                initial_stock_g,
-                stock_changes,
-                efficiencies,
-            )
-        ][-1]
+        The group's devices share their storage efficiency and initial stock
+        (validated above), so the first device can represent the group here.
+        """
+        d0 = group_to_devices[g][0]
+        a, b = _loss_coefficients(m.device_efficiency[d0, j])
+        previous = m.group_stock[g, j - 1] if j > 0 else _initial_stock_of(d0)
+        return m.group_stock[g, j] == a * previous + b * _stock_change_at(m, g, j)
 
-        return final_stock_change
+    def _get_stock_change(m, d, j):
+        """Stock change of the stock group of device d, from the start until time j."""
+        return m.group_stock[device_to_group[d], j] - _initial_stock_of(d)
 
     # Add constraints as a tuple of (lower bound, value, upper bound)
     def device_bounds(m, d, j):
@@ -679,34 +747,6 @@ def device_scheduler(  # noqa C901
         """Down deviation active only if sign points down."""
         return -m.commitment_downwards_deviation[c] <= Mc * (1 - m.commitment_sign[c])
 
-    def device_stock_commitment_equalities(m, c, j, d):
-        """Couple device stocks to each commitment."""
-        if (
-            "device" not in commitments[c].columns
-            or (commitments[c]["device"] != d).all()
-            or m.commitment_quantity[c, j] == -infinity
-        ):
-            # Commitment c does not concern device d
-            return Constraint.Skip
-
-        # Determine center part of the lhs <= center part <= rhs constraint
-        center_part = (
-            m.commitment_quantity[c, j]
-            + m.commitment_downwards_deviation[c]
-            + m.commitment_upwards_deviation[c]
-        )
-        if commitments[c]["class"].apply(lambda cl: cl == StockCommitment).all():
-            center_part -= _get_stock_change(m, d, j)
-        elif commitments[c]["class"].apply(lambda cl: cl == FlowCommitment).all():
-            center_part -= m.ems_power[d, j]
-        else:
-            raise NotImplementedError("Unknown commitment class")
-        return (
-            0 if "upwards deviation price" in commitments[c].columns else None,
-            center_part,
-            0 if "downwards deviation price" in commitments[c].columns else None,
-        )
-
     def ems_flow_commitment_equalities(m, c, j):
         """Couple EMS flow commitments to device flows, optionally filtered by commodity."""
 
@@ -746,6 +786,7 @@ def device_scheduler(  # noqa C901
         model.cjg, rule=grouped_commitment_equalities
     )
 
+    model.group_stock_balance = Constraint(model.sg, model.j, rule=group_stock_balance)
     model.device_energy_bounds = Constraint(model.d, model.j, rule=device_bounds)
     model.device_power_bounds = Constraint(
         model.d, model.j, rule=device_derivative_bounds
@@ -818,6 +859,12 @@ def device_scheduler(  # noqa C901
         # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
         if current_app.config["LOGGING_LEVEL"] == "INFO":
             profile["output_flag"] = "false"
+
+    # Apply operator-configured options last, so they override the defaults above.
+    configured_options = current_app.config.get("FLEXMEASURES_LP_SOLVER_OPTIONS") or {}
+    if configured_options and "highs" in solver_name.lower():
+        validate_highs_options(configured_options)
+    profile.update(configured_options)
 
     for option_name, option_value in profile.items():
         solver.options[option_name] = option_value

@@ -33,13 +33,6 @@ Defaults to ``"electricity"``.
 """,
     examples=["electricity", "gas"],
 )
-COMMODITIES = MetaData(
-    description="""List of per-commodity flex-contexts (one for each commodity, e.g. electricity and gas), each holding the prices and grid-connection fields for that commodity.
-The fields given at the top level of the flex-context describe the electricity commodity.
-See :ref:`tut_multi_commodity` for a hands-on example.
-""",
-    example=[{"commodity": "gas", "consumption-price": {"sensor": 5}}],
-)
 INFLEXIBLE_DEVICE_SENSORS = MetaData(
     description="""Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
 For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.
@@ -300,7 +293,7 @@ To set softer boundaries, use the ``soc-maxima`` flex-model field instead togeth
 SOC_MINIMA = MetaData(
     description="""Set points that form lower boundaries, e.g. to target a full car battery in the morning.
 If a ``soc-minima-breach-price`` is defined, the ``soc-minima`` become soft constraints in the optimization problem.
-Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points in time and ranges are possible, see example.""",
+Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points in time and ranges are possible, see example. [#projecting_scheduling_constraints]_""",
     example=[
         {"datetime": "2024-02-05T08:00:00+01:00", "value": "8.2 kWh"},
         {
@@ -313,7 +306,7 @@ Otherwise, they become hard constraints. [#maximum_overlap]_. Both single points
 SOC_MAXIMA = MetaData(
     description="""Set points that form upper boundaries at certain times, e.g. to target an empty heat buffer before a maintenance window.
 If a ``soc-maxima-breach-price`` is defined, the ``soc-maxima`` become soft constraints in the optimization problem.
-Otherwise, they become hard constraints. [#minimum_overlap]_""",
+Otherwise, they become hard constraints. [#minimum_overlap]_ [#projecting_scheduling_constraints]_""",
     example=[
         {
             "value": "51 kWh",
@@ -325,7 +318,7 @@ Otherwise, they become hard constraints. [#minimum_overlap]_""",
 SOC_TARGETS = MetaData(
     description="""
 Exact set point(s) of the storage's state of charge that the scheduler needs to realize.
-These are hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed.
+These are hard constraints, which means that any infeasible state-of-charge targets would prevent a complete schedule from being computed. [#projecting_scheduling_constraints]_
 """,
     example=[{"datetime": "2024-02-05T08:00:00+01:00", "value": "3.2 kWh"}],
 )
@@ -406,4 +399,12 @@ How much power can be supplied by this asset.
 For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference your sensor containing PV power forecasts. [#minimum_overlap]_
 """,
     example="0 kW",
+)
+GROUP = MetaData(
+    description="""Reference to a group of devices whose aggregate power is constrained, given as either a power sensor (``{"sensor": <id>}``) or an asset (``{"asset": <id>}``) - exactly one of the two.
+The referenced sensor or asset should itself get its own flex-model entry defining the group's ``power-capacity`` (hard constraint) and/or ``consumption-capacity``/``production-capacity`` (soft constraints with default breach prices).
+When the group is referenced by ``sensor``, the group's scheduled aggregate power is saved to that group sensor.
+When the group is referenced by ``asset`` (e.g. a sub-EMS asset in the tree), the group entry defines no power sensor of its own; the group's aggregate power is instead saved via that entry's own ``consumption`` and/or ``production`` output sensors, following the usual output-sensor conventions.
+""",
+    example={"sensor": 5},
 )

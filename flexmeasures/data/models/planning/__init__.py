@@ -55,6 +55,9 @@ class Scheduler:
     flex_model: list[dict] | dict | None = None
     flex_context: dict | None = None
     stock_groups: dict | None = None
+    #: Typed classification of the flex config (see planning.devices.DeviceInventory);
+    #: derived state, (re)built when the flex config is deserialized.
+    device_inventory = None
 
     fallback_scheduler_class: "Type[Scheduler] | None" = None
     info: dict | None = None
@@ -71,6 +74,12 @@ class Scheduler:
     def _build_stock_groups(flex_model: list[dict]) -> dict:
         """
         Build stock groups where devices sharing the same state-of-charge sensor are grouped together.
+
+        Deprecated: use ``DeviceInventory.stock_groups`` (see ``planning.devices``),
+        which classifies flex-model entries once and keeps stock-group keys in sync
+        with the stock parameters. Note that this function's synthetic keys (for
+        devices without a state-of-charge sensor) depend on the length of the passed
+        list, so they only match ``stock_models`` keys built from the same list.
         """
         groups = defaultdict(list)
         soc_usage = defaultdict(list)
@@ -211,6 +220,14 @@ class Scheduler:
         """
         pass
 
+    @staticmethod
+    def _get_sensor_or_raise(sensor_id: int) -> Sensor:
+        """Look up a sensor by ID; raise ValueError if missing (SensorIdField style)."""
+        sensor = db.session.get(Sensor, sensor_id)
+        if sensor is None:
+            raise ValueError(f"No sensor found with ID {sensor_id}.")
+        return sensor
+
     def collect_flex_config(self):
         """Merge the flex-config from the db (from the asset and its ancestors) with the initialization flex-config.
 
@@ -255,13 +272,13 @@ class Scheduler:
             if asset_id is None:
                 sensor_id = flex_model_d.get("sensor")
                 if sensor_id is not None:
-                    sensor = db.session.get(Sensor, sensor_id)
-                    asset_id = sensor.asset_id
+                    asset_id = self._get_sensor_or_raise(sensor_id).asset_id
                 else:
                     soc_sensor_ref = flex_model_d.get("state-of-charge")
                     if soc_sensor_ref is not None:
-                        soc_sensor = db.session.get(Sensor, soc_sensor_ref["sensor"])
-                        asset_id = soc_sensor.asset_id
+                        asset_id = self._get_sensor_or_raise(
+                            soc_sensor_ref["sensor"]
+                        ).asset_id
             if asset_id in db_flex_model:
                 flex_model_d = {**db_flex_model[asset_id], **flex_model_d}
             amended_flex_model.append(flex_model_d)
@@ -343,6 +360,10 @@ class Commitment:
     upwards_deviation_price: pd.Series = 0
     downwards_deviation_price: pd.Series = 0
     commodity: str | pd.Series | None = None
+    #: Stock key of the stock the commitment pertains to (StockCommitments only).
+    #: When set, the solver couples the commitment to the stock group as a whole,
+    #: rather than to the device index named by ``device``.
+    stock: int | None = None
 
     def __post_init__(self):
         # device_group is a device→label lookup table, not a time series;
@@ -532,6 +553,9 @@ class Commitment:
         else:
             # scalar commodity
             df["commodity"] = self.commodity
+
+        # stock key (scalar; set on stock-scoped StockCommitments)
+        df["stock"] = self.stock
 
         return df
 

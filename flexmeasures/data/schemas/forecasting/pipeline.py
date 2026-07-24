@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import numbers
 import os
 
 from datetime import timedelta
@@ -9,9 +10,12 @@ from isodate.duration import Duration
 from marshmallow import (
     fields,
     Schema,
+    validate,
     validates_schema,
     pre_load,
+    pre_dump,
     post_load,
+    post_dump,
     ValidationError,
 )
 
@@ -23,7 +27,73 @@ from flexmeasures.data.schemas.times import (
     PlanningDurationField,
 )
 from flexmeasures.data.models.forecasting.utils import floor_to_resolution
+from flexmeasures.data.schemas.account import AccountIdField
+from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.utils.time_utils import server_now
+from flexmeasures.utils.unit_utils import ur
+
+
+def _is_parseable_quantity(value) -> bool:
+    """Whether a post-processing value is a number or a pint-parseable quantity string."""
+    if isinstance(value, numbers.Real):
+        return True
+    if not isinstance(value, str):
+        return False
+    try:
+        ur.Quantity(value)
+    except Exception:
+        return False
+    return True
+
+
+class AnnotationRegressorSchema(Schema):
+    """Schema for a single annotation regressor in the forecasting pipeline config."""
+
+    account = AccountIdField(
+        allow_none=True,
+        metadata={"description": "Account ID whose annotations to use."},
+    )
+    asset = GenericAssetIdField(
+        allow_none=True,
+        metadata={"description": "Asset ID whose annotations to use."},
+    )
+    sensor = SensorIdField(
+        allow_none=True,
+        metadata={"description": "Sensor ID whose annotations to use."},
+    )
+    annotation_type = fields.Str(
+        data_key="annotation-type",
+        load_default="holiday",
+        metadata={
+            "description": "Type of annotation to use (e.g. 'holiday', 'label', 'alert'). Defaults to 'holiday'."
+        },
+    )
+    name = fields.Str(
+        load_default=None,
+        metadata={
+            "description": "Human-readable column name for this regressor. Defaults to 'annotation_regressor_<index>'."
+        },
+    )
+
+    @post_dump
+    def remove_none_values(self, data, **kwargs):
+        """Omit null fields from the serialised config to keep it clean."""
+        return {k: v for k, v in data.items() if v is not None}
+
+    @pre_dump
+    def skip_empty_sources(self, data, **kwargs):
+        """Omit empty sources before custom ID fields serialise objects."""
+        return {k: v for k, v in data.items() if v is not None}
+
+    @validates_schema
+    def validate_single_source(self, data: dict, **kwargs):
+        sources = [
+            source_key
+            for source_key in ("account", "asset", "sensor")
+            if data.get(source_key) is not None
+        ]
+        if len(sources) != 1:
+            raise ValidationError("Specify exactly one of account, asset, or sensor.")
 
 
 class TrainPredictPipelineConfigSchema(Schema):
@@ -74,6 +144,48 @@ class TrainPredictPipelineConfigSchema(Schema):
             },
         },
     )
+    annotation_regressors = fields.List(
+        fields.Nested(AnnotationRegressorSchema()),
+        data_key="annotation-regressors",
+        load_default=[],
+        metadata={
+            "description": (
+                "Annotation sources to use as binary future regressors. "
+                "Each entry must specify 'account', 'asset', or 'sensor' (ID), and optionally "
+                "'annotation-type' (default: 'holiday') and 'name' (default: auto-generated). "
+                "Annotations are converted to a binary 0/1 time series: 1 during annotated periods."
+            ),
+            "example": [
+                {"account": 1, "annotation-type": "holiday", "name": "holidays"}
+            ],
+            "cli": {
+                "option": "--annotation-regressors",
+            },
+        },
+    )
+    model_params = fields.Dict(
+        keys=fields.Str(),
+        data_key="model-params",
+        load_default=None,
+        allow_none=True,
+        metadata={
+            "description": (
+                "LightGBM parameter overrides, merged over the defaults. Only the keys"
+                " you pass are changed. These are handed to Darts' LightGBMModel, so"
+                " besides LightGBM's own parameters (e.g. 'max_depth',"
+                " 'min_child_samples', 'min_data_per_group') this also reaches"
+                " 'add_encoders' and 'categorical_future_covariates'. Note that 'lags',"
+                " 'lags_future_covariates' and 'output_chunk_shift' are derived per"
+                " forecast horizon and cannot be overridden here."
+            ),
+            "example": {"max_depth": 6, "min_child_samples": 10},
+            "cli": {
+                "option": "--model-params",
+                "extra_help": "Pass as JSON, e.g. '{\"max_depth\": 6}'.",
+                "cli-exclusive": True,
+            },
+        },
+    )
     missing_threshold = fields.Float(
         data_key="missing-threshold",
         load_default=1.0,
@@ -98,6 +210,34 @@ class TrainPredictPipelineConfigSchema(Schema):
             },
         },
     )
+    lower = fields.Raw(
+        required=False,
+        allow_none=True,
+        load_default=None,
+        metadata={
+            "description": "Optional lower bound for forecast values after prediction. Unitless values are interpreted in the output sensor unit.",
+            "example": "0 kW",
+        },
+    )
+    upper = fields.Raw(
+        required=False,
+        allow_none=True,
+        load_default=None,
+        metadata={
+            "description": "Optional upper bound for forecast values after prediction. Unitless values are interpreted in the output sensor unit.",
+            "example": "20 kW",
+        },
+    )
+    snap = fields.Dict(
+        keys=fields.Raw(),
+        values=fields.List(fields.Raw(), validate=validate.Length(equal=2)),
+        required=False,
+        load_default={},
+        metadata={
+            "description": "Optional mapping from snap targets to [first, second] intervals. Values inside an interval are replaced by the snap target before storage. The target must lie within the interval (on a bound or inside it). The first bound is inclusive and the second exclusive, so [first, second) by default; reverse the order to close the upper side instead.",
+            "example": {"0 kW": ["0 kW", "4 kW"]},
+        },
+    )
     train_start = AwareDateTimeOrDateField(
         data_key="train-start",
         required=False,
@@ -117,7 +257,12 @@ class TrainPredictPipelineConfigSchema(Schema):
         load_default=timedelta(days=30),
         allow_none=True,
         metadata={
-            "description": "Duration of the initial training period (ISO 8601 format, min 2 days). If not set, derived from train_start and start if not set or defaults to P30D (30 days).",
+            "description": (
+                "Duration of the initial training period (ISO 8601 format, min 2 days). "
+                "Defaults to P30D (30 days). Ignored when --train-start is set: "
+                "the training window then runs from --train-start to --start, "
+                "capped to --max-training-period."
+            ),
             "example": "P7D",
             "cli": {
                 "cli-exclusive": True,
@@ -152,6 +297,16 @@ class TrainPredictPipelineConfigSchema(Schema):
         },
     )
 
+    @pre_load
+    def warn_when_train_period_is_ignored(self, data, **kwargs):
+        """An explicit train-start takes precedence over train-period (see _derive_training_period)."""
+        if data.get("train-start") is not None and data.get("train-period") is not None:
+            logging.warning(
+                "Both train-start and train-period are set; train-period is ignored "
+                "and the training window runs from train-start (capped to max-training-period)."
+            )
+        return data
+
     @validates_schema
     def validate_parameters(self, data: dict, **kwargs):  # noqa: C901
         if data["retrain_frequency"] < timedelta(hours=1):
@@ -177,6 +332,32 @@ class TrainPredictPipelineConfigSchema(Schema):
                 field_name="max_training_period",
             )
 
+    @validates_schema
+    def validate_post_processing(self, data: dict, **kwargs):
+        """Fail fast on unparseable post-processing values.
+
+        Unit compatibility with the sensor and interval semantics can only be
+        checked once the output sensor is known, so those run at forecast time.
+        """
+        errors: dict[str, list[str]] = {}
+        for field_name in ("lower", "upper"):
+            value = data.get(field_name)
+            if value is not None and not _is_parseable_quantity(value):
+                errors[field_name] = [
+                    "Must be a number or a parseable quantity string (e.g. 0 or '0 kW')."
+                ]
+
+        snap_errors = [
+            f"Snap entry '{target}' must use numbers or parseable quantity strings."
+            for target, interval in (data.get("snap") or {}).items()
+            if not all(_is_parseable_quantity(v) for v in (target, *interval))
+        ]
+        if snap_errors:
+            errors["snap"] = snap_errors
+
+        if errors:
+            raise ValidationError(errors)
+
     @post_load
     def resolve_config(self, data: dict, **kwargs) -> dict:  # noqa: C901
 
@@ -193,9 +374,16 @@ class TrainPredictPipelineConfigSchema(Schema):
         data["future_regressors"] = future_regressors
         data["past_regressors"] = past_regressors
 
-        train_period_in_hours = data["train_period"] // timedelta(hours=1)
+        train_period_in_hours = (
+            data["train_period"] // timedelta(hours=1)
+            if data.get("train_period") is not None
+            else None
+        )
         max_training_period = data["max_training_period"]
-        if train_period_in_hours > max_training_period // timedelta(hours=1):
+        if (
+            train_period_in_hours is not None
+            and train_period_in_hours > max_training_period // timedelta(hours=1)
+        ):
             train_period_in_hours = max_training_period // timedelta(hours=1)
             logging.warning(
                 f"train-period is greater than max-training-period ({max_training_period}), setting train-period to max-training-period",

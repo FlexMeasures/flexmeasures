@@ -8,15 +8,22 @@ from flask_json import as_json
 from sqlalchemy import or_, select, func
 from flask_sqlalchemy.pagination import SelectPagination
 
-from flexmeasures.auth.policy import user_has_admin_access
+from flexmeasures.auth.policy import (
+    user_has_admin_access,
+    FlexMeasuresPlatform,
+)
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import Account, User
+from flexmeasures.data.models.user import Account, AccountRole, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
-from flexmeasures.data.schemas.account import AccountSchema
+from flexmeasures.data.schemas.account import (
+    AccountSchema,
+    AccountCreateSchema,
+    AccountPatchSchema,
+)
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.utils.time_utils import server_now
 from flexmeasures.api.common.schemas.users import AccountAPIQuerySchema
@@ -24,14 +31,14 @@ from flexmeasures.api.common.schemas.users import AccountAPIQuerySchema
 """
 API endpoints to manage accounts.
 
-Both POST (to create) and DELETE are not accessible via the API, but as CLI functions.
-Editing (PATCH) is also not yet implemented, but might be next, e.g. for the name or roles.
+DELETE is not accessible via the API, but as a CLI function.
 """
 
 # Instantiate schemas outside of endpoint logic to minimize response time
 account_schema = AccountSchema()
 accounts_schema = AccountSchema(many=True)
-partial_account_schema = AccountSchema(partial=True)
+partial_account_schema = AccountPatchSchema()
+account_create_schema = AccountCreateSchema()
 annotation_schema = AnnotationSchema()
 
 
@@ -48,6 +55,7 @@ class AccountAPI(FlaskView):
         page: int | None = None,
         per_page: int | None = None,
         filter: list[str] | None = None,
+        role: AccountRole | None = None,
         sort_by: str | None = None,
         sort_dir: str | None = None,
     ):
@@ -124,6 +132,9 @@ class AccountAPI(FlaskView):
             Account.id.in_([a.id for a in accounts])
         )
 
+        if role is not None:
+            query = query.filter(Account.account_roles.contains(role))
+
         if filter:
             search_terms = filter[0].split(" ")
             query = query.filter(
@@ -150,7 +161,7 @@ class AccountAPI(FlaskView):
                 query, per_page=per_page, page=page
             )
 
-            accounts_reponse: list = []
+            accounts_response: list = []
             for account in select_pagination.items:
                 user_count_query = select(func.count(User.id)).where(
                     User.account_id == account.id
@@ -160,7 +171,7 @@ class AccountAPI(FlaskView):
                 )
                 user_count = db.session.execute(user_count_query).scalar()
                 asset_count = db.session.execute(asset_count_query).scalar()
-                accounts_reponse.append(
+                accounts_response.append(
                     {
                         **account_schema.dump(account),
                         "user_count": user_count,
@@ -169,14 +180,66 @@ class AccountAPI(FlaskView):
                 )
 
             response = {
-                "data": accounts_reponse,
-                "num-records": select_pagination.total,
+                "data": accounts_response,
+                "num-records": len(accounts),
                 "filtered-records": select_pagination.total,
             }
         else:
             response = accounts_schema.dump(query.all(), many=True)
 
         return response, 200
+
+    @route("", methods=["POST"])
+    @use_args(account_create_schema, arg_name="account_data")
+    @permission_required_for_context(
+        "create-children",
+        ctx_loader=FlexMeasuresPlatform.init,
+    )
+    @as_json
+    def post(self, account_data: dict):
+        """
+        .. :quickref: Accounts; Create an account.
+        ---
+        post:
+          summary: Create a new account.
+          description: |
+            Create a new account with a required name.
+
+            - Admin users can create accounts.
+            - Consultant users can create accounts only if their account has the
+              {{CONSULTANCY_ACCOUNT_ROLE}} account role.
+            - For consultant users, the newly created account is automatically
+              linked to their own account as consultancy account.
+
+          security:
+            - ApiKeyAuth: []
+          requestBody:
+            description: Account fields for creation.
+            required: true
+            content:
+              application/json:
+                schema: AccountCreateSchema
+                example:
+                  name: New Customer Account
+                  consultancy_account_id: 2
+          responses:
+            201:
+              description: PROCESSED
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Accounts
+        """
+
+        account = Account(**account_data)
+        db.session.add(account)
+        db.session.commit()
+
+        return account_schema.dump(account), 201
 
     @route("/<id>", methods=["GET"])
     @use_kwargs({"account": AccountIdField(data_key="id")}, location="path")
@@ -243,7 +306,9 @@ class AccountAPI(FlaskView):
 
             **Restrictions on Fields:**
             - The **id** field is read-only and cannot be updated.
-            - The **consultancy_account_id** field can only be edited if the current user has an **admin** role.
+            - The **consultancy_account_id** field can be edited by admins. Non-admin users can only set it to their
+              own account, and only if their account has the {{CONSULTANCY_ACCOUNT_ROLE}} account role and they have
+              the consultant or account-admin user role.
 
           security:
             - ApiKeyAuth: []
@@ -259,9 +324,10 @@ class AccountAPI(FlaskView):
             required: true
             content:
               application/json:
-                schema: AccountSchema
+                schema: AccountPatchSchema
                 example:
                   name: Test Account Updated
+                  account_roles: [1, 3]
                   primary_color: '#1a3443'
                   secondary_color: '#f1a122'
                   logo_url: 'https://example.com/logo.png'
@@ -286,37 +352,10 @@ class AccountAPI(FlaskView):
             403:
               description: INVALID_SENDER
             422:
-              description: UNPROCESSABLE_ENTITY (e.g., trying to update 'consultancy_account_id' without admin rights)
+              description: UNPROCESSABLE_ENTITY (e.g., trying to update 'consultancy_account_id' to a non-existing account)
           tags:
             - Accounts
         """
-
-        # Get existing consultancy_account_id
-        existing_consultancy_account_id = (
-            account.consultancy_account.id if account.consultancy_account else None
-        )
-
-        if not user_has_admin_access(current_user, "update"):
-            if "consultancy_account_id" in account_data:
-                return {
-                    "errors": ["You are not allowed to update consultancy_account_id"]
-                }, 401
-        else:
-            # Check if consultancy_account_id has changed
-            if "consultancy_account_id" in account_data:
-                new_consultancy_account_id = account_data.get("consultancy_account_id")
-                if new_consultancy_account_id is None:
-                    pass  # Allow clearing the consultancy relationship
-                elif existing_consultancy_account_id != new_consultancy_account_id:
-                    new_consultant_account = db.session.query(Account).get(
-                        new_consultancy_account_id
-                    )
-                    # Validate new consultant account
-                    if (
-                        not new_consultant_account
-                        or new_consultant_account.id == account.id
-                    ):
-                        return {"errors": ["Invalid consultancy_account_id"]}, 422
 
         # Track modified fields
         fields_to_check = [
@@ -326,7 +365,9 @@ class AccountAPI(FlaskView):
             "logo_url",
             "consultancy_account_id",
             "attributes",
+            "account_roles",
         ]
+
         modified_fields = {
             field: getattr(account, field)
             for field in fields_to_check

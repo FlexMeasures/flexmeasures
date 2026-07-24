@@ -171,6 +171,77 @@ def test_get_assets(
 
 
 @pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_get_assets_sort_by_owner_uses_account_name(
+    client, setup_api_test_data, setup_accounts, requesting_user
+):
+    """Sorting by 'owner' should order by the account's name, not its (arbitrary) id."""
+    account_name_by_id = {
+        account.id: account.name for account in setup_accounts.values()
+    }
+
+    query = {"all_accessible": True, "sort_by": "owner", "sort_dir": "asc"}
+    response = client.get(url_for("AssetAPI:index"), query_string=query)
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+
+    account_names_seen = [
+        account_name_by_id.get(asset["account_id"])
+        for asset in response.json
+        if asset["account_id"] is not None
+    ]
+    assert account_names_seen == sorted(account_names_seen)
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+@pytest.mark.parametrize("sort_by", ["id", "name", "owner"])
+def test_get_assets_sort_with_search_filter(
+    client, setup_api_test_data, setup_accounts, sort_by, requesting_user
+):
+    """Sorting must still apply when combined with a search filter.
+
+    Regression test: sorting is applied to a UNION ALL of a private-assets and
+    a public-assets query; ordering the individual union members doesn't
+    guarantee the combined result is ordered, and the "owner" sort clause
+    used to raise a 500 (auto-correlation error) when combined with a filter.
+
+    We compare the asc- and desc-sorted asset ID sequences (rather than
+    asserting a specific order) to sidestep Postgres/Python string collation
+    differences: what matters here is that both directions are actually
+    sorted (each other's reverse) and that the filter is respected.
+    """
+
+    def get_sort_key(asset):
+        # for ties (e.g. two assets under the same owner), only the sorted-on
+        # value's order is guaranteed to reverse between asc and desc, not
+        # the tie-breaking order of ids within a repeated value
+        if sort_by == "owner":
+            return asset["account_id"]
+        return asset[sort_by]
+
+    def get_ids_and_values(sort_dir):
+        query = {
+            "all_accessible": True,
+            "filter": "e",  # broad filter matching multiple assets/accounts
+            "sort_by": sort_by,
+            "sort_dir": sort_dir,
+        }
+        response = client.get(url_for("AssetAPI:index"), query_string=query)
+        print("Server responded with:\n%s" % response.json)
+        assert response.status_code == 200
+        ids = [asset["id"] for asset in response.json]
+        values = [get_sort_key(asset) for asset in response.json]
+        return ids, values
+
+    ids_asc, values_asc = get_ids_and_values("asc")
+    ids_desc, values_desc = get_ids_and_values("desc")
+
+    assert len(ids_asc) > 1  # otherwise sorting isn't actually tested
+    assert set(ids_asc) == set(ids_desc)  # filter is respected either way
+    assert values_asc == list(reversed(values_desc))
+    assert values_asc != values_desc  # sorting actually took effect
+
+
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
 def test_get_assets_filtered_by_asset_type(
     client, setup_api_test_data, setup_accounts, requesting_user
 ):
@@ -907,6 +978,65 @@ def test_copy_asset_increments_name_under_same_parent(
     assert third_copy.name == f"{battery.name} (Copy 3)"
 
 
+def test_copy_template_asset_drops_template_metadata(
+    setup_api_test_data, setup_accounts, db
+):
+    """Copying a template should yield a regular asset in the target account."""
+    prosumer_account = setup_accounts["Prosumer"]
+    battery = db.session.scalars(
+        select(GenericAsset).filter_by(
+            account_id=prosumer_account.id,
+            name="Test grid connected battery storage",
+        )
+    ).first()
+    assert battery is not None
+
+    template_asset = GenericAsset(
+        name="Battery Template",
+        generic_asset_type_id=battery.generic_asset_type_id,
+        account_id=None,
+        description=(
+            "Single battery asset with example power and state-of-charge sensors, "
+            "plus a basic storage flex-model. Copy this to start modeling a battery."
+        ),
+        attributes={"template": {"key": "battery-template", "has_scenarios": False}},
+    )
+    db.session.add(template_asset)
+    db.session.flush()
+    template_sensor = Sensor(
+        name="electricity-power",
+        generic_asset_id=template_asset.id,
+        unit="kW",
+        timezone="UTC",
+        event_resolution=timedelta(minutes=15),
+        attributes={"template_role": "power", "consumption_is_positive": True},
+    )
+    db.session.add(template_sensor)
+    db.session.flush()
+
+    assert template_asset.attributes["template"]["key"] == "battery-template"
+    assert "Copy this" in template_asset.description
+
+    copied_asset = copy_asset(template_asset, account=prosumer_account)
+    copied_sensor = db.session.scalars(
+        select(Sensor).filter_by(generic_asset_id=copied_asset.id)
+    ).one()
+
+    assert copied_asset.account_id == prosumer_account.id
+    assert copied_asset.parent_asset_id is None
+    assert copied_asset.attributes == {}
+    assert copied_asset.description == (
+        "Single battery asset with example power and state-of-charge sensors, "
+        "plus a basic storage flex-model."
+    )
+    assert copied_sensor.attributes == {"consumption_is_positive": True}
+
+    # The source template stays available as a template for future copies.
+    assert template_asset.attributes["template"]["key"] == "battery-template"
+    assert "Copy this" in template_asset.description
+    assert template_sensor.attributes["template_role"] == "power"
+
+
 def test_copy_asset_to_another_account_preserves_config(
     setup_api_test_data, setup_accounts, setup_markets, setup_generic_asset_types, db
 ):
@@ -1426,3 +1556,131 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
     response = client.post(url_for("AssetAPI:post"), json=post_data)
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 403
+
+
+@pytest.fixture
+def annotated_asset(db, setup_api_test_data, requesting_user):
+    """A fresh asset with two sensors and annotations (an alert band, an instant label, and an account-wide label)."""
+    import pandas as pd
+
+    from flexmeasures.data.models.annotations import Annotation
+    from flexmeasures.data.models.data_sources import DataSource
+    from uuid import uuid4
+
+    from flexmeasures.data.models.generic_assets import GenericAssetType
+
+    asset_type = db.session.scalars(select(GenericAssetType).limit(1)).first()
+    asset = GenericAsset(
+        name=f"annotated asset {uuid4().hex[:8]}",
+        generic_asset_type=asset_type,
+        owner=requesting_user.account,
+    )
+    db.session.add(asset)
+    sensor_1 = Sensor(
+        name="power",
+        generic_asset=asset,
+        unit="MW",
+        event_resolution=timedelta(minutes=15),
+    )
+    sensor_2 = Sensor(
+        name="price",
+        generic_asset=asset,
+        unit="EUR/MWh",
+        event_resolution=timedelta(hours=1),
+    )
+    db.session.add_all([sensor_1, sensor_2])
+    db.session.flush()
+    asset.sensors_to_show = [sensor_1.id, sensor_2.id]
+    source = db.session.scalars(select(DataSource).limit(1)).first()
+    asset.annotations.append(
+        Annotation(
+            content="Projected breach of site capacity",
+            start=pd.Timestamp("2025-05-02 00:00+02"),
+            end=pd.Timestamp("2025-05-02 06:00+02"),
+            source=source,
+            type="alert",
+        )
+    )
+    asset.annotations.append(
+        Annotation(
+            content="DSO request received",
+            start=pd.Timestamp("2025-05-03 12:00+02"),
+            end=pd.Timestamp("2025-05-03 12:00+02"),
+            source=source,
+            type="label",
+        )
+    )
+    asset.owner.annotations.append(
+        Annotation(
+            content="Account-wide notice",
+            start=pd.Timestamp("2025-05-04 00:00+02"),
+            end=pd.Timestamp("2025-05-05 00:00+02"),
+            source=source,
+            type="label",
+        )
+    )
+    db.session.flush()
+    return asset
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_asset_chart_annotations(client, annotated_asset, requesting_user):
+    """Asset and account annotations are returned by GET /assets/<id>/chart_annotations."""
+    response = client.get(
+        url_for("AssetAPI:get_chart_annotations", id=annotated_asset.id),
+        query_string={
+            "event_starts_after": "2025-05-01T00:00:00+02:00",
+            "event_ends_before": "2025-05-06T00:00:00+02:00",
+        },
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    records = json.loads(response.get_data(as_text=True))
+    contents = [content for record in records for content in record["content"]]
+    assert "Projected breach of site capacity" in contents
+    assert "DSO request received" in contents
+    assert "Account-wide notice" in contents
+    for record in records:
+        for key in ("start", "end", "content", "source", "type"):
+            assert key in record
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_asset_chart_with_annotation_layers(
+    client, annotated_asset, requesting_user
+):
+    """Chart specs for an asset include annotation layers in every subchart when requested."""
+    response = client.get(
+        url_for("AssetAPI:get_chart", id=annotated_asset.id),
+        query_string={
+            "include_asset_annotations": "true",
+            "dataset_name": f"asset_{annotated_asset.id}",
+        },
+    )
+    assert response.status_code == 200
+    chart_specs = json.loads(response.get_data(as_text=True))
+    annotations_dataset_name = f"asset_{annotated_asset.id}_annotations"
+    subcharts = chart_specs["vconcat"]
+    assert len(subcharts) > 0
+    for subchart in subcharts:
+        annotation_layers = [
+            layer
+            for layer in subchart["layer"]
+            if layer.get("data", {}).get("name") == annotations_dataset_name
+        ]
+        # band + rule + marker + text layers
+        assert len(annotation_layers) == 4
+    # hover params are unique per subchart, so that hovering one subchart
+    # does not darken the annotation bands in the other subcharts
+    all_param_names = [
+        param["name"]
+        for subchart in subcharts
+        for layer in subchart["layer"]
+        for param in layer.get("params", [])
+        if param["name"].startswith("annotation_")
+    ]
+    assert len(all_param_names) == len(set(all_param_names))

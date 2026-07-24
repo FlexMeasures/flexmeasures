@@ -30,7 +30,10 @@ from flexmeasures.auth.policy import (
     CONSULTANT_ROLE,
 )
 from flexmeasures.utils import geo_utils
-from flexmeasures.utils.time_utils import determine_minimum_resampling_resolution
+from flexmeasures.utils.time_utils import (
+    determine_minimum_resampling_resolution,
+    truncated_integer_epochs,
+)
 from flexmeasures.utils.unit_utils import find_smallest_common_unit
 
 
@@ -241,6 +244,7 @@ class GenericAsset(db.Model, AuthModelMixin):
     # No relationship
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), default="")
+    description = db.Column(db.Text, nullable=True)
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     attributes = db.Column(MutableDict.as_mutable(JSONB), nullable=False, default={})
@@ -518,9 +522,13 @@ class GenericAsset(db.Model, AuthModelMixin):
             missed_sensor_ids.extend(inaccessible)
 
             if accessible_sensors:
-                sensors_to_show.append(
-                    {"title": title, "plots": [{"sensors": accessible_sensors}]}
-                )
+                new_entry = {
+                    "title": title,
+                    "plots": [{"sensors": accessible_sensors}],
+                }
+                if "y-axis" in entry:
+                    new_entry["y-axis"] = entry["y-axis"]
+                sensors_to_show.append(new_entry)
 
         if missed_sensor_ids:
             current_app.logger.warning(
@@ -640,6 +648,7 @@ class GenericAsset(db.Model, AuthModelMixin):
                 id=fixed_value_sensor.id,
                 name=sensor_name,
                 sensor_unit=ref["unit"],
+                event_resolution=fixed_value_sensor.event_resolution.total_seconds(),
                 description=sensor_name,
                 asset_id=parent_asset.id,
                 asset_description=parent_asset.name,
@@ -735,24 +744,42 @@ class GenericAsset(db.Model, AuthModelMixin):
         if self.has_attribute(attribute):
             self.attributes[attribute] = value
 
+    def get_flex_context_with_provenance(self) -> dict[str, dict]:
+        """Reconstitutes the asset's serialized flex-context, tracking each field's origin in the asset tree.
+
+        Flex-context fields of ancestors that are nearer have priority.
+        We return once we collect all flex-context fields or reach the top asset.
+
+        :returns: Dictionary mapping each flex-context field name to a dictionary with
+                  the field's ``value`` and the ``asset`` (self or the nearest ancestor) that defines it.
+        """
+        from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
+
+        flex_context_field_names = set(DBFlexContextSchema.mapped_schema_keys.values())
+        flex_context = {
+            field: dict(value=value, asset=self)
+            for field, value in (self.flex_context or {}).items()
+        }
+        parent_asset = self.parent_asset
+        while set(flex_context.keys()) != flex_context_field_names and parent_asset:
+            # An ancestor's flex_context may still be None (e.g. a pending asset
+            # created without one, before its column default is applied on flush).
+            for field, value in (parent_asset.flex_context or {}).items():
+                if field not in flex_context:
+                    flex_context[field] = dict(value=value, asset=parent_asset)
+            parent_asset = parent_asset.parent_asset
+        return flex_context
+
     def get_flex_context(self) -> dict:
         """Reconstitutes the asset's serialized flex-context by gathering flex-contexts upwards in the asset tree.
 
         Flex-context fields of ancestors that are nearer have priority.
         We return once we collect all flex-context fields or reach the top asset.
         """
-        from flexmeasures.data.schemas.scheduling import DBFlexContextSchema
-
-        flex_context_field_names = set(DBFlexContextSchema.mapped_schema_keys.values())
-        if self.flex_context:
-            flex_context = self.flex_context.copy()
-        else:
-            flex_context = {}
-        parent_asset = self.parent_asset
-        while set(flex_context.keys()) != flex_context_field_names and parent_asset:
-            flex_context = {**parent_asset.flex_context, **flex_context}
-            parent_asset = parent_asset.parent_asset
-        return flex_context
+        return {
+            field: entry["value"]
+            for field, entry in self.get_flex_context_with_provenance().items()
+        }
 
     def get_flex_model(self) -> dict[int, dict]:
         """Reconstitutes the asset's serialized flex-model by gathering flex-models downwards in the asset tree.
@@ -936,6 +963,8 @@ class GenericAsset(db.Model, AuthModelMixin):
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
         include_data: bool = False,
+        include_asset_annotations: bool = False,
+        include_account_annotations: bool = False,
         dataset_name: str | None = None,
         resolution: str | timedelta | None = None,
         **kwargs,
@@ -950,6 +979,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param combine_legend: show a combined legend of all plots below the chart
         :param source: search only beliefs by this source (pass the DataSource, or its name or id) or list of sources
         :param include_data: if True, include data in the chart, or if False, exclude data
+        :param include_asset_annotations: if True, add annotation layers (showing annotations on this asset) to each subchart
+        :param include_account_annotations: if True, the annotation layers also show annotations on the asset's account
         :param dataset_name: optionally name the dataset used in the chart (the default name is sensor_<id>)
         :param resolution: optionally set the resolution of data being displayed
         :returns: JSON string defining vega-lite chart specs
@@ -974,6 +1005,8 @@ class GenericAsset(db.Model, AuthModelMixin):
             sensors_to_show=processed_sensors_to_show,
             dataset_name=dataset_name,
             combine_legend=combine_legend,
+            include_annotations=include_asset_annotations
+            or include_account_annotations,
             **kwargs,
         )
 
@@ -1083,6 +1116,12 @@ class GenericAsset(db.Model, AuthModelMixin):
                     sensors_meta[str(sensor.id)] = {
                         "name": as_dict.get("name", sensor.name),
                         "unit": as_dict.get("sensor_unit", sensor.unit),
+                        # Fixed-value sensors are instantaneous (0), so the chart
+                        # renders their row with linear interpolation like Vega-Lite.
+                        "event_resolution": as_dict.get(
+                            "event_resolution",
+                            sensor.event_resolution.total_seconds(),
+                        ),
                         "description": as_dict.get("description", sensor.name),
                         "asset_id": as_dict.get("asset_id"),
                         "asset_description": as_dict.get("asset_description", ""),
@@ -1149,7 +1188,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         :param resolution: optionally set the resolution of data being displayed
         :returns: dictionary of BeliefsDataFrames or JSON string (if as_json is True)
         """
-        bdf_dict = {}
+        from flexmeasures.data.models.time_series import TimedBelief
+
         if sensors is None:
             sensors = self.sensors
 
@@ -1157,8 +1197,10 @@ class GenericAsset(db.Model, AuthModelMixin):
             list(set([sensor.unit for sensor in sensors]))
         )
 
-        for sensor in sensors:
-            bdf_dict[sensor] = sensor.search_beliefs(
+        # One search call for all sensors, so source criteria are parsed only once
+        bdf_dict = (
+            TimedBelief.search(
+                sensors=list(sensors),
                 event_starts_after=event_starts_after,
                 event_ends_before=event_ends_before,
                 beliefs_after=beliefs_after,
@@ -1172,7 +1214,11 @@ class GenericAsset(db.Model, AuthModelMixin):
                 most_recent_events_only=most_recent_events_only,
                 one_deterministic_belief_per_event_per_source=True,
                 resolution=resolution,
+                sum_multiple=False,
             )
+            if sensors
+            else {}
+        )
         if as_json and not compress_json:
             from flexmeasures.data.services.time_series import simplify_index
 
@@ -1290,6 +1336,9 @@ class GenericAsset(db.Model, AuthModelMixin):
                     sensors_metadata[sensor.id] = {
                         "name": sensor_dict.get("name", ""),
                         "unit": sensor_dict.get("unit", sensor.unit),
+                        "event_resolution": sensor_dict.get(
+                            "event_resolution", sensor.event_resolution.total_seconds()
+                        ),
                         "description": sensor_dict.get("description", ""),
                         "asset_id": sensor_dict.get(
                             "asset_id", getattr(sensor, "generic_asset_id", None)
@@ -1325,56 +1374,45 @@ class GenericAsset(db.Model, AuthModelMixin):
 
                     # Add source IDs if available
                     if "source" in df.columns:
-                        source_ids = (
-                            df["source"]
-                            .apply(lambda x: x.id if hasattr(x, "id") else None)
-                            .tolist()
-                        )
-                        base_records["src"] = source_ids
+                        source_codes, unique_sources = pd.factorize(df["source"])
+                        unique_source_ids = [
+                            source_obj.id if hasattr(source_obj, "id") else None
+                            for source_obj in unique_sources
+                        ]
+                        base_records["src"] = [
+                            unique_source_ids[code] if code >= 0 else None
+                            for code in source_codes
+                        ]
 
-                    # Add belief horizons if available
+                    # Add belief horizons if available (in milliseconds)
                     if "belief_horizon" in df.columns:
-                        belief_horizons_sec = (
-                            df["belief_horizon"]
-                            .apply(
-                                lambda x: (
-                                    int(x.total_seconds() * 1000)
-                                    if pd.notnull(x)
-                                    else None
-                                )
-                            )
-                            .tolist()
+                        bh_values = df["belief_horizon"]
+                        bh_mask = bh_values.notna().to_numpy()
+                        bh_ms = truncated_integer_epochs(
+                            bh_values.to_numpy().view("int64"), 1_000_000
                         )
-                        base_records["bh"] = belief_horizons_sec
+                        base_records["bh"] = [
+                            int(value) if keep else None
+                            for value, keep in zip(bh_ms, bh_mask)
+                        ]
 
-                    # Add belief times if needed
+                    # Add belief times if needed (in milliseconds)
                     if not most_recent_beliefs_only and "belief_time" in df.columns:
-                        belief_times_ms = (
-                            df["belief_time"]
-                            .apply(
-                                lambda x: (
-                                    int(x.timestamp() * 1000) if pd.notnull(x) else None
-                                )
-                            )
-                            .tolist()
+                        bt_values = df["belief_time"]
+                        bt_mask = bt_values.notna().to_numpy()
+                        bt_ms = truncated_integer_epochs(
+                            bt_values.to_numpy(dtype="datetime64[ns]").view("int64"),
+                            1_000_000,
                         )
-                        base_records["bt"] = belief_times_ms
-
-                    cleaned_records = {}
-                    for key, values in base_records.items():
-                        if isinstance(values, list):
-                            cleaned_records[key] = values
-                        else:
-                            cleaned_records[key] = (
-                                pd.Series(values).fillna(None).tolist()
-                            )
+                        base_records["bt"] = [
+                            int(value) if keep else None
+                            for value, keep in zip(bt_ms, bt_mask)
+                        ]
 
                     # Convert to list of dictionaries
-                    for i in range(len(df)):
-                        record = {
-                            key: values[i] for key, values in cleaned_records.items()
-                        }
-                        all_records.append(record)
+                    record_keys = list(base_records)
+                    for row_values in zip(*base_records.values()):
+                        all_records.append(dict(zip(record_keys, row_values)))
 
                 return json.dumps(
                     {

@@ -7,6 +7,19 @@ from pint import DefinitionSyntaxError, DimensionalityError, UndefinedUnitError
 from flexmeasures.utils.unit_utils import to_preferred, ur
 
 
+def _format_validation_error(error: ma.exceptions.ValidationError) -> str:
+    """Flatten a marshmallow validation error into a single human-readable line."""
+    messages = error.messages
+    if isinstance(messages, dict):
+        return "; ".join(
+            f"{field}: {' '.join(str(m) for m in msgs) if isinstance(msgs, list) else msgs}"
+            for field, msgs in messages.items()
+        )
+    if isinstance(messages, list):
+        return " ".join(str(message) for message in messages)
+    return str(messages)
+
+
 class MarshmallowClickMixin:
     def __init__(self, *args, **kwargs):
 
@@ -33,11 +46,17 @@ class MarshmallowClickMixin:
             raise click.exceptions.BadParameter(e, ctx=ctx, param=param)
 
     def __call__(self, value):
-        """Support click.FuncParamType by behaving like a conversion callable."""
+        """Support click.FuncParamType by behaving like a conversion callable.
+
+        We raise a click error rather than a ValueError, because click.FuncParamType
+        turns a ValueError into a message that shows only the offending value
+        (`self.fail(value, ...)`), which would swallow the validation message
+        (e.g. "No account found with id 9999.").
+        """
         try:
             return self.deserialize(value)
         except ma.exceptions.ValidationError as e:
-            raise ValueError(e) from e
+            raise click.exceptions.BadParameter(_format_validation_error(e)) from e
 
 
 class FMValidationError(ma.exceptions.ValidationError):

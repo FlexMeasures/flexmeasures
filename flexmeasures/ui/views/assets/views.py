@@ -41,6 +41,7 @@ from flexmeasures.ui.utils.auth_utils import (
 )
 from flexmeasures.ui.views.assets.utils import (
     get_asset_by_id_or_raise_notfound,
+    get_inherited_flex_context,
     get_list_assets_chart,
     add_child_asset,
 )
@@ -206,6 +207,7 @@ class AssetCrudUI(FlaskView):
             assets=assets,
             asset=asset,
             flex_context_schema=UI_FLEX_CONTEXT_SCHEMA,
+            inherited_flex_context=get_inherited_flex_context(asset),
             current_asset_sensors=current_asset_sensors,
             site_asset=site_asset,
             user_can_create_children=user_can_create_children(asset),
@@ -409,6 +411,7 @@ class AssetCrudUI(FlaskView):
         asset_summary = {
             "Name": asset.name,
             "Type": asset.generic_asset_type.name,
+            "Description": asset.description or "",
             "Latitude": asset.latitude,
             "Longitude": asset.longitude,
             "Parent Asset": (
@@ -433,6 +436,21 @@ class AssetCrudUI(FlaskView):
             .order_by(GenericAsset.id.asc())
             .all()
         )
+
+        # Info to help the user set the `group` field of the flex-model:
+        # - if this asset has a parent, suggest referencing the parent as the group
+        # - if the parent already defines a power-capacity, hint that this asset
+        #   should join that group to count toward the parent's limit
+        # - if this asset itself defines a power-capacity and has children, hint
+        #   that those children can reference this asset as their group
+        parent_asset_id = asset.parent_asset.id if asset.parent_asset else None
+        parent_asset_name = asset.parent_asset.name if asset.parent_asset else None
+        parent_has_power_capacity = bool(
+            asset.parent_asset
+            and "power-capacity" in (asset.parent_asset.flex_model or {})
+        )
+        own_has_power_capacity = "power-capacity" in (asset.flex_model or {})
+        has_child_assets = bool(asset.child_assets)
 
         # Can the user create a sibling of this asset?
         # - Has a parent → check create-children on that parent asset.
@@ -484,4 +502,9 @@ class AssetCrudUI(FlaskView):
             attributes_label=ATTRIBUTES_FIELD_LABEL,
             attributes_description=ATTRIBUTES_FIELD_DESCRIPTION,
             stored_secrets=get_secret_overview(asset.secrets),
+            parent_asset_id=parent_asset_id,
+            parent_asset_name=parent_asset_name,
+            parent_has_power_capacity=parent_has_power_capacity,
+            own_has_power_capacity=own_has_power_capacity,
+            has_child_assets=has_child_assets,
         )

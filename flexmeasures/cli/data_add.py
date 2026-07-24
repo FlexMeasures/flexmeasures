@@ -4,6 +4,7 @@ CLI commands for populating the database
 
 from __future__ import annotations
 
+from contextlib import nullcontext, redirect_stdout
 from datetime import datetime, timedelta
 from typing import Dict, Any
 from flexmeasures.data.schemas.forecasting.pipeline import (
@@ -15,9 +16,10 @@ import json
 import yaml
 from pathlib import Path
 from io import TextIOBase
+from io import StringIO
 from string import Template
 
-from marshmallow import validate
+from marshmallow import validate, ValidationError
 import pandas as pd
 import pytz
 from flask import current_app as app
@@ -29,6 +31,7 @@ from sqlalchemy import func, select
 from timely_beliefs.sensors.func_store.knowledge_horizons import x_days_ago_at_y_oclock
 import timely_beliefs as tb
 from workalendar.registry import registry as workalendar_registry
+import holidays as hpkg
 
 from flexmeasures import Forecaster, Reporter
 from flexmeasures.cli.utils import (
@@ -37,6 +40,7 @@ from flexmeasures.cli.utils import (
     DeprecatedOption,
     DeprecatedOptionsCommand,
     add_cli_options_from_schema,
+    split_commas,
 )
 from flexmeasures.data import db
 from flexmeasures.data.scripts.data_gen import (
@@ -274,7 +278,12 @@ def new_account(
     preferred="--account",
     help="Add user to this account. Follow up with the account's ID.",
 )
-@click.option("--roles", help="e.g. anonymous,Prosumer,CPO")
+@click.option(
+    "--roles",
+    multiple=True,
+    callback=split_commas,
+    help="User roles, e.g. anonymous, account-admin. Pass a comma-separated list and/or use this option multiple times.",
+)
 @click.option(
     "--timezone",
     "timezone_optional",
@@ -917,11 +926,153 @@ def add_annotation(
     click.secho("Successfully added annotation.", **MsgStyle.SUCCESS)
 
 
+def _make_holiday_annotation(content, date, timezone, source):
+    """Create (or look up) a single holiday Annotation at local midnight."""
+    start = pd.Timestamp(date).tz_localize(timezone)
+    end = start + pd.offsets.DateOffset(days=1)
+    annotation, _ = get_or_create_annotation(
+        Annotation(content=content, start=start, end=end, source=source, type="holiday")
+    )
+    return annotation
+
+
+def _holidays_from_workalendar_class(year, calendar_class, calendar_kwargs, timezone):
+    """Load holidays via a specific workalendar class path.
+
+    :returns: (annotations, num_holidays_dict)
+    """
+    import importlib
+
+    try:
+        module_path, class_name = calendar_class.rsplit(".", 1)
+        module = importlib.import_module(module_path)
+        cls = getattr(module, class_name)
+    except (ValueError, ImportError, AttributeError) as e:
+        click.secho(
+            f"Could not import calendar class '{calendar_class}': {e}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    kwargs = {}
+    if calendar_kwargs:
+        try:
+            kwargs = json.loads(calendar_kwargs)
+        except json.JSONDecodeError as e:
+            click.secho(
+                f"Invalid JSON for --calendar-kwargs: {e}",
+                **MsgStyle.ERROR,
+            )
+            raise click.Abort()
+
+    try:
+        calendar = cls(**kwargs)
+    except (TypeError, ValueError) as e:
+        click.secho(
+            f"Could not instantiate calendar class '{class_name}' with arguments {kwargs}: {e}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    try:
+        holidays_list = calendar.holidays(year)
+    except (NotImplementedError, KeyError, ValueError) as e:
+        click.secho(
+            f"Calendar '{class_name}' has no holiday data for year {year}: {e}",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+
+    source = get_or_create_source(
+        "workalendar", model=class_name, source_type="CLI script"
+    )
+    annotations = [
+        _make_holiday_annotation(h[1], h[0], timezone, source) for h in holidays_list
+    ]
+    return annotations, {class_name: len(holidays_list)}
+
+
+def _holidays_from_package(year, countries, subdiv, category, timezone):
+    """Load holidays via the holidays Python package.
+
+    :returns: (annotations, num_holidays_dict, effective_category, model_str)
+    """
+    if len(countries) != 1:
+        click.secho(
+            "Exactly one --country is required when using the holidays package.",
+            **MsgStyle.ERROR,
+        )
+        raise click.Abort()
+    country = countries[0]
+
+    supported = hpkg.list_supported_countries()
+    if country not in supported:
+        click.secho(
+            f"Country '{country}' is not supported by the holidays package.",
+            **MsgStyle.ERROR,
+        )
+        click.secho(
+            f"Supported countries include: {', '.join(list(supported.keys())[:20])} ...",
+            **MsgStyle.WARN,
+        )
+        raise click.Abort()
+
+    effective_category = category or "public"
+    try:
+        h = hpkg.country_holidays(
+            country,
+            subdiv=subdiv,
+            years=year,
+            categories=(effective_category,),
+        )
+    except (ValueError, NotImplementedError) as e:
+        click.secho(
+            f"Error creating holidays for {country}"
+            + (f"/{subdiv}" if subdiv else "")
+            + f" (category='{effective_category}'): {e}",
+            **MsgStyle.ERROR,
+        )
+        click.secho(
+            "Check valid subdivisions and categories at https://python-holidays.readthedocs.io/",
+            **MsgStyle.WARN,
+        )
+        raise click.Abort()
+
+    model_str = f"{country}/{subdiv}" if subdiv else country
+    source = get_or_create_source("holidays", model=model_str, source_type="CLI script")
+    annotations = [
+        _make_holiday_annotation(h[date], date, timezone, source)
+        for date in sorted(h.keys())
+    ]
+    return annotations, {model_str: len(h)}, effective_category, model_str
+
+
+def _holidays_from_workalendar_registry(year, countries, timezone):
+    """Load holidays via workalendar's ISO registry.
+
+    :returns: (annotations, num_holidays_dict)
+    """
+    calendars = workalendar_registry.get_calendars(countries)
+    annotations = []
+    num_holidays = {}
+    for country, calendar in calendars.items():
+        source = get_or_create_source(
+            "workalendar", model=country, source_type="CLI script"
+        )
+        holidays_list = calendar().holidays(year)
+        for holiday in holidays_list:
+            annotations.append(
+                _make_holiday_annotation(holiday[1], holiday[0], timezone, source)
+            )
+        num_holidays[country] = len(holidays_list)
+    return annotations, num_holidays
+
+
 @fm_add_data.command("holidays", cls=DeprecatedOptionsCommand)
 @with_appcontext
 @click.option(
     "--year",
     type=click.INT,
+    required=True,
     help="The year for which to look up holidays",
 )
 @click.option(
@@ -929,7 +1080,49 @@ def add_annotation(
     "countries",
     type=click.STRING,
     multiple=True,
-    help="The ISO 3166-1 country/region or ISO 3166-2 sub-region for which to look up holidays (such as US, BR and DE). This argument can be given multiple times.",
+    help="The ISO 3166-1 country/region or ISO 3166-2 sub-region for which to look up holidays (such as US, BR and DE). This argument can be given multiple times. When using the holidays package, exactly one country is required.",
+)
+@click.option(
+    "--calendar-class",
+    "calendar_class",
+    type=click.STRING,
+    default=None,
+    help="Full dotted path to a workalendar calendar class "
+    "(e.g. 'workalendar.europe.netherlands.NetherlandsWithSchoolHolidays'). "
+    "Use this for calendars not accessible via a simple country code.",
+)
+@click.option(
+    "--calendar-kwargs",
+    "calendar_kwargs",
+    type=click.STRING,
+    default=None,
+    help="JSON string of keyword arguments to pass to the workalendar calendar constructor "
+    '(e.g. \'{"region": "north"}\').',
+)
+@click.option(
+    "--subdiv",
+    "subdiv",
+    type=click.STRING,
+    default=None,
+    help="Subdivision (state/province) code for the holidays package (e.g. 'BY' for Bavaria). "
+    "If provided, the holidays package is used automatically.",
+)
+@click.option(
+    "--category",
+    "category",
+    type=click.STRING,
+    default=None,
+    help="Holiday category for the holidays package (e.g. 'school', 'optional'). "
+    "Defaults to 'public' when the holidays package is used. "
+    "If provided, the holidays package is used automatically.",
+)
+@click.option(
+    "--package",
+    "package",
+    type=click.Choice(["workalendar", "holidays"]),
+    default=None,
+    help="Which package to use: 'workalendar' (default) or 'holidays'. "
+    "Auto-detected from --subdiv/--category when not specified.",
 )
 @click.option(
     "--asset",
@@ -953,15 +1146,67 @@ def add_annotation(
     preferred="--account",
     help="Add annotations to this account. Follow up with the account's ID. This argument can be given multiple times.",
 )
+@click.option(
+    "--timezone",
+    "timezone",
+    type=click.STRING,
+    default=None,
+    help="Timezone for holiday annotations (e.g. 'Europe/Amsterdam'). "
+    "Defaults to the FLEXMEASURES_TIMEZONE config setting. "
+    "Use this to ensure holidays appear at midnight local time in the UI.",
+)
 def add_holidays(
     year: int,
     countries: list[str],
+    calendar_class: str | None,
+    calendar_kwargs: str | None,
+    subdiv: str | None,
+    category: str | None,
+    package: str | None,
     generic_asset_ids: list[int],
     account_ids: list[int],
+    timezone: str | None,
 ):
-    """Add holiday annotations to accounts and/or assets."""
-    calendars = workalendar_registry.get_calendars(countries)
-    num_holidays = {}
+    """Add holiday annotations to accounts and/or assets.
+
+    Uses the workalendar package by default. Switch to the holidays package with
+    --package holidays (or automatically by passing --subdiv or --category).
+    Use --calendar-class to specify a specific workalendar calendar class (e.g.
+    NetherlandsWithSchoolHolidays) along with --calendar-kwargs for its constructor.
+
+    \b
+    Examples:
+      # NL public holidays via workalendar (default)
+      flexmeasures add holidays --year 2024 --country NL --account 1 --timezone Europe/Amsterdam
+
+      # Bavaria school holidays via holidays package
+      flexmeasures add holidays --year 2024 --country DE --subdiv BY --category school --account 1
+
+      # Netherlands school holidays (north region) via workalendar class
+      flexmeasures add holidays --year 2024 \\
+        --calendar-class workalendar.europe.netherlands.NetherlandsWithSchoolHolidays \\
+        --calendar-kwargs '{"region": "north"}' --account 1 --timezone Europe/Amsterdam
+    """
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    # Resolve timezone: default to FLEXMEASURES_TIMEZONE config setting
+    if timezone is None:
+        timezone = app.config.get("FLEXMEASURES_TIMEZONE", "UTC")
+        click.secho(
+            f"No --timezone given; using FLEXMEASURES_TIMEZONE setting ({timezone!r}). "
+            "Pass --timezone explicitly to override.",
+            **MsgStyle.WARN,
+        )
+    try:
+        ZoneInfo(timezone)
+    except (ZoneInfoNotFoundError, KeyError):
+        click.secho(f"Unknown timezone: {timezone!r}", **MsgStyle.ERROR)
+        raise click.Abort()
+
+    # Determine which package to use
+    use_holidays_pkg = package == "holidays" or (
+        package is None and (subdiv is not None or category is not None)
+    )
 
     accounts = (
         db.session.scalars(select(Account).filter(Account.id.in_(account_ids))).all()
@@ -975,36 +1220,42 @@ def add_holidays(
         if generic_asset_ids
         else []
     )
-    annotations = []
-    for country, calendar in calendars.items():
-        _source = get_or_create_source(
-            "workalendar", model=country, source_type="CLI script"
+
+    if calendar_class and not use_holidays_pkg:
+        annotations, num_holidays = _holidays_from_workalendar_class(
+            year, calendar_class, calendar_kwargs, timezone
         )
-        holidays = calendar().holidays(year)
-        for holiday in holidays:
-            start = pd.Timestamp(holiday[0])
-            end = start + pd.offsets.DateOffset(days=1)
-            annotation, _ = get_or_create_annotation(
-                Annotation(
-                    content=holiday[1],
-                    start=start,
-                    end=end,
-                    source=_source,
-                    type="holiday",
-                )
-            )
-            annotations.append(annotation)
-        num_holidays[country] = len(holidays)
+    elif use_holidays_pkg:
+        annotations, num_holidays, effective_category, model_str = (
+            _holidays_from_package(year, countries, subdiv, category, timezone)
+        )
+    else:
+        annotations, num_holidays = _holidays_from_workalendar_registry(
+            year, countries, timezone
+        )
+
     db.session.add_all(annotations)
     for account in accounts:
         account.annotations += annotations
     for asset in assets:
         asset.annotations += annotations
     db.session.commit()
-    click.secho(
-        f"Successfully added holidays to {len(accounts)} {flexmeasures_inflection.pluralize('account', len(accounts))} and {len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}",
-        **MsgStyle.SUCCESS,
-    )
+
+    if use_holidays_pkg:
+        click.secho(
+            f"Successfully added {len(annotations)} holidays (category='{effective_category}') "
+            f"for {model_str} in {year} to "
+            f"{len(accounts)} {flexmeasures_inflection.pluralize('account', len(accounts))} and "
+            f"{len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}.",
+            **MsgStyle.SUCCESS,
+        )
+    else:
+        click.secho(
+            f"Successfully added holidays to "
+            f"{len(accounts)} {flexmeasures_inflection.pluralize('account', len(accounts))} and "
+            f"{len(assets)} {flexmeasures_inflection.pluralize('asset', len(assets))}:\n{num_holidays}",
+            **MsgStyle.SUCCESS,
+        )
 
 
 @fm_add_data.command("forecasts")
@@ -1127,6 +1378,12 @@ def add_forecast(  # noqa: C901
     if edit_config:
         config = launch_editor("/tmp/config.yml")
 
+    if source is not None and config:
+        raise click.UsageError(
+            "--source uses the forecaster configuration stored with that source. "
+            "Omit --source to use the supplied configuration options."
+        )
+
     parameters = dict()
 
     if parameters_file:
@@ -1141,13 +1398,18 @@ def add_forecast(  # noqa: C901
         if kebab_key not in parameters:
             parameters[kebab_key] = v
 
-    forecaster = get_data_generator(
-        source=source,
-        model=forecaster_class,
-        config=config,
-        save_config=True,
-        data_generator_type=Forecaster,
-    )
+    try:
+        forecaster = get_data_generator(
+            source=source,
+            model=forecaster_class,
+            config=config,
+            save_config=True,
+            data_generator_type=Forecaster,
+        )
+    except ValidationError as e:
+        raise click.UsageError(
+            f"Invalid forecasting configuration: {e.messages}"
+        ) from e
 
     try:
         # Drop None values
@@ -1731,289 +1993,334 @@ def get_or_create_toy_asset(
     help="What kind of toy account. Defaults to a battery.",
 )
 @click.option("--name", type=str, default="Toy Account", help="Name of the account")
-def add_toy_account(kind: str, name: str):
+@click.option(
+    "--shell-vars",
+    is_flag=True,
+    help=(
+        "Print created toy account IDs as shell variable assignments. "
+        "This suppresses the regular command output so scripts can use "
+        '`eval "$(flexmeasures add toy-account --shell-vars)"`.'
+    ),
+)
+def add_toy_account(kind: str, name: str, shell_vars: bool):
     """
     Create a toy account, for tutorials and trying things.
     """
-    asset_types = add_default_asset_types(db=db)
-    location = (52.374, 4.88969)  # Amsterdam
+    shell_var_output: dict[str, int] = {}
+    stdout_context = redirect_stdout(StringIO()) if shell_vars else nullcontext()
 
-    # make an account (if not exist)
-    account = db.session.execute(
-        select(Account).filter_by(name=name)
-    ).scalar_one_or_none()
-    if account:
-        click.secho(
-            f"Account '{account}' already exists. Skipping account creation. Use `flexmeasures delete account --id {account.id}` if you need to remove it.",
-            **MsgStyle.WARN,
-        )
+    with stdout_context:
+        asset_types = add_default_asset_types(db=db)
+        location = (52.374, 4.88969)  # Amsterdam
 
-    # make an account user (account-admin?)
-    email = "toy-user@flexmeasures.io"
-    user = db.session.execute(select(User).filter_by(email=email)).scalar_one_or_none()
-    if user is not None:
-        click.secho(
-            f"User with email {email} already exists in account {user.account.name}.",
-            **MsgStyle.WARN,
-        )
-    else:
-        user = create_user(
-            email=email,
-            check_email_deliverability=False,
-            password="toy-password",
-            user_roles=["account-admin"],
-            account_name=name,
-        )
-        click.secho(
-            f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`",
-            **MsgStyle.SUCCESS,
-        )
-
-    db.session.commit()
-
-    # add public day-ahead market (as sensor of transmission zone asset)
-    nl_zone = add_transmission_zone_asset("NL", db=db)
-    day_ahead_sensor = get_or_create_model(
-        Sensor,
-        name="day-ahead prices",
-        generic_asset=nl_zone,
-        unit="EUR/MWh",
-        timezone="Europe/Amsterdam",
-        event_resolution=timedelta(minutes=60),
-        knowledge_horizon=(
-            x_days_ago_at_y_oclock,
-            {"x": 1, "y": 12, "z": "Europe/Paris"},
-        ),
-    )
-    db.session.commit()
-    click.secho(
-        f"The sensor recording day-ahead prices is {day_ahead_sensor} (ID: {day_ahead_sensor.id}).",
-        **MsgStyle.SUCCESS,
-    )
-
-    account_id = user.account_id
-    account_owner = db.session.get(Account, account_id)
-
-    def create_asset_with_one_sensor(
-        asset_name: str,
-        asset_type: str,
-        sensor_name: str,
-        unit: str = "MW",
-        parent_asset_id: int | None = None,
-        flex_context: dict | None = None,
-        flex_model: dict | None = None,
-        **asset_attributes,
-    ):
-        asset = get_or_create_toy_asset(
-            asset_name=asset_name,
-            asset_type=asset_type,
-            asset_types=asset_types,
-            account_owner=account_owner,
-            location=location,
-            parent_asset_id=parent_asset_id,
-            flex_context=flex_context,
-            flex_model=flex_model,
-            **asset_attributes,
-        )
-
-        sensor_specs = dict(
-            generic_asset=asset,
-            unit=unit,
-            timezone="Europe/Amsterdam",
-            event_resolution=timedelta(minutes=15),
-        )
-        sensor = get_or_create_model(
-            Sensor,
-            name=sensor_name,
-            **sensor_specs,
-        )
-        return sensor
-
-    # create building asset
-    building_asset = get_or_create_toy_asset(
-        asset_name="toy-building",
-        asset_type="building",
-        asset_types=asset_types,
-        account_owner=account_owner,
-        location=location,
-        flex_context={
-            "site-power-capacity": "500 kVA",
-            "consumption-price": {"sensor": day_ahead_sensor.id},
-        },
-    )
-    db.session.flush()
-
-    if kind == "battery":
-        # create battery
-        discharging_sensor = create_asset_with_one_sensor(
-            "toy-battery",
-            "battery",
-            "discharging",
-            parent_asset_id=building_asset.id,
-            flex_model={
-                "power-capacity": "500 kVA",
-                "roundtrip-efficiency": "90%",
-                "soc-max": "450 kWh",
-            },
-        )
-
-        # create solar
-        production_sensor = create_asset_with_one_sensor(
-            "toy-solar", "solar", "production", parent_asset_id=building_asset.id
-        )
-
-        # add day-ahead price sensor and PV production sensor to show on the battery's asset page
-        db.session.flush()
-        battery = discharging_sensor.generic_asset
-        battery.sensors_to_show = [
-            {"title": "Prices", "plots": [{"sensor": day_ahead_sensor.id}]},
-            {
-                "title": "Power flows",
-                "plots": [
-                    {"sensors": [production_sensor.id, discharging_sensor.id]},
-                ],
-            },
-        ]
-
-        # the site gets a similar dashboard (TODO: after #1801, add also capacity constraint)
-        building_asset.sensors_to_show = [
-            {
-                "title": "Prices",
-                "plots": [
-                    {
-                        "asset": building_asset.id,
-                        "flex-context": "consumption-price",
-                    }
-                ],
-            },
-            {
-                "title": "Power flows",
-                "plots": [
-                    {"sensors": [production_sensor.id, discharging_sensor.id]},
-                ],
-            },
-        ]
-
-        db.session.commit()
-
-        click.secho(
-            f"The sensor recording battery discharging is {discharging_sensor} (ID: {discharging_sensor.id}).",
-            **MsgStyle.SUCCESS,
-        )
-        click.secho(
-            f"The sensor recording solar forecasts is {production_sensor} (ID: {production_sensor.id}).",
-            **MsgStyle.SUCCESS,
-        )
-    elif kind == "process":
-        inflexible_power = create_asset_with_one_sensor(
-            "toy-process",
-            "process",
-            "Power (Inflexible)",
-            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
-        )
-
-        breakable_power = create_asset_with_one_sensor(
-            "toy-process",
-            "process",
-            "Power (Breakable)",
-            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
-        )
-
-        shiftable_power = create_asset_with_one_sensor(
-            "toy-process",
-            "process",
-            "Power (Shiftable)",
-            flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
-        )
-
-        db.session.flush()
-
-        process = shiftable_power.generic_asset
-        process.sensors_to_show = [
-            {"title": "Prices", "plots": [{"sensor": day_ahead_sensor.id}]},
-            {"title": "Inflexible", "plots": [{"sensor": inflexible_power.id}]},
-            {"title": "Breakable", "plots": [{"sensor": breakable_power.id}]},
-            {"title": "Shiftable", "plots": [{"sensor": shiftable_power.id}]},
-        ]
-
-        db.session.commit()
-
-        click.secho(
-            f"The sensor recording the power of the inflexible load is {inflexible_power} (ID: {inflexible_power.id}).",
-            **MsgStyle.SUCCESS,
-        )
-        click.secho(
-            f"The sensor recording the power of the breakable load is {breakable_power} (ID: {breakable_power.id}).",
-            **MsgStyle.SUCCESS,
-        )
-        click.secho(
-            f"The sensor recording the power of the shiftable load is {shiftable_power} (ID: {shiftable_power.id}).",
-            **MsgStyle.SUCCESS,
-        )
-    elif kind == "reporter":
-        # Part A) of tutorial IV
-        grid_connection_capacity = get_or_create_model(
-            Sensor,
-            name="grid connection capacity",
-            generic_asset=building_asset,
-            timezone="Europe/Amsterdam",
-            event_resolution="P1Y",
-            unit="MW",
-        )
-        db.session.commit()
-
-        click.secho(
-            f"The sensor storing the grid connection capacity of the building is {grid_connection_capacity} (ID: {grid_connection_capacity.id}).",
-            **MsgStyle.SUCCESS,
-        )
-
-        start_year = server_now().replace(
-            month=1, day=1, hour=0, minute=0, second=0, microsecond=0
-        )
-
-        belief = TimedBelief(
-            event_start=start_year,
-            belief_time=server_now(),
-            event_value=0.5,
-            source=db.session.get(DataSource, 1),
-            sensor=grid_connection_capacity,
-        )
-
-        db.session.add(belief)
-        db.session.commit()
-
-        headroom = create_asset_with_one_sensor(
-            "toy-battery", "battery", "headroom", parent_asset_id=building_asset.id
-        )
-
-        db.session.commit()
-
-        click.secho(
-            f"The sensor storing the headroom is {headroom} (ID: {headroom.id}).",
-            **MsgStyle.SUCCESS,
-        )
-
-        for name in ["Inflexible", "Breakable", "Shiftable"]:
-            loss_sensor = create_asset_with_one_sensor(
-                "toy-process", "process", f"costs ({name})", unit="EUR"
+        # make an account (if not exist)
+        account = db.session.execute(
+            select(Account).filter_by(name=name)
+        ).scalar_one_or_none()
+        if account:
+            click.secho(
+                f"Account '{account}' already exists. Skipping account creation. Use `flexmeasures delete account --id {account.id}` if you need to remove it.",
+                **MsgStyle.WARN,
             )
 
-            db.session.commit()
+        # make an account user (account-admin?)
+        email = "toy-user@flexmeasures.io"
+        user = db.session.execute(
+            select(User).filter_by(email=email)
+        ).scalar_one_or_none()
+        if user is not None:
             click.secho(
-                f"The sensor storing the loss is {loss_sensor} (ID: {loss_sensor.id}).",
+                f"User with email {email} already exists in account {user.account.name}.",
+                **MsgStyle.WARN,
+            )
+        else:
+            user = create_user(
+                email=email,
+                check_email_deliverability=False,
+                password="toy-password",
+                user_roles=["account-admin"],
+                account_name=name,
+            )
+            click.secho(
+                f"Toy account {name} with user {user.email} created successfully. You might want to run `flexmeasures show account --id {user.account.id}`",
                 **MsgStyle.SUCCESS,
             )
 
-        reporter = ProfitOrLossReporter(
-            consumption_price_sensor=day_ahead_sensor, loss_is_positive=True
-        )
-        ds = reporter.data_source
         db.session.commit()
 
+        # add public day-ahead market (as sensor of transmission zone asset)
+        nl_zone = add_transmission_zone_asset("NL", db=db)
+        day_ahead_sensor = get_or_create_model(
+            Sensor,
+            name="day-ahead prices",
+            generic_asset=nl_zone,
+            unit="EUR/MWh",
+            timezone="Europe/Amsterdam",
+            event_resolution=timedelta(minutes=60),
+            knowledge_horizon=(
+                x_days_ago_at_y_oclock,
+                {"x": 1, "y": 12, "z": "Europe/Paris"},
+            ),
+        )
+        db.session.commit()
         click.secho(
-            f"Reporter `ProfitOrLossReporter` saved with the day ahead price sensor in the `DataSource` (id={ds.id})",
+            f"The sensor recording day-ahead prices is {day_ahead_sensor} (ID: {day_ahead_sensor.id}).",
             **MsgStyle.SUCCESS,
         )
+
+        account_id = user.account_id
+        account_owner = db.session.get(Account, account_id)
+        shell_var_output["FM_TOY_ACCOUNT_ID"] = account_owner.id
+        shell_var_output["FM_TOY_PRICE_SENSOR_ID"] = day_ahead_sensor.id
+
+        def create_asset_with_one_sensor(
+            asset_name: str,
+            asset_type: str,
+            sensor_name: str,
+            unit: str = "MW",
+            parent_asset_id: int | None = None,
+            flex_context: dict | None = None,
+            flex_model: dict | None = None,
+            **asset_attributes,
+        ):
+            asset = get_or_create_toy_asset(
+                asset_name=asset_name,
+                asset_type=asset_type,
+                asset_types=asset_types,
+                account_owner=account_owner,
+                location=location,
+                parent_asset_id=parent_asset_id,
+                flex_context=flex_context,
+                flex_model=flex_model,
+                **asset_attributes,
+            )
+
+            sensor_specs = dict(
+                generic_asset=asset,
+                unit=unit,
+                timezone="Europe/Amsterdam",
+                event_resolution=timedelta(minutes=15),
+            )
+            sensor = get_or_create_model(
+                Sensor,
+                name=sensor_name,
+                **sensor_specs,
+            )
+            return sensor
+
+        # create building asset
+        building_asset = get_or_create_toy_asset(
+            asset_name="toy-building",
+            asset_type="building",
+            asset_types=asset_types,
+            account_owner=account_owner,
+            location=location,
+            flex_context={
+                "site-power-capacity": "500 kVA",
+                "consumption-price": {"sensor": day_ahead_sensor.id},
+            },
+        )
+        db.session.flush()
+        shell_var_output["FM_TOY_BUILDING_ASSET_ID"] = building_asset.id
+
+        if kind == "battery":
+            # create battery
+            discharging_sensor = create_asset_with_one_sensor(
+                "toy-battery",
+                "battery",
+                "discharging",
+                parent_asset_id=building_asset.id,
+                flex_model={
+                    "power-capacity": "500 kVA",
+                    "roundtrip-efficiency": "90%",
+                    "soc-max": "450 kWh",
+                },
+            )
+
+            # create solar
+            production_sensor = create_asset_with_one_sensor(
+                "toy-solar",
+                "solar",
+                "production",
+                parent_asset_id=building_asset.id,
+            )
+
+            # add day-ahead price sensor and PV production sensor to show on the battery's asset page
+            db.session.flush()
+            battery = discharging_sensor.generic_asset
+            battery.sensors_to_show = [
+                {"title": "Prices", "plots": [{"sensor": day_ahead_sensor.id}]},
+                {
+                    "title": "Power flows",
+                    "plots": [
+                        {"sensors": [production_sensor.id, discharging_sensor.id]},
+                    ],
+                },
+            ]
+
+            # the site gets a similar dashboard (TODO: after #1801, add also capacity constraint)
+            building_asset.sensors_to_show = [
+                {
+                    "title": "Prices",
+                    "plots": [
+                        {
+                            "asset": building_asset.id,
+                            "flex-context": "consumption-price",
+                        }
+                    ],
+                },
+                {
+                    "title": "Power flows",
+                    "plots": [
+                        {"sensors": [production_sensor.id, discharging_sensor.id]},
+                    ],
+                },
+            ]
+
+            db.session.commit()
+
+            click.secho(
+                f"The sensor recording battery discharging is {discharging_sensor} (ID: {discharging_sensor.id}).",
+                **MsgStyle.SUCCESS,
+            )
+            click.secho(
+                f"The sensor recording solar forecasts is {production_sensor} (ID: {production_sensor.id}).",
+                **MsgStyle.SUCCESS,
+            )
+            shell_var_output["FM_TOY_BATTERY_ASSET_ID"] = battery.id
+            shell_var_output["FM_TOY_BATTERY_SENSOR_ID"] = discharging_sensor.id
+            shell_var_output["FM_TOY_SOLAR_ASSET_ID"] = (
+                production_sensor.generic_asset.id
+            )
+            shell_var_output["FM_TOY_SOLAR_SENSOR_ID"] = production_sensor.id
+        elif kind == "process":
+            inflexible_power = create_asset_with_one_sensor(
+                "toy-process",
+                "process",
+                "Power (Inflexible)",
+                flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
+            )
+
+            breakable_power = create_asset_with_one_sensor(
+                "toy-process",
+                "process",
+                "Power (Breakable)",
+                flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
+            )
+
+            shiftable_power = create_asset_with_one_sensor(
+                "toy-process",
+                "process",
+                "Power (Shiftable)",
+                flex_context={"consumption-price": {"sensor": day_ahead_sensor.id}},
+            )
+
+            db.session.flush()
+
+            process = shiftable_power.generic_asset
+            process.sensors_to_show = [
+                {"title": "Prices", "plots": [{"sensor": day_ahead_sensor.id}]},
+                {"title": "Inflexible", "plots": [{"sensor": inflexible_power.id}]},
+                {"title": "Breakable", "plots": [{"sensor": breakable_power.id}]},
+                {"title": "Shiftable", "plots": [{"sensor": shiftable_power.id}]},
+            ]
+
+            db.session.commit()
+
+            click.secho(
+                f"The sensor recording the power of the inflexible load is {inflexible_power} (ID: {inflexible_power.id}).",
+                **MsgStyle.SUCCESS,
+            )
+            click.secho(
+                f"The sensor recording the power of the breakable load is {breakable_power} (ID: {breakable_power.id}).",
+                **MsgStyle.SUCCESS,
+            )
+            click.secho(
+                f"The sensor recording the power of the shiftable load is {shiftable_power} (ID: {shiftable_power.id}).",
+                **MsgStyle.SUCCESS,
+            )
+            shell_var_output["FM_TOY_PROCESS_ASSET_ID"] = process.id
+            shell_var_output["FM_TOY_PROCESS_INFLEXIBLE_SENSOR_ID"] = (
+                inflexible_power.id
+            )
+            shell_var_output["FM_TOY_PROCESS_BREAKABLE_SENSOR_ID"] = breakable_power.id
+            shell_var_output["FM_TOY_PROCESS_SHIFTABLE_SENSOR_ID"] = shiftable_power.id
+        elif kind == "reporter":
+            # Part A) of tutorial IV
+            grid_connection_capacity = get_or_create_model(
+                Sensor,
+                name="grid connection capacity",
+                generic_asset=building_asset,
+                timezone="Europe/Amsterdam",
+                event_resolution="P1Y",
+                unit="MW",
+            )
+            db.session.commit()
+
+            click.secho(
+                f"The sensor storing the grid connection capacity of the building is {grid_connection_capacity} (ID: {grid_connection_capacity.id}).",
+                **MsgStyle.SUCCESS,
+            )
+
+            start_year = server_now().replace(
+                month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+            )
+
+            belief = TimedBelief(
+                event_start=start_year,
+                belief_time=server_now(),
+                event_value=0.5,
+                source=db.session.get(DataSource, 1),
+                sensor=grid_connection_capacity,
+            )
+
+            db.session.add(belief)
+            db.session.commit()
+
+            headroom = create_asset_with_one_sensor(
+                "toy-battery",
+                "battery",
+                "headroom",
+                parent_asset_id=building_asset.id,
+            )
+
+            db.session.commit()
+
+            click.secho(
+                f"The sensor storing the headroom is {headroom} (ID: {headroom.id}).",
+                **MsgStyle.SUCCESS,
+            )
+            shell_var_output["FM_TOY_GRID_CAPACITY_SENSOR_ID"] = (
+                grid_connection_capacity.id
+            )
+            shell_var_output["FM_TOY_HEADROOM_SENSOR_ID"] = headroom.id
+
+            for name in ["Inflexible", "Breakable", "Shiftable"]:
+                loss_sensor = create_asset_with_one_sensor(
+                    "toy-process", "process", f"costs ({name})", unit="EUR"
+                )
+
+                db.session.commit()
+                click.secho(
+                    f"The sensor storing the loss is {loss_sensor} (ID: {loss_sensor.id}).",
+                    **MsgStyle.SUCCESS,
+                )
+
+            reporter = ProfitOrLossReporter(
+                consumption_price_sensor=day_ahead_sensor,
+                loss_is_positive=True,
+            )
+            ds = reporter.data_source
+            db.session.commit()
+
+            click.secho(
+                f"Reporter `ProfitOrLossReporter` saved with the day ahead price sensor in the `DataSource` (id={ds.id})",
+                **MsgStyle.SUCCESS,
+            )
+
+    if shell_vars:
+        for variable_name, variable_value in shell_var_output.items():
+            click.echo(f"{variable_name}={variable_value}")
 
 
 app.cli.add_command(fm_add_data)

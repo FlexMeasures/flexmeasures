@@ -32,6 +32,20 @@ def _sensor_id(sensor: Sensor | int | None) -> int | None:
     return sensor.id if isinstance(sensor, Sensor) else sensor
 
 
+def _entity_id(entity_or_id):
+    """Return the database ID from a model object or already-serialized ID."""
+    return getattr(entity_or_id, "id", entity_or_id)
+
+
+def _make_annotation_regressor_payload(spec: dict[str, Any]) -> dict[str, Any]:
+    """Serialize ORM-backed annotation regressor source fields to IDs."""
+    payload = dict(spec)
+    for source_key in ("account", "asset", "sensor"):
+        if source_key in payload:
+            payload[source_key] = _entity_id(payload[source_key])
+    return payload
+
+
 def _get_attached_sensor(sensor_id: int | None) -> Sensor | None:
     """Load a sensor in the current session from a queued job payload ID."""
     if sensor_id is None:
@@ -82,6 +96,10 @@ def _make_job_config_payload(config: dict[str, Any]) -> dict[str, Any]:
         _sensor_id(sensor) for sensor in future_regressors
     ]
     payload["past_regressor_ids"] = [_sensor_id(sensor) for sensor in past_regressors]
+    payload["annotation_regressors"] = [
+        _make_annotation_regressor_payload(spec)
+        for spec in payload.get("annotation_regressors", [])
+    ]
     _assert_no_orm_objects(payload)
     return payload
 
@@ -215,8 +233,9 @@ class TrainPredictPipeline(Forecaster):
             probabilistic=self._parameters["probabilistic"],
             ensure_positive=self._config["ensure_positive"],
             missing_threshold=self._config.get("missing_threshold"),
+            annotation_regressors=self._config.get("annotation_regressors", []),
+            model_params=self._config.get("model_params"),
         )
-
         logging.info(f"Training cycle from {train_start} to {train_end} started ...")
         train_start_time = time.time()
         train_pipeline.run(counter=counter)
@@ -256,6 +275,12 @@ class TrainPredictPipeline(Forecaster):
             sensor_to_save=self._parameters["sensor_to_save"],
             data_source=self.data_source,
             missing_threshold=self._config.get("missing_threshold"),
+            annotation_regressors=self._config.get("annotation_regressors", []),
+            post_processing_config={
+                "lower": self._config.get("lower"),
+                "upper": self._config.get("upper"),
+                "snap": self._config.get("snap"),
+            },
         )
         logging.info(
             f"Prediction cycle from {predict_start} to {predict_end} started ..."
@@ -285,12 +310,16 @@ class TrainPredictPipeline(Forecaster):
     def _derive_training_period(self) -> tuple[datetime, datetime]:
         """Derive the effective training period for model fitting.
 
-        The training period ends at ``predict_start`` and starts at the
-        most restrictive (latest) of the following:
+        Priority (most restrictive start date wins):
 
-        - The configured ``start_date`` (if any)
-        - ``predict_start - train_period_in_hours`` (if configured)
-        - ``predict_start - max_training_period`` (always enforced)
+        1. ``train_start`` (if explicitly configured via ``--train-start``).
+        2. ``predict_start - train_period`` (if ``--train-period`` was explicitly set).
+        3. ``predict_start - max_training_period`` (always enforced as the outer bound).
+
+        When ``--train-start`` is set the ``--train-period`` is ignored – the
+        effective period is simply ``predict_start - train_start``, capped to
+        ``max_training_period``.  This prevents the old 30-day default from
+        silently overriding an explicit start date.
 
         Additionally, the resulting training window is guaranteed to span
         at least two days.
@@ -302,18 +331,20 @@ class TrainPredictPipeline(Forecaster):
         configured_start: datetime | None = self._config.get("train_start")
         period_hours: int | None = self._config.get("train_period_in_hours")
 
-        candidates: list[datetime] = []
+        # Outer bound: never go further back than max_training_period.
+        max_period_start = train_end - self._config["max_training_period"]
 
         if configured_start is not None:
-            candidates.append(configured_start)
-
-        if period_hours is not None:
-            candidates.append(train_end - timedelta(hours=period_hours))
-
-        # Always enforce maximum training period
-        candidates.append(train_end - self._config["max_training_period"])
-
-        train_start = max(candidates)
+            # Explicit train_start takes full precedence; period is ignored.
+            train_start = max(configured_start, max_period_start)
+        elif period_hours is not None:
+            # Explicit train_period without train_start.
+            train_start = max(
+                train_end - timedelta(hours=period_hours), max_period_start
+            )
+        else:
+            # Neither set: use the full max_training_period window.
+            train_start = max_period_start
 
         # Enforce minimum training period of 2 days
         min_training_period = timedelta(days=2)
@@ -434,7 +465,6 @@ class TrainPredictPipeline(Forecaster):
                         ).total_seconds()
                     ),  # NB job.cleanup docs says a negative number of seconds means persisting forever
                     meta=job_metadata,
-                    timeout=60 * 60,  # 1 hour
                 )
 
                 # Store the job ID for this cycle
