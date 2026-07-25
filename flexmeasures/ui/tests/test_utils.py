@@ -79,8 +79,8 @@ def test_ui_flexcontext_schema():
         "relax-site-capacity-constraints",
         "consumption-price-sensor",
         "production-price-sensor",
-        "commodities",  # todo: https://github.com/FlexMeasures/flexmeasures/issues/2230
         "commodity",  # single-dict form is electricity-only; not exposed in the UI
+        "commodities",  # internal field; the UI manages it through the commodity tab bar
     ]
 
     schema_keys = []
@@ -99,24 +99,59 @@ def test_ui_flexcontext_schema():
     ), "If this fails, you may have added UI support for a new flex-context field, but forgot to remove it from exclude_fields."
 
 
+def test_ui_flexcontext_schema_per_commodity_flags():
+    """The context editor relies on each UI schema entry telling whether the field
+    can also be set within a commodity context (an entry of the commodities list)."""
+    from flexmeasures.data.schemas.scheduling import CommodityFlexContextSchema
+
+    commodity_context_keys = {
+        schema_field.data_key or field_name
+        for field_name, schema_field in CommodityFlexContextSchema().fields.items()
+    }
+    for field_name, entry in UI_FLEX_CONTEXT_SCHEMA.items():
+        assert entry["per-commodity"] == (field_name in commodity_context_keys), (
+            f"UI schema entry '{field_name}' has a per-commodity flag that contradicts "
+            "CommodityFlexContextSchema."
+        )
+
+
 def test_ui_flexmodel_schema():
     """
-    This test ensures that all fields in the DBStorageFlexModelSchema are also in the UI schema and vice versa.
+    UI_FLEX_MODEL_SCHEMA is now derived from DBStorageFlexModelSchema (the single
+    source of truth) by _build_ui_flex_model_schema, so DB<->UI parity is guaranteed
+    by construction: a DB field without UI presentation info raises at import time.
 
-    This is important to keep in mind when updating either schema. We want to avoid a situation
-    where a field is added to the DB schema but not to the UI schema, as that would lead to
-    inconsistencies and potential bugs in the application.
+    Here we assert the remaining property that cannot be guaranteed structurally:
+    that every derived UI entry is well-formed (has the expected keys and a
+    non-empty backend type token). If someone adds a flex-model field but leaves
+    its UI presentation info incomplete, this fails with a clear message.
     """
-    ui_flexmodel_schema_fields = [key for key, value in UI_FLEX_MODEL_SCHEMA.items()]
+    schema_keys = {
+        (value.data_key if value.data_key else value.name)
+        for value in DBStorageFlexModelSchema().fields.values()
+    }
 
-    schema_keys = []
-    for value in DBStorageFlexModelSchema().fields.values():
-        schema_keys.append(value.data_key if value.data_key else value.name)
+    # Parity is by construction: the derived schema covers exactly the DB fields.
+    assert set(UI_FLEX_MODEL_SCHEMA.keys()) == schema_keys
 
-    schema_keys = set(schema_keys)
-    ui_flexmodel_schema_fields = set(ui_flexmodel_schema_fields)
-
-    assert schema_keys == ui_flexmodel_schema_fields
+    for key, entry in UI_FLEX_MODEL_SCHEMA.items():
+        assert set(entry.keys()) == {
+            "default",
+            "description",
+            "types",
+            "example-units",
+        }, f"UI flex-model entry '{key}' has unexpected keys: {sorted(entry.keys())}"
+        assert set(entry["types"].keys()) == {
+            "backend",
+            "ui",
+        }, f"UI flex-model entry '{key}' has a malformed 'types' sub-dict."
+        assert entry["types"][
+            "backend"
+        ], f"UI flex-model entry '{key}' has an empty backend type token."
+        assert entry["types"][
+            "ui"
+        ], f"UI flex-model entry '{key}' has an empty UI help string."
+        assert entry["description"], f"UI flex-model entry '{key}' has no description."
 
 
 class NewAsset:

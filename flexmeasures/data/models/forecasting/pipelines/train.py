@@ -52,6 +52,8 @@ class TrainPipeline(BasePipeline):
         probabilistic: bool = False,
         ensure_positive: bool = False,
         missing_threshold: float = 1.0,
+        annotation_regressors: list[dict] | None = None,
+        model_params: dict | None = None,
     ) -> None:
         """
         Initialize the TrainPipeline.
@@ -69,11 +71,17 @@ class TrainPipeline(BasePipeline):
         :param probabilistic: Whether to use a probabilistic model.
         :param ensure_positive: Whether to ensure that predictions are positive.
         :param missing_threshold: Max fraction of missing data allowed before failure. Missing data under the threshold will be filled with our interpolation methods.
+        :param model_params: LightGBM parameter overrides, merged over the model's defaults.
         """
         self.model_save_dir = model_save_dir
         self.probabilistic = probabilistic
+        self.model_params = model_params
         self.auto_regressive = (
-            True if not past_regressors and not future_regressors else False
+            True
+            if not past_regressors
+            and not future_regressors
+            and not annotation_regressors
+            else False
         )
         self.ensure_positive = ensure_positive
         super().__init__(
@@ -88,6 +96,7 @@ class TrainPipeline(BasePipeline):
             beliefs_before=beliefs_before,
             forecast_frequency=forecast_frequency,
             missing_threshold=missing_threshold,
+            annotation_regressors=annotation_regressors,
         )
 
     def train_model(
@@ -162,6 +171,7 @@ class TrainPipeline(BasePipeline):
                     *DEFAULT_SEASONAL_LAGS_STEPS,
                 ],
                 training_sample_count=len(y_train),
+                models_params=self.model_params,
             )
         }
 
