@@ -129,6 +129,12 @@ def get_data_source(
             version=data_source_version,
             type=data_source_type,
         )
+        # Sibling sources that differ only in their attributes may exist (e.g.
+        # per-round scheduler sources created via get_or_create_source with
+        # attributes). This helper looks up (or creates) the plain,
+        # attribute-less source; without this filter, attribute-variant
+        # siblings would raise MultipleResultsFound here.
+        .filter(DataSource.attributes_hash.is_(None))
     ).scalar_one_or_none()
     if data_source is None:
         data_source = DataSource(

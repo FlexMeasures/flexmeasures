@@ -522,10 +522,13 @@ def keep_latest_version(
 
     The function performs the following steps:
 
-    1. Adds columns for the source's name, type, model, version and id.
+    1. Adds columns for the source's name, type, model, version, id and attributes_hash.
     2. Sorts the rows by `source.version` and `source.id`, both in descending order.
-    3. Removes duplicates based on `source.name`, `source.type`, and `source.model`,
-       keeping the latest version for each `event_start` (and `belief_time`).
+    3. Removes duplicates based on `source.name`, `source.type`, `source.model` and
+       `source.attributes_hash`, keeping the latest version for each `event_start`
+       (and `belief_time`). Sources that differ in their attributes are distinct
+       sources rather than versions of one another, so they are not deduplicated
+       against each other.
     4. Drops the temporary columns added for source attributes.
 
     :param bdf: The input `BeliefsDataFrame` containing `event_start` and source information.
@@ -559,13 +562,25 @@ def keep_latest_version(
             "source.model": s.model,
             "source.version": Version(s.version or "0.0.0"),
             "source.id": s.id,
+            # Sources that differ only in their attributes (e.g. per-round
+            # scheduler sources) are distinct sources (see the DataSource
+            # uniqueness constraint), not versions of one another, so they
+            # take part in the dedupe identity below.
+            "source.attributes_hash": s.attributes_hash,
         }
         for s in source_values
     }
     source_expanded = bdf.index.get_level_values("source").map(source_to_fields)
 
     bdf[
-        ["source.name", "source.type", "source.model", "source.version", "source.id"]
+        [
+            "source.name",
+            "source.type",
+            "source.model",
+            "source.version",
+            "source.id",
+            "source.attributes_hash",
+        ]
     ] = pd.DataFrame(source_expanded.tolist(), index=bdf.index)
     bdf["_" + event_column] = bdf.index.get_level_values(event_column)
     if not one_deterministic_belief_per_event:
@@ -595,6 +610,7 @@ def keep_latest_version(
         "source.name",
         "source.type",
         "source.model",
+        "source.attributes_hash",
     ]
     if not one_deterministic_belief_per_event:
         unique_columns += ["_" + belief_column]
