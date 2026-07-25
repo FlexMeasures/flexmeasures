@@ -29,6 +29,7 @@ from flexmeasures.utils.unit_utils import (
     ur,
     is_power_unit,
     is_energy_unit,
+    is_currency_unit,
 )
 
 ALLOWED_COMMODITIES = {"electricity", "gas"}
@@ -139,6 +140,23 @@ class OperationModeSchema(Schema):
     883.7 W of consumption declares:
 
         [{"consumption-range": ["0 W", "0 W"]}, {"consumption-range": ["883.7 W", "883.7 W"]}]
+
+    A mode may also carry an optional ``running-cost``: an additional per-time
+    cost (a rate in the flex-context currency per hour, e.g. ``"1200 EUR/h"``)
+    incurred while the mode is active, excluding commodity cost. This mirrors the
+    S2 standard's ``FRBC.OperationModeElement.running_costs`` and models the wear
+    / O&M / standing cost of keeping a unit on regardless of its output. The
+    per-timestep charge is the rate scaled by the timestep duration, so the total
+    cost of a given on-duration is resolution-independent. When absent, the
+    running cost is 0, leaving existing behaviour unchanged:
+
+        [{"consumption-range": ["0 MW", "0 MW"]},
+         {"consumption-range": ["4 MW", "55 MW"], "running-cost": "1200 EUR/h"}]
+
+    Note: a unit's no-load *fuel* consumption is more faithfully modelled as a
+    commodity requirement (a fuel/gas power flow declared in the operation mode)
+    than as a running cost; running-cost is for non-commodity costs. That is a
+    possible follow-up.
     """
 
     consumption_range = fields.List(
@@ -161,6 +179,41 @@ class OperationModeSchema(Schema):
             "(non-negative; positive is production).",
         ),
     )
+
+    # A currency-per-time rate, kept in its native currency unit here (agnostic
+    # to the flex-context currency) and converted to the shared currency per hour
+    # by the scheduler.
+    running_cost = fields.Str(
+        data_key="running-cost",
+        required=False,
+        metadata=dict(
+            description="Optional running cost (a rate in the flex-context "
+            "currency per hour, e.g. '1200 EUR/h') incurred while this operation "
+            "mode is active, excluding commodity cost (see S2 "
+            "FRBC.OperationModeElement.running_costs). Defaults to 0.",
+        ),
+    )
+
+    @post_load
+    def parse_running_cost(self, data: dict, **kwargs):
+        if data.get("running_cost") is not None:
+            try:
+                quantity = ur.Quantity(data["running_cost"])
+            except Exception as e:
+                raise ValidationError(
+                    f"Could not parse an operation mode's running-cost as a quantity: {e}"
+                )
+            # Require a currency-per-time rate (e.g. EUR/h), so that the cost is
+            # resolution-independent once scaled by the timestep duration. A rate
+            # times a duration reduces to a plain currency amount.
+            reduced = (quantity * ur.Quantity("1 hour")).to_reduced_units()
+            if not is_currency_unit(reduced.units):
+                raise ValidationError(
+                    "An operation mode's running-cost must be a currency-per-time "
+                    "rate, e.g. '1200 EUR/h'."
+                )
+            data["running_cost"] = quantity
+        return data
 
     @validates_schema
     def check_ranges(self, data: dict, **kwargs):
