@@ -771,7 +771,6 @@ def make_schedule(  # noqa: C901
 
     # we get the default scheduler info in case it fails in the compute step
     if rq_job:
-        click.echo("Job %s made schedule." % rq_job.id)
         rq_job.meta["scheduler_info"] = scheduler.info
 
     consumption_schedule: SchedulerOutputType = scheduler.compute()
@@ -812,7 +811,7 @@ def make_schedule(  # noqa: C901
         if result.get("name") == SCHEDULING_RESULT_KEY:
             scheduling_result_dict = result["data"].to_dict()
             continue
-        if rq_job and result["name"] == "commitment_costs":
+        if rq_job and result.get("name") == "commitment_costs":
             rq_job.meta["scheduler_info"]["commitment_costs"] = result["data"]
             continue
         if "sensor" not in result:

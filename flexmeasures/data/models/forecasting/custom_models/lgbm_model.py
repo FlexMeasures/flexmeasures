@@ -43,7 +43,12 @@ class CustomLGBM(BaseModel):
 
         :param max_forecast_horizon: Maximum number of sensor-resolution steps to forecast.
         :param probabilistic: Whether to configure LightGBM for quantile predictions.
-        :param models_params: Optional LightGBM parameter overrides.
+        :param models_params: LightGBM parameter overrides, merged over the defaults
+                              below. Pass only the keys you want to change; anything you
+                              leave out keeps its default. Keys are handed to
+                              :class:`darts.models.LightGBMModel`, so besides LightGBM's
+                              own parameters this also reaches Darts' ``add_encoders``
+                              and ``categorical_future_covariates``.
         :param auto_regressive: Whether the target history should provide autoregressive features.
         :param use_past_covariates: Whether past covariates are used for fitting and prediction.
         :param use_future_covariates: Whether future covariates are used for fitting and prediction.
@@ -52,26 +57,27 @@ class CustomLGBM(BaseModel):
         :param training_sample_count: Optional number of target training samples, used to decide which lags are eligible.
         :param min_samples_per_horizon: Minimum training rows required for each horizon model.
         """
-        if models_params is None:
-            self.models_params = {
-                "output_chunk_length": 1,
-                "likelihood": "quantile",
-                "quantiles": [0.1, 0.5, 0.9] if probabilistic else [0.5],
-                "random_state": 42,
-                "max_depth": 3,
-                "min_child_samples": 50,
-                "add_encoders": {
-                    "cyclic": {
-                        "future": [
-                            "hour",
-                            "dayofweek",
-                        ]
-                    }  # Cyclic features handled by Darts library
-                },
-                "verbose": -1,
-            }
-        else:
-            self.models_params = models_params
+        self.models_params = {
+            "output_chunk_length": 1,
+            "likelihood": "quantile",
+            "quantiles": [0.1, 0.5, 0.9] if probabilistic else [0.5],
+            "random_state": 42,
+            "max_depth": 3,
+            "min_child_samples": 50,
+            "add_encoders": {
+                "cyclic": {
+                    "future": [
+                        "hour",
+                        "dayofweek",
+                    ]
+                }  # Cyclic features handled by Darts library
+            },
+            "verbose": -1,
+        }
+        if models_params:
+            # A shallow merge, so overriding one key of e.g. add_encoders means
+            # restating that whole mapping rather than silently half-replacing it.
+            self.models_params.update(models_params)
         if min_samples_per_horizon < 1:
             raise ValueError("min_samples_per_horizon must be at least 1.")
 
