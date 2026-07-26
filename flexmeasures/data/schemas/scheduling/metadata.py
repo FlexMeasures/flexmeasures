@@ -400,6 +400,19 @@ For :abbr:`PV (photovoltaic solar panels)` curtailment, set this to reference yo
 """,
     example="0 kW",
 )
+OPERATION_MODES = MetaData(
+    description="""Confine the device's power to one of several power ranges at every time step.
+Each operation mode declares a ``consumption-range`` (non-negative, positive is consumption) and/or a ``production-range`` (non-negative, positive is production); a mode may use either or both, and combining both (each starting at 0) forms a single band through zero.
+This is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).
+Terminology and semantics follow the `operation modes of the S2 standard <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/>`_.
+S2 fixes one sign convention for power (positive is consumption), whereas FM leaves it to the user; an S2 signed power-range therefore maps onto these fields by sign: its non-negative part corresponds to the FM ``consumption-range``, negative S2 power values (production) correspond to the FM ``production-range`` (with their sign flipped to non-negative), and an S2 range spanning zero maps to a combination of both.
+Declaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.
+""",
+    example=[
+        {"consumption-range": ["0 W", "0 W"]},
+        {"consumption-range": ["883.7 W", "883.7 W"]},
+    ],
+)
 GROUP = MetaData(
     description="""Reference to a group of devices whose aggregate power is constrained, given as either a power sensor (``{"sensor": <id>}``) or an asset (``{"asset": <id>}``) - exactly one of the two.
 The referenced sensor or asset should itself get its own flex-model entry defining the group's ``power-capacity`` (hard constraint) and/or ``consumption-capacity``/``production-capacity`` (soft constraints with default breach prices).

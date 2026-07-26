@@ -1265,7 +1265,7 @@
     "/api/v3_0/sensors/{id}/annotations": {
       "post": {
         "summary": "Creates a new sensor annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">annotation</a> on a sensor.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on a sensor.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2068,7 +2068,7 @@
     "/api/v3_0/accounts/{id}/annotations": {
       "post": {
         "summary": "Creates a new account annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">annotation</a> on an account.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on an account.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3921,7 +3921,7 @@
     "/api/v3_0/assets/{id}/annotations": {
       "post": {
         "summary": "Creates a new asset annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">annotation</a> on an asset.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on an asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4874,7 +4874,7 @@
             "example": true
           },
           "commitments": {
-            "description": "Prior commitments. Each commitment needs a <code>name</code> and a <code>baseline</code>, plus at least one deviation price (<code>up-price</code> and/or <code>down-price</code>); its <code>commodity</code> defaults to electricity.\nYou can find more information in <a href=\"/ui/static/documentation/html/search.html?q=commitments\" target=\"_blank\">the docs</a>.\n",
+            "description": "Prior commitments. Each commitment needs a <code>name</code> and a <code>baseline</code>, plus at least one deviation price (<code>up-price</code> and/or <code>down-price</code>); its <code>commodity</code> defaults to electricity.\nYou can find more information in <a href=\"/ui/static/documentation/html/search.html?q=commitments\" target=\"_blank\" rel=\"noopener noreferrer\">the docs</a>.\n",
             "example": [
               {
                 "name": "capacity contract",
@@ -6378,6 +6378,42 @@
         ],
         "additionalProperties": false
       },
+      "OperationMode": {
+        "type": "object",
+        "properties": {
+          "consumption-range": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Consumption power range [min, max] of this operation mode (non-negative; positive is consumption). The non-negative part of an S2 power-range maps to this field.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "production-range": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Production power range [min, max] of this operation mode (non-negative; positive is production). Negative (production) values of an S2 power-range map to this field, with their sign flipped.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "consumption-range"
+            ]
+          },
+          {
+            "required": [
+              "production-range"
+            ]
+          }
+        ]
+      },
       "GroupReference": {
         "type": "object",
         "properties": {
@@ -6448,6 +6484,28 @@
             "description": "Device-level power constraint on production.\nHow much power can be supplied by this asset.\nFor <abbr title=\"photovoltaic solar panels\">PV</abbr> curtailment, set this to reference your sensor containing PV power forecasts.\n",
             "example": "0 kW",
             "$ref": "#/components/schemas/VariableQuantityOpenAPI"
+          },
+          "operation-modes": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Confine the device's power to one of several power ranges at every time step.\nEach operation mode declares a <code>consumption-range</code> (non-negative, positive is consumption) and/or a <code>production-range</code> (non-negative, positive is production); a mode may use either or both, and combining both (each starting at 0) forms a single band through zero.\nThis is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).\nTerminology and semantics follow the <a href=\"https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/\" target=\"_blank\" rel=\"noopener noreferrer\">operation modes of the S2 standard</a>.\nS2 fixes one sign convention for power (positive is consumption), whereas FM leaves it to the user; an S2 signed power-range therefore maps onto these fields by sign: its non-negative part corresponds to the FM <code>consumption-range</code>, negative S2 power values (production) correspond to the FM <code>production-range</code> (with their sign flipped to non-negative), and an S2 range spanning zero maps to a combination of both.\nDeclaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.\n",
+            "example": [
+              {
+                "consumption-range": [
+                  "0 W",
+                  "0 W"
+                ]
+              },
+              {
+                "consumption-range": [
+                  "883.7 W",
+                  "883.7 W"
+                ]
+              }
+            ],
+            "items": {
+              "$ref": "#/components/schemas/OperationMode"
+            }
           },
           "group": {
             "description": "Reference to a group of devices whose aggregate power is constrained, given as either a power sensor (<code>{\"sensor\": <id>}</code>) or an asset (<code>{\"asset\": <id>}</code>) - exactly one of the two.\nThe referenced sensor or asset should itself get its own flex-model entry defining the group's <code>power-capacity</code> (hard constraint) and/or <code>consumption-capacity</code>/<code>production-capacity</code> (soft constraints with default breach prices).\nWhen the group is referenced by <code>sensor</code>, the group's scheduled aggregate power is saved to that group sensor.\nWhen the group is referenced by <code>asset</code> (e.g. a sub-EMS asset in the tree), the group entry defines no power sensor of its own; the group's aggregate power is instead saved via that entry's own <code>consumption</code> and/or <code>production</code> output sensors, following the usual output-sensor conventions.\n",

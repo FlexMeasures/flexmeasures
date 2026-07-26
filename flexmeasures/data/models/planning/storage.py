@@ -35,7 +35,10 @@ from flexmeasures.data.models.planning.utils import (
     get_continuous_series_sensor_or_quantity,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
-from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
+from flexmeasures.data.schemas.scheduling.storage import (
+    OperationModeSchema,
+    StorageFlexModelSchema,
+)
 from flexmeasures.data.schemas.scheduling import (
     CommodityFlexContextSchema,
     FlexContextSchema,
@@ -346,6 +349,9 @@ class MetaStorageScheduler(Scheduler):
         ]
         production_capacity = [
             flex_model_d.get("production_capacity") for flex_model_d in flex_model
+        ]
+        operation_modes = [
+            flex_model_d.get("operation_modes") for flex_model_d in flex_model
         ]
         charging_efficiency = [
             flex_model_d.get("charging_efficiency") for flex_model_d in flex_model
@@ -988,6 +994,13 @@ class MetaStorageScheduler(Scheduler):
             )
             device_constraints[d]["derivative max"] = power_capacity_in_mw[d]
             device_constraints[d]["derivative min"] = -power_capacity_in_mw[d]
+
+            # Power bands (S2 operation modes): carried on the constraints frame,
+            # in signed MW (positive is consumption), for the device scheduler.
+            if operation_modes[d]:
+                device_constraints[d].attrs["operation_modes"] = [
+                    OperationModeSchema.signed_band(mode) for mode in operation_modes[d]
+                ]
 
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_positive"
@@ -3195,6 +3208,9 @@ class StorageScheduler(MetaStorageScheduler):
             commitments=commitments,
             initial_stock=initial_stock,
             stock_groups=self.stock_groups,
+            device_power_bands=[
+                dc.attrs.get("operation_modes") for dc in device_constraints
+            ],
         )
         if "infeasible" in (tc := scheduler_results.solver.termination_condition):
             raise InfeasibleProblemException(tc)
