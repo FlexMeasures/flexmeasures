@@ -462,21 +462,22 @@ class SharedSchema(Schema):
                 return candidate
         return str(q.units)
 
-    # Currency-denominated fields that CommodityFlexContextSchema's smart defaults
-    # (fill_grid_connection_defaults) may fill with a fallback "EUR" price/breach
-    # price when a context has no user-given price fields at all.
-    _CURRENCY_DENOMINATED_FIELDS = (
-        "consumption_price",
-        "production_price",
-        "ems_consumption_breach_price",
-        "ems_production_breach_price",
-        "consumption_breach_price",
-        "production_breach_price",
-        "soc_minima_breach_price",
-        "soc_maxima_breach_price",
-        "ems_peak_consumption_price",
-        "ems_peak_production_price",
-    )
+    @classmethod
+    def _currency_denominated_fields(cls) -> tuple[str, ...]:
+        """Names of the schema's currency-denominated fields, selected by type (PriceField).
+
+        These are the fields that CommodityFlexContextSchema's smart defaults
+        (fill_grid_connection_defaults) may fill with a fallback "EUR" price/breach
+        price when a context has no user-given price fields at all.
+
+        >>> FlexContextSchema._currency_denominated_fields()[:2]
+        ('consumption_price', 'production_price')
+        """
+        return tuple(
+            name
+            for name, field in cls._declared_fields.items()
+            if isinstance(field, PriceField)
+        )
 
     @classmethod
     def _rebase_default_context_currency(cls, context: dict, new_currency: str):
@@ -490,7 +491,7 @@ class SharedSchema(Schema):
         magnitudes carry over unchanged under the new currency label (no FX
         conversion is implied or attempted).
         """
-        for field in cls._CURRENCY_DENOMINATED_FIELDS:
+        for field in cls._currency_denominated_fields():
             value = context.get(field)
             if not isinstance(value, ur.Quantity):
                 continue
