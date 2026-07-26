@@ -11,6 +11,11 @@ def rst_to_openapi(text: str) -> str:
     - Replaces :ref:`to some section` with "the docs" and links in the docs with a search link
     - Replaces :ref:`section A <anchor>` with "section A", also adding the search link for "anchor"
     - Removes any RST footnote references like [#]_ or [1]_ or [label]_
+    - Converts external hyperlinks like `text <url>`_ to HTML anchors:
+
+      >>> rst_to_openapi("see `the S2 standard <https://docs.s2standard.org>`_ for details")
+      'see <a href="https://docs.s2standard.org" target="_blank">the S2 standard</a> for details'
+
     - Replaces :abbr:`X (Y)` with <abbr title="Y">X</abbr>
     - Converts :math:`base^{exp}` into HTML sup/sub notation for OpenAPI
     - Converts ``inline code`` to <code>
@@ -39,6 +44,13 @@ def rst_to_openapi(text: str) -> str:
 
     # Remove footnote references
     text = re.sub(r"\s*\[[^\]]+?\]_", "", text)
+
+    # Convert external hyperlinks `text <url>`_ to HTML anchors
+    text = re.sub(
+        r"(?<!`)`([^`<]+?)\s*<(https?://[^>\s]+)>`__?",
+        r'<a href="\2" target="_blank">\1</a>',
+        text,
+    )
 
     # Handle abbreviations
     def abbr_repl(match):
