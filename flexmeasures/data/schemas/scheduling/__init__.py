@@ -26,6 +26,7 @@ from flexmeasures.data.schemas.sensors import (
     SensorIdField,
     SensorReference,
     OutputSensorReferenceSchema,
+    PriceField,
 )
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.units import UnitField
@@ -92,8 +93,8 @@ class CommitmentSchema(Schema):
         data_key="baseline",
         error_messages={"required": "A commitment requires a baseline."},
     )
-    up_price = VariableQuantityField("/MW", required=False, data_key="up-price")
-    down_price = VariableQuantityField(
+    up_price = PriceField("/MW", required=False, data_key="up-price")
+    down_price = PriceField(
         "/MW",
         required=False,
         data_key="down-price",
@@ -181,7 +182,7 @@ class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
 class SharedSchema(Schema):
     """Shared schema for fields common across commodities in flex-context and commodity-context."""
 
-    consumption_price = VariableQuantityField(
+    consumption_price = PriceField(
         "/MWh",
         required=False,
         data_key="consumption-price",
@@ -189,7 +190,7 @@ class SharedSchema(Schema):
         metadata=metadata.CONSUMPTION_PRICE.to_dict(),
     )
 
-    production_price = VariableQuantityField(
+    production_price = PriceField(
         "/MWh",
         required=False,
         data_key="production-price",
@@ -221,7 +222,7 @@ class SharedSchema(Schema):
         metadata=metadata.SITE_PRODUCTION_CAPACITY.to_dict(),
     )
 
-    ems_consumption_breach_price = VariableQuantityField(
+    ems_consumption_breach_price = PriceField(
         "/MW",
         data_key="site-consumption-breach-price",
         required=False,
@@ -229,7 +230,7 @@ class SharedSchema(Schema):
         metadata=metadata.SITE_CONSUMPTION_BREACH_PRICE.to_dict(),
     )
 
-    ems_production_breach_price = VariableQuantityField(
+    ems_production_breach_price = PriceField(
         "/MW",
         data_key="site-production-breach-price",
         required=False,
@@ -246,7 +247,7 @@ class SharedSchema(Schema):
         metadata=metadata.SITE_PEAK_CONSUMPTION.to_dict(),
     )
 
-    ems_peak_consumption_price = VariableQuantityField(
+    ems_peak_consumption_price = PriceField(
         "/MW",
         data_key="site-peak-consumption-price",
         required=False,
@@ -263,7 +264,7 @@ class SharedSchema(Schema):
         metadata=metadata.SITE_PEAK_PRODUCTION.to_dict(),
     )
 
-    ems_peak_production_price = VariableQuantityField(
+    ems_peak_production_price = PriceField(
         "/MW",
         data_key="site-peak-production-price",
         required=False,
@@ -272,28 +273,28 @@ class SharedSchema(Schema):
     )
 
     # Breach prices for device capacity constraints
-    consumption_breach_price = VariableQuantityField(
+    consumption_breach_price = PriceField(
         "/MW",
         data_key="consumption-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         metadata=metadata.CONSUMPTION_BREACH_PRICE.to_dict(),
     )
-    production_breach_price = VariableQuantityField(
+    production_breach_price = PriceField(
         "/MW",
         data_key="production-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         metadata=metadata.PRODUCTION_BREACH_PRICE.to_dict(),
     )
-    soc_minima_breach_price = VariableQuantityField(
+    soc_minima_breach_price = PriceField(
         "/MWh",
         data_key="soc-minima-breach-price",
         required=False,
         value_validator=validate.Range(min=0),
         metadata=metadata.SOC_MINIMA_BREACH_PRICE.to_dict(),
     )
-    soc_maxima_breach_price = VariableQuantityField(
+    soc_maxima_breach_price = PriceField(
         "/MWh",
         data_key="soc-maxima-breach-price",
         required=False,
@@ -374,7 +375,7 @@ class SharedSchema(Schema):
         shared_currency_unit = None
         previous_field_name = None
         for field in self.declared_fields:
-            if field[-5:] == "price" and field in data:
+            if isinstance(self.declared_fields[field], PriceField) and field in data:
                 price_field = self.declared_fields[field]
                 price_unit = price_field._get_unit(data[field])
                 currency_unit = str(
@@ -397,6 +398,13 @@ class SharedSchema(Schema):
                     if shared_currency_unit not in price_unit:
                         error_message += f" Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
                     raise ValidationError(error_message, field_name=field_name)
+        # Also hold the nested commitment prices to the shared currency
+        shared_currency_unit, previous_field_name = (
+            self._validate_commitment_price_units(
+                data, shared_currency_unit, previous_field_name
+            )
+        )
+
         if shared_currency_unit is not None:
             data["shared_currency_unit"] = shared_currency_unit
         elif sensor := data.get("consumption_price_sensor"):
@@ -414,21 +422,62 @@ class SharedSchema(Schema):
             data["shared_currency_unit_is_default"] = True
         return data
 
-    # Currency-denominated fields that CommodityFlexContextSchema's smart defaults
-    # (fill_grid_connection_defaults) may fill with a fallback "EUR" price/breach
-    # price when a context has no user-given price fields at all.
-    _CURRENCY_DENOMINATED_FIELDS = (
-        "consumption_price",
-        "production_price",
-        "ems_consumption_breach_price",
-        "ems_production_breach_price",
-        "consumption_breach_price",
-        "production_breach_price",
-        "soc_minima_breach_price",
-        "soc_maxima_breach_price",
-        "ems_peak_consumption_price",
-        "ems_peak_production_price",
-    )
+    def _validate_commitment_price_units(
+        self,
+        data: dict,
+        shared_currency_unit: str | None,
+        previous_field_name: str | None,
+    ) -> tuple[str | None, str | None]:
+        """Hold the nested commitment prices to the shared currency."""
+        for commitment in data.get("commitments", []):
+            for field, price_field in CommitmentSchema._declared_fields.items():
+                if not isinstance(price_field, PriceField) or field not in commitment:
+                    continue
+                price_unit = price_field._get_unit(commitment[field])
+                currency_unit = self._extract_currency_unit(price_unit)
+                if shared_currency_unit is None:
+                    shared_currency_unit = str(
+                        ur.Quantity(currency_unit).to_base_units().units
+                    )
+                    previous_field_name = price_field.data_key
+                if not units_are_convertible(currency_unit, shared_currency_unit):
+                    field_name = price_field.data_key
+                    error_message = f"Invalid unit. A valid unit would be, for example, '{shared_currency_unit}/MWh' (this example uses '{shared_currency_unit}', because '{previous_field_name}' used that currency). However, you passed an incompatible price ('{price_unit}') for the '{field_name}' field of commitment '{commitment.get('name')}'. Also note that all prices in the flex-context must share the same currency unit (in this case: '{shared_currency_unit}')."
+                    raise ValidationError(error_message, field_name="commitments")
+        return shared_currency_unit, previous_field_name
+
+    @staticmethod
+    def _extract_currency_unit(price_unit: str) -> str:
+        """Obtain the currency part of a price unit, whose denominator may vary.
+
+        >>> FlexContextSchema()._extract_currency_unit("EUR/MWh")
+        'EUR'
+        >>> FlexContextSchema()._extract_currency_unit("USD/MW")
+        'USD'
+        """
+        q = ur.Quantity(f"1 {price_unit}")
+        for denominator in ("MWh", "MW"):
+            candidate = str((q * ur.Quantity(f"1 {denominator}")).to_base_units().units)
+            if is_currency_unit(candidate):
+                return candidate
+        return str(q.units)
+
+    @classmethod
+    def _currency_denominated_fields(cls) -> tuple[str, ...]:
+        """Names of the schema's currency-denominated fields, selected by type (PriceField).
+
+        These are the fields that CommodityFlexContextSchema's smart defaults
+        (fill_grid_connection_defaults) may fill with a fallback "EUR" price/breach
+        price when a context has no user-given price fields at all.
+
+        >>> FlexContextSchema._currency_denominated_fields()[:2]
+        ('consumption_price', 'production_price')
+        """
+        return tuple(
+            name
+            for name, field in cls._declared_fields.items()
+            if isinstance(field, PriceField)
+        )
 
     @classmethod
     def _rebase_default_context_currency(cls, context: dict, new_currency: str):
@@ -442,7 +491,7 @@ class SharedSchema(Schema):
         magnitudes carry over unchanged under the new currency label (no FX
         conversion is implied or attempted).
         """
-        for field in cls._CURRENCY_DENOMINATED_FIELDS:
+        for field in cls._currency_denominated_fields():
             value = context.get(field)
             if not isinstance(value, ur.Quantity):
                 continue

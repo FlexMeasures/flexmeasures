@@ -41,6 +41,8 @@ New features
 
 Infrastructure / Support
 ----------------------
+
+* Price fields in the flex-context (including nested commitment prices, which are now also held to the flex-context's shared currency) are selected for currency validation by field type (``PriceField``) instead of by name suffix [see `PR #2311 <https://www.github.com/FlexMeasures/flexmeasures/pull/2311>`_]
 * Document ``SECURITY_TWO_FACTOR`` and related 2FA configuration settings [see `PR #2340 <https://www.github.com/FlexMeasures/flexmeasures/pull/2340>`_]
 * ``flexmeasures db upgrade`` now runs ``VACUUM ANALYZE`` after upgrading by default, so Postgres has fresh planner statistics right after a migration; opt out with ``--no-vacuum`` [see `PR #2333 <https://www.github.com/FlexMeasures/flexmeasures/pull/2333>`_]
 * Upgraded dependencies [see `PR #1485 <https://www.github.com/FlexMeasures/flexmeasures/pull/1485>`_, `PR #2215 <https://www.github.com/FlexMeasures/flexmeasures/pull/2215>`_, `PR #2243 <https://www.github.com/FlexMeasures/flexmeasures/pull/2243>`_ and `PR #2348 <https://www.github.com/FlexMeasures/flexmeasures/pull/2348>`_]
