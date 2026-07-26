@@ -133,9 +133,13 @@ class OperationModeSchema(Schema):
     convention: ``consumption-range`` (non-negative, positive means consumption)
     and/or ``production-range`` (non-negative, positive means production). A mode
     may use either or both; using both forms a single band through zero (so both
-    must then start at 0). The S2 standard's signed power-range maps to the FM
-    ``consumption-range`` (S2 fixes one sign convention for power, whereas FM
-    leaves it to the user). A device that can only be off or run at exactly
+    must then start at 0). The S2 standard fixes one sign convention for power
+    (positive means consumption), whereas FM leaves it to the user; an S2
+    power-range therefore maps onto these fields by sign: its non-negative part
+    corresponds to the FM ``consumption-range``, negative S2 power values
+    (production) correspond to the FM ``production-range`` (with their sign
+    flipped to non-negative), and an S2 range spanning zero maps to a
+    combination of both. A device that can only be off or run at exactly
     883.7 W of consumption declares:
 
         [{"consumption-range": ["0 W", "0 W"]}, {"consumption-range": ["883.7 W", "883.7 W"]}]
@@ -148,7 +152,8 @@ class OperationModeSchema(Schema):
         validate=validate.Length(equal=2),
         metadata=dict(
             description="Consumption power range [min, max] of this operation mode "
-            "(non-negative; positive is consumption). The S2 power-range maps to this field.",
+            "(non-negative; positive is consumption). The non-negative part of an "
+            "S2 power-range maps to this field.",
         ),
     )
     production_range = fields.List(
@@ -158,9 +163,47 @@ class OperationModeSchema(Schema):
         validate=validate.Length(equal=2),
         metadata=dict(
             description="Production power range [min, max] of this operation mode "
-            "(non-negative; positive is production).",
+            "(non-negative; positive is production). Negative (production) values "
+            "of an S2 power-range map to this field, with their sign flipped.",
         ),
     )
+
+    @staticmethod
+    def signed_band(mode: dict) -> tuple[float, float]:
+        """Convert one deserialized operation mode into a signed ``(min, max)``
+        power band in MW (positive is consumption), as used by the device scheduler.
+
+        The ``consumption-range`` maps to the positive side and the
+        ``production-range`` to the negative side; combining both (each validated
+        to start at 0) yields one band through zero ``[-production_max, +consumption_max]``.
+
+        >>> schema = OperationModeSchema()
+        >>> OperationModeSchema.signed_band(schema.load({"consumption-range": ["500 kW", "2 MW"]}))
+        (0.5, 2.0)
+        >>> OperationModeSchema.signed_band(schema.load({"production-range": ["500 kW", "1 MW"]}))
+        (-1.0, -0.5)
+        >>> OperationModeSchema.signed_band(schema.load(
+        ...     {"consumption-range": ["0 MW", "2 MW"], "production-range": ["0 MW", "1 MW"]}
+        ... ))
+        (-1.0, 2.0)
+        """
+        cons = mode.get("consumption_range")
+        prod = mode.get("production_range")
+        if cons and prod:
+            return (
+                -float(prod[1].to("MW").magnitude),
+                float(cons[1].to("MW").magnitude),
+            )
+        if cons:
+            return (
+                float(cons[0].to("MW").magnitude),
+                float(cons[1].to("MW").magnitude),
+            )
+        assert prod is not None  # check_ranges guarantees at least one range
+        return (
+            -float(prod[1].to("MW").magnitude),
+            -float(prod[0].to("MW").magnitude),
+        )
 
     @validates_schema
     def check_ranges(self, data: dict, **kwargs):
@@ -174,8 +217,16 @@ class OperationModeSchema(Schema):
             if rng is None:
                 continue
             if rng[0].to("MW").magnitude < 0:
+                other = (
+                    "production-range"
+                    if name == "consumption-range"
+                    else "consumption-range"
+                )
                 raise ValidationError(
-                    f"An operation mode's {name} must be non-negative."
+                    f"An operation mode's {name} must be non-negative. "
+                    f"To express power flowing in the opposite direction, move the negative part "
+                    f"(with its sign flipped) to the mode's {other}; a range spanning zero "
+                    f"becomes a combination of both, each starting at 0."
                 )
             if rng[0] > rng[1]:
                 raise ValidationError(

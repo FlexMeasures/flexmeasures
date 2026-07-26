@@ -421,6 +421,11 @@ def device_scheduler(  # noqa C901
     # Look up power bands (S2 operation modes) per device
     if device_power_bands is None:
         device_power_bands = [None] * len(device_constraints)
+    elif len(device_power_bands) != len(device_constraints):
+        raise ValueError(
+            f"device_power_bands lists {len(device_power_bands)} devices, "
+            f"while device_constraints lists {len(device_constraints)} devices."
+        )
     band_lookup: dict[int, list[tuple[float, float]]] = {
         d: list(bands)
         for d, bands in enumerate(device_power_bands)
@@ -836,6 +841,12 @@ def device_scheduler(  # noqa C901
 
     # Power bands (S2 operation modes): a banded device must operate within
     # exactly one of its declared signed power ranges at every time step.
+    # Which band it runs in (per time step) is a free binary decision variable;
+    # the constraints below only tie the device's power to the chosen band.
+    model.bd = Set(
+        initialize=sorted(band_lookup.keys()),
+        doc="Set of devices with power bands",
+    )
     model.db = Set(
         dimen=2,
         initialize=lambda m: (
@@ -845,36 +856,38 @@ def device_scheduler(  # noqa C901
     )
     model.device_band = Var(model.db, model.j, domain=Binary, initialize=0)
 
-    def device_band_choice(m, d, b, j):
-        """Each banded device runs in exactly one band per time step (tied to band 0)."""
-        if b != 0:
-            return Constraint.Skip
-        return sum(m.device_band[d, b_, j] for b_ in range(len(band_lookup[d]))) == 1
+    def device_band_choice(m, d, j):
+        """Each banded device runs in exactly one band per time step."""
+        return sum(m.device_band[d, b, j] for b in range(len(band_lookup[d]))) == 1
 
-    def device_band_power_lower(m, d, b, j):
-        """Device power at least the chosen band's minimum."""
-        if b != 0:
-            return Constraint.Skip
+    def device_band_power_lower(m, d, j):
+        """Device power at least the chosen band's minimum.
+
+        Exactly one band binary is 1 (see device_band_choice), so the sum
+        selects the minimum of the chosen band.
+        """
         return m.device_power_down[d, j] + m.device_power_up[d, j] >= sum(
-            m.device_band[d, b_, j] * band_lookup[d][b_][0]
-            for b_ in range(len(band_lookup[d]))
+            m.device_band[d, b, j] * band_lookup[d][b][0]
+            for b in range(len(band_lookup[d]))
         )
 
-    def device_band_power_upper(m, d, b, j):
-        """Device power at most the chosen band's maximum."""
-        if b != 0:
-            return Constraint.Skip
+    def device_band_power_upper(m, d, j):
+        """Device power at most the chosen band's maximum.
+
+        Exactly one band binary is 1 (see device_band_choice), so the sum
+        selects the maximum of the chosen band.
+        """
         return m.device_power_down[d, j] + m.device_power_up[d, j] <= sum(
-            m.device_band[d, b_, j] * band_lookup[d][b_][1]
-            for b_ in range(len(band_lookup[d]))
+            m.device_band[d, b, j] * band_lookup[d][b][1]
+            for b in range(len(band_lookup[d]))
         )
 
-    model.device_band_choice = Constraint(model.db, model.j, rule=device_band_choice)
+    model.device_band_choice = Constraint(model.bd, model.j, rule=device_band_choice)
     model.device_band_power_lower = Constraint(
-        model.db, model.j, rule=device_band_power_lower
+        model.bd, model.j, rule=device_band_power_lower
     )
     model.device_band_power_upper = Constraint(
-        model.db, model.j, rule=device_band_power_upper
+        model.bd, model.j, rule=device_band_power_upper
     )
 
     # Add objective

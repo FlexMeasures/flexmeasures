@@ -109,17 +109,14 @@ from marshmallow import ValidationError  # noqa: E402
 from flexmeasures.data.schemas.scheduling.storage import (  # noqa: E402
     OperationModeSchema,
 )
-from flexmeasures.data.models.planning.storage import (  # noqa: E402
-    _operation_mode_signed_band,
-)
 
 
 def _band(payload):
-    return _operation_mode_signed_band(OperationModeSchema().load(payload))
+    return OperationModeSchema.signed_band(OperationModeSchema().load(payload))
 
 
 def test_consumption_range_maps_to_positive_band():
-    # The S2 signed power-range maps to the FM consumption-range.
+    # The non-negative part of an S2 signed power-range maps to the FM consumption-range.
     assert _band({"consumption-range": ["0 MW", "10 MW"]}) == (0.0, 10.0)
 
 

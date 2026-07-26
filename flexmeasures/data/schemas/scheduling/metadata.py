@@ -396,7 +396,8 @@ OPERATION_MODES = MetaData(
     description="""Confine the device's power to one of several power ranges at every time step.
 Each operation mode declares a ``consumption-range`` (non-negative, positive is consumption) and/or a ``production-range`` (non-negative, positive is production); a mode may use either or both, and combining both (each starting at 0) forms a single band through zero.
 This is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).
-Terminology and semantics follow the `operation modes of the S2 standard <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/>`_; the S2 signed power-range maps to the FM ``consumption-range`` (S2 fixes one sign convention for power, whereas FM leaves it to the user).
+Terminology and semantics follow the `operation modes of the S2 standard <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/>`_.
+S2 fixes one sign convention for power (positive is consumption), whereas FM leaves it to the user; an S2 signed power-range therefore maps onto these fields by sign: its non-negative part corresponds to the FM ``consumption-range``, negative S2 power values (production) correspond to the FM ``production-range`` (with their sign flipped to non-negative), and an S2 range spanning zero maps to a combination of both.
 Declaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.
 """,
     example=[

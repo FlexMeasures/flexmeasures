@@ -6211,7 +6211,7 @@
             "type": "array",
             "minItems": 2,
             "maxItems": 2,
-            "description": "Consumption power range [min, max] of this operation mode (non-negative; positive is consumption). The S2 power-range maps to this field.",
+            "description": "Consumption power range [min, max] of this operation mode (non-negative; positive is consumption). The non-negative part of an S2 power-range maps to this field.",
             "items": {
               "type": "string"
             }
@@ -6220,7 +6220,7 @@
             "type": "array",
             "minItems": 2,
             "maxItems": 2,
-            "description": "Production power range [min, max] of this operation mode (non-negative; positive is production).",
+            "description": "Production power range [min, max] of this operation mode (non-negative; positive is production). Negative (production) values of an S2 power-range map to this field, with their sign flipped.",
             "items": {
               "type": "string"
             }
@@ -6302,7 +6302,7 @@
           "operation-modes": {
             "type": "array",
             "minItems": 1,
-            "description": "Confine the device's power to one of several power ranges at every time step.\nEach operation mode declares a <code>consumption-range</code> (non-negative, positive is consumption) and/or a <code>production-range</code> (non-negative, positive is production); a mode may use either or both, and combining both (each starting at 0) forms a single band through zero.\nThis is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).\nTerminology and semantics follow the `operation modes of the S2 standard <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/>`_; the S2 signed power-range maps to the FM <code>consumption-range</code> (S2 fixes one sign convention for power, whereas FM leaves it to the user).\nDeclaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.\n",
+            "description": "Confine the device's power to one of several power ranges at every time step.\nEach operation mode declares a <code>consumption-range</code> (non-negative, positive is consumption) and/or a <code>production-range</code> (non-negative, positive is production); a mode may use either or both, and combining both (each starting at 0) forms a single band through zero.\nThis is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).\nTerminology and semantics follow the `operation modes of the S2 standard <https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/>`_.\nS2 fixes one sign convention for power (positive is consumption), whereas FM leaves it to the user; an S2 signed power-range therefore maps onto these fields by sign: its non-negative part corresponds to the FM <code>consumption-range</code>, negative S2 power values (production) correspond to the FM <code>production-range</code> (with their sign flipped to non-negative), and an S2 range spanning zero maps to a combination of both.\nDeclaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.\n",
             "example": [
               {
                 "consumption-range": [

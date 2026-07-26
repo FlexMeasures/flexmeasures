@@ -35,7 +35,10 @@ from flexmeasures.data.models.planning.utils import (
     get_continuous_series_sensor_or_quantity,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
-from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
+from flexmeasures.data.schemas.scheduling.storage import (
+    OperationModeSchema,
+    StorageFlexModelSchema,
+)
 from flexmeasures.data.schemas.scheduling import (
     CommodityFlexContextSchema,
     FlexContextSchema,
@@ -67,32 +70,6 @@ storage_asset_types = ["one-way_evse", "two-way_evse", "battery", "heat-storage"
 #: Key used to store and retrieve the ``SchedulingJobResult`` in RQ job metadata
 #: and in the multi-result list returned by ``StorageScheduler.compute()``.
 SCHEDULING_RESULT_KEY = "scheduling_result"
-
-
-def _operation_mode_signed_band(mode: dict) -> tuple[float, float]:
-    """Convert one operation mode's consumption-/production-range into a signed
-    ``(min, max)`` band in MW (positive is consumption) for the device scheduler.
-
-    ``consumption-range`` maps to the positive side, ``production-range`` to the
-    negative side; combining both (each validated to start at 0) yields one band
-    through zero ``[-production_max, +consumption_max]``.
-    """
-    cons = mode.get("consumption_range")
-    prod = mode.get("production_range")
-    if cons and prod:
-        return (
-            -float(prod[1].to("MW").magnitude),
-            float(cons[1].to("MW").magnitude),
-        )
-    if cons:
-        return (
-            float(cons[0].to("MW").magnitude),
-            float(cons[1].to("MW").magnitude),
-        )
-    return (
-        -float(prod[1].to("MW").magnitude),
-        -float(prod[0].to("MW").magnitude),
-    )
 
 
 class MetaStorageScheduler(Scheduler):
@@ -1020,12 +997,9 @@ class MetaStorageScheduler(Scheduler):
 
             # Power bands (S2 operation modes): carried on the constraints frame,
             # in signed MW (positive is consumption), for the device scheduler.
-            # A mode's consumption-range maps to the positive side, its
-            # production-range to the negative side; combining both (each starting
-            # at 0) forms one band through zero [-production_max, +consumption_max].
             if operation_modes[d]:
                 device_constraints[d].attrs["operation_modes"] = [
-                    _operation_mode_signed_band(mode) for mode in operation_modes[d]
+                    OperationModeSchema.signed_band(mode) for mode in operation_modes[d]
                 ]
 
             if sensor_d is not None and sensor_d.get_attribute(
