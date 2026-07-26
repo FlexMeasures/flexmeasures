@@ -868,8 +868,20 @@ def device_scheduler(  # noqa C901
     # Set tight tolerance for HiGHS solver
     profile = {}
     if "highs" in solver_name.lower():
+        # MIP gap: on nearly-degenerate binary problems (e.g. heater on/off
+        # bands with near-identical costs), HiGHS finds the incumbent in
+        # seconds and then spends the remaining time-limit budget PROVING a
+        # 0-gap optimum (measured 2026-07-26: 37% of community-co-simulation
+        # house solves ran to the 120 s cap). A small relative gap trades a
+        # bounded sliver of objective value for an order-of-magnitude solve
+        # speedup; single-threaded HiGHS stays deterministic either way. The
+        # default remains exact (0).
+        mip_rel_gap = current_app.config.get(
+            "FLEXMEASURES_MIP_REL_GAP",
+            os.getenv("FLEXMEASURES_MIP_REL_GAP", "0"),
+        )
         profile = {
-            "mip_rel_gap": "0",
+            "mip_rel_gap": str(mip_rel_gap),
             "mip_abs_gap": "0",
             "primal_feasibility_tolerance": "1e-9",
             "dual_feasibility_tolerance": "1e-9",
