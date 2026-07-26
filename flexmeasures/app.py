@@ -107,9 +107,26 @@ def create(  # noqa C901
             )
         """
     app.redis_connection = redis_conn
+    # Job timeout: this FM version passes no per-job timeout at enqueue, so
+    # RQ's 180 s default applied. Pathological but feasible house solves (two
+    # solver-capped attempts + model build, e.g. APP_4 on 2022-12-08) exceed
+    # that and get SIGKILLed mid-schedule. FLEXMEASURES_RQ_JOB_TIMEOUT
+    # (seconds, default 600) bounds runaway jobs while comfortably clearing
+    # legitimate long solves; it must exceed 2 x FLEXMEASURES_SOLVER_TIME_LIMIT
+    # plus overhead.
+    rq_job_timeout = int(
+        os.getenv(
+            "FLEXMEASURES_RQ_JOB_TIMEOUT",
+            app.config.get("FLEXMEASURES_RQ_JOB_TIMEOUT", 600),
+        )
+    )
     app.queues = dict(
-        forecasting=Queue(connection=redis_conn, name="forecasting"),
-        scheduling=Queue(connection=redis_conn, name="scheduling"),
+        forecasting=Queue(
+            connection=redis_conn, name="forecasting", default_timeout=rq_job_timeout
+        ),
+        scheduling=Queue(
+            connection=redis_conn, name="scheduling", default_timeout=rq_job_timeout
+        ),
         ingestion=Queue(connection=redis_conn, name="ingestion"),
         # reporting=Queue(connection=redis_conn, name="reporting"),
         # labelling=Queue(connection=redis_conn, name="labelling"),
