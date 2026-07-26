@@ -431,6 +431,13 @@ def device_scheduler(  # noqa C901
         for d, bands in enumerate(device_power_bands)
         if bands is not None and len(bands) > 0
     }
+    for d, bands in band_lookup.items():
+        for band in bands:
+            if len(band) != 2 or band[0] > band[1]:
+                raise ValueError(
+                    f"Invalid power band {band} for device {d}: "
+                    f"expected a (min, max) pair with min <= max."
+                )
 
     # Add indices for devices (d), datetimes (j) and commitments (c)
     model.d = RangeSet(0, len(device_constraints) - 1, doc="Set of devices")

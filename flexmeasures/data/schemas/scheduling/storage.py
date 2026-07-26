@@ -199,7 +199,11 @@ class OperationModeSchema(Schema):
                 float(cons[0].to("MW").magnitude),
                 float(cons[1].to("MW").magnitude),
             )
-        assert prod is not None  # check_ranges guarantees at least one range
+        if prod is None:
+            # check_ranges guarantees at least one range upon deserialization
+            raise ValueError(
+                "An operation mode must declare a consumption-range and/or a production-range."
+            )
         return (
             -float(prod[1].to("MW").magnitude),
             -float(prod[0].to("MW").magnitude),

@@ -14,7 +14,7 @@ def rst_to_openapi(text: str) -> str:
     - Converts external hyperlinks like `text <url>`_ to HTML anchors:
 
       >>> rst_to_openapi("see `the S2 standard <https://docs.s2standard.org>`_ for details")
-      'see <a href="https://docs.s2standard.org" target="_blank">the S2 standard</a> for details'
+      'see <a href="https://docs.s2standard.org" target="_blank" rel="noopener noreferrer">the S2 standard</a> for details'
 
     - Replaces :abbr:`X (Y)` with <abbr title="Y">X</abbr>
     - Converts :math:`base^{exp}` into HTML sup/sub notation for OpenAPI
@@ -38,7 +38,9 @@ def rst_to_openapi(text: str) -> str:
             search_term = title
             link_text = "the docs"
         url = DOCS_SEARCH_PATH + quote_plus(search_term)
-        return f'<a href="{url}" target="_blank">{link_text}</a>'
+        return (
+            f'<a href="{url}" target="_blank" rel="noopener noreferrer">{link_text}</a>'
+        )
 
     text = re.sub(r":ref:`([^`]+)`", ref_repl, text)
 
@@ -48,7 +50,7 @@ def rst_to_openapi(text: str) -> str:
     # Convert external hyperlinks `text <url>`_ to HTML anchors
     text = re.sub(
         r"(?<!`)`([^`<]+?)\s*<(https?://[^>\s]+)>`__?",
-        r'<a href="\2" target="_blank">\1</a>',
+        r'<a href="\2" target="_blank" rel="noopener noreferrer">\1</a>',
         text,
     )
 

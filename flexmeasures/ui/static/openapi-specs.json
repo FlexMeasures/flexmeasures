@@ -1265,7 +1265,7 @@
     "/api/v3_0/sensors/{id}/annotations": {
       "post": {
         "summary": "Creates a new sensor annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">annotation</a> on a sensor.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on a sensor.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -2058,7 +2058,7 @@
     "/api/v3_0/accounts/{id}/annotations": {
       "post": {
         "summary": "Creates a new account annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">annotation</a> on an account.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on an account.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -3817,7 +3817,7 @@
     "/api/v3_0/assets/{id}/annotations": {
       "post": {
         "summary": "Creates a new asset annotation.",
-        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\">annotation</a> on an asset.\n",
+        "description": "This endpoint creates a new <a href=\"/ui/static/documentation/html/search.html?q=annotation\" target=\"_blank\" rel=\"noopener noreferrer\">annotation</a> on an asset.\n",
         "security": [
           {
             "ApiKeyAuth": []
@@ -4768,7 +4768,7 @@
             "example": true
           },
           "commitments": {
-            "description": "Prior commitments. Support for this field in the UI is still under further development, but you can find more information in <a href=\"/ui/static/documentation/html/search.html?q=commitments\" target=\"_blank\">the docs</a>.",
+            "description": "Prior commitments. Support for this field in the UI is still under further development, but you can find more information in <a href=\"/ui/static/documentation/html/search.html?q=commitments\" target=\"_blank\" rel=\"noopener noreferrer\">the docs</a>.",
             "example": [],
             "type": "array",
             "items": {
@@ -6314,7 +6314,7 @@
           "operation-modes": {
             "type": "array",
             "minItems": 1,
-            "description": "Confine the device's power to one of several power ranges at every time step.\nEach operation mode declares a <code>consumption-range</code> (non-negative, positive is consumption) and/or a <code>production-range</code> (non-negative, positive is production); a mode may use either or both, and combining both (each starting at 0) forms a single band through zero.\nThis is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).\nTerminology and semantics follow the <a href=\"https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/\" target=\"_blank\">operation modes of the S2 standard</a>.\nS2 fixes one sign convention for power (positive is consumption), whereas FM leaves it to the user; an S2 signed power-range therefore maps onto these fields by sign: its non-negative part corresponds to the FM <code>consumption-range</code>, negative S2 power values (production) correspond to the FM <code>production-range</code> (with their sign flipped to non-negative), and an S2 range spanning zero maps to a combination of both.\nDeclaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.\n",
+            "description": "Confine the device's power to one of several power ranges at every time step.\nEach operation mode declares a <code>consumption-range</code> (non-negative, positive is consumption) and/or a <code>production-range</code> (non-negative, positive is production); a mode may use either or both, and combining both (each starting at 0) forms a single band through zero.\nThis is useful for devices that cannot modulate their power freely, such as a device that is either off or running at some minimum power (or at one fixed power).\nTerminology and semantics follow the <a href=\"https://docs.s2standard.org/model-reference/FRBC/FRBC.OperationMode/\" target=\"_blank\" rel=\"noopener noreferrer\">operation modes of the S2 standard</a>.\nS2 fixes one sign convention for power (positive is consumption), whereas FM leaves it to the user; an S2 signed power-range therefore maps onto these fields by sign: its non-negative part corresponds to the FM <code>consumption-range</code>, negative S2 power values (production) correspond to the FM <code>production-range</code> (with their sign flipped to non-negative), and an S2 range spanning zero maps to a combination of both.\nDeclaring operation modes introduces binary decision variables into the optimization problem (making it a mixed-integer linear program), which may increase solve times.\n",
             "example": [
               {
                 "consumption-range": [
