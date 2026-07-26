@@ -49,7 +49,7 @@ def rst_to_openapi(text: str) -> str:
 
     # Convert external hyperlinks `text <url>`_ to HTML anchors
     text = re.sub(
-        r"(?<!`)`([^`<]+?)\s*<(https?://[^>\s]+)>`__?",
+        r"(?<!`)`([^`<]+?)\s*<(https?://[^>\s\"']+)>`__?",
         r'<a href="\2" target="_blank" rel="noopener noreferrer">\1</a>',
         text,
     )
