@@ -1593,7 +1593,7 @@
                 "examples": {
                   "schedule_created": {
                     "summary": "Schedule response",
-                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job` field.\nFor backward-compatibility, the legacy `schedule` field is also included; it is not (yet)\nformally deprecated, but new clients should prefer `job`.\nThe given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.\n",
+                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job` field.\nThe given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.\n",
                     "value": {
                       "status": "ACCEPTED",
                       "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",
@@ -4133,7 +4133,7 @@
                 },
                 "examples": {
                   "successful_response": {
-                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job` field.\nFor backward-compatibility, the legacy `schedule` field is also included; it is not (yet)\nformally deprecated, but new clients should prefer `job`.\nThe given UUID may be used to obtain the resulting schedule for each flexible device via [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
+                    "description": "This message indicates that the scheduling request has been accepted for processing (202 Accepted).\nA scheduling job has been created with some Universally Unique Identifier (UUID),\nwhich will be picked up by a worker.\nThe given UUID is returned in the canonical `job` field.\nThe given UUID may be used to obtain the resulting schedule for each flexible device via [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).\n",
                     "value": {
                       "status": "ACCEPTED",
                       "job": "364bfd06-c1fa-430b-8d25-8f5a547651fb",

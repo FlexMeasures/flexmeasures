@@ -1004,8 +1004,6 @@ class SensorAPI(FlaskView):
                         A scheduling job has been created with some Universally Unique Identifier (UUID),
                         which will be picked up by a worker.
                         The given UUID is returned in the canonical `job` field.
-                        For backward-compatibility, the legacy `schedule` field is also included; it is not (yet)
-                        formally deprecated, but new clients should prefer `job`.
                         The given UUID may be used to obtain the resulting schedule: see /sensors/<id>/schedules/<uuid>.
                       value:
                         status: "ACCEPTED"
