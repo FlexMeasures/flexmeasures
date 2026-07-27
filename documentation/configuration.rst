@@ -40,43 +40,6 @@ This is used to turn on certain extra behaviours, see :ref:`modes-dev` for detai
 Default: ``""``
 
 
-.. _overwrite-config:
-
-FLEXMEASURES_ALLOW_DATA_OVERWRITE
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Whether to allow overwriting existing data when saving data to the database.
-
-Default: ``False``
-
-
-.. _solver-config:
-
-FLEXMEASURES_LP_SOLVER
-^^^^^^^^^^^^^^^^^^^^^^
-
-The command to run the scheduling solver. This is the executable command which FlexMeasures calls via the `pyomo library <http://www.pyomo.org/>`_. Potential values might be ``cbc``, ``cplex``, ``glpk`` or ``appsi_highs``. Consult `their documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more. 
-We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
-Note that you need to install the solver, read more at :ref:`installing-a-solver`.
-
-Default: ``"appsi_highs"``
-
-
-FLEXMEASURES_LP_SOLVER_OPTIONS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Solver options passed to the scheduling solver, overriding the defaults FlexMeasures sets itself. Use this to tune the solver without patching code, for example to trade optimality for speed::
-
-    FLEXMEASURES_LP_SOLVER_OPTIONS = {"mip_rel_gap": "1e-4"}
-
-When the solver is HiGHS, FlexMeasures validates these against the installed HiGHS build and raises on an unknown option name, an invalid value, or a feature the build lacks. This matters because Pyomo's ``appsi_highs`` interface otherwise applies solver options without checking whether HiGHS accepted them, so a typo would be silently ignored.
-
-.. note:: HiGHS initializes its thread scheduler once per process. Setting ``threads`` or ``parallel`` therefore only affects the first solve in a worker process; later solves fail with ``global scheduler has already been initialized`` and return no schedule. FlexMeasures logs a warning if you set either.
-
-Default: ``{}``
-
-
-
 FLEXMEASURES_HOSTS_AND_AUTH_START
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -105,44 +68,30 @@ Default: ``[]``
 
 .. note:: This setting is also recognized as environment variable (since v0.14, which is also the version required to pass this setting as a string).
 
-
-
-FLEXMEASURES_PROFILE_REQUESTS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If True, the processing time of requests are profiled.
-
-The overall time used by requests are logged to the console. In addition, if `pyinstrument` is installed, then a profiling report is made (of time being spent in different function calls) for all Flask API endpoints.
-
-The profiling results are stored in the ``profile_reports`` folder in the instance directory.
-
-Note: Profile reports for API endpoints are overwritten on repetition of the same request.
-
-Interesting for developers.
-
-Default: ``False``
-
-
-FLEXMEASURES_PROFILER_CONFIG
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Keyword arguments passed to the profiler, such as the sampling interval (in seconds) for profiling the processing time of requests.
-
-Interesting for developers.
-
-Default:
-
-.. code-block:: python
-
-   dict(
-       async_mode="disabled",
-       interval=0.01,  # 10 ms sampling interval, enables coarse timer
-       use_timing_thread=True,
-   )
-
-
 UI
 --
+
+.. _mapbox_access_token:
+
+MAPBOX_ACCESS_TOKEN
+^^^^^^^^^^^^^^^^^^^
+
+Token for accessing the MapBox API (for displaying maps on the dashboard and asset pages). You can learn how to obtain one `here <https://docs.mapbox.com/help/glossary/access-token/>`_
+
+Default: ``None``
+
+.. note:: This setting is also recognized as environment variable.
+
+
+.. _bounding_box_config:
+
+FLEXMEASURES_DEFAULT_BOUNDING_BOX
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The default bounding box of maps if the user has no geolocated assets yet.
+
+Default: ``(54, 2), (50.732, 7.808)`` (`The Netherlands after the oceans drop 50 meters <https://what-if.xkcd.com/53/>`_)
+
 
 FLEXMEASURES_PLATFORM_NAME
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -356,13 +305,6 @@ Example: ``{"forecasting": "PT2M", "scheduling": "PT5M", "ingestion": "PT30S"}``
 
 Default: ``{}``
 
-FLEXMEASURES_PLANNING_TTL
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Time to live for schedule UUIDs of successful scheduling jobs. Set a negative timedelta to persist forever.
-
-Default: ``timedelta(days=7)``
-
 FLEXMEASURES_JOB_CACHE_TTL
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -380,6 +322,20 @@ Set a negative value to persist forever.
 
 Default: ``3600``
 
+
+Data
+----
+
+.. _overwrite-config:
+
+FLEXMEASURES_ALLOW_DATA_OVERWRITE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Whether to allow overwriting existing data when saving data to the database.
+
+Default: ``False``
+
+
 FLEXMEASURES_MAX_SENSOR_DATA_INGESTION_BYTES
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -391,21 +347,48 @@ Default: ``3 * 1024 * 1024``
 .. _datasource_config:
 
 FLEXMEASURES_DEFAULT_DATASOURCE
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The default DataSource of the resulting data from `DataGeneration` classes.
 
 Default: ``"FlexMeasures"``
 
 
-.. _bounding_box_config:
+Scheduling
+----------
 
-FLEXMEASURES_DEFAULT_BOUNDING_BOX
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _solver-config:
 
-The default bounding box of maps if the user has no geolocated assets yet.
+FLEXMEASURES_LP_SOLVER
+^^^^^^^^^^^^^^^^^^^^^^
 
-Default: ``(54, 2), (50.732, 7.808)`` (`The Netherlands after the oceans drop 50 meters <https://what-if.xkcd.com/53/>`_)
+The command to run the scheduling solver. This is the executable command which FlexMeasures calls via the `pyomo library <http://www.pyomo.org/>`_. Potential values might be ``cbc``, ``cplex``, ``glpk`` or ``appsi_highs``. Consult `their documentation <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ to learn more.
+We have tested FlexMeasures with `HiGHS <https://highs.dev/>`_ and `Cbc <https://coin-or.github.io/Cbc/intro>`_.
+Note that you need to install the solver, read more at :ref:`installing-a-solver`.
+
+Default: ``"appsi_highs"``
+
+
+FLEXMEASURES_LP_SOLVER_OPTIONS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Solver options passed to the scheduling solver, overriding the defaults FlexMeasures sets itself. Use this to tune the solver without patching code, for example to trade optimality for speed::
+
+    FLEXMEASURES_LP_SOLVER_OPTIONS = {"mip_rel_gap": "1e-4"}
+
+When the solver is HiGHS, FlexMeasures validates these against the installed HiGHS build and raises on an unknown option name, an invalid value, or a feature the build lacks. This matters because Pyomo's ``appsi_highs`` interface otherwise applies solver options without checking whether HiGHS accepted them, so a typo would be silently ignored.
+
+.. note:: HiGHS initializes its thread scheduler once per process. Setting ``threads`` or ``parallel`` therefore only affects the first solve in a worker process; later solves fail with ``global scheduler has already been initialized`` and return no schedule. FlexMeasures logs a warning if you set either.
+
+Default: ``{}``
+
+
+FLEXMEASURES_PLANNING_TTL
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Time to live for schedule UUIDs of successful scheduling jobs. Set a negative timedelta to persist forever.
+
+Default: ``timedelta(days=7)``
 
 
 .. _planning_horizon_config:
@@ -430,19 +413,20 @@ Set to ``None`` to forgo this limitation altoghether.
 Default: ``2520`` (e.g. 7 days for a 4-minute resolution sensor, 105 days for a 1-hour resolution sensor)
 
 
-Access Tokens
----------------
+.. _fallback-redirect-config:
 
-.. _mapbox_access_token:
+FLEXMEASURES_FALLBACK_REDIRECT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-MAPBOX_ACCESS_TOKEN
-^^^^^^^^^^^^^^^^^^^
+Control how the API handles a failed scheduling job when a fallback schedule has been computed.
 
-Token for accessing the MapBox API (for displaying maps on the dashboard and asset pages). You can learn how to obtain one `here <https://docs.mapbox.com/help/glossary/access-token/>`_
+If ``True``, the API returns ``HTTP status 303 (See Other)`` with a ``Location`` header pointing to the fallback schedule endpoint.
+Clients must follow this redirect themselves to obtain the fallback schedule (see :ref:`api_see_other`).
 
-Default: ``None``
+If ``False``, the API transparently follows the fallback job and returns the fallback schedule directly in the response.
 
-.. note:: This setting is also recognized as environment variable.
+Default: ``False``
+
 
 SQLAlchemy
 ----------
@@ -928,20 +912,6 @@ If False, these endpoints will either return ``HTTP status 410 (Gone) status cod
 Default: ``False``
 
 
-.. _fallback-redirect-config:
-
-FLEXMEASURES_FALLBACK_REDIRECT
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Control how the API handles a failed scheduling job when a fallback schedule has been computed.
-
-If ``True``, the API returns ``HTTP status 303 (See Other)`` with a ``Location`` header pointing to the fallback schedule endpoint.
-Clients must follow this redirect themselves to obtain the fallback schedule (see :ref:`api_see_other`).
-
-If ``False``, the API transparently follows the fallback job and returns the fallback schedule directly in the response.
-
-Default: ``False``
-
 .. _reporters-config:
 
 Reporters
@@ -959,6 +929,43 @@ Extend this list if you want to permit additional pseudo-methods in reporter pip
 .. note::  Only add trusted pseudo-methods here. Since these methods bypass Python signature validation, loosening this list unnecessarily can reduce safety guarantees in your data processing pipeline.
 
 Default: ``["get_attribute"]``
+
+
+Development
+-----------
+
+FLEXMEASURES_PROFILE_REQUESTS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If True, the processing time of requests are profiled.
+
+The overall time used by requests are logged to the console. In addition, if `pyinstrument` is installed, then a profiling report is made (of time being spent in different function calls) for all Flask API endpoints.
+
+The profiling results are stored in the ``profile_reports`` folder in the instance directory.
+
+Note: Profile reports for API endpoints are overwritten on repetition of the same request.
+
+Interesting for developers.
+
+Default: ``False``
+
+
+FLEXMEASURES_PROFILER_CONFIG
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Keyword arguments passed to the profiler, such as the sampling interval (in seconds) for profiling the processing time of requests.
+
+Interesting for developers.
+
+Default:
+
+.. code-block:: python
+
+   dict(
+       async_mode="disabled",
+       interval=0.01,  # 10 ms sampling interval, enables coarse timer
+       use_timing_thread=True,
+   )
 
 
 Old settings
