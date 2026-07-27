@@ -45,6 +45,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix scheduling jobs deterministically failing on a ``timed_belief`` unique-key violation for devices that reference their power sensor only via a nested output reference (e.g. ``{"consumption": {"sensor": ...}}``): the sensor's schedule was emitted both as a storage schedule and as a consumption/production output schedule; now only the consumption/production output is emitted, and no sensor can appear in more than one scheduler output [see `PR #2360 <https://www.github.com/FlexMeasures/flexmeasures/pull/2360>`_]
 * Fix column sorting on the assets page, including when combined with the search filter [see `PR #2314 <https://www.github.com/FlexMeasures/flexmeasures/pull/2314>`_]
 * Fix forecasting with past or future regressors, which raised a ``TypeError`` on pandas 2.2 and higher [see `PR #2303 <https://www.github.com/FlexMeasures/flexmeasures/pull/2303>`_]
 * Show why a CLI option was rejected (e.g. "No account found with id 9999") instead of only echoing the offending value [see `PR #2303 <https://www.github.com/FlexMeasures/flexmeasures/pull/2303>`_]
