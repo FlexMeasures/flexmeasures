@@ -1963,13 +1963,15 @@ class StorageFallbackScheduler(MetaStorageScheduler):
             }
 
         if self.return_multiple:
+            # Iterate over the dict keys (not the sensors list, which may hold the
+            # same sensor for multiple devices), so no sensor is emitted twice.
             return [
                 {
                     "name": "storage_schedule",
                     "sensor": sensor,
                     "data": storage_schedule[sensor],
                 }
-                for sensor in sensors
+                for sensor in storage_schedule.keys()
                 if sensor is not None
             ]
         else:
@@ -2668,6 +2670,22 @@ class StorageScheduler(MetaStorageScheduler):
             unresolved, resolved = self._compute_unresolved_targets(
                 flex_model_for_soc, soc_schedule_mwh, start, end, resolution
             )
+            # A device's power sensor may itself be one of its declared consumption/
+            # production output sensors — for example, a flex-model entry that
+            # references its power sensor only via a nested output reference, like
+            # {"consumption": {"sensor": ...}} (see _resolve_power_sensor). Such a
+            # sensor already receives its schedule via the consumption/production
+            # outputs below, which is the semantically correct single entry to keep:
+            # the sign conventions for output sensors are defined on that path (see
+            # _build_consumption_production_schedules), and the scheduling service
+            # resolves the sign via the consumption_is_positive attribute set on
+            # output sensors. Emitting a second ("storage_schedule") entry for the
+            # same sensor would save duplicate beliefs within one scheduling-job
+            # transaction, violating the timed_belief primary key and failing the
+            # whole job.
+            output_sensor_ids = {
+                sensor.id for sensor in consumption_production_schedule.keys()
+            }
             storage_schedules = [
                 {
                     "name": "storage_schedule",
@@ -2676,7 +2694,7 @@ class StorageScheduler(MetaStorageScheduler):
                     "unit": sensor.unit,
                 }
                 for sensor in storage_schedule.keys()
-                if sensor is not None
+                if sensor is not None and sensor.id not in output_sensor_ids
             ]
             commitment_costs = [
                 {
@@ -2728,7 +2746,7 @@ class StorageScheduler(MetaStorageScheduler):
                     ),
                 }
             ]
-            return (
+            return self._deduplicate_outputs(
                 storage_schedules
                 + commitment_costs
                 + soc_schedules
@@ -2737,6 +2755,30 @@ class StorageScheduler(MetaStorageScheduler):
             )
         else:
             return storage_schedule[sensors[0]]
+
+    @staticmethod
+    def _deduplicate_outputs(outputs: list[dict]) -> list[dict]:
+        """Safety net: never let one sensor appear in multiple outputs.
+
+        All outputs are saved with identical belief coordinates in the same
+        scheduling-job transaction, so a duplicate sensor is guaranteed to
+        violate the timed_belief primary key and fail the whole job.
+        Keep the first entry for a sensor and drop (with a warning) any later one.
+        """
+        seen_sensor_ids: set[int] = set()
+        deduplicated_outputs = []
+        for output in outputs:
+            output_sensor = output.get("sensor")
+            if output_sensor is not None:
+                if output_sensor.id in seen_sensor_ids:
+                    current_app.logger.warning(
+                        f"Dropping duplicate '{output.get('name')}' output for {output_sensor}: "
+                        f"another output already saves a schedule to this sensor."
+                    )
+                    continue
+                seen_sensor_ids.add(output_sensor.id)
+            deduplicated_outputs.append(output)
+        return deduplicated_outputs
 
 
 def create_constraint_violations_message(constraint_violations: list) -> str:

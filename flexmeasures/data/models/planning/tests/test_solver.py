@@ -4052,10 +4052,12 @@ def test_multi_device_battery_couples_stock_from_soc_sensor(
     )
     results = scheduler.compute()
 
+    # The device references its power sensor only via a nested consumption output
+    # reference, so its schedule is emitted (once) as a consumption_schedule.
     schedule = next(
         r["data"]
         for r in results
-        if r.get("name") == "storage_schedule" and r.get("sensor") is power_sensor
+        if r.get("name") == "consumption_schedule" and r.get("sensor") is power_sensor
     )
     # Net discharged energy (kW * 1h = kWh) cannot exceed the ~0.05 kWh in the store.
     discharged_kwh = -schedule.clip(upper=0).sum()
