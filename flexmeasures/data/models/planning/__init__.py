@@ -287,12 +287,22 @@ class Scheduler:
             {**v, "asset": k} for k, v in db_flex_model.items() if k not in asset_ids
         ]
         combined_flex_model = amended_db_flex_model + amended_flex_model
-        # For the single-asset case, revert the flex-model listification
-        if len(combined_flex_model) == 1 and "sensor" not in combined_flex_model[0]:
-            # Single-asset case
+        # For the single-sensor case, revert the flex-model listification.
+        # Only do so when scheduling a specific sensor: a bare dict flex-model is
+        # deserialized in single-sensor mode, which resolves the device against
+        # self.sensor. For asset-level scheduling (self.sensor is None), keep the
+        # list form (multi-device mode) even for a single device entry, as only
+        # multi-device mode can resolve a device's power sensor from nested
+        # references (e.g. {"consumption": {"sensor": ...}}).
+        if (
+            self.sensor is not None
+            and len(combined_flex_model) == 1
+            and "sensor" not in combined_flex_model[0]
+        ):
+            # Single-sensor case
             self.flex_model = combined_flex_model[0]
         else:
-            # Multi-asset case
+            # Multi-device case
             self.flex_model = combined_flex_model
 
     def deserialize_config(self):
