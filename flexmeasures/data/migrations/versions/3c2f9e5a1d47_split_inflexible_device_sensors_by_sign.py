@@ -138,7 +138,7 @@ def _rewrite_flex_contexts(transform) -> None:
     conn = op.get_bind()
     for asset_id, flex_context in conn.execute(
         sa.select(generic_asset_table.c.id, generic_asset_table.c.flex_context)
-    ).fetchall():
+    ):
         if not flex_context:
             continue
         changed = transform(conn, flex_context)
