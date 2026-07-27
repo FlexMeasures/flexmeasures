@@ -444,16 +444,6 @@ Default: ``None``
 
 .. note:: This setting is also recognized as environment variable.
 
-.. _sentry_access_token:
-
-SENTRY_SDN
-^^^^^^^^^^^^
-
-Deprecated misspelling of ``SENTRY_DSN`` (see below). Only the environment variable is still accepted as a fallback for backward compatibility; config files should use ``SENTRY_DSN``.
-
-Default: ``None``
-
-
 SQLAlchemy
 ----------
 
@@ -815,10 +805,6 @@ E-mail addresses to send monitoring alerts to from the CLI tasks ``flexmeasures 
 
 Default: ``[]``
 
-.. deprecated:: 0.33
-
-    ``FLEXMEASURES_MONITORING_MAIL_RECIPIENTS`` is deprecated. Use ``FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS`` instead.
-
 
 .. _redis-config:
 
@@ -891,8 +877,46 @@ Default: ``True``
 
 .. _sunset-config:
 
-Sunset
-------
+API Deprecation and Sunset
+--------------------------
+
+FLEXMEASURES_DEPRECATION_AND_SUNSET
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Allow hosts to override the built-in deprecation and sunset metadata for API
+versions.
+
+Use one entry per API version. The supported keys are ``deprecation-date``, ``deprecation-link``, ``sunset-date`` and ``sunset-link``.
+Dates may be strings of a format like ``"2026-08-01"``.
+
+.. code-block:: python
+
+    FLEXMEASURES_DEPRECATION_AND_SUNSET = {
+        "api-v2_0": {
+            "deprecation-date": "2026-08-01",
+            "deprecation-link": "https://example.com/api/v2-deprecation",
+            "sunset-date": "2026-11-01",
+            "sunset-link": "https://example.com/api/v2-sunset",
+        },
+    }
+
+The currently known API-version keys are:
+
+* ``api-v1``
+* ``api-v1_1``
+* ``api-v1_2``
+* ``api-v1_3``
+* ``api-v2_0``
+
+Default: ``{}`` (built-in metadata is used)
+
+The built-in API-version deprecation metadata is defined in
+``flexmeasures/api/sunset/__init__.py`` as ``SUNSET_INFO``. Hosts can use those
+entries as the starting point for their own ``FLEXMEASURES_DEPRECATION_AND_SUNSET``
+overrides.
+
+.. note:: Deprecated fields are documented as legacy aliases and keep working silently until they can be removed in a future API version.
+
 
 FLEXMEASURES_API_SUNSET_ACTIVE
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -903,19 +927,6 @@ If False, these endpoints will either return ``HTTP status 410 (Gone) status cod
 
 Default: ``False``
 
-FLEXMEASURES_API_SUNSET_DATE
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Allow to override the default sunset date for your clients.
-
-Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"2023-05-01"`` for v2.0)
-
-FLEXMEASURES_API_SUNSET_LINK
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Allow to override the default sunset link for your clients.
-
-Default: ``None`` (defaults are set internally for each sunset API version, e.g. ``"https://flexmeasures.readthedocs.io/en/v0.13.0/api/v2_0.html"`` for v2.0)
 
 .. _fallback-redirect-config:
 
@@ -948,3 +959,55 @@ Extend this list if you want to permit additional pseudo-methods in reporter pip
 .. note::  Only add trusted pseudo-methods here. Since these methods bypass Python signature validation, loosening this list unnecessarily can reduce safety guarantees in your data processing pipeline.
 
 Default: ``["get_attribute"]``
+
+
+Old settings
+------------
+
+These settings are still accepted as fallbacks for backward compatibility, but
+new host configuration should use the replacement settings mentioned below.
+
+.. _sentry_access_token:
+
+SENTRY_SDN
+^^^^^^^^^^
+
+Deprecated misspelling of ``SENTRY_DSN``. Only the environment variable is still
+accepted as a fallback; config files should use ``SENTRY_DSN``.
+
+Default: ``None``
+
+FLEXMEASURES_MONITORING_MAIL_RECIPIENTS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. deprecated:: 0.33
+
+    Use ``FLEXMEASURES_DEFAULT_MONITORING_MAIL_RECIPIENTS`` instead.
+
+Default: ``[]``
+
+FLEXMEASURES_API_SUNSET_DATE
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. deprecated:: 1.0.0
+
+    Use ``FLEXMEASURES_DEPRECATION_AND_SUNSET`` instead.
+
+Overrides the default sunset date across all sunset API versions if
+``FLEXMEASURES_DEPRECATION_AND_SUNSET`` does not define a ``sunset-date`` for the
+API version.
+
+Default: ``None``
+
+FLEXMEASURES_API_SUNSET_LINK
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. deprecated:: 1.0.0
+
+    Use ``FLEXMEASURES_DEPRECATION_AND_SUNSET`` instead.
+
+Overrides the default sunset link across all sunset API versions if
+``FLEXMEASURES_DEPRECATION_AND_SUNSET`` does not define a ``sunset-link`` for the
+API version.
+
+Default: ``None``

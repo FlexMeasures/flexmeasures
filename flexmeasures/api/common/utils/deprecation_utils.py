@@ -36,8 +36,12 @@ def sunset_blueprint(
             # so we let the request pass to the endpoint implementation
             pass
         else:
-            # Override with custom info link, if set by host
-            link = override_from_config(sunset_link, "FLEXMEASURES_API_SUNSET_LINK")
+            link = _api_version_deprecation_setting(
+                api_version_being_sunset,
+                "sunset-link",
+                sunset_link,
+                "FLEXMEASURES_API_SUNSET_LINK",
+            )
 
             abort(
                 410,
@@ -127,6 +131,7 @@ def deprecate_fields(
 
 def deprecate_blueprint(
     blueprint: Blueprint,
+    api_version_being_sunset: str,
     deprecation_date: pd.Timestamp | str | None = None,
     deprecation_link: str | None = None,
     sunset_date: pd.Timestamp | str | None = None,
@@ -162,26 +167,40 @@ def deprecate_blueprint(
     - Deprecation header: https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-deprecation-header
     - Sunset header: https://www.rfc-editor.org/rfc/rfc8594
     """
-    deprecation = _format_deprecation(deprecation_date)
-    sunset = _format_sunset(sunset_date)
 
     def _after_request_handler(response: Response) -> Response:
         current_app.logger.warning(
             f"Deprecated endpoint {request.endpoint} called by {current_user}"
         )
 
-        # Override sunset date if host used corresponding config setting
-        _sunset = override_from_config(sunset, "FLEXMEASURES_API_SUNSET_DATE")
-
-        # Override sunset link if host used corresponding config setting
-        _sunset_link = override_from_config(sunset_link, "FLEXMEASURES_API_SUNSET_LINK")
-
         return _add_headers(
             response,
-            deprecation,
-            deprecation_link,
-            _sunset,
-            _sunset_link,
+            _format_deprecation(
+                _api_version_deprecation_setting(
+                    api_version_being_sunset,
+                    "deprecation-date",
+                    deprecation_date,
+                )
+            ),
+            _api_version_deprecation_setting(
+                api_version_being_sunset,
+                "deprecation-link",
+                deprecation_link,
+            ),
+            _format_sunset(
+                _api_version_deprecation_setting(
+                    api_version_being_sunset,
+                    "sunset-date",
+                    sunset_date,
+                    "FLEXMEASURES_API_SUNSET_DATE",
+                )
+            ),
+            _api_version_deprecation_setting(
+                api_version_being_sunset,
+                "sunset-link",
+                sunset_link,
+                "FLEXMEASURES_API_SUNSET_LINK",
+            ),
         )
 
     blueprint.after_request(_after_request_handler)
@@ -224,6 +243,24 @@ def _format_sunset(sunset_date):
     else:
         sunset = None
     return sunset
+
+
+def _api_version_deprecation_setting(
+    api_version: str,
+    setting_name: str,
+    default: Any,
+    legacy_config_setting_name: str | None = None,
+) -> Any:
+    """Return host-configured API-version deprecation metadata, if available."""
+    config = current_app.config.get("FLEXMEASURES_DEPRECATION_AND_SUNSET", {}) or {}
+    api_version_key = f"api-v{api_version.replace('.', '_')}"
+    api_version_config = config.get(api_version_key, config.get(api_version, {}))
+
+    if setting_name in api_version_config:
+        return api_version_config[setting_name]
+    if legacy_config_setting_name is not None:
+        return override_from_config(default, legacy_config_setting_name)
+    return default
 
 
 def override_from_config(setting: Any, config_setting_name: str) -> Any:
