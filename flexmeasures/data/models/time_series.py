@@ -7,6 +7,7 @@ import json
 from packaging.version import Version
 from flask import current_app
 
+import numpy as np
 import pandas as pd
 from sqlalchemy import exists, select
 from sqlalchemy.ext.declarative import declared_attr
@@ -31,6 +32,7 @@ from flexmeasures.utils.entity_address_utils import (
     EntityAddressException,
     build_entity_address,
 )
+from flexmeasures.utils.time_utils import truncated_integer_epochs
 from flexmeasures.utils.unit_utils import (
     is_energy_unit,
     is_power_unit,
@@ -466,14 +468,15 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
 
             # Build metadata dictionaries
             sensors_metadata = {}
-            sources_metadata = {}
-            all_records = []
 
             # Build sensor metadata
             sensor_dict = self.as_dict
             sensors_metadata[self.id] = {
                 "name": sensor_dict.get("name", ""),
                 "unit": sensor_dict.get("sensor_unit", self.unit),
+                "event_resolution": sensor_dict.get(
+                    "event_resolution", self.event_resolution.total_seconds()
+                ),
                 "description": sensor_dict.get("description", ""),
                 "asset_id": sensor_dict.get(
                     "asset_id", getattr(self, "generic_asset_id", None)
@@ -481,69 +484,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
                 "asset_description": sensor_dict.get("asset_description", ""),
             }
 
-            # Process each row in the dataframe
-            for _, row in df.iterrows():
-                source_obj = row.get("source")
-
-                if (
-                    source_obj
-                    and hasattr(source_obj, "id")
-                    and source_obj.id not in sources_metadata
-                ):
-
-                    source_dict = source_obj.as_dict
-                    sources_metadata[source_obj.id] = {
-                        "name": source_dict.get("name", ""),
-                        "model": source_dict.get("model", ""),
-                        "version": source_dict.get("version", ""),
-                        "type": source_dict.get("type", "other"),
-                        "raw_type": source_dict.get("raw_type", ""),
-                        "display_type": source_dict.get(
-                            "display_type", source_dict.get("type", "other")
-                        ),
-                        "description": source_dict.get("description", ""),
-                    }
-
-                # Build the data record with reference IDs instead of full objects
-                record = {
-                    "ts": int(
-                        row["event_start"].timestamp() * 1000
-                    ),  # timestamp in milliseconds for JavaScript compatibility
-                    "sid": self.id,  # sensor ID reference
-                    "val": row["event_value"],
-                }
-
-                # Add optional fields
-                if source_obj and hasattr(source_obj, "id"):
-                    record["src"] = source_obj.id  # source ID reference
-
-                if "belief_time" in row and pd.notnull(row["belief_time"]):
-                    record["bt"] = int(
-                        row["belief_time"].timestamp() * 1000
-                    )  # timestamp in milliseconds for JavaScript compatibility
-
-                if "belief_horizon" in row and pd.notnull(row["belief_horizon"]):
-                    record["bh"] = int(row["belief_horizon"].total_seconds())
-
-                if "cumulative_probability" in row and pd.notnull(
-                    row["cumulative_probability"]
-                ):
-                    record["cp"] = row["cumulative_probability"]
-
-                # Clean up any problematic types
-                for key, value in record.items():
-                    if pd.isna(value):
-                        record[key] = None
-                    elif isinstance(value, pd.Timestamp):
-                        record[key] = int(
-                            value.timestamp() * 1000
-                        )  # timestamp in milliseconds for JavaScript compatibility
-                    elif isinstance(value, (pd.Timedelta, timedelta)):
-                        record[key] = int(value.total_seconds())
-                    elif hasattr(value, "item"):  # numpy types
-                        record[key] = value.item()
-
-                all_records.append(record)
+            all_records, sources_metadata = compress_belief_records(df, self.id)
 
             # Return in the new structured format
             result = {
@@ -703,6 +644,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             id=self.id,
             name=self.name,
             sensor_unit=self.unit,
+            event_resolution=self.event_resolution.total_seconds(),
             description=f"{self.name} ({self.generic_asset.name})",
             asset_description=f"{self.generic_asset.name}"
             + (f" ({parent_asset.name})" if parent_asset is not None else ""),
@@ -852,6 +794,118 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
         Equivalent to ``search_data_sources()`` with no filters.
         """
         return self.search_data_sources()
+
+
+def compress_belief_records(df: pd.DataFrame, sensor_id: int) -> tuple[list, dict]:
+    """Build compact belief records and source metadata from a reset-index beliefs frame.
+
+    Records hold reference IDs instead of full objects, and timestamps in epoch
+    milliseconds for JavaScript compatibility (belief horizons in seconds).
+    Missing values (e.g. an unknown belief time) leave their key out of the record.
+    """
+    sources_metadata: dict = {}
+
+    # Build source metadata and the source id per row (in first-appearance order)
+    source_codes, unique_sources = pd.factorize(df["source"])
+    unique_source_ids: list[int | None] = []
+    for source_obj in unique_sources:
+        if source_obj and hasattr(source_obj, "id"):
+            unique_source_ids.append(source_obj.id)
+            if source_obj.id not in sources_metadata:
+                source_dict = source_obj.as_dict
+                sources_metadata[source_obj.id] = {
+                    "name": source_dict.get("name", ""),
+                    "model": source_dict.get("model", ""),
+                    "version": source_dict.get("version", ""),
+                    "type": source_dict.get("type", "other"),
+                    "raw_type": source_dict.get("raw_type", ""),
+                    "display_type": source_dict.get(
+                        "display_type", source_dict.get("type", "other")
+                    ),
+                    "description": source_dict.get("description", ""),
+                }
+        else:
+            unique_source_ids.append(None)
+    src_per_row = [
+        unique_source_ids[code] if code >= 0 else None for code in source_codes
+    ]
+
+    # Convert the timing columns to epoch values (vectorized)
+    def to_epoch_list(column: str, np_dtype: str | None, divisor: int) -> list:
+        """Integer epoch value (ns / divisor, truncated toward zero) per row,
+        or None for missing values."""
+        if column not in df.columns:
+            return [None] * len(df)
+        values = df[column]
+        mask = values.notna().to_numpy()
+        raw = values.to_numpy(dtype=np_dtype) if np_dtype else values.to_numpy()
+        ints = truncated_integer_epochs(raw.view("int64"), divisor)
+        return [int(value) if keep else None for value, keep in zip(ints, mask)]
+
+    ts_per_row = to_epoch_list("event_start", "datetime64[ns]", 10**6)  # ms
+    bt_per_row = to_epoch_list("belief_time", "datetime64[ns]", 10**6)  # ms
+    bh_per_row = to_epoch_list("belief_horizon", None, 10**9)  # s
+    cp_per_row = (
+        [
+            None if value != value else value
+            for value in df["cumulative_probability"].tolist()
+        ]
+        if "cumulative_probability" in df.columns
+        else [None] * len(df)
+    )
+    val_per_row = df["event_value"].tolist()
+
+    all_records = []
+    for ts, val, src, bt, bh, cp in zip(
+        ts_per_row, val_per_row, src_per_row, bt_per_row, bh_per_row, cp_per_row
+    ):
+        record = {
+            "ts": ts,
+            "sid": sensor_id,  # sensor ID reference
+            "val": None if val != val else val,
+        }
+        if src is not None:
+            record["src"] = src  # source ID reference
+        if bt is not None:
+            record["bt"] = bt
+        if bh is not None:
+            record["bh"] = bh
+        if cp is not None:
+            record["cp"] = cp
+        all_records.append(record)
+    return all_records, sources_metadata
+
+
+def _select_latest_version_and_belief_per_event(
+    bdf: tb.BeliefsDataFrame,
+) -> tb.BeliefsDataFrame:
+    """Keep, per event, the single belief with the latest source version,
+    breaking version ties by most recent belief time.
+
+    Assumes deterministic beliefs (probabilistic depth 1) and a belief_time index level.
+    """
+    source_codes, unique_sources = pd.factorize(bdf.index.get_level_values("source"))
+    versions = [
+        Version(source.version if source.version else "0.0.0")
+        for source in unique_sources
+    ]
+    version_ranks = {
+        version: rank for rank, version in enumerate(sorted(set(versions)))
+    }
+    rank_per_row = np.array([version_ranks[version] for version in versions])[
+        source_codes
+    ]
+    event_values = bdf.index.get_level_values("event_start").asi8
+    belief_values = bdf.index.get_level_values("belief_time").asi8
+    # Sort by event (ascending), then version rank and belief time (both descending)
+    order = np.lexsort((-belief_values, -rank_per_row, event_values))
+    sorted_events = event_values[order]
+    is_first_of_event = np.empty(len(order), dtype=bool)
+    is_first_of_event[:1] = True
+    is_first_of_event[1:] = sorted_events[1:] != sorted_events[:-1]
+    mask = np.zeros(len(order), dtype=bool)
+    mask[order[is_first_of_event]] = True
+    return bdf[mask]
 
 
 class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
@@ -1026,25 +1080,34 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
                 ):
                     # Fast track, no need to loop over beliefs
                     pass
+                elif (
+                    bdf.lineage.probabilistic_depth == 1
+                    and "belief_time" in bdf.index.names
+                ):
+                    # Deterministic beliefs: no need to take the median,
+                    # just pick the winning belief per event directly
+                    bdf = _select_latest_version_and_belief_per_event(bdf)
                 else:
                     # First make deterministic
                     bdf = bdf.for_each_belief(get_median_belief)
-                    # Then sort each event by most recent source version and most recent belief_time
+                    # Then sort each event by latest source version and most recent belief_time
+                    version_per_source = {
+                        source: Version(source.version if source.version else "0.0.0")
+                        for source in bdf.lineage.sources
+                    }
                     bdf = bdf.sort_values(
                         by=["event_start", "source", "belief_time"],
                         ascending=[True, False, False],
                         key=lambda col: (
-                            col.map(
-                                lambda s: Version(s.version if s.version else "0.0.0")
-                            )
-                            if col.name == "source"
-                            else col
+                            col.map(version_per_source) if col.name == "source" else col
                         ),
                     )
-                    # Finally, take the first belief for each event, thus preference most recent belief_time first, latest version second
-                    bdf = bdf.groupby(level=["event_start"], group_keys=False).apply(
-                        lambda x: x.head(1)
-                    )
+                    # Finally, take the first belief for each event, thus preference latest version first, most recent belief_time second
+                    bdf = bdf[
+                        ~bdf.index.get_level_values("event_start").duplicated(
+                            keep="first"
+                        )
+                    ]
             elif one_deterministic_belief_per_event_per_source:
                 if len(bdf) == 0 or bdf.lineage.probabilistic_depth == 1:
                     # Fast track, no need to loop over beliefs

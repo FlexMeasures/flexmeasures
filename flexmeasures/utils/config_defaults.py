@@ -155,6 +155,9 @@ class Config(object):
         "EVSE": ["one-way_evse", "two-way_evse"],
     }  # how to group assets by asset types
     FLEXMEASURES_LP_SOLVER: str = "appsi_highs"
+    FLEXMEASURES_LP_SOLVER_OPTIONS: dict[str, str | int | float] = {}
+    FLEXMEASURES_DEFAULT_JOB_TIMEOUT: timedelta = timedelta(seconds=180)
+    FLEXMEASURES_JOB_TIMEOUT: dict[str, timedelta | str] = {}
     FLEXMEASURES_JOB_TTL: timedelta = timedelta(days=1)
     FLEXMEASURES_PLANNING_HORIZON: timedelta = timedelta(days=2)
     FLEXMEASURES_MAX_PLANNING_HORIZON: timedelta | int | None = (
@@ -189,6 +192,7 @@ class Config(object):
         vega="5.22.1",
         vegaembed="6.21.0",
         vegalite="5.5.0",  # "5.6.0" has a problematic bar chart: see our sensor page and https://github.com/vega/vega-lite/issues/8496
+        echarts="5.6.0",  # used for the fast (canvas-based) chart mode
         currencysymbolmap="5.1.0",
         jsoneditor="2.15.2",
         leaflet="1.9.4",

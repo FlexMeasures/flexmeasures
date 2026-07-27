@@ -50,6 +50,7 @@ from flexmeasures.data.queries.generic_assets import (
 from flexmeasures.data.queries.utils import id_prefix_filter
 from flexmeasures.data.schemas import AwareDateTimeField
 from flexmeasures.data.schemas.annotations import AnnotationSchema
+from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.data.schemas.generic_assets import (
     GenericAssetSchema as AssetSchema,
     GenericAssetIdField as AssetIdField,
@@ -57,6 +58,7 @@ from flexmeasures.data.schemas.generic_assets import (
     SensorsToShowSchema,
 )
 from flexmeasures.data.schemas.scheduling import AssetTriggerSchema
+from flexmeasures.data.schemas.utils import SupportsLegacyFieldAliases
 from flexmeasures.data.services.scheduling import (
     create_sequential_scheduling_job,
     create_simultaneous_scheduling_job,
@@ -67,7 +69,7 @@ from flexmeasures.api.common.utils.api_utils import (
 )
 from flexmeasures.api.common.responses import (
     unprocessable_entity,
-    request_processed,
+    request_accepted_for_processing,
 )
 from flexmeasures.api.common.rate_limiting import limit_triggers
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -97,6 +99,22 @@ def sensor_term_filter(term: str):
     if term.isdecimal():
         filters.append(id_prefix_filter(Sensor.id, term))
     return or_(*filters)
+
+
+class AssetTriggerSchemaV3(SupportsLegacyFieldAliases, AssetTriggerSchema):
+    """v3_0-only wrapper around the shared `AssetTriggerSchema`.
+
+    `AssetTriggerSchema` itself stays canonical (no legacy field-name
+    aliasing) since it's also used outside the versioned API, e.g. by the
+    CLI. This subclass adds v3_0's backward compatibility for the legacy
+    `force_new_job_creation` field name, so it can be deleted in one place,
+    along with the rest of `flexmeasures/api/v3_0/`, once this API version is
+    sunset -- without needing to touch the shared domain schema.
+    """
+
+    legacy_field_aliases = {
+        "force_new_job_creation": "force-new-job-creation",
+    }
 
 
 class AssetTriggerOpenAPISchema(AssetTriggerSchema):
@@ -134,6 +152,8 @@ class AssetChartKwargsSchema(Schema):
     beliefs_before = AwareDateTimeField(format="iso", required=False)
     include_data = fields.Boolean(required=False)
     combine_legend = fields.Boolean(required=False, load_default=True)
+    include_asset_annotations = fields.Boolean(required=False)
+    include_account_annotations = fields.Boolean(required=False)
     dataset_name = fields.Str(required=False)
     height = fields.Str(required=False)
     width = fields.Str(required=False)
@@ -151,6 +171,7 @@ class AssetChartDataKwargsSchema(Schema):
 
 class AssetAuditLogPaginationSchema(PaginationSchema):
     sort_by = fields.Str(
+        data_key="sort-by",
         required=False,
         validate=validate.OneOf(["event_datetime"]),
     )
@@ -296,16 +317,16 @@ class AssetAPI(FlaskView):
           description: |
             This endpoint returns all assets that are accessible by the user after applying optional filters.
 
-              - The `account_id` query parameter can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
+              - The `account` query parameter (legacy alias: `account_id`) can be used to list assets from any account (if the user is allowed to read them). Per default, the user's account is used.
               - Alternatively, the `all_accessible` query parameter can be used to list assets from all accounts the current_user has read-access to, plus all public assets. Defaults to `false`.
               - The `include_public` query parameter can be used to include public assets in the response. Defaults to `false`.
               - The `asset_type` query parameter can be used to filter by generic asset type ID.
               - The `root` query parameter can be used to list only descendants of a given root asset (including the root itself).
               - The `depth` query parameter can be used to search only a max number of descendant generations from the root.
 
-            The endpoint supports pagination of the asset list using the `page` and `per_page` query parameters.
+            The endpoint supports pagination of the asset list using the `page` and `per-page` (legacy alias: `per_page`) query parameters.
               - If the `page` parameter is not provided, all assets are returned, without pagination information. The result will be a list of assets.
-              - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
+              - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per-page` (default is 10).
               - If a search 'filter' such as 'solar "ACME corp"' is provided, the response will return only assets where each search term is either present in their name or account name, or is a prefix of their ID.
               The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side#Returned-data)
 
@@ -453,10 +474,10 @@ class AssetAPI(FlaskView):
           description: |
             This endpoint returns all sensors under an asset.
 
-            The endpoint supports pagination of the sensor list using the `page` and `per_page` query parameters.
+            The endpoint supports pagination of the sensor list using the `page` and `per-page` (legacy alias: `per_page`) query parameters.
 
             - If the `page` parameter is not provided, all sensors are returned, without pagination information. The result will be a list of sensors.
-            - If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per_page` (default is 10).
+            - If a `page` parameter is provided, the response will be paginated, showing a specific number of sensors per page as defined by `per-page` (default is 10).
             - If a search 'filter' is provided, the response will return only sensors where a search term is either present in their name or is a prefix of their ID.
             The response schema for pagination is inspired by https://datatables.net/manual/server-side#Returned-data
           security:
@@ -1006,6 +1027,98 @@ class AssetAPI(FlaskView):
         sensors = SensorsToShowSchema.flatten(asset.validate_sensors_to_show())
         return asset.chart_data_json(sensors=sensors, **kwargs)
 
+    @route("/<id>/chart_annotations", strict_slashes=False)
+    @use_kwargs(
+        {
+            "asset": AssetIdField(
+                data_key="id", status_if_not_found=HTTPStatus.NOT_FOUND
+            )
+        },
+        location="path",
+    )
+    @use_kwargs(
+        {
+            "event_starts_after": AwareDateTimeField(format="iso", required=False),
+            "event_ends_before": AwareDateTimeField(format="iso", required=False),
+            "clip": fields.Boolean(load_default=True),
+        },
+        location="query",
+    )
+    @permission_required_for_context("read", ctx_arg_name="asset")
+    def get_chart_annotations(self, id: int, asset: GenericAsset, **kwargs):
+        """
+        .. :quickref: Charts; Download annotations for use in charts
+        ---
+        get:
+          summary: Download annotations for use in charts
+          description: |
+            Get annotations for use in charts (in case you have the chart specs already).
+            Annotations on the asset and on the asset's account are returned.
+          security:
+            - ApiKeyAuth: []
+          parameters:
+            - in: path
+              name: id
+              description: ID of the asset to download annotations for.
+              schema:
+                type: integer
+            - in: query
+              name: event_starts_after
+              description: Only return annotations that end after this datetime.
+              schema:
+                type: string
+                format: date-time
+            - in: query
+              name: event_ends_before
+              description: Only return annotations that start before this datetime.
+              schema:
+                type: string
+                format: date-time
+            - in: query
+              name: clip
+              description: If true (default), clip annotations to the requested time window.
+              schema:
+                type: boolean
+          responses:
+            200:
+              description: PROCESSED
+              content:
+                application/json:
+                  schema:
+                    type: array
+                    items:
+                      type: object
+            400:
+              description: INVALID_REQUEST, REQUIRED_INFO_MISSING, UNEXPECTED_PARAMS
+            401:
+              description: UNAUTHORIZED
+            403:
+              description: INVALID_SENDER
+            422:
+              description: UNPROCESSABLE_ENTITY
+          tags:
+            - Assets
+        """
+        event_starts_after = kwargs.get("event_starts_after", None)
+        event_ends_before = kwargs.get("event_ends_before", None)
+        df = asset.search_annotations(
+            annotations_after=event_starts_after,
+            annotations_before=event_ends_before,
+            include_account_annotations=True,
+            as_frame=True,
+        )
+        if kwargs["clip"]:
+            df["start"] = df["start"].clip(lower=event_starts_after)
+            df["end"] = df["end"].clip(upper=event_ends_before)
+
+        # Wrap and stack annotations
+        df = prepare_annotations_for_chart(df)
+
+        # Return JSON records
+        df = df.reset_index()
+        df["source"] = df["source"].astype(str)
+        return df.to_json(orient="records")
+
     @route("/<id>/auditlog")
     @use_kwargs(
         {"asset": AssetIdField(data_key="id")},
@@ -1031,9 +1144,9 @@ class AssetAPI(FlaskView):
           summary: Get history of asset related actions.
           description: |
             The endpoint is paginated and supports search filters.
-              - If the `page` parameter is not provided, all audit logs are returned paginated by `per_page` (default is 10).
-              - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per_page` (default is 10).
-              - If `sort_by` (field name) and `sort_dir` ("asc" or "desc") are provided, the list will be sorted.
+              - If the `page` parameter is not provided, all audit logs are returned paginated by `per-page` (legacy alias: `per_page`, default is 10).
+              - If a `page` parameter is provided, the response will be paginated, showing a specific number of assets per page as defined by `per-page` (default is 10).
+              - If `sort-by` (field name, legacy alias: `sort_by`) and `sort-dir` ("asc" or "desc", legacy alias: `sort_dir`) are provided, the list will be sorted.
               - If a search 'filter' is provided, the response will filter out audit logs where each search term is either present in the event or active user name.
                 The response schema for pagination is inspired by [DataTables](https://datatables.net/manual/server-side)
           security:
@@ -1334,7 +1447,7 @@ class AssetAPI(FlaskView):
 
     @route("/<id>/schedules/trigger", methods=["POST"])
     @limit_triggers()
-    @use_args(AssetTriggerSchema(), location="args_and_json", as_kwargs=True)
+    @use_args(AssetTriggerSchemaV3(), location="args_and_json", as_kwargs=True)
     # Simplification of checking for create-children access on each of the flexible sensors,
     # which assumes each of the flexible sensors belongs to the given asset.
     @permission_required_for_context("create-children", ctx_arg_name="asset")
@@ -1489,8 +1602,8 @@ class AssetAPI(FlaskView):
                             site-consumption-capacity: {sensor: 32}
 
           responses:
-              200:
-                description: PROCESSED
+              202:
+                description: ACCEPTED (Scheduling job queued for processing)
                 content:
                   application/json:
                     schema:
@@ -1498,14 +1611,17 @@ class AssetAPI(FlaskView):
                     examples:
                       successful_response:
                         description: |
-                          This message indicates that the scheduling request has been processed without any error.
+                          This message indicates that the scheduling request has been accepted for processing (202 Accepted).
                           A scheduling job has been created with some Universally Unique Identifier (UUID),
                           which will be picked up by a worker.
-                          The given UUID may be used to obtain the resulting schedule for each flexible device: see [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
+                          The given UUID is returned in the canonical `job` field.
+                          The given UUID may be used to obtain the resulting schedule for each flexible device via [/sensors/schedules/](#/Sensors/get_api_v3_0_sensors__id__schedules__uuid_).
                         value:
-                          status: PROCESSED
+                          status: ACCEPTED
+                          job: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
                           schedule: "364bfd06-c1fa-430b-8d25-8f5a547651fb"
-                          message: "Request has been processed."
+                          job-url: "/api/v3_0/jobs/364bfd06-c1fa-430b-8d25-8f5a547651fb"
+                          message: "Request has been accepted for processing."
               400:
                 description: INVALID_DATA
               401:
@@ -1546,9 +1662,11 @@ class AssetAPI(FlaskView):
         except ValueError as err:
             return unprocessable_entity(str(err))
 
-        response = dict(schedule=job.id)
-        d, s = request_processed()
-        return dict(**response, **d), s
+        # Keep legacy `schedule` key for backward compatibility; prefer `job`.
+        return request_accepted_for_processing(
+            job.id,
+            legacy_key="schedule",
+        )
 
     @route("/<id>/kpis", methods=["GET"])
     @use_kwargs(

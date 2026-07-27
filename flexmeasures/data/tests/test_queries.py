@@ -417,3 +417,43 @@ def test_generic_asset_search_beliefs_account_id_filter(
     )
     bdf_all = bdf_dict_all[sensor]
     assert len(bdf_all) == 3
+
+
+def test_user_source_ids_criterion(db, setup_markets, setup_roles_users):
+    """Searching with user_source_ids should ignore other users' data,
+    while leaving non-user sources unaffected."""
+    from flexmeasures.data.models.user import User
+    from flexmeasures.data.services.data_sources import get_or_create_source
+
+    sensor = db.session.execute(
+        select(Sensor).filter(Sensor.name == "epex_da")
+    ).scalar_one_or_none()
+    user_1 = get_or_create_source(
+        db.session.get(User, setup_roles_users["Test Prosumer User"])
+    )
+    user_2 = get_or_create_source(
+        db.session.get(User, setup_roles_users["Test Prosumer User 2"])
+    )
+    script = DataSource(name="test script", type="scheduling script")
+    db.session.add(script)
+    db.session.flush()
+    db.session.add_all(
+        TimedBelief(
+            sensor=sensor,
+            source=source,
+            event_value=value,
+            event_start="2021-04-01 00:00+02",
+            belief_horizon=timedelta(0),
+        )
+        for value, source in [(1, user_1), (2, user_2), (3, script)]
+    )
+
+    bdf = TimedBelief.search(
+        sensor,
+        user_source_ids=[user_1.id],
+        most_recent_beliefs_only=False,
+    )
+    returned_sources = set(bdf.index.get_level_values("source"))
+    assert user_1 in returned_sources
+    assert script in returned_sources, "non-user sources should be unaffected"
+    assert user_2 not in returned_sources, "other users' data should be ignored"

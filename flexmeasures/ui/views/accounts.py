@@ -36,10 +36,26 @@ class AccountCrudUI(FlaskView):
         """/accounts"""
 
         user_can_create_account = user_can_add_accounts()
+        if user_has_admin_access(current_user, "read"):
+            accessible_accounts = get_accounts()
+        else:
+            accessible_accounts = [current_user.account] + (
+                current_user.account.consultancy_client_accounts
+                if "consultant" in current_user.roles
+                else []
+            )
+        account_role_options = sorted(
+            {
+                role.name
+                for account in accessible_accounts
+                for role in account.account_roles
+            }
+        )
 
         return render_flexmeasures_template(
             "accounts/accounts.html",
             user_can_create_account=user_can_create_account,
+            account_role_options=account_role_options,
         )
 
     @route("/new", methods=["GET"])

@@ -19,7 +19,9 @@ from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 from flexmeasures.data.schemas.units import QuantityField
 from flexmeasures.data.schemas.scheduling import metadata
 from flexmeasures.data.schemas.sensors import (
+    SensorIdField,
     SensorReference,
+    SharedSensorReferenceSchema,
     OutputSensorReferenceSchema,
     VariableQuantityField,
 )
@@ -30,6 +32,53 @@ from flexmeasures.utils.unit_utils import (
 )
 
 ALLOWED_COMMODITIES = {"electricity", "gas"}
+
+
+def _validate_group_sensor_is_power_sensor(group: dict):
+    """Check that the sensor referenced by the `group` field measures power."""
+    sensor = group.get("sensor")
+    if isinstance(sensor, (Sensor, SensorReference)) and not is_power_unit(sensor.unit):
+        raise ValidationError(
+            "The `group` field must reference a sensor with a power unit.",
+            field_name="group",
+        )
+
+
+class GroupReferenceSchema(SharedSensorReferenceSchema):
+    """Reference to a group of devices whose aggregate power is constrained.
+
+    Accepts exactly one of:
+      - ``{"sensor": <id>}``: the group's aggregate power is stored on this power sensor
+        (the sensor must itself carry a flex-model entry defining the group's
+        constraints).
+      - ``{"asset": <id>}``: the group is identified by the flex-model entry on this
+        asset (typically a sub-EMS/asset in the tree). Such a group entry defines no
+        power sensor of its own; instead it may define ``consumption`` and/or
+        ``production`` output sensors on which the group's aggregate power gets saved,
+        following the usual output-sensor conventions.
+
+    Inherits from ``SharedSensorReferenceSchema`` (not ``SensorReferenceSchema``) so it
+    accepts only ``sensor``/``asset`` -- a group is a device-group identifier, not a
+    belief-query reference, so the ``source-*`` filter fields do not apply.
+    """
+
+    class Meta:
+        description = (
+            "Reference to a group of devices whose aggregate power is constrained."
+        )
+
+    sensor = SensorIdField(required=False)
+    asset = GenericAssetIdField(required=False)
+
+    @validates_schema
+    def validate_exactly_one_reference(self, data: dict, **kwargs):
+        has_sensor = "sensor" in data
+        has_asset = "asset" in data
+        if has_sensor == has_asset:  # both or neither
+            raise ValidationError(
+                "The `group` field must reference exactly one of 'sensor' or 'asset'."
+            )
+
 
 #  Telling type hints what to expect after schema parsing
 SoCTarget = TypedDict(
@@ -74,6 +123,128 @@ class EfficiencyField(QuantityField):
             *args,
             **kwargs,
         )
+
+
+class OperationModeSchema(Schema):
+    """One operation mode of a device, in the sense of the S2 standard.
+
+    A device with operation modes can only run within one of the declared modes'
+    power ranges at any given time. Each range is given with an explicit sign
+    convention: ``consumption-range`` (non-negative, positive means consumption)
+    and/or ``production-range`` (non-negative, positive means production). A mode
+    may use either or both; using both forms a single band through zero (so both
+    must then start at 0). The S2 standard fixes one sign convention for power
+    (positive means consumption), whereas FM leaves it to the user; an S2
+    power-range therefore maps onto these fields by sign: its non-negative part
+    corresponds to the FM ``consumption-range``, negative S2 power values
+    (production) correspond to the FM ``production-range`` (with their sign
+    flipped to non-negative), and an S2 range spanning zero maps to a
+    combination of both. A device that can only be off or run at exactly
+    883.7 W of consumption declares:
+
+        [{"consumption-range": ["0 W", "0 W"]}, {"consumption-range": ["883.7 W", "883.7 W"]}]
+    """
+
+    consumption_range = fields.List(
+        QuantityField(to_unit="MW", default_src_unit="MW", return_magnitude=False),
+        data_key="consumption-range",
+        required=False,
+        validate=validate.Length(equal=2),
+        metadata=dict(
+            description="Consumption power range [min, max] of this operation mode "
+            "(non-negative; positive is consumption). The non-negative part of an "
+            "S2 power-range maps to this field.",
+        ),
+    )
+    production_range = fields.List(
+        QuantityField(to_unit="MW", default_src_unit="MW", return_magnitude=False),
+        data_key="production-range",
+        required=False,
+        validate=validate.Length(equal=2),
+        metadata=dict(
+            description="Production power range [min, max] of this operation mode "
+            "(non-negative; positive is production). Negative (production) values "
+            "of an S2 power-range map to this field, with their sign flipped.",
+        ),
+    )
+
+    @staticmethod
+    def signed_band(mode: dict) -> tuple[float, float]:
+        """Convert one deserialized operation mode into a signed ``(min, max)``
+        power band in MW (positive is consumption), as used by the device scheduler.
+
+        The ``consumption-range`` maps to the positive side and the
+        ``production-range`` to the negative side; combining both (each validated
+        to start at 0) yields one band through zero ``[-production_max, +consumption_max]``.
+
+        >>> schema = OperationModeSchema()
+        >>> OperationModeSchema.signed_band(schema.load({"consumption-range": ["500 kW", "2 MW"]}))
+        (0.5, 2.0)
+        >>> OperationModeSchema.signed_band(schema.load({"production-range": ["500 kW", "1 MW"]}))
+        (-1.0, -0.5)
+        >>> OperationModeSchema.signed_band(schema.load(
+        ...     {"consumption-range": ["0 MW", "2 MW"], "production-range": ["0 MW", "1 MW"]}
+        ... ))
+        (-1.0, 2.0)
+        """
+        cons = mode.get("consumption_range")
+        prod = mode.get("production_range")
+        if cons and prod:
+            return (
+                -float(prod[1].to("MW").magnitude),
+                float(cons[1].to("MW").magnitude),
+            )
+        if cons:
+            return (
+                float(cons[0].to("MW").magnitude),
+                float(cons[1].to("MW").magnitude),
+            )
+        if prod is None:
+            # check_ranges guarantees at least one range upon deserialization
+            raise ValueError(
+                "An operation mode must declare a consumption-range and/or a production-range."
+            )
+        return (
+            -float(prod[1].to("MW").magnitude),
+            -float(prod[0].to("MW").magnitude),
+        )
+
+    @validates_schema
+    def check_ranges(self, data: dict, **kwargs):
+        cons = data.get("consumption_range")
+        prod = data.get("production_range")
+        if cons is None and prod is None:
+            raise ValidationError(
+                "An operation mode must declare a consumption-range and/or a production-range."
+            )
+        for name, rng in (("consumption-range", cons), ("production-range", prod)):
+            if rng is None:
+                continue
+            if rng[0].to("MW").magnitude < 0:
+                other = (
+                    "production-range"
+                    if name == "consumption-range"
+                    else "consumption-range"
+                )
+                raise ValidationError(
+                    f"An operation mode's {name} must be non-negative. "
+                    f"To express power flowing in the opposite direction, move the negative part "
+                    f"(with its sign flipped) to the mode's {other}; a range spanning zero "
+                    f"becomes a combination of both, each starting at 0."
+                )
+            if rng[0] > rng[1]:
+                raise ValidationError(
+                    f"The minimum of an operation mode's {name} cannot exceed its maximum."
+                )
+        if (
+            cons is not None
+            and prod is not None
+            and (cons[0].to("MW").magnitude != 0 or prod[0].to("MW").magnitude != 0)
+        ):
+            raise ValidationError(
+                "When an operation mode combines consumption-range and production-range, "
+                "both must start at 0 (so they form one contiguous band through zero)."
+            )
 
 
 class StorageFlexModelSchema(Schema):
@@ -146,6 +317,20 @@ class StorageFlexModelSchema(Schema):
         data_key="production-capacity",
         required=False,
         metadata=metadata.PRODUCTION_CAPACITY.to_dict(),
+    )
+
+    operation_modes = fields.List(
+        fields.Nested(OperationModeSchema()),
+        data_key="operation-modes",
+        required=False,
+        validate=validate.Length(min=1),
+        metadata=metadata.OPERATION_MODES.to_dict(),
+    )
+    group = fields.Nested(
+        GroupReferenceSchema,
+        data_key="group",
+        required=False,
+        metadata=metadata.GROUP.to_dict(),
     )
 
     # Activation prices
@@ -258,14 +443,6 @@ class StorageFlexModelSchema(Schema):
         self.start = start
         self.sensor = sensor
         self.timezone = sensor.timezone if sensor is not None else None
-        self.flooring_resolution = (
-            sensor.event_resolution
-            if sensor is not None
-            and sensor.event_resolution != timedelta(0)
-            and sensor.get_attribute("floor_datetimes_to_resolution", True)
-            else None
-        )
-
         # guess default soc-unit
         if default_soc_unit is None:
             if self.sensor is not None and self.sensor.unit in ("MWh", "kWh"):
@@ -275,34 +452,17 @@ class StorageFlexModelSchema(Schema):
             else:
                 default_soc_unit = "MWh"
 
-        self.soc_maxima = VariableQuantityField(
-            to_unit="MWh",
-            default_src_unit=default_soc_unit,
-            timezone=self.timezone,
-            event_resolution=self.flooring_resolution,
-            data_key="soc-maxima",
-        )
-
-        self.soc_minima = VariableQuantityField(
-            to_unit="MWh",
-            default_src_unit=default_soc_unit,
-            timezone=self.timezone,
-            event_resolution=self.flooring_resolution,
-            data_key="soc-minima",
-            value_validator=validate.Range(min=0),
-        )
-        self.soc_targets = VariableQuantityField(
-            to_unit="MWh",
-            default_src_unit=default_soc_unit,
-            timezone=self.timezone,
-            event_resolution=self.flooring_resolution,
-            data_key="soc-targets",
-        )
-
         super().__init__(*args, **kwargs)
-        if default_soc_unit is not None:
-            for field in self.fields.keys():
-                if field.startswith("soc_"):
+        for field in self.fields.keys():
+            if field.startswith("soc_"):
+                # Override the class-level placeholders. Note that assigning new
+                # instance-level fields would be inert (marshmallow resolves fields
+                # from the class-level declared fields), so we set attributes on
+                # the bound fields instead. SoC event datetimes are deliberately
+                # not floored (no event_resolution is set): off-tick events are
+                # preserved and later projected onto the scheduling ticks.
+                setattr(self.fields[field], "timezone", self.timezone)
+                if default_soc_unit is not None:
                     setattr(self.fields[field], "default_src_unit", default_soc_unit)
 
     @validates_schema
@@ -340,6 +500,10 @@ class StorageFlexModelSchema(Schema):
             raise ValidationError(
                 "The `state-of-charge` field can only be a Sensor or a time series."
             )
+
+    @validates("group")
+    def validate_group(self, group: dict, **kwargs):
+        _validate_group_sensor_is_power_sensor(group)
 
     @validates("asset")
     def validate_asset(self, asset: Asset, **kwargs):
@@ -427,6 +591,13 @@ class DBStorageFlexModelSchema(Schema):
 
     consumption = fields.Nested(OutputSensorReferenceSchema)
     production = fields.Nested(OutputSensorReferenceSchema)
+
+    group = fields.Nested(
+        GroupReferenceSchema,
+        data_key="group",
+        required=False,
+        metadata=metadata.GROUP.to_dict(),
+    )
 
     soc_min = VariableQuantityField(
         to_unit="MWh",
@@ -567,6 +738,10 @@ class DBStorageFlexModelSchema(Schema):
             field: (self.declared_fields[field].data_key or field)
             for field in self.declared_fields
         }
+
+    @validates("group")
+    def validate_group(self, group: dict, **kwargs):
+        _validate_group_sensor_is_power_sensor(group)
 
     @validates_schema
     def forbid_time_series_specs(self, data: dict, **kwargs):

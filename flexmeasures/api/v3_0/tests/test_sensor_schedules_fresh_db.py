@@ -73,7 +73,16 @@ def test_trigger_and_get_schedule(
             json=message,
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
+        assert (
+            trigger_schedule_response.json["job"]
+            == trigger_schedule_response.json["schedule"]
+        )
+        assert trigger_schedule_response.json["results-url"] == url_for(
+            "SensorAPI:get_schedule",
+            id=sensor.id,
+            uuid=trigger_schedule_response.json["schedule"],
+        )
         job_id = trigger_schedule_response.json["schedule"]
 
     # look for scheduling jobs in queue
@@ -263,7 +272,7 @@ def test_trigger_schedule_uses_state_of_charge_sensor_for_soc_at_start(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
         )
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
         job_id = trigger_schedule_response.json["schedule"]
 
     work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
@@ -481,7 +490,7 @@ def test_price_sensor_priority(
             json=message,
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
 
     # Patch TimedBelief.search method
     with patch.object(
@@ -572,7 +581,7 @@ def test_inflexible_device_sensors_priority(
             json=message,
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
 
     with patch(
         "flexmeasures.data.models.planning.storage.get_power_values",
@@ -653,7 +662,7 @@ def test_multiple_contracts(
             json=message,
         )
         print("Server responded with:\n%s" % trigger_schedule_response.json)
-        assert trigger_schedule_response.status_code == 200
+        assert trigger_schedule_response.status_code == 202
         job_id = trigger_schedule_response.json["schedule"]
 
     # process the scheduling queue
@@ -860,7 +869,7 @@ def test_get_schedule_sign_convention_json_flex_model(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
     work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)
@@ -967,7 +976,7 @@ def test_get_schedule_sign_convention_db_flex_model(
             url_for("SensorAPI:trigger_schedule", id=sensor.id),
             json=message,
         )
-        assert trigger_response.status_code == 200
+        assert trigger_response.status_code == 202
         job_id = trigger_response.json["schedule"]
 
     work_on_rq(app.queues["scheduling"], exc_handler=handle_scheduling_exception)

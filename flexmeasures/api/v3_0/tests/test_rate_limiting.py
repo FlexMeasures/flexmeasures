@@ -127,7 +127,7 @@ def test_trigger_rate_limit(
     scheduling_queue = app.queues["scheduling"]
 
     with app.test_client() as client:
-        assert trigger(client, battery).status_code == 200
+        assert trigger(client, battery).status_code == 202
 
         # The accepted trigger queued a scheduling job
         assert len(scheduling_queue) == 1
@@ -172,7 +172,7 @@ def test_rejected_triggers_do_not_spend_the_trigger_budget(
             assert trigger(client, battery, message={}).status_code == 422
 
         # The budget is still there for a trigger we do accept ...
-        assert trigger(client, battery).status_code == 200
+        assert trigger(client, battery).status_code == 202
         # ... and now it is spent
         assert trigger(client, battery).status_code == 429
 
@@ -181,7 +181,7 @@ def test_rejected_triggers_do_not_spend_the_trigger_budget(
     "rate_limit_key, expected_status_code_for_other_asset",
     [
         # Each asset gets its own budget ...
-        (RateLimitKey.ACCOUNT_PLUS_ASSET.value, 200),
+        (RateLimitKey.ACCOUNT_PLUS_ASSET.value, 202),
         # ... unless the whole account or user shares one budget
         (RateLimitKey.ACCOUNT.value, 429),
         (RateLimitKey.USER.value, 429),
@@ -209,7 +209,7 @@ def test_trigger_rate_limit_key(
     other_battery = add_battery_assets["Test small battery"]
 
     with app.test_client() as client:
-        assert trigger(client, battery).status_code == 200  # spends the budget
+        assert trigger(client, battery).status_code == 202  # spends the budget
         assert trigger(client, battery).status_code == 429
         response = trigger(client, other_battery)
 
@@ -242,7 +242,7 @@ def test_deprecated_sensor_endpoint_shares_the_asset_budget(
     battery = add_battery_assets["Test battery"]
 
     with app.test_client() as client:
-        assert trigger(client, battery).status_code == 200  # spends the asset's budget
+        assert trigger(client, battery).status_code == 202  # spends the asset's budget
         response = trigger_through_deprecated_sensor_endpoint(
             client, battery.sensors[0]
         )
@@ -274,7 +274,7 @@ def test_account_can_override_trigger_rate_limit(
 
     with app.test_client() as client:
         for _ in range(2):
-            assert trigger(client, battery).status_code == 200
+            assert trigger(client, battery).status_code == 202
         assert trigger(client, battery).status_code == 429
 
 
@@ -302,7 +302,7 @@ def test_account_can_be_exempt_from_trigger_rate_limit(
 
     with app.test_client() as client:
         for _ in range(3):
-            assert trigger(client, battery).status_code == 200
+            assert trigger(client, battery).status_code == 202
 
 
 @pytest.mark.parametrize(
@@ -334,7 +334,7 @@ def test_plan_rate_limit_key_overrides_config(
     other_battery = add_battery_assets["Test small battery"]
 
     with app.test_client() as client:
-        assert trigger(client, battery).status_code == 200  # spends the budget
+        assert trigger(client, battery).status_code == 202  # spends the budget
         # The account-level key means the other asset shares the same budget
         assert trigger(client, other_battery).status_code == 429
 
@@ -364,5 +364,5 @@ def test_invalid_rate_limit_key_falls_back_instead_of_erroring(
     other_battery = add_battery_assets["Test small battery"]
 
     with app.test_client() as client:
-        assert trigger(client, battery).status_code == 200
+        assert trigger(client, battery).status_code == 202
         assert trigger(client, other_battery).status_code == 429
