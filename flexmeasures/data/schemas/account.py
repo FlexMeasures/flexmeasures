@@ -248,7 +248,9 @@ class AccountPatchSchema(Schema):
         get to say. None clears the plan, which falls the account back on the server config.
         """
         if not user_has_admin_access(current_user, "update"):
-            raise Forbidden("You must be an admin to put an account on a plan.")
+            raise Forbidden(
+                "Only platform administrators may change the plan an organisation is on."
+            )
         if value is None:
             return
         plan = db.session.get(Plan, value)

@@ -417,8 +417,7 @@ def test_patch_account_plan(
         url_for("AccountAPI:patch", id=account.id),
         json={"plan_id": plan.id},
     )
-    print(f"Response: {response.json}")
-    assert response.status_code == expected_status_code
+    assert response.status_code == expected_status_code, response.json
     if expected_status_code == 200:
         assert response.json["plan_id"] == plan.id
         assert account.plan == plan
@@ -436,8 +435,7 @@ def test_patch_account_unknown_plan(db, client, setup_api_test_data, requesting_
         url_for("AccountAPI:patch", id=account.id),
         json={"plan_id": 999999},
     )
-    print(f"Response: {response.json}")
-    assert response.status_code == 422
+    assert response.status_code == 422, response.json
     assert account.plan == plan_before
 
 
@@ -454,8 +452,7 @@ def test_patch_account_legacy_plan(db, client, setup_api_test_data, requesting_u
         url_for("AccountAPI:patch", id=account.id),
         json={"plan_id": legacy_plan.id},
     )
-    print(f"Response: {response.json}")
-    assert response.status_code == 422
+    assert response.status_code == 422, response.json
     assert account.plan == plan_before
 
 
