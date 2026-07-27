@@ -308,6 +308,31 @@ def test_account_can_be_exempt_from_trigger_rate_limit(
 @pytest.mark.parametrize(
     "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
 )
+def test_account_can_be_exempt_from_default_rate_limit(
+    db, app, rate_limiting, requesting_user
+):
+    """An account can be exempted from the default limit, too.
+
+    This also covers that the "unlimited" sentinel never reaches the limit parser:
+    the exemption is granted by exempt_when, while the limit callable falls back
+    to the server config.
+    """
+    rate_limiting.setitem(
+        app.config, "FLEXMEASURES_API_DEFAULT_RATE_LIMIT", "1 per minute"
+    )
+    requesting_user.account.plan = Plan(
+        name="test-plan-default-unlimited", default_rate_limit="unlimited"
+    )
+    db.session.commit()
+
+    with app.test_client() as client:
+        for _ in range(3):
+            assert client.get(url_for("SensorAPI:index")).status_code == 200
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_prosumer_user@seita.nl"], indirect=True
+)
 def test_plan_rate_limit_key_overrides_config(
     db,
     app,

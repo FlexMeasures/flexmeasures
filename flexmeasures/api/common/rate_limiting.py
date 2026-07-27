@@ -122,18 +122,25 @@ def trigger_key_func() -> str:
     return f"{account_key}|asset:{asset_id}"
 
 
+def _limit(limit_name: str, config_key: str) -> str:
+    """The plan's limit if it sets one, else the server-wide config setting.
+
+    Never returns the "unlimited" sentinel: that is not a limit the parser understands,
+    but an exemption, which the exempt_when callables grant. What we return in that case
+    is irrelevant, as long as it parses.
+    """
+    account_limit = _account_rate_limit(limit_name)
+    if account_limit is None or account_limit == UNLIMITED_RATE_LIMIT:
+        return current_app.config[config_key]
+    return account_limit
+
+
 def default_limit() -> str:
-    return (
-        _account_rate_limit("default")
-        or current_app.config["FLEXMEASURES_API_DEFAULT_RATE_LIMIT"]
-    )
+    return _limit("default", "FLEXMEASURES_API_DEFAULT_RATE_LIMIT")
 
 
 def trigger_limit() -> str:
-    return (
-        _account_rate_limit("trigger")
-        or current_app.config["FLEXMEASURES_API_TRIGGER_RATE_LIMIT"]
-    )
+    return _limit("trigger", "FLEXMEASURES_API_TRIGGER_RATE_LIMIT")
 
 
 def _exempt_from_default_limit() -> bool:
