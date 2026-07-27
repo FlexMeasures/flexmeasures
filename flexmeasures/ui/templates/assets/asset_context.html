@@ -354,6 +354,18 @@
         return backendType === "typeTwo" || backendType === "typeFour";
     }
 
+    // Multi-sensor list fields (e.g. inflexible-consumption/inflexible-production)
+    // keep their card active so several sensors can be added in a row.
+    function isSensorListField(fieldName) {
+        return schemaSpecs[fieldName]?.["types"]?.["backend"] === "typeFour";
+    }
+
+    // Entries of sensor list fields are sensor references ({"sensor": <id>}, possibly
+    // with source filters); the deprecated inflexible-device-sensors field holds bare ids.
+    function entrySensorId(entry) {
+        return (typeof entry === "object" && entry !== null) ? entry["sensor"] : entry;
+    }
+
     // ============== Commodity scope BEGIN ============== //
     // The editor either works on the top-level flex-context (the electricity
     // commodity; activeCommodityIndex === null) or on one entry of the
@@ -640,8 +652,12 @@
                 !Array.isArray(fieldValue) && // Exclude arrays
                 Object.keys(fieldValue).length > 0;
             if (isArray) {
-                const sensorIndex = activeContext[fieldName].indexOf(sensorId);
-                activeContext[fieldName].splice(sensorIndex, 1);
+                const sensorIndex = fieldValue.findIndex(
+                    (entry) => entrySensorId(entry) === sensorId
+                );
+                if (sensorIndex !== -1) {
+                    fieldValue.splice(sensorIndex, 1);
+                }
             } else if (isKeyValueObject) {
                 activeContext[fieldName] = "";
             }
@@ -691,8 +707,9 @@
             const item = convertHtmlToElement(await renderSensor(fieldValue["sensor"]));
             sensorsContent.push(item);
         } else if (isArray) {
-            const sensorPromises = fieldValue.map(async (sensor, sensorIndex) => {
-                const item = convertHtmlToElement(await renderSensor(sensor));
+            const sensorPromises = fieldValue.map(async (entry, sensorIndex) => {
+                const sensorId = entrySensorId(entry);
+                const item = convertHtmlToElement(await renderSensor(sensorId));
                 item.classList.add("align-items-center", "pb-2");
 
                 const closeIcon = document.createElement('i');
@@ -703,7 +720,7 @@
                 closeIcon.style.cursor = 'pointer';
                 closeIcon.onclick = async () => {
                     try {
-                        await removeFlexContextSensorValue(fieldName, sensor);
+                        await removeFlexContextSensorValue(fieldName, sensorId);
                         item.remove();
                     } catch (error) {
                         console.error("Failed to remove sensor:", error);
@@ -736,7 +753,7 @@
 
         card.onclick = function () {
             if (activeCard() && activeCard().id === card.id) {
-                if (fieldName !== "inflexible-device-sensors" && fieldName !== "commitments") {
+                if (!isSensorListField(fieldName) && fieldName !== "commitments") {
                     setActiveCard(null); // Deselect if the same card is clicked again
                     // remove active card from localstorage
                     localStorage.removeItem('activeCard');
@@ -819,7 +836,7 @@
 
         if (isKeyValueObject || isArray) {
             const sensorsContainer = document.createElement('div');
-            sensorsContainer.id = `inflexible-device-sensors-container`;
+            sensorsContainer.id = `${fieldName}-container`;
             sensorsContainer.className = 'pb-2';
             sensorsContent.forEach(sensorItem => {
                 sensorsContainer.appendChild(sensorItem);
@@ -872,8 +889,8 @@
         const valueContainer = document.createElement('div');
         valueContainer.className = 'pb-2';
         if (Array.isArray(fieldValue)) {
-            for (const sensorId of fieldValue) {
-                const item = convertHtmlToElement(await renderSensor(sensorId));
+            for (const entry of fieldValue) {
+                const item = convertHtmlToElement(await renderSensor(entrySensorId(entry)));
                 item.classList.add("align-items-center", "pb-2");
                 valueContainer.appendChild(item);
             }
@@ -1025,11 +1042,12 @@
                 pendingCommitmentTarget = null;
                 return;
             }
-            if (flexId === "inflexible-device-sensors") {
+            if (isSensorListField(flexId)) {
+                const entry = { sensor: sensorId };
                 if (activeContext[flexId]) {
-                    activeContext[flexId].push(sensorId);
+                    activeContext[flexId].push(entry);
                 } else {
-                    activeContext[flexId] = [sensorId];
+                    activeContext[flexId] = [entry];
                 }
             } else {
                 activeContext[flexId] = { sensor: sensorId };

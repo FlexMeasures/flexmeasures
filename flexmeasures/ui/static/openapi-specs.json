@@ -1530,10 +1530,18 @@
                       "production-price": {
                         "sensor": 10
                       },
-                      "inflexible-device-sensors": [
-                        13,
-                        14,
-                        15
+                      "inflexible-consumption": [
+                        {
+                          "sensor": 13
+                        },
+                        {
+                          "sensor": 14
+                        }
+                      ],
+                      "inflexible-production": [
+                        {
+                          "sensor": 15
+                        }
                       ],
                       "site-power-capacity": "100 kVA",
                       "site-production-capacity": "80 kW",
@@ -4160,10 +4168,18 @@
                       "production-price": {
                         "sensor": 10
                       },
-                      "inflexible-device-sensors": [
-                        13,
-                        14,
-                        15
+                      "inflexible-consumption": [
+                        {
+                          "sensor": 13
+                        },
+                        {
+                          "sensor": 14
+                        }
+                      ],
+                      "inflexible-production": [
+                        {
+                          "sensor": 15
+                        }
                       ],
                       "site-power-capacity": "100 kVA",
                       "site-production-capacity": "80 kW",
@@ -4210,10 +4226,18 @@
                       "production-price": {
                         "sensor": 10
                       },
-                      "inflexible-device-sensors": [
-                        13,
-                        14,
-                        15
+                      "inflexible-consumption": [
+                        {
+                          "sensor": 13
+                        },
+                        {
+                          "sensor": 14
+                        }
+                      ],
+                      "inflexible-production": [
+                        {
+                          "sensor": 15
+                        }
                       ],
                       "site-power-capacity": "100 kVA",
                       "site-production-capacity": "80 kW",
@@ -4863,6 +4887,63 @@
         ],
         "additionalProperties": false
       },
+      "InflexibleDevice": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer",
+            "description": "ID of the sensor on which the data is recorded."
+          },
+          "source-types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from sources with these source types (e.g. 'user', 'script', 'forecaster', 'scheduler').",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exclude-source-types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Exclude beliefs from sources with these source types.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sources": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from these data source IDs.",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "source-account": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "default": null,
+            "description": "Only use beliefs from data sources linked to these account IDs.",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "sensor"
+        ],
+        "description": "Sensor reference from which to look up an inflexible device's power (or energy) data."
+      },
       "OutputSensorReference": {
         "type": "object",
         "properties": {
@@ -5014,13 +5095,43 @@
           },
           "inflexible-device-sensors": {
             "type": "array",
-            "description": "Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\nMust be a list of integers.\n",
+            "description": "[Deprecated field] Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.\nTo avoid using the field, use <code>inflexible-consumption</code> and/or <code>inflexible-production</code> instead, which make clear the sign convention.\nFor this field, each sensor's sign convention is determined by its <code>consumption_is_positive</code> attribute (default: false, i.e. production-positive).\nMust be a list of integers.\n",
             "example": [
               3,
               4
             ],
             "items": {
               "type": "integer"
+            }
+          },
+          "inflexible-consumption": {
+            "type": "array",
+            "description": "Power (or energy) sensors representing loads that are relevant, but not flexible in the timing of their demand.\nFor example, a sensor recording the power of a base load that is connected behind the main meter, and whose consumption falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote consumption.\nSensors that explicitly record consumption as negative values (<code>consumption_is_positive</code> attribute set to false) are rejected here; list them under <code>inflexible-production</code> instead.\n\nMust be a list of sensor references, optionally with source filters.\n",
+            "example": [
+              {
+                "sensor": 3
+              },
+              {
+                "sensor": 4
+              }
+            ],
+            "items": {
+              "$ref": "#/components/schemas/InflexibleDevice"
+            }
+          },
+          "inflexible-production": {
+            "type": "array",
+            "description": "Power (or energy) sensors representing generators that are relevant, but not flexible in the timing of their supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power supply cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote production (the FlexMeasures default).\nSensors that explicitly record production as negative values (<code>consumption_is_positive</code> attribute set to true) are rejected here; list them under <code>inflexible-consumption</code> instead.\n\nMust be a list of sensor references, optionally with source filters.\n",
+            "example": [
+              {
+                "sensor": 3
+              },
+              {
+                "sensor": 4
+              }
+            ],
+            "items": {
+              "$ref": "#/components/schemas/InflexibleDevice"
             }
           },
           "aggregate-consumption": {

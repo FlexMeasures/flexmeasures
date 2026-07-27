@@ -15,6 +15,7 @@ v1.0.0 | July XX, 2026
 New features
 -------------
 
+* New ``inflexible-consumption`` and ``inflexible-production`` flex-context fields make explicit how the sign of each inflexible device's power data should be read (positive values denote consumption resp. production), accepting sensor references with optional source filters; they replace the now-deprecated ``inflexible-device-sensors`` field (bare sensor IDs, sign read from each sensor's ``consumption_is_positive`` attribute), which remains supported [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 * Filter organisations by account role in the Accounts API and organisation list UI [see `PR #2353 <https://www.github.com/FlexMeasures/flexmeasures/pull/2353>`_]
 * The flex-context editor now also shows the fields that scheduling the asset would inherit from parent assets — uneditable, with buttons to jump to the editor of the defining parent asset or to override the field on the asset itself [see `PR #2346 <https://www.github.com/FlexMeasures/flexmeasures/pull/2346>`_]
 * Show asset annotations in asset charts: a lightly shaded time band across all subcharts, darkening with a tooltip (showing the annotation text and source) when hovered in a subchart; alerts get a warning hue, and instant annotations render as a vertical rule with a top marker; also adds a ``GET /api/v3_0/assets/<id>/chart_annotations`` endpoint [see `PR #2312 <https://www.github.com/FlexMeasures/flexmeasures/pull/2312>`_]
@@ -44,6 +45,7 @@ New features
 Infrastructure / Support
 ----------------------
 
+* The database migration for this release splits each stored flex-context's ``inflexible-device-sensors`` field into ``inflexible-consumption``/``inflexible-production`` sensor references, classifying each sensor by its ``consumption_is_positive`` attribute (behavior-preserving; sensor attributes themselves are kept). Downgrading merges them back into bare sensor IDs, dropping any source filters added in the meantime [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 * Price fields in the flex-context (including nested commitment prices, which are now also held to the flex-context's shared currency) are selected for currency validation by field type (``PriceField``) instead of by name suffix [see `PR #2311 <https://www.github.com/FlexMeasures/flexmeasures/pull/2311>`_]
 * Document ``SECURITY_TWO_FACTOR`` and related 2FA configuration settings [see `PR #2340 <https://www.github.com/FlexMeasures/flexmeasures/pull/2340>`_]
 * ``flexmeasures db upgrade`` now runs ``VACUUM ANALYZE`` after upgrading by default, so Postgres has fresh planner statistics right after a migration; opt out with ``--no-vacuum`` [see `PR #2333 <https://www.github.com/FlexMeasures/flexmeasures/pull/2333>`_]

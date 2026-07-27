@@ -25,6 +25,7 @@ from flexmeasures.data.schemas.sensors import (
     VariableQuantityField,
     SensorIdField,
     SensorReference,
+    SensorReferenceSchema,
     OutputSensorReferenceSchema,
     PriceField,
 )
@@ -177,6 +178,36 @@ class CommitmentSchema(Schema):
 
 class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
     pass
+
+
+class InflexibleDeviceSchema(SensorReferenceSchema):
+    """One inflexible device: a sensor reference with optional source filters."""
+
+    class Meta:
+        description = "Sensor reference from which to look up an inflexible device's power (or energy) data."
+
+    @post_load
+    def to_sensor_or_reference(self, data: dict, **kwargs) -> Sensor | SensorReference:
+        """Return a plain Sensor when no source filters are given (backward-compatible
+        shape downstream), and a SensorReference otherwise (see VariableQuantityField._deserialize_dict).
+        """
+        if not any(
+            data.get(key)
+            for key in (
+                "source_types",
+                "exclude_source_types",
+                "sources",
+                "source_account",
+            )
+        ):
+            return data["sensor"]
+        return SensorReference(
+            sensor=data["sensor"],
+            source_types=data.get("source_types"),
+            exclude_source_types=data.get("exclude_source_types"),
+            sources=data.get("sources"),
+            source_account=data.get("source_account"),
+        )
 
 
 class SharedSchema(Schema):
@@ -332,10 +363,22 @@ class SharedSchema(Schema):
         metadata=metadata.COMMITMENTS.to_dict(),
     )
 
+    # todo: deprecated since flexmeasures==1.0
     inflexible_device_sensors = fields.List(
         SensorIdField(),
         data_key="inflexible-device-sensors",
         metadata=metadata.INFLEXIBLE_DEVICE_SENSORS.to_dict(),
+    )
+
+    inflexible_consumption = fields.List(
+        fields.Nested(InflexibleDeviceSchema),
+        data_key="inflexible-consumption",
+        metadata=metadata.INFLEXIBLE_CONSUMPTION.to_dict(),
+    )
+    inflexible_production = fields.List(
+        fields.Nested(InflexibleDeviceSchema),
+        data_key="inflexible-production",
+        metadata=metadata.INFLEXIBLE_PRODUCTION.to_dict(),
     )
 
     # Aggregate output sensors
@@ -351,6 +394,53 @@ class SharedSchema(Schema):
         data_key="aggregate-production",
         metadata=metadata.AGGREGATE_PRODUCTION.to_dict(),
     )
+
+    @validates_schema
+    def check_inflexible_devices(self, data: dict, **kwargs):
+        """Check assumptions about inflexible devices.
+
+        1. The deprecated ``inflexible-device-sensors`` field must not be mixed with
+           ``inflexible-consumption``/``inflexible-production``.
+        2. Each sensor may be listed at most once across the two new fields.
+        3. A sensor's explicit ``consumption_is_positive`` attribute must not contradict
+           the sign convention of the field it is listed under. Note the deliberate
+           asymmetry with the legacy read path: here only the sensor's own explicitly
+           set attribute counts (as in the flex-model's consumption/production output
+           sensors), whereas ``inflexible-device-sensors`` entries defer to
+           ``Sensor.get_attribute`` (which falls back to the sensor's asset).
+        """
+        if "inflexible_device_sensors" in data and (
+            "inflexible_consumption" in data or "inflexible_production" in data
+        ):
+            raise ValidationError(
+                "Must pass either inflexible-device-sensors (deprecated) or inflexible-consumption/inflexible-production.",
+                field_name="inflexible-device-sensors",
+            )
+
+        seen_sensor_ids = set()
+        for field, data_key, consumption_is_positive in (
+            ("inflexible_consumption", "inflexible-consumption", True),
+            ("inflexible_production", "inflexible-production", False),
+        ):
+            for entry in data.get(field, []):
+                sensor = entry.sensor if isinstance(entry, SensorReference) else entry
+                if sensor.id in seen_sensor_ids:
+                    raise ValidationError(
+                        f"Sensor {sensor.id} may only be listed once across inflexible-consumption and inflexible-production.",
+                        field_name=data_key,
+                    )
+                seen_sensor_ids.add(sensor.id)
+                explicit_attribute = (sensor.attributes or {}).get(
+                    "consumption_is_positive"
+                )
+                if (
+                    explicit_attribute is not None
+                    and explicit_attribute != consumption_is_positive
+                ):
+                    raise ValidationError(
+                        f"Sensor {sensor.id} has `consumption_is_positive={explicit_attribute}`, which conflicts with the sign convention of the `{data_key}` field.",
+                        field_name=data_key,
+                    )
 
     def set_default_breach_prices(
         self, data: dict, fields: list[str], price: ur.Quantity
@@ -1085,9 +1175,14 @@ UI_FLEX_CONTEXT_SCHEMA: Dict[str, Dict[str, Any]] = {
         "description": rst_to_openapi(metadata.SITE_PEAK_PRODUCTION_PRICE.description),
         "example-units": EXAMPLE_UNIT_TYPES["power-price"],
     },
-    "inflexible-device-sensors": {
+    "inflexible-consumption": {
         "default": [],
-        "description": rst_to_openapi(metadata.INFLEXIBLE_DEVICE_SENSORS.description),
+        "description": rst_to_openapi(metadata.INFLEXIBLE_CONSUMPTION.description),
+        "example-units": EXAMPLE_UNIT_TYPES["power"],
+    },
+    "inflexible-production": {
+        "default": [],
+        "description": rst_to_openapi(metadata.INFLEXIBLE_PRODUCTION.description),
         "example-units": EXAMPLE_UNIT_TYPES["power"],
     },
     "commitments": {
@@ -1429,13 +1524,17 @@ class DBFlexContextSchema(FlexContextSchema, NoTimeSeriesSpecs):
                 )
 
     def _validate_inflexible_device_sensors(self, data: dict):
-        """Validate inflexible device sensors."""
-        if "inflexible_device_sensors" in data:
-            for sensor in data["inflexible_device_sensors"]:
+        """Validate inflexible device sensors (both Sensor and SensorReference entries)."""
+        for field in (
+            "inflexible_device_sensors",
+            "inflexible_consumption",
+            "inflexible_production",
+        ):
+            for sensor in data.get(field, []):
                 if not is_power_unit(sensor.unit) and not is_energy_unit(sensor.unit):
                     raise ValidationError(
                         f"Inflexible device sensor '{sensor.id}' must have a power or energy unit.",
-                        field_name="inflexible-device-sensors",
+                        field_name=self.mapped_schema_keys[field],
                     )
 
     def _forbid_fixed_prices(self, data: dict, **kwargs):

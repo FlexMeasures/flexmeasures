@@ -935,13 +935,15 @@ class MetaStorageScheduler(Scheduler):
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
             for i in range(inventory.num_scheduled)
         ]
-        for i, inflexible_sensor in enumerate(inventory.inflexible_sensors):
+        for i, inflexible_device in enumerate(inventory.inflexible_devices):
             device_constraints[i + num_flexible_devices]["derivative equals"] = (
                 get_power_values(
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    sensor=inflexible_sensor,
+                    sensor=inflexible_device.sensor_reference
+                    or inflexible_device.power_sensor,
+                    consumption_is_positive=inflexible_device.consumption_is_positive,
                 )
             )
 
@@ -2985,9 +2987,10 @@ class StorageScheduler(MetaStorageScheduler):
 
         Device enumeration order (the inventory's canonical order, also used by `_prepare()`):
             1. flexible devices (from the flex-model), in order,
-            2. top-level (electricity) inflexible-device-sensors, in order,
-            3. each commodity context's own inflexible-device-sensors, in the order the
-               commodity contexts are given.
+            2. top-level (electricity) inflexible devices, in order,
+            3. each commodity context's own inflexible devices, in the order the
+               commodity contexts are given
+               (within each context, fields are read in INFLEXIBLE_DEVICE_FIELDS order).
 
         The returned device indices line up with entries of `ems_schedule` /
         `device_constraints`.

@@ -33,6 +33,29 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 
 
+#: The flex-context keys (as stored/passed, i.e. with hyphens) that together define
+#: the inflexible devices. They form one field family: the deprecated key must not
+#: be mixed with the newer sign-explicit keys in a single flex-context, and a
+#: definition of any of them shadows definitions from other sources (e.g. an
+#: ancestor asset's flex-context) for the whole family.
+INFLEXIBLE_DEVICE_KEYS = (
+    "inflexible-device-sensors",
+    "inflexible-consumption",
+    "inflexible-production",
+)
+
+#: The same field family as deserialized (with underscores), in canonical order,
+#: together with the sign convention of each field's data: True means positive
+#: values denote consumption, False means positive values denote production, and
+#: None means the sign convention is read from each sensor's
+#: ``consumption_is_positive`` attribute (the deprecated field's behavior).
+INFLEXIBLE_DEVICE_FIELDS: tuple[tuple[str, bool | None], ...] = (
+    ("inflexible_device_sensors", None),
+    ("inflexible_consumption", True),
+    ("inflexible_production", False),
+)
+
+
 class DeviceRole(Enum):
     """The role a flex-model (or flex-context) entry plays in the scheduling problem.
 
@@ -72,6 +95,15 @@ class FlexDevice:
     #: Key of the stock this device draws from: the id of its state-of-charge sensor, or a unique negative synthetic key for devices without one.
     #: None for inflexible devices.
     stock_key: int | None = None
+    #: For inflexible devices: whether positive sensor values mean consumption,
+    #: as determined by the flex-context field the device was listed under
+    #: (``inflexible-consumption`` → True, ``inflexible-production`` → False).
+    #: None means the sign convention is read from the sensor's
+    #: ``consumption_is_positive`` attribute (deprecated ``inflexible-device-sensors``).
+    consumption_is_positive: bool | None = None
+    #: For inflexible devices given as a sensor reference with source filters:
+    #: the SensorReference (a schema-layer object, hence untyped here); None otherwise.
+    sensor_reference: Any | None = None
 
     @property
     def sensor_id(self) -> int | None:
@@ -276,9 +308,14 @@ class DeviceInventory:
     The canonical device enumeration is:
 
     1. flexible devices (flex-model entries with role DEVICE), in flex-model order,
-    2. top-level (electricity) inflexible-device-sensors from the flex-context, in order,
-    3. each commodity context's own inflexible-device-sensors, in the order the
+    2. top-level (electricity) inflexible devices from the flex-context, in order,
+    3. each commodity context's own inflexible devices, in the order the
        commodity contexts are given.
+
+    Within each context, inflexible devices are enumerated per field in
+    INFLEXIBLE_DEVICE_FIELDS order (the deprecated ``inflexible-device-sensors``
+    first, then ``inflexible-consumption``, then ``inflexible-production``), each
+    field's entries in the order they are given.
 
     This is the one enumeration both `_prepare()` and the result mapping rely on,
     so they cannot drift apart.
@@ -405,40 +442,53 @@ class DeviceInventory:
 
         # Inflexible devices from the flex-context: top-level (electricity) sensors
         # first, then each commodity context's own sensors, in context order.
+        # Within each context, fields are read in INFLEXIBLE_DEVICE_FIELDS order.
         index = len(inventory.devices)
-        for inflexible_sensor in flex_context.get("inflexible_device_sensors", []):
-            inventory.inflexible_devices.append(
-                FlexDevice(
-                    role=DeviceRole.INFLEXIBLE,
-                    index=index,
-                    flex_model=None,
-                    power_sensor=inflexible_sensor,
-                    asset=getattr(inflexible_sensor, "asset", None),
-                    commodity="electricity",
-                )
-            )
-            index += 1
+        index = inventory._register_inflexible_devices(
+            flex_context, "electricity", index
+        )
         for commodity_context in flex_context.get("commodity_contexts", []):
-            commodity = commodity_context["commodity"]
-            for inflexible_sensor in commodity_context.get(
-                "inflexible_device_sensors", []
-            ):
-                inventory.inflexible_devices.append(
-                    FlexDevice(
-                        role=DeviceRole.INFLEXIBLE,
-                        index=index,
-                        flex_model=None,
-                        power_sensor=inflexible_sensor,
-                        asset=getattr(inflexible_sensor, "asset", None),
-                        commodity=commodity,
-                    )
-                )
-                index += 1
+            index = inventory._register_inflexible_devices(
+                commodity_context, commodity_context["commodity"], index
+            )
 
         assert all(
             device.index == d for d, device in enumerate(inventory.devices)
         ), "Device indices must match their position among the schedulable devices."
         return inventory
+
+    def _register_inflexible_devices(
+        self, context: dict, commodity: str, index: int
+    ) -> int:
+        """Register one (commodity) context's inflexible devices, in canonical field order.
+
+        Entries of the newer sign-explicit fields are either plain Sensors or
+        SensorReference objects (carrying source filters); the underlying sensor
+        becomes the device's power sensor either way.
+        """
+        for field_name, consumption_is_positive in INFLEXIBLE_DEVICE_FIELDS:
+            for entry in context.get(field_name, []):
+                # Tolerate SensorReference-like objects without importing schema
+                # modules (and plain sensor stand-ins, as some unit tests use).
+                reference_sensor = getattr(entry, "sensor", None)
+                if reference_sensor is not None:
+                    sensor, sensor_reference = reference_sensor, entry
+                else:
+                    sensor, sensor_reference = entry, None
+                self.inflexible_devices.append(
+                    FlexDevice(
+                        role=DeviceRole.INFLEXIBLE,
+                        index=index,
+                        flex_model=None,
+                        power_sensor=sensor,
+                        asset=getattr(sensor, "asset", None),
+                        commodity=commodity,
+                        consumption_is_positive=consumption_is_positive,
+                        sensor_reference=sensor_reference,
+                    )
+                )
+                index += 1
+        return index
 
     @property
     def num_flexible(self) -> int:

@@ -352,3 +352,68 @@ def test_stock_constraint_device():
     device_c = inventory.devices[2]
     assert inventory.stock_constraint_device(device_c.stock_key) == 2
     assert inventory.stock_constraint_device(999) is None
+
+
+def test_inflexible_field_enumeration_and_signs():
+    """Inflexible devices are enumerated per field in canonical order, carrying the
+    sign convention of the field they were listed under (None = defer to attribute)."""
+    from flexmeasures.data.schemas.sensors import SensorReference
+
+    battery = make_sensor(1)
+    legacy = make_sensor(11)
+    load = make_sensor(12)
+    pv = make_sensor(13)
+    pv_reference = SensorReference(sensor=pv, source_types=["forecaster"])
+
+    inventory = DeviceInventory.from_flex_config(
+        [{"sensor": battery}],
+        {
+            "inflexible_device_sensors": [legacy],
+            "inflexible_consumption": [load],
+            "inflexible_production": [pv_reference],
+        },
+    )
+    assert [device.sensor_id for device in inventory.inflexible_devices] == [11, 12, 13]
+    assert [device.index for device in inventory.inflexible_devices] == [1, 2, 3]
+    assert [
+        device.consumption_is_positive for device in inventory.inflexible_devices
+    ] == [
+        None,
+        True,
+        False,
+    ]
+    assert [device.sensor_reference for device in inventory.inflexible_devices] == [
+        None,
+        None,
+        pv_reference,
+    ]
+    # The underlying sensor is always set as the power sensor
+    assert inventory.inflexible_sensors == [legacy, load, pv]
+
+
+def test_inflexible_fields_per_commodity():
+    """The new fields are also read from each commodity context, after the top-level ones."""
+    battery = make_sensor(1)
+    solar = make_sensor(11)
+    boiler = make_sensor(12)
+
+    inventory = DeviceInventory.from_flex_config(
+        [{"sensor": battery}],
+        {
+            "inflexible_production": [solar],
+            "commodity_contexts": [
+                {"commodity": "gas", "inflexible_consumption": [boiler]}
+            ],
+        },
+    )
+    assert [device.sensor_id for device in inventory.inflexible_devices] == [11, 12]
+    assert [device.commodity for device in inventory.inflexible_devices] == [
+        "electricity",
+        "gas",
+    ]
+    assert [
+        device.consumption_is_positive for device in inventory.inflexible_devices
+    ] == [
+        False,
+        True,
+    ]

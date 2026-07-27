@@ -34,12 +34,36 @@ Defaults to ``"electricity"``.
     examples=["electricity", "gas"],
 )
 INFLEXIBLE_DEVICE_SENSORS = MetaData(
-    description="""Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
-For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.
-Their power demand cannot be adjusted but still matters for finding the best schedule for other devices.
+    description="""[Deprecated field] Power sensors representing devices that are relevant, but not flexible in the timing of their demand/supply.
+To avoid using the field, use ``inflexible-consumption`` and/or ``inflexible-production`` instead, which make clear the sign convention.
+For this field, each sensor's sign convention is determined by its ``consumption_is_positive`` attribute (default: false, i.e. production-positive).
 Must be a list of integers.
 """,
     example=[3, 4],
+)
+INFLEXIBLE_CONSUMPTION = MetaData(
+    description="""Power (or energy) sensors representing loads that are relevant, but not flexible in the timing of their demand.
+For example, a sensor recording the power of a base load that is connected behind the main meter, and whose consumption falls under the same contract as the flexible device(s) being scheduled.
+Their power demand cannot be adjusted but still matters for finding the best schedule for other devices.
+
+The sign convention is determined by the key name: positive values denote consumption.
+Sensors that explicitly record consumption as negative values (``consumption_is_positive`` attribute set to false) are rejected here; list them under ``inflexible-production`` instead.
+
+Must be a list of sensor references, optionally with source filters.
+""",
+    example=[{"sensor": 3}, {"sensor": 4}],
+)
+INFLEXIBLE_PRODUCTION = MetaData(
+    description="""Power (or energy) sensors representing generators that are relevant, but not flexible in the timing of their supply.
+For example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.
+Their power supply cannot be adjusted but still matters for finding the best schedule for other devices.
+
+The sign convention is determined by the key name: positive values denote production (the FlexMeasures default).
+Sensors that explicitly record production as negative values (``consumption_is_positive`` attribute set to true) are rejected here; list them under ``inflexible-consumption`` instead.
+
+Must be a list of sensor references, optionally with source filters.
+""",
+    example=[{"sensor": 3}, {"sensor": 4}],
 )
 AGGREGATE_POWER = MetaData(
     description="""[Deprecated field] Sensor used to record the aggregate power schedule of all flexible and inflexible devices involved when scheduling this asset.

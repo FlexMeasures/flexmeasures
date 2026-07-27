@@ -967,7 +967,8 @@ class SensorAPI(FlaskView):
                           sensor: 9
                         production-price:
                           sensor: 10
-                        inflexible-device-sensors: [13, 14, 15]
+                        inflexible-consumption: [{sensor: 13}, {sensor: 14}]
+                        inflexible-production: [{sensor: 15}]
                         site-power-capacity: "100 kVA"
                         site-production-capacity: "80 kW"
                         site-consumption-capacity:

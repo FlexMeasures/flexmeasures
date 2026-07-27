@@ -62,6 +62,12 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``commodity``
      - |COMMODITY_FLEX_CONTEXT.example|
      - .. include:: ../_autodoc/COMMODITY_FLEX_CONTEXT.rst
+   * - ``inflexible-consumption``
+     - |INFLEXIBLE_CONSUMPTION.example|
+     - .. include:: ../_autodoc/INFLEXIBLE_CONSUMPTION.rst
+   * - ``inflexible-production``
+     - |INFLEXIBLE_PRODUCTION.example|
+     - .. include:: ../_autodoc/INFLEXIBLE_PRODUCTION.rst
    * - ``inflexible-device-sensors``
      - |INFLEXIBLE_DEVICE_SENSORS.example|
      - .. include:: ../_autodoc/INFLEXIBLE_DEVICE_SENSORS.rst
