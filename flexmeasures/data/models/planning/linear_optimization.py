@@ -900,6 +900,19 @@ def device_scheduler(  # noqa C901
         )
         if time_limit_s is not None:
             profile["time_limit"] = str(time_limit_s)
+        # Deterministic work limit (2026-07-28 reproducibility experiment):
+        # a wall-clock time limit truncates the branch-and-bound at an
+        # instant that depends on CPU contention, so two runs with identical
+        # inputs can return different incumbents. A node limit terminates
+        # after the same amount of WORK every time (single-threaded HiGHS),
+        # making capped solves reproducible. When set, it is the intended
+        # cutoff and any time limit should be a generous safety net only.
+        max_nodes = current_app.config.get(
+            "FLEXMEASURES_SOLVER_MAX_NODES",
+            os.getenv("FLEXMEASURES_SOLVER_MAX_NODES"),
+        )
+        if max_nodes is not None:
+            profile["mip_max_nodes"] = str(max_nodes)
         # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
         if current_app.config["LOGGING_LEVEL"] == "INFO":
             profile["output_flag"] = "false"
