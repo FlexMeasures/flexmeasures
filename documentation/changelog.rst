@@ -69,6 +69,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix asset-level scheduling crashing with ``AttributeError: 'NoneType' object has no attribute 'generic_asset'`` when the flex-model list contains a single device entry without a top-level ``sensor`` key (e.g. a device referencing its power sensor only via a nested output reference, like ``{"consumption": {"sensor": ...}}``); such a flex-model now stays in multi-device mode, and a clear ``ValueError`` is raised if a device's power sensor genuinely cannot be resolved [see `PR #2361 <https://www.github.com/FlexMeasures/flexmeasures/pull/2361>`_]
 * Scheduling jobs no longer print ``Job ... made schedule.`` before ``scheduler.compute()`` runs (only after a successful schedule) [see `PR #2342 <https://www.github.com/FlexMeasures/flexmeasures/pull/2342>`_]
 * ``flexmeasures add user --roles`` now correctly accepts a comma-separated list of roles (and repeated ``--roles`` options) instead of creating one role whose name contains commas [see `PR #2339 <https://www.github.com/FlexMeasures/flexmeasures/pull/2339>`_]
 * Raise a clear ``ValueError`` when a flex-model references a missing sensor ID instead of ``AttributeError: 'NoneType' object has no attribute 'asset_id'`` [see `PR #2343 <https://www.github.com/FlexMeasures/flexmeasures/pull/2343>`_]
