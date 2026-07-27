@@ -267,3 +267,95 @@ def test_collect_flex_config_missing_sensor_raises(fresh_db):
     )
     with pytest.raises(ValueError, match=f"No sensor found with ID {missing_id}"):
         scheduler_soc.collect_flex_config()
+
+
+def test_collect_flex_config_keeps_single_entry_list_for_asset(fresh_db):
+    """Asset-level scheduling keeps a single-entry flex-model list as a list.
+
+    Regression test: ``collect_flex_config`` used to unwrap any single-entry
+    flex-model list without a top-level "sensor" key into a bare dict. For
+    asset-level scheduling there is no sensor to resolve a bare dict flex-model
+    against, so deserialization crashed with ``AttributeError: 'NoneType'
+    object has no attribute 'generic_asset'``. Only sensor-level scheduling
+    should unwrap (bare dict flex-models are resolved against that sensor).
+    """
+    asset_type = GenericAssetType(name="test-asset-type-single-entry")
+    fresh_db.session.add(asset_type)
+    asset = GenericAsset(name="test-asset-single-entry", generic_asset_type=asset_type)
+    fresh_db.session.add(asset)
+    soc_sensor = Sensor(
+        name="test-soc-sensor-single-entry",
+        generic_asset=asset,
+        event_resolution=timedelta(0),
+        unit="MWh",
+    )
+    fresh_db.session.add(soc_sensor)
+    fresh_db.session.commit()
+
+    start = datetime(2023, 1, 1, tzinfo=ZoneInfo("UTC"))
+    end = start + timedelta(hours=1)
+    scheduler = StorageScheduler(
+        asset_or_sensor=asset,
+        start=start,
+        end=end,
+        resolution=timedelta(hours=1),
+        flex_model=[
+            {
+                "state-of-charge": {"sensor": soc_sensor.id},
+                "soc-at-start": "4 kWh",
+            }
+        ],
+        flex_context={},
+    )
+    scheduler.collect_flex_config()
+    assert isinstance(scheduler.flex_model, list)
+    assert len(scheduler.flex_model) == 1
+
+    # Sensor-level scheduling still unwraps to single-sensor (dict) mode
+    power_sensor = Sensor(
+        name="test-power-sensor-single-entry",
+        generic_asset=asset,
+        event_resolution=timedelta(hours=1),
+        unit="MW",
+    )
+    fresh_db.session.add(power_sensor)
+    fresh_db.session.commit()
+    scheduler_sensor_level = StorageScheduler(
+        asset_or_sensor=power_sensor,
+        start=start,
+        end=end,
+        resolution=timedelta(hours=1),
+        flex_model={"soc-at-start": "4 kWh"},
+        flex_context={},
+    )
+    scheduler_sensor_level.collect_flex_config()
+    assert isinstance(scheduler_sensor_level.flex_model, dict)
+
+
+def test_deserialize_dict_flex_model_without_sensor_raises(fresh_db):
+    """Fail-safe: single-sensor (dict) flex-model deserialization without a sensor
+    raises a clear ValueError instead of ``AttributeError: 'NoneType' object has
+    no attribute 'generic_asset'``.
+    """
+    asset_type = GenericAssetType(name="test-asset-type-dict-no-sensor")
+    fresh_db.session.add(asset_type)
+    asset = GenericAsset(
+        name="test-asset-dict-no-sensor", generic_asset_type=asset_type
+    )
+    fresh_db.session.add(asset)
+    fresh_db.session.commit()
+
+    start = datetime(2023, 1, 1, tzinfo=ZoneInfo("UTC"))
+    end = start + timedelta(hours=1)
+    scheduler = StorageScheduler(
+        asset_or_sensor=asset,
+        start=start,
+        end=end,
+        resolution=timedelta(hours=1),
+        flex_model={"soc-at-start": "4 kWh"},
+        flex_context={},
+    )
+    # Force the (normally unreachable) dict flex-model deserialization path
+    scheduler.flex_model = {"soc-at-start": "4 kWh"}
+    with pytest.raises(ValueError, match="Cannot resolve the power sensor"):
+        scheduler._deserialize_flex_model()

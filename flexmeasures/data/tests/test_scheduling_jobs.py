@@ -641,3 +641,80 @@ def test_scheduling_unit_conversion(
     assert (
         min(v.event_value for v in power_values) == -max_allowed
     ), "Expected discharging (negative values at max rate"
+
+
+def test_scheduling_single_device_with_nested_output_sensor_only(
+    fresh_db,
+    app,
+    smart_building,
+):
+    """An asset-level scheduling job whose flex-model list holds a SINGLE device
+    entry without a top-level power sensor (the entry references its power
+    sensor only via a nested consumption output reference) must schedule and
+    save successfully.
+
+    Regression test: ``collect_flex_config`` used to unwrap any single-entry
+    flex-model list without a top-level "sensor" key into a bare dict, which
+    made the StorageScheduler treat it as a sensor-level (single-sensor)
+    flex-model. For asset-level scheduling there is no sensor to resolve that
+    against, so the job crashed in ``_deserialize_flex_model`` with
+    ``AttributeError: 'NoneType' object has no attribute 'generic_asset'``.
+    The same device entry in a multi-entry list scheduled fine, because
+    multi-device (asset) mode resolves nested output sensor references.
+    """
+    assets, sensors, soc_sensors = smart_building
+    queue = app.queues["scheduling"]
+    start = pd.Timestamp("2015-01-03").tz_localize("Europe/Amsterdam")
+    end = pd.Timestamp("2015-01-04").tz_localize("Europe/Amsterdam")
+    resolution = timedelta(minutes=15)
+
+    # The device's only power sensor reference is this nested consumption output sensor
+    consumption_sensor = Sensor(
+        name="consumption output",
+        unit="MW",
+        event_resolution=resolution,
+        generic_asset=assets["Test Battery"],
+        timezone="Europe/Amsterdam",
+    )
+    fresh_db.session.add(consumption_sensor)
+    fresh_db.session.flush()
+
+    flex_model = [
+        # A single entry without a top-level power sensor; its power sensor
+        # resolves to the nested consumption output sensor (see _resolve_power_sensor).
+        {
+            "consumption": {"sensor": consumption_sensor.id},
+            "state-of-charge": {"sensor": soc_sensors["Test Battery"].id},
+            "soc-at-start": "0.2 MWh",
+            "soc-min": "0 MWh",
+            "soc-max": "1 MWh",
+            "power-capacity": "1 MW",
+        },
+    ]
+    flex_context = {
+        "consumption-price": "100 EUR/MWh",
+        "production-price": "50 EUR/MWh",
+        "site-power-capacity": "2 MW",
+    }
+
+    # The job schedules successfully (this used to crash before scheduling)
+    job = create_scheduling_job(
+        asset_or_sensor=assets["Test Site"],
+        start=start,
+        end=end,
+        belief_time=start,
+        resolution=resolution,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        enqueue=True,
+    )
+    work_on_rq(queue, exc_handler=exception_reporter)
+    job.refresh()
+    assert job.get_status() == "finished", job.meta.get("exception")
+
+    # The sensor got exactly one series of timed_belief rows (96 quarter-hours)
+    beliefs = fresh_db.session.scalars(
+        select(TimedBelief).filter(TimedBelief.sensor_id == consumption_sensor.id)
+    ).all()
+    assert len(beliefs) == 96
+    assert len({belief.event_start for belief in beliefs}) == 96
