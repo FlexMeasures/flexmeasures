@@ -15,7 +15,7 @@ from flexmeasures.auth.policy import (
 from flexmeasures.auth.decorators import permission_required_for_context
 from flexmeasures.data.models.annotations import Annotation, get_or_create_annotation
 from flexmeasures.data.models.audit_log import AuditLog
-from flexmeasures.data.models.user import Account, AccountRole, User
+from flexmeasures.data.models.user import Account, AccountRole, Plan, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
 from flexmeasures.api.common.schemas.users import AccountIdField
@@ -357,6 +357,19 @@ class AccountAPI(FlaskView):
           tags:
             - Accounts
         """
+
+        # A legacy plan keeps applying to the account already on it (the account edit form
+        # resends the current plan_id, and saving unrelated fields must keep working),
+        # but is no longer handed out to any other account.
+        new_plan_id = account_data.get("plan_id")
+        if new_plan_id is not None and new_plan_id != account.plan_id:
+            new_plan = db.session.get(Plan, new_plan_id)
+            if new_plan is not None and new_plan.legacy:
+                return {
+                    "errors": [
+                        f"Plan '{new_plan.name}' has been retired and can no longer be assigned."
+                    ]
+                }, 422
 
         # Track modified fields
         fields_to_check = [

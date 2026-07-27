@@ -82,7 +82,8 @@ class Plan(db.Model):
     # NULL falls back to the server-wide config setting.
     default_rate_limit = Column(String(80), nullable=True)
     trigger_rate_limit = Column(String(80), nullable=True)
-    rate_limit_key = Column(Enum(RateLimitKey), nullable=True)
+    # The enum type name is pinned to match the migration which created it
+    rate_limit_key = Column(Enum(RateLimitKey, name="ratelimitkey"), nullable=True)
 
     # Quotas, not enforced yet. NULL means no quota (falls back to server-wide behaviour).
     max_users = Column(Integer, nullable=True)

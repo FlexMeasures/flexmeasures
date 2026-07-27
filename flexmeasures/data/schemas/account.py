@@ -256,9 +256,8 @@ class AccountPatchSchema(Schema):
         plan = db.session.get(Plan, value)
         if plan is None:
             raise FMValidationError(f"No plan found with id {value}.")
-        if plan.legacy:
-            # A legacy plan keeps applying to the accounts already on it, but is not handed out anymore
-            raise FMValidationError(f"Plan '{plan.name}' is a legacy plan.")
+        # Note that whether a legacy plan may be (re)assigned depends on which account is
+        # being patched, which this schema does not know, so that check lives in the endpoint.
 
     @post_load
     @with_appcontext_if_needed()

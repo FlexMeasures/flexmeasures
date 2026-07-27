@@ -456,6 +456,29 @@ def test_patch_account_legacy_plan(db, client, setup_api_test_data, requesting_u
     assert account.plan == plan_before
 
 
+@pytest.mark.parametrize("requesting_user", ["test_admin_user@seita.nl"], indirect=True)
+def test_patch_account_already_on_legacy_plan(
+    db, client, setup_api_test_data, requesting_user
+):
+    """An account already on a legacy plan must stay editable.
+
+    The account edit form always resends the current plan_id, so resubmitting the
+    account's own (legacy) plan alongside another change is not an assignment and passes.
+    """
+    account = find_user_by_email("test_prosumer_user@seita.nl").account
+    legacy_plan = Plan(name="test-plan-grandfathered", legacy=True)
+    account.plan = legacy_plan
+    db.session.commit()
+
+    response = client.patch(
+        url_for("AccountAPI:patch", id=account.id),
+        json={"plan_id": legacy_plan.id, "logo_url": "https://example.com/logo.png"},
+    )
+    assert response.status_code == 200, response.json
+    assert account.plan == legacy_plan
+    assert account.logo_url == "https://example.com/logo.png"
+
+
 @pytest.mark.parametrize(
     "requesting_user, status_code",
     [
