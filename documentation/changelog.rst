@@ -69,6 +69,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Fix scheduling jobs deterministically failing on a ``timed_belief`` unique-key violation for devices that reference their power sensor only via a nested output reference (e.g. ``{"consumption": {"sensor": ...}}``): the sensor's schedule was emitted both as a storage schedule and as a consumption/production output schedule; now only the consumption/production output is emitted, and no sensor can appear in more than one scheduler output [see `PR #2360 <https://www.github.com/FlexMeasures/flexmeasures/pull/2360>`_]
 * Scheduling jobs no longer print ``Job ... made schedule.`` before ``scheduler.compute()`` runs (only after a successful schedule) [see `PR #2342 <https://www.github.com/FlexMeasures/flexmeasures/pull/2342>`_]
 * ``flexmeasures add user --roles`` now correctly accepts a comma-separated list of roles (and repeated ``--roles`` options) instead of creating one role whose name contains commas [see `PR #2339 <https://www.github.com/FlexMeasures/flexmeasures/pull/2339>`_]
 * Raise a clear ``ValueError`` when a flex-model references a missing sensor ID instead of ``AttributeError: 'NoneType' object has no attribute 'asset_id'`` [see `PR #2343 <https://www.github.com/FlexMeasures/flexmeasures/pull/2343>`_]
