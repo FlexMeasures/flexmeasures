@@ -8,7 +8,7 @@ from pytz import UTC
 import numpy as np
 import pandas as pd
 import timely_beliefs as tb
-from sqlalchemy import insert
+from sqlalchemy import func, insert, select
 
 from flexmeasures.data.models.data_sources import keep_latest_version, DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -519,3 +519,97 @@ def test_keep_latest_version_equivalence():
             pd.testing.assert_frame_equal(
                 pd.DataFrame(result), pd.DataFrame(expected), check_like=False
             )
+
+
+def test_get_or_create_source_survives_insert_race(db, app, monkeypatch):
+    """Losing an insert race for a new data source must return the winning row.
+
+    On a fresh database, concurrent workers (e.g. running their first-ever
+    scheduling jobs) used to be able to insert duplicate DataSource rows,
+    because each worker's initial lookup found nothing yet.  We simulate the
+    losing worker by patching its initial lookup to find nothing while the row
+    actually exists: its INSERT must then hit the DB-level uniqueness index,
+    roll back to a savepoint and re-fetch the winner, instead of either
+    creating a duplicate or poisoning the session.
+    """
+    from flexmeasures.data.services import data_sources as data_sources_service
+    from flexmeasures.data.services.data_sources import get_or_create_source
+
+    source_info = dict(source_type="scheduler", model="RaceTestScheduler", version="1")
+    winner = get_or_create_source("test-race", **source_info)
+
+    real_fetch = data_sources_service.get_first_matching_source
+    calls = {"n": 0}
+
+    def miss_on_first_lookup(query):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # Simulate the race: the other worker's row is not seen by our lookup
+            return None
+        return real_fetch(query)
+
+    monkeypatch.setattr(
+        data_sources_service, "get_first_matching_source", miss_on_first_lookup
+    )
+
+    loser = get_or_create_source("test-race", **source_info)
+
+    assert loser.id == winner.id
+    assert calls["n"] == 2, "the IntegrityError path should have re-fetched the winner"
+    num_sources = db.session.scalar(
+        select(func.count())
+        .select_from(DataSource)
+        .filter_by(
+            name="test-race", type="scheduler", model="RaceTestScheduler", version="1"
+        )
+    )
+    assert num_sources == 1, "no duplicate row should have been created"
+
+
+def test_source_lookups_tolerate_duplicates(db, app):
+    """Pre-existing (near-)duplicate sources must not fail lookups with MultipleResultsFound.
+
+    Sources that differ only in their attributes are legitimate separate rows, but a
+    lookup that doesn't filter on attributes matches all of them. Such a lookup should
+    deterministically return the oldest row instead of raising, so that databases which
+    already contain duplicates (created before uniqueness was enforced at the DB level)
+    degrade gracefully instead of failing every scheduling job.
+    """
+    from flexmeasures.data.services.data_sources import get_or_create_source
+    from flexmeasures.data.utils import get_data_source
+
+    source_info = dict(source_type="scheduler", model="DupeScheduler", version="2")
+    source_1 = get_or_create_source("test-dupes", attributes={"a": 1}, **source_info)
+    source_2 = get_or_create_source("test-dupes", attributes={"a": 2}, **source_info)
+    assert source_1.id != source_2.id
+    oldest_id = min(source_1.id, source_2.id)
+
+    # Lookup without an attributes filter matches both rows; this used to raise
+    found = get_or_create_source("test-dupes", **source_info)
+    assert found.id == oldest_id
+
+    # Same for the lower-level get_data_source utility
+    found = get_data_source(
+        "test-dupes",
+        data_source_model="DupeScheduler",
+        data_source_version="2",
+        data_source_type="scheduler",
+    )
+    assert found.id == oldest_id
+
+
+def test_exact_duplicate_sources_rejected_by_db(db, app):
+    """The DB must reject exact duplicates even when the unique key columns hold NULLs.
+
+    The previous UniqueConstraint was NULL-blind (PostgreSQL treats NULLs as
+    distinct), so rows like scheduler sources - which have no user or account -
+    could be duplicated freely. The NULL-safe unique index must reject them.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    kwargs = dict(name="test-unique", type="scheduler", model="X", version="3")
+    db.session.add(DataSource(**kwargs))
+    db.session.flush()
+    with pytest.raises(IntegrityError):
+        with db.session.begin_nested():  # keep the outer transaction usable
+            db.session.add(DataSource(**kwargs))

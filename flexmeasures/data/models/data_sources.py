@@ -5,7 +5,7 @@ import inspect
 import json
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -273,8 +273,22 @@ class DataSource(db.Model, tb.BeliefSourceDBMixin):
 
     __tablename__ = "data_source"
     __table_args__ = (
-        db.UniqueConstraint(
-            "name", "user_id", "account_id", "model", "version", "attributes_hash"
+        # Enforce uniqueness of (name, user_id, account_id, model, version, attributes_hash).
+        # A plain UniqueConstraint over these columns does not actually prevent duplicates,
+        # because most of them are nullable and PostgreSQL treats NULLs as distinct values.
+        # For example, scheduler sources have no user or account, so concurrent get-or-create
+        # calls against a fresh database used to be able to insert identical rows.
+        # We therefore use a unique expression index that coalesces NULLs to sentinel values
+        # which cannot occur in real data (negative ids, empty strings, an empty bytes hash).
+        db.Index(
+            "data_source_nullsafe_uniqueness_idx",
+            text("name"),
+            text("coalesce(user_id, -1)"),
+            text("coalesce(account_id, -1)"),
+            text("coalesce(model, '')"),
+            text("coalesce(version, '')"),
+            text("coalesce(attributes_hash, '\\x'::bytea)"),
+            unique=True,
         ),
     )
 

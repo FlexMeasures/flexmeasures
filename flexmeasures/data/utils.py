@@ -121,27 +121,31 @@ def get_data_source(
     """Make sure we have a data source. Create one if it doesn't exist, and add to session.
     Meant for scripts that may run for the first time.
     """
+    # Imported here to avoid a circular import at module load time.
+    from flexmeasures.data.services.data_sources import (
+        get_first_matching_source,
+        insert_source_race_safely,
+    )
 
-    data_source = db.session.execute(
-        select(DataSource).filter_by(
-            name=data_source_name,
-            model=data_source_model,
-            version=data_source_version,
-            type=data_source_type,
-        )
-    ).scalar_one_or_none()
+    query = select(DataSource).filter_by(
+        name=data_source_name,
+        model=data_source_model,
+        version=data_source_version,
+        type=data_source_type,
+    )
+    data_source = get_first_matching_source(query)
     if data_source is None:
-        data_source = DataSource(
+        new_source = DataSource(
             name=data_source_name,
             model=data_source_model,
             version=data_source_version,
             type=data_source_type,
         )
-        db.session.add(data_source)
-        db.session.flush()  # populate the primary key attributes (like id) without committing the transaction
-        current_app.logger.info(
-            f'Session updated with new {data_source_type} data source "{data_source.__repr__()}".'
-        )
+        data_source = insert_source_race_safely(new_source, query)
+        if data_source is new_source:
+            current_app.logger.info(
+                f'Session updated with new {data_source_type} data source "{data_source.__repr__()}".'
+            )
     return data_source
 
 

@@ -4,6 +4,8 @@ import logging
 
 from flask import current_app
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.sql import Select
 from typing import Type, TypeVar
 
 from flexmeasures import Account, Source, User
@@ -14,6 +16,52 @@ from flask import current_app as app
 
 
 DG = TypeVar("DG", bound=DataGenerator)
+
+
+def get_first_matching_source(query: Select) -> DataSource | None:
+    """Return the matching data source with the lowest id, or None if there is no match.
+
+    Tolerating multiple matches is a form of defense in depth:
+    while uniqueness of data sources is enforced at the database level,
+    a database may already contain (near-)duplicate rows from before that enforcement
+    (for example, rows created by concurrently running jobs on a fresh database,
+    or rows that differ only in fields the caller did not filter on, such as attributes).
+    Rather than letting such rows fail every lookup with MultipleResultsFound,
+    we deterministically pick the oldest row and log a warning.
+    """
+    sources = db.session.scalars(query.order_by(DataSource.id)).all()
+    if len(sources) > 1:
+        current_app.logger.warning(
+            f"Found {len(sources)} data sources matching a lookup for one (the oldest is {sources[0]}); "
+            f"using the one with the lowest id ({sources[0].id})."
+        )
+    return sources[0] if sources else None
+
+
+def insert_source_race_safely(new_source: DataSource, query: Select) -> DataSource:
+    """Insert a new data source, returning the winning row if we lose an insert race.
+
+    The insert happens within a SAVEPOINT, so that losing a race against a concurrent
+    session creating the same source (e.g. parallel workers scheduling against a fresh
+    database, whose get-or-create logic all found no source yet) doesn't poison the
+    enclosing transaction. Committing the savepoint flushes, which assigns an id so
+    that the new source can be referenced in the current db session.
+
+    :param new_source: the (not yet added) data source to insert
+    :param query:      the query with which to re-fetch the winning row,
+                       should our insert hit a uniqueness conflict
+    """
+    try:
+        with db.session.begin_nested():
+            db.session.add(new_source)
+    except IntegrityError:
+        # We lost the race: another session created the same source concurrently
+        # (the savepoint was rolled back). Fetch the winning row instead.
+        winner = get_first_matching_source(query)
+        if winner is None:
+            raise
+        return winner
+    return new_source
 
 
 def get_or_create_source(
@@ -44,7 +92,7 @@ def get_or_create_source(
         query = query.filter(DataSource.name == source)
     else:
         raise TypeError("source should be of type User or str")
-    _source = db.session.execute(query).scalar_one_or_none()
+    _source = get_first_matching_source(query)
     if not _source:
         if is_user(source):
             _source = DataSource(user=source, model=model, version=version)
@@ -60,9 +108,8 @@ def get_or_create_source(
                 account=account,
             )
         current_app.logger.info(f"Setting up {_source} as new data source...")
-        db.session.add(_source)
+        _source = insert_source_race_safely(_source, query)
         if flush:
-            # assigns id so that we can reference the new object in the current db session
             db.session.flush()
     return _source
 
