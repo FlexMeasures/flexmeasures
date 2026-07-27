@@ -103,14 +103,15 @@ class AccountCrudUI(FlaskView):
             get_accounts() if user_has_admin_access(current_user, "read") else []
         )
         # Only admins get to assign a plan, and only a plan we still hand out
-        # (or the legacy plan the account happens to be on already)
+        # (or the legacy plan the account happens to be on already).
+        # Assigning is an update, so admin-readers do not get the plans to choose from.
         assignable_plans = (
             db.session.scalars(
                 select(Plan)
                 .filter(or_(Plan.legacy.is_(False), Plan.id == account.plan_id))
                 .order_by(Plan.name)
             ).all()
-            if user_has_admin_access(current_user, "read")
+            if user_has_admin_access(current_user, "update")
             else []
         )
 

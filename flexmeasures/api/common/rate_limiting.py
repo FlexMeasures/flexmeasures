@@ -187,7 +187,9 @@ def rate_limit_exceeded_handler(error):
     limit: RequestLimit | None = limiter.current_limit
     message = "You hit a rate limit."
     if limit is not None:
-        message += f" This endpoint allows {limit.limit}."
+        # Not "this endpoint": the default limit spans the whole API,
+        # and the trigger limit is shared by all trigger endpoints.
+        message += f" The limit you hit allows {limit.limit}."
     response_data, status_code = too_many_requests(message)
     response = jsonify(response_data)
     response.status_code = status_code
