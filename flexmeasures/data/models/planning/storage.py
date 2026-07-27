@@ -1347,6 +1347,21 @@ class MetaStorageScheduler(Scheduler):
 
     def _deserialize_flex_model(self):
         if isinstance(self.flex_model, dict):
+            if self.sensor is None:
+                # Fail-safe: a bare dict flex-model is deserialized in
+                # single-sensor mode, which needs a power sensor to resolve the
+                # device against (asset-level scheduling should pass a list of
+                # device entries instead; see also collect_flex_config, which
+                # only unwraps a single-entry flex-model list when scheduling a
+                # specific sensor).
+                raise ValueError(
+                    "Cannot resolve the power sensor of this flex-model entry: "
+                    f"{self.flex_model}. When scheduling an asset, pass the "
+                    "flex-model as a list of device entries, each referencing "
+                    "its device through a 'sensor' key or a nested sensor "
+                    "reference (such as under 'consumption', 'production' or "
+                    "'state-of-charge')."
+                )
             if self.sensor.generic_asset.asset_type.name in storage_asset_types:
                 self.ensure_soc_at_start()
 
