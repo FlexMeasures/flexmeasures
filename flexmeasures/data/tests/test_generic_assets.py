@@ -354,7 +354,8 @@ def test_get_inflexible_device_sensors_across_keys(
     fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
 ):
     """Inflexible device sensors are gathered from all three flex-context keys,
-    walking up the asset tree until any of them is found."""
+    both top-level and within nested commodities entries, walking up the asset
+    tree until any of them is found."""
     db = fresh_db
     asset_type = setup_generic_asset_types_fresh_db["battery"]
     owner = setup_accounts_fresh_db["Prosumer"]
@@ -365,12 +366,19 @@ def test_get_inflexible_device_sensors_across_keys(
     db.session.flush()
     load_sensor = Sensor(name="a load", generic_asset=site, unit="kW")
     pv_sensor = Sensor(name="a pv", generic_asset=site, unit="kW")
-    db.session.add_all([load_sensor, pv_sensor])
+    boiler_sensor = Sensor(name="a boiler", generic_asset=site, unit="kW")
+    db.session.add_all([load_sensor, pv_sensor, boiler_sensor])
     db.session.flush()
     site.flex_context = {
         "inflexible-consumption": [{"sensor": load_sensor.id}],
         "inflexible-production": [
             {"sensor": pv_sensor.id, "exclude-source-types": ["scheduler"]}
+        ],
+        "commodities": [
+            {
+                "commodity": "gas",
+                "inflexible-consumption": [{"sensor": boiler_sensor.id}],
+            }
         ],
     }
     leaf = GenericAsset(
@@ -382,5 +390,6 @@ def test_get_inflexible_device_sensors_across_keys(
     db.session.add(leaf)
     db.session.commit()
 
-    assert set(leaf.get_inflexible_device_sensors()) == {load_sensor, pv_sensor}
-    assert set(site.get_inflexible_device_sensors()) == {load_sensor, pv_sensor}
+    expected_sensors = {load_sensor, pv_sensor, boiler_sensor}
+    assert set(leaf.get_inflexible_device_sensors()) == expected_sensors
+    assert set(site.get_inflexible_device_sensors()) == expected_sensors

@@ -847,7 +847,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         """
         Searches for inflexible device sensors upwards on the asset tree, across the
         deprecated ``inflexible-device-sensors`` key (bare sensor IDs) and the
-        ``inflexible-consumption``/``inflexible-production`` keys (sensor references).
+        ``inflexible-consumption``/``inflexible-production`` keys (sensor references),
+        both top-level and within each nested ``commodities`` entry.
         This search will stop once any sensors are found (will not aggregate towards the top of the tree)
         """
 
@@ -855,12 +856,14 @@ class GenericAsset(db.Model, AuthModelMixin):
         from flexmeasures.data.models.planning.devices import INFLEXIBLE_DEVICE_KEYS
 
         flex_context = self.get_flex_context()
+        contexts = [flex_context] + list(flex_context.get("commodities") or [])
         # Need to load inflexible device sensors manually as generic_asset does not get to SQLAlchemy session context.
         sensor_ids = list(
             dict.fromkeys(  # dedupe, preserving order
                 entry["sensor"] if isinstance(entry, dict) else entry
+                for context in contexts
                 for key in INFLEXIBLE_DEVICE_KEYS
-                for entry in (flex_context.get(key) or [])
+                for entry in (context.get(key) or [])
             )
         )
         if sensor_ids:
