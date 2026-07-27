@@ -18,6 +18,7 @@ from flexmeasures.data.models.audit_log import AuditLog
 from flexmeasures.data.models.user import Account, AccountRole, Plan, User
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.services.accounts import get_accounts, get_audit_log_records
+from flexmeasures.api.common.responses import unprocessable_entity
 from flexmeasures.api.common.schemas.users import AccountIdField
 from flexmeasures.data.schemas.account import (
     AccountSchema,
@@ -365,11 +366,13 @@ class AccountAPI(FlaskView):
         if new_plan_id is not None and new_plan_id != account.plan_id:
             new_plan = db.session.get(Plan, new_plan_id)
             if new_plan is not None and new_plan.legacy:
-                return {
-                    "errors": [
-                        f"Plan '{new_plan.name}' has been retired and can no longer be assigned."
-                    ]
-                }, 422
+                return unprocessable_entity(
+                    {
+                        "plan_id": [
+                            f"Plan '{new_plan.name}' has been retired and can no longer be assigned."
+                        ]
+                    }
+                )
 
         # Track modified fields
         fields_to_check = [

@@ -453,6 +453,8 @@ def test_patch_account_legacy_plan(db, client, setup_api_test_data, requesting_u
         json={"plan_id": legacy_plan.id},
     )
     assert response.status_code == 422, response.json
+    # The refusal uses the standard error envelope, keyed by field
+    assert "retired" in str(response.json["message"]["json"]["plan_id"])
     assert account.plan == plan_before
 
 
