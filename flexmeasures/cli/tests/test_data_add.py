@@ -107,6 +107,36 @@ def test_edit_plan(app, fresh_db):
     assert db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one().legacy
 
 
+def test_edit_plan_clear_field(app, fresh_db):
+    """A plan field can be cleared back to NULL, meaning the server-wide behaviour applies."""
+    from flexmeasures.cli.data_edit import edit_plan
+
+    db = fresh_db
+    plan = Plan(name="Pro", trigger_rate_limit="60 per 5 minutes", max_users=10)
+    db.session.add(plan)
+    db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        edit_plan, ["--name", "Pro", "--clear", "trigger-rate-limit"]
+    )
+
+    check_command_ran_without_error(result)
+    plan = db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one()
+    assert plan.trigger_rate_limit is None
+    assert plan.max_users == 10  # fields not named stay untouched
+
+    # Setting and clearing the same field contradict each other
+    result = runner.invoke(
+        edit_plan, ["--name", "Pro", "--max-users", "5", "--clear", "max-users"]
+    )
+    assert result.exit_code != 0
+    assert (
+        db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one().max_users
+        == 10
+    )
+
+
 def test_add_holidays(app, fresh_db, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_add import add_holidays
 

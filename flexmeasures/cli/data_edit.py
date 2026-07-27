@@ -54,6 +54,17 @@ def fm_edit_data():
     """FlexMeasures: Edit data."""
 
 
+# Plan fields which may be cleared back to NULL (meaning: server-wide behaviour applies)
+CLEARABLE_PLAN_FIELDS = [
+    "default-rate-limit",
+    "trigger-rate-limit",
+    "rate-limit-key",
+    "max-users",
+    "max-assets",
+    "max-clients",
+]
+
+
 @fm_edit_data.command("plan")
 @with_appcontext
 @click.option("--name", required=True, help="Name of the plan to edit.")
@@ -91,6 +102,14 @@ def fm_edit_data():
     help="Retire this plan (or bring it back). A legacy plan keeps applying to the accounts already on it,"
     " but is no longer offered when assigning a plan.",
 )
+@click.option(
+    "--clear",
+    "fields_to_clear",
+    multiple=True,
+    type=click.Choice(CLEARABLE_PLAN_FIELDS),
+    help="Clear the given field, so that accounts on this plan fall back to the server-wide behaviour."
+    " Repeat to clear several fields.",
+)
 def edit_plan(
     name: str,
     default_rate_limit: str | None,
@@ -100,9 +119,10 @@ def edit_plan(
     max_assets: int | None,
     max_clients: int | None,
     legacy: bool | None,
+    fields_to_clear: tuple[str, ...],
 ):
     """
-    Edit a plan's rate limits and quotas, or retire it.
+    Edit a plan's rate limits and quotas, retire it, or clear fields back to the server defaults.
 
     Only the fields you pass are changed. A plan usually reflects a contractual agreement,
     so consider retiring a plan (--legacy) and creating a new one, rather than editing one
@@ -122,6 +142,11 @@ def edit_plan(
         "legacy": legacy,
     }
     updates = {field: value for field, value in updates.items() if value is not None}
+    for field in fields_to_clear:
+        field_attr = field.replace("-", "_")
+        if field_attr in updates:
+            abort(f"Cannot both set and clear {field}.")
+        updates[field_attr] = None
     if not updates:
         abort("Nothing to edit. Pass at least one field to change.")
     for field, value in updates.items():
