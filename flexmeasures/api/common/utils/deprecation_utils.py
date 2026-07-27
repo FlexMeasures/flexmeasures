@@ -147,6 +147,7 @@ def deprecate_blueprint(
     >>> deprecated_bp = Blueprint('API version 1', 'v1_bp')
     >>> deprecate_blueprint(
     ...     deprecated_bp,
+    ...     api_version_being_sunset="1.0",
     ...     deprecation_date="2022-12-14",
     ...     deprecation_link="https://flexmeasures.readthedocs.io/some-deprecation-notice",
     ...     sunset_date="2023-02-01",
@@ -155,6 +156,7 @@ def deprecate_blueprint(
     >>> app.register_blueprint(deprecated_bp, url_prefix='/v1')
 
     :param blueprint:        The blueprint to be deprecated
+    :param api_version_being_sunset: The API version used to look up host-specific deprecation metadata
     :param deprecation_date: date indicating when the API endpoint was deprecated, used for the "Deprecation" header
                              if no date is given, defaults to "true"
                              see https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-deprecation-header#section-2-1
