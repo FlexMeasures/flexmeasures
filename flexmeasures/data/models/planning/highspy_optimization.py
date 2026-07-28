@@ -30,9 +30,29 @@ the ``appsi_highs`` path):
 - Solver results and model objects are lightweight shims (see
   :class:`HighspySolverResults` and :class:`HighspyModel`) that expose the
   attributes callers actually consume, rather than Pyomo objects.
+
+Adaptations to this branch's Pyomo model (which predates main's group-stock
+refactor):
+
+- The stock is modelled per device rather than per stock group: device d's
+  stock applies device d's own storage efficiency and initial stock to the
+  summed flows (and stock deltas) of all devices in d's stock group, exactly
+  as ``_get_stock_change`` computes it on this branch's Pyomo path. Group
+  members may therefore declare different storage efficiencies and initial
+  stocks (no shared-group validation). The recursion is still linear in the
+  scheduling horizon (one stock variable per device per time step).
+- Solver options mirror this branch's HiGHS profile, including the
+  FLEXMEASURES_MIP_REL_GAP, FLEXMEASURES_SOLVER_TIME_LIMIT and
+  FLEXMEASURES_SOLVER_MAX_NODES knobs and the single-thread policy.
+  Operator-configured FLEXMEASURES_LP_SOLVER_OPTIONS are applied last.
+- The appsi ``update_config`` tuning on the Pyomo path (disabling model
+  change detection) has no analog here: the direct backend has no change
+  detection to disable.
 """
 
 from __future__ import annotations
+
+import os
 
 import numpy as np
 import pandas as pd
@@ -266,52 +286,23 @@ def device_scheduler_highspy(  # noqa C901
         else:
             ems_constraint_device_groups = ems_constraint_groups
 
-    # map device -> primary stock group (used for per-device stock bounds)
-    # and map stock group -> all member devices (used for stock accumulation).
+    # map device -> stock group (used to sum stock changes over group members)
+    # and map stock group -> all member devices. Mirrors this branch's Pyomo
+    # implementation: group keys are used as-is, and devices not in any stock
+    # group (e.g. inflexible devices) form individual groups.
     device_to_group = {}
 
-    # Group keys are namespaced strings, as in the Pyomo implementation.
     if stock_groups:
         for g, devices in stock_groups.items():
             for d in devices:
-                device_to_group[d] = f"stock:{g}"
-    # Devices not in any stock group (e.g. inflexible devices) form individual groups.
+                device_to_group[d] = g
     for d in range(len(device_constraints)):
         if d not in device_to_group:
-            device_to_group[d] = f"device:{d}"
+            device_to_group[d] = d
 
-    group_to_devices: dict[str, list[int]] = {}
+    group_to_devices: dict = {}
     for d, g in device_to_group.items():
         group_to_devices.setdefault(g, []).append(d)
-
-    # Devices sharing a stock may not declare different storage efficiencies
-    # or initial stocks (the stock recursion is modelled once per stock group).
-    for g, group_devices in group_to_devices.items():
-        if len(group_devices) > 1:
-            group_efficiency = device_constraints[group_devices[0]].get("efficiency")
-            for d in group_devices[1:]:
-                efficiency = device_constraints[d].get("efficiency")
-                if (
-                    (efficiency is None) != (group_efficiency is None)
-                    or efficiency is not None
-                    and not efficiency.equals(group_efficiency)
-                ):
-                    raise ValueError(
-                        f"Devices {group_devices} share stock group {g} but have different"
-                        " storage efficiencies. The storage efficiency is a property of the"
-                        " shared stock, so define it once per stock group."
-                    )
-            if isinstance(initial_stock, list):
-                group_initial_stocks = {
-                    initial_stock[d] if d < len(initial_stock) else 0
-                    for d in group_devices
-                }
-                if len(group_initial_stocks) > 1:
-                    raise ValueError(
-                        f"Devices {group_devices} share stock group {g} but have different"
-                        " initial stocks. The initial stock is a property of the shared"
-                        " stock, so define it once per stock group."
-                    )
 
     # Move commitments from old structure to new
     if commitments is None:
@@ -378,15 +369,6 @@ def device_scheduler_highspy(  # noqa C901
 
     device_group_lookup: dict[int, dict] = {}
     for c, df in enumerate(commitments):
-        # Stock-scoped commitments couple to their stock group as a whole.
-        if "stock" in df.columns and pd.notna(df["stock"].iloc[0]):
-            stock_group_key = f"stock:{int(df['stock'].iloc[0])}"
-            if stock_group_key in group_to_devices:
-                device_group_lookup[c] = {
-                    stock_group_key: {group_to_devices[stock_group_key][0]}
-                }
-                continue
-
         if "device" not in df.columns:
             # EMS-level commitment: no device grouping needed here.
             continue
@@ -518,17 +500,13 @@ def device_scheduler_highspy(  # noqa C901
     # ---------------------------------------------------------------
     # Column (variable) layout
     # ---------------------------------------------------------------
-    stock_group_keys = sorted(group_to_devices)
-    G = len(stock_group_keys)
-    group_index = {g: i for i, g in enumerate(stock_group_keys)}
-
     nd = D * T
     col_ems = 0  # ems_power[d, j] at col_ems + d * T + j
     col_down = nd  # device_power_down[d, j]
     col_up = 2 * nd  # device_power_up[d, j]
     col_sign = 3 * nd  # device_power_sign[d, j] (binary)
-    col_stock = 4 * nd  # group_stock[g, j] at col_stock + g * T + j
-    col_cdown = col_stock + G * T  # commitment_downwards_deviation[c]
+    col_stock = 4 * nd  # device_stock[d, j] at col_stock + d * T + j
+    col_cdown = col_stock + nd  # commitment_downwards_deviation[c]
     col_cup = col_cdown + C  # commitment_upwards_deviation[c]
     ncol = col_cup + C
     col_csign = None  # commitment_sign[c] (binary; only if non-convex)
@@ -592,20 +570,22 @@ def device_scheduler_highspy(  # noqa C901
     rows = _RowBuilder()
     k = np.arange(nd)
 
-    # group_stock_balance: group_stock[g, j] = a[j] * previous + b[j] * change[j]
-    # As a row: stock[g,j] - a_j * stock[g,j-1]
+    # stock balance (per device, mirroring this branch's _get_stock_change):
+    # device_stock[d, j] = a[j] * previous + b[j] * change[j], where change[j]
+    # sums the flows (and stock deltas) of ALL devices in d's stock group,
+    # a/b apply device d's own storage efficiency, and previous starts from
+    # device d's own initial stock.
+    # As a row: stock[d,j] - a_j * stock[d,j-1]
     #           - b_j * sum_dev(down/down_eff + up*up_eff) = b_j * sum_dev(delta)
     # (with the a_0 * initial_stock term moved to the RHS for j=0)
-    for g_key in stock_group_keys:
-        gi = group_index[g_key]
-        devs = group_to_devices[g_key]
-        d0 = devs[0]
-        a, b = _loss_coefficient_arrays(eff[d0])
+    for d in range(D):
+        devs = group_to_devices[device_to_group[d]]
+        a, b = _loss_coefficient_arrays(eff[d])
         delta_sum = delta[devs].sum(axis=0)
-        init = _initial_stock_of(d0)
+        init = _initial_stock_of(d)
 
         # j = 0
-        idx0 = [col_stock + gi * T]
+        idx0 = [col_stock + d * T]
         val0 = [1.0]
         for dev in devs:
             idx0 += [col_down + dev * T, col_up + dev * T]
@@ -616,7 +596,7 @@ def device_scheduler_highspy(  # noqa C901
         # j >= 1
         if T > 1:
             js = np.arange(1, T)
-            idx_cols = [col_stock + gi * T + js, col_stock + gi * T + js - 1]
+            idx_cols = [col_stock + d * T + js, col_stock + d * T + js - 1]
             val_cols = [np.ones(T - 1), -a[js]]
             for dev in devs:
                 idx_cols += [col_down + dev * T + js, col_up + dev * T + js]
@@ -627,15 +607,14 @@ def device_scheduler_highspy(  # noqa C901
             )
 
     # device_bounds (constraints on the device's stock):
-    # device_min <= group_stock[group(d), j] - initial_stock(d) <= device_max
+    # device_min <= device_stock[d, j] - initial_stock(d) <= device_max
     for d in range(D):
-        gi = group_index[device_to_group[d]]
         init = _initial_stock_of(d)
         js = np.arange(T)
         rows.add_uniform_rows(
             stock_min[d] + init,
             stock_max[d] + init,
-            (col_stock + gi * T + js)[:, None],
+            (col_stock + d * T + js)[:, None],
             np.ones((T, 1)),
         )
 
@@ -734,17 +713,14 @@ def device_scheduler_highspy(  # noqa C901
             ]
             val_cols = [np.ones(n_rows), np.ones(n_rows)]
             if is_stock:
-                # Aggregate coefficients per stock group column and move the
-                # initial stocks into the row bounds.
-                stock_coefficients: dict[int, float] = {}
+                # Couple to each device's stock (see _get_stock_change on this
+                # branch's Pyomo path) and move the initial stocks into the
+                # row bounds.
                 initial_stock_sum = 0.0
                 for dev in devices_in_group:
-                    base = col_stock + group_index[device_to_group[int(dev)]] * T
-                    stock_coefficients[base] = stock_coefficients.get(base, 0.0) - 1.0
+                    idx_cols.append(col_stock + int(dev) * T + jj)
+                    val_cols.append(np.full(n_rows, -1.0))
                     initial_stock_sum += _initial_stock_of(dev)
-                for base, coefficient in stock_coefficients.items():
-                    idx_cols.append(base + jj)
-                    val_cols.append(np.full(n_rows, coefficient))
                 offset = initial_stock_sum
             else:
                 for dev in devices_in_group:
@@ -818,14 +794,33 @@ def device_scheduler_highspy(  # noqa C901
     if nrow > 0:
         h.addRows(nrow, row_lower, row_upper, nnz, row_starts, a_index, a_value)
 
-    # Apply the same solver options as the Pyomo path applies for HiGHS solvers
+    # Apply the same solver options as the Pyomo path applies for HiGHS
+    # solvers on this branch (see device_scheduler for the rationale of each
+    # knob: MIP gap, single-thread policy, time limit and node limit).
+    mip_rel_gap = current_app.config.get(
+        "FLEXMEASURES_MIP_REL_GAP",
+        os.getenv("FLEXMEASURES_MIP_REL_GAP", "0"),
+    )
     profile = {
-        "mip_rel_gap": "0",
+        "mip_rel_gap": str(mip_rel_gap),
         "mip_abs_gap": "0",
         "primal_feasibility_tolerance": "1e-9",
         "dual_feasibility_tolerance": "1e-9",
         "mip_feasibility_tolerance": "1e-9",
+        "threads": "1",
     }
+    time_limit_s = current_app.config.get(
+        "FLEXMEASURES_SOLVER_TIME_LIMIT",
+        os.getenv("FLEXMEASURES_SOLVER_TIME_LIMIT"),
+    )
+    if time_limit_s is not None:
+        profile["time_limit"] = str(time_limit_s)
+    max_nodes = current_app.config.get(
+        "FLEXMEASURES_SOLVER_MAX_NODES",
+        os.getenv("FLEXMEASURES_SOLVER_MAX_NODES"),
+    )
+    if max_nodes is not None:
+        profile["mip_max_nodes"] = str(max_nodes)
     # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
     if current_app.config["LOGGING_LEVEL"] == "INFO":
         profile["output_flag"] = "false"
@@ -846,14 +841,23 @@ def device_scheduler_highspy(  # noqa C901
     h.run()
 
     status = h.getModelStatus()
+    # Mirrors how Pyomo's appsi_highs interface maps HighsModelStatus to a
+    # TerminationCondition (unknown statuses map to "unknown" there too).
     termination_condition = {
         highspy.HighsModelStatus.kOptimal: "optimal",
         highspy.HighsModelStatus.kInfeasible: "infeasible",
         highspy.HighsModelStatus.kUnboundedOrInfeasible: "infeasibleOrUnbounded",
         highspy.HighsModelStatus.kUnbounded: "unbounded",
+        highspy.HighsModelStatus.kObjectiveBound: "objectiveLimit",
+        highspy.HighsModelStatus.kObjectiveTarget: "objectiveLimit",
         highspy.HighsModelStatus.kTimeLimit: "maxTimeLimit",
         highspy.HighsModelStatus.kIterationLimit: "maxIterations",
-    }.get(status, str(status))
+        highspy.HighsModelStatus.kLoadError: "error",
+        highspy.HighsModelStatus.kModelError: "error",
+        highspy.HighsModelStatus.kPresolveError: "error",
+        highspy.HighsModelStatus.kSolveError: "error",
+        highspy.HighsModelStatus.kPostsolveError: "error",
+    }.get(status, "unknown")
     results = HighspySolverResults(
         termination_condition,
         "ok" if status == highspy.HighsModelStatus.kOptimal else "warning",
