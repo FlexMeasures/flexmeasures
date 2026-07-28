@@ -22,9 +22,7 @@ v1.0.0 | July XX, 2026
 * Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` soft state-of-charge constraint analysis (``soc-minima``/``soc-maxima`` violations or satisfied constraints, keyed by asset ID) for scheduling jobs; both arrays are empty when no SoC constraints were defined [see `PR #2072 <https://www.github.com/FlexMeasures/flexmeasures/pull/2072>`_]
 * New ``soc-value-at-end`` flex-model field for storage devices: assigns a marginal value (fixed quantity or sensor reference) to energy left in storage at the end of the scheduling horizon, countering myopic depletion of the storage [see `PR #2310 <https://www.github.com/FlexMeasures/flexmeasures/pull/2310>`_]
 * Extended the scheduling job ``result`` field with a ``num-beliefs`` field reporting the total number of beliefs (scheduled values) saved to the database [see `PR #2280 <https://www.github.com/FlexMeasures/flexmeasures/pull/2280>`_]
-* Migrate the asset tree in the UI's Structure tab from Vega to ECharts, adding interactive pan/zoom navigation and refreshed node styling [see `PR #2025 <https://www.github.com/FlexMeasures/flexmeasures/pull/2025>`_]
-* The asset tree in the UI's Structure tab now also zooms on scroll while the cursor is inside the tree, driving the same zoom level as the +/− buttons
-* Redesign the asset tree layout: an asset's leaf children now sit in one row (or, for many children, two balanced rows) next to their parent instead of one long column, with connectors reaching top-row boxes from above and bottom-row boxes from below — larger, non-overlapping boxes for wide asset trees
+* Migrate the asset tree in the UI's Structure tab from Vega to ECharts, adding interactive pan/zoom navigation and refreshed node styling [see `PR #2025 <https://www.github.com/FlexMeasures/flexmeasures/pull/2025>`_ and `PR #2365 <https://www.github.com/FlexMeasures/flexmeasures/pull/2365>`_]
 
 Infrastructure / Support
 ----------------------

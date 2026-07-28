@@ -147,18 +147,27 @@
           Math.max(BOX_REF, Math.min(104, fitBox)),
           Math.max(20, hCap)
         ));
-        var ICON_SIZE = Math.max(4, Math.floor(BOX_SIZE * 0.26));
-        var FONT_SIZE = Math.max(6, Math.round(BOX_SIZE * 0.13));
-        var LINE_H = FONT_SIZE + 2;
         var slotY = BOX_SIZE * (1 + GAP_RATIO);   // vertical row pitch
         var colGapX = BOX_SIZE * 1.35;            // horizontal grid column pitch
         var blockGap = slotY * 0.55;              // gap between family blocks
 
+        // Labels (text + icon) are drawn by ECharts at a fixed on-screen
+        // size, unaffected by the view's zoom transform - so derive all
+        // label metrics from the EFFECTIVE on-screen box size instead.
+        // Since every zoom step re-renders, zooming in re-wraps names at a
+        // larger, more legible size, and zooming out shrinks them with the
+        // box instead of letting them pour out of it.
+        var BOX_EFF = BOX_SIZE * zoomFactor;
+        var SHOW_LABELS = BOX_EFF >= 24;  // below this, text is just noise
+        var ICON_SIZE = Math.max(4, Math.floor(BOX_EFF * 0.26));
+        var FONT_SIZE = Math.max(6, Math.round(BOX_EFF * 0.13));
+        var LINE_H = FONT_SIZE + 2;
+
         // How many text lines fit under the icon, inside the box?
-        var textBudget = BOX_SIZE - ICON_SIZE - 10;
+        var textBudget = BOX_EFF - ICON_SIZE - 10;
         var MAX_LINES = Math.min(3, Math.max(1, Math.floor(textBudget / LINE_H)));
         // Approx chars per line at this font (~0.56em average glyph width).
-        var charsPerLine = Math.max(4, Math.floor((BOX_SIZE - 12) / (FONT_SIZE * 0.56)));
+        var charsPerLine = Math.max(4, Math.floor((BOX_EFF - 12) / (FONT_SIZE * 0.56)));
 
         // Deterministically wrap a name into at most MAX_LINES lines, breaking on
         // spaces where possible and ellipsising the overflow. We do this ourselves
@@ -204,7 +213,7 @@
           var displayName = wrapName(node.name);
           var rich = {
             text: {
-              width:      BOX_SIZE - 6,
+              width:      BOX_EFF - 6,
               overflow:   'truncate',
               align:      'center',
               fontSize:   FONT_SIZE,
@@ -227,7 +236,7 @@
               ? [BOX_SIZE * 1.08, BOX_SIZE * 1.08]
               : [BOX_SIZE, BOX_SIZE],
             label: {
-              show:       true,
+              show:       SHOW_LABELS,
               position:   'inside',
               color:      isCurrent ? '#000000' : (isAdd ? '#ffffff' : '#1e293b'),
               fontSize:   FONT_SIZE,
@@ -425,9 +434,21 @@
         zoomFactor = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
         updateChart(animate);
       }
+      // Reset zoom AND any drag-pan offset (clear() drops the roam state).
+      function resetView() {
+        zoomFactor = 1;
+        myChart.clear();
+        updateChart();
+      }
       document.getElementById('treeZoomIn').addEventListener('click', function() { setZoom(zoomFactor + ZOOM_STEP); });
       document.getElementById('treeZoomOut').addEventListener('click', function() { setZoom(zoomFactor - ZOOM_STEP); });
-      document.getElementById('treeZoomReset').addEventListener('click', function() { setZoom(1); });
+      document.getElementById('treeZoomReset').addEventListener('click', resetView);
+
+      // Double-click on an empty spot resets the view as well. (Nodes are
+      // excluded: a single click on a node already navigates away.)
+      myChart.getZr().on('dblclick', function(e) {
+        if (!e.target) { resetView(); }
+      });
 
       // Zoom on scroll while the cursor is inside the tree. The wheel drives
       // the same zoomFactor as the +/- buttons; preventDefault() keeps the
