@@ -86,7 +86,7 @@ def register_at(app: Flask):
                     f"Details: {revision_status.inspection_error}"
                 )
             else:
-                app.logger.error(
+                app.logger.warning(
                     "Database schema is not at the Alembic head revision "
                     f"({format_database_schema_revision_status(revision_status)}). "
                     "Run `flexmeasures db upgrade` before starting the app."
