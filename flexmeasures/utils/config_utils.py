@@ -243,6 +243,7 @@ def read_env_vars(app: Flask):
             "LOGGING_LEVEL",
             "MAPBOX_ACCESS_TOKEN",
             "SENTRY_DSN",
+            "FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT",
             "FLEXMEASURES_PLUGINS",
             "FLEXMEASURES_JSON_COMPACT",
             "SECURITY_TWO_FACTOR",
@@ -254,6 +255,11 @@ def read_env_vars(app: Flask):
             continue
         if isinstance(getattr(DefaultConfig, var, None), bool):
             value = parse_bool_env(value)
+        elif var == "FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT":
+            try:
+                value = int(value)
+            except ValueError:
+                pass
         app.config[var] = value
 
     # Sentry is initialized from SENTRY_DSN, but we long documented the typo SENTRY_SDN,

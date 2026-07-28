@@ -5,12 +5,16 @@ Utils for serving the FlexMeasures app
 from __future__ import annotations
 
 import click
+from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
 from flask import Flask, current_app, redirect
 from flask.cli import FlaskGroup, with_appcontext
 from flask_security import current_user
+from redis.exceptions import RedisError
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.integrations.rq import RqIntegration
+from sentry_sdk.types import Event, Hint
 from werkzeug.exceptions import NotFound
 
 from flexmeasures import __version__ as fm_version
@@ -91,6 +95,42 @@ def _sentry_filter_notfound(event, hint):
     return event
 
 
+def _make_sentry_daily_rate_limiter(
+    app: Flask, daily_rate_limit: int
+) -> Callable[[Event, Hint], Event | None]:
+    """Build a fail-open Sentry event filter backed by a daily Redis counter."""
+    redis_warning_logged = False
+
+    def rate_limit(event: Event, hint: Hint) -> Event | None:
+        nonlocal redis_warning_logged
+        redis_connection = getattr(app, "redis_connection", None)
+        if redis_connection is None:
+            return event
+
+        now = datetime.now(timezone.utc)
+        counter_key = f"flexmeasures:sentry-events:{now.date().isoformat()}"
+        try:
+            expires_at = now.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ) + timedelta(days=1)
+            pipeline = redis_connection.pipeline()
+            pipeline.incr(counter_key)
+            pipeline.expireat(counter_key, int(expires_at.timestamp()))
+            event_count, _ = pipeline.execute()
+        except RedisError as exc:
+            if not redis_warning_logged:
+                redis_warning_logged = True
+                app.logger.warning(
+                    "Unable to apply the Sentry daily rate limit because Redis is "
+                    "unavailable. Sentry events will be sent without rate limiting: %s",
+                    exc,
+                )
+            return event
+        return event if event_count <= daily_rate_limit else None
+
+    return rate_limit
+
+
 def init_sentry(app: Flask):
     """
     Configure Sentry.
@@ -105,11 +145,30 @@ def init_sentry(app: Flask):
         return
     app.logger.info("[FLEXMEASURES] Initialising Sentry ...")
 
-    before_send = (
-        _sentry_filter_notfound
-        if app.config.get("FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY")
-        else None
-    )
+    filters = []
+    if app.config.get("FLEXMEASURES_DO_NOT_SEND_NOTFOUND_TO_SENTRY"):
+        filters.append(_sentry_filter_notfound)
+
+    daily_rate_limit = app.config.get("FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT")
+    if daily_rate_limit is not None:
+        if (
+            isinstance(daily_rate_limit, bool)
+            or not isinstance(daily_rate_limit, int)
+            or daily_rate_limit <= 0
+        ):
+            app.logger.warning(
+                "FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT must be a positive integer "
+                "or None. Sentry events will be sent without rate limiting."
+            )
+        else:
+            filters.append(_make_sentry_daily_rate_limiter(app, daily_rate_limit))
+
+    def before_send(event, hint):
+        for event_filter in filters:
+            event = event_filter(event, hint)
+            if event is None:
+                break
+        return event
 
     sentry_sdk.init(
         dsn=sentry_dsn,
@@ -118,7 +177,7 @@ def init_sentry(app: Flask):
         release=f"flexmeasures@{fm_version}",
         send_default_pii=True,  # user data (current user id, email address, username) is attached to the event.
         environment=app.config.get("FLEXMEASURES_ENV"),
-        before_send=before_send,
+        before_send=before_send if filters else None,
         **app.config["FLEXMEASURES_SENTRY_CONFIG"],
     )
     sentry_sdk.set_tag("mode", app.config.get("FLEXMEASURES_MODE"))

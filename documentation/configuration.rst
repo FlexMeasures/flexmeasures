@@ -797,6 +797,18 @@ so without this filter, 404 errors can inflate Sentry error budgets unnecessaril
 Default: ``True``
 
 
+FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set a positive integer to limit the number of error events sent to Sentry per
+UTC calendar day. The event count is shared between FlexMeasures processes
+through Redis. If Redis is unavailable, events are sent without rate limiting.
+
+Default: ``None`` (no rate limit)
+
+.. note:: This setting is also recognized as environment variable.
+
+
 FLEXMEASURES_TASK_CHECK_AUTH_TOKEN
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
