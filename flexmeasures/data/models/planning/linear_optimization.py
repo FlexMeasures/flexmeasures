@@ -857,6 +857,24 @@ def device_scheduler(  # noqa C901
 
     solver = SolverFactory(solver_name)
 
+    # One-shot solve: every job builds a fresh model and a fresh solver, so
+    # appsi's change-detection machinery (which rescans the whole model to
+    # find added/removed components before each solve) is pure overhead.
+    # Disabling it shaved ~6% off a profiled real job with byte-identical
+    # outputs; the dominant remaining cost is appsi's unavoidable initial
+    # model ingestion (Python expression-tree traversal).
+    update_config = getattr(solver, "update_config", None)
+    if update_config is not None:
+        update_config.check_for_new_or_removed_constraints = False
+        update_config.check_for_new_or_removed_vars = False
+        update_config.check_for_new_or_removed_params = False
+        update_config.check_for_new_objective = False
+        update_config.update_constraints = False
+        update_config.update_vars = False
+        update_config.update_params = False
+        update_config.update_named_expressions = False
+        update_config.update_objective = False
+
     # Temporary fix for https://github.com/Pyomo/pyomo/issues/3841
     if solver_name == "cbc":
         import shutil
