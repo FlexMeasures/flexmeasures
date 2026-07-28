@@ -424,16 +424,9 @@ class AssetAPI(FlaskView):
         if fields_in_response != default_response_fields:
             response_schema = AssetSchema(many=True, only=fields_in_response)
 
-        # Serializing an asset's sensors lazy-loads them per asset: dumping a
-        # multi-thousand-asset catalog issued one query per asset and made
-        # this endpoint take seconds (profiled: ~6.7 s for ~2k assets, ~3x
-        # faster with eager loading). Only load sensors when the response
-        # schema will actually dump them - derived from the schema itself, so
-        # this can never diverge from the response contents. The loader is
-        # anchored on the query's own root entity: search filters and owner
-        # sorting root the query on an aliased GenericAsset, for which the
-        # plain class attribute raises an ArgumentError. Failing to install
-        # the loader is never fatal - sensors then simply lazy-load as before.
+        # Eager-load sensors only when the response schema will dump them, avoiding an N+1 lazy load per asset that made this endpoint take seconds on large catalogs.
+        # The loader is anchored on the query's own root entity, which is an aliased GenericAsset under search filters or owner sorting.
+        # Failing to install the loader is never fatal: sensors then simply lazy-load as before.
         if "sensors" in response_schema.dump_fields:
             try:
                 root_entity = query.column_descriptions[0]["entity"]
