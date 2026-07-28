@@ -41,7 +41,6 @@ from pandas.tseries.frequencies import to_offset
 
 from flexmeasures.data.models.planning import (
     Commitment,
-    FlowCommitment,
     StockCommitment,
 )
 from flexmeasures.data.models.planning.utils import initialize_series
@@ -377,47 +376,10 @@ def device_scheduler_highspy(  # noqa C901
                 % (resolution, resolution_c)
             )
 
-    def convert_commitments_to_subcommitments(
-        dfs: list[pd.DataFrame],
-    ) -> tuple[list[pd.DataFrame], dict[int, int]]:
-        """Same transformation as in the Pyomo implementation (see reference)."""
-        commitment_mapping = {}
-        sub_commitments = []
-        for c, df in enumerate(dfs):
-            # Make sure each commitment has "device" (default NaN) and "class" (default FlowCommitment) columns
-            if "device" not in df.columns:
-                df["device"] = np.nan
-            if "class" not in df.columns:
-                df["class"] = FlowCommitment
-
-            df["j"] = range(len(df.index))
-            groups = list(df["group"].unique())
-            for group in groups:
-                sub_commitment = df[df["group"] == group].drop(columns=["group"])
-
-                # Catch non-uniqueness
-                if len(sub_commitment["upwards deviation price"].unique()) > 1:
-                    raise ValueError(
-                        "Commitment groups cannot have non-unique upwards deviation prices."
-                    )
-                if len(sub_commitment["downwards deviation price"].unique()) > 1:
-                    raise ValueError(
-                        "Commitment groups cannot have non-unique downwards deviation prices."
-                    )
-                if len(sub_commitment) == 1:
-                    commitment_mapping[len(sub_commitments)] = c
-                    sub_commitments.append(sub_commitment)
-                else:
-                    down_commitment = sub_commitment.copy().drop(
-                        columns="upwards deviation price"
-                    )
-                    up_commitment = sub_commitment.copy().drop(
-                        columns="downwards deviation price"
-                    )
-                    commitment_mapping[len(sub_commitments)] = c
-                    commitment_mapping[len(sub_commitments) + 1] = c
-                    sub_commitments.extend([down_commitment, up_commitment])
-        return sub_commitments, commitment_mapping
+    # This transformation is solver-agnostic and shared with the Pyomo backend.
+    from flexmeasures.data.models.planning.linear_optimization import (
+        convert_commitments_to_subcommitments,
+    )
 
     commitments, commitment_mapping = convert_commitments_to_subcommitments(commitments)
 
