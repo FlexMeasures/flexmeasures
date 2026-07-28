@@ -395,19 +395,6 @@ class AssetAPI(FlaskView):
             query=query, root_asset=root_asset, max_depth=max_depth
         )
 
-        # Serializing an asset's sensors lazy-loads them per asset: dumping a
-        # multi-thousand-asset catalog issued one query per asset and made
-        # this endpoint take seconds (profiled: ~6.7 s for ~2k assets, ~3x
-        # faster with eager loading). Only load sensors when the response
-        # will actually include them.
-        dump_includes_sensors = (
-            "sensors" in fields_in_response
-            if fields_in_response != default_response_fields
-            else not current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]
-        )
-        if dump_includes_sensors:
-            query = query.options(selectinload(GenericAsset.sensors))
-
         if current_app.config["FLEXMEASURES_API_SUNSET_ACTIVE"]:
             # TODO: for v0.31, this is to be tested in sunset mode; in v0.32 we only do this
             response_schema = default_list_assets_schema
@@ -417,6 +404,15 @@ class AssetAPI(FlaskView):
             )  # in non-sunset, we default like usual, but still respect fields_in_response
         if fields_in_response != default_response_fields:
             response_schema = AssetSchema(many=True, only=fields_in_response)
+
+        # Serializing an asset's sensors lazy-loads them per asset: dumping a
+        # multi-thousand-asset catalog issued one query per asset and made
+        # this endpoint take seconds (profiled: ~6.7 s for ~2k assets, ~3x
+        # faster with eager loading). Only load sensors when the response
+        # schema will actually dump them - derived from the schema itself, so
+        # this can never diverge from the response contents.
+        if "sensors" in response_schema.dump_fields:
+            query = query.options(selectinload(GenericAsset.sensors))
 
         if page is None:
             response = response_schema.dump(db.session.scalars(query).all(), many=True)
