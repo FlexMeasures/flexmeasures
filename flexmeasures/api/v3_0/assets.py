@@ -16,6 +16,8 @@ from marshmallow import fields, post_load, ValidationError, Schema, validate
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, func, or_
+from sqlalchemy import exc as sa_exc
+from sqlalchemy.orm import selectinload
 
 from flexmeasures.data.services.generic_assets import (
     create_asset,
@@ -421,6 +423,16 @@ class AssetAPI(FlaskView):
             )  # in non-sunset, we default like usual, but still respect fields_in_response
         if fields_in_response != default_response_fields:
             response_schema = AssetSchema(many=True, only=fields_in_response)
+
+        # Eager-load sensors only when the response schema will dump them, avoiding an N+1 lazy load per asset that made this endpoint take seconds on large catalogs.
+        # The loader is anchored on the query's own root entity, which is an aliased GenericAsset under search filters or owner sorting.
+        # Failing to install the loader is never fatal: sensors then simply lazy-load as before.
+        if "sensors" in response_schema.dump_fields:
+            try:
+                root_entity = query.column_descriptions[0]["entity"]
+                query = query.options(selectinload(root_entity.sensors))
+            except (KeyError, IndexError, sa_exc.ArgumentError):
+                pass
 
         if page is None:
             response = response_schema.dump(db.session.scalars(query).all(), many=True)
