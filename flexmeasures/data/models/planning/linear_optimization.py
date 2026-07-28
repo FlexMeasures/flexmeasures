@@ -35,6 +35,65 @@ from flexmeasures.utils.calculations import apply_stock_changes_and_losses
 infinity = float("inf")
 
 
+def convert_commitments_to_subcommitments(
+    dfs: list[pd.DataFrame],
+) -> tuple[list[pd.DataFrame], dict[int, int]]:
+    """Transform commitments, each specifying a group for each time step, to sub-commitments, one per group.
+
+    'Groups' are a commitment concept (grouping time slots of a commitment),
+    making it possible that deviations/breaches can be accounted for properly within this group
+    (e.g. highest breach per calendar month defines the penalty).
+    Here, we define sub-commitments, by separating commitments by group and by direction of deviation (up, down).
+
+    We also enumerate the time steps in a new column "j".
+
+    For example, given contracts A and B (represented by 2 DataFrames), each with 3 groups,
+    we return (sub)commitments A1, A2, A3, B1, B2 and B3,
+    where A,B,C is the enumerated contract and 1,2,3 is the enumerated group.
+
+    This helper is solver-agnostic and shared by both scheduler backends
+    (see the highspy_optimization module).
+    """
+    commitment_mapping = {}
+    sub_commitments = []
+    for c, df in enumerate(dfs):
+        # Make sure each commitment has "device" (default NaN) and "class" (default FlowCommitment) columns
+        if "device" not in df.columns:
+            df["device"] = np.nan
+        if "class" not in df.columns:
+            df["class"] = FlowCommitment
+
+        df["j"] = range(len(df.index))
+
+        # Group rows by the "group" column in order of first appearance (like
+        # pd.unique), in a single pass rather than by filtering the DataFrame
+        # once per group (which would scale quadratically with the number of
+        # time steps, as each time step often forms its own group).
+        grouped = df.drop(columns=["group"]).groupby(df["group"], sort=False)
+
+        # Catch non-uniqueness (vectorized across all groups)
+        if (grouped["upwards deviation price"].nunique(dropna=False) > 1).any():
+            raise ValueError(
+                "Commitment groups cannot have non-unique upwards deviation prices."
+            )
+        if (grouped["downwards deviation price"].nunique(dropna=False) > 1).any():
+            raise ValueError(
+                "Commitment groups cannot have non-unique downwards deviation prices."
+            )
+
+        for _, sub_commitment in grouped:
+            if len(sub_commitment) == 1:
+                commitment_mapping[len(sub_commitments)] = c
+                sub_commitments.append(sub_commitment)
+            else:
+                down_commitment = sub_commitment.drop(columns="upwards deviation price")
+                up_commitment = sub_commitment.drop(columns="downwards deviation price")
+                commitment_mapping[len(sub_commitments)] = c
+                commitment_mapping[len(sub_commitments) + 1] = c
+                sub_commitments.extend([down_commitment, up_commitment])
+    return sub_commitments, commitment_mapping
+
+
 def device_scheduler(  # noqa C901
     device_constraints: list[pd.DataFrame],
     ems_constraints: pd.DataFrame | list[pd.DataFrame],
@@ -217,60 +276,6 @@ def device_scheduler(  # noqa C901
                 "Not implemented for different resolutions.\n%s\n%s"
                 % (resolution, resolution_c)
             )
-
-    def convert_commitments_to_subcommitments(
-        dfs: list[pd.DataFrame],
-    ) -> tuple[list[pd.DataFrame], dict[int, int]]:
-        """Transform commitments, each specifying a group for each time step, to sub-commitments, one per group.
-
-        'Groups' are a commitment concept (grouping time slots of a commitment),
-        making it possible that deviations/breaches can be accounted for properly within this group
-        (e.g. highest breach per calendar month defines the penalty).
-        Here, we define sub-commitments, by separating commitments by group and by direction of deviation (up, down).
-
-        We also enumerate the time steps in a new column "j".
-
-        For example, given contracts A and B (represented by 2 DataFrames), each with 3 groups,
-        we return (sub)commitments A1, A2, A3, B1, B2 and B3,
-        where A,B,C is the enumerated contract and 1,2,3 is the enumerated group.
-        """
-        commitment_mapping = {}
-        sub_commitments = []
-        for c, df in enumerate(dfs):
-            # Make sure each commitment has "device" (default NaN) and "class" (default FlowCommitment) columns
-            if "device" not in df.columns:
-                df["device"] = np.nan
-            if "class" not in df.columns:
-                df["class"] = FlowCommitment
-
-            df["j"] = range(len(df.index))
-            groups = list(df["group"].unique())
-            for group in groups:
-                sub_commitment = df[df["group"] == group].drop(columns=["group"])
-
-                # Catch non-uniqueness
-                if len(sub_commitment["upwards deviation price"].unique()) > 1:
-                    raise ValueError(
-                        "Commitment groups cannot have non-unique upwards deviation prices."
-                    )
-                if len(sub_commitment["downwards deviation price"].unique()) > 1:
-                    raise ValueError(
-                        "Commitment groups cannot have non-unique downwards deviation prices."
-                    )
-                if len(sub_commitment) == 1:
-                    commitment_mapping[len(sub_commitments)] = c
-                    sub_commitments.append(sub_commitment)
-                else:
-                    down_commitment = sub_commitment.copy().drop(
-                        columns="upwards deviation price"
-                    )
-                    up_commitment = sub_commitment.copy().drop(
-                        columns="downwards deviation price"
-                    )
-                    commitment_mapping[len(sub_commitments)] = c
-                    commitment_mapping[len(sub_commitments) + 1] = c
-                    sub_commitments.extend([down_commitment, up_commitment])
-        return sub_commitments, commitment_mapping
 
     commitments, commitment_mapping = convert_commitments_to_subcommitments(commitments)
 
