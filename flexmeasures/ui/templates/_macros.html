@@ -70,7 +70,7 @@
         return Math.max(n, 1);
       }
 
-      function updateChart() {
+      function updateChart(animate) {
         var leaves = countLeaves(rootNodes);
         var viewportH = scrollDom.clientHeight;
 
@@ -234,7 +234,9 @@
               symbol: 'roundRect',
               expandAndCollapse: true,
               animationDuration: 550,
-              animationDurationUpdate: 400,
+              // No update animation during continuous wheel-zoom, so the tree
+              // follows the wheel without lagging behind.
+              animationDurationUpdate: animate === false ? 0 : 400,
               // Drag to pan. Zoom is driven by the +/- buttons (re-render), which
               // keeps the canvas fixed while the tree scales inside it.
               roam: 'move',
@@ -281,13 +283,32 @@
       // while the canvas stays a fixed size - so the tree shrinks/grows WITHIN
       // the gray area (like a map), rather than the area itself changing size.
       var ZOOM_MIN = 0.3, ZOOM_MAX = 2.5, ZOOM_STEP = 0.2;
-      function setZoom(z) {
+      function setZoom(z, animate) {
         zoomFactor = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
-        updateChart();
+        updateChart(animate);
       }
       document.getElementById('treeZoomIn').addEventListener('click', function() { setZoom(zoomFactor + ZOOM_STEP); });
       document.getElementById('treeZoomOut').addEventListener('click', function() { setZoom(zoomFactor - ZOOM_STEP); });
       document.getElementById('treeZoomReset').addEventListener('click', function() { setZoom(1); });
+
+      // Zoom on scroll while the cursor is inside the tree. The wheel drives
+      // the same zoomFactor as the +/- buttons; preventDefault() keeps the
+      // page itself from scrolling. Wheel deltas are coalesced per animation
+      // frame, since every zoom step re-renders the tree.
+      var pendingWheelDelta = 0, wheelRafScheduled = false;
+      scrollDom.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        pendingWheelDelta += e.deltaY * (e.deltaMode === 1 ? 16 : 1);
+        if (!wheelRafScheduled) {
+          wheelRafScheduled = true;
+          requestAnimationFrame(function() {
+            var factor = Math.pow(1.0015, -pendingWheelDelta);
+            pendingWheelDelta = 0;
+            wheelRafScheduled = false;
+            setZoom(zoomFactor * factor, false);
+          });
+        }
+      }, { passive: false });
     };
   </script>
 {% endmacro %}
