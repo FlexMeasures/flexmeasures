@@ -40,6 +40,7 @@ New features
 * The ``group`` field now also accepts a ``{"asset": <id>}`` reference (in addition to ``{"sensor": <id>}``), allowing intermediate power constraints to be defined entirely from flex-models stored on the asset tree, with results saved via the group's ``consumption``/``production`` output sensors, without needing any flex-model in the scheduling trigger [see `issue #2092 <https://github.com/FlexMeasures/flexmeasures/issues/2092>`_]
 * Extended the scheduling job ``result`` field with a ``num-beliefs`` field reporting the total number of beliefs (scheduled values) saved to the database [see `PR #2280 <https://www.github.com/FlexMeasures/flexmeasures/pull/2280>`_]
 * Migrate the asset tree in the UI's Structure tab from Vega to ECharts, adding interactive pan/zoom navigation and refreshed node styling [see `PR #2025 <https://www.github.com/FlexMeasures/flexmeasures/pull/2025>`_]
+* The asset tree in the UI's Structure tab now also zooms on scroll while the cursor is inside the tree, driving the same zoom level as the +/− buttons
 
 Infrastructure / Support
 ----------------------
