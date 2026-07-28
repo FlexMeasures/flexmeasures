@@ -801,7 +801,6 @@ def device_scheduler_highspy(  # noqa C901
     # Build and solve the HiGHS model
     # ---------------------------------------------------------------
     h = highspy.Highs()
-    h.setOptionValue("output_flag", False)
 
     h.addVars(ncol, lower, upper)
     h.changeColsCost(ncol, np.arange(ncol, dtype=np.int32), cost)
