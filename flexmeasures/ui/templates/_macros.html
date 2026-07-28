@@ -56,55 +56,107 @@
       // itself never changes size.
       var zoomFactor = 1;
 
-      // Count the leaf nodes. In a horizontal tree, every leaf occupies its own
-      // vertical slot, so the leaf count is what determines how tightly nodes
-      // are packed vertically - and therefore how large each box can be.
-      function countLeaves(roots) {
-        var n = 0;
-        (function walk(list) {
-          list.forEach(function(x) {
-            if (!x.children || x.children.length === 0) { n++; }
-            else { walk(x.children); }
-          });
-        })(roots);
-        return Math.max(n, 1);
+      // ------------------------------------------------------------------
+      // Layout policy, per parent whose children are leaves ("a family"):
+      // keep the leaf children in ONE row until the canvas width is
+      // exhausted (at the 50px reference box), then use TWO balanced rows
+      // (top row at most 1 wider than the bottom), never more; when even
+      // two rows don't fit the width, the box size shrinks below the
+      // reference, i.e. the whole tree zooms out (wheel-zoom recovers
+      // detail). Non-leaf children and the "Add asset" action node each
+      // get their own row, recursively.
+      //
+      // Family connectors are routed to invisible "port" nodes on the
+      // top/bottom edge of each leaf box, so top-row connectors arrive
+      // from above and bottom-row connectors from below, keeping the lane
+      // between the two rows clean. Parents connect from their side.
+      // ------------------------------------------------------------------
+      var BOX_REF = 50;      // reference (minimum comfortable) box size
+      var GAP_RATIO = 0.28;  // vertical gap as a fraction of box size
+
+      function isAddAsset(node) { return node.name === 'Add asset'; }
+
+      // Leaf children go into the family grid; internal children and the
+      // "Add asset" button each get their own row.
+      function splitKids(node) {
+        var kids = node.children || [];
+        return {
+          gridKids: kids.filter(function(k) { return !(k.children || []).length && !isAddAsset(k); }),
+          rowKids: kids.filter(function(k) { return (k.children || []).length || isAddAsset(k); })
+        };
+      }
+
+      function depthOf(node) {
+        var d = 0;
+        (node.children || []).forEach(function(k) { d = Math.max(d, 1 + depthOf(k)); });
+        return d;
       }
 
       function updateChart(animate) {
-        var leaves = countLeaves(rootNodes);
         var viewportH = scrollDom.clientHeight;
-
-        // Size each box to FIT the viewport: divide the usable height among the
-        // leaves, reserving a vertical gap per node. Clamp to a legible range so
-        // few assets get large boxes and many assets get small (but readable) ones.
-        var GAP_RATIO = 0.28;                 // vertical gap as a fraction of box
-        var fitBox    = (viewportH * 0.92 / leaves) / (1 + GAP_RATIO);
-        // Base (zoom = 1) auto-fit box size, then apply the current zoom factor so
-        // the whole tree - node sizes AND spacing - scales together.
-        var BOX_SIZE  = Math.round(Math.max(50, Math.min(104, fitBox)) * zoomFactor);
-        var ICON_SIZE = Math.max(4, Math.floor(BOX_SIZE * 0.26));
-        var FONT_SIZE = Math.max(6, Math.round(BOX_SIZE * 0.13));
-        var LINE_H    = FONT_SIZE + 2;
-
-        // Keep the drawing canvas the SAME size as the gray container at every
-        // zoom level. Zoom is applied via node sizes (above) and layout margins
-        // (below), never by resizing the canvas - so zooming out shrinks the tree
-        // within a fixed area and zooming in overflows it (pan with drag).
+        // Keep the drawing canvas the SAME size as the gray container at
+        // every zoom level; zooming happens inside the canvas.
         chartDom.style.height = viewportH + 'px';
         myChart.resize();
+        var W = chartDom.clientWidth || 1000;
 
-        // Scale the tree's layout box about the canvas centre by the zoom factor.
-        // At zoom = 1 these reproduce the base framing (top 6% / left 12% /
-        // bottom 6% / right 14%); zooming out grows the margins (tree shrinks
-        // toward the centre) and zooming in drives them negative (tree overflows).
-        var mTop    = 50 - 44 * zoomFactor;
-        var mBottom = 50 - 44 * zoomFactor;
-        var mLeft   = 49 - 37 * zoomFactor;
-        var mRight  = 51 - 37 * zoomFactor;
+        // One x position per tree level (ancestors -> current -> children
+        // -> grandchildren); the deepest level's grid columns extend to
+        // the right from there.
+        var levels = 1;
+        rootNodes.forEach(function(rt) { levels = Math.max(levels, 1 + depthOf(rt)); });
+        var colPitch = levels > 1 ? Math.min(0.60 * W / (levels - 1), 0.30 * W) : 0;
+        function colX(d) { return 0.08 * W + d * colPitch; }
+
+        // Horizontal room for a grid block whose leaf column sits at level d.
+        function gridBudget(d) { return W - colX(d) - 8; }
+        function colsFitAt(d) {
+          return Math.max(1, Math.floor((gridBudget(d) - BOX_REF * 0.5) / (BOX_REF * 1.35)) + 1);
+        }
+        // One row while it fits; else two balanced rows, top at most 1 wider.
+        function colsFor(n, d) {
+          if (!n) return 1;
+          var fit = colsFitAt(d);
+          return n <= fit ? n : Math.ceil(n / 2);
+        }
+
+        // Pre-pass: total rows (drives the vertical fit) and the widest
+        // grid block (drives the horizontal cap on the box size).
+        var hCap = Infinity;
+        function rowsOf(node, d) {
+          var s = splitKids(node);
+          if (!s.gridKids.length && !s.rowKids.length) return 1;
+          var r = 0;
+          if (s.gridKids.length) {
+            var cols = colsFor(s.gridKids.length, d + 1);
+            r += Math.ceil(s.gridKids.length / cols);
+            hCap = Math.min(hCap, gridBudget(d + 1) / ((cols - 1) * 1.35 + 0.5));
+          }
+          s.rowKids.forEach(function(k) { r += rowsOf(k, d + 1); });
+          return Math.max(r, 1);
+        }
+        var totalRows = 0;
+        rootNodes.forEach(function(rt) { totalRows += rowsOf(rt, 0); });
+
+        // Box size: fit the viewport vertically, clamped to a legible
+        // range, then capped so the widest grid block still fits the
+        // width. Two rows is the maximum, so very wide families lower the
+        // box size (the tree zooms out) instead of wrapping further.
+        var fitBox = (viewportH * 0.92 / Math.max(totalRows + 1, 5)) / (1 + GAP_RATIO);
+        var BOX_SIZE = Math.round(Math.min(
+          Math.max(BOX_REF, Math.min(104, fitBox)),
+          Math.max(20, hCap)
+        ));
+        var ICON_SIZE = Math.max(4, Math.floor(BOX_SIZE * 0.26));
+        var FONT_SIZE = Math.max(6, Math.round(BOX_SIZE * 0.13));
+        var LINE_H = FONT_SIZE + 2;
+        var slotY = BOX_SIZE * (1 + GAP_RATIO);   // vertical row pitch
+        var colGapX = BOX_SIZE * 1.35;            // horizontal grid column pitch
+        var blockGap = slotY * 0.55;              // gap between family blocks
 
         // How many text lines fit under the icon, inside the box?
         var textBudget = BOX_SIZE - ICON_SIZE - 10;
-        var MAX_LINES  = Math.min(3, Math.max(1, Math.floor(textBudget / LINE_H)));
+        var MAX_LINES = Math.min(3, Math.max(1, Math.floor(textBudget / LINE_H)));
         // Approx chars per line at this font (~0.56em average glyph width).
         var charsPerLine = Math.max(4, Math.floor((BOX_SIZE - 12) / (FONT_SIZE * 0.56)));
 
@@ -143,17 +195,12 @@
           return lines.join('\n');
         }
 
-        // Enhance nodes with styles
-        function enrichNodeData(node) {
+        // Per-node style (same look as before: white round rects, gold
+        // current asset, green "Add asset" button).
+        function nodeStyles(node) {
           var isCurrent = node.name === currentAssetName;
-          var isAdd     = node.name === 'Add asset';
+          var isAdd = isAddAsset(node);
 
-          node.symbol     = 'roundRect';
-          node.symbolSize = isCurrent
-            ? [BOX_SIZE * 1.08, BOX_SIZE * 1.08]
-            : [BOX_SIZE, BOX_SIZE];
-
-          // Build rich-text dict so icon + text fit inside the symbol.
           var displayName = wrapName(node.name);
           var rich = {
             text: {
@@ -174,42 +221,135 @@
             };
           }
 
-          node.label = {
-            show:       true,
-            position:   'inside',
-            color:      isCurrent ? '#000000' : (isAdd ? '#ffffff' : '#1e293b'),
-            fontSize:   FONT_SIZE,
-            fontWeight: isCurrent ? 'bold' : '600',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            // Capture the node and its pre-wrapped name in a closure so the
-            // formatter emits the correct rich-text key and text per node.
-            formatter: (function(n, dn) {
-              return function() {
-                return n.icon
-                  ? ('{icon_' + n.id + '|}\n{text|' + dn + '}')
-                  : ('{text|' + dn + '}');
-              };
-            })(node, displayName),
-            rich: rich
+          return {
+            symbol: 'roundRect',
+            symbolSize: isCurrent
+              ? [BOX_SIZE * 1.08, BOX_SIZE * 1.08]
+              : [BOX_SIZE, BOX_SIZE],
+            label: {
+              show:       true,
+              position:   'inside',
+              color:      isCurrent ? '#000000' : (isAdd ? '#ffffff' : '#1e293b'),
+              fontSize:   FONT_SIZE,
+              fontWeight: isCurrent ? 'bold' : '600',
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+              formatter: (function(n, dn) {
+                return function() {
+                  return n.icon
+                    ? ('{icon_' + n.id + '|}\n{text|' + dn + '}')
+                    : ('{text|' + dn + '}');
+                };
+              })(node, displayName),
+              rich: rich
+            },
+            itemStyle: {
+              color:       isCurrent ? '#fcd34d' : (isAdd ? '#10b981' : '#ffffff'),
+              borderColor: isCurrent ? '#f59e0b' : (isAdd ? '#047857' : '#cbd5e1'),
+              borderWidth: isCurrent ? 3 : 1,
+              borderRadius: 8,
+              shadowColor:   'rgba(0, 0, 0, 0.2)',
+              shadowBlur:    10,
+              shadowOffsetX: 2,
+              shadowOffsetY: 6
+            }
           };
+        }
 
-          node.itemStyle = {
-            color:       isCurrent ? '#fcd34d' : (isAdd ? '#10b981' : '#ffffff'),
-            borderColor: isCurrent ? '#f59e0b' : (isAdd ? '#047857' : '#cbd5e1'),
-            borderWidth: isCurrent ? 3 : 1,
-            borderRadius: 8,
-            shadowColor:   'rgba(0, 0, 0, 0.2)',
-            shadowBlur:    10,
-            shadowOffsetX: 2,
-            shadowOffsetY: 6
-          };
+        var nodes = [];
+        var links = [];
 
-          if (node.children && node.children.length > 0) {
-            node.children.forEach(enrichNodeData);
+        var INVISIBLE = {
+          color: 'rgba(0,0,0,0)', borderWidth: 0, shadowBlur: 0,
+          shadowColor: 'transparent', shadowOffsetX: 0, shadowOffsetY: 0
+        };
+
+        // Place a node; if `port` is given, route the connector from the
+        // parent to an invisible port node on the box's top/bottom edge
+        // instead of to the box itself.
+        function pushNode(node, x, y, port) {
+          nodes.push(Object.assign({
+            id: String(node.id), name: node.name, x: x, y: y,
+            link: node.link, tooltip: node.tooltip
+          }, nodeStyles(node)));
+          if (node.parent === undefined || node.parent === null || !assetMap[node.parent]) {
+            return;
+          }
+          if (port) {
+            var pid = 'port-' + node.id;
+            nodes.push({
+              id: pid, name: '', x: port.x, y: port.y,
+              symbol: 'circle', symbolSize: 0.1, silent: true,
+              label: { show: false },
+              itemStyle: INVISIBLE
+            });
+            links.push({
+              source: String(node.parent), target: pid,
+              lineStyle: { curveness: port.curveness }
+            });
+          } else {
+            links.push({ source: String(node.parent), target: String(node.id) });
           }
         }
 
-        rootNodes.forEach(enrichNodeData);
+        // Recursively lay out `node` (at tree level `d`) and its subtree,
+        // starting at vertical offset topY. Returns the block height and
+        // the node's own center y.
+        function layoutSubtree(node, d, topY) {
+          var s = splitKids(node);
+          if (!s.gridKids.length && !s.rowKids.length) {
+            var cy = topY + slotY / 2;
+            pushNode(node, colX(d), cy);
+            return { height: slotY, centerY: cy };
+          }
+          var y = topY;
+          var centers = [];
+          if (s.gridKids.length) {
+            var cols = colsFor(s.gridKids.length, d + 1);
+            var rows = Math.ceil(s.gridKids.length / cols);
+            s.gridKids.forEach(function(k, i) {
+              var col = i % cols, row = Math.floor(i / cols);
+              var x = colX(d + 1) + col * colGapX;
+              var ky = y + slotY / 2 + row * slotY;
+              var topRow = row === 0;
+              pushNode(k, x, ky, {
+                x: x,
+                y: topRow ? ky - BOX_SIZE / 2 : ky + BOX_SIZE / 2,
+                curveness: topRow ? 0.18 : -0.18
+              });
+            });
+            var blockH = rows * slotY;
+            centers.push(y + blockH / 2);
+            y += blockH + blockGap;
+          }
+          s.rowKids.forEach(function(k) {
+            var sub = layoutSubtree(k, d + 1, y);
+            centers.push(sub.centerY);
+            y += sub.height + blockGap;
+          });
+          y -= blockGap; // drop the trailing gap
+          var centerY = centers.reduce(function(a, b) { return a + b; }, 0) / centers.length;
+          pushNode(node, colX(d), centerY);
+          return { height: y - topY, centerY: centerY };
+        }
+
+        var cursorY = slotY * 0.5;
+        rootNodes.forEach(function(rt) {
+          cursorY += layoutSubtree(rt, 0, cursorY).height + blockGap;
+        });
+        var contentH = cursorY - blockGap + slotY * 0.5;
+
+        // Invisible pin nodes make the layout's bounding box deterministic:
+        // exactly the canvas width by at least the viewport height. The
+        // graph view fits that box into the canvas, so the transform is
+        // identity while the content fits, and a uniform zoom-out once the
+        // content is taller than the viewport.
+        [[0, 0], [W, Math.max(contentH, viewportH)]].forEach(function(p, i) {
+          nodes.push({
+            id: '__pin' + i, name: '', x: p[0], y: p[1],
+            symbol: 'circle', symbolSize: 0.1, silent: true,
+            label: { show: false }, itemStyle: INVISIBLE
+          });
+        });
 
         var option = {
           tooltip: {
@@ -225,26 +365,24 @@
           },
           series: [
             {
-              type: 'tree',
-              data: rootNodes,
-              top: mTop + '%',
-              left: mLeft + '%',
-              bottom: mBottom + '%',
-              right: mRight + '%',
-              symbol: 'roundRect',
-              expandAndCollapse: true,
+              type: 'graph',
+              layout: 'none',
+              data: nodes,
+              links: links,
+              // Drag to pan; wheel and +/- buttons drive series.zoom below.
+              roam: 'move',
+              zoom: zoomFactor,
+              // Scale node symbols 1:1 with the view zoom.
+              nodeScaleRatio: 1,
+              edgeSymbol: ['none', 'none'],
               animationDuration: 550,
               // No update animation during continuous wheel-zoom, so the tree
               // follows the wheel without lagging behind.
               animationDurationUpdate: animate === false ? 0 : 400,
-              // Drag to pan. Zoom is driven by the +/- buttons (re-render), which
-              // keeps the canvas fixed while the tree scales inside it.
-              roam: 'move',
-              initialTreeDepth: -1,
               lineStyle: {
                 color: '#94a3b8',
                 width: 2,
-                curveness: 0.5
+                curveness: 0.15
               }
             }
           ]
