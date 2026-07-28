@@ -65,7 +65,7 @@ Infrastructure / Support
 * Add ``FLEXMEASURES_DEFAULT_JOB_TIMEOUT`` and ``FLEXMEASURES_JOB_TIMEOUT`` settings for configuring RQ job timeouts globally and per queue, and log actionable guidance when a forecasting job times out [see `PR #2318 <https://github.com/FlexMeasures/flexmeasures/pull/2318>`_]
 * Stop manual runs of the Docker publishing workflow from overwriting the ``latest`` image tag, and let them opt in to it explicitly [see `PR #2316 <https://www.github.com/FlexMeasures/flexmeasures/pull/2316>`_]
 * Add a pre-commit hook that blocks image files (png, jpg, gif, bmp, tiff, webp, ico, psd) from being committed outside of ``flexmeasures/ui/static/`` and ``documentation/``, to protect the git history from binary bloat; screenshots belong in the ``FlexMeasures/screenshots`` repo instead [see `PR #2315 <https://www.github.com/FlexMeasures/flexmeasures/pull/2315>`_]
-* Schedulers track devices via a typed device inventory, which classifies every flex-model entry once and serves as the single source of truth for device roles and canonical device indices [see `PR #2321 <https://www.github.com/FlexMeasures/flexmeasures/pull/2321>`_]
+* Schedulers track devices via a typed device inventory, which classifies every flex-model entry once and serves as the single source of truth for device roles and canonical device indices [see `PR #2321 <https://www.github.com/FlexMeasures/flexmeasures/pull/2321>`_ and `PR #2360 <https://www.github.com/FlexMeasures/flexmeasures/pull/2360>`_]
 
 Bugfixes
 -----------
