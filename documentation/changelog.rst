@@ -41,6 +41,7 @@ New features
 * Extended the scheduling job ``result`` field with a ``num-beliefs`` field reporting the total number of beliefs (scheduled values) saved to the database [see `PR #2280 <https://www.github.com/FlexMeasures/flexmeasures/pull/2280>`_]
 * Migrate the asset tree in the UI's Structure tab from Vega to ECharts, adding interactive pan/zoom navigation and refreshed node styling [see `PR #2025 <https://www.github.com/FlexMeasures/flexmeasures/pull/2025>`_]
 * The asset tree in the UI's Structure tab now also zooms on scroll while the cursor is inside the tree, driving the same zoom level as the +/− buttons
+* Redesign the asset tree layout: an asset's leaf children now sit in one row (or, for many children, two balanced rows) next to their parent instead of one long column, with connectors reaching top-row boxes from above and bottom-row boxes from below — larger, non-overlapping boxes for wide asset trees
 
 Infrastructure / Support
 ----------------------
