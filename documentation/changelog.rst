@@ -44,6 +44,7 @@ New features
 Infrastructure / Support
 ----------------------
 
+* Speed up listing assets: eager-load each asset's sensors instead of lazy-loading them one query per asset during serialization, and skip loading sensors entirely for field-filtered responses that do not include them [see `PR #2364 <https://www.github.com/FlexMeasures/flexmeasures/pull/2364>`_]
 * Price fields in the flex-context (including nested commitment prices, which are now also held to the flex-context's shared currency) are selected for currency validation by field type (``PriceField``) instead of by name suffix [see `PR #2311 <https://www.github.com/FlexMeasures/flexmeasures/pull/2311>`_]
 * Document ``SECURITY_TWO_FACTOR`` and related 2FA configuration settings [see `PR #2340 <https://www.github.com/FlexMeasures/flexmeasures/pull/2340>`_]
 * ``flexmeasures db upgrade`` now runs ``VACUUM ANALYZE`` after upgrading by default, so Postgres has fresh planner statistics right after a migration; opt out with ``--no-vacuum`` [see `PR #2333 <https://www.github.com/FlexMeasures/flexmeasures/pull/2333>`_]
