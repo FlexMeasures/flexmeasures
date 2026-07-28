@@ -16,6 +16,7 @@ from marshmallow import fields, post_load, ValidationError, Schema, validate
 
 from webargs.flaskparser import use_kwargs, use_args
 from sqlalchemy import select, func, or_
+from sqlalchemy import exc as sa_exc
 from sqlalchemy.orm import selectinload
 
 from flexmeasures.data.services.generic_assets import (
@@ -428,9 +429,17 @@ class AssetAPI(FlaskView):
         # this endpoint take seconds (profiled: ~6.7 s for ~2k assets, ~3x
         # faster with eager loading). Only load sensors when the response
         # schema will actually dump them - derived from the schema itself, so
-        # this can never diverge from the response contents.
+        # this can never diverge from the response contents. The loader is
+        # anchored on the query's own root entity: search filters and owner
+        # sorting root the query on an aliased GenericAsset, for which the
+        # plain class attribute raises an ArgumentError. Failing to install
+        # the loader is never fatal - sensors then simply lazy-load as before.
         if "sensors" in response_schema.dump_fields:
-            query = query.options(selectinload(GenericAsset.sensors))
+            try:
+                root_entity = query.column_descriptions[0]["entity"]
+                query = query.options(selectinload(root_entity.sensors))
+            except (KeyError, IndexError, sa_exc.ArgumentError):
+                pass
 
         if page is None:
             response = response_schema.dump(db.session.scalars(query).all(), many=True)
