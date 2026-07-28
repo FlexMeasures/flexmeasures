@@ -143,6 +143,28 @@ def device_scheduler(  # noqa C901
     DataFrame. Later we could pass in a MultiIndex DataFrame directly.
     """
 
+    # The "highspy" solver choice bypasses Pyomo altogether: the same model is
+    # built directly with the HiGHS Python API (much faster to construct).
+    # See the highspy_optimization module, which mirrors the model built below
+    # and returns compatible result objects.
+    if current_app.config.get("FLEXMEASURES_LP_SOLVER") == "highspy":
+        from flexmeasures.data.models.planning.highspy_optimization import (
+            device_scheduler_highspy,
+        )
+
+        return device_scheduler_highspy(
+            device_constraints=device_constraints,
+            ems_constraints=ems_constraints,
+            commitment_quantities=commitment_quantities,
+            commitment_downwards_deviation_price=commitment_downwards_deviation_price,
+            commitment_upwards_deviation_price=commitment_upwards_deviation_price,
+            commitments=commitments,
+            initial_stock=initial_stock,
+            stock_groups=stock_groups,
+            ems_constraint_groups=ems_constraint_groups,
+            device_power_bands=device_power_bands,
+        )
+
     model = ConcreteModel()
 
     # If the EMS has no devices, don't bother
