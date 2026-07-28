@@ -349,16 +349,9 @@ def device_scheduler_highspy(  # noqa C901
             df["group"] = group
             commitments.append(df)
 
-    # commodity -> set(device indices)
-    commodity_devices: dict = {}
-    for df in commitments:
-        if "commodity" not in df.columns or "device" not in df.columns:
-            continue
-        for _, row in df[["commodity", "device"]].dropna().iterrows():
-            devices = row["device"]
-            if not isinstance(devices, (list, tuple, set)):
-                devices = [devices]
-            commodity_devices.setdefault(row["commodity"], set()).update(devices)
+    # NB the Pyomo implementation builds a commodity -> device indices lookup here,
+    # but it is only consumed by its ems_flow_commitment_equalities, which this
+    # backend deliberately does not build (they are free rows; see module docstring).
 
     # Check if commitments have the same time window and resolution as the constraints
     for commitment in commitments:
