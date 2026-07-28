@@ -35,6 +35,45 @@ from flexmeasures.utils.calculations import apply_stock_changes_and_losses
 infinity = float("inf")
 
 
+def validate_highs_options(options: dict) -> None:
+    """Raise if HiGHS would refuse any of these options.
+
+    Pyomo's appsi_highs interface applies solver options without checking HiGHS'
+    return status, so an unknown name, an invalid value, or a feature missing from
+    the installed HiGHS build is otherwise ignored without a word. That silently
+    turns a mis-typed option into a no-op, and a benchmark of it into a false
+    negative. Probing a throwaway Highs instance surfaces the rejection instead.
+    """
+    try:
+        import highspy
+    except ImportError:
+        # Solver named "*highs*" but highspy absent: let the solver interface complain.
+        return
+
+    probe = highspy.Highs()
+    probe.setOptionValue("output_flag", False)
+    rejected = [
+        f"{name}={value!r}"
+        for name, value in options.items()
+        if probe.setOptionValue(name, value) != highspy.HighsStatus.kOk
+    ]
+    if rejected:
+        raise ValueError(
+            f"HiGHS rejected these FLEXMEASURES_LP_SOLVER_OPTIONS: {', '.join(rejected)}."
+            " The option name may be unknown, the value invalid, or the feature absent"
+            " from this HiGHS build. For example, the HiPO solver (solver='hipo') needs"
+            " a HiGHS built against BLAS and METIS, which the pip-installed highspy is not."
+        )
+
+    if "threads" in options or "parallel" in options:
+        current_app.logger.warning(
+            "FLEXMEASURES_LP_SOLVER_OPTIONS sets 'threads' and/or 'parallel'. HiGHS"
+            " initializes its thread scheduler once per process, so inside a long-lived"
+            " worker only the first solve honours these; later solves fail with 'global"
+            " scheduler has already been initialized' and yield no schedule."
+        )
+
+
 def convert_commitments_to_subcommitments(
     dfs: list[pd.DataFrame],
 ) -> tuple[list[pd.DataFrame], dict[int, int]]:
@@ -163,6 +202,28 @@ def device_scheduler(  # noqa C901
     For now, we pass in the various constraints and prices as separate variables, from which we make a MultiIndex
     DataFrame. Later we could pass in a MultiIndex DataFrame directly.
     """
+
+    # The "highspy" solver choice bypasses Pyomo altogether: the same model is
+    # built directly with the HiGHS Python API (much faster to construct).
+    # See the highspy_optimization module, which mirrors the model built below
+    # and returns compatible result objects.
+    if current_app.config.get("FLEXMEASURES_LP_SOLVER") == "highspy":
+        from flexmeasures.data.models.planning.highspy_optimization import (
+            device_scheduler_highspy,
+        )
+
+        return device_scheduler_highspy(
+            device_constraints=device_constraints,
+            ems_constraints=ems_constraints,
+            commitment_quantities=commitment_quantities,
+            commitment_downwards_deviation_price=commitment_downwards_deviation_price,
+            commitment_upwards_deviation_price=commitment_upwards_deviation_price,
+            commitments=commitments,
+            initial_stock=initial_stock,
+            device_power_bands=device_power_bands,
+            stock_groups=stock_groups,
+            ems_constraint_groups=ems_constraint_groups,
+        )
 
     model = ConcreteModel()
 
