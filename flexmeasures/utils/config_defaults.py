@@ -154,7 +154,7 @@ class Config(object):
         "renewables": ["solar", "wind"],
         "EVSE": ["one-way_evse", "two-way_evse"],
     }  # how to group assets by asset types
-    FLEXMEASURES_LP_SOLVER: str = "appsi_highs"
+    FLEXMEASURES_LP_SOLVER: str = "highspy"
     FLEXMEASURES_LP_SOLVER_OPTIONS: dict[str, str | int | float] = {}
     FLEXMEASURES_DEFAULT_JOB_TIMEOUT: timedelta = timedelta(seconds=180)
     FLEXMEASURES_JOB_TIMEOUT: dict[str, timedelta | str] = {}

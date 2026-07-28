@@ -89,11 +89,12 @@ Install the linear solver on the server
 ---------------------------------------
 
 To compute schedules, FlexMeasures uses the `HiGHS <https://highs.dev/>`_ mixed integer linear optimization solver (FlexMeasures solver by default) or `Cbc <https://github.com/coin-or/Cbc>`_.
-Solvers are used through `Pyomo <http://www.pyomo.org>`_\ , so in principle supporting a `different solver <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ would be possible.
+By default, HiGHS is used directly through its Python API (``highspy``, which is installed together with FlexMeasures), so no extra installation is needed.
+Solvers can also be used through `Pyomo <http://www.pyomo.org>`_\ , so in principle supporting a `different solver <https://pyomo.readthedocs.io/en/stable/solving_pyomo_models.html#supported-solvers>`_ would be possible.
 
 You tell FlexMeasures with the config setting :ref:`solver-config` which solver to use.
 
-However, the solver also needs to be installed - in addition to FlexMeasures (the Docker image already has it). Here is advice on how to install the two solvers we test internally:
+However, a Pyomo-based solver also needs to be installed - in addition to FlexMeasures (the Docker image already has it). Here is advice on how to install the two solvers we test internally:
 
 
 .. note:: We default to HiGHS, as it seems more powerful

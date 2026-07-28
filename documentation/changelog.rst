@@ -44,6 +44,7 @@ New features
 Infrastructure / Support
 ----------------------
 
+* Speed up scheduling jobs by building the scheduling problem directly with the HiGHS Python API (``highspy``), bypassing Pyomo's model construction and solution-ingestion overhead (roughly a second for a single-device job, and several seconds for multi-device jobs); this direct backend is the new default for the ``FLEXMEASURES_LP_SOLVER`` setting (``"highspy"``), while any Pyomo-based solver (e.g. the previous default ``"appsi_highs"``, or ``"cbc"``) remains available as before [see `PR #2365 <https://www.github.com/FlexMeasures/flexmeasures/pull/2365>`_]
 * Price fields in the flex-context (including nested commitment prices, which are now also held to the flex-context's shared currency) are selected for currency validation by field type (``PriceField``) instead of by name suffix [see `PR #2311 <https://www.github.com/FlexMeasures/flexmeasures/pull/2311>`_]
 * Document ``SECURITY_TWO_FACTOR`` and related 2FA configuration settings [see `PR #2340 <https://www.github.com/FlexMeasures/flexmeasures/pull/2340>`_]
 * ``flexmeasures db upgrade`` now runs ``VACUUM ANALYZE`` after upgrading by default, so Postgres has fresh planner statistics right after a migration; opt out with ``--no-vacuum`` [see `PR #2333 <https://www.github.com/FlexMeasures/flexmeasures/pull/2333>`_]
