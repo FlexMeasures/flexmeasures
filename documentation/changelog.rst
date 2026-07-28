@@ -39,9 +39,7 @@ New features
 * Add support for intermediate power constraints on groups of devices, via a new ``group`` field in the storage flex-model [see `PR #2276 <https://www.github.com/FlexMeasures/flexmeasures/pull/2276>`_ and `issue #2092 <https://github.com/FlexMeasures/flexmeasures/issues/2092>`_]
 * The ``group`` field now also accepts a ``{"asset": <id>}`` reference (in addition to ``{"sensor": <id>}``), allowing intermediate power constraints to be defined entirely from flex-models stored on the asset tree, with results saved via the group's ``consumption``/``production`` output sensors, without needing any flex-model in the scheduling trigger [see `issue #2092 <https://github.com/FlexMeasures/flexmeasures/issues/2092>`_]
 * Extended the scheduling job ``result`` field with a ``num-beliefs`` field reporting the total number of beliefs (scheduled values) saved to the database [see `PR #2280 <https://www.github.com/FlexMeasures/flexmeasures/pull/2280>`_]
-* Migrate the asset tree in the UI's Structure tab from Vega to ECharts, adding interactive pan/zoom navigation and refreshed node styling [see `PR #2025 <https://www.github.com/FlexMeasures/flexmeasures/pull/2025>`_]
-* The asset tree in the UI's Structure tab now also zooms on scroll while the cursor is inside the tree, driving the same zoom level as the +/− buttons
-* Redesign the asset tree layout: an asset's leaf children now sit in one row (or, for many children, two balanced rows) next to their parent instead of one long column, with connectors reaching top-row boxes from above and bottom-row boxes from below — larger, non-overlapping boxes for wide asset trees
+* Migrate the asset tree in the UI's Structure tab from Vega to ECharts, adding interactive pan/zoom navigation and refreshed node styling [see `PR #2025 <https://www.github.com/FlexMeasures/flexmeasures/pull/2025>`_ and `PR #2365 <https://www.github.com/FlexMeasures/flexmeasures/pull/2365>`_]
 
 Infrastructure / Support
 ----------------------
