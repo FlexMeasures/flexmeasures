@@ -1733,3 +1733,23 @@ def test_get_asset_chart_with_annotation_layers(
         if param["name"].startswith("annotation_")
     ]
     assert len(all_param_names) == len(set(all_param_names))
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_asset_chart_annotations_start_and_duration(
+    client, db, annotated_asset, requesting_user
+):
+    """GET /assets/<id>/chart_annotations derives `end` from `start` + `duration`
+    when `end` itself isn't given."""
+    response = client.get(
+        url_for("AssetAPI:get_chart_annotations", id=annotated_asset.id),
+        query_string={
+            "start": "2025-05-01T00:00:00+02:00",
+            "duration": "P5D",
+        },
+    )
+    assert response.status_code == 200
+    records = json.loads(response.get_data(as_text=True))
+    assert isinstance(records, list)

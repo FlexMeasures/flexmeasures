@@ -32,7 +32,11 @@ from flexmeasures.api.common.schemas.scheduling import (
     flex_context_schema_openAPI,
     storage_flex_model_schema_openAPI,
 )
-from flexmeasures.api.common.schemas.generic_schemas import PaginationSchema
+from flexmeasures.api.common.schemas.generic_schemas import (
+    PaginationSchema,
+    EventWindowSchema,
+    BeliefTimeFilterSchema,
+)
 from flexmeasures.api.common.schemas.assets import (
     AssetAPIQuerySchema,
     AssetPaginationSchema,
@@ -146,64 +150,140 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
     )
 
 
-class AssetChartKwargsSchema(SupportsLegacyFieldAliases, Schema):
-    legacy_field_aliases = {"beliefs_before": "prior"}
+class AssetChartKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
+    legacy_field_aliases = {
+        **EventWindowSchema.legacy_field_aliases,
+        **BeliefTimeFilterSchema.legacy_field_aliases,
+        "include_data": "include-data",
+        "combine_legend": "combine-legend",
+        "include_asset_annotations": "include-asset-annotations",
+        "include_account_annotations": "include-account-annotations",
+        "dataset_name": "dataset-name",
+        "chart_type": "chart-type",
+    }
 
-    event_starts_after = AwareDateTimeField(format="iso", required=False)
-    event_ends_before = AwareDateTimeField(format="iso", required=False)
-    beliefs_after = AwareDateTimeField(format="iso", required=False)
-    beliefs_before = AwareDateTimeField(
-        format="iso",
-        data_key="prior",
+    include_data = fields.Boolean(
+        data_key="include-data",
         required=False,
         metadata=dict(
-            description="Only include beliefs recorded prior to this datetime (legacy alias: `beliefs_before`).",
+            description="If true, chart specs include the data; if false, fetch data separately from the `chart_data` endpoint.",
         ),
     )
-    include_data = fields.Boolean(required=False)
-    combine_legend = fields.Boolean(required=False, load_default=True)
-    include_asset_annotations = fields.Boolean(required=False)
-    include_account_annotations = fields.Boolean(required=False)
-    dataset_name = fields.Str(required=False)
-    height = fields.Str(required=False)
-    width = fields.Str(required=False)
-    chart_type = fields.Str(required=False)
-
-
-class AssetChartDataKwargsSchema(SupportsLegacyFieldAliases, Schema):
-    legacy_field_aliases = {"beliefs_before": "prior"}
-
-    event_starts_after = AwareDateTimeField(format="iso", required=False)
-    event_ends_before = AwareDateTimeField(format="iso", required=False)
-    beliefs_after = AwareDateTimeField(format="iso", required=False)
-    beliefs_before = AwareDateTimeField(
-        format="iso",
-        data_key="prior",
+    combine_legend = fields.Boolean(
+        data_key="combine-legend",
+        required=False,
+        load_default=True,
+        metadata=dict(
+            description="If true (default), render one shared legend across all subcharts.",
+        ),
+    )
+    include_asset_annotations = fields.Boolean(
+        data_key="include-asset-annotations",
         required=False,
         metadata=dict(
-            description="Only include beliefs recorded prior to this datetime (legacy alias: `beliefs_before`).",
+            description="If true, include the asset's own annotations in the chart.",
         ),
     )
-    use_latest_version_per_event = fields.Boolean(required=False, load_default=False)
-    most_recent_beliefs_only = fields.Boolean(required=False)
-    compress_json = fields.Boolean(required=False)
-
-
-class AssetChartAnnotationsKwargsSchema(SupportsLegacyFieldAliases, Schema):
-    legacy_field_aliases = {"beliefs_before": "prior"}
-
-    event_starts_after = AwareDateTimeField(format="iso", required=False)
-    event_ends_before = AwareDateTimeField(format="iso", required=False)
-    beliefs_after = AwareDateTimeField(format="iso", required=False)
-    beliefs_before = AwareDateTimeField(
-        format="iso",
-        data_key="prior",
+    include_account_annotations = fields.Boolean(
+        data_key="include-account-annotations",
         required=False,
         metadata=dict(
-            description="Only return annotations recorded prior to this datetime (legacy alias: `beliefs_before`).",
+            description="If true, include the asset's account annotations in the chart.",
         ),
     )
-    clip = fields.Boolean(load_default=True)
+    dataset_name = fields.Str(
+        data_key="dataset-name",
+        required=False,
+        metadata=dict(
+            description="Name to use for the embedded chart dataset.",
+        ),
+    )
+    height = fields.Str(
+        required=False,
+        metadata=dict(
+            description="Chart height in pixels; without it, FlexMeasures sets a default.",
+        ),
+    )
+    width = fields.Str(
+        required=False,
+        metadata=dict(
+            description="Chart width in pixels; without it, the chart is scaled to the full width of its container.",
+        ),
+    )
+    chart_type = fields.Str(
+        data_key="chart-type",
+        required=False,
+        metadata=dict(
+            description="Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
+        ),
+    )
+
+
+class AssetChartDataKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
+    legacy_field_aliases = {
+        **EventWindowSchema.legacy_field_aliases,
+        **BeliefTimeFilterSchema.legacy_field_aliases,
+        "use_latest_version_per_event": "use-latest-version-per-event",
+        "most_recent_beliefs_only": "most-recent-beliefs-only",
+        "compress_json": "compress-json",
+    }
+
+    use_latest_version_per_event = fields.Boolean(
+        data_key="use-latest-version-per-event",
+        required=False,
+        load_default=False,
+        metadata=dict(
+            description="If true, only the latest version of each event's belief is returned.",
+        ),
+    )
+    most_recent_beliefs_only = fields.Boolean(
+        data_key="most-recent-beliefs-only",
+        required=False,
+        metadata=dict(
+            description="If true (default), return only the most recently recorded belief for each event; if false, return every recorded belief.",
+        ),
+    )
+    compress_json = fields.Boolean(
+        data_key="compress-json",
+        required=False,
+        metadata=dict(
+            description="If true, compress the JSON response.",
+        ),
+    )
+
+
+class AssetChartAnnotationsKwargsSchema(EventWindowSchema, BeliefTimeFilterSchema):
+    legacy_field_aliases = {
+        **EventWindowSchema.legacy_field_aliases,
+        **BeliefTimeFilterSchema.legacy_field_aliases,
+    }
+
+    clip = fields.Boolean(
+        load_default=True,
+        metadata=dict(
+            description="If true (default), clip annotations to the requested time window.",
+        ),
+    )
+
+
+class AssetChartOpenAPISchema(AssetChartKwargsSchema):
+    """Doc-only variant of `AssetChartKwargsSchema` that hides `beliefs_after` from
+    the generated OpenAPI/Swagger spec (see `BeliefTimeFilterSchema`'s docstring for
+    why). Not used for actual request validation -- `AssetChartKwargsSchema` still
+    accepts `beliefs_after`.
+    """
+
+    def __init__(self, *args, **kwargs):
+        kwargs["exclude"] = ["beliefs_after"]
+        super().__init__(*args, **kwargs)
+
+
+class AssetChartDataOpenAPISchema(AssetChartDataKwargsSchema):
+    """Doc-only variant of `AssetChartDataKwargsSchema`; see `AssetChartOpenAPISchema`."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs["exclude"] = ["beliefs_after"]
+        super().__init__(*args, **kwargs)
 
 
 class AssetAuditLogPaginationSchema(PaginationSchema):
@@ -991,7 +1071,7 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: query
-              schema: AssetChartKwargsSchema
+              schema: AssetChartOpenAPISchema
           responses:
             200:
               description: PROCESSED
@@ -1039,7 +1119,7 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: query
-              schema: AssetChartDataKwargsSchema
+              schema: AssetChartDataOpenAPISchema
           responses:
             200:
               description: PROCESSED
@@ -1090,23 +1170,23 @@ class AssetAPI(FlaskView):
               schema:
                 type: integer
             - in: query
-              name: event_starts_after
-              description: Only return annotations that end after this datetime.
+              name: start
+              description: Only return annotations that end after this datetime (legacy alias `event_starts_after`). Provide together with `end` or `duration`.
               schema:
                 type: string
                 format: date-time
             - in: query
-              name: event_ends_before
-              description: Only return annotations that start before this datetime.
+              name: end
+              description: Only return annotations that start before this datetime (legacy alias `event_ends_before`). Provide together with `start` or `duration`.
               schema:
                 type: string
                 format: date-time
             - in: query
-              name: beliefs_after
-              description: Only return annotations recorded after this datetime.
+              name: duration
+              description: Duration of the event window, in ISO 8601 duration format. Provide together with `start` or `end` to derive the other bound.
               schema:
                 type: string
-                format: date-time
+                format: duration
             - in: query
               name: prior
               description: Only return annotations recorded before this datetime (legacy alias `beliefs_before`).

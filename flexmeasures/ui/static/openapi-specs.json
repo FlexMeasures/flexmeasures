@@ -3251,44 +3251,52 @@
           },
           {
             "in": "query",
-            "name": "event_starts_after",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "required": false
-          },
-          {
-            "in": "query",
-            "name": "event_ends_before",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "required": false
-          },
-          {
-            "in": "query",
-            "name": "beliefs_after",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "required": false
-          },
-          {
-            "in": "query",
             "name": "prior",
             "description": "Only include beliefs recorded prior to this datetime (legacy alias: `beliefs_before`).",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2025-05-03T00:00:00+02:00"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "include_data",
+            "name": "start",
+            "description": "Only include events starting after this datetime (legacy alias: `event_starts_after`). Provide together with `end` or `duration`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2025-05-01T00:00:00+02:00"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "description": "Only include events ending before this datetime (legacy alias: `event_ends_before`). Provide together with `start` or `duration`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2025-05-06T00:00:00+02:00"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "duration",
+            "description": "Duration of the event window, in ISO 8601 duration format. Provide together with `start` or `end` to derive the other bound.",
+            "schema": {
+              "type": "string",
+              "example": "PT24H",
+              "format": "duration"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "include-data",
+            "description": "If true, chart specs include the data; if false, fetch data separately from the `chart_data` endpoint.",
             "schema": {
               "type": "boolean"
             },
@@ -3296,7 +3304,8 @@
           },
           {
             "in": "query",
-            "name": "combine_legend",
+            "name": "combine-legend",
+            "description": "If true (default), render one shared legend across all subcharts.",
             "schema": {
               "type": "boolean",
               "default": true
@@ -3305,7 +3314,8 @@
           },
           {
             "in": "query",
-            "name": "include_asset_annotations",
+            "name": "include-asset-annotations",
+            "description": "If true, include the asset's own annotations in the chart.",
             "schema": {
               "type": "boolean"
             },
@@ -3313,7 +3323,8 @@
           },
           {
             "in": "query",
-            "name": "include_account_annotations",
+            "name": "include-account-annotations",
+            "description": "If true, include the asset's account annotations in the chart.",
             "schema": {
               "type": "boolean"
             },
@@ -3321,7 +3332,8 @@
           },
           {
             "in": "query",
-            "name": "dataset_name",
+            "name": "dataset-name",
+            "description": "Name to use for the embedded chart dataset.",
             "schema": {
               "type": "string"
             },
@@ -3330,6 +3342,7 @@
           {
             "in": "query",
             "name": "height",
+            "description": "Chart height in pixels; without it, FlexMeasures sets a default.",
             "schema": {
               "type": "string"
             },
@@ -3338,6 +3351,7 @@
           {
             "in": "query",
             "name": "width",
+            "description": "Chart width in pixels; without it, the chart is scaled to the full width of its container.",
             "schema": {
               "type": "string"
             },
@@ -3345,7 +3359,8 @@
           },
           {
             "in": "query",
-            "name": "chart_type",
+            "name": "chart-type",
+            "description": "Chart type, e.g. 'bar_chart' or 'daily_heatmap'.",
             "schema": {
               "type": "string"
             },
@@ -3395,8 +3410,8 @@
           },
           {
             "in": "query",
-            "name": "event_starts_after",
-            "description": "Only return annotations that end after this datetime.",
+            "name": "start",
+            "description": "Only return annotations that end after this datetime (legacy alias `event_starts_after`). Provide together with `end` or `duration`.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -3404,8 +3419,8 @@
           },
           {
             "in": "query",
-            "name": "event_ends_before",
-            "description": "Only return annotations that start before this datetime.",
+            "name": "end",
+            "description": "Only return annotations that start before this datetime (legacy alias `event_ends_before`). Provide together with `start` or `duration`.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -3413,11 +3428,11 @@
           },
           {
             "in": "query",
-            "name": "beliefs_after",
-            "description": "Only return annotations recorded after this datetime.",
+            "name": "duration",
+            "description": "Duration of the event window, in ISO 8601 duration format. Provide together with `start` or `end` to derive the other bound.",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "duration"
             }
           },
           {
@@ -3491,44 +3506,52 @@
           },
           {
             "in": "query",
-            "name": "event_starts_after",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "required": false
-          },
-          {
-            "in": "query",
-            "name": "event_ends_before",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "required": false
-          },
-          {
-            "in": "query",
-            "name": "beliefs_after",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "required": false
-          },
-          {
-            "in": "query",
             "name": "prior",
             "description": "Only include beliefs recorded prior to this datetime (legacy alias: `beliefs_before`).",
             "schema": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "example": "2025-05-03T00:00:00+02:00"
             },
             "required": false
           },
           {
             "in": "query",
-            "name": "use_latest_version_per_event",
+            "name": "start",
+            "description": "Only include events starting after this datetime (legacy alias: `event_starts_after`). Provide together with `end` or `duration`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2025-05-01T00:00:00+02:00"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "description": "Only include events ending before this datetime (legacy alias: `event_ends_before`). Provide together with `start` or `duration`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2025-05-06T00:00:00+02:00"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "duration",
+            "description": "Duration of the event window, in ISO 8601 duration format. Provide together with `start` or `end` to derive the other bound.",
+            "schema": {
+              "type": "string",
+              "example": "PT24H",
+              "format": "duration"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "use-latest-version-per-event",
+            "description": "If true, only the latest version of each event's belief is returned.",
             "schema": {
               "type": "boolean",
               "default": false
@@ -3537,7 +3560,8 @@
           },
           {
             "in": "query",
-            "name": "most_recent_beliefs_only",
+            "name": "most-recent-beliefs-only",
+            "description": "If true (default), return only the most recently recorded belief for each event; if false, return every recorded belief.",
             "schema": {
               "type": "boolean"
             },
@@ -3545,7 +3569,8 @@
           },
           {
             "in": "query",
-            "name": "compress_json",
+            "name": "compress-json",
+            "description": "If true, compress the JSON response.",
             "schema": {
               "type": "boolean"
             },
