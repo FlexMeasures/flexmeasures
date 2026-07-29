@@ -1024,7 +1024,7 @@ class SensorReferenceSchema(SharedSensorReferenceSchema):
         DataSourceIdField(),
         load_default=None,
         metadata=dict(
-            description="Only use beliefs from these data source IDs. The list order determines precedence: if several listed sources recorded a belief about the same event at the same belief time, the belief from the first listed source is used.",
+            description="Only use beliefs from these data source IDs.",
         ),
     )
     source_account = fields.List(
