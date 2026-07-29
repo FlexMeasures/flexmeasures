@@ -30,6 +30,25 @@ def test_event_window_schema_derives_start_from_end_and_duration():
     assert (data["event_ends_before"] - data["event_starts_after"]).days == 1
 
 
+def test_event_window_schema_derives_bound_from_nominal_duration():
+    """Regression test: a nominal duration (e.g. "P1M", a calendar month) deserializes
+    to an isodate.Duration, not a timedelta, and can't be added to/subtracted from a
+    datetime directly -- it must first be grounded to a concrete timedelta."""
+    data = EventWindowSchema().load(
+        {"start": "2025-01-31T00:00:00+01:00", "duration": "P1M"}
+    )
+    assert data["event_ends_before"] == data["event_starts_after"].replace(
+        month=2, day=28
+    )
+
+    data = EventWindowSchema().load(
+        {"end": "2025-03-31T00:00:00+02:00", "duration": "P1M"}
+    )
+    assert data["event_starts_after"] == data["event_ends_before"].replace(
+        month=2, day=28
+    )
+
+
 def test_event_window_schema_duration_alone_is_rejected():
     with pytest.raises(ValidationError) as e_info:
         EventWindowSchema().load({"duration": "P1D"})

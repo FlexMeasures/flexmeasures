@@ -1,6 +1,7 @@
 import json
 import warnings
 
+from flask import request
 from flask_classful import FlaskView, route
 from flask_security import current_user
 from marshmallow import fields
@@ -181,7 +182,12 @@ class SensorAPI(FlaskView):
         - "width" (an integer number of pixels; without it, the chart will be scaled to the full width of the container (hint: use ``<div style="width: 100%;">`` to set a div width to 100%)
         - "height" (an integer number of pixels; without it, FlexMeasures sets a default, currently 300)
         """
-        # Store selected time range and chart type as session variables, for a consistent UX across UI page loads
+        # Store selected time range and chart type as session variables, for a consistent UX across UI page loads.
+        # Merge in kwargs (already resolved from either the canonical or legacy query param spelling) so
+        # set_session_variables sees them regardless of which spelling the client used.
+        request_values = request.values.copy()
+        request_values.update(kwargs)
+        request.values = request_values
         set_session_variables("event_starts_after", "event_ends_before", "chart_type")
         return json.dumps(sensor.chart(**kwargs))
 

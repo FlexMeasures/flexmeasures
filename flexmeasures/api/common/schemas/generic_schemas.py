@@ -88,9 +88,13 @@ class EventWindowSchema(SupportsLegacyFieldAliases, Schema):
         has_start = "event_starts_after" in data
         has_end = "event_ends_before" in data
         if has_start and not has_end:
-            data["event_ends_before"] = data["event_starts_after"] + duration
+            # Nominal durations (e.g. "P1M") can't be added to a datetime directly,
+            # so ground them to a concrete timedelta relative to the known bound first.
+            grounded = DurationField.ground_from(duration, data["event_starts_after"])
+            data["event_ends_before"] = data["event_starts_after"] + grounded
         elif has_end and not has_start:
-            data["event_starts_after"] = data["event_ends_before"] - duration
+            grounded = DurationField.ground_from(-duration, data["event_ends_before"])
+            data["event_starts_after"] = data["event_ends_before"] + grounded
         elif not has_start and not has_end:
             raise ValidationError(
                 "Provide `duration` together with `start` or `end`.",

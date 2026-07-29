@@ -63,9 +63,10 @@ def test_search_annotations(db, setup_annotations):
 
 
 def test_count_annotations(db, setup_annotations):
-    """Regression test: GenericAsset.count_annotations executes the query
-    (built from a SQLAlchemy Select, which has no .count() method) rather
-    than calling .count() on it directly."""
+    """Regression test: GenericAsset.count_annotations executes its query rather than calling .count() on it directly.
+
+    The query is a SQLAlchemy Select, which has no .count() method.
+    """
     asset = setup_annotations["asset"]
     assert asset.count_annotations() == 1
 
