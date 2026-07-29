@@ -30,6 +30,10 @@ from flexmeasures.data.schemas.sensors import (
     PriceField,
 )
 from flexmeasures.data.schemas.scheduling import metadata
+from flexmeasures.data.schemas.scheduling.groups import (
+    GroupReferenceSchema,
+    validate_group_sensor_is_power_sensor,
+)
 from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.times import (
@@ -181,17 +185,34 @@ class DBCommitmentSchema(CommitmentSchema, NoTimeSeriesSpecs):
 
 
 class InflexibleDeviceSchema(SensorReferenceSchema):
-    """One inflexible device: a sensor reference with optional source filters."""
+    """One inflexible device: a sensor reference with optional source filters,
+    optionally assigned to a group (so its measured load counts towards that group's
+    intermediate power constraint)."""
 
     class Meta:
         description = "Sensor reference from which to look up an inflexible device's power (or energy) data."
 
+    group = fields.Nested(
+        GroupReferenceSchema,
+        data_key="group",
+        required=False,
+        metadata=metadata.GROUP.to_dict(),
+    )
+
+    @validates("group")
+    def validate_group(self, group: dict, **kwargs):
+        validate_group_sensor_is_power_sensor(group)
+
     @post_load
     def to_sensor_or_reference(self, data: dict, **kwargs) -> Sensor | SensorReference:
-        """Return a plain Sensor when no source filters are given (backward-compatible
-        shape downstream), and a SensorReference otherwise (see VariableQuantityField._deserialize_dict).
+        """Return a plain Sensor when neither source filters nor a group are given
+        (backward-compatible shape downstream), and a SensorReference otherwise (see
+        VariableQuantityField._deserialize_dict). A group is carried on the
+        SensorReference (belief queries ignore it) so the device inventory can resolve
+        the device's group membership.
         """
-        if not any(
+        group = data.get("group")
+        if group is None and not any(
             data.get(key)
             for key in (
                 "source_types",
@@ -207,6 +228,7 @@ class InflexibleDeviceSchema(SensorReferenceSchema):
             exclude_source_types=data.get("exclude_source_types"),
             sources=data.get("sources"),
             source_account=data.get("source_account"),
+            group=group,
         )
 
 

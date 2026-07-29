@@ -239,7 +239,7 @@ class MetaStorageScheduler(Scheduler):
                         f"The 'group' field references {group_key_label(gkey)}, "
                         "but no device in the flex-model belongs to that group."
                     )
-                commodities = {inventory.devices[d].commodity for d in leaves}
+                commodities = {inventory.by_index(d).commodity for d in leaves}
                 if len(commodities) > 1:
                     raise ValueError(
                         f"All member devices of group {group_key_label(gkey)} must "
@@ -745,7 +745,7 @@ class MetaStorageScheduler(Scheduler):
                 continue
             group_entry = self._group_models[group_key]
             group_label = f"{group_key[0]}:{group_key[1]}"
-            group_commodity = inventory.devices[leaf_members[0]].commodity
+            group_commodity = inventory.by_index(leaf_members[0]).commodity
             group_devices = device_list_series(leaf_members, index)
 
             group_power_capacity = get_continuous_series_sensor_or_quantity(

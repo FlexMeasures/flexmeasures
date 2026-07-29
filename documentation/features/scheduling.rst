@@ -344,6 +344,8 @@ Here, the battery and PV installation may each individually schedule up to 2 kW,
 
 The ``{"asset": <id>}`` variant lets you define the entire flex-model on the asset tree in the DB, with no flex-model needed in the scheduling trigger at all: each device asset carries its own (partial) flex-model, including a ``group`` field pointing at the parent asset that represents the shared equipment, and that parent asset's own flex-model defines the group's constraints and output sensor(s). Triggering a schedule for the top-level site asset with an empty (or omitted) ``flex-model`` then collects the full configuration from the tree. For a hands-on walkthrough (including how to store flex-models on assets, and where the resulting schedules end up), see :ref:`tut_toy_schedule_group_constraints`.
 
+Inflexible (measured) devices can be group members too. An ``inflexible-consumption`` or ``inflexible-production`` entry in the flex-context may carry the same ``group`` field, so that its fixed load or supply counts towards the group's intermediate power constraint — for example, an unschedulable base load sitting behind the same inverter or feeder as a battery. The group is referenced the same way (``{"sensor": <id>}`` or ``{"asset": <id>}``), and its flex-model entry (defining the group's capacities) must still be present, just like for flexible members.
+
 
 Usually, not the whole flexibility model is needed.
 FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.

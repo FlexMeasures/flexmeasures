@@ -4,9 +4,11 @@ from datetime import timedelta
 import pytest
 import pandas as pd
 
+from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures.data.models.time_series import Sensor
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.models.planning.storage import StorageScheduler
+from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.utils.unit_utils import ur
 
 
@@ -171,6 +173,101 @@ def test_group_absent_allows_larger_aggregate(db, building):
     }
     combined_abs_max = (schedules[battery] + schedules[pv]).abs().max()
     assert combined_abs_max > 2.5
+
+
+def _write_constant_forecast(db, sensor, value_mw: float, hours: int = 4):
+    """Write a flat consumption forecast (in MW) for an inflexible device sensor."""
+    source = DataSource(_unique_name("inflexible load source"))
+    db.session.add(source)
+    start = pd.Timestamp("2023-01-01T00:00:00", tz="Europe/Amsterdam")
+    resolution = timedelta(hours=1)
+    db.session.add_all(
+        [
+            TimedBelief(
+                sensor=sensor,
+                source=source,
+                event_start=start + i * resolution,
+                belief_time=start - resolution,
+                event_value=value_mw,
+            )
+            for i in range(hours)
+        ]
+    )
+    db.session.commit()
+
+
+def test_inflexible_device_counts_towards_group(db, building):
+    """Point 5 of the #2276 discussion: an inflexible (measured) load assigned to a
+    group counts towards that group's intermediate power constraint, so the flexible
+    members get less headroom than the group cap alone would give them.
+
+    A battery that is paid to consume would use its full 2 MW capacity, but a 2 MW
+    group cap shared with a fixed 1 MW inflexible load leaves it only 1 MW.
+    """
+    battery = make_sensors(db, building, n=1)[0]
+    group_sensor = make_group_sensor(db, building)
+    load = make_group_sensor(db, building)  # a 1 MW inflexible consumer
+    _write_constant_forecast(db, load, value_mw=1.0)
+
+    flex_model = [
+        {
+            "sensor": battery,
+            "soc_at_start": 0.0,
+            "soc_min": 0.0,
+            "soc_max": 100.0,
+            "power_capacity_in_mw": ur.Quantity("2 MW"),
+            "consumption_capacity": ur.Quantity("2 MW"),
+            "production_capacity": ur.Quantity("2 MW"),
+            "group": {"sensor": group_sensor},
+        },
+        {"sensor": group_sensor, "power_capacity_in_mw": ur.Quantity("2 MW")},
+    ]
+
+    def flex_context_with(load_in_group: bool):
+        return {
+            "consumption_price": ur.Quantity("-100 EUR/MWh"),  # paid to consume
+            "production_price": ur.Quantity("100 EUR/MWh"),
+            "shared_currency_unit": "EUR",
+            "inflexible_consumption": [
+                SensorReference(
+                    sensor=load,
+                    group={"sensor": group_sensor} if load_in_group else None,
+                )
+            ],
+        }
+
+    # With the load in the group, battery consumption is capped at 1 MW (2 MW group
+    # cap minus the fixed 1 MW load), and the saved aggregate includes the load.
+    results = run_scheduler(
+        building,
+        flex_model,
+        flex_context_with(True),
+        return_multiple=True,
+    ).compute()
+    schedules = {
+        r["sensor"]: r["data"] for r in results if r.get("name") == "storage_schedule"
+    }
+    battery_schedule = schedules[battery]
+    aggregate = schedules[group_sensor]
+    assert (battery_schedule <= 1.0 + 1e-6).all()
+    assert battery_schedule.max() > 1.0 - 1e-3  # it does push up to that 1 MW
+    assert (aggregate <= 2.0 + 1e-6).all()
+    # The saved aggregate equals the battery plus the fixed 1 MW inflexible load.
+    assert ((aggregate - (battery_schedule + 1.0)).abs() < 1e-6).all()
+
+    # Control: with the same load NOT in the group, the battery uses the full 2 MW.
+    results_control = run_scheduler(
+        building,
+        flex_model,
+        flex_context_with(False),
+        return_multiple=True,
+    ).compute()
+    schedules_control = {
+        r["sensor"]: r["data"]
+        for r in results_control
+        if r.get("name") == "storage_schedule"
+    }
+    assert schedules_control[battery].max() > 2.0 - 1e-3
 
 
 def test_group_soft_directional_capacity(db, building):
