@@ -44,7 +44,7 @@ New features
 
 Infrastructure / Support
 ----------------------
-* Add a ``FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT`` setting for spreading a host's Sentry error allowance across the month with a fail-open daily Redis counter [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* Add a ``FLEXMEASURES_SENTRY_DAILY_RATE_LIMIT`` setting for spreading a host's Sentry error allowance across the month with a fail-open daily Redis counter [see `PR #2366 <https://www.github.com/FlexMeasures/flexmeasures/pull/2366>`_]
 * Speed up listing assets: eager-load each asset's sensors instead of lazy-loading them one query per asset during serialization, and skip loading sensors entirely for field-filtered responses that do not include them [see `PR #2363 <https://www.github.com/FlexMeasures/flexmeasures/pull/2363>`_]
 * Price fields in the flex-context (including nested commitment prices, which are now also held to the flex-context's shared currency) are selected for currency validation by field type (``PriceField``) instead of by name suffix [see `PR #2311 <https://www.github.com/FlexMeasures/flexmeasures/pull/2311>`_]
 * Document ``SECURITY_TWO_FACTOR`` and related 2FA configuration settings [see `PR #2340 <https://www.github.com/FlexMeasures/flexmeasures/pull/2340>`_]
