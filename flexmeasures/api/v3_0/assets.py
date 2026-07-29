@@ -274,7 +274,7 @@ class AssetChartOpenAPISchema(AssetChartKwargsSchema):
     """
 
     def __init__(self, *args, **kwargs):
-        kwargs["exclude"] = ["beliefs_after"]
+        kwargs["exclude"] = list(kwargs.get("exclude", [])) + ["beliefs_after"]
         super().__init__(*args, **kwargs)
 
 
@@ -282,7 +282,7 @@ class AssetChartDataOpenAPISchema(AssetChartDataKwargsSchema):
     """Doc-only variant of `AssetChartDataKwargsSchema`; see `AssetChartOpenAPISchema`."""
 
     def __init__(self, *args, **kwargs):
-        kwargs["exclude"] = ["beliefs_after"]
+        kwargs["exclude"] = list(kwargs.get("exclude", [])) + ["beliefs_after"]
         super().__init__(*args, **kwargs)
 
 

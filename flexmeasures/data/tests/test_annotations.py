@@ -62,6 +62,14 @@ def test_search_annotations(db, setup_annotations):
         assert annotations[0].content == "Dutch new year"
 
 
+def test_count_annotations(db, setup_annotations):
+    """Regression test: GenericAsset.count_annotations executes the query
+    (built from a SQLAlchemy Select, which has no .count() method) rather
+    than calling .count() on it directly."""
+    asset = setup_annotations["asset"]
+    assert asset.count_annotations() == 1
+
+
 def test_search_annotations_by_belief_time(db, setup_annotations):
     """search_annotations filters by belief time in both directions.
 

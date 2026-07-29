@@ -952,13 +952,14 @@ class GenericAsset(db.Model, AuthModelMixin):
         )
 
         parsed_sources = parse_source_arg(source)
-        return query_asset_annotations(
+        query = query_asset_annotations(
             asset_id=self.id,
             annotations_after=annotations_after,
             annotations_before=annotations_before,
             sources=parsed_sources,
             annotation_type=annotation_type,
-        ).count()
+        )
+        return db.session.scalar(select(func.count()).select_from(query.subquery()))
 
     def chart(
         self,
