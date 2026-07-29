@@ -63,9 +63,12 @@ def test_search_annotations(db, setup_annotations):
 
 
 def test_search_annotations_by_belief_time(db, setup_annotations):
-    """search_annotations should filter out annotations recorded after beliefs_before,
-    while always keeping annotations without a belief_time (unknown recording moment,
-    not necessarily a future one)."""
+    """search_annotations filters by belief time in both directions.
+
+    Annotations without a belief_time (unknown recording moment, not necessarily
+    a future one) are always kept, regardless of the beliefs_before/beliefs_after
+    filter applied.
+    """
     account = setup_annotations["account"]
     asset = setup_annotations["asset"]
     sensor = setup_annotations["sensor"]
