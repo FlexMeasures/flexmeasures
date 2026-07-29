@@ -14,7 +14,7 @@ from flexmeasures.data.models.annotations import (
 from flexmeasures.data.models.data_sources import DataSource
 
 
-def _filter_by_belief_time(
+def filter_by_belief_time(
     query: Select[tuple[Annotation]],
     beliefs_after: datetime | None = None,
     beliefs_before: datetime | None = None,
@@ -67,7 +67,7 @@ def _query_related_annotations(
         query = query.filter(Annotation.end > annotations_after)
     if annotations_before is not None:
         query = query.filter(Annotation.start < annotations_before)
-    query = _filter_by_belief_time(query, beliefs_after, beliefs_before)
+    query = filter_by_belief_time(query, beliefs_after, beliefs_before)
     if sources:
         query = query.filter(Annotation.source.in_(sources))
     if annotation_type is not None:

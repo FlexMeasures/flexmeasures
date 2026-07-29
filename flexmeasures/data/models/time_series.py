@@ -47,7 +47,7 @@ from flexmeasures.data.models.charts import chart_type_to_chart_specs
 from flexmeasures.data.models.data_sources import DataSource
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.validation_utils import check_required_attributes
-from flexmeasures.data.queries.annotations import _filter_by_belief_time
+from flexmeasures.data.queries.annotations import filter_by_belief_time
 from flexmeasures.data.queries.sensors import query_sensors_by_proximity
 from flexmeasures.utils.coding_utils import OrderByIdMixin
 from flexmeasures.utils.geo_utils import parse_lat_lng
@@ -371,7 +371,7 @@ class Sensor(db.Model, tb.SensorDBMixin, AuthModelMixin, OrderByIdMixin):
             query = query.filter(
                 Annotation.start < annotations_before,
             )
-        query = _filter_by_belief_time(query, beliefs_after, beliefs_before)
+        query = filter_by_belief_time(query, beliefs_after, beliefs_before)
         if parsed_sources:
             query = query.filter(
                 Annotation.source.in_(parsed_sources),

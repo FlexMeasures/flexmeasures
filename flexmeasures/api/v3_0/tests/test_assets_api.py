@@ -1763,7 +1763,11 @@ def test_get_asset_chart_session_vars_with_canonical_params(
     """Regression test: GET /assets/<id>/chart persists the selected time range as
     session variables (for a consistent UX across UI page loads) even when the
     client uses the canonical `start`/`end` query params rather than the legacy
-    `event_starts_after`/`event_ends_before` spelling."""
+    `event_starts_after`/`event_ends_before` spelling.
+
+    Session values must stay raw strings (not deserialized datetimes): downstream
+    template rendering only normalizes URL encoding for `str` values.
+    """
     with client.session_transaction() as sess:
         sess.pop("event_starts_after", None)
         sess.pop("event_ends_before", None)
@@ -1776,5 +1780,5 @@ def test_get_asset_chart_session_vars_with_canonical_params(
     )
     assert response.status_code == 200
     with client.session_transaction() as sess:
-        assert sess.get("event_starts_after") is not None
-        assert sess.get("event_ends_before") is not None
+        assert sess.get("event_starts_after") == "2025-05-01T00:00:00+02:00"
+        assert sess.get("event_ends_before") == "2025-05-02T00:00:00+02:00"

@@ -1087,12 +1087,11 @@ class AssetAPI(FlaskView):
             - Assets
         """
         # Store selected time range as session variables, for a consistent UX across UI page loads.
-        # Merge in kwargs (already resolved from either the canonical or legacy query param spelling) so
-        # set_session_variables sees them regardless of which spelling the client used.
-        request_values = request.values.copy()
-        request_values.update(kwargs)
-        request.values = request_values
-        set_session_variables("event_starts_after", "event_ends_before")
+        set_session_variables(
+            "event_starts_after",
+            "event_ends_before",
+            aliases={"event_starts_after": "start", "event_ends_before": "end"},
+        )
         return json.dumps(asset.chart(**kwargs))
 
     @route(

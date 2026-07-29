@@ -20,7 +20,7 @@ from flexmeasures.data.models.annotations import (
     to_annotation_frame,
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
-from flexmeasures.data.queries.annotations import _filter_by_belief_time
+from flexmeasures.data.queries.annotations import filter_by_belief_time
 from flexmeasures.auth.policy import AuthModelMixin, CONSULTANT_ROLE, ACCOUNT_ADMIN_ROLE
 from flexmeasures.utils.time_utils import server_now
 
@@ -192,7 +192,7 @@ class Account(db.Model, AuthModelMixin):
             query = query.filter(
                 Annotation.start < annotations_before,
             )
-        query = _filter_by_belief_time(query, beliefs_after, beliefs_before)
+        query = filter_by_belief_time(query, beliefs_after, beliefs_before)
         if parsed_sources:
             query = query.filter(
                 Annotation.source.in_(parsed_sources),
