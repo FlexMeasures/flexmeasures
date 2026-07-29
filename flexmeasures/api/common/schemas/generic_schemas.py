@@ -59,7 +59,7 @@ class EventWindowSchema(SupportsLegacyFieldAliases, Schema):
         data_key="start",
         required=False,
         metadata=dict(
-            description="Only include events starting after this datetime (legacy alias: `event_starts_after`). Provide together with `end` or `duration`.",
+            description="Only include events starting after this datetime (legacy alias: `event_starts_after`). May be given alone, or paired with `duration` to derive `end`.",
             example="2025-05-01T00:00:00+02:00",
         ),
     )
@@ -68,7 +68,7 @@ class EventWindowSchema(SupportsLegacyFieldAliases, Schema):
         data_key="end",
         required=False,
         metadata=dict(
-            description="Only include events ending before this datetime (legacy alias: `event_ends_before`). Provide together with `start` or `duration`.",
+            description="Only include events ending before this datetime (legacy alias: `event_ends_before`). May be given alone, or paired with `duration` to derive `start`.",
             example="2025-05-06T00:00:00+02:00",
         ),
     )

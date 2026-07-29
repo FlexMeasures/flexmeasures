@@ -1171,13 +1171,13 @@ class AssetAPI(FlaskView):
                 type: integer
             - in: query
               name: start
-              description: Only return annotations that end after this datetime (legacy alias `event_starts_after`). Provide together with `end` or `duration`.
+              description: Only return annotations that end after this datetime (legacy alias `event_starts_after`). May be given alone, or paired with `duration` to derive `end`.
               schema:
                 type: string
                 format: date-time
             - in: query
               name: end
-              description: Only return annotations that start before this datetime (legacy alias `event_ends_before`). Provide together with `start` or `duration`.
+              description: Only return annotations that start before this datetime (legacy alias `event_ends_before`). May be given alone, or paired with `duration` to derive `start`.
               schema:
                 type: string
                 format: date-time

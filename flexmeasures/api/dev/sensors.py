@@ -172,8 +172,8 @@ class SensorAPI(FlaskView):
 
         **Optional fields**
 
-        - "start" (legacy alias: "event_starts_after"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_). Provide together with "end" or "duration".
-        - "end" (legacy alias: "event_ends_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_). Provide together with "start" or "duration".
+        - "start" (legacy alias: "event_starts_after"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_). May be given alone, or paired with "duration" to derive "end".
+        - "end" (legacy alias: "event_ends_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_). May be given alone, or paired with "duration" to derive "start".
         - "duration" (ISO 8601 duration format; provide together with "start" or "end" to derive the other bound)
         - "prior" (legacy alias: "beliefs_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "include-data" (legacy alias: "include_data"; if true, chart specs include the data; if false, use the `GET /api/dev/sensor/(id)/chart_data <../api/dev.html#get--api-dev-sensor-(id)-chart_data->`_ endpoint to fetch data)
@@ -201,8 +201,8 @@ class SensorAPI(FlaskView):
 
         **Optional fields**
 
-        - "start" (legacy alias: "event_starts_after"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_). Provide together with "end" or "duration".
-        - "end" (legacy alias: "event_ends_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_). Provide together with "start" or "duration".
+        - "start" (legacy alias: "event_starts_after"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_). May be given alone, or paired with "duration" to derive "end".
+        - "end" (legacy alias: "event_ends_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_). May be given alone, or paired with "duration" to derive "start".
         - "duration" (ISO 8601 duration format; provide together with "start" or "end" to derive the other bound)
         - "prior" (legacy alias: "beliefs_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "resolution" (see [docs about describing timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))
