@@ -72,7 +72,7 @@ Infrastructure / Support
 
 Bugfixes
 -----------
-* Annotation searches can now be scoped by belief time: ``search_annotations`` on sensors, assets and accounts accepts ``beliefs_after``/``beliefs_before``, and the ``chart_annotations`` endpoint passes on the ``beliefs_after``/``beliefs_before`` query parameters it already accepted but silently ignored, so replaying a chart no longer shows annotations that were only recorded later; annotations without a belief time keep showing up regardless
+* Annotation searches can now be scoped by belief time: ``search_annotations`` on sensors, assets and accounts accepts ``beliefs_after``/``beliefs_before``, and both ``chart_annotations`` endpoints (sensor and asset) pass on ``beliefs_after``/``beliefs_before`` query parameters instead of silently ignoring or not accepting them, so replaying a chart no longer shows annotations that were only recorded later; annotations without a belief time keep showing up regardless [see `PR #2367 <https://www.github.com/FlexMeasures/flexmeasures/pull/2367>`_]
 * Scheduling jobs no longer print ``Job ... made schedule.`` before ``scheduler.compute()`` runs (only after a successful schedule) [see `PR #2342 <https://www.github.com/FlexMeasures/flexmeasures/pull/2342>`_]
 * ``flexmeasures add user --roles`` now correctly accepts a comma-separated list of roles (and repeated ``--roles`` options) instead of creating one role whose name contains commas [see `PR #2339 <https://www.github.com/FlexMeasures/flexmeasures/pull/2339>`_]
 * Raise a clear ``ValueError`` when a flex-model references a missing sensor ID instead of ``AttributeError: 'NoneType' object has no attribute 'asset_id'`` [see `PR #2343 <https://www.github.com/FlexMeasures/flexmeasures/pull/2343>`_]
