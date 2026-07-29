@@ -10,7 +10,6 @@ from darts import TimeSeries
 from darts.dataprocessing.transformers import MissingValuesFiller
 from timely_beliefs import utils as tb_utils
 
-from flexmeasures.data.models.data_sources import source_priorities
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.forecasting.exceptions import NotEnoughDataException
 from flexmeasures.data.schemas.sensors import SensorReference
@@ -66,9 +65,8 @@ def _resolve_source_collisions(
 
     - If the regressor reference lists explicit ``sources``, their list order decides:
       the first listed source wins.
-    - Otherwise, the source ranked highest by
-      :func:`~flexmeasures.data.models.data_sources.source_priorities` wins,
-      i.e. the latest source version, with the highest source ID as the final tie-break.
+    - Otherwise, the source with the highest ID wins. Latest source versions within
+      each source family have already been selected while loading beliefs.
 
     Deduplicating here, before the source column is dropped, also prevents duplicated
     (event_start, belief_time) keys from multiplying rows through the outer join over
@@ -80,12 +78,14 @@ def _resolve_source_collisions(
         regressor.sources if isinstance(regressor, SensorReference) else None
     )
     if explicit_sources:
-        rank = {source.id: position for position, source in enumerate(explicit_sources)}
+        rank = {}
+        for position, source in enumerate(explicit_sources):
+            rank.setdefault(source.id, position)
         precedence = df["source"].map(lambda s: (rank.get(s.id, len(rank)), s.id))
         first_wins = True
     else:
-        precedence = df["source"].map(source_priorities(df["source"].unique()))
-        first_wins = False  # sort descending: a higher priority means a more recent source version
+        precedence = df["source"].map(lambda source: source.id)
+        first_wins = False  # sort descending: the highest source ID wins
     return (
         df.assign(_precedence=precedence)
         .sort_values(
@@ -286,6 +286,7 @@ class BasePipeline:
                 event_ends_before=sensor_event_ends_before,
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 beliefs_before=self.beliefs_before,
+                one_deterministic_belief_per_event_per_source=True,
                 **source_filters,
             )
             try:
