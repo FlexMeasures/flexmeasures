@@ -144,6 +144,8 @@ class SensorAPI(FlaskView):
         df = sensor.search_annotations(
             annotations_after=event_starts_after,
             annotations_before=event_ends_before,
+            beliefs_after=kwargs.get("beliefs_after", None),
+            beliefs_before=kwargs.get("beliefs_before", None),
             include_asset_annotations=True,
             as_frame=True,
         )
