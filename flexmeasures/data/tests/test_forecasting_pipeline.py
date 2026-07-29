@@ -285,12 +285,21 @@ def test_load_data_all_beliefs_resolves_source_collisions_by_list_order(
     assert value_b in values.values
     assert value_a not in values.values
 
+    values = _load_regressor_values(
+        target_sensor,
+        SensorReference(
+            sensor=regressor_sensor, sources=[source_a, source_b, source_a]
+        ),
+    )
+    assert value_a in values.values
+    assert value_b not in values.values
 
-def test_load_data_all_beliefs_resolves_source_collisions_by_source_priority(
+
+def test_load_data_all_beliefs_uses_latest_version_within_source_family(
     setup_fresh_test_forecast_data,
     fresh_db,
 ):
-    """Without an explicit sources list, the latest source version wins on collisions."""
+    """Belief loading keeps the latest version of each source family."""
     target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
     regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
     old_source = DataSource(
@@ -309,6 +318,82 @@ def test_load_data_all_beliefs_resolves_source_collisions_by_source_priority(
     values = _load_regressor_values(target_sensor, regressor_sensor)
     assert new_value in values.values
     assert old_value not in values.values
+
+
+def test_load_data_all_beliefs_resolves_cross_family_collisions_by_source_id(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """Without an explicit sources list, the highest source ID wins on collisions."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    lower_id_source = DataSource(
+        name="lower-id-source",
+        type="forecaster",
+        model="unrelated-model-a",
+        version="production",
+    )
+    higher_id_source = DataSource(
+        name="higher-id-source",
+        type="forecaster",
+        model="unrelated-model-b",
+        version="dev-main",
+    )
+    lower_id_value = -111.0
+    higher_id_value = -222.0
+    fresh_db.session.add_all([lower_id_source, higher_id_source])
+    _add_colliding_beliefs(
+        fresh_db,
+        regressor_sensor,
+        [
+            (lower_id_source, lower_id_value),
+            (higher_id_source, higher_id_value),
+        ],
+    )
+    assert higher_id_source.id > lower_id_source.id
+
+    values = _load_regressor_values(target_sensor, regressor_sensor)
+    assert higher_id_value in values.values
+    assert lower_id_value not in values.values
+
+
+def test_load_data_all_beliefs_determinizes_probabilistic_regressors_per_source(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """Probabilistic regressor beliefs are reduced to their median before precedence."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    source_a = DataSource(name="probabilistic-regressor-source-a", type="forecaster")
+    source_b = DataSource(name="probabilistic-regressor-source-b", type="forecaster")
+    source_values = [
+        (source_a, [(0.1, -111.0), (0.5, -222.0), (0.9, -333.0)]),
+        (source_b, [(0.1, -444.0), (0.5, -555.0), (0.9, -666.0)]),
+    ]
+    fresh_db.session.add_all([source_a, source_b])
+    fresh_db.session.add_all(
+        [
+            TimedBelief(
+                sensor=regressor_sensor,
+                event_start=as_server_time(datetime(2025, 1, 2)),
+                event_value=value,
+                belief_horizon=timedelta(hours=6),
+                source=source,
+                cumulative_probability=cumulative_probability,
+            )
+            for source, probability_values in source_values
+            for cumulative_probability, value in probability_values
+        ]
+    )
+    fresh_db.session.commit()
+
+    values = _load_regressor_values(
+        target_sensor,
+        SensorReference(sensor=regressor_sensor, sources=[source_b, source_a]),
+    )
+
+    assert -555.0 in values.values
+    assert not {-111.0, -222.0, -333.0, -444.0, -666.0}.intersection(values.values)
 
 
 def test_train_predict_job_parameters_payload_preserves_plain_fields(
