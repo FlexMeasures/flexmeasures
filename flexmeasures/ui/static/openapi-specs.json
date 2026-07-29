@@ -4661,7 +4661,7 @@
               "null"
             ],
             "default": null,
-            "description": "Only use beliefs from these data source IDs. The list order determines precedence: if several listed sources recorded a belief about the same event at the same belief time, the belief from the first listed source is used.",
+            "description": "Only use beliefs from these data source IDs.",
             "items": {
               "type": "integer"
             }
@@ -4957,7 +4957,7 @@
           "future-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor.",
+            "description": "Sensor IDs or source-filtered sensor references to be treated only as future regressors. Use this if only forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
               {
                 "sensor": 2093,
@@ -4987,7 +4987,7 @@
           "past-regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor.",
+            "description": "Sensor IDs or source-filtered sensor references to be treated only as past regressors. Use this if only realizations recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
               {
                 "sensor": 2095,
@@ -5010,7 +5010,7 @@
           "regressors": {
             "type": "array",
             "default": [],
-            "description": "Sensor IDs or source-filtered sensor references used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor.",
+            "description": "Sensor IDs or source-filtered sensor references used as both past and future regressors. Use this if both realizations and forecasts recorded on this sensor matter as a regressor. When a sensor reference lists multiple sources, the first listed source wins if they contain beliefs with the same event and belief time.",
             "example": [
               {
                 "sensor": 2093,
