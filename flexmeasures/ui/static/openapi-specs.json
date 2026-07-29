@@ -3278,7 +3278,8 @@
           },
           {
             "in": "query",
-            "name": "beliefs_before",
+            "name": "prior",
+            "description": "Only include beliefs recorded prior to this datetime (legacy alias: `beliefs_before`).",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -3421,8 +3422,8 @@
           },
           {
             "in": "query",
-            "name": "beliefs_before",
-            "description": "Only return annotations recorded before this datetime.",
+            "name": "prior",
+            "description": "Only return annotations recorded before this datetime (legacy alias `beliefs_before`).",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -3517,10 +3518,20 @@
           },
           {
             "in": "query",
-            "name": "beliefs_before",
+            "name": "prior",
+            "description": "Only include beliefs recorded prior to this datetime (legacy alias: `beliefs_before`).",
             "schema": {
               "type": "string",
               "format": "date-time"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "use_latest_version_per_event",
+            "schema": {
+              "type": "boolean",
+              "default": false
             },
             "required": false
           },

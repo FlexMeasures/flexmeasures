@@ -3,7 +3,7 @@ import warnings
 
 from flask_classful import FlaskView, route
 from flask_security import current_user
-from marshmallow import fields
+from marshmallow import fields, Schema
 from webargs.flaskparser import use_kwargs
 from werkzeug.exceptions import abort
 
@@ -16,10 +16,72 @@ from flexmeasures.data.schemas import (
     DurationField,
     SensorIdField,
 )
+from flexmeasures.data.schemas.utils import SupportsLegacyFieldAliases
 from flexmeasures.data.models.generic_assets import GenericAsset
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.services.annotations import prepare_annotations_for_chart
 from flexmeasures.ui.utils.view_utils import set_session_variables
+
+
+class SensorChartKwargsSchema(SupportsLegacyFieldAliases, Schema):
+    legacy_field_aliases = {"beliefs_before": "prior"}
+
+    event_starts_after = AwareDateTimeField(format="iso", required=False)
+    event_ends_before = AwareDateTimeField(format="iso", required=False)
+    beliefs_after = AwareDateTimeField(format="iso", required=False)
+    beliefs_before = AwareDateTimeField(
+        format="iso",
+        data_key="prior",
+        required=False,
+        metadata=dict(
+            description="Only include beliefs recorded prior to this datetime (legacy alias: `beliefs_before`).",
+        ),
+    )
+    include_data = fields.Boolean(required=False)
+    include_sensor_annotations = fields.Boolean(required=False)
+    include_asset_annotations = fields.Boolean(required=False)
+    include_account_annotations = fields.Boolean(required=False)
+    dataset_name = fields.Str(required=False)
+    chart_type = fields.Str(required=False)
+    height = fields.Str(required=False)
+    width = fields.Str(required=False)
+
+
+class SensorChartDataKwargsSchema(SupportsLegacyFieldAliases, Schema):
+    legacy_field_aliases = {"beliefs_before": "prior"}
+
+    event_starts_after = AwareDateTimeField(format="iso", required=False)
+    event_ends_before = AwareDateTimeField(format="iso", required=False)
+    beliefs_after = AwareDateTimeField(format="iso", required=False)
+    beliefs_before = AwareDateTimeField(
+        format="iso",
+        data_key="prior",
+        required=False,
+        metadata=dict(
+            description="Only include beliefs recorded prior to this datetime (legacy alias: `beliefs_before`).",
+        ),
+    )
+    resolution = DurationField(required=False)
+    use_latest_version_per_event = fields.Boolean(required=False, load_default=True)
+    most_recent_beliefs_only = fields.Boolean(required=False, load_default=True)
+    compress_json = fields.Boolean(required=False)
+
+
+class SensorChartAnnotationsKwargsSchema(SupportsLegacyFieldAliases, Schema):
+    legacy_field_aliases = {"beliefs_before": "prior"}
+
+    event_starts_after = AwareDateTimeField(format="iso", required=False)
+    event_ends_before = AwareDateTimeField(format="iso", required=False)
+    beliefs_after = AwareDateTimeField(format="iso", required=False)
+    beliefs_before = AwareDateTimeField(
+        format="iso",
+        data_key="prior",
+        required=False,
+        metadata=dict(
+            description="Only return annotations recorded prior to this datetime (legacy alias: `beliefs_before`).",
+        ),
+    )
+    clip = fields.Boolean(load_default=True)
 
 
 class SensorAPI(FlaskView):
@@ -37,23 +99,7 @@ class SensorAPI(FlaskView):
         {"sensor": SensorIdField(data_key="id")},
         location="path",
     )
-    @use_kwargs(
-        {
-            "event_starts_after": AwareDateTimeField(format="iso", required=False),
-            "event_ends_before": AwareDateTimeField(format="iso", required=False),
-            "beliefs_after": AwareDateTimeField(format="iso", required=False),
-            "beliefs_before": AwareDateTimeField(format="iso", required=False),
-            "include_data": fields.Boolean(required=False),
-            "include_sensor_annotations": fields.Boolean(required=False),
-            "include_asset_annotations": fields.Boolean(required=False),
-            "include_account_annotations": fields.Boolean(required=False),
-            "dataset_name": fields.Str(required=False),
-            "chart_type": fields.Str(required=False),
-            "height": fields.Str(required=False),
-            "width": fields.Str(required=False),
-        },
-        location="query",
-    )
+    @use_kwargs(SensorChartKwargsSchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_chart(self, id: int, sensor: Sensor, **kwargs):
         """GET from /sensor/<id>/chart
@@ -65,7 +111,7 @@ class SensorAPI(FlaskView):
         - "event_starts_after" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "event_ends_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "beliefs_after" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
-        - "beliefs_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
+        - "prior" (legacy alias: "beliefs_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "include_data" (if true, chart specs include the data; if false, use the `GET /api/dev/sensor/(id)/chart_data <../api/dev.html#get--api-dev-sensor-(id)-chart_data->`_ endpoint to fetch data)
         - "chart_type" (currently 'bar_chart' and 'daily_heatmap' are supported types)
         - "width" (an integer number of pixels; without it, the chart will be scaled to the full width of the container (hint: use ``<div style="width: 100%;">`` to set a div width to 100%)
@@ -80,23 +126,7 @@ class SensorAPI(FlaskView):
         {"sensor": SensorIdField(data_key="id")},
         location="path",
     )
-    @use_kwargs(
-        {
-            "event_starts_after": AwareDateTimeField(format="iso", required=False),
-            "event_ends_before": AwareDateTimeField(format="iso", required=False),
-            "beliefs_after": AwareDateTimeField(format="iso", required=False),
-            "beliefs_before": AwareDateTimeField(format="iso", required=False),
-            "resolution": DurationField(required=False),
-            "use_latest_version_per_event": fields.Boolean(
-                required=False, load_default=True
-            ),
-            "most_recent_beliefs_only": fields.Boolean(
-                required=False, load_default=True
-            ),
-            "compress_json": fields.Boolean(required=False),
-        },
-        location="query",
-    )
+    @use_kwargs(SensorChartDataKwargsSchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_chart_data(self, id: int, sensor: Sensor, **kwargs):
         """GET from /sensor/<id>/chart_data
@@ -110,7 +140,7 @@ class SensorAPI(FlaskView):
         - "event_starts_after" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "event_ends_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "beliefs_after" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
-        - "beliefs_before" (see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
+        - "prior" (legacy alias: "beliefs_before"; see the `timely-beliefs documentation <https://github.com/SeitaBV/timely-beliefs/blob/main/timely_beliefs/docs/timing.md/#events-and-sensors>`_)
         - "resolution" (see [docs about describing timing](https://flexmeasures.readthedocs.io/latest/api/notation.html#frequency-and-resolution))
         - "most_recent_beliefs_only" (if true, returns the most recent belief for each event; if false, returns each belief for each event; defaults to true)
         """
@@ -121,16 +151,7 @@ class SensorAPI(FlaskView):
         {"sensor": SensorIdField(data_key="id")},
         location="path",
     )
-    @use_kwargs(
-        {
-            "event_starts_after": AwareDateTimeField(format="iso", required=False),
-            "event_ends_before": AwareDateTimeField(format="iso", required=False),
-            "beliefs_after": AwareDateTimeField(format="iso", required=False),
-            "beliefs_before": AwareDateTimeField(format="iso", required=False),
-            "clip": fields.Boolean(load_default=True),
-        },
-        location="query",
-    )
+    @use_kwargs(SensorChartAnnotationsKwargsSchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="sensor")
     def get_chart_annotations(self, id: int, sensor: Sensor, **kwargs):
         """GET from /sensor/<id>/chart_annotations

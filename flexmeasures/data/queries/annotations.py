@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, Select
 from sqlalchemy.orm.attributes import InstrumentedAttribute
-from sqlalchemy.orm import Query
 
 from flexmeasures.data.models.annotations import (
     Annotation,
@@ -16,10 +15,10 @@ from flexmeasures.data.models.data_sources import DataSource
 
 
 def _filter_by_belief_time(
-    query: Query,
+    query: Select[tuple[Annotation]],
     beliefs_after: datetime | None = None,
     beliefs_before: datetime | None = None,
-) -> Query:
+) -> Select[tuple[Annotation]]:
     """Restrict a query to annotations recorded within the given belief-time window.
 
     Annotations without a belief time are never filtered out: a missing belief time
@@ -53,7 +52,7 @@ def _query_related_annotations(
     beliefs_before: datetime | None = None,
     sources: list[DataSource] | None = None,
     annotation_type: str | None = None,
-) -> Query:
+) -> Select[tuple[Annotation]]:
     """Match annotations assigned through a relationship table."""
     query = (
         select(Annotation)
@@ -84,7 +83,7 @@ def query_asset_annotations(
     beliefs_before: datetime | None = None,
     sources: list[DataSource] | None = None,
     annotation_type: str | None = None,
-) -> Query:
+) -> Select[tuple[Annotation]]:
     """Match annotations assigned to the given asset."""
     return _query_related_annotations(
         GenericAssetAnnotationRelationship,
@@ -107,7 +106,7 @@ def query_account_annotations(
     beliefs_before: datetime | None = None,
     sources: list[DataSource] | None = None,
     annotation_type: str | None = None,
-) -> Query:
+) -> Select[tuple[Annotation]]:
     """Match annotations assigned to the given account."""
     return _query_related_annotations(
         AccountAnnotationRelationship,
@@ -130,7 +129,7 @@ def query_sensor_annotations(
     beliefs_before: datetime | None = None,
     sources: list[DataSource] | None = None,
     annotation_type: str | None = None,
-) -> Query:
+) -> Select[tuple[Annotation]]:
     """Match annotations assigned to the given sensor."""
     return _query_related_annotations(
         SensorAnnotationRelationship,

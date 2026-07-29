@@ -146,11 +146,20 @@ class AssetTriggerOpenAPISchema(AssetTriggerSchema):
     )
 
 
-class AssetChartKwargsSchema(Schema):
+class AssetChartKwargsSchema(SupportsLegacyFieldAliases, Schema):
+    legacy_field_aliases = {"beliefs_before": "prior"}
+
     event_starts_after = AwareDateTimeField(format="iso", required=False)
     event_ends_before = AwareDateTimeField(format="iso", required=False)
     beliefs_after = AwareDateTimeField(format="iso", required=False)
-    beliefs_before = AwareDateTimeField(format="iso", required=False)
+    beliefs_before = AwareDateTimeField(
+        format="iso",
+        data_key="prior",
+        required=False,
+        metadata=dict(
+            description="Only include beliefs recorded prior to this datetime (legacy alias: `beliefs_before`).",
+        ),
+    )
     include_data = fields.Boolean(required=False)
     combine_legend = fields.Boolean(required=False, load_default=True)
     include_asset_annotations = fields.Boolean(required=False)
@@ -161,13 +170,40 @@ class AssetChartKwargsSchema(Schema):
     chart_type = fields.Str(required=False)
 
 
-class AssetChartDataKwargsSchema(Schema):
+class AssetChartDataKwargsSchema(SupportsLegacyFieldAliases, Schema):
+    legacy_field_aliases = {"beliefs_before": "prior"}
+
     event_starts_after = AwareDateTimeField(format="iso", required=False)
     event_ends_before = AwareDateTimeField(format="iso", required=False)
     beliefs_after = AwareDateTimeField(format="iso", required=False)
-    beliefs_before = AwareDateTimeField(format="iso", required=False)
+    beliefs_before = AwareDateTimeField(
+        format="iso",
+        data_key="prior",
+        required=False,
+        metadata=dict(
+            description="Only include beliefs recorded prior to this datetime (legacy alias: `beliefs_before`).",
+        ),
+    )
+    use_latest_version_per_event = fields.Boolean(required=False, load_default=False)
     most_recent_beliefs_only = fields.Boolean(required=False)
     compress_json = fields.Boolean(required=False)
+
+
+class AssetChartAnnotationsKwargsSchema(SupportsLegacyFieldAliases, Schema):
+    legacy_field_aliases = {"beliefs_before": "prior"}
+
+    event_starts_after = AwareDateTimeField(format="iso", required=False)
+    event_ends_before = AwareDateTimeField(format="iso", required=False)
+    beliefs_after = AwareDateTimeField(format="iso", required=False)
+    beliefs_before = AwareDateTimeField(
+        format="iso",
+        data_key="prior",
+        required=False,
+        metadata=dict(
+            description="Only return annotations recorded prior to this datetime (legacy alias: `beliefs_before`).",
+        ),
+    )
+    clip = fields.Boolean(load_default=True)
 
 
 class AssetAuditLogPaginationSchema(PaginationSchema):
@@ -985,20 +1021,7 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    @use_kwargs(
-        {
-            "event_starts_after": AwareDateTimeField(format="iso", required=False),
-            "event_ends_before": AwareDateTimeField(format="iso", required=False),
-            "beliefs_after": AwareDateTimeField(format="iso", required=False),
-            "beliefs_before": AwareDateTimeField(format="iso", required=False),
-            "use_latest_version_per_event": fields.Boolean(
-                required=False, load_default=False
-            ),
-            "most_recent_beliefs_only": fields.Boolean(required=False),
-            "compress_json": fields.Boolean(required=False),
-        },
-        location="query",
-    )
+    @use_kwargs(AssetChartDataKwargsSchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="asset")
     def get_chart_data(self, id: int, asset: GenericAsset, **kwargs):
         """
@@ -1047,16 +1070,7 @@ class AssetAPI(FlaskView):
         },
         location="path",
     )
-    @use_kwargs(
-        {
-            "event_starts_after": AwareDateTimeField(format="iso", required=False),
-            "event_ends_before": AwareDateTimeField(format="iso", required=False),
-            "beliefs_after": AwareDateTimeField(format="iso", required=False),
-            "beliefs_before": AwareDateTimeField(format="iso", required=False),
-            "clip": fields.Boolean(load_default=True),
-        },
-        location="query",
-    )
+    @use_kwargs(AssetChartAnnotationsKwargsSchema, location="query")
     @permission_required_for_context("read", ctx_arg_name="asset")
     def get_chart_annotations(self, id: int, asset: GenericAsset, **kwargs):
         """
@@ -1094,8 +1108,8 @@ class AssetAPI(FlaskView):
                 type: string
                 format: date-time
             - in: query
-              name: beliefs_before
-              description: Only return annotations recorded before this datetime.
+              name: prior
+              description: Only return annotations recorded before this datetime (legacy alias `beliefs_before`).
               schema:
                 type: string
                 format: date-time
