@@ -54,6 +54,52 @@ def _regressor_sensor_and_source_filters(
     }
 
 
+def _resolve_source_collisions(
+    df: pd.DataFrame,
+    regressor: Sensor | SensorReference,
+) -> pd.DataFrame:
+    """Keep a single belief per (event_start, belief_time) pair.
+
+    Several selected sources may record a belief about the same event at the same
+    belief time. Which belief is kept is decided as follows:
+
+    - If the regressor reference lists explicit ``sources``, their list order decides:
+      the first listed source wins.
+    - Otherwise, the source with the highest ID wins. Latest source versions within
+      each source family have already been selected while loading beliefs.
+
+    Deduplicating here, before the source column is dropped, also prevents duplicated
+    (event_start, belief_time) keys from multiplying rows through the outer join over
+    regressors in ``load_data_all_beliefs``.
+    """
+    if not df.duplicated(subset=["event_start", "belief_time"]).any():
+        return df
+    explicit_sources = (
+        regressor.sources if isinstance(regressor, SensorReference) else None
+    )
+    if explicit_sources:
+        rank = {}
+        for position, source in enumerate(explicit_sources):
+            rank.setdefault(source.id, position)
+        precedence = df["source"].map(lambda s: (rank.get(s.id, len(rank)), s.id))
+        first_wins = True
+    else:
+        precedence = df["source"].map(lambda source: source.id)
+        first_wins = False  # sort descending: the highest source ID wins
+    return (
+        df.assign(_precedence=precedence)
+        .sort_values(
+            by=["event_start", "belief_time", "_precedence"],
+            ascending=[True, True, first_wins],
+            kind="mergesort",
+        )
+        .drop_duplicates(subset=["event_start", "belief_time"], keep="first")
+        .drop(columns=["_precedence"])
+        .sort_values(by=["event_start", "belief_time"], kind="mergesort")
+        .reset_index(drop=True)
+    )
+
+
 class BasePipeline:
     """
     Base class for Train and Predict pipelines.
@@ -240,6 +286,7 @@ class BasePipeline:
                 event_ends_before=sensor_event_ends_before,
                 most_recent_beliefs_only=most_recent_beliefs_only,
                 beliefs_before=self.beliefs_before,
+                one_deterministic_belief_per_event_per_source=True,
                 **source_filters,
             )
             try:
@@ -260,6 +307,7 @@ class BasePipeline:
                 logging.warning(f"Error during custom resample for {name}: {e}")
 
             df = df.reset_index()
+            df = _resolve_source_collisions(df, regressor_or_sensor)
             df_filtered = df[["event_start", "belief_time", "event_value"]].copy()
             df_filtered.rename(columns={"event_value": name}, inplace=True)
 

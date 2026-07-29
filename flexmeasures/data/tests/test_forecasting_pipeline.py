@@ -222,6 +222,180 @@ def test_load_data_all_beliefs_applies_regressor_source_filters(
     assert loaded_data[pipeline.future_regressors[0]].notna().any()
 
 
+def _add_colliding_beliefs(db, sensor, sources_and_values):
+    """Record one belief per source about the same event, all with the same belief time."""
+    db.session.add_all(
+        [
+            TimedBelief(
+                sensor=sensor,
+                event_start=as_server_time(datetime(2025, 1, 2)),
+                event_value=value,
+                belief_horizon=timedelta(hours=6),
+                source=source,
+            )
+            for source, value in sources_and_values
+        ]
+    )
+    db.session.commit()
+
+
+def _load_regressor_values(target_sensor, regressor) -> pd.Series:
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[regressor],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=as_server_time(datetime(2025, 1, 1)),
+        event_ends_before=as_server_time(datetime(2025, 1, 3)),
+    )
+    loaded_data = pipeline.load_data_all_beliefs()
+    assert not loaded_data.duplicated(subset=["event_start", "belief_time"]).any()
+    return loaded_data[pipeline.future_regressors[0]]
+
+
+def test_load_data_all_beliefs_resolves_source_collisions_by_list_order(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """The order of an explicit sources list decides which equally-timed belief wins."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    source_a = DataSource(name="colliding-source-a", type="forecaster")
+    source_b = DataSource(name="colliding-source-b", type="forecaster")
+    value_a = -111.0
+    value_b = -222.0
+    fresh_db.session.add_all([source_a, source_b])
+    _add_colliding_beliefs(
+        fresh_db, regressor_sensor, [(source_a, value_a), (source_b, value_b)]
+    )
+
+    values = _load_regressor_values(
+        target_sensor,
+        SensorReference(sensor=regressor_sensor, sources=[source_a, source_b]),
+    )
+    assert value_a in values.values
+    assert value_b not in values.values
+
+    values = _load_regressor_values(
+        target_sensor,
+        SensorReference(sensor=regressor_sensor, sources=[source_b, source_a]),
+    )
+    assert value_b in values.values
+    assert value_a not in values.values
+
+    values = _load_regressor_values(
+        target_sensor,
+        SensorReference(
+            sensor=regressor_sensor, sources=[source_a, source_b, source_a]
+        ),
+    )
+    assert value_a in values.values
+    assert value_b not in values.values
+
+
+def test_load_data_all_beliefs_uses_latest_version_within_source_family(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """Belief loading keeps the latest version of each source family."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    old_source = DataSource(
+        name="versioned-source", type="forecaster", model="test-model", version="1.0.0"
+    )
+    new_source = DataSource(
+        name="versioned-source", type="forecaster", model="test-model", version="2.0.0"
+    )
+    old_value = -111.0
+    new_value = -222.0
+    fresh_db.session.add_all([old_source, new_source])
+    _add_colliding_beliefs(
+        fresh_db, regressor_sensor, [(new_source, new_value), (old_source, old_value)]
+    )
+
+    values = _load_regressor_values(target_sensor, regressor_sensor)
+    assert new_value in values.values
+    assert old_value not in values.values
+
+
+def test_load_data_all_beliefs_resolves_cross_family_collisions_by_source_id(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """Without an explicit sources list, the highest source ID wins on collisions."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    lower_id_source = DataSource(
+        name="lower-id-source",
+        type="forecaster",
+        model="unrelated-model-a",
+        version="production",
+    )
+    higher_id_source = DataSource(
+        name="higher-id-source",
+        type="forecaster",
+        model="unrelated-model-b",
+        version="dev-main",
+    )
+    lower_id_value = -111.0
+    higher_id_value = -222.0
+    fresh_db.session.add_all([lower_id_source, higher_id_source])
+    _add_colliding_beliefs(
+        fresh_db,
+        regressor_sensor,
+        [
+            (lower_id_source, lower_id_value),
+            (higher_id_source, higher_id_value),
+        ],
+    )
+    assert higher_id_source.id > lower_id_source.id
+
+    values = _load_regressor_values(target_sensor, regressor_sensor)
+    assert higher_id_value in values.values
+    assert lower_id_value not in values.values
+
+
+def test_load_data_all_beliefs_determinizes_probabilistic_regressors_per_source(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """Probabilistic regressor beliefs are reduced to their median before precedence."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    source_a = DataSource(name="probabilistic-regressor-source-a", type="forecaster")
+    source_b = DataSource(name="probabilistic-regressor-source-b", type="forecaster")
+    source_values = [
+        (source_a, [(0.1, -111.0), (0.5, -222.0), (0.9, -333.0)]),
+        (source_b, [(0.1, -444.0), (0.5, -555.0), (0.9, -666.0)]),
+    ]
+    fresh_db.session.add_all([source_a, source_b])
+    fresh_db.session.add_all(
+        [
+            TimedBelief(
+                sensor=regressor_sensor,
+                event_start=as_server_time(datetime(2025, 1, 2)),
+                event_value=value,
+                belief_horizon=timedelta(hours=6),
+                source=source,
+                cumulative_probability=cumulative_probability,
+            )
+            for source, probability_values in source_values
+            for cumulative_probability, value in probability_values
+        ]
+    )
+    fresh_db.session.commit()
+
+    values = _load_regressor_values(
+        target_sensor,
+        SensorReference(sensor=regressor_sensor, sources=[source_b, source_a]),
+    )
+
+    assert -555.0 in values.values
+    assert not {-111.0, -222.0, -333.0, -444.0, -666.0}.intersection(values.values)
+
+
 def test_train_predict_job_parameters_payload_preserves_plain_fields(
     setup_fresh_test_forecast_data,
 ):

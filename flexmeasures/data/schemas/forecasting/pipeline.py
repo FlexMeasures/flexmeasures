@@ -108,6 +108,8 @@ class TrainPredictPipelineConfigSchema(Schema):
             "description": (
                 "Sensor IDs or source-filtered sensor references to be treated only as future regressors."
                 " Use this if only forecasts recorded on this sensor matter as a regressor."
+                " When a sensor reference lists multiple sources, the first listed source wins"
+                " if they contain beliefs with the same event and belief time."
             ),
             "example": [
                 {"sensor": 2093, "sources": [12, 13]},
@@ -126,6 +128,8 @@ class TrainPredictPipelineConfigSchema(Schema):
             "description": (
                 "Sensor IDs or source-filtered sensor references to be treated only as past regressors."
                 " Use this if only realizations recorded on this sensor matter as a regressor."
+                " When a sensor reference lists multiple sources, the first listed source wins"
+                " if they contain beliefs with the same event and belief time."
             ),
             "example": [{"sensor": 2095, "exclude-source-types": ["forecaster"]}],
             "cli": {
@@ -141,6 +145,8 @@ class TrainPredictPipelineConfigSchema(Schema):
             "description": (
                 "Sensor IDs or source-filtered sensor references used as both past and future regressors."
                 " Use this if both realizations and forecasts recorded on this sensor matter as a regressor."
+                " When a sensor reference lists multiple sources, the first listed source wins"
+                " if they contain beliefs with the same event and belief time."
             ),
             "example": [
                 {"sensor": 2093, "sources": [12, 13]},
