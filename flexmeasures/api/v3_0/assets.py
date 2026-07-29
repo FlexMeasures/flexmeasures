@@ -1051,6 +1051,8 @@ class AssetAPI(FlaskView):
         {
             "event_starts_after": AwareDateTimeField(format="iso", required=False),
             "event_ends_before": AwareDateTimeField(format="iso", required=False),
+            "beliefs_after": AwareDateTimeField(format="iso", required=False),
+            "beliefs_before": AwareDateTimeField(format="iso", required=False),
             "clip": fields.Boolean(load_default=True),
         },
         location="query",
@@ -1086,6 +1088,18 @@ class AssetAPI(FlaskView):
                 type: string
                 format: date-time
             - in: query
+              name: beliefs_after
+              description: Only return annotations recorded after this datetime.
+              schema:
+                type: string
+                format: date-time
+            - in: query
+              name: beliefs_before
+              description: Only return annotations recorded before this datetime.
+              schema:
+                type: string
+                format: date-time
+            - in: query
               name: clip
               description: If true (default), clip annotations to the requested time window.
               schema:
@@ -1115,6 +1129,8 @@ class AssetAPI(FlaskView):
         df = asset.search_annotations(
             annotations_after=event_starts_after,
             annotations_before=event_ends_before,
+            beliefs_after=kwargs.get("beliefs_after", None),
+            beliefs_before=kwargs.get("beliefs_before", None),
             include_account_annotations=True,
             as_frame=True,
         )

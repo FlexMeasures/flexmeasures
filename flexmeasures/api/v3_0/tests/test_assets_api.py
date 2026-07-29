@@ -1650,6 +1650,49 @@ def test_get_asset_chart_annotations(client, annotated_asset, requesting_user):
 @pytest.mark.parametrize(
     "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
 )
+def test_get_asset_chart_annotations_belief_time(
+    client, db, annotated_asset, requesting_user
+):
+    """GET /assets/<id>/chart_annotations excludes annotations recorded after
+    beliefs_before, while an annotation without a belief_time is still returned."""
+    import pandas as pd
+
+    from flexmeasures.data.models.annotations import Annotation
+    from flexmeasures.data.models.data_sources import DataSource
+
+    source = db.session.scalars(select(DataSource).limit(1)).first()
+    annotated_asset.annotations.append(
+        Annotation(
+            content="Breach alert recorded after the fact",
+            start=pd.Timestamp("2025-05-02 12:00+02"),
+            end=pd.Timestamp("2025-05-02 18:00+02"),
+            source=source,
+            type="alert",
+            belief_time=pd.Timestamp("2025-05-10 00:00+02"),
+        )
+    )
+    db.session.flush()
+
+    response = client.get(
+        url_for("AssetAPI:get_chart_annotations", id=annotated_asset.id),
+        query_string={
+            "event_starts_after": "2025-05-01T00:00:00+02:00",
+            "event_ends_before": "2025-05-06T00:00:00+02:00",
+            "beliefs_before": "2025-05-03T00:00:00+02:00",
+        },
+    )
+    assert response.status_code == 200
+    records = json.loads(response.get_data(as_text=True))
+    contents = [content for record in records for content in record["content"]]
+    # Recorded after beliefs_before, so excluded.
+    assert "Breach alert recorded after the fact" not in contents
+    # No belief_time, so still included regardless of beliefs_before.
+    assert "Projected breach of site capacity" in contents
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
 def test_get_asset_chart_with_annotation_layers(
     client, annotated_asset, requesting_user
 ):

@@ -3412,6 +3412,24 @@
           },
           {
             "in": "query",
+            "name": "beliefs_after",
+            "description": "Only return annotations recorded after this datetime.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "beliefs_before",
+            "description": "Only return annotations recorded before this datetime.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
             "name": "clip",
             "description": "If true (default), clip annotations to the requested time window.",
             "schema": {

@@ -60,3 +60,41 @@ def test_search_annotations(db, setup_annotations):
         annotations = getattr(obj, "search_annotations")()
         assert len(annotations) == 1
         assert annotations[0].content == "Dutch new year"
+
+
+def test_search_annotations_by_belief_time(db, setup_annotations):
+    """search_annotations should filter out annotations recorded after beliefs_before,
+    while always keeping annotations without a belief_time (unknown recording moment,
+    not necessarily a future one)."""
+    account = setup_annotations["account"]
+    asset = setup_annotations["asset"]
+    sensor = setup_annotations["sensor"]
+    source = setup_annotations["annotation"].source
+
+    # This annotation is recorded well after the window we'll query with beliefs_before.
+    late_annotation = Annotation(
+        content="Recorded later",
+        start=pd.Timestamp("2020-01-03 00:00+01"),
+        end=pd.Timestamp("2020-01-04 00:00+01"),
+        source=source,
+        type="holiday",
+        belief_time=pd.Timestamp("2020-02-01 00:00+01"),
+    )
+    for obj in (account, asset, sensor):
+        obj.annotations.append(late_annotation)
+    db.session.flush()
+
+    beliefs_before = pd.Timestamp("2020-01-15 00:00+01")
+    for obj in (account, asset, sensor):
+        annotations = obj.search_annotations(beliefs_before=beliefs_before)
+        contents = {a.content for a in annotations}
+        # The pre-existing "Dutch new year" annotation has belief_time=None,
+        # so it should still be returned.
+        assert "Dutch new year" in contents
+        # The late annotation was recorded after beliefs_before, so it should be excluded.
+        assert "Recorded later" not in contents
+
+        # Without a beliefs_before filter, both annotations are returned.
+        all_annotations = obj.search_annotations()
+        all_contents = {a.content for a in all_annotations}
+        assert {"Dutch new year", "Recorded later"} <= all_contents
