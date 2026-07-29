@@ -20,6 +20,7 @@ from flexmeasures.data.models.annotations import (
     to_annotation_frame,
 )
 from flexmeasures.data.models.parsing_utils import parse_source_arg
+from flexmeasures.data.queries.annotations import filter_by_belief_time
 from flexmeasures.auth.policy import AuthModelMixin, CONSULTANT_ROLE, ACCOUNT_ADMIN_ROLE
 from flexmeasures.utils.time_utils import server_now
 
@@ -140,6 +141,8 @@ class Account(db.Model, AuthModelMixin):
         annotations_after: datetime | None = None,
         annotation_ends_before: datetime | None = None,  # deprecated
         annotations_before: datetime | None = None,
+        beliefs_after: datetime | None = None,
+        beliefs_before: datetime | None = None,
         source: (
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
@@ -149,6 +152,9 @@ class Account(db.Model, AuthModelMixin):
 
         :param annotations_after: only return annotations that end after this datetime (exclusive)
         :param annotations_before: only return annotations that start before this datetime (exclusive)
+        :param beliefs_after: only return annotations recorded after this datetime (exclusive)
+        :param beliefs_before: only return annotations recorded before this datetime (inclusive);
+                               annotations without a belief time are always returned
         """
 
         # todo: deprecate the 'annotation_starts_after' argument in favor of 'annotations_after' (announced v0.11.0)
@@ -186,6 +192,7 @@ class Account(db.Model, AuthModelMixin):
             query = query.filter(
                 Annotation.start < annotations_before,
             )
+        query = filter_by_belief_time(query, beliefs_after, beliefs_before)
         if parsed_sources:
             query = query.filter(
                 Annotation.source.in_(parsed_sources),

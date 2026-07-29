@@ -878,6 +878,8 @@ class GenericAsset(db.Model, AuthModelMixin):
         self,
         annotations_after: datetime | None = None,
         annotations_before: datetime | None = None,
+        beliefs_after: datetime | None = None,
+        beliefs_before: datetime | None = None,
         source: (
             DataSource | list[DataSource] | int | list[int] | str | list[str] | None
         ) = None,
@@ -891,6 +893,9 @@ class GenericAsset(db.Model, AuthModelMixin):
 
         :param annotations_after: only return annotations that end after this datetime (exclusive)
         :param annotations_before: only return annotations that start before this datetime (exclusive)
+        :param beliefs_after: only return annotations recorded after this datetime (exclusive)
+        :param beliefs_before: only return annotations recorded before this datetime (inclusive);
+                               annotations without a belief time are always returned
         """
         parsed_sources = parse_source_arg(source)
         annotations = db.session.scalars(
@@ -898,6 +903,8 @@ class GenericAsset(db.Model, AuthModelMixin):
                 asset_id=self.id,
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
                 sources=parsed_sources,
                 annotation_type=annotation_type,
             )
@@ -906,6 +913,8 @@ class GenericAsset(db.Model, AuthModelMixin):
             annotations += self.owner.search_annotations(
                 annotations_after=annotations_after,
                 annotations_before=annotations_before,
+                beliefs_after=beliefs_after,
+                beliefs_before=beliefs_before,
                 source=source,
             )
 
@@ -943,13 +952,14 @@ class GenericAsset(db.Model, AuthModelMixin):
         )
 
         parsed_sources = parse_source_arg(source)
-        return query_asset_annotations(
+        query = query_asset_annotations(
             asset_id=self.id,
             annotations_after=annotations_after,
             annotations_before=annotations_before,
             sources=parsed_sources,
             annotation_type=annotation_type,
-        ).count()
+        )
+        return db.session.scalar(select(func.count()).select_from(query.subquery()))
 
     def chart(
         self,
