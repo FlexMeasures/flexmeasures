@@ -384,7 +384,8 @@ class NestedDictParamType(click.ParamType):
 
     Accepts both JSON double-quoted syntax (``{"key": "value"}``) and Python-literal
     single-quoted syntax (``{'key': 'value'}``).  Used for CLI options whose Marshmallow
-    field type is ``fields.List(fields.Nested(...))``.
+    field type is ``fields.List(fields.Nested(...))`` (one dict per occurrence) or
+    ``fields.Dict`` (a single dict).
     """
 
     name = "DICT"
@@ -510,6 +511,9 @@ def add_cli_options_from_schema(schema):
                     kwargs["type"] = NestedDictParamType()
                 else:
                     kwargs["type"] = str
+            elif isinstance(field, fields.Dict):
+                # The value is a single dict string; parse it at the Click level.
+                kwargs["type"] = NestedDictParamType()
 
             command = click.option(*options, **kwargs)(command)
 

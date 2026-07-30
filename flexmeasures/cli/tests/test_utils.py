@@ -147,6 +147,37 @@ def test_deprecated_options_command_warns_for_deprecated_alias():
     assert result.output.endswith("foo\n")
 
 
+def test_add_cli_options_from_schema_parses_dict_fields():
+    """A plain ``fields.Dict`` option (e.g. ``--model-params``) must arrive as a
+    dict, in both JSON and Python-literal syntax, like nested list fields do.
+    """
+    from flexmeasures.cli.utils import add_cli_options_from_schema
+    from flexmeasures.data.schemas.forecasting.pipeline import (
+        TrainPredictPipelineConfigSchema,
+    )
+
+    captured = {}
+
+    @click.command()
+    @add_cli_options_from_schema(TrainPredictPipelineConfigSchema())
+    def cmd(**kwargs):
+        captured.update(kwargs)
+
+    result = CliRunner().invoke(cmd, ["--model-params", '{"min_child_samples": 5}'])
+    assert result.exit_code == 0, result.output
+    assert captured["model_params"] == {"min_child_samples": 5}
+    # The parsed dict must pass schema validation, which used to reject the
+    # raw string with "Not a valid mapping type."
+    config = TrainPredictPipelineConfigSchema().load(
+        {"model-params": captured["model_params"]}
+    )
+    assert config["model_params"] == {"min_child_samples": 5}
+
+    result = CliRunner().invoke(cmd, ["--model-params", "{'max_depth': 6}"])
+    assert result.exit_code == 0, result.output
+    assert captured["model_params"] == {"max_depth": 6}
+
+
 @pytest.mark.xfail(
     strict=True,
     raises=RuntimeError,
