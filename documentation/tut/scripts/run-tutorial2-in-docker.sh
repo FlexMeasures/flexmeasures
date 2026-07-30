@@ -51,7 +51,7 @@ docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor ${FM_TOY_SOLA
 echo "[TUTORIAL-RUNNER] update schedule taking solar into account ..."
 docker exec -it $CONTAINER_NAME flexmeasures add schedule --sensor ${FM_TOY_BATTERY_SENSOR_ID} \
   --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
-  --flex-context '{"inflexible-device-sensors": ['"${FM_TOY_SOLAR_SENSOR_ID}"']}' \
+  --flex-context '{"inflexible-production": [{"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"'}]}' \
   --flex-model '{"soc-min": "50 kWh"}'
 
 echo "[TUTORIAL-RUNNER] showing schedule ..."
@@ -68,7 +68,7 @@ docker exec -it $CONTAINER_NAME flexmeasures show beliefs --sensor ${FM_TOY_BATT
 #docker exec -it $CONTAINER_NAME flexmeasures add schedule --sensor ${FM_TOY_BATTERY_SENSOR_ID} \
 #  --start ${TOMORROW}T07:00+01:00 --duration PT12H --soc-at-start 50% \
 #  --resolution PT1H \
-#  --flex-context '{"inflexible-device-sensors": ['"${FM_TOY_SOLAR_SENSOR_ID}"']}' \
+#  --flex-context '{"inflexible-production": [{"sensor": '"${FM_TOY_SOLAR_SENSOR_ID}"'}]}' \
 #  --flex-model '{"soc-min": "50 kWh"}'
 #
 #echo "[TUTORIAL-RUNNER] showing hourly-resolution schedule ..."

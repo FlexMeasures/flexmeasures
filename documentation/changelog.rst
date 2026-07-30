@@ -15,6 +15,7 @@ v1.0.0 | July XX, 2026
 New features
 -------------
 
+* New ``inflexible-consumption`` and ``inflexible-production`` flex-context fields make explicit how the sign of each inflexible device's power data should be read (positive values denote consumption resp. production), accepting sensor references with optional source filters; they replace the now-deprecated ``inflexible-device-sensors`` field (bare sensor IDs, sign read from each sensor's ``consumption_is_positive`` attribute), which remains supported. Each inflexible device may also carry a ``group`` field, so that inflexible (measured) load counts towards the intermediate power constraint of the group it belongs to [see `PR #2358 <https://www.github.com/FlexMeasures/flexmeasures/pull/2358>`_]
 * Forecasting regressors can filter their input beliefs by data source, source type, excluded source type, or source organisation [see `PR #2347 <https://github.com/FlexMeasures/flexmeasures/pull/2347>`_]
 * When multiple selected sources record a belief about the same event at the same belief time, forecasting pipelines now resolve the collision deterministically: the order of an explicit ``sources`` list decides precedence (first listed wins), and otherwise the highest source ID wins after selecting the latest version within each source family [see `PR #2347 <https://github.com/FlexMeasures/flexmeasures/pull/2347>`_]
 * Filter organisations by account role in the Accounts API and organisation list UI [see `PR #2353 <https://www.github.com/FlexMeasures/flexmeasures/pull/2353>`_]
@@ -46,6 +47,7 @@ New features
 Infrastructure / Support
 ----------------------
 
+* The database migration for this release splits each stored flex-context's ``inflexible-device-sensors`` field into ``inflexible-consumption``/``inflexible-production`` sensor references, classifying each sensor by its ``consumption_is_positive`` attribute (behavior-preserving; sensor attributes themselves are kept). Downgrading merges them back into bare sensor IDs, dropping any source filters added in the meantime [see `PR #2358 <https://www.github.com/FlexMeasures/flexmeasures/pull/2358>`_]
 * Speed up listing assets: eager-load each asset's sensors instead of lazy-loading them one query per asset during serialization, and skip loading sensors entirely for field-filtered responses that do not include them [see `PR #2363 <https://www.github.com/FlexMeasures/flexmeasures/pull/2363>`_]
 * Price fields in the flex-context (including nested commitment prices, which are now also held to the flex-context's shared currency) are selected for currency validation by field type (``PriceField``) instead of by name suffix [see `PR #2311 <https://www.github.com/FlexMeasures/flexmeasures/pull/2311>`_]
 * Document ``SECURITY_TWO_FACTOR`` and related 2FA configuration settings [see `PR #2340 <https://www.github.com/FlexMeasures/flexmeasures/pull/2340>`_]

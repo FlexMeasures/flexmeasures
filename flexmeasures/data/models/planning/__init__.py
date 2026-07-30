@@ -15,10 +15,40 @@ from flexmeasures.data import db
 from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 from flexmeasures.utils.coding_utils import deprecated, merge_or_append
+from .devices import INFLEXIBLE_DEVICE_KEYS
 from .exceptions import WrongEntityException
 
 
 SchedulerOutputType = pd.Series | list[dict[str, Any]] | None
+
+
+def _shadow_inflexible_device_keys(
+    db_flex_context: dict, passed_flex_context: dict | list | None
+) -> None:
+    """Drop the db context's inflexible-device keys when the passed flex-context defines any.
+
+    The inflexible-device keys form one field family: if the passed flex-context
+    defines any of them, the whole family from the db is shadowed, so the
+    deprecated and newer keys never mix across sources (mixing is rejected by
+    FlexContextSchema.check_inflexible_devices).
+    """
+    if isinstance(passed_flex_context, dict):
+        passed_contexts = [passed_flex_context]
+    elif isinstance(passed_flex_context, list):
+        # Currently, only the electricity context is merged with the db context
+        # (see Scheduler.collect_flex_config)
+        passed_contexts = [
+            context
+            for context in passed_flex_context
+            if context.get("commodity", "electricity") == "electricity"
+        ]
+    else:
+        passed_contexts = []
+    if any(
+        key in context for context in passed_contexts for key in INFLEXIBLE_DEVICE_KEYS
+    ):
+        for key in INFLEXIBLE_DEVICE_KEYS:
+            db_flex_context.pop(key, None)
 
 
 class Scheduler:
@@ -240,6 +270,7 @@ class Scheduler:
 
         # Merge the passed flex_context with the db_flex_context by matching commodities
         db_flex_context = asset.get_flex_context()
+        _shadow_inflexible_device_keys(db_flex_context, self.flex_context)
         if isinstance(self.flex_context, dict):
             self.flex_context = {**db_flex_context, **self.flex_context}
         elif isinstance(self.flex_context, list):

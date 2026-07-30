@@ -158,6 +158,11 @@ For schedules, the sign of the power schedule (as :ref:`beliefs <beliefs>`) reco
 - If the flex-model contains the ``production`` field, scheduled power is recorded with production as positive values.
   The ``"consumption_is_positive"`` attribute of the referenced sensor is set automatically to ``False``.
 
+For scheduling *inputs*, the sign convention works the same way: the key name under which a sensor is referenced tells the scheduler how to read its data.
+For example, sensors listed under the flex-context's ``inflexible-consumption`` field are read with consumption as positive values, and sensors listed under ``inflexible-production`` are read with production as positive values.
+A sensor whose ``"consumption_is_positive"`` attribute explicitly contradicts the field it is listed under is rejected, to guard against accidental sign flips.
+(Sensors listed under the deprecated ``inflexible-device-sensors`` field are still read according to their ``"consumption_is_positive"`` attribute.)
+
 For guidance on when schedules should share a power sensor with measurements and forecasts, and when dedicated output sensors are preferable, see :ref:`one_or_multiple_sensors`.
 
 The ``GET /api/v3_0/sensors/<id>/schedules/<uuid>`` endpoint supports three sign conventions via the ``sign-convention`` query parameter:

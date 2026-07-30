@@ -646,6 +646,11 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     asset.flex_context = {
         "consumption-price": {"sensor": existing_sensor_id},
         "inflexible-device-sensors": [existing_sensor_id],
+        # not a valid combination with the deprecated key above, but a deleted
+        # sensor should be pruned from any of the inflexible-device keys
+        "inflexible-production": [
+            {"sensor": existing_sensor_id, "exclude-source-types": ["scheduler"]}
+        ],
     }
     asset.sensors_to_show = [
         {"title": "Power", "plots": [{"sensor": existing_sensor_id}]},
@@ -682,6 +687,7 @@ def test_delete_a_sensor(client, setup_api_test_data, requesting_user, db):
     assert asset_after.flex_model.get("static-limit") == "10 kW"
     assert asset_after.flex_context.get("consumption-price") is None
     assert asset_after.flex_context.get("inflexible-device-sensors") == []
+    assert asset_after.flex_context.get("inflexible-production") == []
     assert str(existing_sensor_id) not in json.dumps(asset_after.sensors_to_show)
     assert str(existing_sensor_id) not in json.dumps(
         asset_after.sensors_to_show_as_kpis
