@@ -1724,6 +1724,124 @@ def test_future_regressor_splits_use_only_beliefs_known_at_forecast_belief_time(
     assert 77.0 not in set(values_by_event)
 
 
+def test_forecast_only_future_regressor_populates_training_window(monkeypatch):
+    """A future regressor may only ever record ex-ante beliefs (e.g. day-ahead
+    market fundamentals, whose belief time never passes the event start).
+    The training window must then fall back to the latest forecasts instead of
+    coming out empty, while realized values still win where they exist.
+    """
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+    forecast_only_regressor = type(
+        "SensorStub",
+        (),
+        {"name": "residual-load", "id": 2, "event_resolution": timedelta(hours=1)},
+    )()
+    revised_regressor = type(
+        "SensorStub",
+        (),
+        {"name": "weather", "id": 3, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[forecast_only_regressor, revised_regressor],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 8, 6),
+        event_ends_before=datetime(2025, 1, 8, 10),
+    )
+    regressor_a, regressor_b = pipeline.future_regressors
+
+    day_ahead = pd.Timedelta(hours=21)
+    rows = []
+    for hour, value_a, value_b in [
+        (6, 1.0, 10.0),
+        (7, 2.0, 20.0),
+        (8, 3.0, 30.0),
+        (9, 4.0, 40.0),
+        (10, 5.0, 50.0),
+        (11, 6.0, 60.0),
+    ]:
+        event_start = pd.Timestamp(f"2025-01-08T{hour:02d}:00:00")
+        # Day-ahead beliefs only: each belief precedes its event start.
+        rows.append(
+            {
+                "event_start": event_start,
+                "belief_time": event_start - day_ahead,
+                pipeline.target: None,
+                regressor_a: value_a,
+                regressor_b: value_b,
+            }
+        )
+        if hour <= 9:
+            # The target realizes ex post, but neither regressor does here,
+            # so these rows must not shadow the day-ahead regressor beliefs.
+            rows.append(
+                {
+                    "event_start": event_start,
+                    "belief_time": event_start + pd.Timedelta(minutes=30),
+                    pipeline.target: 100.0 + hour,
+                    regressor_a: None,
+                    regressor_b: None,
+                }
+            )
+    # Regressor B alone gets one realized revision within the training window.
+    rows.append(
+        {
+            "event_start": pd.Timestamp("2025-01-08T07:00:00"),
+            "belief_time": pd.Timestamp("2025-01-08T08:00:00"),
+            pipeline.target: None,
+            regressor_a: None,
+            regressor_b: 25.0,
+        }
+    )
+    df = pd.DataFrame(rows)
+
+    captured_future_frames = []
+
+    # Capture the covariate frame before missing-value filling converts it
+    # to a Darts TimeSeries. This keeps the test focused on in-memory belief
+    # selection instead of requiring database-backed sensor data.
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.future_regressors:
+            captured_future_frames.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+
+    pipeline.split_data_all_beliefs(df)
+
+    assert len(captured_future_frames) == 1, (
+        "Expected one future-covariate frame because this one-step pipeline "
+        "prepares exactly one split."
+    )
+    selected = captured_future_frames[0].set_index("event_start")
+    for hour, expected in [(6, 1.0), (7, 2.0), (8, 3.0), (9, 4.0)]:
+        assert (
+            selected.loc[pd.Timestamp(f"2025-01-08T{hour:02d}:00:00"), regressor_a]
+            == expected
+        ), (
+            "Expected the forecast-only regressor's day-ahead values to fill "
+            "the training window, because no realized beliefs exist to prefer."
+        )
+    assert selected.loc[pd.Timestamp("2025-01-08T10:00:00"), regressor_a] == 5.0
+    assert selected.loc[pd.Timestamp("2025-01-08T11:00:00"), regressor_a] == 6.0
+    assert selected.loc[pd.Timestamp("2025-01-08T07:00:00"), regressor_b] == 25.0, (
+        "Expected the realized revision to win over the day-ahead belief for "
+        "the same event, because its belief time is necessarily later."
+    )
+    assert selected.loc[pd.Timestamp("2025-01-08T06:00:00"), regressor_b] == 10.0, (
+        "Expected the day-ahead fall-back to apply per event, so a realized "
+        "revision for one event does not affect its neighbours."
+    )
+
+
 def test_annotation_regressor_split_preserves_annotation_columns(monkeypatch):
     target_sensor = type(
         "SensorStub",

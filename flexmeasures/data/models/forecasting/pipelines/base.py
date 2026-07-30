@@ -709,17 +709,34 @@ class BasePipeline:
                 regressor_columns: list[str],
                 forecast_belief_time: pd.Timestamp,
                 realized_only: bool = False,
+                fall_back_to_forecast: bool = False,
             ) -> pd.DataFrame:
-                """Select latest regressor values known at forecast belief time."""
+                """Select latest regressor values known at forecast belief time.
+
+                :param realized_only:           Keep only ex-post beliefs
+                                                (belief time after the event started);
+                                                otherwise, keep only ex-ante beliefs.
+                :param fall_back_to_forecast:   With ``realized_only``, also keep
+                                                ex-ante beliefs for events without any
+                                                ex-post belief. Some regressor sensors
+                                                (e.g. day-ahead market fundamentals)
+                                                only ever record ex-ante beliefs, and
+                                                would otherwise yield no values at all.
+                """
                 keep = ["event_start", *regressor_columns]
                 if df_.empty:
                     return df_.iloc[0:0][keep].copy()
 
                 known = df_.loc[df_["belief_time"] <= forecast_belief_time].copy()
-                if realized_only:
+                if realized_only and not fall_back_to_forecast:
                     known = known.loc[known["belief_time"] > known["event_start"]]
-                else:
+                elif not realized_only:
                     known = known.loc[known["belief_time"] <= known["event_start"]]
+                # With realized_only and fall_back_to_forecast, both ex-post and
+                # ex-ante beliefs are kept: for any given event, an ex-post belief
+                # time necessarily exceeds every ex-ante belief time, so selecting
+                # the latest belief per event prefers realized values and falls
+                # back to forecasts only where no realized value exists.
                 if known.empty:
                     return df_.iloc[0:0][keep].copy()
 
@@ -840,12 +857,16 @@ class BasePipeline:
                     # values would hide it from the training window entirely. Its
                     # visibility is governed solely by its own belief time, applied
                     # below once the sensor-based frame has been assembled.
+                    # Forecast-only sensors (belief time never after the event
+                    # start, e.g. day-ahead fundamentals) have no realized rows,
+                    # so the training window falls back to their latest forecasts.
                     future_regressor_columns = self.future_regressors
                     future_known = _latest_known_per_regressor(
                         X_future_regressors_df,
                         future_regressor_columns,
                         belief_time,
                         realized_only=True,
+                        fall_back_to_forecast=True,
                     )
                     realized_slice = _slice_closed(
                         future_known, target_start, target_end
