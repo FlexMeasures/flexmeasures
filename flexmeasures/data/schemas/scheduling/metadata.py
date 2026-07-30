@@ -438,10 +438,10 @@ Declaring operation modes introduces binary decision variables into the optimiza
     ],
 )
 GROUP = MetaData(
-    description="""Reference to a group of devices whose aggregate power is constrained, given as either a power sensor (``{"sensor": <id>}``) or an asset (``{"asset": <id>}``) - exactly one of the two.
-The referenced sensor or asset should itself get its own flex-model entry defining the group's ``power-capacity`` (hard constraint) and/or ``consumption-capacity``/``production-capacity`` (soft constraints with default breach prices).
-When the group is referenced by ``sensor``, the group's scheduled aggregate power is saved to that group sensor.
-When the group is referenced by ``asset`` (e.g. a sub-EMS asset in the tree), the group entry defines no power sensor of its own; the group's aggregate power is instead saved via that entry's own ``consumption`` and/or ``production`` output sensors, following the usual output-sensor conventions.
+    description="""Reference to a group of devices whose aggregate power is constrained. The recommended form identifies the group by the ``asset`` that represents the shared equipment (``{"asset": <id>}``, e.g. a sub-EMS asset in the tree); a power ``sensor`` (``{"sensor": <id>}``) is also accepted - give exactly one of the two.
+The referenced asset or sensor should itself get its own flex-model entry defining the group's ``power-capacity`` (hard constraint) and/or ``consumption-capacity``/``production-capacity`` (soft constraints with default breach prices).
+When the group is referenced by ``asset``, the group entry defines no power sensor of its own; the group's aggregate power is saved via that entry's own ``consumption`` and/or ``production`` output sensors, following the usual output-sensor conventions.
+When the group is referenced by ``sensor``, the group's scheduled aggregate power is saved directly to that group sensor.
 """,
-    example={"sensor": 5},
+    example={"asset": 7},
 )

@@ -33,15 +33,15 @@ def validate_group_sensor_is_power_sensor(group: dict):
 class GroupReferenceSchema(SharedSensorReferenceSchema):
     """Reference to a group of devices whose aggregate power is constrained.
 
-    Accepts exactly one of:
-      - ``{"sensor": <id>}``: the group's aggregate power is stored on this power sensor
-        (the sensor must itself carry a flex-model entry defining the group's
-        constraints).
+    Accepts exactly one of (the ``asset`` form is the recommended one):
       - ``{"asset": <id>}``: the group is identified by the flex-model entry on this
         asset (typically a sub-EMS/asset in the tree). Such a group entry defines no
         power sensor of its own; instead it may define ``consumption`` and/or
         ``production`` output sensors on which the group's aggregate power gets saved,
         following the usual output-sensor conventions.
+      - ``{"sensor": <id>}``: the group's aggregate power is stored on this power sensor
+        (the sensor must itself carry a flex-model entry defining the group's
+        constraints).
 
     Inherits from ``SharedSensorReferenceSchema`` (not ``SensorReferenceSchema``) so it
     accepts only ``sensor``/``asset`` -- a group is a device-group identifier, not a
