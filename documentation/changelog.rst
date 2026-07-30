@@ -72,6 +72,8 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Future regressors from sensors that only ever record forecasts (belief time never after the event start, e.g. day-ahead market fundamentals) no longer drop out of the forecasting pipeline's training window entirely; the training window now falls back to the latest forecast per event where no realized belief exists [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
+* Dict-typed CLI options such as ``flexmeasures add forecasts --model-params`` now parse their JSON (or Python-literal) argument instead of failing schema validation with "Not a valid mapping type" [see `PR #XXXX <https://www.github.com/FlexMeasures/flexmeasures/pull/XXXX>`_]
 * Replaying a chart for a past window no longer shows annotations that were only recorded later; annotation searches and the ``chart_annotations`` endpoints can now be scoped by recording (belief) time [see `PR #2367 <https://www.github.com/FlexMeasures/flexmeasures/pull/2367>`_]
 * Continuing the query-parameter cleanup started in PR #2352: the chart-related endpoints now use ``prior``, ``start``, ``end`` and hyphenated field names, with a new ``duration`` field to derive a missing ``start``/``end``; old spellings keep working as legacy aliases [see `PR #2367 <https://www.github.com/FlexMeasures/flexmeasures/pull/2367>`_]
 * Scheduling jobs no longer print ``Job ... made schedule.`` before ``scheduler.compute()`` runs (only after a successful schedule) [see `PR #2342 <https://www.github.com/FlexMeasures/flexmeasures/pull/2342>`_]
