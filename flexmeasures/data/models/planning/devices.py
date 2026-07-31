@@ -33,6 +33,29 @@ from flexmeasures.data.models.time_series import Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset as Asset
 
 
+#: The flex-context keys (as stored/passed, i.e. with hyphens) that together define
+#: the inflexible devices. They form one field family: the deprecated key must not
+#: be mixed with the newer sign-explicit keys in a single flex-context, and a
+#: definition of any of them shadows definitions from other sources (e.g. an
+#: ancestor asset's flex-context) for the whole family.
+INFLEXIBLE_DEVICE_KEYS = (
+    "inflexible-device-sensors",
+    "inflexible-consumption",
+    "inflexible-production",
+)
+
+#: The same field family as deserialized (with underscores), in canonical order,
+#: together with the sign convention of each field's data: True means positive
+#: values denote consumption, False means positive values denote production, and
+#: None means the sign convention is read from each sensor's
+#: ``consumption_is_positive`` attribute (the deprecated field's behavior).
+INFLEXIBLE_DEVICE_FIELDS: tuple[tuple[str, bool | None], ...] = (
+    ("inflexible_device_sensors", None),
+    ("inflexible_consumption", True),
+    ("inflexible_production", False),
+)
+
+
 class DeviceRole(Enum):
     """The role a flex-model (or flex-context) entry plays in the scheduling problem.
 
@@ -72,6 +95,18 @@ class FlexDevice:
     #: Key of the stock this device draws from: the id of its state-of-charge sensor, or a unique negative synthetic key for devices without one.
     #: None for inflexible devices.
     stock_key: int | None = None
+    #: For inflexible devices: whether positive sensor values mean consumption,
+    #: as determined by the flex-context field the device was listed under
+    #: (``inflexible-consumption`` → True, ``inflexible-production`` → False).
+    #: None means the sign convention is read from the sensor's
+    #: ``consumption_is_positive`` attribute (deprecated ``inflexible-device-sensors``).
+    consumption_is_positive: bool | None = None
+    #: For inflexible devices given as a sensor reference with source filters:
+    #: the SensorReference (a schema-layer object, hence untyped here); None otherwise.
+    sensor_reference: Any | None = None
+    #: For inflexible devices assigned to a group: the raw ``{"sensor": ...}``/``{"asset": ...}``
+    #: group reference (flexible devices carry theirs inside ``flex_model["group"]`` instead).
+    group_reference: Any | None = None
 
     @property
     def sensor_id(self) -> int | None:
@@ -96,8 +131,15 @@ class FlexDevice:
 
     @property
     def group_key(self) -> tuple[str, int] | None:
-        """The key of the group this entry belongs to (via its "group" field), if any."""
-        return resolve_group_key(self.flex_model)
+        """The key of the group this entry belongs to (via its "group" field), if any.
+
+        Flexible/stock/group entries carry their group inside ``flex_model["group"]``;
+        inflexible devices (which have no flex-model entry) carry it on
+        ``group_reference`` instead.
+        """
+        if self.flex_model is not None:
+            return resolve_group_key(self.flex_model)
+        return resolve_group_reference(self.group_reference)
 
 
 def _resolve_output_sensor(flex_model: dict | None, output_field: str) -> Sensor | None:
@@ -162,11 +204,14 @@ def _ref_id(value: Any) -> int | None:
     return value.id if hasattr(value, "id") else value
 
 
-def resolve_group_key(flex_model: dict | None) -> tuple[str, int] | None:
-    """Return a normalized ("sensor", id) or ("asset", id) key for the group a flex-model entry's "group" field references, or None if it has none."""
-    if flex_model is None:
-        return None
-    group = flex_model.get("group")
+def resolve_group_reference(group: Any | None) -> tuple[str, int] | None:
+    """Return a normalized ("sensor", id) or ("asset", id) key for a "group" reference, or None.
+
+    The reference may be a ``{"sensor": ...}``/``{"asset": ...}`` dict (as produced by
+    :class:`~flexmeasures.data.schemas.scheduling.groups.GroupReferenceSchema`, used
+    both by flex-model entries' ``group`` field and by inflexible-device flex-context
+    entries), or -- for backwards compatibility -- a raw sensor id/object.
+    """
     if not group:
         return None
     if isinstance(group, dict):
@@ -181,6 +226,13 @@ def resolve_group_key(flex_model: dict | None) -> tuple[str, int] | None:
     if group_asset_id is not None:
         return ("asset", group_asset_id)
     return None
+
+
+def resolve_group_key(flex_model: dict | None) -> tuple[str, int] | None:
+    """Return a normalized ("sensor", id) or ("asset", id) key for the group a flex-model entry's "group" field references, or None if it has none."""
+    if flex_model is None:
+        return None
+    return resolve_group_reference(flex_model.get("group"))
 
 
 def group_key_label(group_key: tuple[str, int]) -> str:
@@ -237,6 +289,36 @@ def _collect_referenced_group_keys(
     return referenced_group_keys
 
 
+def _collect_inflexible_referenced_group_keys(
+    flex_context: dict, is_single_sensor_mode: bool
+) -> set[tuple[str, int]]:
+    """Collect the group keys referenced by inflexible devices' "group" fields.
+
+    Scans the top-level (electricity) inflexible devices and those of each commodity
+    context. A group referenced only by inflexible devices still needs its flex-model
+    entry classified as a group entry, so these keys are unioned into the inventory's
+    ``referenced_group_keys`` before the flex-model entries are classified.
+
+    :raises ValueError: When an inflexible device carries a "group" field in
+                        single-sensor mode (groups need a multi-device flex-model to
+                        hold the group entry that defines the group's capacity).
+    """
+    referenced_group_keys: set[tuple[str, int]] = set()
+    contexts = [flex_context, *flex_context.get("commodity_contexts", [])]
+    for context in contexts:
+        for field_name, _ in INFLEXIBLE_DEVICE_FIELDS:
+            for entry in context.get(field_name, []):
+                group_key = resolve_group_reference(getattr(entry, "group", None))
+                if group_key is None:
+                    continue
+                if is_single_sensor_mode:
+                    raise ValueError(
+                        "The 'group' field is only supported in multi-device flex-models."
+                    )
+                referenced_group_keys.add(group_key)
+    return referenced_group_keys
+
+
 def _classify_group_entry(inventory: DeviceInventory, fm: dict) -> bool:
     """Classify a flex-model entry as a group entry, if its own sensor/asset is referenced as a group.
 
@@ -276,9 +358,14 @@ class DeviceInventory:
     The canonical device enumeration is:
 
     1. flexible devices (flex-model entries with role DEVICE), in flex-model order,
-    2. top-level (electricity) inflexible-device-sensors from the flex-context, in order,
-    3. each commodity context's own inflexible-device-sensors, in the order the
+    2. top-level (electricity) inflexible devices from the flex-context, in order,
+    3. each commodity context's own inflexible devices, in the order the
        commodity contexts are given.
+
+    Within each context, inflexible devices are enumerated per field in
+    INFLEXIBLE_DEVICE_FIELDS order (the deprecated ``inflexible-device-sensors``
+    first, then ``inflexible-consumption``, then ``inflexible-production``), each
+    field's entries in the order they are given.
 
     This is the one enumeration both `_prepare()` and the result mapping rely on,
     so they cannot drift apart.
@@ -320,10 +407,15 @@ class DeviceInventory:
 
         inventory = cls(is_single_sensor_mode=is_single_sensor_mode)
 
-        # Collect the group keys referenced by entries' "group" fields;
-        # the entries whose own sensor/asset matches a referenced key are classified as group entries below.
+        # Collect the group keys referenced by entries' "group" fields (both flex-model
+        # entries and inflexible devices from the flex-context); the entries whose own
+        # sensor/asset matches a referenced key are classified as group entries below.
+        # Inflexible devices are folded in first, so a group referenced only by an
+        # inflexible device still gets its flex-model entry classified as a group entry.
         inventory.referenced_group_keys = _collect_referenced_group_keys(
             flex_model_list, is_single_sensor_mode
+        ) | _collect_inflexible_referenced_group_keys(
+            flex_context, is_single_sensor_mode
         )
 
         # One counter yields the synthetic stock keys for devices without a
@@ -405,40 +497,56 @@ class DeviceInventory:
 
         # Inflexible devices from the flex-context: top-level (electricity) sensors
         # first, then each commodity context's own sensors, in context order.
+        # Within each context, fields are read in INFLEXIBLE_DEVICE_FIELDS order.
         index = len(inventory.devices)
-        for inflexible_sensor in flex_context.get("inflexible_device_sensors", []):
-            inventory.inflexible_devices.append(
-                FlexDevice(
-                    role=DeviceRole.INFLEXIBLE,
-                    index=index,
-                    flex_model=None,
-                    power_sensor=inflexible_sensor,
-                    asset=getattr(inflexible_sensor, "asset", None),
-                    commodity="electricity",
-                )
-            )
-            index += 1
+        index = inventory._register_inflexible_devices(
+            flex_context, "electricity", index
+        )
         for commodity_context in flex_context.get("commodity_contexts", []):
-            commodity = commodity_context["commodity"]
-            for inflexible_sensor in commodity_context.get(
-                "inflexible_device_sensors", []
-            ):
-                inventory.inflexible_devices.append(
-                    FlexDevice(
-                        role=DeviceRole.INFLEXIBLE,
-                        index=index,
-                        flex_model=None,
-                        power_sensor=inflexible_sensor,
-                        asset=getattr(inflexible_sensor, "asset", None),
-                        commodity=commodity,
-                    )
-                )
-                index += 1
+            index = inventory._register_inflexible_devices(
+                commodity_context, commodity_context["commodity"], index
+            )
 
         assert all(
             device.index == d for d, device in enumerate(inventory.devices)
         ), "Device indices must match their position among the schedulable devices."
         return inventory
+
+    def _register_inflexible_devices(
+        self, context: dict, commodity: str, index: int
+    ) -> int:
+        """Register one (commodity) context's inflexible devices, in canonical field order.
+
+        Entries of the newer sign-explicit fields are either plain Sensors or
+        SensorReference objects (carrying source filters); the underlying sensor
+        becomes the device's power sensor either way.
+        """
+        for field_name, consumption_is_positive in INFLEXIBLE_DEVICE_FIELDS:
+            for entry in context.get(field_name, []):
+                # Tolerate SensorReference-like objects without importing schema
+                # modules (and plain sensor stand-ins, as some unit tests use).
+                reference_sensor = getattr(entry, "sensor", None)
+                if reference_sensor is not None:
+                    sensor, sensor_reference = reference_sensor, entry
+                    group_reference = getattr(entry, "group", None)
+                else:
+                    sensor, sensor_reference = entry, None
+                    group_reference = None
+                self.inflexible_devices.append(
+                    FlexDevice(
+                        role=DeviceRole.INFLEXIBLE,
+                        index=index,
+                        flex_model=None,
+                        power_sensor=sensor,
+                        asset=getattr(sensor, "asset", None),
+                        commodity=commodity,
+                        consumption_is_positive=consumption_is_positive,
+                        sensor_reference=sensor_reference,
+                        group_reference=group_reference,
+                    )
+                )
+                index += 1
+        return index
 
     @property
     def num_flexible(self) -> int:
@@ -490,6 +598,11 @@ class DeviceInventory:
     def group_to_devices(self) -> dict[tuple[str, int], list[int]]:
         """Map each group key to the indices of the (leaf) member devices of that group.
 
+        Members are the flexible devices *and* the inflexible devices (from the
+        flex-context) that reference the group. Including the latter is what lets a
+        group's intermediate power constraint also account for inflexible (measured)
+        load sitting behind the same node.
+
         Membership is resolved transitively:
         a group entry may itself belong to another group (via its own "group" field),
         in which case its member devices count as members of the outer group, too.
@@ -510,7 +623,7 @@ class DeviceInventory:
                 return resolved[group_key]
             leaves: list[int] = []
             seen: set[int] = set()
-            for device in self.devices:
+            for device in (*self.devices, *self.inflexible_devices):
                 if device.group_key == group_key and device.index not in seen:
                     leaves.append(device.index)
                     seen.add(device.index)

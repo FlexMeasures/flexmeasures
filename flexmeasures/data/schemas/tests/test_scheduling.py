@@ -14,7 +14,11 @@ from flexmeasures.data.schemas.scheduling.storage import (
     StorageFlexModelSchema,
     DBStorageFlexModelSchema,
 )
-from flexmeasures.data.schemas.sensors import TimedEventSchema, VariableQuantityField
+from flexmeasures.data.schemas.sensors import (
+    TimedEventSchema,
+    VariableQuantityField,
+    SensorReference,
+)
 from flexmeasures.utils.unit_utils import ur
 
 
@@ -345,6 +349,53 @@ def test_efficiency_pair(
             },
             {"commitments.0.baseline": "Cannot convert value `10 kWh` to 'MW'"},
         ),
+        # Commitment prices must share the flex-context's currency
+        (
+            {
+                "consumption-price": "100 EUR/MWh",
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 USD/MWh",
+                    }
+                ],
+            },
+            {
+                "commitments": "all prices in the flex-context must share the same currency unit"
+            },
+        ),
+        # Commitment prices sharing the flex-context's currency are fine
+        (
+            {
+                "consumption-price": "100 EUR/MWh",
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MWh",
+                        "down-price": "0.12 EUR/kWh",
+                    }
+                ],
+            },
+            False,
+        ),
+        # Commitments can also set the shared currency (mixed currencies still fail)
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 USD/MWh",
+                        "down-price": "120 EUR/MWh",
+                    }
+                ]
+            },
+            {
+                "commitments": "all prices in the flex-context must share the same currency unit"
+            },
+        ),
         # Energy price units with a power baseline
         (
             {
@@ -501,6 +552,45 @@ def test_efficiency_pair(
             },
             {
                 "commitments.0.up-price": "Commitment up-price must have a power or energy unit in its denominator."
+            },
+        ),
+        # Commitment without a baseline
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "up-price": "100 EUR/MWh",
+                    }
+                ]
+            },
+            {"commitments.0.baseline": "A commitment requires a baseline."},
+        ),
+        # Commitment with an empty name
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MWh",
+                    }
+                ]
+            },
+            {"commitments.0.name": "Shorter than minimum length 1."},
+        ),
+        # Commitment without any deviation price
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                    }
+                ]
+            },
+            {
+                "commitments.0.up-price": "A commitment requires at least one deviation price (up-price and/or down-price)."
             },
         ),
     ],
@@ -1455,3 +1545,243 @@ def test_asset_trigger_schema_rejects_malformed_flex_context(app):
     with pytest.raises(ValidationError) as e_info:
         schema.normalize_flex_context_format({"flex-context": "not-a-dict-or-list"})
     assert "flex-context" in str(e_info.value)
+
+
+# Note: AssetTriggerSchema itself no longer aliases legacy field names (e.g.
+# force_new_job_creation) -- that's v3_0-specific backward compatibility,
+# layered on top by AssetTriggerSchemaV3 in flexmeasures/api/v3_0/assets.py,
+# and tested there (flexmeasures/api/v3_0/tests/test_asset_trigger_schema_v3.py).
+# This schema stays canonical since it's also used outside the API, e.g. by
+# the CLI.
+
+
+@pytest.mark.parametrize(
+    ["flex_context", "fails"],
+    [
+        # Sensors under the field matching their explicit attribute, or without one
+        (
+            {
+                "inflexible-consumption": [{"sensor": "consumption-positive power"}],
+                "inflexible-production": [
+                    {"sensor": "production-positive power"},
+                    {"sensor": "attributeless power"},
+                ],
+            },
+            None,
+        ),
+        # Source filters are allowed
+        (
+            {
+                "inflexible-production": [
+                    {
+                        "sensor": "attributeless power",
+                        "exclude-source-types": ["scheduler"],
+                    }
+                ]
+            },
+            None,
+        ),
+        # The deprecated field cannot be mixed with the new fields
+        (
+            {
+                "inflexible-device-sensors": ["attributeless power"],
+                "inflexible-production": [{"sensor": "production-positive power"}],
+            },
+            {
+                "inflexible-device-sensors": "Must pass either inflexible-device-sensors (deprecated) or inflexible-consumption/inflexible-production."
+            },
+        ),
+        # A sensor may be listed only once across the new fields
+        (
+            {
+                "inflexible-consumption": [{"sensor": "attributeless power"}],
+                "inflexible-production": [{"sensor": "attributeless power"}],
+            },
+            {"inflexible-production": "may only be listed once"},
+        ),
+        # ... also within a single field
+        (
+            {
+                "inflexible-consumption": [
+                    {"sensor": "attributeless power"},
+                    {"sensor": "attributeless power"},
+                ],
+            },
+            {"inflexible-consumption": "may only be listed once"},
+        ),
+        # An explicitly contradicting consumption_is_positive attribute is rejected
+        (
+            {"inflexible-consumption": [{"sensor": "production-positive power"}]},
+            {"inflexible-consumption": "conflicts with the sign convention"},
+        ),
+        (
+            {"inflexible-production": [{"sensor": "consumption-positive power"}]},
+            {"inflexible-production": "conflicts with the sign convention"},
+        ),
+        # The new fields can also be set per commodity context
+        (
+            {
+                "commodities": [
+                    {
+                        "commodity": "electricity",
+                        "inflexible-production": [{"sensor": "attributeless power"}],
+                    }
+                ]
+            },
+            None,
+        ),
+        # ... where mixing with the deprecated field is equally rejected
+        (
+            {
+                "commodities": [
+                    {
+                        "commodity": "electricity",
+                        "inflexible-device-sensors": ["attributeless power"],
+                        "inflexible-consumption": [
+                            {"sensor": "consumption-positive power"}
+                        ],
+                    }
+                ]
+            },
+            {
+                "commodities.0.inflexible-device-sensors": "Must pass either inflexible-device-sensors"
+            },
+        ),
+    ],
+)
+def test_flex_context_schema_inflexible_devices(
+    db, app, setup_inflexible_sensors, flex_context, fails
+):
+    """Validation of the inflexible-consumption/inflexible-production fields."""
+
+    def resolve_sensor_names(node):
+        """Replace sensor names in the parametrized flex-context with sensor ids."""
+        if isinstance(node, dict):
+            return {
+                key: (
+                    setup_inflexible_sensors[value].id
+                    if key == "sensor"
+                    else resolve_sensor_names(value)
+                )
+                for key, value in node.items()
+            }
+        if isinstance(node, list):
+            return [
+                (
+                    setup_inflexible_sensors[item].id
+                    if isinstance(item, str) and item in setup_inflexible_sensors
+                    else resolve_sensor_names(item)
+                )
+                for item in node
+            ]
+        return node
+
+    check_schema_loads_data(
+        schema=FlexContextSchema(),
+        data=resolve_sensor_names(flex_context),
+        fails=fails,
+    )
+
+
+def test_flex_context_schema_inflexible_devices_deserialization(
+    db, app, setup_inflexible_sensors
+):
+    """Entries deserialize to plain Sensors, or SensorReferences when filtered."""
+    consumption_sensor = setup_inflexible_sensors["consumption-positive power"]
+    plain_sensor = setup_inflexible_sensors["attributeless power"]
+    filtered_sensor = setup_inflexible_sensors["production-positive power"]
+    data = FlexContextSchema().load(
+        {
+            "inflexible-consumption": [{"sensor": consumption_sensor.id}],
+            "inflexible-production": [
+                {"sensor": plain_sensor.id},
+                {"sensor": filtered_sensor.id, "source-types": ["forecaster"]},
+            ],
+        }
+    )
+    assert data["inflexible_consumption"] == [consumption_sensor]
+    assert data["inflexible_production"][0] == plain_sensor
+    reference = data["inflexible_production"][1]
+    assert isinstance(reference, SensorReference)
+    assert reference.sensor == filtered_sensor
+    assert reference.source_types == ["forecaster"]
+
+
+def test_flex_context_schema_inflexible_device_group(
+    db, app, setup_inflexible_sensors, setup_price_sensors, dummy_asset
+):
+    """An inflexible device may carry a `group` reference; it deserializes to a
+    SensorReference (even without source filters) carrying that group, and the group
+    must reference a power sensor (or an asset)."""
+    load = setup_inflexible_sensors["attributeless power"]
+    group_sensor = setup_inflexible_sensors["consumption-positive power"]
+
+    data = FlexContextSchema().load(
+        {
+            "inflexible-consumption": [
+                {"sensor": load.id, "group": {"sensor": group_sensor.id}}
+            ]
+        }
+    )
+    entry = data["inflexible_consumption"][0]
+    assert isinstance(entry, SensorReference)
+    assert entry.sensor == load
+    assert entry.group == {"sensor": group_sensor}
+    assert entry.source_types is None  # no source filters given
+
+    # An asset-referenced group is also accepted.
+    data_asset = FlexContextSchema().load(
+        {
+            "inflexible-production": [
+                {"sensor": load.id, "group": {"asset": dummy_asset.id}}
+            ]
+        }
+    )
+    assert data_asset["inflexible_production"][0].group == {"asset": dummy_asset}
+
+    # The group must reference a power sensor.
+    price_sensor = setup_price_sensors["consumption-price in SEK/kWh"]
+    with pytest.raises(ValidationError, match="power unit"):
+        FlexContextSchema().load(
+            {
+                "inflexible-consumption": [
+                    {"sensor": load.id, "group": {"sensor": price_sensor.id}}
+                ]
+            }
+        )
+
+    # Exactly one of 'sensor'/'asset' must be given.
+    with pytest.raises(ValidationError, match="exactly one"):
+        FlexContextSchema().load(
+            {
+                "inflexible-consumption": [
+                    {
+                        "sensor": load.id,
+                        "group": {
+                            "sensor": group_sensor.id,
+                            "asset": dummy_asset.id,
+                        },
+                    }
+                ]
+            }
+        )
+
+
+def test_db_flex_context_schema_inflexible_devices(
+    db, app, setup_inflexible_sensors, setup_price_sensors
+):
+    """The DB schema holds all three inflexible-device fields to power/energy units."""
+    schema = DBFlexContextSchema()
+    price_sensor = setup_price_sensors["consumption-price in SEK/kWh"]
+    with pytest.raises(ValidationError, match="must have a power or energy unit"):
+        schema.load({"inflexible-consumption": [{"sensor": price_sensor.id}]})
+    with pytest.raises(ValidationError, match="must have a power or energy unit"):
+        schema.load({"inflexible-device-sensors": [price_sensor.id]})
+    # The deprecated field alone remains supported
+    schema.load(
+        {
+            "inflexible-device-sensors": [
+                setup_inflexible_sensors["attributeless power"].id
+            ]
+        }
+    )

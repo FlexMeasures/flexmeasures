@@ -215,6 +215,15 @@ def create_openapi_specs(app: Flask):
     collapse_schema_to_field(spec, QuantitySchema, "quantity")
     collapse_schema_to_field(spec, TimeSeriesSchema, "timeseries")
 
+    # An operation mode must declare at least one of its two ranges
+    # (checked by OperationModeSchema.check_ranges); express that in the
+    # published contract, which apispec cannot derive from the validator.
+    if "OperationMode" in spec.components.schemas:
+        spec.components.schemas["OperationMode"]["anyOf"] = [
+            {"required": ["consumption-range"]},
+            {"required": ["production-range"]},
+        ]
+
     output_path = Path("flexmeasures/ui/static/openapi-specs.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)
 

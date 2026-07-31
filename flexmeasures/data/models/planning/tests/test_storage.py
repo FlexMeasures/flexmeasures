@@ -106,9 +106,17 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
                 },
                 {
                     "name": "a sample commitment penalizing demand/supply",
-                    # "baseline": "0 kW",  # commented out to check defaulting to 0 also works
+                    "baseline": "0 kW",  # the commitment schema requires an explicit baseline
                     "up-price": "1 EUR/MWh",
                     "down-price": "-1 EUR/MWh",
+                },
+                {
+                    # Deliberately shadows a scheduler-internal commitment name,
+                    # to check its costs get reported under a "(custom)" suffix.
+                    # Zero prices, so it does not affect the schedule or other costs.
+                    "name": "electricity net energy",
+                    "baseline": "0 kW",
+                    "up-price": "0 EUR/MWh",
                 },
             ],
             # The following is a constant price, but this checks currency conversion in case a later price field is
@@ -154,13 +162,16 @@ def test_battery_solver_multi_commitment(add_battery_assets, db):
     # No production peak
     np.testing.assert_almost_equal(costs["electricity production peak"], 0)
 
-    # Sample commitments
+    # Sample commitments (reported under their user-given names)
     np.testing.assert_almost_equal(
         costs["a sample commitment penalizing peaks"], 4 * (1 - 0.4)
     )
     np.testing.assert_almost_equal(
         costs["a sample commitment penalizing demand/supply"], 1 * (1 - 0.4)
     )
+    # The name-colliding custom commitment is reported under a "(custom)" suffix,
+    # leaving the internal "electricity net energy" cost entry untouched (see above).
+    np.testing.assert_almost_equal(costs["electricity net energy (custom)"], 0)
 
     # Check consumption/production output sensor schedules.
     # The battery charges at a constant rate (all positive values), so the consumption schedule

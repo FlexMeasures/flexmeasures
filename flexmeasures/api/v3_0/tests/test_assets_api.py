@@ -1556,3 +1556,229 @@ def test_account_admin_cannot_create_child_under_cross_account_parent(
     response = client.post(url_for("AssetAPI:post"), json=post_data)
     print("Server responded with:\n%s" % response.json)
     assert response.status_code == 403
+
+
+@pytest.fixture
+def annotated_asset(db, setup_api_test_data, requesting_user):
+    """A fresh asset with two sensors and annotations (an alert band, an instant label, and an account-wide label)."""
+    import pandas as pd
+
+    from flexmeasures.data.models.annotations import Annotation
+    from flexmeasures.data.models.data_sources import DataSource
+    from uuid import uuid4
+
+    from flexmeasures.data.models.generic_assets import GenericAssetType
+
+    asset_type = db.session.scalars(select(GenericAssetType).limit(1)).first()
+    asset = GenericAsset(
+        name=f"annotated asset {uuid4().hex[:8]}",
+        generic_asset_type=asset_type,
+        owner=requesting_user.account,
+    )
+    db.session.add(asset)
+    sensor_1 = Sensor(
+        name="power",
+        generic_asset=asset,
+        unit="MW",
+        event_resolution=timedelta(minutes=15),
+    )
+    sensor_2 = Sensor(
+        name="price",
+        generic_asset=asset,
+        unit="EUR/MWh",
+        event_resolution=timedelta(hours=1),
+    )
+    db.session.add_all([sensor_1, sensor_2])
+    db.session.flush()
+    asset.sensors_to_show = [sensor_1.id, sensor_2.id]
+    source = db.session.scalars(select(DataSource).limit(1)).first()
+    asset.annotations.append(
+        Annotation(
+            content="Projected breach of site capacity",
+            start=pd.Timestamp("2025-05-02 00:00+02"),
+            end=pd.Timestamp("2025-05-02 06:00+02"),
+            source=source,
+            type="alert",
+        )
+    )
+    asset.annotations.append(
+        Annotation(
+            content="DSO request received",
+            start=pd.Timestamp("2025-05-03 12:00+02"),
+            end=pd.Timestamp("2025-05-03 12:00+02"),
+            source=source,
+            type="label",
+        )
+    )
+    asset.owner.annotations.append(
+        Annotation(
+            content="Account-wide notice",
+            start=pd.Timestamp("2025-05-04 00:00+02"),
+            end=pd.Timestamp("2025-05-05 00:00+02"),
+            source=source,
+            type="label",
+        )
+    )
+    db.session.flush()
+    return asset
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_asset_chart_annotations(client, annotated_asset, requesting_user):
+    """Asset and account annotations are returned by GET /assets/<id>/chart_annotations."""
+    response = client.get(
+        url_for("AssetAPI:get_chart_annotations", id=annotated_asset.id),
+        query_string={
+            "event_starts_after": "2025-05-01T00:00:00+02:00",
+            "event_ends_before": "2025-05-06T00:00:00+02:00",
+        },
+    )
+    print("Server responded with:\n%s" % response.json)
+    assert response.status_code == 200
+    records = json.loads(response.get_data(as_text=True))
+    contents = [content for record in records for content in record["content"]]
+    assert "Projected breach of site capacity" in contents
+    assert "DSO request received" in contents
+    assert "Account-wide notice" in contents
+    for record in records:
+        for key in ("start", "end", "content", "source", "type"):
+            assert key in record
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+@pytest.mark.parametrize("prior_query_key", ["prior", "beliefs_before"])
+def test_get_asset_chart_annotations_belief_time(
+    client, db, annotated_asset, requesting_user, prior_query_key
+):
+    """GET /assets/<id>/chart_annotations excludes annotations recorded after the given prior cutoff.
+
+    An annotation without a belief_time is still returned. Parametrized over both
+    the canonical `prior` query key and its legacy `beliefs_before` alias, which
+    must keep working for older clients.
+    """
+    import pandas as pd
+
+    from flexmeasures.data.models.annotations import Annotation
+    from flexmeasures.data.models.data_sources import DataSource
+
+    late_content = f"Breach alert recorded after the fact ({prior_query_key})"
+    source = db.session.scalars(select(DataSource).limit(1)).first()
+    annotated_asset.annotations.append(
+        Annotation(
+            content=late_content,
+            start=pd.Timestamp("2025-05-02 12:00+02"),
+            end=pd.Timestamp("2025-05-02 18:00+02"),
+            source=source,
+            type="alert",
+            belief_time=pd.Timestamp("2025-05-10 00:00+02"),
+        )
+    )
+    db.session.flush()
+
+    response = client.get(
+        url_for("AssetAPI:get_chart_annotations", id=annotated_asset.id),
+        query_string={
+            "event_starts_after": "2025-05-01T00:00:00+02:00",
+            "event_ends_before": "2025-05-06T00:00:00+02:00",
+            prior_query_key: "2025-05-03T00:00:00+02:00",
+        },
+    )
+    assert response.status_code == 200
+    records = json.loads(response.get_data(as_text=True))
+    contents = [content for record in records for content in record["content"]]
+    # Recorded after the prior cutoff, so excluded.
+    assert late_content not in contents
+    # No belief_time, so still included regardless of the prior cutoff.
+    assert "Projected breach of site capacity" in contents
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_asset_chart_with_annotation_layers(
+    client, annotated_asset, requesting_user
+):
+    """Chart specs for an asset include annotation layers in every subchart when requested."""
+    response = client.get(
+        url_for("AssetAPI:get_chart", id=annotated_asset.id),
+        query_string={
+            "include_asset_annotations": "true",
+            "dataset_name": f"asset_{annotated_asset.id}",
+        },
+    )
+    assert response.status_code == 200
+    chart_specs = json.loads(response.get_data(as_text=True))
+    annotations_dataset_name = f"asset_{annotated_asset.id}_annotations"
+    subcharts = chart_specs["vconcat"]
+    assert len(subcharts) > 0
+    for subchart in subcharts:
+        annotation_layers = [
+            layer
+            for layer in subchart["layer"]
+            if layer.get("data", {}).get("name") == annotations_dataset_name
+        ]
+        # band + rule + marker + text layers
+        assert len(annotation_layers) == 4
+    # hover params are unique per subchart, so that hovering one subchart
+    # does not darken the annotation bands in the other subcharts
+    all_param_names = [
+        param["name"]
+        for subchart in subcharts
+        for layer in subchart["layer"]
+        for param in layer.get("params", [])
+        if param["name"].startswith("annotation_")
+    ]
+    assert len(all_param_names) == len(set(all_param_names))
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_asset_chart_annotations_start_and_duration(
+    client, db, annotated_asset, requesting_user
+):
+    """GET /assets/<id>/chart_annotations derives `end` from `start` + `duration` when `end` isn't given."""
+    response = client.get(
+        url_for("AssetAPI:get_chart_annotations", id=annotated_asset.id),
+        query_string={
+            "start": "2025-05-01T00:00:00+02:00",
+            "duration": "P5D",
+        },
+    )
+    assert response.status_code == 200
+    records = json.loads(response.get_data(as_text=True))
+    assert isinstance(records, list)
+
+
+@pytest.mark.parametrize(
+    "requesting_user", ["test_supplier_user_4@seita.nl"], indirect=True
+)
+def test_get_asset_chart_session_vars_with_canonical_params(
+    client, db, annotated_asset, requesting_user
+):
+    """Regression test: GET /assets/<id>/chart persists the selected time range as
+    session variables (for a consistent UX across UI page loads) even when the
+    client uses the canonical `start`/`end` query params rather than the legacy
+    `event_starts_after`/`event_ends_before` spelling.
+
+    Session values must stay raw strings (not deserialized datetimes): downstream
+    template rendering only normalizes URL encoding for `str` values.
+    """
+    with client.session_transaction() as sess:
+        sess.pop("event_starts_after", None)
+        sess.pop("event_ends_before", None)
+    response = client.get(
+        url_for("AssetAPI:get_chart", id=annotated_asset.id),
+        query_string={
+            "start": "2025-05-01T00:00:00+02:00",
+            "end": "2025-05-02T00:00:00+02:00",
+        },
+    )
+    assert response.status_code == 200
+    with client.session_transaction() as sess:
+        assert sess.get("event_starts_after") == "2025-05-01T00:00:00+02:00"
+        assert sess.get("event_ends_before") == "2025-05-02T00:00:00+02:00"

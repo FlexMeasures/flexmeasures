@@ -34,6 +34,45 @@ from flexmeasures.data.models.planning.utils import initialize_series, initializ
 infinity = float("inf")
 
 
+def validate_highs_options(options: dict) -> None:
+    """Raise if HiGHS would refuse any of these options.
+
+    Pyomo's appsi_highs interface applies solver options without checking HiGHS'
+    return status, so an unknown name, an invalid value, or a feature missing from
+    the installed HiGHS build is otherwise ignored without a word. That silently
+    turns a mis-typed option into a no-op, and a benchmark of it into a false
+    negative. Probing a throwaway Highs instance surfaces the rejection instead.
+    """
+    try:
+        import highspy
+    except ImportError:
+        # Solver named "*highs*" but highspy absent: let the solver interface complain.
+        return
+
+    probe = highspy.Highs()
+    probe.setOptionValue("output_flag", False)
+    rejected = [
+        f"{name}={value!r}"
+        for name, value in options.items()
+        if probe.setOptionValue(name, value) != highspy.HighsStatus.kOk
+    ]
+    if rejected:
+        raise ValueError(
+            f"HiGHS rejected these FLEXMEASURES_LP_SOLVER_OPTIONS: {', '.join(rejected)}."
+            " The option name may be unknown, the value invalid, or the feature absent"
+            " from this HiGHS build. For example, the HiPO solver (solver='hipo') needs"
+            " a HiGHS built against BLAS and METIS, which the pip-installed highspy is not."
+        )
+
+    if "threads" in options or "parallel" in options:
+        current_app.logger.warning(
+            "FLEXMEASURES_LP_SOLVER_OPTIONS sets 'threads' and/or 'parallel'. HiGHS"
+            " initializes its thread scheduler once per process, so inside a long-lived"
+            " worker only the first solve honours these; later solves fail with 'global"
+            " scheduler has already been initialized' and yield no schedule."
+        )
+
+
 def device_scheduler(  # noqa C901
     device_constraints: list[pd.DataFrame],
     ems_constraints: pd.DataFrame | list[pd.DataFrame],
@@ -44,6 +83,7 @@ def device_scheduler(  # noqa C901
     initial_stock: float | list[float] = 0,
     stock_groups: dict[int, list[int]] | None = None,
     ems_constraint_groups: list[list[int]] | None = None,
+    device_power_bands: list[list[tuple[float, float]] | None] | None = None,
 ) -> tuple[list[pd.Series], float, SolverResults, ConcreteModel]:
     """This generic device scheduler is able to handle an EMS with multiple devices,
     with various types of constraints on the EMS level and on the device level,
@@ -81,6 +121,11 @@ def device_scheduler(  # noqa C901
                                     device:                     0 (corresponds to device d; if not set, commitment is on an EMS level)
     :param initial_stock:       initial stock for each device. Use a list with the same number of devices as device_constraints,
                                 or use a single value to set the initial stock to be the same for all devices.
+    :param device_power_bands:  optional per-device list of signed power bands (min, max), in flow units
+                                (e.g. MW, positive for consumption). A device with bands must operate within
+                                one of its bands at every time step (see S2 operation modes); this introduces
+                                binary variables (one per device per band per time step). Use None (per device
+                                or for the whole argument) for devices without band restrictions.
 
     Potentially deprecated arguments:
         commitment_quantities: amounts of flow specified in commitments (both previously ordered and newly requested)
@@ -372,6 +417,27 @@ def device_scheduler(  # noqa C901
             device_constraints[d]["stock delta"] = (
                 device_constraints[d]["stock delta"].astype(float).fillna(0)
             )
+
+    # Look up power bands (S2 operation modes) per device
+    if device_power_bands is None:
+        device_power_bands = [None] * len(device_constraints)
+    elif len(device_power_bands) != len(device_constraints):
+        raise ValueError(
+            f"device_power_bands lists {len(device_power_bands)} devices, "
+            f"while device_constraints lists {len(device_constraints)} devices."
+        )
+    band_lookup: dict[int, list[tuple[float, float]]] = {
+        d: list(bands)
+        for d, bands in enumerate(device_power_bands)
+        if bands is not None and len(bands) > 0
+    }
+    for d, bands in band_lookup.items():
+        for band in bands:
+            if len(band) != 2 or band[0] > band[1]:
+                raise ValueError(
+                    f"Invalid power band {band} for device {d}: "
+                    f"expected a (min, max) pair with min <= max."
+                )
 
     # Add indices for devices (d), datetimes (j) and commitments (c)
     model.d = RangeSet(0, len(device_constraints) - 1, doc="Set of devices")
@@ -780,6 +846,57 @@ def device_scheduler(  # noqa C901
         model.d, model.j, rule=device_derivative_equalities
     )
 
+    # Power bands (S2 operation modes): a banded device must operate within
+    # exactly one of its declared signed power ranges at every time step.
+    # Which band it runs in (per time step) is a free binary decision variable;
+    # the constraints below only tie the device's power to the chosen band.
+    model.bd = Set(
+        initialize=sorted(band_lookup.keys()),
+        doc="Set of devices with power bands",
+    )
+    model.db = Set(
+        dimen=2,
+        initialize=lambda m: (
+            (d, b) for d, bands in band_lookup.items() for b in range(len(bands))
+        ),
+        doc="Set of (device, band) pairs for devices with power bands",
+    )
+    model.device_band = Var(model.db, model.j, domain=Binary, initialize=0)
+
+    def device_band_choice(m, d, j):
+        """Each banded device runs in exactly one band per time step."""
+        return sum(m.device_band[d, b, j] for b in range(len(band_lookup[d]))) == 1
+
+    def device_band_power_lower(m, d, j):
+        """Device power at least the chosen band's minimum.
+
+        Exactly one band binary is 1 (see device_band_choice), so the sum
+        selects the minimum of the chosen band.
+        """
+        return m.device_power_down[d, j] + m.device_power_up[d, j] >= sum(
+            m.device_band[d, b, j] * band_lookup[d][b][0]
+            for b in range(len(band_lookup[d]))
+        )
+
+    def device_band_power_upper(m, d, j):
+        """Device power at most the chosen band's maximum.
+
+        Exactly one band binary is 1 (see device_band_choice), so the sum
+        selects the maximum of the chosen band.
+        """
+        return m.device_power_down[d, j] + m.device_power_up[d, j] <= sum(
+            m.device_band[d, b, j] * band_lookup[d][b][1]
+            for b in range(len(band_lookup[d]))
+        )
+
+    model.device_band_choice = Constraint(model.bd, model.j, rule=device_band_choice)
+    model.device_band_power_lower = Constraint(
+        model.bd, model.j, rule=device_band_power_lower
+    )
+    model.device_band_power_upper = Constraint(
+        model.bd, model.j, rule=device_band_power_upper
+    )
+
     # Add objective
     def cost_function(m):
         costs = 0
@@ -820,6 +937,12 @@ def device_scheduler(  # noqa C901
         # disable logs for the HiGHS solver in case that LOGGING_LEVEL is INFO
         if current_app.config["LOGGING_LEVEL"] == "INFO":
             profile["output_flag"] = "false"
+
+    # Apply operator-configured options last, so they override the defaults above.
+    configured_options = current_app.config.get("FLEXMEASURES_LP_SOLVER_OPTIONS") or {}
+    if configured_options and "highs" in solver_name.lower():
+        validate_highs_options(configured_options)
+    profile.update(configured_options)
 
     for option_name, option_value in profile.items():
         solver.options[option_name] = option_value

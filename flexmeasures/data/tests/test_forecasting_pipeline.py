@@ -7,7 +7,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 from marshmallow import ValidationError
-from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import inspect as sa_inspect, select
 
 from flexmeasures.data.models.forecasting.custom_models.lgbm_model import CustomLGBM
 from flexmeasures.data.models.data_sources import DataSource
@@ -31,7 +31,9 @@ from flexmeasures.data.models.forecasting.pipelines.train_predict import (
 )
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.queries.utils import simplify_index
+from flexmeasures.data.schemas.sensors import SensorReference
 from flexmeasures.utils.job_utils import work_on_rq
+from flexmeasures.utils.time_utils import as_server_time
 from flexmeasures.data.services.forecasting import handle_forecasting_exception
 
 
@@ -52,11 +54,19 @@ def test_train_predict_job_config_payload_preserves_plain_fields(
 ):
     future_regressor = setup_fresh_test_forecast_data["irradiance-sensor"]
     past_regressor = setup_fresh_test_forecast_data["solar-sensor-1"]
+    annotation_asset = future_regressor.generic_asset
 
     config = {
         "model": "CustomLGBM",
         "future_regressors": [future_regressor],
         "past_regressors": [past_regressor],
+        "annotation_regressors": [
+            {
+                "asset": annotation_asset,
+                "annotation_type": "label",
+                "name": "shutdown",
+            }
+        ],
         "missing_threshold": 0.25,
         "plain_future_option": {
             "lower": "0 kW",
@@ -71,13 +81,319 @@ def test_train_predict_job_config_payload_preserves_plain_fields(
     assert "past_regressors" not in payload
     assert payload["future_regressor_ids"] == [future_regressor.id]
     assert payload["past_regressor_ids"] == [past_regressor.id]
+    assert payload["annotation_regressors"] == [
+        {
+            "asset": annotation_asset.id,
+            "annotation_type": "label",
+            "name": "shutdown",
+        }
+    ]
     assert payload["plain_future_option"] == config["plain_future_option"]
+    assert not _contains_orm_instance(payload)
 
     restored_config = _load_job_config_payload(payload)
 
     assert restored_config["future_regressors"] == [future_regressor]
     assert restored_config["past_regressors"] == [past_regressor]
+    assert restored_config["annotation_regressors"] == payload["annotation_regressors"]
     assert restored_config["plain_future_option"] == config["plain_future_option"]
+
+
+def test_train_predict_job_config_payload_round_trips_sensor_references(
+    app,
+    clean_redis,
+    setup_fresh_test_forecast_data,
+    setup_accounts_fresh_db,
+    fresh_db,
+):
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    account = setup_accounts_fresh_db["Prosumer"]
+    pipeline = TrainPredictPipeline(
+        config={
+            "train-start": "2025-01-01T00:00:00+00:00",
+            "future-regressors": [
+                {
+                    "sensor": regressor_sensor.id,
+                    "sources": [source.id],
+                    "source-types": ["demo script"],
+                    "exclude-source-types": ["forecaster"],
+                    "source-account": [account.id],
+                }
+            ],
+        }
+    )
+    config = pipeline._config
+
+    payload = _make_job_config_payload(config)
+
+    assert payload["future_regressor_ids"] == [
+        {
+            "sensor": regressor_sensor.id,
+            "sources": [source.id],
+            "source-types": ["demo script"],
+            "exclude-source-types": ["forecaster"],
+            "source-account": [account.id],
+        }
+    ]
+    assert not _contains_orm_instance(payload)
+
+    restored_config = _load_job_config_payload(payload)
+    restored_regressor = restored_config["future_regressors"][0]
+    assert isinstance(restored_regressor, SensorReference)
+    assert restored_regressor.sensor == regressor_sensor
+    assert restored_regressor.sources == [source]
+    assert restored_regressor.source_types == ["demo script"]
+    assert restored_regressor.exclude_source_types == ["forecaster"]
+    assert restored_regressor.source_account == [account]
+
+    queued_result = pipeline.compute(
+        as_job=True,
+        parameters={
+            "sensor": target_sensor.id,
+            "start": "2025-01-08T00:00:00+00:00",
+            "end": "2025-01-08T02:00:00+00:00",
+            "max-forecast-horizon": "PT1H",
+            "forecast-frequency": "PT1H",
+        },
+    )
+    queued_job = app.queues["forecasting"].fetch_job(queued_result["job_id"])
+    assert queued_job is not None
+    queued_config = queued_job.kwargs["config"]
+    assert queued_config["future_regressor_ids"] == payload["future_regressor_ids"]
+    assert not _contains_orm_instance(queued_config)
+    queued_regressor = _load_job_config_payload(queued_config)["future_regressors"][0]
+    assert isinstance(queued_regressor, SensorReference)
+    assert queued_regressor.sources == [source]
+    assert queued_regressor.source_account == [account]
+
+
+def test_load_data_all_beliefs_applies_regressor_source_filters(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    selected_source = fresh_db.session.execute(
+        select(DataSource).filter_by(name="Seita", type="demo script")
+    ).scalar_one()
+    excluded_source = DataSource(name="excluded-regressor-source", type="forecaster")
+    excluded_value = -999.0
+    fresh_db.session.add_all(
+        [
+            excluded_source,
+            TimedBelief(
+                sensor=regressor_sensor,
+                event_start=as_server_time(datetime(2025, 1, 2)),
+                event_value=excluded_value,
+                belief_horizon=timedelta(hours=6),
+                source=excluded_source,
+            ),
+        ]
+    )
+    fresh_db.session.commit()
+    regressor_reference = SensorReference(
+        sensor=regressor_sensor,
+        sources=[selected_source],
+    )
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[regressor_reference],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=as_server_time(datetime(2025, 1, 1)),
+        event_ends_before=as_server_time(datetime(2025, 1, 3)),
+    )
+
+    loaded_data = pipeline.load_data_all_beliefs()
+
+    assert (
+        excluded_value
+        in regressor_sensor.search_beliefs(
+            source=[excluded_source], most_recent_beliefs_only=False
+        )["event_value"].values
+    )
+    assert excluded_value not in loaded_data[pipeline.future_regressors[0]].values
+    assert loaded_data[pipeline.future_regressors[0]].notna().any()
+
+
+def _add_colliding_beliefs(db, sensor, sources_and_values):
+    """Record one belief per source about the same event, all with the same belief time."""
+    db.session.add_all(
+        [
+            TimedBelief(
+                sensor=sensor,
+                event_start=as_server_time(datetime(2025, 1, 2)),
+                event_value=value,
+                belief_horizon=timedelta(hours=6),
+                source=source,
+            )
+            for source, value in sources_and_values
+        ]
+    )
+    db.session.commit()
+
+
+def _load_regressor_values(target_sensor, regressor) -> pd.Series:
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[regressor],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=as_server_time(datetime(2025, 1, 1)),
+        event_ends_before=as_server_time(datetime(2025, 1, 3)),
+    )
+    loaded_data = pipeline.load_data_all_beliefs()
+    assert not loaded_data.duplicated(subset=["event_start", "belief_time"]).any()
+    return loaded_data[pipeline.future_regressors[0]]
+
+
+def test_load_data_all_beliefs_resolves_source_collisions_by_list_order(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """The order of an explicit sources list decides which equally-timed belief wins."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    source_a = DataSource(name="colliding-source-a", type="forecaster")
+    source_b = DataSource(name="colliding-source-b", type="forecaster")
+    value_a = -111.0
+    value_b = -222.0
+    fresh_db.session.add_all([source_a, source_b])
+    _add_colliding_beliefs(
+        fresh_db, regressor_sensor, [(source_a, value_a), (source_b, value_b)]
+    )
+
+    values = _load_regressor_values(
+        target_sensor,
+        SensorReference(sensor=regressor_sensor, sources=[source_a, source_b]),
+    )
+    assert value_a in values.values
+    assert value_b not in values.values
+
+    values = _load_regressor_values(
+        target_sensor,
+        SensorReference(sensor=regressor_sensor, sources=[source_b, source_a]),
+    )
+    assert value_b in values.values
+    assert value_a not in values.values
+
+    values = _load_regressor_values(
+        target_sensor,
+        SensorReference(
+            sensor=regressor_sensor, sources=[source_a, source_b, source_a]
+        ),
+    )
+    assert value_a in values.values
+    assert value_b not in values.values
+
+
+def test_load_data_all_beliefs_uses_latest_version_within_source_family(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """Belief loading keeps the latest version of each source family."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    old_source = DataSource(
+        name="versioned-source", type="forecaster", model="test-model", version="1.0.0"
+    )
+    new_source = DataSource(
+        name="versioned-source", type="forecaster", model="test-model", version="2.0.0"
+    )
+    old_value = -111.0
+    new_value = -222.0
+    fresh_db.session.add_all([old_source, new_source])
+    _add_colliding_beliefs(
+        fresh_db, regressor_sensor, [(new_source, new_value), (old_source, old_value)]
+    )
+
+    values = _load_regressor_values(target_sensor, regressor_sensor)
+    assert new_value in values.values
+    assert old_value not in values.values
+
+
+def test_load_data_all_beliefs_resolves_cross_family_collisions_by_source_id(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """Without an explicit sources list, the highest source ID wins on collisions."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    lower_id_source = DataSource(
+        name="lower-id-source",
+        type="forecaster",
+        model="unrelated-model-a",
+        version="production",
+    )
+    higher_id_source = DataSource(
+        name="higher-id-source",
+        type="forecaster",
+        model="unrelated-model-b",
+        version="dev-main",
+    )
+    lower_id_value = -111.0
+    higher_id_value = -222.0
+    fresh_db.session.add_all([lower_id_source, higher_id_source])
+    _add_colliding_beliefs(
+        fresh_db,
+        regressor_sensor,
+        [
+            (lower_id_source, lower_id_value),
+            (higher_id_source, higher_id_value),
+        ],
+    )
+    assert higher_id_source.id > lower_id_source.id
+
+    values = _load_regressor_values(target_sensor, regressor_sensor)
+    assert higher_id_value in values.values
+    assert lower_id_value not in values.values
+
+
+def test_load_data_all_beliefs_determinizes_probabilistic_regressors_per_source(
+    setup_fresh_test_forecast_data,
+    fresh_db,
+):
+    """Probabilistic regressor beliefs are reduced to their median before precedence."""
+    target_sensor = setup_fresh_test_forecast_data["solar-sensor"]
+    regressor_sensor = setup_fresh_test_forecast_data["irradiance-sensor"]
+    source_a = DataSource(name="probabilistic-regressor-source-a", type="forecaster")
+    source_b = DataSource(name="probabilistic-regressor-source-b", type="forecaster")
+    source_values = [
+        (source_a, [(0.1, -111.0), (0.5, -222.0), (0.9, -333.0)]),
+        (source_b, [(0.1, -444.0), (0.5, -555.0), (0.9, -666.0)]),
+    ]
+    fresh_db.session.add_all([source_a, source_b])
+    fresh_db.session.add_all(
+        [
+            TimedBelief(
+                sensor=regressor_sensor,
+                event_start=as_server_time(datetime(2025, 1, 2)),
+                event_value=value,
+                belief_horizon=timedelta(hours=6),
+                source=source,
+                cumulative_probability=cumulative_probability,
+            )
+            for source, probability_values in source_values
+            for cumulative_probability, value in probability_values
+        ]
+    )
+    fresh_db.session.commit()
+
+    values = _load_regressor_values(
+        target_sensor,
+        SensorReference(sensor=regressor_sensor, sources=[source_b, source_a]),
+    )
+
+    assert -555.0 in values.values
+    assert not {-111.0, -222.0, -333.0, -444.0, -666.0}.intersection(values.values)
 
 
 def test_train_predict_job_parameters_payload_preserves_plain_fields(
@@ -1408,6 +1724,72 @@ def test_future_regressor_splits_use_only_beliefs_known_at_forecast_belief_time(
     assert 77.0 not in set(values_by_event)
 
 
+def test_annotation_regressor_split_preserves_annotation_columns(monkeypatch):
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+
+    pipeline = BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 7, 23),
+        event_ends_before=datetime(2025, 1, 8, 1),
+        predict_start=datetime(2025, 1, 8),
+        predict_end=datetime(2025, 1, 8, 1),
+        annotation_regressors=[
+            {"asset": 1, "annotation_type": "label", "name": "shutdown"}
+        ],
+    )
+    annotation_col = pipeline.annotation_regressor_names[0]
+    forecast_belief_time = pd.Timestamp("2025-01-08T00:00:00")
+
+    df = pd.DataFrame(
+        [
+            {
+                "event_start": pd.Timestamp("2025-01-07T23:00:00"),
+                "belief_time": forecast_belief_time,
+                pipeline.target: 1.0,
+                annotation_col: 0.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T00:00:00"),
+                "belief_time": forecast_belief_time,
+                pipeline.target: None,
+                annotation_col: 1.0,
+            },
+            {
+                "event_start": pd.Timestamp("2025-01-08T01:00:00"),
+                "belief_time": forecast_belief_time,
+                pipeline.target: None,
+                annotation_col: 1.0,
+            },
+        ]
+    )
+
+    captured_future_frames = []
+
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.annotation_regressor_names:
+            captured_future_frames.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+
+    pipeline.split_data_all_beliefs(df, is_predict_pipeline=True)
+
+    assert len(captured_future_frames) == 1
+    values_by_event = captured_future_frames[0].set_index("event_start")[annotation_col]
+    assert values_by_event.loc[pd.Timestamp("2025-01-07T23:00:00")] == 0.0
+    assert values_by_event.loc[pd.Timestamp("2025-01-08T00:00:00")] == 1.0
+    assert values_by_event.loc[pd.Timestamp("2025-01-08T01:00:00")] == 1.0
+
+
 def test_realized_future_regressors_use_latest_known_per_regressor_per_step(
     monkeypatch,
 ):
@@ -1742,3 +2124,144 @@ def test_future_regressor_changes_forecasts_in_forecast_belief_time_window(
         "The future-regressor forecast is expected to be more accurate "
         "on this deterministic synthetic dataset."
     )
+
+
+def _annotation_pipeline(predict_start: datetime) -> BasePipeline:
+    """A minimal annotation-only pipeline over three hourly events."""
+    target_sensor = type(
+        "SensorStub",
+        (),
+        {"name": "target", "id": 1, "event_resolution": timedelta(hours=1)},
+    )()
+    return BasePipeline(
+        target_sensor=target_sensor,
+        future_regressors=[],
+        past_regressors=[],
+        n_steps_to_predict=1,
+        max_forecast_horizon=1,
+        forecast_frequency=1,
+        event_starts_after=datetime(2025, 1, 7, 23),
+        event_ends_before=datetime(2025, 1, 8, 1),
+        predict_start=predict_start,
+        predict_end=datetime(2025, 1, 8, 1),
+        annotation_regressors=[
+            {"asset": 1, "annotation_type": "holiday", "name": "holidays"}
+        ],
+    )
+
+
+def _run_annotation_split(pipeline, annotation_belief_time, monkeypatch):
+    """Split a three-event frame and return the annotation column that reached the model."""
+    col = pipeline.annotation_regressor_names[0]
+    events = pd.to_datetime(
+        [
+            "2025-01-07T23:00:00",
+            "2025-01-08T00:00:00",
+            "2025-01-08T01:00:00",
+        ]
+    )
+    # The middle and last event are annotated; the first is not.
+    pipeline._annotation_values[col] = pd.Series([0.0, 1.0, 1.0], index=events)
+    pipeline._annotation_belief_times[col] = pd.Series(
+        [pd.NaT, annotation_belief_time, annotation_belief_time],
+        index=events,
+        dtype="datetime64[ns]",
+    )
+
+    df = pd.DataFrame(
+        [
+            {
+                "event_start": ts,
+                "belief_time": ts + timedelta(hours=1),
+                pipeline.target: value,
+                col: pipeline._annotation_values[col].loc[ts],
+            }
+            for ts, value in zip(events, [1.0, None, None])
+        ]
+    )
+
+    captured = []
+
+    def capture_frame(self, df, sensors, sensor_names, start, end, **kwargs):
+        if sensor_names == self.annotation_regressor_names:
+            captured.append(df.copy())
+        return df
+
+    monkeypatch.setattr(BasePipeline, "detect_and_fill_missing_values", capture_frame)
+    pipeline.split_data_all_beliefs(df, is_predict_pipeline=True)
+    assert len(captured) == 1
+    return captured[0].set_index("event_start")[col]
+
+
+def test_annotation_regressor_without_belief_time_is_always_known(monkeypatch):
+    """Annotations recording no belief time are visible whatever the vantage point.
+
+    This is the case for the holiday calendars written by `flexmeasures add holidays`,
+    which store belief_time as NULL.
+    """
+    pipeline = _annotation_pipeline(predict_start=datetime(2025, 1, 8))
+    values = _run_annotation_split(pipeline, pd.NaT, monkeypatch)
+
+    assert values.loc[pd.Timestamp("2025-01-07T23:00:00")] == 0.0
+    # Visible in the training window, which the realized-only filter would otherwise hide,
+    # and in the forecast horizon.
+    assert values.loc[pd.Timestamp("2025-01-08T00:00:00")] == 1.0
+    assert values.loc[pd.Timestamp("2025-01-08T01:00:00")] == 1.0
+
+
+def test_annotation_regressor_belief_time_before_vantage_point_is_visible(monkeypatch):
+    """An annotation believed before the forecast is made is used."""
+    pipeline = _annotation_pipeline(predict_start=datetime(2025, 1, 8))
+    values = _run_annotation_split(
+        pipeline, pd.Timestamp("2025-01-06T00:00:00"), monkeypatch
+    )
+
+    assert values.loc[pd.Timestamp("2025-01-08T00:00:00")] == 1.0
+    assert values.loc[pd.Timestamp("2025-01-08T01:00:00")] == 1.0
+
+
+def test_annotation_regressor_belief_time_after_vantage_point_is_hidden(monkeypatch):
+    """An annotation only believed later must not leak into an earlier forecast."""
+    pipeline = _annotation_pipeline(predict_start=datetime(2025, 1, 8))
+    values = _run_annotation_split(
+        pipeline, pd.Timestamp("2025-01-09T00:00:00"), monkeypatch
+    )
+
+    # Not yet known at the vantage point, so the regressor reads 0 rather than 1.
+    assert values.loc[pd.Timestamp("2025-01-08T00:00:00")] == 0.0
+    assert values.loc[pd.Timestamp("2025-01-08T01:00:00")] == 0.0
+
+
+def test_model_params_are_merged_over_defaults():
+    """Overrides change only the keys they name; the rest keep their defaults."""
+    default = CustomLGBM(max_forecast_horizon=1)
+    overridden = CustomLGBM(
+        max_forecast_horizon=1,
+        models_params={"max_depth": 6, "min_child_samples": 10},
+    )
+
+    assert default.models_params["max_depth"] == 3
+    assert default.models_params["min_child_samples"] == 50
+
+    assert overridden.models_params["max_depth"] == 6
+    assert overridden.models_params["min_child_samples"] == 10
+    # Untouched keys survive, so a user does not have to restate the whole config.
+    assert (
+        overridden.models_params["add_encoders"]
+        == default.models_params["add_encoders"]
+    )
+    assert overridden.models_params["random_state"] == 42
+    assert overridden.models_params["verbose"] == -1
+
+
+def test_model_params_can_reach_darts_categorical_covariates():
+    """Darts-level keys pass through, which is what a day-type covariate needs."""
+    model = CustomLGBM(
+        max_forecast_horizon=1,
+        models_params={
+            "categorical_future_covariates": ["day_type"],
+            "min_data_per_group": 20,
+        },
+    )
+    assert model.models_params["categorical_future_covariates"] == ["day_type"]
+    assert model.models_params["min_data_per_group"] == 20
