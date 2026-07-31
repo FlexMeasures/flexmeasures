@@ -118,6 +118,9 @@ def test_add_forecast_cli_accepts_regressor_ids_and_json_reference_lists(
     captured_configs = []
 
     class StubForecaster:
+        def set_job_trigger(self, origin):
+            pass
+
         def compute(self, **kwargs):
             return {"n_jobs": 1}
 
