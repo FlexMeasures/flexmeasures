@@ -87,6 +87,102 @@ def test_add_automation_invalid_cron(app, fresh_db, setup_dummy_data):
     assert "Invalid value" in result.output
 
 
+@pytest.mark.parametrize(
+    ("yaml_start", "expected_start"),
+    (
+        ("2026-07-31", "2026-07-31"),
+        ("2026-07-31T06:00:00+01:00", "2026-07-31T06:00:00+01:00"),
+    ),
+)
+def test_add_automation_normalizes_yaml_dates(
+    app,
+    fresh_db,
+    setup_dummy_data,
+    tmp_path,
+    yaml_start,
+    expected_start,
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    parameters_file = tmp_path / "parameters.yaml"
+    parameters_file.write_text(f"start: {yaml_start}\n")
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "YAML dates",
+            "--cron",
+            "0 6 * * *",
+            "--parameters",
+            str(parameters_file),
+            "--sensor",
+            str(setup_dummy_data[0]),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    automation = fresh_db.session.scalars(select(Automation)).one()
+    assert automation.parameters["start"] == expected_start
+
+
+@pytest.mark.parametrize("option_name", ("--config", "--parameters"))
+def test_add_automation_accepts_empty_yaml_file(
+    app, fresh_db, setup_dummy_data, tmp_path, option_name
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    empty_file = tmp_path / "empty.yaml"
+    empty_file.write_text("")
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Empty YAML",
+            "--cron",
+            "0 6 * * *",
+            option_name,
+            str(empty_file),
+            "--sensor",
+            str(setup_dummy_data[0]),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+
+
+@pytest.mark.parametrize("option_name", ("--config", "--parameters"))
+def test_add_automation_rejects_non_object_yaml_file(
+    app, fresh_db, setup_dummy_data, tmp_path, option_name
+):
+    from flexmeasures.cli.data_add import add_automation
+
+    list_file = tmp_path / "list.yaml"
+    list_file.write_text("- not\n- an\n- object\n")
+    result = app.test_cli_runner().invoke(
+        add_automation,
+        [
+            "--asset",
+            "1",
+            "--name",
+            "Invalid YAML",
+            "--cron",
+            "0 6 * * *",
+            option_name,
+            str(list_file),
+            "--sensor",
+            str(setup_dummy_data[0]),
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "must contain a YAML or JSON object at the top level" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_run_automations(app, fresh_db, setup_dummy_data, clean_redis):
     """Active automations due this minute queue forecasting jobs (with trigger meta data); inactive ones do not.
 
