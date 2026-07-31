@@ -308,3 +308,88 @@ def test_format_json_field_change_added_graph_with_flex_context_reference():
         change
         == 'Updated sensors_to_show:\n1. Added graph 1: "No Title" (refs [asset 1, flex-context: site-power-capacity])'
     )
+
+
+def test_get_flex_context_inflexible_family_shadowing(
+    fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
+):
+    """A nearer asset's inflexible-device definition shadows the whole field family
+    of farther ancestors, so the deprecated and newer keys never mix across tree levels.
+    """
+    db = fresh_db
+    asset_type = setup_generic_asset_types_fresh_db["battery"]
+    owner = setup_accounts_fresh_db["Prosumer"]
+    site = GenericAsset(
+        name="family site",
+        generic_asset_type=asset_type,
+        owner=owner,
+        flex_context={
+            "inflexible-device-sensors": [1, 2],
+            "site-power-capacity": "2 MVA",
+        },
+    )
+    db.session.add(site)
+    db.session.flush()
+    leaf = GenericAsset(
+        name="family battery",
+        generic_asset_type=asset_type,
+        owner=owner,
+        parent_asset_id=site.id,
+        flex_context={"inflexible-production": [{"sensor": 3}]},
+    )
+    db.session.add(leaf)
+    db.session.flush()
+
+    # The leaf's newer key shadows the site's deprecated key (same field family),
+    # while unrelated fields are still inherited.
+    assert leaf.get_flex_context() == {
+        "inflexible-production": [{"sensor": 3}],
+        "site-power-capacity": "2 MVA",
+    }
+    # The site itself is unaffected.
+    assert site.get_flex_context()["inflexible-device-sensors"] == [1, 2]
+
+
+def test_get_inflexible_device_sensors_across_keys(
+    fresh_db, setup_generic_asset_types_fresh_db, setup_accounts_fresh_db
+):
+    """Inflexible device sensors are gathered from all three flex-context keys,
+    both top-level and within nested commodities entries, walking up the asset
+    tree until any of them is found."""
+    db = fresh_db
+    asset_type = setup_generic_asset_types_fresh_db["battery"]
+    owner = setup_accounts_fresh_db["Prosumer"]
+    site = GenericAsset(
+        name="gathering site", generic_asset_type=asset_type, owner=owner
+    )
+    db.session.add(site)
+    db.session.flush()
+    load_sensor = Sensor(name="a load", generic_asset=site, unit="kW")
+    pv_sensor = Sensor(name="a pv", generic_asset=site, unit="kW")
+    boiler_sensor = Sensor(name="a boiler", generic_asset=site, unit="kW")
+    db.session.add_all([load_sensor, pv_sensor, boiler_sensor])
+    db.session.flush()
+    site.flex_context = {
+        "inflexible-consumption": [{"sensor": load_sensor.id}],
+        "inflexible-production": [
+            {"sensor": pv_sensor.id, "exclude-source-types": ["scheduler"]}
+        ],
+        "commodities": [
+            {
+                "commodity": "gas",
+                "inflexible-consumption": [{"sensor": boiler_sensor.id}],
+            }
+        ],
+    }
+    leaf = GenericAsset(
+        name="gathering battery",
+        generic_asset_type=asset_type,
+        owner=owner,
+        parent_asset_id=site.id,
+    )
+    db.session.add(leaf)
+    db.session.commit()
+
+    expected_sensors = {load_sensor, pv_sensor, boiler_sensor}
+    assert set(leaf.get_inflexible_device_sensors()) == expected_sensors
+    assert set(site.get_inflexible_device_sensors()) == expected_sensors

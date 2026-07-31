@@ -970,6 +970,12 @@ class SensorReference:
     properties works without modification. The source filters are passed through to
     :meth:`TimedBelief.search <flexmeasures.data.models.time_series.TimedBelief.search>`
     in :func:`~flexmeasures.data.models.planning.utils.get_series_from_quantity_or_sensor`.
+
+    The optional ``group`` carries an inflexible device's group membership (a
+    ``{"sensor": ...}`` / ``{"asset": ...}`` reference, see
+    :class:`~flexmeasures.data.schemas.scheduling.groups.GroupReferenceSchema`); it is
+    only meaningful for inflexible-device flex-context entries and is ignored by belief
+    queries.
     """
 
     sensor: Sensor
@@ -977,6 +983,10 @@ class SensorReference:
     exclude_source_types: list[str] | None = field(default=None)
     sources: list[DataSource] | None = field(default=None)
     source_account: list[Account] | None = field(default=None)
+    #: Inflexible-device group membership (a ``{"sensor": ...}``/``{"asset": ...}``
+    #: reference); ignored by belief queries. None when the reference is not an
+    #: inflexible device or does not belong to a group.
+    group: dict | None = field(default=None)
 
     @property
     def unit(self) -> str:

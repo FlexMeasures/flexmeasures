@@ -239,7 +239,7 @@ class MetaStorageScheduler(Scheduler):
                         f"The 'group' field references {group_key_label(gkey)}, "
                         "but no device in the flex-model belongs to that group."
                     )
-                commodities = {inventory.devices[d].commodity for d in leaves}
+                commodities = {inventory.by_index(d).commodity for d in leaves}
                 if len(commodities) > 1:
                     raise ValueError(
                         f"All member devices of group {group_key_label(gkey)} must "
@@ -745,7 +745,7 @@ class MetaStorageScheduler(Scheduler):
                 continue
             group_entry = self._group_models[group_key]
             group_label = f"{group_key[0]}:{group_key[1]}"
-            group_commodity = inventory.devices[leaf_members[0]].commodity
+            group_commodity = inventory.by_index(leaf_members[0]).commodity
             group_devices = device_list_series(leaf_members, index)
 
             group_power_capacity = get_continuous_series_sensor_or_quantity(
@@ -935,13 +935,15 @@ class MetaStorageScheduler(Scheduler):
             initialize_df(StorageScheduler.COLUMNS, start, end, resolution)
             for i in range(inventory.num_scheduled)
         ]
-        for i, inflexible_sensor in enumerate(inventory.inflexible_sensors):
+        for i, inflexible_device in enumerate(inventory.inflexible_devices):
             device_constraints[i + num_flexible_devices]["derivative equals"] = (
                 get_power_values(
                     query_window=(start, end),
                     resolution=resolution,
                     beliefs_before=belief_time,
-                    sensor=inflexible_sensor,
+                    sensor=inflexible_device.sensor_reference
+                    or inflexible_device.power_sensor,
+                    consumption_is_positive=inflexible_device.consumption_is_positive,
                 )
             )
 
@@ -3021,9 +3023,10 @@ class StorageScheduler(MetaStorageScheduler):
 
         Device enumeration order (the inventory's canonical order, also used by `_prepare()`):
             1. flexible devices (from the flex-model), in order,
-            2. top-level (electricity) inflexible-device-sensors, in order,
-            3. each commodity context's own inflexible-device-sensors, in the order the
-               commodity contexts are given.
+            2. top-level (electricity) inflexible devices, in order,
+            3. each commodity context's own inflexible devices, in the order the
+               commodity contexts are given
+               (within each context, fields are read in INFLEXIBLE_DEVICE_FIELDS order).
 
         The returned device indices line up with entries of `ems_schedule` /
         `device_constraints`.

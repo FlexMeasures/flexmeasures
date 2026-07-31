@@ -15,6 +15,7 @@ v1.0.0 | July XX, 2026
 New features
 -------------
 
+* New ``inflexible-consumption`` and ``inflexible-production`` flex-context fields make explicit how the sign of each inflexible device's power data should be read (positive values denote consumption resp. production), accepting sensor references with optional source filters; they replace the now-deprecated ``inflexible-device-sensors`` field (bare sensor IDs, sign read from each sensor's ``consumption_is_positive`` attribute), which remains supported. Each inflexible device may also carry a ``group`` field, so that inflexible (measured) load counts towards the intermediate power constraint of the group it belongs to [see `PR #2358 <https://www.github.com/FlexMeasures/flexmeasures/pull/2358>`_]
 * Forecasting regressors can filter their input beliefs by data source, source type, excluded source type, or source organisation [see `PR #2347 <https://github.com/FlexMeasures/flexmeasures/pull/2347>`_]
 * When multiple selected sources record a belief about the same event at the same belief time, forecasting pipelines now resolve the collision deterministically: the order of an explicit ``sources`` list decides precedence (first listed wins), and otherwise the highest source ID wins after selecting the latest version within each source family [see `PR #2347 <https://github.com/FlexMeasures/flexmeasures/pull/2347>`_]
 * Filter organisations by account role in the Accounts API and organisation list UI [see `PR #2353 <https://www.github.com/FlexMeasures/flexmeasures/pull/2353>`_]
@@ -42,11 +43,12 @@ New features
 * The ``group`` field now also accepts a ``{"asset": <id>}`` reference (in addition to ``{"sensor": <id>}``), allowing intermediate power constraints to be defined entirely from flex-models stored on the asset tree, with results saved via the group's ``consumption``/``production`` output sensors, without needing any flex-model in the scheduling trigger [see `issue #2092 <https://github.com/FlexMeasures/flexmeasures/issues/2092>`_]
 * Extended the scheduling job ``result`` field with a ``num-beliefs`` field reporting the total number of beliefs (scheduled values) saved to the database [see `PR #2280 <https://www.github.com/FlexMeasures/flexmeasures/pull/2280>`_]
 * Flex-context commitments can be scoped to specific device sensors (via a new optional ``sensors`` field), binding their aggregate flow as one commitment instead of binding each device separately [see `PR #2295 <https://www.github.com/FlexMeasures/flexmeasures/pull/2295>`_]
-* Migrate the asset tree in the UI's Structure tab from Vega to ECharts, adding interactive pan/zoom navigation and refreshed node styling [see `PR #2025 <https://www.github.com/FlexMeasures/flexmeasures/pull/2025>`_]
+* Migrate the asset tree in the UI's Structure tab from Vega to ECharts, adding interactive pan/zoom navigation and refreshed node styling [see `PR #2025 <https://www.github.com/FlexMeasures/flexmeasures/pull/2025>`_ and `PR #2365 <https://www.github.com/FlexMeasures/flexmeasures/pull/2365>`_]
 
 Infrastructure / Support
 ----------------------
 
+* The database migration for this release splits each stored flex-context's ``inflexible-device-sensors`` field into ``inflexible-consumption``/``inflexible-production`` sensor references, classifying each sensor by its ``consumption_is_positive`` attribute (behavior-preserving; sensor attributes themselves are kept). Downgrading merges them back into bare sensor IDs, dropping any source filters added in the meantime [see `PR #2358 <https://www.github.com/FlexMeasures/flexmeasures/pull/2358>`_]
 * Speed up listing assets: eager-load each asset's sensors instead of lazy-loading them one query per asset during serialization, and skip loading sensors entirely for field-filtered responses that do not include them [see `PR #2363 <https://www.github.com/FlexMeasures/flexmeasures/pull/2363>`_]
 * Price fields in the flex-context (including nested commitment prices, which are now also held to the flex-context's shared currency) are selected for currency validation by field type (``PriceField``) instead of by name suffix [see `PR #2311 <https://www.github.com/FlexMeasures/flexmeasures/pull/2311>`_]
 * Document ``SECURITY_TWO_FACTOR`` and related 2FA configuration settings [see `PR #2340 <https://www.github.com/FlexMeasures/flexmeasures/pull/2340>`_]
@@ -73,6 +75,8 @@ Infrastructure / Support
 
 Bugfixes
 -----------
+* Replaying a chart for a past window no longer shows annotations that were only recorded later; annotation searches and the ``chart_annotations`` endpoints can now be scoped by recording (belief) time [see `PR #2367 <https://www.github.com/FlexMeasures/flexmeasures/pull/2367>`_]
+* Continuing the query-parameter cleanup started in PR #2352: the chart-related endpoints now use ``prior``, ``start``, ``end`` and hyphenated field names, with a new ``duration`` field to derive a missing ``start``/``end``; old spellings keep working as legacy aliases [see `PR #2367 <https://www.github.com/FlexMeasures/flexmeasures/pull/2367>`_]
 * Scheduling jobs no longer print ``Job ... made schedule.`` before ``scheduler.compute()`` runs (only after a successful schedule) [see `PR #2342 <https://www.github.com/FlexMeasures/flexmeasures/pull/2342>`_]
 * ``flexmeasures add user --roles`` now correctly accepts a comma-separated list of roles (and repeated ``--roles`` options) instead of creating one role whose name contains commas [see `PR #2339 <https://www.github.com/FlexMeasures/flexmeasures/pull/2339>`_]
 * Raise a clear ``ValueError`` when a flex-model references a missing sensor ID instead of ``AttributeError: 'NoneType' object has no attribute 'asset_id'`` [see `PR #2343 <https://www.github.com/FlexMeasures/flexmeasures/pull/2343>`_]
