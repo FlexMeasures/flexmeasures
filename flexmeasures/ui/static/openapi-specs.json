@@ -4941,18 +4941,6 @@
         ],
         "additionalProperties": false
       },
-      "GroupReference": {
-        "type": "object",
-        "properties": {
-          "sensor": {
-            "type": "integer"
-          },
-          "asset": {
-            "type": "integer"
-          }
-        },
-        "description": "Reference to a group of devices whose aggregate power is constrained."
-      },
       "InflexibleDevice": {
         "type": "object",
         "properties": {
@@ -5003,13 +4991,6 @@
             "items": {
               "type": "integer"
             }
-          },
-          "group": {
-            "description": "Reference to a group of devices whose aggregate power is constrained. The recommended form identifies the group by the ``asset`` that represents the shared equipment (``{\"asset\": <id>}``, e.g. a sub-EMS asset in the tree); a power ``sensor`` (``{\"sensor\": <id>}``) is also accepted - give exactly one of the two.\nThe referenced asset or sensor should itself get its own flex-model entry defining the group's ``power-capacity`` (hard constraint) and/or ``consumption-capacity``/``production-capacity`` (soft constraints with default breach prices).\nWhen the group is referenced by ``asset``, the group entry defines no power sensor of its own; the group's aggregate power is saved via that entry's own ``consumption`` and/or ``production`` output sensors, following the usual output-sensor conventions.\nWhen the group is referenced by ``sensor``, the group's scheduled aggregate power is saved directly to that group sensor.\n",
-            "example": {
-              "asset": 7
-            },
-            "$ref": "#/components/schemas/GroupReference"
           }
         },
         "required": [
@@ -5179,7 +5160,7 @@
           },
           "inflexible-consumption": {
             "type": "array",
-            "description": "Power (or energy) sensors representing loads that are relevant, but not flexible in the timing of their demand.\nFor example, a sensor recording the power of a base load that is connected behind the main meter, and whose consumption falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote consumption.\nSensors that explicitly record consumption as negative values (<code>consumption_is_positive</code> attribute set to false) are rejected here; list them under <code>inflexible-production</code> instead.\n\nMust be a list of sensor references, optionally with source filters, and optionally each assigned to a <code>group</code> (so the device's measured load counts towards that group's intermediate power constraint).\n",
+            "description": "Power (or energy) sensors representing loads that are relevant, but not flexible in the timing of their demand.\nFor example, a sensor recording the power of a base load that is connected behind the main meter, and whose consumption falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote consumption.\nSensors that explicitly record consumption as negative values (<code>consumption_is_positive</code> attribute set to false) are rejected here; list them under <code>inflexible-production</code> instead.\n\nEach entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base load); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a <code>group</code> like any other member.\n",
             "example": [
               {
                 "sensor": 3
@@ -5194,7 +5175,7 @@
           },
           "inflexible-production": {
             "type": "array",
-            "description": "Power (or energy) sensors representing generators that are relevant, but not flexible in the timing of their supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power supply cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote production (the FlexMeasures default).\nSensors that explicitly record production as negative values (<code>consumption_is_positive</code> attribute set to true) are rejected here; list them under <code>inflexible-consumption</code> instead.\n\nMust be a list of sensor references, optionally with source filters, and optionally each assigned to a <code>group</code> (so the device's measured supply counts towards that group's intermediate power constraint).\n",
+            "description": "Power (or energy) sensors representing generators that are relevant, but not flexible in the timing of their supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power supply cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote production (the FlexMeasures default).\nSensors that explicitly record production as negative values (<code>consumption_is_positive</code> attribute set to true) are rejected here; list them under <code>inflexible-consumption</code> instead.\n\nEach entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base generation); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a <code>group</code> like any other member.\n",
             "example": [
               {
                 "sensor": 3
@@ -6768,6 +6749,18 @@
           }
         ]
       },
+      "GroupReference": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer"
+          },
+          "asset": {
+            "type": "integer"
+          }
+        },
+        "description": "Reference to a group of devices whose aggregate power is constrained."
+      },
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",
         "properties": {
@@ -6855,6 +6848,20 @@
               "asset": 7
             },
             "$ref": "#/components/schemas/GroupReference"
+          },
+          "inflexible-consumption": {
+            "description": "Power (or energy) sensors representing loads that are relevant, but not flexible in the timing of their demand.\nFor example, a sensor recording the power of a base load that is connected behind the main meter, and whose consumption falls under the same contract as the flexible device(s) being scheduled.\nTheir power demand cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote consumption.\nSensors that explicitly record consumption as negative values (<code>consumption_is_positive</code> attribute set to false) are rejected here; list them under <code>inflexible-production</code> instead.\n\nEach entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base load); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a <code>group</code> like any other member.\n",
+            "example": {
+              "sensor": 3
+            },
+            "$ref": "#/components/schemas/InflexibleDevice"
+          },
+          "inflexible-production": {
+            "description": "Power (or energy) sensors representing generators that are relevant, but not flexible in the timing of their supply.\nFor example, a sensor recording rooftop solar power that is connected behind the main meter, and whose production falls under the same contract as the flexible device(s) being scheduled.\nTheir power supply cannot be adjusted but still matters for finding the best schedule for other devices.\n\nThe sign convention is determined by the key name: positive values denote production (the FlexMeasures default).\nSensors that explicitly record production as negative values (<code>consumption_is_positive</code> attribute set to true) are rejected here; list them under <code>inflexible-consumption</code> instead.\n\nEach entry is a sensor reference, optionally with source filters. In the flex-context this is a list of such references (site-level base generation); in a flex-model entry it is a single reference, so that an inflexible device modelled as its own asset can join a <code>group</code> like any other member.\n",
+            "example": {
+              "sensor": 3
+            },
+            "$ref": "#/components/schemas/InflexibleDevice"
           },
           "prefer-curtailing-later": {
             "type": "boolean",
