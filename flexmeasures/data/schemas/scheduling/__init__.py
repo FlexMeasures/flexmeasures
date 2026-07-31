@@ -76,15 +76,14 @@ class NoTimeSeriesSpecs(Schema):
 
 class CommitmentSchema(Schema):
     name = fields.Str(required=True, data_key="name", validate=validate.Length(min=1))
-    # Optional scoping: bind this commitment to the aggregate flow of a subset of
-    # devices, rather than binding each device of the commodity separately. Give either
-    # a list of power `sensors` (a cherry-pick that may span electrical groups, e.g. an
-    # aFRR band on a site's e-heaters) or a `group` reference (the members of an
-    # electrical group). At most one of the two.
-    #
-    # A sensor scope binds the listed *flexible* devices only; a group scope binds the
-    # group's members, which include any inflexible (fixed-load) members, so the
-    # aggregate covers the node's total flow -- see StorageScheduler._resolve_commitment_scope.
+    # Optional scoping: bind this commitment to the aggregate flow of a subset of devices,
+    # rather than binding each device of the commodity separately.
+    # Give either a list of power `sensors` (a cherry-pick that may span electrical groups,
+    # e.g. an aFRR band on a site's e-heaters),
+    # or a `group` reference (the members of an electrical group); at most one of the two.
+    # A sensor scope binds the listed *flexible* devices only;
+    # a group scope binds the group's members, which include any inflexible (fixed-load) members,
+    # so the aggregate covers the node's total flow (see StorageScheduler._resolve_commitment_scope).
     sensors = fields.List(
         SensorIdField(),
         required=False,

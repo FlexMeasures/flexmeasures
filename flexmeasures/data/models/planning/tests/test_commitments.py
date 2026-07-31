@@ -2089,7 +2089,7 @@ def test_sensor_scoped_commitment_binds_aggregate_of_selected_devices(app, db):
     """A commitment scoped to specific sensors (here: two e-heaters) binds their
     aggregate flow as one commitment: a baseline of 10 MW with a steep penalty on
     downward deviation keeps their combined consumption at 10 MW even though a
-    cheaper allocation (0 MW) exists, while an unscoped battery stays unaffected.
+    cheaper allocation (0 MW) exists.
     """
     heater_type = get_or_create_model(GenericAssetType, name="e-heater")
     site = GenericAsset(
@@ -2269,6 +2269,98 @@ def test_group_scoped_commitment_binds_group_aggregate(app, db):
     combined = schedules[heater_1] + schedules[heater_2]
     # The band on the group keeps its members' aggregate at 10 MW.
     np.testing.assert_allclose(combined.iloc[:-1], 10.0, rtol=1e-4)
+
+
+def test_scoped_commitment_pins_commodity_to_scoped_devices(app):
+    """A scoped commitment's commodity follows its scoped devices, overriding the
+    schema's electricity default -- so its cost is attributed to the right commodity."""
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    gas_load = Sensor(
+        name="scoped gas load",
+        unit="MW",
+        event_resolution=resolution,
+        generic_asset_id=1,
+    )
+    gas_load.id = 12
+    flex_model = [{"sensor": gas_load, "commodity": "gas"}]
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                "name": "gas band",
+                "commodity": "electricity",  # as the schema's electricity default supplies
+                "sensors": [gas_load],
+                "baseline": ur.Quantity("1 MW"),
+                "up_price": ur.Quantity("1 EUR/MWh"),
+            }
+        ],
+    }
+    scheduler.device_inventory = DeviceInventory.from_flex_config(
+        flex_model, scheduler.flex_context
+    )
+
+    commitments = scheduler.convert_to_commitments(
+        flex_model,
+        query_window=(start, end),
+        resolution=resolution,
+        beliefs_before=start,
+    )
+    assert len(commitments) == 1
+    # Pinned to the scoped device's commodity, not the "electricity" default.
+    assert commitments[0].commodity == "gas"
+
+
+def test_scoped_commitment_with_no_matching_devices_warns_and_binds_nothing(
+    app, caplog
+):
+    """A scope that matches no device in the flex-model logs a warning and binds
+    nothing, rather than failing the whole schedule."""
+    import logging
+    from flexmeasures.data.models.planning.devices import DeviceInventory
+
+    scheduler = object.__new__(StorageScheduler)
+    start = pd.Timestamp("2024-01-01T00:00:00+01:00")
+    end = pd.Timestamp("2024-01-01T03:00:00+01:00")
+    resolution = pd.Timedelta("1h")
+
+    present = Sensor(
+        name="present device",
+        unit="MW",
+        event_resolution=resolution,
+        generic_asset_id=1,
+    )
+    present.id = 1
+    flex_model = [{"sensor": present, "commodity": "electricity"}]
+    scheduler.flex_context = {
+        "shared_currency_unit": "EUR",
+        "commitments": [
+            {
+                "name": "orphan band",
+                "sensors": [999],  # no device in the flex-model records this sensor
+                "baseline": ur.Quantity("1 MW"),
+                "up_price": ur.Quantity("1 EUR/MWh"),
+            }
+        ],
+    }
+    scheduler.device_inventory = DeviceInventory.from_flex_config(
+        flex_model, scheduler.flex_context
+    )
+
+    with caplog.at_level(logging.WARNING):
+        commitments = scheduler.convert_to_commitments(
+            flex_model,
+            query_window=(start, end),
+            resolution=resolution,
+            beliefs_before=start,
+        )
+    assert commitments == []  # bound nothing, did not raise
+    assert "will not bind any device" in caplog.text
 
 
 def test_commitments_in_commodity_contexts_are_converted(app):

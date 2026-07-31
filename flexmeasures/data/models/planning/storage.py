@@ -1610,6 +1610,11 @@ class MetaStorageScheduler(Scheduler):
                 f" more than one commodity ({sorted(commodities)}); a commitment binds"
                 " the aggregate flow of a single commodity."
             )
+        # A scoped commitment's commodity is defined by its scope, so pin it to the
+        # scoped devices' (single) commodity -- otherwise the commitment keeps the
+        # schema's electricity default (or a mismatching explicit value) and its cost
+        # would be misattributed to the wrong commodity.
+        commitment_spec["commodity"] = next(iter(commodities))
         index = commitment_spec["index"]
         # device_group maps device index -> group label; one shared label makes the
         # engine bind the aggregate flow. The label is unique per commitment so two
