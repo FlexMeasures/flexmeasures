@@ -112,6 +112,20 @@ def validate_inflexible_flex_model_entry(data: dict, original_data: dict):
         )
 
 
+# In a flex-model entry the inflexible fields are a *single* sensor reference (unlike
+# the flex-context, where they are lists), so override the shared metadata's list
+# example with a single object -- otherwise the generated OpenAPI/docs would show an
+# array for an object-valued field.
+_INFLEXIBLE_CONSUMPTION_FLEX_MODEL_META = {
+    **metadata.INFLEXIBLE_CONSUMPTION.to_dict(),
+    "example": {"sensor": 3},
+}
+_INFLEXIBLE_PRODUCTION_FLEX_MODEL_META = {
+    **metadata.INFLEXIBLE_PRODUCTION.to_dict(),
+    "example": {"sensor": 3},
+}
+
+
 #  Telling type hints what to expect after schema parsing
 SoCTarget = TypedDict(
     "SoCTarget",
@@ -372,13 +386,13 @@ class StorageFlexModelSchema(Schema):
         InflexibleDeviceSchema,
         data_key="inflexible-consumption",
         required=False,
-        metadata=metadata.INFLEXIBLE_CONSUMPTION.to_dict(),
+        metadata=_INFLEXIBLE_CONSUMPTION_FLEX_MODEL_META,
     )
     inflexible_production = fields.Nested(
         InflexibleDeviceSchema,
         data_key="inflexible-production",
         required=False,
-        metadata=metadata.INFLEXIBLE_PRODUCTION.to_dict(),
+        metadata=_INFLEXIBLE_PRODUCTION_FLEX_MODEL_META,
     )
 
     # Activation prices
@@ -655,13 +669,13 @@ class DBStorageFlexModelSchema(Schema):
         InflexibleDeviceSchema,
         data_key="inflexible-consumption",
         required=False,
-        metadata=metadata.INFLEXIBLE_CONSUMPTION.to_dict(),
+        metadata=_INFLEXIBLE_CONSUMPTION_FLEX_MODEL_META,
     )
     inflexible_production = fields.Nested(
         InflexibleDeviceSchema,
         data_key="inflexible-production",
         required=False,
-        metadata=metadata.INFLEXIBLE_PRODUCTION.to_dict(),
+        metadata=_INFLEXIBLE_PRODUCTION_FLEX_MODEL_META,
     )
 
     soc_min = VariableQuantityField(
