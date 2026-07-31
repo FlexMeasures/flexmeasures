@@ -1754,7 +1754,9 @@ def test_storage_flex_model_inflexible_device_field(
         with pytest.raises(ValidationError, match="conflicts with the sign convention"):
             schema.load({"inflexible-production": {"sensor": consumption_positive.id}})
 
-        # An inflexible entry must not also carry a schedulable-device field.
+        # An inflexible entry must not also carry a schedulable-device field. The check
+        # is a whitelist, so it also catches less-obvious device fields (e.g. soc-unit),
+        # not just an enumerated blacklist.
         with pytest.raises(ValidationError, match="schedulable-device field"):
             schema.load(
                 {
@@ -1762,6 +1764,17 @@ def test_storage_flex_model_inflexible_device_field(
                     "power-capacity": "1 MW",
                 }
             )
+
+    # soc-unit exists only on StorageFlexModelSchema, and is also rejected.
+    with pytest.raises(ValidationError, match="schedulable-device field"):
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.UTC), sensor=None
+        ).load(
+            {
+                "inflexible-consumption": {"sensor": attributeless.id},
+                "soc-unit": "kWh",
+            }
+        )
 
 
 def test_db_flex_context_schema_inflexible_devices(

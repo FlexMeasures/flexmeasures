@@ -37,32 +37,25 @@ from flexmeasures.utils.unit_utils import (
 ALLOWED_COMMODITIES = {"electricity", "gas"}
 
 
-#: User-facing (hyphenated) flex-model keys that make an entry a schedulable device;
-#: an entry that declares an inflexible device must carry none of them, so
-#: device-inventory classification stays unambiguous. Keyed on data-keys (consistent
-#: across StorageFlexModelSchema and DBStorageFlexModelSchema, whose attribute names
-#: differ). ``group``, ``commodity``, ``asset``, ``sensor`` and the activation
-#: preferences may co-exist with an inflexible declaration.
-_SCHEDULABLE_DEVICE_DATA_KEYS = (
-    "consumption",
-    "production",
-    "state-of-charge",
-    "soc-at-start",
-    "soc-min",
-    "soc-max",
-    "soc-minima",
-    "soc-maxima",
-    "soc-targets",
-    "soc-gain",
-    "soc-usage",
-    "power-capacity",
-    "consumption-capacity",
-    "production-capacity",
-    "roundtrip-efficiency",
-    "charging-efficiency",
-    "discharging-efficiency",
-    "storage-efficiency",
-    "operation-modes",
+#: User-facing (hyphenated) flex-model keys that may co-exist with an inflexible-device
+#: declaration: its own identity/grouping/commodity and the always-defaulted activation
+#: preferences. Any other declared field is a schedulable-device field, so an entry
+#: carrying one alongside ``inflexible-consumption``/``inflexible-production`` is
+#: rejected -- this is a whitelist (rather than a blacklist of schedulable keys) so it
+#: stays complete as new device fields are added. Keyed on data-keys, which are the
+#: same across StorageFlexModelSchema and DBStorageFlexModelSchema (their *attribute*
+#: names differ).
+_INFLEXIBLE_ALLOWED_DATA_KEYS = frozenset(
+    {
+        "inflexible-consumption",
+        "inflexible-production",
+        "group",
+        "commodity",
+        "asset",
+        "sensor",
+        "prefer-charging-sooner",
+        "prefer-curtailing-later",
+    }
 )
 
 
@@ -74,8 +67,9 @@ def validate_inflexible_flex_model_entry(data: dict, original_data: dict):
     signs, must not use a sensor whose explicit ``consumption_is_positive`` attribute
     contradicts the field's sign convention, and must not also carry schedulable-device
     fields (so it is unambiguously classified as an inflexible device). The last check
-    inspects the original (hyphenated) input keys, so it works for both flex-model
-    schemas and ignores load-default fills.
+    inspects the original (hyphenated) input keys against a whitelist of keys allowed
+    alongside an inflexible declaration, so it works for both flex-model schemas, stays
+    complete as device fields are added, and ignores load-default fills.
     """
     has_consumption = "inflexible_consumption" in data
     has_production = "inflexible_production" in data
@@ -103,7 +97,7 @@ def validate_inflexible_flex_model_entry(data: dict, original_data: dict):
             f" which conflicts with the sign convention of the `{data_key}` field.",
             field_name=data_key,
         )
-    offending = [k for k in _SCHEDULABLE_DEVICE_DATA_KEYS if k in original_data]
+    offending = sorted(set(original_data) - _INFLEXIBLE_ALLOWED_DATA_KEYS)
     if offending:
         raise ValidationError(
             f"An inflexible device entry (`{data_key}`) must not also carry"
