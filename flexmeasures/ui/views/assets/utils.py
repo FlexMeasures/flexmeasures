@@ -19,6 +19,28 @@ def get_asset_by_id_or_raise_notfound(asset_id: str) -> GenericAsset:
     return asset
 
 
+def get_inherited_flex_context(asset: GenericAsset) -> dict[str, dict]:
+    """Collect the flex-context fields the asset would inherit from its ancestors.
+
+    Fields set on the asset itself are not excluded here:
+    the flex-context editor decides at render time which of these are shadowed by local fields,
+    so that removing a local field immediately reveals the inherited value it was shadowing.
+
+    :returns: Dictionary mapping each ancestor-defined field name to a dictionary with
+              the field's ``value`` and the ``asset_id`` and ``asset_name`` of the defining ancestor.
+    """
+    if asset.parent_asset is None:
+        return {}
+    return {
+        field: {
+            "value": entry["value"],
+            "asset_id": entry["asset"].id,
+            "asset_name": entry["asset"].name,
+        }
+        for field, entry in asset.parent_asset.get_flex_context_with_provenance().items()
+    }
+
+
 def serialize_asset(asset: Asset, is_head=False) -> dict:
     serialized_asset = {
         "name": asset.name,

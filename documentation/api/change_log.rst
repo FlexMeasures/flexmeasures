@@ -8,14 +8,24 @@ API change log
 v3.0-32 | July XX, 2026
 """"""""""""""""""""""""
 
+- Added a ``role`` query parameter to ``GET /api/v3_0/accounts`` for filtering accessible organisations by account role.
 - Extended ``GET /api/v3_0/jobs/<uuid>`` with a ``result`` field containing ``unresolved`` and ``resolved`` arrays, each keyed by asset ID. For scheduling jobs, this surfaces soft state-of-charge constraint analysis: ``soc-minima`` and ``soc-maxima`` violations (with a ``violation`` magnitude) or satisfied constraints (with a ``margin`` headroom). Both arrays are empty when no SoC constraints were defined.
+- **Field canonicalization** for background job tracking:
+  * The ``job`` field is now the canonical way to identify background jobs returned by `/sensors/<id>/schedules/trigger`, `/assets/<id>/schedules/trigger`, and `/sensors/<id>/forecasts/trigger` endpoints. If applicable, the triggered response now also returns a ``results-url`` pointing to the sensor-specific results endpoint, alongside the generic ``job-url``.
+  * Legacy ``schedule`` field (in scheduling endpoints) and ``forecast`` field (in forecasting endpoints) remain in responses, unchanged, for backward compatibility. New clients should prefer ``job``; see :ref:`api_background_jobs` for the full response format. These fields are not (yet) formally deprecated — see the "Planned API v4" discussion linked from :ref:`api_deprecation` for where and when their removal is being tracked.
+- ``GET /api/v3_0/jobs/<uuid>`` now returns ``202 Accepted`` while a job is queued or running, ``422 Unprocessable Entity`` for failed jobs, and ``200 OK`` for finished jobs. See :ref:`api_background_jobs` for the response format and polling flow.
+- ``GET /api/v3_0/jobs/<uuid>`` now also returns kebab-case metadata fields such as ``func-name`` and ``enqueued-at``, alongside the existing snake_case fields (``func_name``, ``enqueued_at``, etc.), which remain unchanged for backward compatibility. New clients should prefer the kebab-case fields.
 - Added a ``group`` field to the storage flex-model, accepted by the `/assets/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ (POST) endpoint, referencing a power sensor representing a group of devices (e.g. a shared inverter or feeder). The group's ``power-capacity`` is enforced as a hard constraint on the group's aggregate power, while its ``consumption-capacity``/``production-capacity`` are enforced as soft constraints with default breach prices; the group's scheduled aggregate power is saved to the group sensor.
 - The ``group`` field also accepts a ``{"asset": <id>}`` reference (besides ``{"sensor": <id>}``), pointing at an asset whose own (DB-stored) flex-model defines the group's constraints. Such a group defines no power sensor of its own; its aggregate schedule is instead saved via its ``consumption``/``production`` output sensor references, following the same conventions as any other asset-only flex-model entry. This lets the entire flex-model for a device tree (including groups) live in the DB, with ``flex-model`` omitted or empty on the trigger request.
+- Fixed: `/assets/(id)/schedules/trigger <../api/v3_0.html#post--api-v3_0-assets-id-schedules-trigger>`_ (POST) now also accepts the legacy ``force_new_job_creation`` field name (in addition to ``force-new-job-creation``), matching the sensor-level trigger endpoint. Previously, only the sensor-level endpoint accepted both spellings.
+- Several query parameters now additionally accept a canonical spelling (hyphenated where applicable), while the legacy underscored spelling keeps working: ``per_page``/``per-page``, ``sort_by``/``sort-by``, ``sort_dir``/``sort-dir`` (all paginated list endpoints), ``account_id``/``account`` and ``asset_id``/``asset`` (``GET /sensors``, ``GET /assets``, ``GET /users``). New clients should prefer the canonical form.
 
 v3.0-31 | 2026-06-01
 """"""""""""""""""""
+ - Support filtering assets and sensors by ID prefix in the ``filter`` query parameter of ``GET /assets``, ``GET /assets/<id>/sensors`` and ``GET /sensors``.
 
-- Support filtering assets and sensors by ID prefix in the ``filter`` query parameter of ``GET /assets``, ``GET /assets/<id>/sensors`` and ``GET /sensors``.
+v3.0-31 | 2026-06-01
+""""""""""""""""""""
 - Added a unified job status endpoint ``GET /api/v3_0/jobs/<uuid>`` that returns the current execution status and a human-readable result message for any background job (scheduling, forecasting, etc.) identified by its UUID.
 - Switched from ``force_new_job_creation`` to ``force-new-job-creation`` (maintaining backwards compatibility) and added the field to `/assets/(id)/schedules/trigger` (POST) endpoint, too.
 - Support both snake_case and kebab-case fields in `/sensors/<id>/data` (GET), while only documenting the kebab-case ones.

@@ -345,6 +345,53 @@ def test_efficiency_pair(
             },
             {"commitments.0.baseline": "Cannot convert value `10 kWh` to 'MW'"},
         ),
+        # Commitment prices must share the flex-context's currency
+        (
+            {
+                "consumption-price": "100 EUR/MWh",
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 USD/MWh",
+                    }
+                ],
+            },
+            {
+                "commitments": "all prices in the flex-context must share the same currency unit"
+            },
+        ),
+        # Commitment prices sharing the flex-context's currency are fine
+        (
+            {
+                "consumption-price": "100 EUR/MWh",
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MWh",
+                        "down-price": "0.12 EUR/kWh",
+                    }
+                ],
+            },
+            False,
+        ),
+        # Commitments can also set the shared currency (mixed currencies still fail)
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 USD/MWh",
+                        "down-price": "120 EUR/MWh",
+                    }
+                ]
+            },
+            {
+                "commitments": "all prices in the flex-context must share the same currency unit"
+            },
+        ),
         # Energy price units with a power baseline
         (
             {
@@ -501,6 +548,45 @@ def test_efficiency_pair(
             },
             {
                 "commitments.0.up-price": "Commitment up-price must have a power or energy unit in its denominator."
+            },
+        ),
+        # Commitment without a baseline
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "up-price": "100 EUR/MWh",
+                    }
+                ]
+            },
+            {"commitments.0.baseline": "A commitment requires a baseline."},
+        ),
+        # Commitment with an empty name
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MWh",
+                    }
+                ]
+            },
+            {"commitments.0.name": "Shorter than minimum length 1."},
+        ),
+        # Commitment without any deviation price
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                    }
+                ]
+            },
+            {
+                "commitments.0.up-price": "A commitment requires at least one deviation price (up-price and/or down-price)."
             },
         ),
     ],
@@ -1455,3 +1541,11 @@ def test_asset_trigger_schema_rejects_malformed_flex_context(app):
     with pytest.raises(ValidationError) as e_info:
         schema.normalize_flex_context_format({"flex-context": "not-a-dict-or-list"})
     assert "flex-context" in str(e_info.value)
+
+
+# Note: AssetTriggerSchema itself no longer aliases legacy field names (e.g.
+# force_new_job_creation) -- that's v3_0-specific backward compatibility,
+# layered on top by AssetTriggerSchemaV3 in flexmeasures/api/v3_0/assets.py,
+# and tested there (flexmeasures/api/v3_0/tests/test_asset_trigger_schema_v3.py).
+# This schema stays canonical since it's also used outside the API, e.g. by
+# the CLI.

@@ -35,7 +35,7 @@ def function_name(param1: str, param2: int) -> bool:
 - Use `Example::` (double colon) to introduce a doctest block.
 - Complement type hints — don't duplicate them in the docstring text.
 - Use exactly one space after punctuation (no double spaces after periods).
-- Use line breaks only after punctuation (this facilitates review commenting and text searching).
+- Use line breaks only after punctuation (this facilitates review commenting and text searching). This applies to in-line comments as well, not only docstrings; keep in-line comments short.
 
 ## Click CLI commands
 

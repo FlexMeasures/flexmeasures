@@ -15,6 +15,7 @@ from flexmeasures.data.models.forecasting.custom_models.lgbm_model import (
     DEFAULT_SEASONAL_LAGS_STEPS,
 )
 from flexmeasures.data.models.forecasting.pipelines.base import BasePipeline
+from flexmeasures.data.schemas.sensors import SensorReference
 
 warnings.filterwarnings("ignore")
 
@@ -38,8 +39,8 @@ def derive_daily_lag_steps(
 class TrainPipeline(BasePipeline):
     def __init__(
         self,
-        future_regressors: list[Sensor],
-        past_regressors: list[Sensor],
+        future_regressors: list[Sensor | SensorReference],
+        past_regressors: list[Sensor | SensorReference],
         target_sensor: Sensor,
         model_save_dir: str,
         n_steps_to_predict: int,
@@ -52,13 +53,15 @@ class TrainPipeline(BasePipeline):
         probabilistic: bool = False,
         ensure_positive: bool = False,
         missing_threshold: float = 1.0,
+        annotation_regressors: list[dict] | None = None,
+        model_params: dict | None = None,
     ) -> None:
         """
         Initialize the TrainPipeline.
 
         :param sensors: Dictionary mapping custom regressor names to sensor IDs.
-        :param past_regressors: List of sensors serving as past regressors.
-        :param future_regressors: List of sensors serving as future regressors.
+        :param past_regressors: List of sensors or sensor references serving as past regressors.
+        :param future_regressors: List of sensors or sensor references serving as future regressors.
         :param target: Custom target name.
         :param model_save_dir: Directory where the trained model will be saved.
         :param n_steps_to_predict: Number of steps of 1 resolution to predict into the future.
@@ -69,11 +72,17 @@ class TrainPipeline(BasePipeline):
         :param probabilistic: Whether to use a probabilistic model.
         :param ensure_positive: Whether to ensure that predictions are positive.
         :param missing_threshold: Max fraction of missing data allowed before failure. Missing data under the threshold will be filled with our interpolation methods.
+        :param model_params: LightGBM parameter overrides, merged over the model's defaults.
         """
         self.model_save_dir = model_save_dir
         self.probabilistic = probabilistic
+        self.model_params = model_params
         self.auto_regressive = (
-            True if not past_regressors and not future_regressors else False
+            True
+            if not past_regressors
+            and not future_regressors
+            and not annotation_regressors
+            else False
         )
         self.ensure_positive = ensure_positive
         super().__init__(
@@ -88,6 +97,7 @@ class TrainPipeline(BasePipeline):
             beliefs_before=beliefs_before,
             forecast_frequency=forecast_frequency,
             missing_threshold=missing_threshold,
+            annotation_regressors=annotation_regressors,
         )
 
     def train_model(
@@ -162,6 +172,7 @@ class TrainPipeline(BasePipeline):
                     *DEFAULT_SEASONAL_LAGS_STEPS,
                 ],
                 training_sample_count=len(y_train),
+                models_params=self.model_params,
             )
         }
 

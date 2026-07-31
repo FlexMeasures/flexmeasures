@@ -35,7 +35,10 @@ from flexmeasures.data.models.planning.utils import (
     get_continuous_series_sensor_or_quantity,
 )
 from flexmeasures.data.models.planning.exceptions import InfeasibleProblemException
-from flexmeasures.data.schemas.scheduling.storage import StorageFlexModelSchema
+from flexmeasures.data.schemas.scheduling.storage import (
+    OperationModeSchema,
+    StorageFlexModelSchema,
+)
 from flexmeasures.data.schemas.scheduling import (
     CommodityFlexContextSchema,
     FlexContextSchema,
@@ -346,6 +349,9 @@ class MetaStorageScheduler(Scheduler):
         ]
         production_capacity = [
             flex_model_d.get("production_capacity") for flex_model_d in flex_model
+        ]
+        operation_modes = [
+            flex_model_d.get("operation_modes") for flex_model_d in flex_model
         ]
         charging_efficiency = [
             flex_model_d.get("charging_efficiency") for flex_model_d in flex_model
@@ -989,6 +995,13 @@ class MetaStorageScheduler(Scheduler):
             device_constraints[d]["derivative max"] = power_capacity_in_mw[d]
             device_constraints[d]["derivative min"] = -power_capacity_in_mw[d]
 
+            # Power bands (S2 operation modes): carried on the constraints frame,
+            # in signed MW (positive is consumption), for the device scheduler.
+            if operation_modes[d]:
+                device_constraints[d].attrs["operation_modes"] = [
+                    OperationModeSchema.signed_band(mode) for mode in operation_modes[d]
+                ]
+
             if sensor_d is not None and sensor_d.get_attribute(
                 "is_strictly_non_positive"
             ):
@@ -1535,15 +1548,37 @@ class MetaStorageScheduler(Scheduler):
         flex_model,
         **timing_kwargs,
     ) -> list[FlowCommitment | StockCommitment]:
-        """Convert list of commitment specifications (dicts) to a list of FlowCommitments."""
-        commitment_specs = self.flex_context.get("commitments", [])
+        """Convert list of commitment specifications (dicts) to a list of FlowCommitments.
+
+        Commitments are collected from the top-level flex-context and from each
+        commodity context; a commitment within a commodity context always binds that
+        context's commodity (matching how the UI editor scopes commitments per
+        commodity tab).
+
+        User-given commitment names are kept as is, but the resulting commitments are
+        tagged with provenance "custom", so cost reporting can tell them apart from the
+        commitments the scheduler sets up internally (e.g. "electricity net energy").
+        """
+        commitment_specs = [
+            dict(spec) for spec in self.flex_context.get("commitments", []) or []
+        ]
+        for commodity_context in self.flex_context.get("commodity_contexts", []):
+            for spec in commodity_context.get("commitments", []) or []:
+                spec = dict(spec)
+                # A commitment in a commodity context binds that commodity
+                # (overriding the schema's electricity default on the field).
+                spec["commodity"] = commodity_context.get("commodity", "electricity")
+                commitment_specs.append(spec)
         if len(commitment_specs) == 0:
             return []
 
         start, end = timing_kwargs["query_window"]
         price_unit = self.flex_context["shared_currency_unit"] + "/MW"
         commitments = []
+        # The specs were copied above, so converting (which pops fields) does not
+        # mutate self.flex_context and repeated conversions see the original specs.
         for commitment_spec in commitment_specs:
+
             # Convert baseline, up_price and down_price to pd.Series, then create FlowCommitment
             if "up_price" in commitment_spec:
                 commitment_spec["upwards_deviation_price"] = (
@@ -1613,6 +1648,7 @@ class MetaStorageScheduler(Scheduler):
                 commitment = FlowCommitment(
                     device=d,
                     device_group=device_commodity,
+                    provenance="custom",
                     **commitment_spec,
                 )
                 commitments.append(commitment)
@@ -2517,13 +2553,15 @@ class StorageFallbackScheduler(MetaStorageScheduler):
             }
 
         if self.return_multiple:
+            # Iterate over the dict keys (not the sensors list, which may hold the
+            # same sensor for multiple devices), so no sensor is emitted twice.
             return [
                 {
                     "name": "storage_schedule",
                     "sensor": sensor,
                     "data": storage_schedule[sensor],
                 }
-                for sensor in sensors
+                for sensor in storage_schedule.keys()
                 if sensor is not None
             ]
         else:
@@ -3206,6 +3244,9 @@ class StorageScheduler(MetaStorageScheduler):
             commitments=commitments,
             initial_stock=initial_stock,
             stock_groups=self.stock_groups,
+            device_power_bands=[
+                dc.attrs.get("operation_modes") for dc in device_constraints
+            ],
         )
         if "infeasible" in (tc := scheduler_results.solver.termination_condition):
             raise InfeasibleProblemException(tc)
@@ -3321,6 +3362,22 @@ class StorageScheduler(MetaStorageScheduler):
             unresolved, resolved = self._compute_unresolved_targets(
                 flex_model_for_soc, soc_schedule_mwh, start, end, resolution
             )
+            # A device's power sensor may itself be one of its declared consumption/
+            # production output sensors — for example, a flex-model entry that
+            # references its power sensor only via a nested output reference, like
+            # {"consumption": {"sensor": ...}} (see _resolve_power_sensor). Such a
+            # sensor already receives its schedule via the consumption/production
+            # outputs below, which is the semantically correct single entry to keep:
+            # the sign conventions for output sensors are defined on that path (see
+            # _build_consumption_production_schedules), and the scheduling service
+            # resolves the sign via the consumption_is_positive attribute set on
+            # output sensors. Emitting a second ("storage_schedule") entry for the
+            # same sensor would save duplicate beliefs within one scheduling-job
+            # transaction, violating the timed_belief primary key and failing the
+            # whole job.
+            output_sensor_ids = {
+                sensor.id for sensor in consumption_production_schedule.keys()
+            }
             storage_schedules = [
                 {
                     "name": "storage_schedule",
@@ -3329,17 +3386,14 @@ class StorageScheduler(MetaStorageScheduler):
                     "unit": sensor.unit,
                 }
                 for sensor in storage_schedule.keys()
-                if sensor is not None
+                if sensor is not None and sensor.id not in output_sensor_ids
             ]
             commitment_costs = [
                 {
                     "name": "commitment_costs",
-                    "data": {
-                        c.name: costs
-                        for c, costs in zip(
-                            commitments, model.commitment_costs.values()
-                        )
-                    },
+                    "data": report_commitment_costs_by_name(
+                        commitments, model.commitment_costs.values()
+                    ),
                     "unit": self.flex_context["shared_currency_unit"],
                 },
             ]
@@ -3383,7 +3437,7 @@ class StorageScheduler(MetaStorageScheduler):
                     ),
                 }
             ]
-            return (
+            return self._deduplicate_outputs(
                 storage_schedules
                 + commitment_costs
                 + soc_schedules
@@ -3392,6 +3446,30 @@ class StorageScheduler(MetaStorageScheduler):
             )
         else:
             return storage_schedule[sensors[0]]
+
+    @staticmethod
+    def _deduplicate_outputs(outputs: list[dict]) -> list[dict]:
+        """Safety net: never let one sensor appear in multiple outputs.
+
+        All outputs are saved with identical belief coordinates in the same
+        scheduling-job transaction, so a duplicate sensor is guaranteed to
+        violate the timed_belief primary key and fail the whole job.
+        Keep the first entry for a sensor and drop (with a warning) any later one.
+        """
+        seen_sensor_ids: set[int] = set()
+        deduplicated_outputs = []
+        for output in outputs:
+            output_sensor = output.get("sensor")
+            if output_sensor is not None:
+                if output_sensor.id in seen_sensor_ids:
+                    current_app.logger.warning(
+                        f"Dropping duplicate '{output.get('name')}' output for {output_sensor}: "
+                        f"another output already saves a schedule to this sensor."
+                    )
+                    continue
+                seen_sensor_ids.add(output_sensor.id)
+            deduplicated_outputs.append(output)
+        return deduplicated_outputs
 
 
 def create_constraint_violations_message(constraint_violations: list) -> str:
@@ -3622,6 +3700,35 @@ def add_storage_constraints(
     )
 
     return storage_device_constraints
+
+
+def report_commitment_costs_by_name(commitments, costs) -> dict[str, float]:
+    """Key commitment costs by commitment name.
+
+    Costs of same-named commitments of the same provenance are summed (e.g. one
+    custom commitment bound per device). A custom commitment whose name collides
+    with a scheduler-internal one is reported under "<name> (custom)" instead,
+    to keep both cost entries readable.
+    """
+    scheduler_commitment_names = {
+        c.name for c in commitments if c.provenance == "scheduler"
+    }
+    costs_by_name: dict[str, float] = {}
+    colliding_names = set()
+    for c, cost in zip(commitments, costs):
+        key = c.name
+        if c.provenance == "custom" and key in scheduler_commitment_names:
+            key = f"{c.name} (custom)"
+            colliding_names.add(c.name)
+        costs_by_name[key] = costs_by_name.get(key, 0) + cost
+    # Warn once per colliding name (custom commitments are bound per device).
+    for name in sorted(colliding_names):
+        current_app.logger.warning(
+            f"Custom commitment '{name}' shares its name with a commitment"
+            f" the scheduler sets up internally; reporting its costs as"
+            f" '{name} (custom)'. Consider renaming the commitment."
+        )
+    return costs_by_name
 
 
 def validate_storage_constraints(
