@@ -863,58 +863,8 @@ Default: ``None``
 API rate limiting
 -----------------
 
-FlexMeasures rate-limits its API, to protect the server against clients which ask for more than their fair share ―
-in particular against clients which re-trigger expensive computations like scheduling in a tight loop.
-
-Two limits apply. A default limit applies to every API endpoint, and a stricter limit applies to the endpoints
-which trigger scheduling and forecasting. Requests which exceed a limit are answered with a ``429`` status code,
-and a ``Retry-After`` header telling the client how long to wait.
-
-Counts are kept in Redis (see :ref:`redis-config`), so that all your workers share them. If Redis cannot be
-reached, FlexMeasures lets requests through rather than refusing them.
-
-The two limits count differently:
-
-- The **default limit** counts *every* request, including the ones we refuse. The limiter runs before
-  authentication, so requests without valid credentials are counted, too (per IP address, as there is no user
-  to count them against). This is what bounds a client who keeps sending requests we refuse.
-- The **trigger limit** only counts triggers we *accepted*. It exists to protect the expensive computation which
-  a trigger sets in motion, and a request we rejected ― because its payload did not validate, or because the
-  asset belongs to someone else ― cost us no computation. In other words, a client who made a mistake in their
-  flex-model does not pay for it out of their scheduling budget (they still pay for it out of the default one).
-
-.. _rate-limiting-plans:
-
-Plans
-^^^^^
-
-Individual accounts can be given their own limits, which take precedence over the settings below, by putting the
-account on a plan. A plan (``flexmeasures.data.models.user.Plan``) bundles the rate limits and quotas which apply
-to the accounts assigned to it, so that it can be shared as a tier (say, "Free" and "Pro"):
-
-.. code-block:: bash
-
-    $ flexmeasures add plan --name Pro --trigger-rate-limit "60 per 5 minutes" --rate-limit-key account
-
-``flexmeasures show plans`` lists the plans you created, with the limits and quotas each of them sets.
-
-Admins assign an account to a plan from the account page in the UI, or through
-``PATCH /api/v3_0/accounts/<id>`` (``plan_id``).
-
-A plan's ``default_rate_limit``, ``trigger_rate_limit`` and ``rate_limit_key`` override the settings below for the
-accounts on that plan. A field left unset (``None``) falls back to the server-wide setting, so an account on a plan
-which only sets ``trigger_rate_limit`` is treated like everybody else for all other requests. Use the value
-``"unlimited"`` to exempt an account from a limit altogether.
-
-A plan usually reflects a contractual agreement, so rather than editing a plan which accounts are on, retire it
-(``flexmeasures edit plan --id 2 --legacy``) and create the plan you want to offer instead. A legacy plan keeps
-applying to the accounts already on it, but is no longer offered when assigning a plan.
-
-Plans also carry quotas (``max_users``, ``max_assets`` and ``max_clients``). These are not enforced yet.
-
-.. note:: Changing an account's ``rate_limit_key`` orphans the counters it has in Redis (the old keys simply expire),
-          so the account may get a fresh budget for the remainder of the current window. Harmless, but worth knowing
-          when you wonder why a plan change handed someone a clean slate.
+The settings below rate-limit the API server-wide. They can be overridden per account, by putting the account on
+a plan. Read more at :ref:`plans-and-rate-limiting`.
 
 RATELIMIT_ENABLED
 ^^^^^^^^^^^^^^^^^

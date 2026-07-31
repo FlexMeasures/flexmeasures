@@ -85,7 +85,10 @@ def list_accounts():
 @with_appcontext
 def list_plans():
     """
-    List all plans on this FlexMeasures instance, with the rate limits and quotas they set.
+    List all plans on this FlexMeasures instance, with the rate limits they set.
+
+    The quota fields a plan carries (max_users, max_assets and max_clients) are left out,
+    as long as nothing enforces them yet.
     """
     plans = db.session.scalars(select(Plan).order_by(Plan.name)).all()
     if not plans:
@@ -99,9 +102,6 @@ def list_plans():
             plan.default_rate_limit,
             plan.trigger_rate_limit,
             plan.rate_limit_key.value if plan.rate_limit_key else None,
-            plan.max_users,
-            plan.max_assets,
-            plan.max_clients,
             "yes" if plan.legacy else "no",
         )
         for plan in plans
@@ -115,9 +115,6 @@ def list_plans():
                 "Default rate limit",
                 "Trigger rate limit",
                 "Rate limit key",
-                "Max users",
-                "Max assets",
-                "Max clients",
                 "Legacy",
             ],
         )

@@ -134,7 +134,7 @@ def edit_plan(
 
     Only the fields you pass are changed. A plan usually reflects a contractual agreement,
     so consider retiring a plan (--legacy) and creating a new one, rather than editing one
-    which accounts are on.
+    on which there are already accounts.
     """
     plan = db.session.get(Plan, plan_id)
     if plan is None:
