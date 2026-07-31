@@ -1580,6 +1580,7 @@ class AssetAPI(FlaskView):
                             status: finished
                             err: null
                             enqueued_at: "2023-10-01T00:00:00"
+                            created_via: API
                             metadata_hash: abc123
                         redis_connection_err: null
             400:
