@@ -517,6 +517,16 @@ def test_flex_model_inflexible_source_filtered_reference():
     assert device.consumption_is_positive is True
 
 
+def test_flex_model_inflexible_rejected_in_single_sensor_mode():
+    """Inflexible-device fields need a multi-device flex-model; a single-sensor dict that
+    declares one is rejected, rather than silently scheduled as a normal device."""
+    with pytest.raises(ValueError, match="multi-device"):
+        DeviceInventory.from_flex_config(
+            {"inflexible_consumption": make_sensor(12)},
+            sensor=make_sensor(1),
+        )
+
+
 def test_flat_context_inflexible_device_has_no_group():
     """A flat-list inflexible device from the flex-context has no flex-model entry, so
     it never belongs to a group."""

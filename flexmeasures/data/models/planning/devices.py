@@ -361,18 +361,23 @@ def _register_flex_model_inflexible(
 ) -> bool:
     """Classify and register a flex-model inflexible-device entry, if this is one.
 
-    Groups (and the inflexible-device entries that join them) need a multi-device flex-model,
-    so this is a no-op in single-sensor mode.
+    Inflexible-device fields need a multi-device flex-model, so a single-sensor flex-model
+    that declares one is rejected (rather than being silently scheduled as a normal device),
+    mirroring how the ``group`` field is handled.
     The registered device is appended to ``inventory.entries`` now,
     and to ``pending`` for index assignment into the inflexible tail once the flexible-device count is known.
 
     :returns: True if the entry was an inflexible device (and got registered).
+    :raises ValueError: When a single-sensor flex-model declares an inflexible device.
     """
-    if is_single_sensor_mode:
-        return False
     device = _classify_flex_model_inflexible_entry(fm)
     if device is None:
         return False
+    if is_single_sensor_mode:
+        raise ValueError(
+            "The 'inflexible-consumption'/'inflexible-production' fields are only"
+            " supported in multi-device flex-models."
+        )
     inventory.entries.append(device)
     pending.append(device)
     return True
