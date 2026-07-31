@@ -62,6 +62,12 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
    * - ``commodity``
      - |COMMODITY_FLEX_CONTEXT.example|
      - .. include:: ../_autodoc/COMMODITY_FLEX_CONTEXT.rst
+   * - ``inflexible-consumption``
+     - |INFLEXIBLE_CONSUMPTION.example|
+     - .. include:: ../_autodoc/INFLEXIBLE_CONSUMPTION.rst
+   * - ``inflexible-production``
+     - |INFLEXIBLE_PRODUCTION.example|
+     - .. include:: ../_autodoc/INFLEXIBLE_PRODUCTION.rst
    * - ``inflexible-device-sensors``
      - |INFLEXIBLE_DEVICE_SENSORS.example|
      - .. include:: ../_autodoc/INFLEXIBLE_DEVICE_SENSORS.rst
@@ -147,6 +153,33 @@ And if the asset belongs to a larger system (a hierarchy of assets), the schedul
 
 .. note:: If no (symmetric, consumption and production) site capacity is defined (also not as defaults), the scheduler will not enforce any bound on the site power.
           The flexible device can still have its own power limit defined in its flex-model.
+
+
+.. _commodity_context_defaults:
+
+Smart defaults for commodity-context grid connections
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For multi-commodity scheduling problems, each entry of the top-level ``commodities`` list is itself a flex-context (a "commodity context") describing the grid connection for that commodity.
+A commodity context that leaves out some or all of its grid-connection fields (``consumption-price``, ``production-price``, ``site-consumption-capacity``, ``site-production-capacity`` and ``site-power-capacity``) gets sensible defaults for the missing fields, rather than failing or silently leaving the grid unconstrained.
+
+As a rule of thumb, a price given for a direction (consumption or production) implies a grid connection in that direction, with an unlimited capacity unless a capacity is also given; a capacity given for a direction (without a price) implies a zero ``consumption-price`` or ``production-price`` (respectively) in that direction; and anything not implied by a given field defaults to "no connection" (a zero capacity, as a soft constraint).
+The exception is ``site-power-capacity`` given on its own, which sets a *hard* (symmetric) capacity limit instead.
+
+This leads to the following defaults, depending on which fields are explicitly given:
+
+- **Nothing given** (e.g. just ``{"commodity": "gas"}``): both ``site-consumption-capacity`` and ``site-production-capacity`` default to zero, as soft constraints (a breach is possible, but penalized). ``site-power-capacity`` stays unlimited.
+- **Only** ``consumption-price``: Then, ``site-power-capacity`` and ``site-consumption-capacity`` stay unlimited; ``site-production-capacity`` defaults to zero (soft).
+- **Only** ``production-price``: the mirror image, for production.
+- **Only** ``site-consumption-capacity``: Then, ``site-power-capacity`` stays unlimited; ``consumption-price`` defaults to zero; ``site-production-capacity`` (and, transitively, ``production-price``) default to zero.
+- **Only** ``site-production-capacity``: the mirror image, for production.
+- **Only** ``site-power-capacity``: Then, a *hard* constraint applies at that capacity, with ``site-consumption-capacity`` and ``site-production-capacity`` both set equal to it, and ``consumption-price``/``production-price`` defaulting to zero.
+
+When several fields are given, each rule only fills in the fields not already determined by a given field, per direction (consumption/production) independently.
+Giving all capacity fields is perfectly valid, too: the directional capacities then act as soft constraints, within the hard ``site-power-capacity`` limit.
+As a safety net, ``consumption-price`` still defaults to zero if it remains unset after applying the rules above, since the scheduler requires a resolvable consumption price.
+
+.. note:: Setting ``relax-constraints`` to ``False`` on a commodity context that ends up with a smart-defaulted 0 hard capacity can make the schedule infeasible; FlexMeasures logs a warning in that case.
 
 
 .. _flex_models_and_schedulers:
@@ -259,6 +292,12 @@ For more details on the possible formats for field values, see :ref:`variable_qu
    * - ``production-capacity``
      - |PRODUCTION_CAPACITY.example| (only consumption)
      - .. include:: ../_autodoc/PRODUCTION_CAPACITY.rst
+   * - ``operation-modes``
+     - |OPERATION_MODES.example|
+     - .. include:: ../_autodoc/OPERATION_MODES.rst
+   * - ``group``
+     - |GROUP.example|
+     - .. include:: ../_autodoc/GROUP.rst
 
 .. [#quantity_field] Can only be set as a fixed quantity.
 
@@ -266,7 +305,52 @@ For more details on the possible formats for field values, see :ref:`variable_qu
 
 .. [#minimum_overlap] In case this field defines partially overlapping time periods, the minimum value is selected. See :ref:`variable_quantities`.
 
+.. [#projecting_scheduling_constraints] Off-tick ``soc-targets``, ``soc-minima`` and ``soc-maxima`` are projected to the surrounding scheduling ticks. See :ref:`projecting_scheduling_constraints`.
+
 For more details on the possible formats for field values, see :ref:`variable_quantities`.
+
+
+Intermediate power constraints
+"""""""""""""""""""""""""""""""
+
+In a multi-device flex-model list, a device entry may declare a ``group`` field referencing a group of devices, for example a hybrid inverter shared by a battery and PV installation, or a feeder shared by several devices. This lets you model an intermediate power constraint that sits between the individual devices and the site as a whole.
+
+The recommended way to identify a group is by the **asset** that represents the shared equipment — a node in your asset tree, such as the inverter. This is the form that composes with flex-models stored on the asset tree and with multi-level hierarchies (see below), and it is what stored configurations naturally produce:
+
+- ``{"asset": <asset id>}``: the group is identified by the flex-model entry on that asset (typically a sub-EMS/asset in the asset tree, such as the inverter in the example below). Such a group entry defines no power sensor of its own; instead, like any other asset-only entry, it may define ``consumption`` and/or ``production`` output sensor references (see below) on which the group's aggregate power gets saved.
+
+Alternatively, a group can be identified by a **power sensor**. This is handy for compact, one-shot flex-models passed via the API, or when you already have an aggregate power sensor (e.g. a metered inverter feed) on which to record the group's schedule:
+
+- ``{"sensor": <power sensor id>}``: the group is identified by a power sensor, which itself gets its own flex-model entry (typically passed alongside the device entries).
+
+Either way, the group reference's target (asset or sensor) gets its own flex-model entry, defining constraints on the group's aggregate (summed) power:
+
+- ``power-capacity`` on the group is a **hard** constraint (applied in both directions).
+- ``consumption-capacity`` and ``production-capacity`` on the group are **soft** constraints, enforced with the same default breach prices used at the site level (10000 currency/kW); users cannot configure custom breach prices for groups.
+
+The group's scheduled aggregate power is saved as a schedule output, following the same conventions used for any device's schedule output:
+
+- For an asset-referenced group (an asset-only entry), the aggregate power is saved via its ``consumption`` and/or ``production`` output sensor references: with only ``consumption`` set, the full profile is saved consumption-positive; with only ``production`` set, the full profile is saved production-positive (i.e. sign-flipped before saving); with both set, the profile is split into its non-negative part (saved to ``consumption``) and its non-positive part (saved, as a positive magnitude, to ``production``).
+- For a sensor-referenced group (whose flex-model entry has a ``sensor`` field), the aggregate power is saved directly to that sensor.
+
+Groups can be nested (a group entry may itself reference a parent group), but cyclic references are rejected. Groups require a multi-device flex-model; they are rejected when scheduling a single sensor.
+
+The recommended, tree-based way to configure a group is to define the whole flex-model on the asset tree in the DB, with no flex-model needed in the scheduling trigger at all: each device asset carries its own (partial) flex-model, including a ``group`` field pointing at the parent asset that represents the shared equipment, and that parent asset's own flex-model defines the group's constraints and output sensor(s). Triggering a schedule for the top-level site asset with an empty (or omitted) ``flex-model`` then collects the full configuration from the tree. For a hands-on walkthrough (including how to store flex-models on assets, and where the resulting schedules end up), see :ref:`tut_toy_schedule_group_constraints`.
+
+The sensor-referenced form is convenient when you pass the whole flex-model in one go via the API. For example, a 2.5 kW hybrid inverter (sensor 5) shared by a battery (sensor 1) and PV installation (sensor 2), taken from `issue #2092 <https://github.com/FlexMeasures/flexmeasures/issues/2092>`_:
+
+.. code-block:: json
+
+    [
+        {"sensor": 1, "power-capacity": "2 kW", "group": {"sensor": 5}},
+        {"sensor": 2, "production-capacity": "2 kW", "consumption-capacity": "0 kW", "group": {"sensor": 5}},
+        {"sensor": 5, "power-capacity": "2.5 kW"}
+    ]
+
+Here, the battery and PV installation may each individually schedule up to 2 kW, but their combined power flowing through the shared inverter is hard-limited to 2.5 kW.
+
+Inflexible (measured) devices can be group members too. An ``inflexible-consumption`` or ``inflexible-production`` entry in the flex-context may carry the same ``group`` field, so that its fixed load or supply counts towards the group's intermediate power constraint — for example, an unschedulable base load sitting behind the same inverter or feeder as a battery. As with flexible members, the recommended form is an ``{"asset": <id>}`` reference to the equipment node the device sits behind (a ``{"sensor": <id>}`` reference is also accepted), and the group's own flex-model entry (defining its capacities) must still be present.
+
 
 Usually, not the whole flexibility model is needed.
 FlexMeasures can infer missing values in the flex model, and even get them (as default) from the sensor's attributes.

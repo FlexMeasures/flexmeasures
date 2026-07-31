@@ -20,6 +20,7 @@ from redis import Redis
 from rq import Queue
 
 from flexmeasures.data.services.job_cache import JobCache
+from flexmeasures.utils.job_utils import get_job_timeout
 
 
 def create(  # noqa C901
@@ -47,6 +48,7 @@ def create(  # noqa C901
     )
     from flexmeasures.utils.app_utils import (
         init_sentry,
+        provision_default_template_assets_on_startup,
     )
     from flexmeasures.utils.error_utils import add_basic_error_handlers
     from flexmeasures.utils.secrets_utils import set_secret_key, set_totp_secrets
@@ -107,9 +109,21 @@ def create(  # noqa C901
         """
     app.redis_connection = redis_conn
     app.queues = dict(
-        forecasting=Queue(connection=redis_conn, name="forecasting"),
-        scheduling=Queue(connection=redis_conn, name="scheduling"),
-        ingestion=Queue(connection=redis_conn, name="ingestion"),
+        forecasting=Queue(
+            connection=redis_conn,
+            name="forecasting",
+            default_timeout=get_job_timeout("forecasting", app.config, app.logger),
+        ),
+        scheduling=Queue(
+            connection=redis_conn,
+            name="scheduling",
+            default_timeout=get_job_timeout("scheduling", app.config, app.logger),
+        ),
+        ingestion=Queue(
+            connection=redis_conn,
+            name="ingestion",
+            default_timeout=get_job_timeout("ingestion", app.config, app.logger),
+        ),
         # reporting=Queue(connection=redis_conn, name="reporting"),
         # labelling=Queue(connection=redis_conn, name="labelling"),
         # alerting=Queue(connection=redis_conn, name="alerting"),
@@ -170,16 +184,7 @@ def create(  # noqa C901
 
     # This needs to happen here because for unknown reasons, Security(app)
     # and FlaskJSON() will set this to False on their own
-    if app.config.get("FLEXMEASURES_JSON_COMPACT", False) in (
-        True,
-        "True",
-        "true",
-        "1",
-        "yes",
-    ):
-        app.json.compact = True
-    else:
-        app.json.compact = False
+    app.json.compact = app.config.get("FLEXMEASURES_JSON_COMPACT", False) is True
 
     # Register the CLI
 
@@ -208,6 +213,8 @@ def create(  # noqa C901
     from flexmeasures.ui import register_at as register_ui_at
 
     register_ui_at(app)
+
+    provision_default_template_assets_on_startup(app)
 
     # Global template variables for both our own templates and external templates
     @app.context_processor

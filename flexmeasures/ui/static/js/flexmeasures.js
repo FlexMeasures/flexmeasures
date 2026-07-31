@@ -245,7 +245,11 @@ function ready() {
 
     // Table behaviour
 
-    $('table').floatThead({
+    // Skip DataTables-managed tables: floatThead's cloned header intercepts
+    // pointer events over the real (DataTables-bound) header cells, making
+    // sort clicks fail silently. DataTables tables get the "dataTable" class
+    // synchronously on init, and their own scripts run before this one.
+    $('table').not('.dataTable').floatThead({
         position: 'absolute',
         top: $('#topnavbar').height(),
         scrollContainer: true

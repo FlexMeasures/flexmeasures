@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 import pytest
 
@@ -14,8 +14,12 @@ from flexmeasures.data.schemas.scheduling.storage import (
     StorageFlexModelSchema,
     DBStorageFlexModelSchema,
 )
-from flexmeasures.data.models.time_series import Sensor
-from flexmeasures.data.schemas.sensors import TimedEventSchema, VariableQuantityField
+from flexmeasures.data.schemas.sensors import (
+    TimedEventSchema,
+    VariableQuantityField,
+    SensorReference,
+)
+from flexmeasures.utils.unit_utils import ur
 
 
 @pytest.mark.parametrize(
@@ -163,24 +167,28 @@ def test_process_scheduler_flex_model_process_type(db, app, setup_dummy_sensors)
     assert process_scheduler_flex_model["process_type"] == ProcessType.SHIFTABLE
 
 
-def test_storage_flex_model_schema_does_not_floor_instantaneous_sensor(
-    db, app, dummy_asset
+def test_storage_flex_model_schema_preserves_off_tick_soc_datetimes(
+    db, app, setup_dummy_sensors
 ):
-    sensor = Sensor(
-        "instantaneous power sensor",
-        generic_asset=dummy_asset,
-        event_resolution=timedelta(0),
-        unit="MW",
-    )
-    db.session.add(sensor)
-    db.session.flush()
+    sensor1, _, _, _ = setup_dummy_sensors
 
     schema = StorageFlexModelSchema(
-        sensor=sensor,
+        sensor=sensor1,
         start=datetime(2023, 1, 1, tzinfo=pytz.UTC),
     )
 
-    assert schema.flooring_resolution is None
+    flex_model = schema.load(
+        {
+            "soc-at-start": "0 MWh",
+            "soc-targets": [
+                {"datetime": "2023-01-01T00:04:40+00:00", "value": "1 MWh"}
+            ],
+        }
+    )
+
+    assert flex_model["soc_targets"][0]["datetime"] == pd.Timestamp(
+        "2023-01-01T00:04:40+00:00"
+    )
 
 
 @pytest.mark.parametrize(
@@ -341,6 +349,53 @@ def test_efficiency_pair(
             },
             {"commitments.0.baseline": "Cannot convert value `10 kWh` to 'MW'"},
         ),
+        # Commitment prices must share the flex-context's currency
+        (
+            {
+                "consumption-price": "100 EUR/MWh",
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 USD/MWh",
+                    }
+                ],
+            },
+            {
+                "commitments": "all prices in the flex-context must share the same currency unit"
+            },
+        ),
+        # Commitment prices sharing the flex-context's currency are fine
+        (
+            {
+                "consumption-price": "100 EUR/MWh",
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MWh",
+                        "down-price": "0.12 EUR/kWh",
+                    }
+                ],
+            },
+            False,
+        ),
+        # Commitments can also set the shared currency (mixed currencies still fail)
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                        "up-price": "100 USD/MWh",
+                        "down-price": "120 EUR/MWh",
+                    }
+                ]
+            },
+            {
+                "commitments": "all prices in the flex-context must share the same currency unit"
+            },
+        ),
         # Energy price units with a power baseline
         (
             {
@@ -497,6 +552,45 @@ def test_efficiency_pair(
             },
             {
                 "commitments.0.up-price": "Commitment up-price must have a power or energy unit in its denominator."
+            },
+        ),
+        # Commitment without a baseline
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "up-price": "100 EUR/MWh",
+                    }
+                ]
+            },
+            {"commitments.0.baseline": "A commitment requires a baseline."},
+        ),
+        # Commitment with an empty name
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "",
+                        "baseline": "10 kW",
+                        "up-price": "100 EUR/MWh",
+                    }
+                ]
+            },
+            {"commitments.0.name": "Shorter than minimum length 1."},
+        ),
+        # Commitment without any deviation price
+        (
+            {
+                "commitments": [
+                    {
+                        "name": "a sample commitment",
+                        "baseline": "10 kW",
+                    }
+                ]
+            },
+            {
+                "commitments.0.up-price": "A commitment requires at least one deviation price (up-price and/or down-price)."
             },
         ),
     ],
@@ -856,6 +950,15 @@ def test_flex_context_schema_rejects_filtered_aggregate_power(
             },
             False,
         ),
+        # group must reference a power sensor
+        (
+            {"group": {"sensor": "power-sensor"}},
+            False,
+        ),
+        (
+            {"group": {"sensor": "energy-sensor"}},
+            {"group": "The `group` field must reference a sensor with a power unit."},
+        ),
     ],
 )
 def test_flex_model_schemas(
@@ -909,6 +1012,42 @@ def test_flex_model_schemas(
         if fail:
             with pytest.raises(ValidationError) as e_info:  # noqa: F841
                 schema.load(flex_model)
+
+
+def test_storage_flex_model_group_field(db, app, setup_dummy_sensors, dummy_asset):
+    """The `group` field should load a `{"sensor": <id>}` reference to a power Sensor,
+    reject non-power sensors, and reject unknown sensor IDs."""
+    energy_sensor, _, _, power_sensor = setup_dummy_sensors
+
+    for schema in (
+        StorageFlexModelSchema(
+            start=datetime(2026, 6, 1, tzinfo=pytz.UTC), sensor=None
+        ),
+        DBStorageFlexModelSchema(),
+    ):
+        # Valid group reference loads to a Sensor
+        flex_model = schema.load({"group": {"sensor": power_sensor.id}})
+        assert flex_model["group"]["sensor"] == power_sensor
+
+        # A non-power sensor is rejected
+        with pytest.raises(ValidationError, match="power unit"):
+            schema.load({"group": {"sensor": energy_sensor.id}})
+
+        # An unknown sensor ID is rejected (by SensorIdField)
+        with pytest.raises(ValidationError, match="No sensor found"):
+            schema.load({"group": {"sensor": -1}})
+
+        # A valid asset reference loads to a GenericAsset
+        flex_model = schema.load({"group": {"asset": dummy_asset.id}})
+        assert flex_model["group"]["asset"] == dummy_asset
+
+        # Both sensor and asset given: rejected
+        with pytest.raises(ValidationError, match="exactly one"):
+            schema.load({"group": {"sensor": power_sensor.id, "asset": dummy_asset.id}})
+
+        # Neither sensor nor asset given: rejected
+        with pytest.raises(ValidationError, match="exactly one"):
+            schema.load({"group": {}})
 
 
 @pytest.mark.parametrize(
@@ -1053,6 +1192,150 @@ def test_commodity_flex_context_defaults(
             assert loaded.get("relax_constraints", True) is True
 
 
+def _assert_quantity_or_none(actual, expected):
+    """Compare an (optionally None) ur.Quantity against an expected ur.Quantity or None."""
+    if expected is None:
+        assert actual is None
+    else:
+        assert actual is not None
+        assert actual.to(expected.units).magnitude == pytest.approx(expected.magnitude)
+
+
+@pytest.mark.parametrize(
+    ["context_input", "expected"],
+    [
+        # Case 1: none of the 5 grid-connection fields given -> fully disconnected
+        # commodity. Both site capacities default to 0 as *soft* constraints (a
+        # default breach price is filled in); site-power-capacity stays unlimited.
+        (
+            {"commodity": "gas"},
+            {
+                "ems_consumption_capacity_in_mw": ur.Quantity("0 MW"),
+                "ems_production_capacity_in_mw": ur.Quantity("0 MW"),
+                "ems_power_capacity_in_mw": None,
+                "consumption_price": ur.Quantity("0 EUR/MWh"),
+                "ems_consumption_breach_price_set": True,
+                "ems_production_breach_price_set": True,
+            },
+        ),
+        # Case 2: only consumption-price given -> assume a grid connection for
+        # consumption (unlimited site-power/consumption-capacity); 0
+        # site-production-capacity (soft).
+        (
+            {"commodity": "gas", "consumption-price": "10 EUR/MWh"},
+            {
+                "ems_consumption_capacity_in_mw": None,
+                "ems_production_capacity_in_mw": ur.Quantity("0 MW"),
+                "ems_power_capacity_in_mw": None,
+                "consumption_price": ur.Quantity("10 EUR/MWh"),
+                "ems_production_breach_price_set": True,
+            },
+        ),
+        # Case 3: only production-price given -> mirror image of case 2.
+        (
+            {"commodity": "gas", "production-price": "10 EUR/MWh"},
+            {
+                "ems_consumption_capacity_in_mw": ur.Quantity("0 MW"),
+                "ems_production_capacity_in_mw": None,
+                "ems_power_capacity_in_mw": None,
+                "consumption_price": ur.Quantity("0 EUR/MWh"),
+                "production_price": ur.Quantity("10 EUR/MWh"),
+                "ems_consumption_breach_price_set": True,
+            },
+        ),
+        # Case 4: only site-consumption-capacity given -> unlimited
+        # site-power-capacity, 0 consumption-price, 0 site-production-capacity
+        # (soft), (and thereby 0 production-price).
+        (
+            {"commodity": "gas", "site-consumption-capacity": "5 MW"},
+            {
+                "ems_consumption_capacity_in_mw": ur.Quantity("5 MW"),
+                "ems_production_capacity_in_mw": ur.Quantity("0 MW"),
+                "ems_power_capacity_in_mw": None,
+                "consumption_price": ur.Quantity("0 EUR/MWh"),
+                "ems_production_breach_price_set": True,
+            },
+        ),
+        # Case 5: only site-production-capacity given -> mirror image of case 4.
+        (
+            {"commodity": "gas", "site-production-capacity": "5 MW"},
+            {
+                "ems_consumption_capacity_in_mw": ur.Quantity("0 MW"),
+                "ems_production_capacity_in_mw": ur.Quantity("5 MW"),
+                "ems_power_capacity_in_mw": None,
+                "consumption_price": ur.Quantity("0 EUR/MWh"),
+                "production_price": ur.Quantity("0 EUR/MWh"),
+                "ems_consumption_breach_price_set": True,
+            },
+        ),
+        # Case 6: only site-power-capacity given -> a *hard* constraint at that
+        # capacity (both site capacities set equal to it; no breach price filled
+        # in); 0 consumption- and production-price.
+        (
+            {"commodity": "gas", "site-power-capacity": "5 MW"},
+            {
+                "ems_consumption_capacity_in_mw": ur.Quantity("5 MW"),
+                "ems_production_capacity_in_mw": ur.Quantity("5 MW"),
+                "ems_power_capacity_in_mw": ur.Quantity("5 MW"),
+                "consumption_price": ur.Quantity("0 EUR/MWh"),
+                "production_price": ur.Quantity("0 EUR/MWh"),
+                "ems_consumption_breach_price_set": False,
+                "ems_production_breach_price_set": False,
+            },
+        ),
+        # A multi-field combination: consumption-price given together with an
+        # explicit site-power-capacity. The site-power-capacity is not the *sole*
+        # field given, so it does not trigger the hard-constraint case; instead,
+        # each direction is filled in independently: consumption-price given ->
+        # site-consumption-capacity stays unlimited (implicitly bounded by
+        # site-power-capacity at the scheduler level); production side untouched
+        # -> 0 site-production-capacity (soft).
+        (
+            {
+                "commodity": "gas",
+                "consumption-price": "10 EUR/MWh",
+                "site-power-capacity": "5 MW",
+            },
+            {
+                "ems_consumption_capacity_in_mw": None,
+                "ems_production_capacity_in_mw": ur.Quantity("0 MW"),
+                "ems_power_capacity_in_mw": ur.Quantity("5 MW"),
+                "consumption_price": ur.Quantity("10 EUR/MWh"),
+                "ems_production_breach_price_set": True,
+            },
+        ),
+    ],
+)
+def test_commodity_flex_context_smart_defaults(context_input, expected):
+    """Test the smarter defaults for commodity contexts (see
+    CommodityFlexContextSchema.fill_grid_connection_defaults).
+
+    These are DB-free, direct schema loads (no sensors involved).
+    """
+    from flexmeasures.data.schemas.scheduling import CommodityFlexContextSchema
+
+    loaded = CommodityFlexContextSchema().load(context_input)
+
+    for field in (
+        "ems_consumption_capacity_in_mw",
+        "ems_production_capacity_in_mw",
+        "ems_power_capacity_in_mw",
+        "consumption_price",
+        "production_price",
+    ):
+        if field in expected:
+            _assert_quantity_or_none(loaded.get(field), expected[field])
+
+    if "ems_consumption_breach_price_set" in expected:
+        assert (loaded.get("ems_consumption_breach_price") is not None) == expected[
+            "ems_consumption_breach_price_set"
+        ]
+    if "ems_production_breach_price_set" in expected:
+        assert (loaded.get("ems_production_breach_price") is not None) == expected[
+            "ems_production_breach_price_set"
+        ]
+
+
 @pytest.mark.parametrize(
     ["flex_context_listing", "fails"],
     [
@@ -1137,6 +1420,71 @@ def test_flex_context_listing_shared_currency(
     check_schema_loads_data(schema=schema, data=flex_context_listing, fails=fails)
 
 
+def test_flex_context_listing_tolerates_price_free_context_in_other_currency():
+    """test_flex_context_listing_tolerates_price_free_context_in_other_currency:
+    a bare (price-free) commodity context must not trip the shared-currency check
+    against a differently-currencied portfolio, since it has no user-given prices
+    of its own -- its 0-price/breach-price fills should just inherit the
+    portfolio's real currency.
+    """
+    schema = FlexContextSchema()
+
+    # Case A: top-level price sets the portfolio currency.
+    loaded = schema.load(
+        {
+            "consumption-price": "10 USD/MWh",
+            "commodities": [
+                {"commodity": "electricity", "consumption-price": "10 USD/MWh"},
+                {"commodity": "gas"},
+            ],
+        }
+    )
+    assert loaded["shared_currency_unit"] == "USD"
+    gas_context = next(
+        c for c in loaded["commodity_contexts"] if c["commodity"] == "gas"
+    )
+    assert gas_context["shared_currency_unit"] == "USD"
+    assert str(gas_context["consumption_price"].units) == "USD/MWh"
+
+    # Case B: no top-level price; a sibling commodity context sets the currency.
+    loaded = schema.load(
+        {
+            "commodities": [
+                {"commodity": "electricity", "consumption-price": "10 USD/MWh"},
+                {"commodity": "gas"},
+            ],
+        }
+    )
+    assert loaded["shared_currency_unit"] == "USD"
+    gas_context = next(
+        c for c in loaded["commodity_contexts"] if c["commodity"] == "gas"
+    )
+    assert gas_context["shared_currency_unit"] == "USD"
+    assert str(gas_context["consumption_price"].units) == "USD/MWh"
+
+    # Case C: no price given anywhere -> falls back to EUR everywhere.
+    loaded = schema.load({"commodities": [{"commodity": "gas"}]})
+    assert loaded["shared_currency_unit"] == "EUR"
+    gas_context = loaded["commodity_contexts"][0]
+    assert gas_context["shared_currency_unit"] == "EUR"
+
+    # A genuine mismatch (both contexts have explicit, different currencies) must
+    # still be rejected.
+    check_schema_loads_data(
+        schema=schema,
+        data={
+            "consumption-price": "10 USD/MWh",
+            "commodities": [
+                {"commodity": "electricity", "consumption-price": "10 USD/MWh"},
+                {"commodity": "gas", "consumption-price": "10 EUR/MWh"},
+            ],
+        },
+        fails={
+            "commodities": "all prices in the flex-context must share the same currency unit"
+        },
+    )
+
+
 def test_flex_context_listing_rejects_duplicate_commodities(db, app):
     """test_flex_context_listing_rejects_duplicate_commodities: a commodity listed twice must be rejected."""
     schema = FlexContextSchema()
@@ -1197,3 +1545,243 @@ def test_asset_trigger_schema_rejects_malformed_flex_context(app):
     with pytest.raises(ValidationError) as e_info:
         schema.normalize_flex_context_format({"flex-context": "not-a-dict-or-list"})
     assert "flex-context" in str(e_info.value)
+
+
+# Note: AssetTriggerSchema itself no longer aliases legacy field names (e.g.
+# force_new_job_creation) -- that's v3_0-specific backward compatibility,
+# layered on top by AssetTriggerSchemaV3 in flexmeasures/api/v3_0/assets.py,
+# and tested there (flexmeasures/api/v3_0/tests/test_asset_trigger_schema_v3.py).
+# This schema stays canonical since it's also used outside the API, e.g. by
+# the CLI.
+
+
+@pytest.mark.parametrize(
+    ["flex_context", "fails"],
+    [
+        # Sensors under the field matching their explicit attribute, or without one
+        (
+            {
+                "inflexible-consumption": [{"sensor": "consumption-positive power"}],
+                "inflexible-production": [
+                    {"sensor": "production-positive power"},
+                    {"sensor": "attributeless power"},
+                ],
+            },
+            None,
+        ),
+        # Source filters are allowed
+        (
+            {
+                "inflexible-production": [
+                    {
+                        "sensor": "attributeless power",
+                        "exclude-source-types": ["scheduler"],
+                    }
+                ]
+            },
+            None,
+        ),
+        # The deprecated field cannot be mixed with the new fields
+        (
+            {
+                "inflexible-device-sensors": ["attributeless power"],
+                "inflexible-production": [{"sensor": "production-positive power"}],
+            },
+            {
+                "inflexible-device-sensors": "Must pass either inflexible-device-sensors (deprecated) or inflexible-consumption/inflexible-production."
+            },
+        ),
+        # A sensor may be listed only once across the new fields
+        (
+            {
+                "inflexible-consumption": [{"sensor": "attributeless power"}],
+                "inflexible-production": [{"sensor": "attributeless power"}],
+            },
+            {"inflexible-production": "may only be listed once"},
+        ),
+        # ... also within a single field
+        (
+            {
+                "inflexible-consumption": [
+                    {"sensor": "attributeless power"},
+                    {"sensor": "attributeless power"},
+                ],
+            },
+            {"inflexible-consumption": "may only be listed once"},
+        ),
+        # An explicitly contradicting consumption_is_positive attribute is rejected
+        (
+            {"inflexible-consumption": [{"sensor": "production-positive power"}]},
+            {"inflexible-consumption": "conflicts with the sign convention"},
+        ),
+        (
+            {"inflexible-production": [{"sensor": "consumption-positive power"}]},
+            {"inflexible-production": "conflicts with the sign convention"},
+        ),
+        # The new fields can also be set per commodity context
+        (
+            {
+                "commodities": [
+                    {
+                        "commodity": "electricity",
+                        "inflexible-production": [{"sensor": "attributeless power"}],
+                    }
+                ]
+            },
+            None,
+        ),
+        # ... where mixing with the deprecated field is equally rejected
+        (
+            {
+                "commodities": [
+                    {
+                        "commodity": "electricity",
+                        "inflexible-device-sensors": ["attributeless power"],
+                        "inflexible-consumption": [
+                            {"sensor": "consumption-positive power"}
+                        ],
+                    }
+                ]
+            },
+            {
+                "commodities.0.inflexible-device-sensors": "Must pass either inflexible-device-sensors"
+            },
+        ),
+    ],
+)
+def test_flex_context_schema_inflexible_devices(
+    db, app, setup_inflexible_sensors, flex_context, fails
+):
+    """Validation of the inflexible-consumption/inflexible-production fields."""
+
+    def resolve_sensor_names(node):
+        """Replace sensor names in the parametrized flex-context with sensor ids."""
+        if isinstance(node, dict):
+            return {
+                key: (
+                    setup_inflexible_sensors[value].id
+                    if key == "sensor"
+                    else resolve_sensor_names(value)
+                )
+                for key, value in node.items()
+            }
+        if isinstance(node, list):
+            return [
+                (
+                    setup_inflexible_sensors[item].id
+                    if isinstance(item, str) and item in setup_inflexible_sensors
+                    else resolve_sensor_names(item)
+                )
+                for item in node
+            ]
+        return node
+
+    check_schema_loads_data(
+        schema=FlexContextSchema(),
+        data=resolve_sensor_names(flex_context),
+        fails=fails,
+    )
+
+
+def test_flex_context_schema_inflexible_devices_deserialization(
+    db, app, setup_inflexible_sensors
+):
+    """Entries deserialize to plain Sensors, or SensorReferences when filtered."""
+    consumption_sensor = setup_inflexible_sensors["consumption-positive power"]
+    plain_sensor = setup_inflexible_sensors["attributeless power"]
+    filtered_sensor = setup_inflexible_sensors["production-positive power"]
+    data = FlexContextSchema().load(
+        {
+            "inflexible-consumption": [{"sensor": consumption_sensor.id}],
+            "inflexible-production": [
+                {"sensor": plain_sensor.id},
+                {"sensor": filtered_sensor.id, "source-types": ["forecaster"]},
+            ],
+        }
+    )
+    assert data["inflexible_consumption"] == [consumption_sensor]
+    assert data["inflexible_production"][0] == plain_sensor
+    reference = data["inflexible_production"][1]
+    assert isinstance(reference, SensorReference)
+    assert reference.sensor == filtered_sensor
+    assert reference.source_types == ["forecaster"]
+
+
+def test_flex_context_schema_inflexible_device_group(
+    db, app, setup_inflexible_sensors, setup_price_sensors, dummy_asset
+):
+    """An inflexible device may carry a `group` reference; it deserializes to a
+    SensorReference (even without source filters) carrying that group, and the group
+    must reference a power sensor (or an asset)."""
+    load = setup_inflexible_sensors["attributeless power"]
+    group_sensor = setup_inflexible_sensors["consumption-positive power"]
+
+    data = FlexContextSchema().load(
+        {
+            "inflexible-consumption": [
+                {"sensor": load.id, "group": {"sensor": group_sensor.id}}
+            ]
+        }
+    )
+    entry = data["inflexible_consumption"][0]
+    assert isinstance(entry, SensorReference)
+    assert entry.sensor == load
+    assert entry.group == {"sensor": group_sensor}
+    assert entry.source_types is None  # no source filters given
+
+    # An asset-referenced group is also accepted.
+    data_asset = FlexContextSchema().load(
+        {
+            "inflexible-production": [
+                {"sensor": load.id, "group": {"asset": dummy_asset.id}}
+            ]
+        }
+    )
+    assert data_asset["inflexible_production"][0].group == {"asset": dummy_asset}
+
+    # The group must reference a power sensor.
+    price_sensor = setup_price_sensors["consumption-price in SEK/kWh"]
+    with pytest.raises(ValidationError, match="power unit"):
+        FlexContextSchema().load(
+            {
+                "inflexible-consumption": [
+                    {"sensor": load.id, "group": {"sensor": price_sensor.id}}
+                ]
+            }
+        )
+
+    # Exactly one of 'sensor'/'asset' must be given.
+    with pytest.raises(ValidationError, match="exactly one"):
+        FlexContextSchema().load(
+            {
+                "inflexible-consumption": [
+                    {
+                        "sensor": load.id,
+                        "group": {
+                            "sensor": group_sensor.id,
+                            "asset": dummy_asset.id,
+                        },
+                    }
+                ]
+            }
+        )
+
+
+def test_db_flex_context_schema_inflexible_devices(
+    db, app, setup_inflexible_sensors, setup_price_sensors
+):
+    """The DB schema holds all three inflexible-device fields to power/energy units."""
+    schema = DBFlexContextSchema()
+    price_sensor = setup_price_sensors["consumption-price in SEK/kWh"]
+    with pytest.raises(ValidationError, match="must have a power or energy unit"):
+        schema.load({"inflexible-consumption": [{"sensor": price_sensor.id}]})
+    with pytest.raises(ValidationError, match="must have a power or energy unit"):
+        schema.load({"inflexible-device-sensors": [price_sensor.id]})
+    # The deprecated field alone remains supported
+    schema.load(
+        {
+            "inflexible-device-sensors": [
+                setup_inflexible_sensors["attributeless power"].id
+            ]
+        }
+    )

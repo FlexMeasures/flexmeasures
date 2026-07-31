@@ -16,6 +16,7 @@ from flask_swagger_ui import get_swaggerui_blueprint
 from marshmallow import Schema, fields
 
 from flexmeasures import __version__ as fm_version
+from flexmeasures.auth.policy import CONSULTANCY_ACCOUNT_ROLE
 from flexmeasures.api.v3_0.sensors import (
     SensorAPI,
     forecasting_trigger_schema_openAPI,
@@ -41,10 +42,18 @@ from flexmeasures.api.v3_0.assets import (
 from flexmeasures.data.schemas.annotations import AnnotationSchema
 from flexmeasures.data.schemas.generic_assets import GenericAssetSchema as AssetSchema
 from flexmeasures.data.schemas.sensors import QuantitySchema, TimeSeriesSchema
-from flexmeasures.data.schemas.account import AccountSchema
+from flexmeasures.data.schemas.account import (
+    AccountSchema,
+    AccountCreateSchema,
+    AccountPatchSchema,
+)
 from flexmeasures.api.v3_0.accounts import AccountAPIQuerySchema
 from flexmeasures.api.v3_0.users import UserAPIQuerySchema, AuthRequestSchema
 from flexmeasures.utils.doc_utils import rst_to_openapi
+
+OPENAPI_DOCSTRING_REPLACEMENTS = {
+    "{{CONSULTANCY_ACCOUNT_ROLE}}": CONSULTANCY_ACCOUNT_ROLE,
+}
 
 
 def register_at(app: Flask):
@@ -160,6 +169,8 @@ def create_openapi_specs(app: Flask):
         ("CopyAssetSchema", CopyAssetSchema),
         ("DefaultAssetViewJSONSchema", DefaultAssetViewJSONSchema),
         ("AccountSchema", AccountSchema(partial=True)),
+        ("AccountCreateSchema", AccountCreateSchema()),
+        ("AccountPatchSchema", AccountPatchSchema()),
         ("AccountAPIQuerySchema", AccountAPIQuerySchema),
         ("AuthRequestSchema", AuthRequestSchema),
     ]
@@ -188,6 +199,8 @@ def create_openapi_specs(app: Flask):
                 target = view_function.__func__
             if target.__doc__:
                 target.__doc__ = rst_to_openapi(target.__doc__)
+                for placeholder, value in OPENAPI_DOCSTRING_REPLACEMENTS.items():
+                    target.__doc__ = target.__doc__.replace(placeholder, value)
 
             # Document all API endpoints under /api or root /
             if rule.rule.startswith("/api/") or rule.rule == "/":
@@ -201,6 +214,15 @@ def create_openapi_specs(app: Flask):
     # Collapse Quantity and TimeSeries schemas to fields
     collapse_schema_to_field(spec, QuantitySchema, "quantity")
     collapse_schema_to_field(spec, TimeSeriesSchema, "timeseries")
+
+    # An operation mode must declare at least one of its two ranges
+    # (checked by OperationModeSchema.check_ranges); express that in the
+    # published contract, which apispec cannot derive from the validator.
+    if "OperationMode" in spec.components.schemas:
+        spec.components.schemas["OperationMode"]["anyOf"] = [
+            {"required": ["consumption-range"]},
+            {"required": ["production-range"]},
+        ]
 
     output_path = Path("flexmeasures/ui/static/openapi-specs.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)
