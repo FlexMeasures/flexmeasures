@@ -391,3 +391,49 @@ def test_invalid_rate_limit_key_falls_back_instead_of_erroring(
     with app.test_client() as client:
         assert trigger(client, battery).status_code == 202
         assert trigger(client, other_battery).status_code == 429
+
+
+def test_openapi_specs_document_the_429_response():
+    """Every rate-limited endpoint documents that it can answer with a 429.
+
+    The limiter guards these endpoints from outside the views, so no view docstring
+    declares this response; the specs generator adds it (see document_rate_limits).
+    """
+    from flexmeasures.api.v3_0 import document_rate_limits
+
+    spec_dict = {
+        "paths": {
+            "/api/v3_0/assets": {
+                "get": {"responses": {"200": {"description": "PROCESSED"}}}
+            },
+            "/api/v3_0/assets/{id}/schedules/trigger": {"post": {}},
+            "/api/v3_0/health/ready": {"get": {}},
+            "/": {"get": {}},
+        }
+    }
+    document_rate_limits(
+        spec_dict, {("/api/v3_0/assets/{id}/schedules/trigger", "post")}
+    )
+
+    paths = spec_dict["paths"]
+    assert "429" in paths["/api/v3_0/assets"]["get"]["responses"]
+    assert "200" in paths["/api/v3_0/assets"]["get"]["responses"]  # still there
+    trigger_429 = paths["/api/v3_0/assets/{id}/schedules/trigger"]["post"]["responses"][
+        "429"
+    ]
+    assert "stricter limit" in trigger_429["description"]
+    # The health endpoints are exempt, and only the API is rate-limited
+    assert "responses" not in paths["/api/v3_0/health/ready"]["get"]
+    assert "responses" not in paths["/"]["get"]
+
+
+def test_trigger_limited_views_are_registered():
+    """The specs generator recognizes trigger endpoints by the view's qualified name,
+    so make sure decorating a view still registers it."""
+    from flexmeasures.api.common.rate_limiting import TRIGGER_LIMITED_VIEWS
+
+    assert {
+        "AssetAPI.trigger_schedule",
+        "SensorAPI.trigger_schedule",
+        "SensorAPI.trigger_forecast",
+    } <= TRIGGER_LIMITED_VIEWS

@@ -20,6 +20,41 @@ def test_list_accounts(app, fresh_db, setup_accounts_fresh_db):
     check_command_ran_without_error(result)
 
 
+def test_list_plans(app, fresh_db):
+    from flexmeasures.cli.data_show import list_plans
+    from flexmeasures.data.models.user import Plan, RateLimitKey
+
+    db = fresh_db
+    db.session.add(
+        Plan(
+            name="Pro",
+            trigger_rate_limit="60 per 5 minutes",
+            rate_limit_key=RateLimitKey.ACCOUNT,
+            max_assets=200,
+            legacy=True,
+        )
+    )
+    db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(list_plans)
+
+    check_command_ran_without_error(result)
+    assert "All plans on this" in result.output
+    for expected in ("Pro", "60 per 5 minutes", "account", "200"):
+        assert expected in result.output
+
+
+def test_list_plans_without_any_plan(app, fresh_db):
+    from flexmeasures.cli.data_show import list_plans
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(list_plans)
+
+    assert result.exit_code != 0
+    assert "No plans created yet" in result.output
+
+
 def test_list_roles(app, fresh_db, setup_roles_users_fresh_db):
     from flexmeasures.cli.data_show import list_roles
 

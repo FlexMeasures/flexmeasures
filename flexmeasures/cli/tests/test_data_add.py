@@ -101,10 +101,33 @@ def test_edit_plan(app, fresh_db):
     db.session.commit()
 
     runner = app.test_cli_runner()
-    result = runner.invoke(edit_plan, ["--name", "Pro", "--legacy"])
+    result = runner.invoke(edit_plan, ["--id", str(plan.id), "--legacy"])
 
     check_command_ran_without_error(result)
     assert db.session.execute(select(Plan).filter_by(name="Pro")).scalar_one().legacy
+
+
+def test_edit_plan_name(app, fresh_db):
+    """A plan is identified by its ID, so that --name can rename it."""
+    from flexmeasures.cli.data_edit import edit_plan
+
+    db = fresh_db
+    plan = Plan(name="Pro", trigger_rate_limit="60 per 5 minutes")
+    taken = Plan(name="Basic")
+    db.session.add_all([plan, taken])
+    db.session.commit()
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(edit_plan, ["--id", str(plan.id), "--name", "Professional"])
+
+    check_command_ran_without_error(result)
+    assert db.session.get(Plan, plan.id).name == "Professional"
+
+    # Names are unique, so renaming cannot take another plan's name
+    result = runner.invoke(edit_plan, ["--id", str(plan.id), "--name", "Basic"])
+    assert result.exit_code != 0
+    assert "already exists" in result.output
+    assert db.session.get(Plan, plan.id).name == "Professional"
 
 
 def test_edit_plan_clear_field(app, fresh_db):
@@ -118,7 +141,7 @@ def test_edit_plan_clear_field(app, fresh_db):
 
     runner = app.test_cli_runner()
     result = runner.invoke(
-        edit_plan, ["--name", "Pro", "--clear", "trigger-rate-limit"]
+        edit_plan, ["--id", str(plan.id), "--clear", "trigger-rate-limit"]
     )
 
     check_command_ran_without_error(result)
@@ -128,7 +151,7 @@ def test_edit_plan_clear_field(app, fresh_db):
 
     # Setting and clearing the same field contradict each other
     result = runner.invoke(
-        edit_plan, ["--name", "Pro", "--max-users", "5", "--clear", "max-users"]
+        edit_plan, ["--id", str(plan.id), "--max-users", "5", "--clear", "max-users"]
     )
     assert result.exit_code != 0
     assert (

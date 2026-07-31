@@ -35,6 +35,10 @@ from flexmeasures.utils.validation_utils import UNLIMITED_RATE_LIMIT
 # Endpoints under /api/ which the default limit should not apply to
 EXEMPT_PATH_PREFIXES = ("/api/v3_0/health",)
 
+# Qualified names of the views which limit_triggers() decorated, so that the OpenAPI specs
+# can tell which endpoints hit the stricter trigger limit on top of the default one.
+TRIGGER_LIMITED_VIEWS: set[str] = set()
+
 _VALID_RATE_LIMIT_KEYS = {key.value for key in RateLimitKey}
 
 
@@ -174,7 +178,7 @@ def _trigger_set_work_in_motion(response: Response) -> bool:
 
 def limit_triggers():
     """Decorator for endpoints which trigger expensive computation, like scheduling."""
-    return limiter.shared_limit(
+    limit = limiter.shared_limit(
         trigger_limit,
         # All trigger endpoints share one budget. Without this, each of them would get its own,
         # so a client could ask for twice as many schedules by alternating between the asset
@@ -184,6 +188,12 @@ def limit_triggers():
         exempt_when=lambda: _is_unlimited("trigger"),
         deduct_when=_trigger_set_work_in_motion,
     )
+
+    def decorator(view):
+        TRIGGER_LIMITED_VIEWS.add(view.__qualname__)
+        return limit(view)
+
+    return decorator
 
 
 def rate_limit_exceeded_handler(error):

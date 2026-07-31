@@ -67,7 +67,14 @@ CLEARABLE_PLAN_FIELDS = [
 
 @fm_edit_data.command("plan")
 @with_appcontext
-@click.option("--name", required=True, help="Name of the plan to edit.")
+@click.option(
+    "--id",
+    "plan_id",
+    required=True,
+    type=int,
+    help="ID of the plan to edit (see `flexmeasures show plans`).",
+)
+@click.option("--name", help="Rename the plan to this name.")
 @click.option(
     "--default-rate-limit",
     callback=validate_rate_limit_cli,
@@ -111,7 +118,8 @@ CLEARABLE_PLAN_FIELDS = [
     " Repeat to clear several fields.",
 )
 def edit_plan(
-    name: str,
+    plan_id: int,
+    name: str | None,
     default_rate_limit: str | None,
     trigger_rate_limit: str | None,
     rate_limit_key: str | None,
@@ -122,17 +130,24 @@ def edit_plan(
     fields_to_clear: tuple[str, ...],
 ):
     """
-    Edit a plan's rate limits and quotas, retire it, or clear fields back to the server defaults.
+    Edit a plan's name, rate limits and quotas, retire it, or clear fields back to the server defaults.
 
     Only the fields you pass are changed. A plan usually reflects a contractual agreement,
     so consider retiring a plan (--legacy) and creating a new one, rather than editing one
     which accounts are on.
     """
-    plan = db.session.execute(select(Plan).filter_by(name=name)).scalar_one_or_none()
+    plan = db.session.get(Plan, plan_id)
     if plan is None:
-        abort(f"Plan '{name}' does not exist.")
+        abort(f"Plan with ID {plan_id} does not exist.")
+    if name is not None and name != plan.name:
+        plan_with_that_name = db.session.execute(
+            select(Plan).filter_by(name=name)
+        ).scalar_one_or_none()
+        if plan_with_that_name is not None:
+            abort(f"Plan '{name}' (ID: {plan_with_that_name.id}) already exists.")
 
     updates = {
+        "name": name,
         "default_rate_limit": default_rate_limit,
         "trigger_rate_limit": trigger_rate_limit,
         "rate_limit_key": RateLimitKey(rate_limit_key) if rate_limit_key else None,
@@ -154,7 +169,7 @@ def edit_plan(
     db.session.commit()
 
     click.secho(
-        f"Plan '{name}' (ID: {plan.id}) successfully edited: {', '.join(updates)}.",
+        f"Plan '{plan.name}' (ID: {plan.id}) successfully edited: {', '.join(updates)}.",
         **MsgStyle.SUCCESS,
     )
 

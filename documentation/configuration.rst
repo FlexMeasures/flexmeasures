@@ -896,6 +896,8 @@ to the accounts assigned to it, so that it can be shared as a tier (say, "Free" 
 
     $ flexmeasures add plan --name Pro --trigger-rate-limit "60 per 5 minutes" --rate-limit-key account
 
+``flexmeasures show plans`` lists the plans you created, with the limits and quotas each of them sets.
+
 Admins assign an account to a plan from the account page in the UI, or through
 ``PATCH /api/v3_0/accounts/<id>`` (``plan_id``).
 
@@ -905,7 +907,7 @@ which only sets ``trigger_rate_limit`` is treated like everybody else for all ot
 ``"unlimited"`` to exempt an account from a limit altogether.
 
 A plan usually reflects a contractual agreement, so rather than editing a plan which accounts are on, retire it
-(``flexmeasures edit plan --name Pro --legacy``) and create the plan you want to offer instead. A legacy plan keeps
+(``flexmeasures edit plan --id 2 --legacy``) and create the plan you want to offer instead. A legacy plan keeps
 applying to the accounts already on it, but is no longer offered when assigning a plan.
 
 Plans also carry quotas (``max_users``, ``max_assets`` and ``max_clients``). These are not enforced yet.
