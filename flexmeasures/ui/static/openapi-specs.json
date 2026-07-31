@@ -4920,6 +4920,18 @@
           }
         }
       },
+      "GroupReference": {
+        "type": "object",
+        "properties": {
+          "sensor": {
+            "type": "integer"
+          },
+          "asset": {
+            "type": "integer"
+          }
+        },
+        "description": "Reference to a group of devices whose aggregate power is constrained."
+      },
       "Commitment": {
         "type": "object",
         "properties": {
@@ -4932,6 +4944,9 @@
             "items": {
               "type": "integer"
             }
+          },
+          "group": {
+            "$ref": "#/components/schemas/GroupReference"
           },
           "commodity": {
             "type": "string",
@@ -6754,18 +6769,6 @@
             ]
           }
         ]
-      },
-      "GroupReference": {
-        "type": "object",
-        "properties": {
-          "sensor": {
-            "type": "integer"
-          },
-          "asset": {
-            "type": "integer"
-          }
-        },
-        "description": "Reference to a group of devices whose aggregate power is constrained."
       },
       "StorageFlexModelSchemaOpenAPI": {
         "type": "object",

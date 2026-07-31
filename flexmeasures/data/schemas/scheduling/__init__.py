@@ -30,6 +30,7 @@ from flexmeasures.data.schemas.sensors import (
     PriceField,
 )
 from flexmeasures.data.schemas.scheduling import metadata
+from flexmeasures.data.schemas.scheduling.groups import GroupReferenceSchema
 from flexmeasures.data.schemas.units import UnitField
 from flexmeasures.utils.doc_utils import rst_to_openapi
 from flexmeasures.data.schemas.times import (
@@ -75,14 +76,24 @@ class NoTimeSeriesSpecs(Schema):
 
 class CommitmentSchema(Schema):
     name = fields.Str(required=True, data_key="name", validate=validate.Length(min=1))
-    # Optional scoping: bind this commitment to the aggregate flow of the
-    # devices whose power sensors are listed, rather than binding each device
-    # separately. Useful to commit a band on a subset of devices (e.g. an
-    # aFRR band on a site's e-heaters).
+    # Optional scoping: bind this commitment to the aggregate flow of a subset of
+    # devices, rather than binding each device of the commodity separately. Give either
+    # a list of power `sensors` (a cherry-pick that may span electrical groups, e.g. an
+    # aFRR band on a site's e-heaters) or a `group` reference (the members of an
+    # electrical group). At most one of the two.
+    #
+    # A sensor scope binds the listed *flexible* devices only; a group scope binds the
+    # group's members, which include any inflexible (fixed-load) members, so the
+    # aggregate covers the node's total flow -- see StorageScheduler._resolve_commitment_scope.
     sensors = fields.List(
         SensorIdField(),
         required=False,
         data_key="sensors",
+    )
+    group = fields.Nested(
+        GroupReferenceSchema,
+        required=False,
+        data_key="group",
     )
     # Not described in UI_FLEX_CONTEXT_SCHEMA or the Sphinx docs (it does show up
     # in the generated OpenAPI schema, without being promoted in field descriptions).
@@ -109,6 +120,15 @@ class CommitmentSchema(Schema):
         required=False,
         data_key="down-price",
     )
+
+    @validates_schema
+    def forbid_scope_conflict(self, commitment, **kwargs):
+        """A commitment's scope is a sensor list or a group reference, not both."""
+        if "sensors" in commitment and "group" in commitment:
+            raise ValidationError(
+                "A commitment may be scoped by 'sensors' or by 'group', not both.",
+                field_name="sensors",
+            )
 
     @validates_schema
     def require_a_price(self, commitment, **kwargs):

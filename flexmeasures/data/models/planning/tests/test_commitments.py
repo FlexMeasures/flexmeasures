@@ -2165,6 +2165,112 @@ def test_sensor_scoped_commitment_binds_aggregate_of_selected_devices(app, db):
     np.testing.assert_allclose(combined.iloc[:-1], 10.0, rtol=1e-4)
 
 
+def test_commitment_scope_sensors_and_group_are_mutually_exclusive(app, db):
+    """A commitment's scope is either a sensor list or a group reference, not both."""
+    from flexmeasures.data.schemas.scheduling import CommitmentSchema
+    from marshmallow import ValidationError
+
+    heater_type = get_or_create_model(GenericAssetType, name="e-heater")
+    site = GenericAsset(name="scope-conflict site", generic_asset_type=heater_type)
+    db.session.add(site)
+    db.session.flush()
+    power = Sensor(
+        name="scope-conflict power",
+        unit="MW",
+        event_resolution=pd.Timedelta("1h"),
+        generic_asset=site,
+    )
+    db.session.add(power)
+    db.session.flush()
+
+    with pytest.raises(ValidationError, match="not both"):
+        CommitmentSchema().load(
+            {
+                "name": "conflicted",
+                "baseline": "1 MW",
+                "up-price": "1 EUR/MWh",
+                "sensors": [power.id],
+                "group": {"sensor": power.id},
+            }
+        )
+
+
+def test_group_scoped_commitment_binds_group_aggregate(app, db):
+    """A commitment scoped to a ``group`` reference binds the aggregate flow of that
+    group's members, reusing the group's resolved membership -- the same band effect as
+    listing the members' sensors, but pointing at the group instead."""
+    heater_type = get_or_create_model(GenericAssetType, name="e-heater")
+    site = GenericAsset(name="Group-scoped band site", generic_asset_type=heater_type)
+    db.session.add(site)
+    db.session.flush()
+
+    resolution = pd.Timedelta("1h")
+    start = pd.Timestamp("2026-02-01T00:00:00+01:00")
+    end = pd.Timestamp("2026-02-01T04:00:00+01:00")
+
+    def sensor(name):
+        s = Sensor(
+            name=name, unit="MW", event_resolution=resolution, generic_asset=site
+        )
+        db.session.add(s)
+        return s
+
+    heater_1 = sensor("group band heater 1")
+    heater_2 = sensor("group band heater 2")
+    group_sensor = sensor("group aggregate sensor")
+    db.session.flush()
+
+    flex_model = [
+        {
+            "sensor": heater_1.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+            "group": {"sensor": group_sensor.id},
+        },
+        {
+            "sensor": heater_2.id,
+            "power-capacity": "8 MW",
+            "consumption-capacity": "8 MW",
+            "production-capacity": "0 kW",
+            "group": {"sensor": group_sensor.id},
+        },
+        # The group entry (a loose cap so it does not itself bind the aggregate).
+        {"sensor": group_sensor.id, "power-capacity": "1 GW"},
+    ]
+    flex_context = {
+        "consumption-price": "50 EUR/MWh",
+        "production-price": "50 EUR/MWh",
+        "site-power-capacity": "1 GW",
+        "commitments": [
+            {
+                "name": "reserved band on the group",
+                "group": {"sensor": group_sensor.id},
+                "baseline": "10 MW",
+                "down-price": "-10000 EUR/MWh",
+            }
+        ],
+    }
+
+    scheduler = StorageScheduler(
+        asset_or_sensor=site,
+        start=start,
+        end=end,
+        resolution=resolution,
+        belief_time=start,
+        flex_model=flex_model,
+        flex_context=flex_context,
+        return_multiple=True,
+    )
+    results = scheduler.compute(skip_validation=True)
+    schedules = {
+        r["sensor"]: r["data"] for r in results if r.get("name") == "storage_schedule"
+    }
+    combined = schedules[heater_1] + schedules[heater_2]
+    # The band on the group keeps its members' aggregate at 10 MW.
+    np.testing.assert_allclose(combined.iloc[:-1], 10.0, rtol=1e-4)
+
+
 def test_commitments_in_commodity_contexts_are_converted(app):
     """Commitments saved within a commodity context (as the UI editor does per
     commodity tab) are picked up by the scheduler and bind that context's commodity.
