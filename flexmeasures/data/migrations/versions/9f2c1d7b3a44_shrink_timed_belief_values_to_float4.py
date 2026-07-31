@@ -3,8 +3,14 @@
 Change ``cumulative_probability`` and ``event_value`` on ``timed_belief`` from
 double precision (float8, 8 bytes) to single precision (float4/REAL, 4 bytes).
 These are the two per-row numeric value columns on what is typically the
-largest table, so halving their width shrinks the table on disk by roughly
-15-20%.
+largest table.
+
+Measured on 12.9M rows of production data (sensors 5 and 14 of the ems
+production dump of 2026-07-28), this saves 8 bytes of an 84.5-byte row: the
+heap shrinks by 9.4%, but the indexes do not shrink at all, so the table's
+total on-disk footprint drops by only ~3.9%. The 8 bytes are a smaller share
+of the row than they look, because of the 23-byte tuple header and the
+16-byte belief_horizon interval.
 
 Single precision keeps ~7 significant decimal digits, which is plenty for
 sensor readings and for a cumulative probability in [0, 1]. Values already

@@ -927,10 +927,11 @@ class TimedBelief(db.Model, tb.TimedBeliefDBMixin):
 
     # Store these as single-precision floats (float4/REAL, 4 bytes) rather than the
     # double-precision (float8, 8 bytes) that timely_beliefs' TimedBeliefDBMixin uses.
-    # This roughly halves the width of the two per-row value columns, cutting the size
-    # of the (typically largest) timed_belief table by ~15-20%. ~7 significant digits
-    # of single precision are plenty for sensor readings and for a cumulative
-    # probability in [0, 1]. Keep in sync with the matching Alembic migration.
+    # This halves the width of the two per-row value columns, saving 8 bytes of an
+    # 84.5-byte row: measured on production data, the timed_belief heap shrinks by
+    # ~9.4%, and its total on-disk footprint by ~3.9% (indexes do not shrink).
+    # ~7 significant digits of single precision are plenty for sensor readings and for
+    # a cumulative probability in [0, 1]. Keep in sync with the matching migration.
     #
     # TODO: replace this override with timely_beliefs' value_column_type hook
     #       (SeitaBV/timely-beliefs#242) once a release carrying it is out:
